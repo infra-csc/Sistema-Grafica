@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ImageOff } from "lucide-react";
+import { T, TOM } from "@/lib/theme";
 
 interface FilePreviewProps {
   url: string;
@@ -92,14 +93,14 @@ function usePdfSonda(url: string): SondaEstado {
 function AvisoDePreview({ titulo, detalhe, linkUrl }: { titulo: string; detalhe?: string; linkUrl?: string }) {
   return (
     <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, padding: 16, textAlign: "center" }}>
-      <div style={{ width: 48, height: 48, borderRadius: 12, background: "#f4f4f3", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <ImageOff style={{ width: 22, height: 22, color: "#a8a29e" }} />
+      <div style={{ width: 48, height: 48, borderRadius: 12, background: T.low, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <ImageOff style={{ width: 22, height: 22, color: T.muted }} />
       </div>
-      <p style={{ fontSize: 12, color: "#57534e", margin: 0, fontWeight: 600 }}>{titulo}</p>
-      {detalhe && <p style={{ fontSize: 11, color: "#746e69", margin: 0, maxWidth: 260, lineHeight: 1.5 }}>{detalhe}</p>}
+      <p style={{ fontSize: 12, color: T.apoio, margin: 0, fontWeight: 600 }}>{titulo}</p>
+      {detalhe && <p style={{ fontSize: 11, color: T.second, margin: 0, maxWidth: 260, lineHeight: 1.5 }}>{detalhe}</p>}
       {linkUrl && isWebUrl(linkUrl) && (
         <a href={linkUrl} target="_blank" rel="noopener noreferrer"
-          style={{ fontSize: 11, fontWeight: 700, color: "#c2410c", textDecoration: "none", borderBottom: "1px solid #fed7aa" }}>
+          style={{ fontSize: 11, fontWeight: 700, color: T.accentText, textDecoration: "none", borderBottom: `1px solid ${TOM.laranja.border}` }}>
           Abrir arquivo externo
         </a>
       )}
@@ -111,7 +112,7 @@ function PdfComSonda({ url, linkUrl, objectFit, noLink }: { url: string; linkUrl
   const estado = usePdfSonda(url);
 
   if (estado === "sondando") {
-    return <div aria-hidden="true" style={{ width: "100%", height: "100%", background: "#f4f4f3", borderRadius: 8 }} />;
+    return <div aria-hidden="true" style={{ width: "100%", height: "100%", background: T.low, borderRadius: 8 }} />;
   }
   if (estado === "sessao-expirada") {
     // Um `{"error":...}` visível é o que a camada de apiRequest existe para
@@ -140,14 +141,14 @@ function ImageWithFallback({ url, linkUrl, objectFit, noLink }: { url: string; l
   if (errored) {
     return (
       <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
-        <div style={{ width: 48, height: 48, borderRadius: 12, background: "#f4f4f3", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <ImageOff style={{ width: 22, height: 22, color: "#a8a29e" }} />
+        <div style={{ width: 48, height: 48, borderRadius: 12, background: T.low, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <ImageOff style={{ width: 22, height: 22, color: T.muted }} />
         </div>
-        <p style={{ fontSize: 12, color: "#746e69", margin: 0, fontWeight: 500 }}>Imagem não disponível</p>
+        <p style={{ fontSize: 12, color: T.second, margin: 0, fontWeight: 500 }}>Imagem não disponível</p>
         {/* #c2410c sobre branco = 5,18:1 ✓ (#f97316 dava 2,94:1 num link de 11px). */}
         {linkUrl && isWebUrl(linkUrl) && (
           <a href={linkUrl} target="_blank" rel="noopener noreferrer"
-            style={{ fontSize: 11, fontWeight: 700, color: "#c2410c", textDecoration: "none", borderBottom: "1px solid #fed7aa" }}>
+            style={{ fontSize: 11, fontWeight: 700, color: T.accentText, textDecoration: "none", borderBottom: `1px solid ${TOM.laranja.border}` }}>
             Abrir arquivo externo
           </a>
         )}
@@ -205,10 +206,10 @@ export function FilePreview({ url, linkUrl, style, objectFit = "contain", noLink
   if (!isWebUrl(url)) {
     return (
       <div style={{ ...containerStyle, flexDirection: "column", gap: 8, padding: 16, textAlign: "center" }}>
-        <p style={{ fontSize: 12, fontWeight: 600, color: "#746e69", margin: 0 }}>
+        <p style={{ fontSize: 12, fontWeight: 600, color: T.second, margin: 0 }}>
           Arquivo na rede local — o navegador não abre este caminho.
         </p>
-        <p style={{ fontFamily: "monospace", fontSize: 10, color: "#57534e", margin: 0, wordBreak: "break-all" }}>{url}</p>
+        <p style={{ fontFamily: "monospace", fontSize: 10, color: T.apoio, margin: 0, wordBreak: "break-all" }}>{url}</p>
       </div>
     );
   }
@@ -216,7 +217,7 @@ export function FilePreview({ url, linkUrl, style, objectFit = "contain", noLink
   return (
     <div style={containerStyle}>
       <a href={url} target="_blank" rel="noopener noreferrer"
-        style={{ backgroundColor: "#1c1917", color: "#ffffff", padding: "8px 16px", borderRadius: 8, fontSize: 12, fontWeight: 700, textDecoration: "none" }}>
+        style={{ backgroundColor: T.text, color: T.surface, padding: "8px 16px", borderRadius: 8, fontSize: 12, fontWeight: 700, textDecoration: "none" }}>
         Abrir arquivo
       </a>
     </div>

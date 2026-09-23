@@ -41,7 +41,7 @@ import { prazoDoMolde } from "@shared/prazo-molde";
 // chegou a usar dezenove; `P` é a mesma paleta que os selos de status já
 // consomem, e reescrever o hex dela numa tela cria uma cópia que não
 // acompanha a origem.
-import { R, FS } from "@/lib/theme";
+import { T, TOM, N, R, FS } from "@/lib/theme";
 import { spDayMs } from "@shared/prazo-dates";
 import { useAuth } from "@/contexts/auth-context";
 // Regras puras (recortes de status, predicado de filtro, prazo por fase,
@@ -410,11 +410,11 @@ const tableMinWidth = (withCheckbox: boolean, cols: ArteCol[]) =>
  * #b91c1c 6,5:1 · #0e7490 5,4:1 · #15803d 5,0:1 — todos passam em 13px.
  */
 const TAB_THEME: Record<string, { dot: string; text: string; tint: string }> = {
-  "criar-aprovacoes":        { dot: '#f97316', text: '#c2410c', tint: '#fff7ed' },
-  "aguardando-patrocinador": { dot: '#f59e0b', text: '#b45309', tint: '#fffbeb' },
-  "correcao":                { dot: '#ef4444', text: '#b91c1c', tint: '#fef2f2' },
-  "finalizar-layouts":       { dot: '#06b6d4', text: '#0e7490', tint: '#ecfeff' },
-  "finalizados":             { dot: '#22c55e', text: '#15803d', tint: '#f0fdf4' },
+  "criar-aprovacoes":        { dot: T.accent, text: T.accentText, tint: TOM.laranja.bg },
+  "aguardando-patrocinador": { dot: TOM.alerta.dot, text: TOM.alerta.text, tint: TOM.alerta.bg },
+  "correcao":                { dot: TOM.perigo.dot, text: TOM.perigo.text, tint: TOM.perigo.bg },
+  "finalizar-layouts":       { dot: TOM.ciano.dot, text: TOM.ciano.text, tint: TOM.ciano.bg },
+  "finalizados":             { dot: TOM.sucesso.dot, text: TOM.sucesso.text, tint: TOM.sucesso.bg },
 };
 
 /**
@@ -448,14 +448,14 @@ const GUIA_DA_FASE: Record<string, string> = {
  * vez; texto é para o que aparece trinta.
  */
 function semaforoPrazo(diff: number): { bg: string; border: string; text: string } {
-  if (diff < 0) return { bg: '#fee2e2', border: '#fca5a5', text: '#991b1b' };
-  if (diff === 0) return { bg: '#fef3c7', border: '#fcd34d', text: '#92400e' };
-  if (diff <= 3) return { bg: '#ffedd5', border: '#fdba74', text: '#9a3412' };
+  if (diff < 0) return { bg: TOM.perigo.bg, border: TOM.perigo.border, text: TOM.perigo.text };
+  if (diff === 0) return { bg: TOM.alerta.bg, border: TOM.alerta.border, text: TOM.alerta.text };
+  if (diff <= 3) return { bg: TOM.laranja.bg, border: TOM.laranja.border, text: T.accentText };
   // Dentro do prazo = VERDE (dono, 17/09: "com base se passou ou não do
   // prazo"). Era cinza, e o marco folgado se lia como "sem informação" ao lado
   // do vermelho — agora a faixa diz de relance o que passou e o que não.
   // #166534 sobre #dcfce7 ≈ 6,5:1 (AA).
-  return { bg: '#dcfce7', border: '#86efac', text: '#166534' };
+  return { bg: TOM.sucesso.bg, border: TOM.sucesso.border, text: TOM.sucesso.text };
 }
 
 /**
@@ -465,8 +465,8 @@ function semaforoPrazo(diff: number): { bg: string; border: string; text: string
  */
 const KBD: React.CSSProperties = {
   display: 'inline-block', minWidth: 18, padding: '0 5px', margin: '0 1px',
-  borderRadius: 4, border: '1px solid #d6d3d1', borderBottomWidth: 2,
-  background: '#fafaf9', color: '#44403c',
+  borderRadius: 4, border: `1px solid ${T.bdark}`, borderBottomWidth: 2,
+  background: T.bg, color: T.strong,
   fontFamily: '"DM Mono", ui-monospace, monospace', fontSize: 10.5, fontWeight: 600,
   lineHeight: '16px', textAlign: 'center',
 };
@@ -516,7 +516,7 @@ function ThumbPreview({ url, label }: { url?: string | null; label: string }) {
   const aberto = caixa !== null;
   if (!url) {
     return (
-      <span title="Sem thumb" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f4', color: '#78716c', flexShrink: 0 }}>
+      <span title="Sem thumb" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: N.n2, color: T.second, flexShrink: 0 }}>
         <FileImage style={{ width: 13, height: 13 }} />
       </span>
     );
@@ -533,7 +533,7 @@ function ThumbPreview({ url, label }: { url?: string | null; label: string }) {
         onMouseLeave={() => setCaixa(null)}
         onFocus={abrir}
         onBlur={() => setCaixa(null)}
-        style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0' }}
+        style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: TOM.sucesso.bg, color: TOM.sucesso.text, border: `1px solid ${TOM.sucesso.border}` }}
       >
         <FileImage style={{ width: 13, height: 13 }} />
       </a>
@@ -542,8 +542,8 @@ function ThumbPreview({ url, label }: { url?: string | null; label: string }) {
           role="presentation"
           style={{
             position: 'fixed', left: caixa.left, top: caixa.top,
-            zIndex: 60, padding: 4, borderRadius: 8, background: '#ffffff',
-            border: '1px solid #e7e5e4', boxShadow: '0 12px 32px rgba(0,0,0,0.18)',
+            zIndex: 60, padding: 4, borderRadius: 8, background: T.surface,
+            border: `1px solid ${T.border}`, boxShadow: '0 12px 32px rgba(0,0,0,0.18)',
             pointerEvents: 'none',
           }}
         >
@@ -610,19 +610,19 @@ function BotaoBuscarArte({ onClick, variante = "cheio", testId }: {
         ? {
             // 44px de alvo: o modal da Arte também abre no celular.
             minHeight: 44, padding: '0 16px', borderRadius: 8, cursor: 'pointer',
-            border: '1px solid #d6d3d1', background: '#ffffff', color: '#1c1917',
+            border: `1px solid ${T.bdark}`, background: T.surface, color: T.text,
             fontSize: 13, fontWeight: 600,
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
             transition: 'background 0.12s',
           }
         : {
             minHeight: 44, padding: '0 10px', borderRadius: 8, cursor: 'pointer',
-            border: 'none', background: 'transparent', color: '#44403c',
+            border: 'none', background: 'transparent', color: T.strong,
             fontSize: 12, fontWeight: 700, textDecoration: 'underline', textUnderlineOffset: 2,
             display: 'inline-flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
           }}
-      onMouseEnter={(e) => { if (cheio) e.currentTarget.style.background = '#fafaf9'; }}
-      onMouseLeave={(e) => { if (cheio) e.currentTarget.style.background = '#ffffff'; }}
+      onMouseEnter={(e) => { if (cheio) e.currentTarget.style.background = T.bg; }}
+      onMouseLeave={(e) => { if (cheio) e.currentTarget.style.background = T.surface; }}
     >
       <Sparkles aria-hidden="true" style={{ width: 14, height: 14 }} />
       Buscar arte já feita
@@ -641,7 +641,7 @@ function BotaoBuscarArte({ onClick, variante = "cheio", testId }: {
 function MiniaturaDaCorrecao({ url }: { url: string }) {
   const [falhou, setFalhou] = useState(false);
   return (
-    <div style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#15803d', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+    <div style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: TOM.sucesso.text, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
       {falhou
         ? <FileText style={{ width: 15, height: 15, color: '#fff' }} />
         : <img loading="lazy" decoding="async" src={miniatura(url)} alt="" onError={() => setFalhou(true)} style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 8 }} />}
@@ -1950,7 +1950,7 @@ export default function Arte() {
   const facetDeps = [tabPoolItems, eventFilter, sponsorFilter, typeFilter, materialFilter];
 
   const eventFilterOptions = useMemo(() => {
-    const C: Record<string, string> = { urgent: '#ef4444', urgente: '#ef4444', alta: '#f97316', media: '#eab308', baixa: '#3b82f6' };
+    const C: Record<string, string> = { urgent: TOM.perigo.dot, urgente: TOM.perigo.dot, alta: T.accent, media: TOM.alerta.dot, baixa: TOM.info.dot };
     const map = new Map<string, { value: string; label: string; count: number; dotColor?: string }>();
     facetPool('event').forEach((i: any) => {
       if (!i.eventId) return;
@@ -2751,7 +2751,7 @@ export default function Arte() {
       // que se repetem em toda linha da tabela. O laranja é a cor de ATENÇÃO
       // desta tela (o prazo, o selo, a aba ativa) e usá-lo assim anulava o
       // sinal. Qual é a ação continua escrito no rótulo, que é onde se lê.
-      bg: '#1c1917',
+      bg: T.text,
       // Rótulos curtos, porque a fase já está escrita na aba ativa logo acima.
       // "Enviar aprovação" pedia ~176px numa coluna de 170: com o flexWrap da
       // célula, o botão QUEBRAVA para a linha de cima do menu "⋯" e a linha da
@@ -2794,7 +2794,7 @@ export default function Arte() {
             onClick={e => e.stopPropagation()}
             aria-label={`Mais ações para ${item.displayId}`}
             data-testid={`button-row-menu-${item.id}`}
-            style={{ width: isMobile ? 44 : 36, minWidth: isMobile ? 44 : 36, height: isMobile ? 44 : 36, flexShrink: 0, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#ffffff', border: '1px solid #e7e5e4', cursor: 'pointer', color: '#57534e' }}
+            style={{ width: isMobile ? 44 : 36, minWidth: isMobile ? 44 : 36, height: isMobile ? 44 : 36, flexShrink: 0, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', background: T.surface, border: `1px solid ${T.border}`, cursor: 'pointer', color: T.apoio }}
           >
             <MoreHorizontal style={{ width: 15, height: 15 }} />
           </button>
@@ -2803,8 +2803,8 @@ export default function Arte() {
           <button
             onClick={() => handleViewDetails(item)}
             data-testid={`button-view-${item.id}`}
-            style={menuItemStyle('#44403c')}
-            onMouseEnter={e => { e.currentTarget.style.background = '#f5f5f4'; }}
+            style={menuItemStyle(T.strong)}
+            onMouseEnter={e => { e.currentTarget.style.background = N.n2; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
           >
             <Eye style={{ width: 14, height: 14, flexShrink: 0 }} /> Ver detalhes
@@ -2812,15 +2812,15 @@ export default function Arte() {
           <button
             onClick={() => handleExportItemPDF(item)}
             data-testid={`button-export-item-pdf-${item.id}`}
-            style={menuItemStyle('#44403c')}
-            onMouseEnter={e => { e.currentTarget.style.background = '#f5f5f4'; }}
+            style={menuItemStyle(T.strong)}
+            onMouseEnter={e => { e.currentTarget.style.background = N.n2; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
           >
             <Printer style={{ width: 14, height: 14, flexShrink: 0 }} /> Exportar prova em PDF
           </button>
           {podeDispensar && (
             <>
-              <div style={{ height: 1, background: '#f0efee', margin: '4px 0' }} />
+              <div style={{ height: 1, background: N.n3, margin: '4px 0' }} />
               {/* Sai da fileira e vem para cá, marcada: a ação leva a peça
                   direto para produção, pulando patrocinador E revisão final.
                   O NOME (dono, 09/09): era "Dispensar peça", com o ícone de
@@ -2855,15 +2855,15 @@ export default function Arte() {
           )}
           {podeDevolver && (
             <>
-              {!podeDispensar && <div style={{ height: 1, background: '#f0efee', margin: '4px 0' }} />}
+              {!podeDispensar && <div style={{ height: 1, background: N.n3, margin: '4px 0' }} />}
               {/* Vizinha de "dispensar" e o oposto dela: dispensar empurra a
                   peça para produção, devolver a manda para o começo. As duas
                   tiram a peça da fila da Arte, e por isso moram juntas. */}
               <button
                 onClick={() => { setDevolverItem(item); setDevolverMotivo(""); }}
                 data-testid={`button-devolver-${item.id}`}
-                style={menuItemStyle('#b45309')}
-                onMouseEnter={e => { e.currentTarget.style.background = '#fffbeb'; }}
+                style={menuItemStyle(TOM.alerta.text)}
+                onMouseEnter={e => { e.currentTarget.style.background = TOM.alerta.bg; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
               >
                 <RotateCcw style={{ width: 14, height: 14, flexShrink: 0 }} /> Devolver ao solicitante
@@ -2913,8 +2913,8 @@ export default function Arte() {
           // Travado: cinza da casa com rótulo #57534e (6:1). Era #d6d3d1 com
           // letra BRANCA a 85% — ~1,4:1 —, e é nesse estado que o botão diz
           // "Enviando…", a única confirmação de que o clique pegou.
-          backgroundColor: travado ? '#e7e5e4' : acao.bg,
-          color: travado ? '#57534e' : '#ffffff', border: 'none',
+          backgroundColor: travado ? T.border : acao.bg,
+          color: travado ? T.apoio : T.surface, border: 'none',
           cursor: travado ? 'not-allowed' : 'pointer',
           fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -2925,7 +2925,7 @@ export default function Arte() {
         onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
       >
         {enviando
-          ? <><span style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid #d6d3d1', borderTopColor: '#57534e', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />Enviando…</>
+          ? <><span style={{ width: 12, height: 12, borderRadius: '50%', border: `2px solid ${T.bdark}`, borderTopColor: T.apoio, animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />Enviando…</>
           : acao.label}
       </button>
     );
@@ -2987,7 +2987,7 @@ export default function Arte() {
    * cor, porque é o único que pede ação.
    */
   const renderTagsDaPeca = (item: any) => {
-    const link: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11.5, fontWeight: 600, color: '#44403c', textDecoration: 'underline', textDecorationColor: '#d6d3d1', textUnderlineOffset: 2 };
+    const link: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11.5, fontWeight: 600, color: T.strong, textDecoration: 'underline', textDecorationColor: T.bdark, textUnderlineOffset: 2 };
     const tem = item.referenceUrl || item.bookUrl || eventosComBook.has(item.eventId);
     if (!tem) return null;
     return (
@@ -3009,7 +3009,7 @@ export default function Arte() {
           // Salvar o book limpa o bookUrl de TODAS as peças do evento e regrava só
           // as marcadas — é fácil deixar peça de fora sem perceber. #92400e sobre
           // branco = 7,1:1 ✓.
-          <span title="O evento já tem book publicado, mas esta peça ficou de fora dele" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11.5, fontWeight: 700, color: '#92400e' }} data-testid={`tag-fora-do-book-${item.id}`}>
+          <span title="O evento já tem book publicado, mas esta peça ficou de fora dele" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11.5, fontWeight: 700, color: TOM.alerta.text }} data-testid={`tag-fora-do-book-${item.id}`}>
             <AlertTriangle aria-hidden="true" style={{ width: 10, height: 10 }} />
             Fora do book
           </span>
@@ -3042,17 +3042,17 @@ export default function Arte() {
       tabId === "criar-aprovacoes" && item.rejectedBySponsor && {
         chave: 'reprovada', rotulo: 'Reprovada', testId: `badge-rejected-sponsor-${item.id}`,
         titulo: 'Reprovada pelo patrocinador — voltou para a Arte refazer',
-        cor: { bg: '#fef2f2', borda: '#fecaca', texto: '#b91c1c' },
+        cor: { bg: TOM.perigo.bg, borda: TOM.perigo.border, texto: TOM.perigo.text },
       },
       item.isPriority && {
         chave: 'prioritaria', rotulo: 'PRIORITÁRIA', testId: `tag-prioritaria-${item.id}`,
         titulo: 'Peça prioritária — marcada pela Solicitação para sair na frente',
-        cor: { bg: '#fff1f2', borda: '#fecdd3', texto: '#be123c' },
+        cor: { bg: P.pink.bg, borda: P.pink.border, texto: P.pink.text },
       },
       tabId === "criar-aprovacoes" && item.approvalThumbUrl && !item.rejectedBySponsor && {
         chave: 'rascunho', rotulo: 'Rascunho', testId: `badge-thumb-draft-${item.id}`,
         titulo: 'Thumb salvo como rascunho, ainda não enviado para aprovação',
-        cor: { bg: '#f5f3ff', borda: '#ddd6fe', texto: '#6d28d9' },
+        cor: { bg: TOM.roxo.bg, borda: TOM.roxo.border, texto: TOM.roxo.text },
       },
     ].filter(Boolean) as Estado[]);
     return (
@@ -3064,7 +3064,7 @@ export default function Arte() {
             style={i === 0 && tabId !== "finalizados"
               ? { fontSize: 11, fontWeight: 700, color: e.cor.texto, backgroundColor: e.cor.bg, border: `1px solid ${e.cor.borda}`, borderRadius: 6, padding: '1px 6px', whiteSpace: 'nowrap' }
               // #57534e sobre branco = 7,0:1 ✓ — texto, não selo.
-              : { fontSize: 11, fontWeight: 600, color: '#57534e', whiteSpace: 'nowrap' }}>
+              : { fontSize: 11, fontWeight: 600, color: T.apoio, whiteSpace: 'nowrap' }}>
             {e.rotulo}
           </span>
         ))}
@@ -3085,7 +3085,7 @@ export default function Arte() {
     const partes: React.ReactNode[] = [];
     if (comQtd) partes.push(<span key="q">Qtd {formatQuantity(item.quantity)}</span>);
     if (item.visualWidth && item.visualHeight) {
-      partes.push(<span key="v" title={`${item.visualWidth} × ${item.visualHeight}`} style={{ fontWeight: 700, color: '#44403c', fontVariantNumeric: 'tabular-nums' }}>{item.visualWidth} × {item.visualHeight}</span>);
+      partes.push(<span key="v" title={`${item.visualWidth} × ${item.visualHeight}`} style={{ fontWeight: 700, color: T.strong, fontVariantNumeric: 'tabular-nums' }}>{item.visualWidth} × {item.visualHeight}</span>);
     }
     if (item.fileWidth && item.fileHeight) {
       partes.push(
@@ -3100,10 +3100,10 @@ export default function Arte() {
     if (item.finish) partes.push(<span key="f" title={item.finish}>{item.finish}</span>);
     if (partes.length === 0) return null;
     return (
-      <span data-testid={`meta-peca-${item.id}`} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 6, rowGap: 1, fontSize: 11.5, color: '#57534e', minWidth: 0 }}>
+      <span data-testid={`meta-peca-${item.id}`} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 6, rowGap: 1, fontSize: 11.5, color: T.apoio, minWidth: 0 }}>
         {partes.map((p, i) => (
           <Fragment key={i}>
-            {i > 0 && <span aria-hidden="true" style={{ color: '#78716c' }}>·</span>}
+            {i > 0 && <span aria-hidden="true" style={{ color: T.second }}>·</span>}
             {p}
           </Fragment>
         ))}
@@ -3118,9 +3118,9 @@ export default function Arte() {
       // A linha inteira abre os detalhes no desktop, como o card equivalente já
       // fazia no mobile — o mesmo conteúdo tinha dois modelos de interação.
       onClick={() => handleViewDetails(item)}
-      style={{ borderBottom: '1px solid #f5f5f4', transition: 'background 0.15s', cursor: 'pointer' }}
-      onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = '#fafaf9'}
-      onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = '#ffffff'}
+      style={{ borderBottom: `1px solid ${N.n2}`, transition: 'background 0.15s', cursor: 'pointer' }}
+      onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = T.bg}
+      onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = T.surface}
     >
       {comSelecao && (
         <td style={{ padding: '9px 12px' }} onClick={e => e.stopPropagation()}>
@@ -3140,7 +3140,7 @@ export default function Arte() {
           padrão é stretch, e o selo seria esticado na largura da célula. */}
       <td style={{ padding: '9px 12px', overflow: 'hidden' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start' }}>
-          <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 12, color: '#57534e', fontWeight: 600 }} data-testid={`text-display-id-${item.id}`}>
+          <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 12, color: T.apoio, fontWeight: 600 }} data-testid={`text-display-id-${item.id}`}>
             {item.displayId}
           </span>
           {renderSelosDaPeca(item, tabId)}
@@ -3148,7 +3148,7 @@ export default function Arte() {
       </td>
       {/* Qtd — formatQuantity: `String(q || '—').padStart(2,'0')` transformava
           peça sem quantidade em "0—", e uma peça só em "01". */}
-      <td style={{ padding: '9px 12px', fontWeight: 700, color: item.quantity ? '#1c1917' : '#57534e', fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>
+      <td style={{ padding: '9px 12px', fontWeight: 700, color: item.quantity ? T.text : T.apoio, fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>
         {formatQuantity(item.quantity)}
       </td>
       {/* Peça — nome em destaque; descrição, medida/material e anexos em texto
@@ -3156,16 +3156,16 @@ export default function Arte() {
       <td style={{ padding: '9px 12px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start', minWidth: 0 }}>
           {/* Tipo E descrição: o tipo é o nome da peça; a descrição é o detalhe. */}
-          <span style={{ fontWeight: 700, color: '#1c1917', fontSize: 13, wordBreak: 'break-word' }}>{item.type || item.description}</span>
+          <span style={{ fontWeight: 700, color: T.text, fontSize: 13, wordBreak: 'break-word' }}>{item.type || item.description}</span>
           {item.type && item.description && (
-            <span style={{ fontSize: 12, color: '#57534e', wordBreak: 'break-word' }}>{item.description}</span>
+            <span style={{ fontSize: 12, color: T.apoio, wordBreak: 'break-word' }}>{item.description}</span>
           )}
           {renderMetaDaPeca(item)}
           {/* A observação é instrução de quem pediu a peça para quem faz a
               arte — fica à vista, na única cor de aviso da célula.
               #b45309 sobre branco = 5,0:1 ✓. */}
           {item.observations && (
-            <span style={{ fontSize: 11.5, color: '#b45309', display: 'flex', alignItems: 'center', gap: 3 }}>
+            <span style={{ fontSize: 11.5, color: TOM.alerta.text, display: 'flex', alignItems: 'center', gap: 3 }}>
               <AlertCircle aria-hidden="true" style={{ width: 10, height: 10, flexShrink: 0 }} />{item.observations}
             </span>
           )}
@@ -3177,11 +3177,11 @@ export default function Arte() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <ThumbPreview url={item.approvalThumbUrl} label={`thumb de ${item.displayId}`} />
           {item.finalFileUrl ? (
-            <a href={hrefSeguro(item.finalFileUrl)} target="_blank" rel="noopener noreferrer" title="Ver arquivo final" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', flexShrink: 0 }}>
+            <a href={hrefSeguro(item.finalFileUrl)} target="_blank" rel="noopener noreferrer" title="Ver arquivo final" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: TOM.sucesso.bg, color: TOM.sucesso.text, border: `1px solid ${TOM.sucesso.border}`, flexShrink: 0 }}>
               <FileText style={{ width: 13, height: 13 }} />
             </a>
           ) : (
-            <span title="Sem arquivo final" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f4', color: '#78716c', flexShrink: 0 }}>
+            <span title="Sem arquivo final" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: N.n2, color: T.second, flexShrink: 0 }}>
               <FileText style={{ width: 13, height: 13 }} />
             </span>
           )}
@@ -3219,21 +3219,21 @@ export default function Arte() {
       role="button"
       tabIndex={0}
       data-testid={`card-arte-${item.id}`}
-      style={{ backgroundColor: '#fff', border: '1px solid #e7e5e4', borderRadius: 8, padding: 12, cursor: 'pointer' }}
+      style={{ backgroundColor: '#fff', border: `1px solid ${T.border}`, borderRadius: 8, padding: 12, cursor: 'pointer' }}
       onClick={() => handleViewDetails(item)}
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleViewDetails(item); } }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
-        <span style={{ fontFamily: '"DM Mono", monospace', fontWeight: 600, color: '#57534e', fontSize: 12 }}>{item.displayId}</span>
+        <span style={{ fontFamily: '"DM Mono", monospace', fontWeight: 600, color: T.apoio, fontSize: 12 }}>{item.displayId}</span>
         {renderSelosDaPeca(item, tabId)}
       </div>
       <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
-          <div style={{ fontWeight: 700, fontSize: 14, color: '#1c1917' }}>{item.type || item.description}</div>
-          {item.type && item.description && <div style={{ fontSize: 12, color: '#57534e' }}>{item.description}</div>}
+          <div style={{ fontWeight: 700, fontSize: 14, color: T.text }}>{item.type || item.description}</div>
+          {item.type && item.description && <div style={{ fontSize: 12, color: T.apoio }}>{item.description}</div>}
           {renderPrazo(item, tabId, hoje)}
           {renderMetaDaPeca(item, true)}
           {item.observations && (
-            <span style={{ fontSize: 11.5, color: '#b45309', display: 'flex', alignItems: 'center', gap: 3 }}>
+            <span style={{ fontSize: 11.5, color: TOM.alerta.text, display: 'flex', alignItems: 'center', gap: 3 }}>
               <AlertCircle aria-hidden="true" style={{ width: 10, height: 10, flexShrink: 0 }} />{item.observations}
             </span>
           )}
@@ -3243,7 +3243,7 @@ export default function Arte() {
             <img> quebrado aqui. À direita, pequena: é a arte da própria
             pessoa, e reconhecer a peça pela imagem é mais rápido que ler. */}
         {item.approvalThumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(item.approvalThumbUrl) || item.approvalThumbUrl.startsWith('/objects/')) && (
-          <img loading="lazy" decoding="async" src={miniatura(item.approvalThumbUrl)} alt="" style={{ width: 56, height: 44, borderRadius: 6, objectFit: 'cover', flexShrink: 0, border: '1px solid #f0efee' }} />
+          <img loading="lazy" decoding="async" src={miniatura(item.approvalThumbUrl)} alt="" style={{ width: 56, height: 44, borderRadius: 6, objectFit: 'cover', flexShrink: 0, border: `1px solid ${N.n3}` }} />
         )}
       </div>
       {tabId === "aguardando-patrocinador" && (
@@ -3286,13 +3286,13 @@ export default function Arte() {
               mesmo bloco, e o vazio ficava desenhado com mais peso visual que
               qualquer linha da tabela cheia. */}
           {soAtrasadas
-            ? <CheckCircle aria-hidden="true" style={{ width: 28, height: 28, color: '#15803d', margin: '0 auto 12px' }} />
+            ? <CheckCircle aria-hidden="true" style={{ width: 28, height: 28, color: TOM.sucesso.text, margin: '0 auto 12px' }} />
             : porFiltro
-            ? <Search aria-hidden="true" style={{ width: 28, height: 28, color: '#746e69', margin: '0 auto 12px' }} />
-            : tabId === "criar-aprovacoes" ? <CheckCircle aria-hidden="true" style={{ width: 28, height: 28, color: '#15803d', margin: '0 auto 12px' }} />
-            : tabId === "finalizar-layouts" ? <Upload aria-hidden="true" style={{ width: 28, height: 28, color: '#15803d', margin: '0 auto 12px' }} />
-            : <Eye aria-hidden="true" style={{ width: 28, height: 28, color: '#15803d', margin: '0 auto 12px' }} />}
-          <p style={{ fontSize: 15, fontWeight: 700, color: '#1a1c1c', marginBottom: 6 }}>
+            ? <Search aria-hidden="true" style={{ width: 28, height: 28, color: T.second, margin: '0 auto 12px' }} />
+            : tabId === "criar-aprovacoes" ? <CheckCircle aria-hidden="true" style={{ width: 28, height: 28, color: TOM.sucesso.text, margin: '0 auto 12px' }} />
+            : tabId === "finalizar-layouts" ? <Upload aria-hidden="true" style={{ width: 28, height: 28, color: TOM.sucesso.text, margin: '0 auto 12px' }} />
+            : <Eye aria-hidden="true" style={{ width: 28, height: 28, color: TOM.sucesso.text, margin: '0 auto 12px' }} />}
+          <p style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 6 }}>
             {soAtrasadas
               ? tabId === "finalizados"
                 ? "Finalizados não tem atraso a mostrar"
@@ -3304,7 +3304,7 @@ export default function Arte() {
               : tabId === "finalizar-layouts" ? "Nenhuma peça aguardando arquivo final"
               : "Nenhuma peça finalizada"}
           </p>
-          <p style={{ fontSize: 13, color: '#746e69', lineHeight: 1.55, maxWidth: 460, margin: '0 auto' }} data-testid="empty-arte-motivo">
+          <p style={{ fontSize: 13, color: T.second, lineHeight: 1.55, maxWidth: 460, margin: '0 auto' }} data-testid="empty-arte-motivo">
             {soAtrasadas
               ? tabId === "finalizados"
                 ? "O marco desta fase é a própria saída do caminhão, que numa peça já pronta passou por definição — a lista está vazia pelo filtro, não porque falte trabalho."
@@ -3324,7 +3324,7 @@ export default function Arte() {
                 <button
                   onClick={() => setAtrasadoFilter(false)}
                   data-testid="button-clear-atrasado-empty"
-                  style={{ height: 36, padding: '0 16px', borderRadius: 8, border: 'none', background: '#1c1917', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                  style={{ height: 36, padding: '0 16px', borderRadius: 8, border: 'none', background: T.text, color: T.surface, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
                 >
                   Mostrar todos os prazos
                 </button>
@@ -3332,7 +3332,7 @@ export default function Arte() {
               <button
                 onClick={clearAllFilters}
                 data-testid="button-clear-filters-empty"
-                style={{ height: 36, padding: '0 16px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#1c1917', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                style={{ height: 36, padding: '0 16px', borderRadius: 8, border: `1px solid ${T.border}`, background: T.surface, color: T.text, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
               >
                 Limpar {activeFilterCount === 1 ? 'o filtro' : `os ${activeFilterCount} filtros`}
               </button>
@@ -3349,7 +3349,7 @@ export default function Arte() {
               <button
                 onClick={() => changeTab(destino.id)}
                 data-testid="button-empty-proxima-fase"
-                style={{ marginTop: 14, height: 36, padding: '0 16px', borderRadius: 8, border: 'none', background: '#1c1917', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                style={{ marginTop: 14, height: 36, padding: '0 16px', borderRadius: 8, border: 'none', background: T.text, color: T.surface, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
               >
                 Ir para {destino.label} ({destino.count})
                 <ArrowRight aria-hidden="true" style={{ width: 14, height: 14 }} />
@@ -3453,10 +3453,10 @@ export default function Arte() {
     // cabeçalho, "M²" ficava alinhado à direita mas a fronteira entre as duas
     // colunas só existia meia tabela abaixo.
     const thStyle = (col: { right?: boolean; sep?: boolean }): React.CSSProperties => ({
-      padding: '10px 12px', fontSize: 11, fontWeight: 700, color: '#57534e',
+      padding: '10px 12px', fontSize: 11, fontWeight: 700, color: T.apoio,
       textTransform: 'uppercase', letterSpacing: '0.06em',
       textAlign: col.right ? 'right' : 'left',
-      borderLeft: col.sep ? '1px solid #f0efed' : undefined,
+      borderLeft: col.sep ? `1px solid ${N.n3}` : undefined,
       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
     });
 
@@ -3478,15 +3478,15 @@ export default function Arte() {
             passou do marco (o prazo já venceu) antes de parada (está devagar)
             antes de urgente (o evento é que corre). */}
         {(atrasadas > 0 || urgentes > 0 || paradas > 0) && (
-          <div data-testid="faixa-diagnostico" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '7px 10px', borderRadius: 10, background: '#fafaf9', border: '1px solid #e7e5e4' }}>
-            <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.09em', textTransform: 'uppercase', color: '#78716c', paddingLeft: 2, flexShrink: 0 }}>
+          <div data-testid="faixa-diagnostico" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '7px 10px', borderRadius: 10, background: T.bg, border: `1px solid ${T.border}` }}>
+            <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.09em', textTransform: 'uppercase', color: T.second, paddingLeft: 2, flexShrink: 0 }}>
               Atenção
             </span>
             {([
               atrasadas > 0 && {
                 chave: 'atrasadas' as const,
                 testid: 'chip-atrasadas',
-                ponto: '#dc2626',
+                ponto: TOM.perigo.text,
                 n: tabId === activeTab ? atrasadasNaAba : atrasadas,
                 rotulo: 'passaram do marco',
                 ligado: atrasadoFilter,
@@ -3498,7 +3498,7 @@ export default function Arte() {
               paradas > 0 && {
                 chave: 'paradas' as const,
                 testid: 'chip-paradas',
-                ponto: '#ea580c',
+                ponto: T.accentText,
                 n: paradas,
                 rotulo: `sem andar há ${PARADA_HA_MAIS_DE}d+`,
                 ligado: paradasFilter,
@@ -3510,7 +3510,7 @@ export default function Arte() {
               urgentes > 0 && {
                 chave: 'urgentes' as const,
                 testid: 'chip-urgentes',
-                ponto: '#d97706',
+                ponto: TOM.alerta.text,
                 n: tabId === activeTab ? urgentesNaAba : urgentes,
                 rotulo: 'de eventos urgentes',
                 ligado: urgenteFilter,
@@ -3531,17 +3531,17 @@ export default function Arte() {
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 7,
                     padding: '4px 11px', borderRadius: 999, cursor: 'pointer', font: 'inherit',
-                    background: ligado ? '#1c1917' : '#ffffff',
-                    border: `1px solid ${ligado ? '#1c1917' : '#e7e5e4'}`,
+                    background: ligado ? T.text : T.surface,
+                    border: `1px solid ${ligado ? T.text : T.border}`,
                     transition: 'background 0.12s, border-color 0.12s',
                   }}
                 >
                   {/* O ponto carrega a gravidade. Ligado, ele vira branco: o
                       fundo escuro já é o sinal, e dois sinais competindo no
                       mesmo chip é o que deixava a faixa confusa. */}
-                  <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 999, background: ligado ? '#ffffff' : ponto, flexShrink: 0 }} />
-                  <span style={{ fontSize: 12.5, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: ligado ? '#ffffff' : '#1c1917' }}>{n}</span>
-                  <span style={{ fontSize: 12, fontWeight: 500, color: ligado ? '#e7e5e4' : '#57534e' }}>{rotulo}</span>
+                  <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 999, background: ligado ? T.surface : ponto, flexShrink: 0 }} />
+                  <span style={{ fontSize: 12.5, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: ligado ? T.surface : T.text }}>{n}</span>
+                  <span style={{ fontSize: 12, fontWeight: 500, color: ligado ? T.border : T.apoio }}>{rotulo}</span>
                 </button>
               ))}
           </div>
@@ -3576,20 +3576,20 @@ export default function Arte() {
           // salta aos olhos antes de qualquer leitura), a cor é a idade da
           // espera, e o clique continua filtrando.
           const pele = (espera: number, ligado: boolean) => {
-            if (ligado) return { bg: '#1c1917', borda: '#1c1917', texto: '#ffffff', barra: '#fb923c', trilho: 'rgba(255,255,255,0.16)', sub: 'rgba(255,255,255,0.65)' };
-            if (espera >= 14) return { bg: '#fef2f2', borda: '#fecaca', texto: '#991b1b', barra: '#dc2626', trilho: '#fee2e2', sub: '#b91c1c' };
-            if (espera >= 7) return { bg: '#fffbeb', borda: '#fde68a', texto: '#92400e', barra: '#f59e0b', trilho: '#fef3c7', sub: '#b45309' };
-            return { bg: '#ffffff', borda: '#e7e5e4', texto: '#44403c', barra: '#a8a29e', trilho: '#f0efed', sub: '#78716c' };
+            if (ligado) return { bg: T.text, borda: T.text, texto: T.surface, barra: TOM.laranja.dot, trilho: 'rgba(255,255,255,0.16)', sub: 'rgba(255,255,255,0.65)' };
+            if (espera >= 14) return { bg: TOM.perigo.bg, borda: TOM.perigo.border, texto: TOM.perigo.text, barra: TOM.perigo.text, trilho: TOM.perigo.bg, sub: TOM.perigo.text };
+            if (espera >= 7) return { bg: TOM.alerta.bg, borda: TOM.alerta.border, texto: TOM.alerta.text, barra: TOM.alerta.dot, trilho: TOM.alerta.bg, sub: TOM.alerta.text };
+            return { bg: T.surface, borda: T.border, texto: T.strong, barra: T.muted, trilho: N.n3, sub: T.second };
           };
           const teto = Math.max(1, ...travando.map(t => t.pecas));
           // Com uma marca ligada no filtro o ranking fica aberto: é nele que
           // mora o caminho de volta ("mostrar todas as peças de novo").
           const rankingAberto = travandoAberto || (sponsorFilter.length === 1 && travando.some(t => t.id === sponsorFilter[0]));
           return (
-            <div data-testid="faixa-travando" style={{ borderRadius: 12, background: '#ffffff', border: '1px solid #e7e5e4', overflow: 'hidden' }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', padding: '10px 14px', background: '#fafaf9', borderBottom: '1px solid #f0efed' }}>
-                <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#57534e', whiteSpace: 'nowrap' }}>Quem está travando</span>
-                <span data-testid="travando-resumo" style={{ fontSize: 12, color: '#78716c' }}>
+            <div data-testid="faixa-travando" style={{ borderRadius: 12, background: T.surface, border: `1px solid ${T.border}`, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', padding: '10px 14px', background: T.bg, borderBottom: `1px solid ${N.n3}` }}>
+                <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: T.apoio, whiteSpace: 'nowrap' }}>Quem está travando</span>
+                <span data-testid="travando-resumo" style={{ fontSize: 12, color: T.second }}>
                   {travando.length} {travando.length === 1 ? 'marca segura' : 'marcas seguram'} {pendencias} {pendencias === 1 ? 'aprovação' : 'aprovações'}
                   {travando[0].espera > 0 ? ` — a mais antiga espera há ${travando[0].espera}d` : ''}
                 </span>
@@ -3600,7 +3600,7 @@ export default function Arte() {
                   aria-expanded={rankingAberto}
                   aria-controls="ranking-travando"
                   data-testid="button-travando-ranking"
-                  style={{ border: 'none', background: 'transparent', padding: '0 4px', minHeight: isMobile ? 44 : 28, color: '#44403c', fontSize: 12, fontWeight: 700, cursor: 'pointer', font: 'inherit', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                  style={{ border: 'none', background: 'transparent', padding: '0 4px', minHeight: isMobile ? 44 : 28, color: T.strong, fontSize: 12, fontWeight: 700, cursor: 'pointer', font: 'inherit', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4 }}
                 >
                   {rankingAberto ? 'Recolher' : 'Ver quem'}
                   <ChevronDown aria-hidden="true" style={{ width: 12, height: 12, transform: rankingAberto ? 'rotate(180deg)' : undefined, transition: 'transform 0.15s' }} />
@@ -3610,7 +3610,7 @@ export default function Arte() {
                     type="button"
                     onClick={() => setShowAllTravando(v => !v)}
                     data-testid="button-travando-todas"
-                    style={{ border: 'none', background: 'transparent', padding: 0, color: '#c2410c', fontSize: 12, fontWeight: 700, cursor: 'pointer', font: 'inherit', whiteSpace: 'nowrap', textDecoration: 'underline', textUnderlineOffset: 3, textDecorationColor: '#fdba74' }}
+                    style={{ border: 'none', background: 'transparent', padding: 0, color: T.accentText, fontSize: 12, fontWeight: 700, cursor: 'pointer', font: 'inherit', whiteSpace: 'nowrap', textDecoration: 'underline', textUnderlineOffset: 3, textDecorationColor: TOM.laranja.border }}
                   >
                     {showAllTravando ? 'Mostrar menos' : `Ver as ${ocultas} outra${ocultas !== 1 ? 's' : ''}`}
                   </button>
@@ -3635,17 +3635,17 @@ export default function Arte() {
                       style={{
                         display: 'block', width: '100%', textAlign: 'left', font: 'inherit', cursor: 'pointer',
                         padding: '8px 10px', margin: '4px 0', borderRadius: 9,
-                        border: `1px solid ${ligado ? '#1c1917' : 'transparent'}`,
-                        background: ligado ? '#1c1917' : 'transparent',
+                        border: `1px solid ${ligado ? T.text : 'transparent'}`,
+                        background: ligado ? T.text : 'transparent',
                         transition: 'background 0.1s',
                       }}
-                      onMouseEnter={e => { if (!ligado) e.currentTarget.style.background = '#fafaf9'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = ligado ? '#1c1917' : 'transparent'; }}
+                      onMouseEnter={e => { if (!ligado) e.currentTarget.style.background = T.bg; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = ligado ? T.text : 'transparent'; }}
                     >
                       <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 5 }}>
-                        <span aria-hidden style={{ fontFamily: "'DM Mono', monospace", fontSize: 10.5, fontWeight: 700, color: ligado ? 'rgba(255,255,255,0.72)' : '#78716c', minWidth: 16 }}>{rank}º</span>
-                        <span style={{ fontSize: 12.5, fontWeight: 700, color: ligado ? '#ffffff' : '#1c1917', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: 1 }}>{t.nome}</span>
-                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12.5, fontWeight: 800, color: ligado ? '#ffffff' : p.texto, whiteSpace: 'nowrap' }}>{t.pecas}</span>
+                        <span aria-hidden style={{ fontFamily: "'DM Mono', monospace", fontSize: 10.5, fontWeight: 700, color: ligado ? 'rgba(255,255,255,0.72)' : T.second, minWidth: 16 }}>{rank}º</span>
+                        <span style={{ fontSize: 12.5, fontWeight: 700, color: ligado ? T.surface : T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: 1 }}>{t.nome}</span>
+                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12.5, fontWeight: 800, color: ligado ? T.surface : p.texto, whiteSpace: 'nowrap' }}>{t.pecas}</span>
                         <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 700, color: ligado ? 'rgba(255,255,255,0.8)' : p.sub, whiteSpace: 'nowrap', minWidth: 38, textAlign: 'right' }}>
                           {t.espera > 0 ? `+${t.espera}d` : 'hoje'}
                         </span>
@@ -3667,9 +3667,9 @@ export default function Arte() {
 
         {/* Recorte padrão da aba Finalizados — ver dentroDaJanelaFinalizados. */}
         {tabId === "finalizados" && (finalizadosForaDaJanela > 0 || finalizadosTudo) && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '9px 14px', borderRadius: 10, background: '#fafaf9', border: '1px solid #e7e5e4' }}>
-            <Clock style={{ width: 13, height: 13, color: '#57534e', flexShrink: 0 }} />
-            <span style={{ fontSize: 12, color: '#44403c' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '9px 14px', borderRadius: 10, background: T.bg, border: `1px solid ${T.border}` }}>
+            <Clock style={{ width: 13, height: 13, color: T.apoio, flexShrink: 0 }} />
+            <span style={{ fontSize: 12, color: T.strong }}>
               {finalizadosTudo
                 ? 'Mostrando todo o histórico de peças finalizadas.'
                 : `Mostrando os últimos 90 dias por saída do caminhão — ${finalizadosForaDaJanela} peça(s) mais antiga(s) estão fora deste recorte.`}
@@ -3679,7 +3679,7 @@ export default function Arte() {
               data-testid="button-finalizados-janela"
               // 30px era o menor alvo da faixa, e este botão troca o RECORTE
               // inteiro da aba — mostra ou esconde tudo o que passou de 90 dias.
-              style={{ marginLeft: 'auto', height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 9, border: '1px solid #e7e5e4', background: '#ffffff', color: '#1c1917', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+              style={{ marginLeft: 'auto', height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 9, border: `1px solid ${T.border}`, background: T.surface, color: T.text, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
             >
               {finalizadosTudo ? 'Voltar aos 90 dias' : 'Ver tudo'}
             </button>
@@ -3709,7 +3709,7 @@ export default function Arte() {
             ThumbPreview) e aqui ficou só o eixo que precisa rolar. */}
         <div style={{
           overflowX: isMobile ? 'visible' : 'auto',
-          scrollbarWidth: 'thin', scrollbarColor: '#d6d3d1 #f5f5f4',
+          scrollbarWidth: 'thin', scrollbarColor: `${T.bdark} ${N.n2}`,
         }}>
           <div style={{ minWidth: isMobile ? undefined : minW, display: 'flex', flexDirection: 'column', gap: 16 }}>
             {blocos.map(bloco => {
@@ -3726,7 +3726,7 @@ export default function Arte() {
                 ? `${quantosFaltam} de ${evTotal} ${faltamArquivo ? 'sem arquivo final' : 'sem thumb'}`
                 : null;
               return (
-                <div key={bloco.key} style={{ borderRadius: 12, overflow: 'hidden', backgroundColor: '#ffffff', border: '1px solid #e7e5e4' }}>
+                <div key={bloco.key} style={{ borderRadius: 12, overflow: 'hidden', backgroundColor: T.surface, border: `1px solid ${T.border}` }}>
                   {/* ── Faixa do evento ──
 
                       CLARA. Ela já foi laranja, e o problema real daquela
@@ -3741,8 +3741,8 @@ export default function Arte() {
                       eram exatamente o que a faixa escura estava sufocando. */}
                   <div style={{
                     padding: '12px 18px',
-                    backgroundColor: '#fdfcfb',
-                    borderBottom: '1px solid #f1efec',
+                    backgroundColor: T.bg,
+                    borderBottom: `1px solid ${N.n3}`,
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
@@ -3751,12 +3751,12 @@ export default function Arte() {
                           de CADA bloco não distinguia evento nenhum — todos a
                           tinham —, e o nome em versalete gritava mais alto que o
                           prazo ao lado, que é o dado que decide a ordem. */}
-                      <span title={bloco.eventName} style={{ color: '#1a1c1c', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span title={bloco.eventName} style={{ color: T.text, fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {bloco.eventName}
                       </span>
                       {/* Quanto daquele evento já está resolvido NESTA fase. */}
                       {faltando && (
-                        <span style={{ fontSize: 11, fontWeight: 600, color: '#746e69', whiteSpace: 'nowrap' }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: T.second, whiteSpace: 'nowrap' }}>
                           {faltando}
                         </span>
                       )}
@@ -3770,7 +3770,7 @@ export default function Arte() {
                           data do evento e os outros dois marcos continuam a um
                           passar de mouse, no `title` do marco. */}
                       {!isMobile && bloco.eventObj?.truckDepartureDate && (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#57534e', fontSize: 11, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: T.apoio, fontSize: 11, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                           <Truck aria-hidden="true" style={{ width: 12, height: 12 }} />
                           {/* Bloco do Kit: a data que manda é a entrega do material (15/09). */}
                           {bloco.eventObj.datasDoKit
@@ -3828,18 +3828,18 @@ export default function Arte() {
                                 type="button"
                                 aria-label={`Datas de ${bloco.eventName}`}
                                 data-testid="button-datas-da-faixa"
-                                style={{ width: lado, height: lado, minWidth: lado, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: '#ffffff', border: '1px solid #e7e5e4', color: '#57534e', cursor: 'pointer', flexShrink: 0 }}
+                                style={{ width: lado, height: lado, minWidth: lado, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: T.surface, border: `1px solid ${T.border}`, color: T.apoio, cursor: 'pointer', flexShrink: 0 }}
                               >
                                 <Info aria-hidden="true" style={{ width: 14, height: 14 }} />
                               </button>
                             </PopoverTrigger>
                             <PopoverContent align="end" style={{ width: 240, padding: 12 }} data-testid="popover-datas-da-faixa">
-                              <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 800, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Datas do evento</p>
+                              <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 800, color: T.second, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Datas do evento</p>
                               <dl style={{ margin: 0, display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 12, rowGap: 6, fontSize: 13 }}>
                                 {datas.map(([rotulo, valor]) => (
                                   <Fragment key={rotulo}>
-                                    <dt style={{ color: '#57534e', fontWeight: 600 }}>{rotulo}</dt>
-                                    <dd style={{ margin: 0, color: '#1c1917', fontWeight: 700, fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>{valor}</dd>
+                                    <dt style={{ color: T.apoio, fontWeight: 600 }}>{rotulo}</dt>
+                                    <dd style={{ margin: 0, color: T.text, fontWeight: 700, fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>{valor}</dd>
                                   </Fragment>
                                 ))}
                               </dl>
@@ -3849,7 +3849,7 @@ export default function Arte() {
                       })()}
                       {/* "peças", não "ITENS": a tela inteira fala em peça, e o
                           contador era a única palavra em versalete da faixa. */}
-                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, color: '#57534e', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, color: T.apoio, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
                         {evTotal} {evTotal === 1 ? 'peça' : 'peças'}
                       </span>
                     </div>
@@ -3860,8 +3860,8 @@ export default function Arte() {
                       {bloco.grupos.map((grupo, gi) => (
                         <Fragment key={gi}>
                           {grupo.nome && (
-                            <div style={{ padding: '6px 2px 2px', borderBottom: '1px solid #f1efec' }}>
-                              <span style={{ fontSize: 10, fontWeight: 800, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.12em' }}>{grupo.nome}</span>
+                            <div style={{ padding: '6px 2px 2px', borderBottom: `1px solid ${N.n3}` }}>
+                              <span style={{ fontSize: 10, fontWeight: 800, color: T.second, textTransform: 'uppercase', letterSpacing: '0.12em' }}>{grupo.nome}</span>
                             </div>
                           )}
                           {grupo.items.map((item: any) => renderMobileCard(item, tabId, hoje))}
@@ -3875,7 +3875,7 @@ export default function Arte() {
                         {cols.map((c, i) => <col key={i} style={{ width: c.w }} />)}
                       </colgroup>
                       <thead>
-                        <tr style={{ backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4', boxShadow: '0 1px 0 #e7e5e4' }}>
+                        <tr style={{ backgroundColor: T.bg, borderBottom: `1px solid ${T.border}`, boxShadow: `0 1px 0 ${T.border}` }}>
                           {comSelecao && <th style={{ padding: '10px 12px' }}><span className="sr-only">Selecionar</span></th>}
                           {cols.map((col, ci) => <th key={ci} style={thStyle(col)}><span title={DICA_DA_COLUNA[col.label]} style={{ cursor: DICA_DA_COLUNA[col.label] ? 'help' : undefined }}>{col.label}</span></th>)}
                         </tr>
@@ -3906,8 +3906,8 @@ export default function Arte() {
                                     disputava atenção com o dado das linhas logo
                                     abaixo. Um rótulo entre dois hairlines separa
                                     igual e não pinta nada. */}
-                                <td colSpan={totalColunas} style={{ padding: '7px 12px', background: '#fdfcfb', borderTop: '1px solid #f1efec', borderBottom: '1px solid #f1efec' }}>
-                                  <span style={{ display: 'inline-block', fontSize: 10, fontWeight: 800, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+                                <td colSpan={totalColunas} style={{ padding: '7px 12px', background: T.bg, borderTop: `1px solid ${N.n3}`, borderBottom: `1px solid ${N.n3}` }}>
+                                  <span style={{ display: 'inline-block', fontSize: 10, fontWeight: 800, color: T.second, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
                                     {grupo.nome}
                                   </span>
                                 </td>
@@ -3921,7 +3921,7 @@ export default function Arte() {
                                 e aí o plural está sempre correto. */}
                             {comSelecao && selecionaveis.length > 1 && (
                               <tr>
-                                <td style={{ padding: '4px 12px', borderBottom: '1px solid #f5f5f4' }}>
+                                <td style={{ padding: '4px 12px', borderBottom: `1px solid ${N.n2}` }}>
                                   <Checkbox
                                     checked={estadoGrupo}
                                     aria-label={`Selecionar as ${selecionaveis.length} peças de ${grupo.nome || bloco.eventName}`}
@@ -3934,7 +3934,7 @@ export default function Arte() {
                                     data-testid={`checkbox-group-${bloco.key}-${gi}`}
                                   />
                                 </td>
-                                <td colSpan={totalColunas - 1} style={{ padding: '4px 12px', borderBottom: '1px solid #f5f5f4', fontSize: 11, color: '#57534e' }}>
+                                <td colSpan={totalColunas - 1} style={{ padding: '4px 12px', borderBottom: `1px solid ${N.n2}`, fontSize: 11, color: T.apoio }}>
                                   {marcadas > 0 ? `${marcadas} de ${selecionaveis.length} selecionadas` : `Selecionar as ${selecionaveis.length} peças deste grupo`}
                                 </td>
                               </tr>
@@ -3956,11 +3956,11 @@ export default function Arte() {
             <button
               onClick={() => setVisibleCount(v => v + ARTE_PAGE_SIZE)}
               data-testid="button-load-more-arte"
-              style={{ padding: '10px 20px', borderRadius: 8, border: '1px solid #e7e5e4', backgroundColor: '#ffffff', fontSize: 12, fontWeight: 700, color: '#1c1917', cursor: 'pointer' }}
+              style={{ padding: '10px 20px', borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: T.surface, fontSize: 12, fontWeight: 700, color: T.text, cursor: 'pointer' }}
             >
               Carregar mais ({items.length - shownItems.length} restantes)
             </button>
-            <span style={{ fontSize: 11, color: '#57534e' }}>
+            <span style={{ fontSize: 11, color: T.apoio }}>
               Exibindo {shownItems.length} de {items.length} peças
             </span>
           </div>
@@ -3992,18 +3992,18 @@ export default function Arte() {
    * encolhe de 56 para 40 pela mesma régua dos vazios da tela.
    */
   const renderErroDeCarga = (titulo: string, erro: unknown, tentarDeNovo: () => void, testId: string) => (
-    <div style={{ textAlign: 'center', padding: '32px 24px', margin: '24px auto', maxWidth: 460, background: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 12 }} data-testid={testId}>
-      <div style={{ width: 40, height: 40, borderRadius: 12, background: '#fffbeb', border: '1px solid #fde68a', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
-        <WifiOff aria-hidden="true" style={{ width: 18, height: 18, color: '#b45309' }} />
+    <div style={{ textAlign: 'center', padding: '32px 24px', margin: '24px auto', maxWidth: 460, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12 }} data-testid={testId}>
+      <div style={{ width: 40, height: 40, borderRadius: 12, background: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+        <WifiOff aria-hidden="true" style={{ width: 18, height: 18, color: TOM.alerta.text }} />
       </div>
-      <p style={{ fontSize: 15, fontWeight: 700, color: '#1a1c1c', margin: '0 0 6px', fontFamily: '"Space Grotesk", sans-serif' }}>{titulo}</p>
-      <p style={{ fontSize: 13, color: '#746e69', lineHeight: 1.55, margin: '0 0 16px' }}>
+      <p style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: '0 0 6px', fontFamily: '"Space Grotesk", sans-serif' }}>{titulo}</p>
+      <p style={{ fontSize: 13, color: T.second, lineHeight: 1.55, margin: '0 0 16px' }}>
         {erro instanceof Error && erro.message ? mensagemDeErro(erro) : 'Verifique sua conexão e tente novamente.'}
       </p>
       <button
         onClick={tentarDeNovo}
         data-testid={`${testId}-retry`}
-        style={{ height: 36, padding: '0 16px', borderRadius: 9, background: '#1c1917', color: '#fff', border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}
+        style={{ height: 36, padding: '0 16px', borderRadius: 9, background: T.text, color: '#fff', border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}
       >
         <RefreshCw style={{ width: 14, height: 14 }} /> Tentar novamente
       </button>
@@ -4016,8 +4016,8 @@ export default function Arte() {
         // Um spinner sozinho não diz o que está carregando — e esta aba demora
         // mais que as outras, porque a fila de correção é uma rota própria.
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '48px 0' }}>
-          <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid #e7e5e4', borderTopColor: '#f97316', animation: 'spin 0.8s linear infinite' }} />
-          <p style={{ margin: 0, fontSize: 13, color: '#57534e' }}>Carregando a fila de correção…</p>
+          <div style={{ width: 32, height: 32, borderRadius: '50%', border: `3px solid ${T.border}`, borderTopColor: T.accent, animation: 'spin 0.8s linear infinite' }} />
+          <p style={{ margin: 0, fontSize: 13, color: T.apoio }}>Carregando a fila de correção…</p>
         </div>
       );
     }
@@ -4033,9 +4033,9 @@ export default function Arte() {
     if (correcaoItems.length === 0) {
       return (
         <div style={{ textAlign: 'center', padding: '48px 0' }}>
-          <CheckCircle aria-hidden="true" style={{ width: 28, height: 28, color: '#15803d', margin: '0 auto 12px' }} />
-          <p style={{ fontSize: 15, fontWeight: 700, color: '#1a1c1c', marginBottom: 6 }}>Sem correção pendente</p>
-          <p style={{ fontSize: 13, color: '#57534e' }}>Nenhuma peça aguarda nova versão de arte</p>
+          <CheckCircle aria-hidden="true" style={{ width: 28, height: 28, color: TOM.sucesso.text, margin: '0 auto 12px' }} />
+          <p style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 6 }}>Sem correção pendente</p>
+          <p style={{ fontSize: 13, color: T.apoio }}>Nenhuma peça aguarda nova versão de arte</p>
         </div>
       );
     }
@@ -4049,14 +4049,14 @@ export default function Arte() {
     if (baseItems.length === 0) {
       return (
         <div style={{ textAlign: 'center', padding: '48px 0' }}>
-          <Search aria-hidden="true" style={{ width: 28, height: 28, color: '#746e69', margin: '0 auto 12px' }} />
-          <p style={{ fontSize: 15, fontWeight: 700, color: '#1a1c1c', marginBottom: 6 }}>Nenhuma correção neste recorte</p>
-          <p style={{ fontSize: 13, color: '#746e69', lineHeight: 1.55 }}>Há {correcaoItems.length} {correcaoItems.length === 1 ? 'peça aguardando correção' : 'peças aguardando correção'} fora dos filtros atuais</p>
+          <Search aria-hidden="true" style={{ width: 28, height: 28, color: T.second, margin: '0 auto 12px' }} />
+          <p style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 6 }}>Nenhuma correção neste recorte</p>
+          <p style={{ fontSize: 13, color: T.second, lineHeight: 1.55 }}>Há {correcaoItems.length} {correcaoItems.length === 1 ? 'peça aguardando correção' : 'peças aguardando correção'} fora dos filtros atuais</p>
           {activeFilterCount > 0 && (
             <button
               onClick={clearAllFilters}
               data-testid="button-clear-filters-correcao"
-              style={{ marginTop: 14, height: 36, padding: '0 16px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#1c1917', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+              style={{ marginTop: 14, height: 36, padding: '0 16px', borderRadius: 8, border: `1px solid ${T.border}`, background: T.surface, color: T.text, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
             >
               Limpar {activeFilterCount === 1 ? 'o filtro' : `os ${activeFilterCount} filtros`}
             </button>
@@ -4089,8 +4089,8 @@ export default function Arte() {
             problemas sem saída. A faixa diz que a ausência é permissão, não
             defeito. */}
         {!podeEditar && (
-          <div style={{ border: '1px solid #e7e5e4', background: '#ffffff', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: '#57534e', lineHeight: 1.5 }}>
-            <strong style={{ color: '#1c1917' }}>Modo consulta.</strong>{' '}
+          <div style={{ border: `1px solid ${T.border}`, background: T.surface, borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: T.apoio, lineHeight: 1.5 }}>
+            <strong style={{ color: T.text }}>Modo consulta.</strong>{' '}
             Você acompanha a fila e abre as versões enviadas, mas não envia arte nova.
           </div>
         )}
@@ -4101,11 +4101,11 @@ export default function Arte() {
               — todo card abaixo dele é um alerta. O quadradinho dá a cor do
               estado sem gritar, e o total da fila sobe para a mesma linha. */}
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 10 }}>
-            <h2 style={{ display: 'flex', alignItems: 'center', gap: 9, fontFamily: '"Space Grotesk", sans-serif', fontSize: 17, fontWeight: 700, color: '#1c1917', letterSpacing: '-0.03em', margin: 0 }}>
-              <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: '#ba1a1a', display: 'inline-block' }} />
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: 9, fontFamily: '"Space Grotesk", sans-serif', fontSize: 17, fontWeight: 700, color: T.text, letterSpacing: '-0.03em', margin: 0 }}>
+              <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: TOM.perigo.text, display: 'inline-block' }} />
               Aguardando correções
             </h2>
-            <p style={{ margin: 0, fontSize: 12, color: '#57534e', fontVariantNumeric: 'tabular-nums' }}>
+            <p style={{ margin: 0, fontSize: 12, color: T.apoio, fontVariantNumeric: 'tabular-nums' }}>
               {filteredCorrecaoItems.length} {filteredCorrecaoItems.length === 1 ? 'peça na fila' : 'peças na fila'}
             </p>
           </div>
@@ -4113,8 +4113,8 @@ export default function Arte() {
           {/* Sponsor filter pills */}
           {correcaoSponsors.length > 1 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Filtrar</span>
-              {[{ id: "all", name: "Todos", color: "#746e69" }, ...correcaoSponsors].map(sp => {
+              <span style={{ fontSize: 11, fontWeight: 600, color: T.apoio, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Filtrar</span>
+              {[{ id: "all", name: "Todos", color: T.second }, ...correcaoSponsors].map(sp => {
                 const isActive = correcaoSponsorFilter === sp.id;
                 return (
                   <button
@@ -4127,9 +4127,9 @@ export default function Arte() {
                       // 1,5px empurrava a pílula meio pixel e desalinhava a
                       // linha inteira quando uma delas era selecionada.
                       height: 36, padding: '0 13px', borderRadius: 999,
-                      border: isActive ? '1px solid #ba1a1a' : '1px solid #e7e5e4',
-                      backgroundColor: isActive ? '#fef2f2' : '#ffffff',
-                      color: isActive ? '#ba1a1a' : '#746e69',
+                      border: isActive ? `1px solid ${TOM.perigo.text}` : `1px solid ${T.border}`,
+                      backgroundColor: isActive ? TOM.perigo.bg : T.surface,
+                      color: isActive ? TOM.perigo.text : T.second,
                       fontSize: 12, fontWeight: isActive ? 700 : 500,
                       cursor: 'pointer', transition: 'all 0.15s',
                     }}
@@ -4140,7 +4140,7 @@ export default function Arte() {
                         antes de ser clicado, como as abas e os dropdowns. */}
                     {/* #746e69 e não #a8a29e: é número que se lê (quantas
                         correções cada marca pediu), e #a8a29e não passa AA. */}
-                    <span style={{ fontSize: 11, fontWeight: 700, color: isActive ? '#991b1b' : '#746e69', fontVariantNumeric: 'tabular-nums' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: isActive ? TOM.perigo.text : T.second, fontVariantNumeric: 'tabular-nums' }}>
                       {sp.id === 'all'
                         ? baseItems.length
                         : baseItems.filter((i: any) => (i.awaitingArteApprovals || []).some((a: any) => a.sponsorId === sp.id)).length}
@@ -4165,11 +4165,11 @@ export default function Arte() {
                 key={item.id}
                 data-testid={`card-correcao-${item.id}`}
                 style={{
-                  backgroundColor: '#ffffff',
+                  backgroundColor: T.surface,
                   // Borda neutra e SEM sombra: a sombra era vermelha e dupla
                   // (16px difusos + um anel de 1px), e numa grade de cards
                   // todos vermelhos ela não distinguia nenhum deles.
-                  border: '1px solid #e7e5e4',
+                  border: `1px solid ${T.border}`,
                   borderRadius: 12,
                   overflow: 'hidden',
                   display: 'flex',
@@ -4189,7 +4189,7 @@ export default function Arte() {
                     diz), então ele não distinguia um card do outro — só
                     empurrava o nome da peça para a direita. Quem recusou e o
                     motivo continuam no corpo, que é o que se vem ler. */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '12px 16px', borderBottom: '1px solid #f0eeeb', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '12px 16px', borderBottom: `1px solid ${N.n3}`, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     {/* QUEM ENCOLHE PRIMEIRO — a ordem estava invertida.
 
@@ -4207,15 +4207,15 @@ export default function Arte() {
                         primeiro (999), grupo cede depois (1) e dentro de um
                         teto, tipo não cede (0). Todos mantêm o `title`. */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
-                      {groupLabel && <span title={groupLabel} style={{ fontSize: 11, color: '#78716c', fontWeight: 600, flexShrink: 1, minWidth: 0, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{groupLabel}</span>}
-                      {groupLabel && <span aria-hidden="true" style={{ fontSize: 11, color: '#d1ccc8', flexShrink: 0 }}>›</span>}
-                      <span title={item.type} style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', letterSpacing: '-0.02em', flexShrink: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: '"Space Grotesk", sans-serif' }}>{item.type}</span>
+                      {groupLabel && <span title={groupLabel} style={{ fontSize: 11, color: T.second, fontWeight: 600, flexShrink: 1, minWidth: 0, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{groupLabel}</span>}
+                      {groupLabel && <span aria-hidden="true" style={{ fontSize: 11, color: T.bdark, flexShrink: 0 }}>›</span>}
+                      <span title={item.type} style={{ fontSize: 13, fontWeight: 700, color: T.text, letterSpacing: '-0.02em', flexShrink: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: '"Space Grotesk", sans-serif' }}>{item.type}</span>
                       {item.description && item.description !== item.type && (
-                        <span title={item.description} style={{ fontSize: 12, color: '#57534e', flexShrink: 999, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>— {item.description}</span>
+                        <span title={item.description} style={{ fontSize: 12, color: T.apoio, flexShrink: 999, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>— {item.description}</span>
                       )}
                     </div>
                   </div>
-                  <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 11, fontWeight: 800, color: '#57534e', background: '#faf9f7', border: '1px solid #e7e5e4', borderRadius: 5, padding: '3px 7px', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{item.displayId}</span>
+                  <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 11, fontWeight: 800, color: T.apoio, background: T.bg, border: `1px solid ${T.border}`, borderRadius: 5, padding: '3px 7px', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{item.displayId}</span>
                   <SeloKit peca={item} style={{ flexShrink: 0 }} />
                 </div>
 
@@ -4232,13 +4232,13 @@ export default function Arte() {
                   const urgente = pr != null && pr.diff <= 3;
                   if (!item.event?.name && !saida && !pr) return null;
                   return (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderBottom: '1px solid #f0eeeb', background: '#fcfbfa' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderBottom: `1px solid ${N.n3}`, background: T.bg }}>
                       {item.event?.name && (
-                        <span title={item.event.name} style={{ fontSize: 11, fontWeight: 600, color: '#57534e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.event.name}</span>
+                        <span title={item.event.name} style={{ fontSize: 11, fontWeight: 600, color: T.apoio, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.event.name}</span>
                       )}
-                      {item.event?.name && saida && <span aria-hidden="true" style={{ width: 1, height: 11, background: '#e7e5e4', flexShrink: 0 }} />}
+                      {item.event?.name && saida && <span aria-hidden="true" style={{ width: 1, height: 11, background: T.border, flexShrink: 0 }} />}
                       {saida && (
-                        <span style={{ fontSize: 11, fontWeight: 600, color: '#57534e', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: T.apoio, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
                           {String(saida.getDate()).padStart(2, '0')}/{String(saida.getMonth() + 1).padStart(2, '0')}
                         </span>
                       )}
@@ -4247,9 +4247,9 @@ export default function Arte() {
                         <span style={{
                           fontSize: 11, fontWeight: 700, flexShrink: 0, whiteSpace: 'nowrap',
                           fontVariantNumeric: 'tabular-nums',
-                          color: urgente ? '#b45309' : '#78716c',
-                          background: urgente ? '#fffbeb' : 'transparent',
-                          border: urgente ? '1px solid #fde68a' : '1px solid transparent',
+                          color: urgente ? TOM.alerta.text : T.second,
+                          background: urgente ? TOM.alerta.bg : 'transparent',
+                          border: urgente ? `1px solid ${TOM.alerta.border}` : '1px solid transparent',
                           borderRadius: 999, padding: '2px 8px',
                         }}>
                           {pr.diff < 0
@@ -4268,16 +4268,16 @@ export default function Arte() {
                     alinhavam. A sobra passa a ser absorvida pelo conteúdo. */}
                 <div style={{ flex: 1, padding: '16px 18px', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 12 : 14 }}>
                   {/* Thumb */}
-                  <div style={{ width: isMobile ? '100%' : 80, height: isMobile ? 120 : 80, borderRadius: 8, backgroundColor: '#fef2f2', border: '1px solid #fecaca', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ width: isMobile ? '100%' : 80, height: isMobile ? 120 : 80, borderRadius: 8, backgroundColor: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}`, flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {isImage ? (
                       <img loading="lazy" decoding="async" src={miniatura(item.approvalThumbUrl)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     ) : item.approvalThumbUrl ? (
-                      <a href={item.approvalThumbUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, textDecoration: 'none', color: '#ba1a1a' }}>
+                      <a href={item.approvalThumbUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, textDecoration: 'none', color: TOM.perigo.text }}>
                         <FileText style={{ width: 22, height: 22 }} />
                         <span style={{ fontSize: 11, fontWeight: 600 }}>PDF</span>
                       </a>
                     ) : (
-                      <FileImage style={{ width: 22, height: 22, color: '#fca5a5' }} />
+                      <FileImage style={{ width: 22, height: 22, color: TOM.perigo.border }} />
                     )}
                   </div>
 
@@ -4293,34 +4293,34 @@ export default function Arte() {
                     {approvalsToShow.length === 0 && (
                       <div
                         data-testid={`correcao-sem-patrocinador-${item.id}`}
-                        style={{ flex: 1, borderRadius: 12, border: '1px solid #f0dede', background: '#fff8f8', padding: '10px 12px' }}
+                        style={{ flex: 1, borderRadius: 12, border: `1px solid ${TOM.perigo.border}`, background: TOM.perigo.bg, padding: '10px 12px' }}
                       >
                         {/* #991b1b sobre #fff1f1 = 8,1:1 ✓ · #7f1d1d = 10,3:1 ✓ */}
-                        <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#991b1b' }}>
+                        <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: TOM.perigo.text }}>
                           Reprovada por um patrocinador
                         </p>
-                        <p style={{ margin: '3px 0 0', fontSize: 11, color: '#7f1d1d', lineHeight: 1.45 }}>
+                        <p style={{ margin: '3px 0 0', fontSize: 11, color: TOM.perigo.text, lineHeight: 1.45 }}>
                           O registro desta devolução não guardou qual patrocinador pediu a mudança nem o motivo — ela veio pelo caminho antigo, que não perguntava. Quem devolveu e quando está no Histórico da peça.
                         </p>
                         <Link
                           href={`/historico?busca=${item.displayId?.replace('#','')}`}
-                          style={{ display: 'inline-block', marginTop: 6, fontSize: 11, fontWeight: 700, color: '#991b1b', textDecoration: 'underline', textUnderlineOffset: 2 }}
+                          style={{ display: 'inline-block', marginTop: 6, fontSize: 11, fontWeight: 700, color: TOM.perigo.text, textDecoration: 'underline', textUnderlineOffset: 2 }}
                         >
                           Ver no Histórico →
                         </Link>
                       </div>
                     )}
                     {approvalsToShow.map((approval: any) => (
-                      <div key={approval.id} style={{ flex: 1, borderRadius: 12, overflow: 'hidden', border: '1px solid #f0dede' }}>
+                      <div key={approval.id} style={{ flex: 1, borderRadius: 12, overflow: 'hidden', border: `1px solid ${TOM.perigo.border}` }}>
                         {/* Sponsor bar */}
-                        <div style={{ background: '#fff8f8', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 6, borderBottom: approval.rejectionReason ? '1px solid #f7e6e6' : 'none' }}>
+                        <div style={{ background: TOM.perigo.bg, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 6, borderBottom: approval.rejectionReason ? `1px solid ${TOM.perigo.border}` : 'none' }}>
                           {approval.sponsor?.color && <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: approval.sponsor.color, flexShrink: 0 }} />}
-                          <span style={{ fontSize: 12, fontWeight: 700, color: '#991b1b', flex: 1 }}>{approval.sponsor?.name || 'Patrocinador'}</span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: TOM.perigo.text, flex: 1 }}>{approval.sponsor?.name || 'Patrocinador'}</span>
                           {/* Log: quem + quando */}
                           {(approval.rejectedBy || approval.rejectedAt) && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 3, minWidth: 0 }}>
                               {approval.rejectedBy && (
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, minWidth: 0, fontSize: 11, fontWeight: 600, color: '#57534e', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={approval.rejectedBy}>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, minWidth: 0, fontSize: 11, fontWeight: 600, color: T.apoio, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={approval.rejectedBy}>
                                   <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                                   {/* Nome INTEIRO. O `split(' ')[0]` cortava no
                                       primeiro nome — numa empresa com dois
@@ -4329,9 +4329,9 @@ export default function Arte() {
                                   {approval.rejectedBy}
                                 </span>
                               )}
-                              {approval.rejectedBy && approval.rejectedAt && <span style={{ color: '#d1ccc8', fontSize: 11 }}>·</span>}
+                              {approval.rejectedBy && approval.rejectedAt && <span style={{ color: T.bdark, fontSize: 11 }}>·</span>}
                               {approval.rejectedAt && (
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 11, fontWeight: 600, color: '#57534e', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 11, fontWeight: 600, color: T.apoio, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
                                   <Clock style={{ width: 9, height: 9, flexShrink: 0 }} />
                                   {(() => { const d = new Date(approval.rejectedAt); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; })()}
                                 </span>
@@ -4341,11 +4341,11 @@ export default function Arte() {
                         </div>
                         {/* Reason */}
                         {approval.rejectionReason && (
-                          <div style={{ background: '#ffffff', padding: '8px 12px' }}>
+                          <div style={{ background: T.surface, padding: '8px 12px' }}>
                             {/* Sem itálico: as aspas já marcam a citação, e
                                 itálico em 12px pesa a leitura do texto que a
                                 pessoa veio ler. */}
-                            <p style={{ fontSize: 12, color: '#44403c', margin: 0, lineHeight: 1.5 }}>"<TextoComLinks texto={approval.rejectionReason} />"</p>
+                            <p style={{ fontSize: 12, color: T.strong, margin: 0, lineHeight: 1.5 }}>"<TextoComLinks texto={approval.rejectionReason} />"</p>
                           </div>
                         )}
                       </div>
@@ -4354,7 +4354,7 @@ export default function Arte() {
                 </div>
 
                 {/* ── Footer ── */}
-                <div style={{ padding: '12px 18px', borderTop: '1px solid #f0eeeb', display: 'flex', alignItems: 'center', gap: 10, background: '#fcfbfa', flexWrap: 'wrap' }}>
+                <div style={{ padding: '12px 18px', borderTop: `1px solid ${N.n3}`, display: 'flex', alignItems: 'center', gap: 10, background: T.bg, flexWrap: 'wrap' }}>
                   {podeEditar && <button
                     onClick={() => {
                       setCorrecaoItem(item);
@@ -4371,14 +4371,14 @@ export default function Arte() {
                       // ("Enviar", "Finalizar") e do CTA do próprio modal que
                       // este botão abre. Vermelho é a cor do PROBLEMA (a recusa);
                       // a ação que resolve não veste a cor do problema.
-                      background: '#1c1917',
-                      color: '#ffffff', border: 'none',
+                      background: T.text,
+                      color: T.surface, border: 'none',
                       borderRadius: 8, minHeight: 44, height: 44, padding: '0 18px',
                       fontWeight: 700, fontSize: 13, cursor: 'pointer',
                       transition: 'background-color 0.15s',
                     }}
-                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#44403c'; }}
-                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#1c1917'; }}
+                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.strong; }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = T.text; }}
                   >
                     <Send style={{ width: 13, height: 13 }} />
                     Enviar nova arte
@@ -4390,17 +4390,17 @@ export default function Arte() {
                       rel="noopener noreferrer"
                       style={{
                         display: 'flex', alignItems: 'center', gap: 5,
-                        fontSize: 12, fontWeight: 700, color: '#44403c',
+                        fontSize: 12, fontWeight: 700, color: T.strong,
                         textDecoration: 'none', transition: 'color 0.15s',
                         padding: '0 14px', minHeight: 44, height: 44, borderRadius: 8,
-                        border: '1px solid #e7e5e4', background: '#ffffff',
+                        border: `1px solid ${T.border}`, background: T.surface,
                         whiteSpace: 'nowrap',
                       }}
                       // O mouseleave devolvia OUTRA cor e OUTRA borda que as do
                       // estado inicial: depois do primeiro hover o botão ficava
                       // diferente dos vizinhos que ninguém tinha tocado.
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = '#c7c3be'; }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = '#e7e5e4'; }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = T.bdark; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = T.border; }}
                     >
                       <Eye aria-hidden="true" style={{ width: 12, height: 12 }} />
                       Ver versão
@@ -4435,8 +4435,8 @@ export default function Arte() {
       {/* ── STICKY HEADER ─────────────────────────────────────────────────── */}
       <div style={{
         position: 'sticky', top: 0, zIndex: 40,
-        background: '#ffffff',
-        borderBottom: '1px solid #e7e5e4',
+        background: T.surface,
+        borderBottom: `1px solid ${T.border}`,
         flexShrink: 0,
       }}>
         <div style={{ padding: isMobile ? '12px 12px 0' : '20px 32px 0', maxWidth: 1600, margin: '0 auto' }}>
@@ -4460,14 +4460,14 @@ export default function Arte() {
               {/* Ladrilho chapado, 40px: o laranja desta tela é a cor de
                   ATENÇÃO, e gastá-lo na decoração do cabeçalho enfraquece
                   todos os outros usos — o ícone é o único toque de cor. */}
-              <div style={{ width: 40, height: 40, borderRadius: 11, backgroundColor: '#1c1917', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Palette aria-hidden="true" style={{ width: 19, height: 19, color: '#fb923c' }} />
+              <div style={{ width: 40, height: 40, borderRadius: 11, backgroundColor: T.text, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Palette aria-hidden="true" style={{ width: 19, height: 19, color: TOM.laranja.dot }} />
               </div>
               <div style={{ minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   {/* 26/700/-0.03em: a mesma escala da Gestão de Prazos e do
                       Atendimento. Em -0.05em as letras do título se tocavam. */}
-                  <h1 style={{ fontSize: FS.h1, fontWeight: 700, color: '#1a1c1c', letterSpacing: '-0.03em', margin: 0, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1.1 }}>
+                  <h1 style={{ fontSize: FS.h1, fontWeight: 700, color: T.text, letterSpacing: '-0.03em', margin: 0, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1.1 }}>
                     Arte
                   </h1>
                   <Popover>
@@ -4476,7 +4476,7 @@ export default function Arte() {
                         type="button"
                         aria-label="Como funciona a Arte e o que se faz nesta fase"
                         data-testid="button-como-funciona"
-                        style={{ width: isMobile ? 44 : 28, height: isMobile ? 44 : 28, borderRadius: 999, border: 'none', background: 'transparent', color: '#57534e', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+                        style={{ width: isMobile ? 44 : 28, height: isMobile ? 44 : 28, borderRadius: 999, border: 'none', background: 'transparent', color: T.apoio, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
                       >
                         <HelpCircle aria-hidden="true" style={{ width: 16, height: 16 }} />
                       </button>
@@ -4485,11 +4485,11 @@ export default function Arte() {
                       {/* O fluxo em ordem, com verbo (rodada 4), e o guia da fase
                           aberta — os dois moravam à vista, em duas linhas
                           cinzas que ninguém relia depois da primeira semana. */}
-                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#1c1917' }}>
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: T.text }}>
                         Suba o thumb, envie para aprovação, corrija o que voltar e finalize o arquivo
                       </p>
                       {GUIA_DA_FASE[activeTab] && (
-                        <p data-testid="guia-da-fase" style={{ margin: '8px 0 0', fontSize: 12.5, color: '#44403c', lineHeight: 1.5 }}>
+                        <p data-testid="guia-da-fase" style={{ margin: '8px 0 0', fontSize: 12.5, color: T.strong, lineHeight: 1.5 }}>
                           {GUIA_DA_FASE[activeTab]}
                         </p>
                       )}
@@ -4502,10 +4502,10 @@ export default function Arte() {
                 <p
                   data-testid="contexto-arte"
                   title="Soma de Aguardando envio, Correção e Finalizar arte — as fases em que a peça depende da Arte"
-                  style={{ fontSize: 13, color: '#57534e', margin: '3px 0 0', lineHeight: 1.4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                  style={{ fontSize: 13, color: T.apoio, margin: '3px 0 0', lineHeight: 1.4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
                 >
                   {(pendingCount + correcaoCount + needsFinalFileCount) > 0
-                    ? <><b style={{ fontWeight: 700, color: '#1c1917' }}>{pendingCount + correcaoCount + needsFinalFileCount}</b> {(pendingCount + correcaoCount + needsFinalFileCount) === 1 ? 'peça esperando' : 'peças esperando'} a Arte</>
+                    ? <><b style={{ fontWeight: 700, color: T.text }}>{pendingCount + correcaoCount + needsFinalFileCount}</b> {(pendingCount + correcaoCount + needsFinalFileCount) === 1 ? 'peça esperando' : 'peças esperando'} a Arte</>
                     : 'Tudo em dia — nenhuma peça esperando a Arte'}
                 </p>
               </div>
@@ -4514,9 +4514,9 @@ export default function Arte() {
               {podeEditar && activeTab === "criar-aprovacoes" && (
                 <label
                   data-testid="button-open-bulk-thumb"
-                  style={{ height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 8, border: '1px solid #a5f3fc', background: '#ecfeff', color: '#0e7490', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', transition: 'border-color 0.12s', flex: isMobile ? '1 1 auto' : undefined, justifyContent: 'center' }}
+                  style={{ height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 8, border: `1px solid ${TOM.ciano.border}`, background: TOM.ciano.bg, color: TOM.ciano.text, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', transition: 'border-color 0.12s', flex: isMobile ? '1 1 auto' : undefined, justifyContent: 'center' }}
                 >
-                  <FileImage aria-hidden="true" style={{ width: 12, height: 12, color: '#0e7490' }} />
+                  <FileImage aria-hidden="true" style={{ width: 12, height: 12, color: TOM.ciano.text }} />
                   Envio de thumbs em lote
                   {/* sr-only e não display:none — um input display:none não entra
                       na ordem de foco, e nem <label> nem <div> são focáveis por
@@ -4545,9 +4545,9 @@ export default function Arte() {
                     <button
                       onClick={handleClickExportButton}
                       data-testid="button-export-pdf"
-                      style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: isMobile ? 44 : 36, padding: '0 12px', borderRadius: 7, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8', fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: isMobile ? 44 : 36, padding: '0 12px', borderRadius: 7, border: `1px solid ${TOM.info.border}`, background: TOM.info.bg, color: TOM.info.text, fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}
                     >
-                      <Printer aria-hidden="true" style={{ width: 13, height: 13, color: '#1d4ed8' }} />
+                      <Printer aria-hidden="true" style={{ width: 13, height: 13, color: TOM.info.text }} />
                       {selectedItemIds.size > 0 ? `Exportar ${selectedItemIds.size} selecionadas` : 'Exportar PDF'}
                     </button>
                     {podeEditar && (
@@ -4555,9 +4555,9 @@ export default function Arte() {
                         onClick={openBookModal}
                         data-testid="button-upload-book"
                         title="Subir o PDF do book (layout pronto) e escolher as peças"
-                        style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: isMobile ? 44 : 36, padding: '0 12px', borderRadius: 7, border: '1px solid #e9d5ff', background: '#faf5ff', color: '#6b21a8', fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: isMobile ? 44 : 36, padding: '0 12px', borderRadius: 7, border: `1px solid ${TOM.roxo.border}`, background: TOM.roxo.bg, color: TOM.roxo.text, fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}
                       >
-                        <FileText aria-hidden="true" style={{ width: 13, height: 13, color: '#6b21a8' }} />
+                        <FileText aria-hidden="true" style={{ width: 13, height: 13, color: TOM.roxo.text }} />
                         Subir book
                       </button>
                     )}
@@ -4571,14 +4571,14 @@ export default function Arte() {
                         title={selectedItemIds.size > 0
                           ? `Usar UM PDF como thumb das ${selectedItemIds.size === 1 ? 'peça selecionada' : `${selectedItemIds.size} peças selecionadas`} e enviar para aprovação`
                           : 'Marque as peças na tabela (caixinhas à esquerda) para enviar todas com um mesmo PDF'}
-                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: 1, width: '100%', minHeight: isMobile ? 44 : 36, padding: '4px 12px', borderRadius: 7, border: `1px solid ${selectedItemIds.size > 0 ? '#fed7aa' : '#e7e5e4'}`, background: selectedItemIds.size > 0 ? '#fff7ed' : '#ffffff', color: selectedItemIds.size > 0 ? '#c2410c' : '#57534e', fontSize: 13, fontWeight: 600, cursor: selectedItemIds.size > 0 ? 'pointer' : 'not-allowed', textAlign: 'left' }}
+                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: 1, width: '100%', minHeight: isMobile ? 44 : 36, padding: '4px 12px', borderRadius: 7, border: `1px solid ${selectedItemIds.size > 0 ? TOM.laranja.border : T.border}`, background: selectedItemIds.size > 0 ? TOM.laranja.bg : T.surface, color: selectedItemIds.size > 0 ? T.accentText : T.apoio, fontSize: 13, fontWeight: 600, cursor: selectedItemIds.size > 0 ? 'pointer' : 'not-allowed', textAlign: 'left' }}
                       >
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                           <Upload aria-hidden="true" style={{ width: 13, height: 13 }} />
                           {selectedItemIds.size > 0 ? `PDF compartilhado (${selectedItemIds.size})` : 'PDF compartilhado'}
                         </span>
                         {selectedItemIds.size === 0 && (
-                          <span style={{ fontSize: 11, fontWeight: 500, color: '#57534e' }}>Marque as peças na lista para liberar</span>
+                          <span style={{ fontSize: 11, fontWeight: 500, color: T.apoio }}>Marque as peças na lista para liberar</span>
                         )}
                       </button>
                     )}
@@ -4595,9 +4595,9 @@ export default function Arte() {
               parcialmente permitido (salvar rascunho funciona, enviar devolve
               403) era o pior dos dois mundos. */}
           {!podeEditar && (
-            <div data-testid="banner-modo-consulta" style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 14px', marginBottom: 14, borderRadius: 10, background: '#f5f5f4', border: '1px solid #e7e5e4' }}>
-              <Lock style={{ width: 14, height: 14, color: '#57534e', flexShrink: 0 }} />
-              <span style={{ fontSize: 12, color: '#44403c' }}>
+            <div data-testid="banner-modo-consulta" style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 14px', marginBottom: 14, borderRadius: 10, background: N.n2, border: `1px solid ${T.border}` }}>
+              <Lock style={{ width: 14, height: 14, color: T.apoio, flexShrink: 0 }} />
+              <span style={{ fontSize: 12, color: T.strong }}>
                 <b style={{ fontWeight: 700 }}>Modo consulta.</b> Você vê a fila da Arte e pode exportar PDFs, mas enviar, corrigir, finalizar e pular a aprovação é da equipe de Arte.
               </span>
             </div>
@@ -4615,7 +4615,7 @@ export default function Arte() {
           {(() => {
             const campoBusca = (
               <div style={{ position: 'relative', flex: '1 1 180px', minWidth: isMobile ? 0 : 160 }}>
-                <Search style={{ width: 14, height: 14, color: '#57534e', position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                <Search style={{ width: 14, height: 14, color: T.apoio, position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
                 <input
                   type="text"
                   value={searchFilter}
@@ -4624,7 +4624,7 @@ export default function Arte() {
                   aria-label="Buscar por ID, peça, descrição ou evento"
                   data-testid="input-search-filter"
                   // 16px no celular: abaixo disso o Safari dá zoom na página ao focar.
-                  style={{ width: '100%', height: isMobile ? 44 : 36, paddingLeft: 30, paddingRight: 10, borderRadius: 8, border: searchFilter ? '1px solid #f97316' : '1px solid #e7e5e4', backgroundColor: '#ffffff', color: '#1c1917', fontSize: isMobile ? 16 : 13, boxSizing: 'border-box' }}
+                  style={{ width: '100%', height: isMobile ? 44 : 36, paddingLeft: 30, paddingRight: 10, borderRadius: 8, border: searchFilter ? `1px solid ${T.accent}` : `1px solid ${T.border}`, backgroundColor: T.surface, color: T.text, fontSize: isMobile ? 16 : 13, boxSizing: 'border-box' }}
                 />
               </div>
             );
@@ -4735,8 +4735,8 @@ export default function Arte() {
                 Em Finalizados o marco É a saída, que numa peça pronta já passou
                 por definição: lá o recorte não existe em vez de mentir. */}
             <div role="group" aria-label="Prazo da fase" data-testid="segment-atrasado"
-              style={{ display: 'flex', alignItems: 'center', gap: 2, height: isMobile ? 'auto' : 36, padding: isMobile ? 0 : '0 3px', borderRadius: 9, background: '#f5f5f4', border: '1px solid #e7e5e4', boxSizing: 'border-box', flexShrink: 0 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', padding: '0 6px 0 8px' }}>Prazo</span>
+              style={{ display: 'flex', alignItems: 'center', gap: 2, height: isMobile ? 'auto' : 36, padding: isMobile ? 0 : '0 3px', borderRadius: 9, background: N.n2, border: `1px solid ${T.border}`, boxSizing: 'border-box', flexShrink: 0 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: T.apoio, padding: '0 6px 0 8px' }}>Prazo</span>
               {([
                 { on: false, label: 'todos' },
                 { on: true, label: 'atrasados' },
@@ -4750,7 +4750,7 @@ export default function Arte() {
                     title={bloqueado
                       ? "Em Finalizados o marco é a própria saída do caminhão, que numa peça pronta já passou — não há atraso a apontar"
                       : on ? "Só peças que já passaram do marco desta fase" : undefined}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, alignSelf: 'stretch', margin: isMobile ? 0 : '3px 0', minHeight: isMobile ? 44 : undefined, minWidth: isMobile ? 44 : undefined, justifyContent: 'center', padding: '0 10px', borderRadius: 6, border: 'none', cursor: bloqueado ? 'not-allowed' : 'pointer', opacity: bloqueado ? 0.5 : 1, fontSize: 11, fontWeight: ativo ? 700 : 600, background: ativo ? '#ffffff' : '#fafaf9', color: ativo ? '#1c1917' : '#57534e', boxShadow: ativo ? 'inset 0 -2px 0 #1c1917' : 'none', transition: 'all 0.12s' }}>
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, alignSelf: 'stretch', margin: isMobile ? 0 : '3px 0', minHeight: isMobile ? 44 : undefined, minWidth: isMobile ? 44 : undefined, justifyContent: 'center', padding: '0 10px', borderRadius: 6, border: 'none', cursor: bloqueado ? 'not-allowed' : 'pointer', opacity: bloqueado ? 0.5 : 1, fontSize: 11, fontWeight: ativo ? 700 : 600, background: ativo ? T.surface : T.bg, color: ativo ? T.text : T.apoio, boxShadow: ativo ? `inset 0 -2px 0 ${T.text}` : 'none', transition: 'all 0.12s' }}>
                     {label}
                     {on && !bloqueado && (
                       // A contagem vive no controle: o recorte diz QUANTOS são
@@ -4759,7 +4759,7 @@ export default function Arte() {
                         // Contrastes (texto ≤13px exige 4,5:1):
                         // #991b1b sobre #fef2f2 = 7,60:1 ✓ · #57534e sobre
                         // #e7e5e4 = 6,00:1 ✓
-                        style={{ padding: '0 6px', borderRadius: 999, fontSize: 11, fontWeight: 700, lineHeight: '16px', background: atrasadasNaAba > 0 ? '#fef2f2' : '#e7e5e4', color: atrasadasNaAba > 0 ? '#991b1b' : '#57534e' }}>
+                        style={{ padding: '0 6px', borderRadius: 999, fontSize: 11, fontWeight: 700, lineHeight: '16px', background: atrasadasNaAba > 0 ? TOM.perigo.bg : T.border, color: atrasadasNaAba > 0 ? TOM.perigo.text : T.apoio }}>
                         {atrasadasNaAba}
                       </span>
                     )}
@@ -4769,15 +4769,15 @@ export default function Arte() {
             </div>
 
             <div role="group" aria-label="Prioridade" data-testid="segment-urgente"
-              style={{ display: 'flex', alignItems: 'center', gap: 2, height: isMobile ? 'auto' : 36, padding: isMobile ? 0 : '0 3px', borderRadius: 9, background: '#f5f5f4', border: '1px solid #e7e5e4', boxSizing: 'border-box', flexShrink: 0 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', padding: '0 6px 0 8px' }}>Prioridade</span>
+              style={{ display: 'flex', alignItems: 'center', gap: 2, height: isMobile ? 'auto' : 36, padding: isMobile ? 0 : '0 3px', borderRadius: 9, background: N.n2, border: `1px solid ${T.border}`, boxSizing: 'border-box', flexShrink: 0 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: T.apoio, padding: '0 6px 0 8px' }}>Prioridade</span>
               {([
                 { on: false, label: 'todas' },
                 { on: true, label: 'urgentes' },
               ] as { on: boolean; label: string }[]).map(({ on, label }) => (
                 <button key={label} onClick={() => setUrgenteFilter(on)} aria-pressed={urgenteFilter === on}
                   data-testid={`button-urgente-${on ? 'sim' : 'nao'}`}
-                  style={{ alignSelf: 'stretch', margin: isMobile ? 0 : '3px 0', minHeight: isMobile ? 44 : undefined, minWidth: isMobile ? 44 : undefined, justifyContent: 'center', padding: '0 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: urgenteFilter === on ? 700 : 600, background: urgenteFilter === on ? '#ffffff' : '#fafaf9', color: urgenteFilter === on ? '#1c1917' : '#57534e', boxShadow: urgenteFilter === on ? 'inset 0 -2px 0 #1c1917' : 'none', transition: 'all 0.12s' }}>
+                  style={{ alignSelf: 'stretch', margin: isMobile ? 0 : '3px 0', minHeight: isMobile ? 44 : undefined, minWidth: isMobile ? 44 : undefined, justifyContent: 'center', padding: '0 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: urgenteFilter === on ? 700 : 600, background: urgenteFilter === on ? T.surface : T.bg, color: urgenteFilter === on ? T.text : T.apoio, boxShadow: urgenteFilter === on ? `inset 0 -2px 0 ${T.text}` : 'none', transition: 'all 0.12s' }}>
                   {label}
                 </button>
               ))}
@@ -4791,15 +4791,15 @@ export default function Arte() {
               { rotulo: 'Arquivo final', value: finalFilter, set: setFinalFilter, testId: 'segment-final' },
             ] as { rotulo: string; value: TriState; set: (v: TriState) => void; testId: string }[]).map(({ rotulo, value, set, testId }) => (
               <div key={testId} role="group" aria-label={rotulo} data-testid={testId}
-                style={{ display: 'flex', alignItems: 'center', gap: 2, height: isMobile ? 'auto' : 36, padding: isMobile ? 0 : '0 3px', borderRadius: 9, background: '#f5f5f4', border: '1px solid #e7e5e4', boxSizing: 'border-box', flexShrink: 0 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', padding: '0 6px 0 8px' }}>{rotulo}</span>
+                style={{ display: 'flex', alignItems: 'center', gap: 2, height: isMobile ? 'auto' : 36, padding: isMobile ? 0 : '0 3px', borderRadius: 9, background: N.n2, border: `1px solid ${T.border}`, boxSizing: 'border-box', flexShrink: 0 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: T.apoio, padding: '0 6px 0 8px' }}>{rotulo}</span>
                 {([
                   { v: 'todos', label: 'todos' },
                   { v: 'com', label: 'com' },
                   { v: 'sem', label: 'sem' },
                 ] as { v: TriState; label: string }[]).map(({ v, label }) => (
                   <button key={v} onClick={() => set(v)} aria-pressed={value === v}
-                    style={{ alignSelf: 'stretch', margin: isMobile ? 0 : '3px 0', minHeight: isMobile ? 44 : undefined, minWidth: isMobile ? 44 : undefined, justifyContent: 'center', padding: '0 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: value === v ? 700 : 600, background: value === v ? '#ffffff' : '#fafaf9', color: value === v ? '#1c1917' : '#57534e', boxShadow: value === v ? 'inset 0 -2px 0 #1c1917' : 'none', transition: 'all 0.12s' }}>
+                    style={{ alignSelf: 'stretch', margin: isMobile ? 0 : '3px 0', minHeight: isMobile ? 44 : undefined, minWidth: isMobile ? 44 : undefined, justifyContent: 'center', padding: '0 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: value === v ? 700 : 600, background: value === v ? T.surface : T.bg, color: value === v ? T.text : T.apoio, boxShadow: value === v ? `inset 0 -2px 0 ${T.text}` : 'none', transition: 'all 0.12s' }}>
                     {label}
                   </button>
                 ))}
@@ -4816,7 +4816,7 @@ export default function Arte() {
             // separando nada de nada.
             const ordenar = (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: isMobile ? undefined : 'auto' }}>
-              {!isMobile && <span aria-hidden="true" style={{ width: 1, height: 20, background: '#e7e5e4' }} />}
+              {!isMobile && <span aria-hidden="true" style={{ width: 1, height: 20, background: T.border }} />}
               <FilterSelect
                 kind="sort" hideSearch hideWhenEmpty={false}
                 label="Ordenar"
@@ -4833,7 +4833,7 @@ export default function Arte() {
             const botaoLimparEscondidos = nFiltrosEscondidos > 0 && (
               <button type="button" onClick={limparFiltrosEscondidos} data-testid="button-limpar-mais-filtros"
                 // #b91c1c sobre branco = 6,47:1 ✓ — o vermelho de "desfazer" da casa.
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, minHeight: isMobile ? 44 : 32, padding: '0 10px', borderRadius: 8, border: '1px solid #fecaca', background: '#ffffff', color: '#b91c1c', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, minHeight: isMobile ? 44 : 32, padding: '0 10px', borderRadius: 8, border: `1px solid ${TOM.perigo.border}`, background: T.surface, color: TOM.perigo.text, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                 <X aria-hidden="true" style={{ width: 12, height: 12 }} />
                 Limpar estes filtros
               </button>
@@ -4851,7 +4851,7 @@ export default function Arte() {
                       aria-expanded={filtrosAbertosMobile}
                       aria-controls="arte-folha-filtros"
                       data-testid="button-abrir-filtros-mobile"
-                      style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 44, padding: '0 12px', borderRadius: 8, border: `1px solid ${nFiltrosEscondidos > 0 ? '#fdba74' : '#e7e5e4'}`, background: nFiltrosEscondidos > 0 ? '#fff7ed' : '#ffffff', color: nFiltrosEscondidos > 0 ? '#9a3412' : '#44403c', fontSize: 14, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                      style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 44, padding: '0 12px', borderRadius: 8, border: `1px solid ${nFiltrosEscondidos > 0 ? TOM.laranja.border : T.border}`, background: nFiltrosEscondidos > 0 ? TOM.laranja.bg : T.surface, color: nFiltrosEscondidos > 0 ? T.accentText : T.strong, fontSize: 14, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
                     >
                       <Filter aria-hidden="true" style={{ width: 15, height: 15 }} />
                       Filtros{nFiltrosEscondidos > 0 ? ` (${nFiltrosEscondidos})` : ''}
@@ -4866,7 +4866,7 @@ export default function Arte() {
                     {eventFilter.length > 0 && (
                       <button type="button" onClick={() => setEventFilter([])} data-testid="button-limpar-evento-mobile"
                         aria-label="Limpar o filtro de evento" title="Limpar o filtro de evento"
-                        style={{ flex: '0 0 44px', width: 44, height: 44, borderRadius: 8, border: '1px solid #d6d3d1', background: '#ffffff', color: '#1c1917', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                        style={{ flex: '0 0 44px', width: 44, height: 44, borderRadius: 8, border: `1px solid ${T.bdark}`, background: T.surface, color: T.text, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                         <X aria-hidden="true" style={{ width: 16, height: 16 }} />
                       </button>
                     )}
@@ -4890,36 +4890,36 @@ export default function Arte() {
                     aria-label="Mais filtros da Arte"
                     data-testid="folha-filtros-mobile"
                     onKeyDown={e => { if (e.key === 'Escape') setFiltrosAbertosMobile(false); }}
-                    style={{ position: 'fixed', inset: 0, zIndex: 90, height: '100dvh', backgroundColor: '#fafaf9', display: 'flex', flexDirection: 'column', overscrollBehavior: 'contain' }}
+                    style={{ position: 'fixed', inset: 0, zIndex: 90, height: '100dvh', backgroundColor: T.bg, display: 'flex', flexDirection: 'column', overscrollBehavior: 'contain' }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 'calc(6px + env(safe-area-inset-top))', paddingBottom: 6, paddingLeft: 14, paddingRight: 6, borderBottom: '1px solid #e7e5e4', backgroundColor: '#ffffff' }}>
-                      <Filter aria-hidden="true" style={{ width: 16, height: 16, color: '#57534e' }} />
-                      <span style={{ fontSize: 15, fontWeight: 800, color: '#1c1917' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 'calc(6px + env(safe-area-inset-top))', paddingBottom: 6, paddingLeft: 14, paddingRight: 6, borderBottom: `1px solid ${T.border}`, backgroundColor: T.surface }}>
+                      <Filter aria-hidden="true" style={{ width: 16, height: 16, color: T.apoio }} />
+                      <span style={{ fontSize: 15, fontWeight: 800, color: T.text }}>
                         Filtros{nFiltrosEscondidos > 0 ? ` · ${nFiltrosEscondidos} ativo${nFiltrosEscondidos !== 1 ? 's' : ''}` : ''}
                       </span>
                       <span style={{ flex: 1 }} />
                       <button type="button" autoFocus onClick={() => setFiltrosAbertosMobile(false)} aria-label="Fechar filtros" data-testid="button-fechar-filtros-mobile"
-                        style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'transparent', color: '#57534e', cursor: 'pointer' }}>
+                        style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'transparent', color: T.apoio, cursor: 'pointer' }}>
                         <X aria-hidden="true" style={{ width: 20, height: 20 }} />
                       </button>
                     </div>
                     <div style={{ flex: 1, overflowY: 'auto', padding: '14px 14px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
                       {gatilhos(true)}
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, borderTop: '1px solid #e7e5e4', paddingTop: 10 }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, borderTop: `1px solid ${T.border}`, paddingTop: 10 }}>
                         {segmentos}
                       </div>
                     </div>
                     {/* Rodapé fixo com o recorte seguro embaixo (home indicator),
                         nos LONGOS — o atalho com env() some no parser do jsdom. */}
-                    <div style={{ display: 'flex', gap: 8, paddingTop: 10, paddingLeft: 14, paddingRight: 14, paddingBottom: 'calc(10px + env(safe-area-inset-bottom))', borderTop: '1px solid #e7e5e4', backgroundColor: '#ffffff' }}>
+                    <div style={{ display: 'flex', gap: 8, paddingTop: 10, paddingLeft: 14, paddingRight: 14, paddingBottom: 'calc(10px + env(safe-area-inset-bottom))', borderTop: `1px solid ${T.border}`, backgroundColor: T.surface }}>
                       {nFiltrosEscondidos > 0 && (
                         <button type="button" onClick={limparFiltrosEscondidos} data-testid="button-limpar-mais-filtros"
-                          style={{ minHeight: 48, padding: '0 14px', borderRadius: 10, background: '#ffffff', color: '#b91c1c', border: '1px solid #fecaca', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                          style={{ minHeight: 48, padding: '0 14px', borderRadius: 10, background: T.surface, color: TOM.perigo.text, border: `1px solid ${TOM.perigo.border}`, fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                           Limpar ({nFiltrosEscondidos})
                         </button>
                       )}
                       <button type="button" onClick={() => setFiltrosAbertosMobile(false)} data-testid="button-aplicar-filtros-mobile"
-                        style={{ flex: 1, minHeight: 48, borderRadius: 10, border: 'none', backgroundColor: '#1c1917', color: '#ffffff', fontSize: 15, fontWeight: 800, cursor: 'pointer' }}>
+                        style={{ flex: 1, minHeight: 48, borderRadius: 10, border: 'none', backgroundColor: T.text, color: T.surface, fontSize: 15, fontWeight: 800, cursor: 'pointer' }}>
                         Ver {faseAtualCount} {faseAtualCount === 1 ? 'peça' : 'peças'}
                       </button>
                     </div>
@@ -4942,7 +4942,7 @@ export default function Arte() {
                     data-testid="button-mais-filtros"
                     // Ativo = laranja claro com texto #9a3412 (7,3:1 sobre #fff7ed ✓);
                     // aberto sem nada ligado = grafite, para ler "está aberto".
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 12px', borderRadius: 8, border: `1px solid ${nFiltrosEscondidos > 0 ? '#fdba74' : maisFiltrosAberto ? '#1c1917' : '#e7e5e4'}`, background: nFiltrosEscondidos > 0 ? '#fff7ed' : '#ffffff', color: nFiltrosEscondidos > 0 ? '#9a3412' : '#44403c', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 12px', borderRadius: 8, border: `1px solid ${nFiltrosEscondidos > 0 ? TOM.laranja.border : maisFiltrosAberto ? T.text : T.border}`, background: nFiltrosEscondidos > 0 ? TOM.laranja.bg : T.surface, color: nFiltrosEscondidos > 0 ? T.accentText : T.strong, fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
                   >
                     <Filter aria-hidden="true" style={{ width: 14, height: 14 }} />
                     Mais filtros{nFiltrosEscondidos > 0 ? ` (${nFiltrosEscondidos})` : ''}
@@ -4967,12 +4967,12 @@ export default function Arte() {
                     GRAFITE, prefixo "Ordenar:" e sem × — quem bate o olho lê "os
                     laranjas recortam, o cinza reordena" sem ler uma palavra. */}
                 {maisFiltrosAberto && (
-                  <div id="arte-mais-filtros" data-testid="faixa-mais-filtros" style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8, padding: 10, borderRadius: 10, background: '#fafaf9', border: '1px solid #e7e5e4' }}>
+                  <div id="arte-mais-filtros" data-testid="faixa-mais-filtros" style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8, padding: 10, borderRadius: 10, background: T.bg, border: `1px solid ${T.border}` }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       {gatilhos(false)}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', borderTop: '1px solid #f0efee', paddingTop: 8 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>Mostrar:</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', borderTop: `1px solid ${N.n3}`, paddingTop: 8 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: T.apoio, textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>Mostrar:</span>
                       {segmentos}
                     </div>
                     {botaoLimparEscondidos && (
@@ -4997,24 +4997,24 @@ export default function Arte() {
             if (chipsVisiveis.length === 0) return null;
             return (
               <div data-testid="linha-chips-ativos" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Ativos:</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: T.apoio, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Ativos:</span>
                 {chipsVisiveis.map(chip => (
-                  <span key={`${chip.kind}-${chip.id ?? ''}`} data-testid={`chip-ativo-${chip.kind}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, padding: '0 2px 0 9px', minHeight: isMobile ? 44 : 24, borderRadius: 999, background: '#fff7ed', border: '1px solid #fed7aa', fontSize: 11, fontWeight: 600, color: '#c2410c' }}>
+                  <span key={`${chip.kind}-${chip.id ?? ''}`} data-testid={`chip-ativo-${chip.kind}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, padding: '0 2px 0 9px', minHeight: isMobile ? 44 : 24, borderRadius: 999, background: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, fontSize: 11, fontWeight: 600, color: T.accentText }}>
                     {chip.label}
                     {/* O × tinha 9×9px de alvo. 22px de caixa (dentro do chip de
                         24) passa o mínimo de 24 do WCAG 2.5.8 somado à borda;
                         no celular o alvo vai a 44. */}
-                    <button onClick={() => removeChipFilter(chip)} aria-label={`Remover filtro ${chip.label}`} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c2410c', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: isMobile ? 40 : 22, height: isMobile ? 40 : 22, borderRadius: 999, padding: 0 }}>
+                    <button onClick={() => removeChipFilter(chip)} aria-label={`Remover filtro ${chip.label}`} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.accentText, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: isMobile ? 40 : 22, height: isMobile ? 40 : 22, borderRadius: 999, padding: 0 }}>
                       <X aria-hidden="true" style={{ width: 10, height: 10 }} />
                     </button>
                   </span>
                 ))}
-                <button onClick={clearAllFilters} data-testid="button-clear-filters" style={{ fontSize: 11, fontWeight: 600, color: '#57534e', background: 'none', border: '1px solid #e7e5e4', borderRadius: 999, cursor: 'pointer', padding: '0 10px', minHeight: isMobile ? 44 : 24 }}>
+                <button onClick={clearAllFilters} data-testid="button-clear-filters" style={{ fontSize: 11, fontWeight: 600, color: T.apoio, background: 'none', border: `1px solid ${T.border}`, borderRadius: 999, cursor: 'pointer', padding: '0 10px', minHeight: isMobile ? 44 : 24 }}>
                   Limpar tudo
                 </button>
                 {/* O aviso só importa quando há recorte ativo — e aí ele mora
                     aqui, na linha que mostra o recorte. */}
-                <span style={{ fontSize: 11, color: '#57534e' }}>
+                <span style={{ fontSize: 11, color: T.apoio }}>
                   as contagens das abas seguem este recorte
                 </span>
               </div>
@@ -5044,7 +5044,7 @@ export default function Arte() {
                     aberto — no celular esta é a única porta para as fases, e o
                     tamanho da fila aberta é o número que o operador olha antes
                     de qualquer outro. */}
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: T.apoio, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                   Fase · {faseAtualCount} {faseAtualCount === 1 ? 'peça' : 'peças'}
                 </span>
                 <FilterSelect
@@ -5093,9 +5093,9 @@ export default function Arte() {
                       tabIndex={isActive ? 0 : -1}
                       onClick={() => changeTab(tab.id)}
                       data-testid={tab.testId}
-                      style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 16px', border: 'none', cursor: 'pointer', borderBottom: isActive ? `2px solid ${dot}` : '2px solid transparent', marginBottom: -1, background: 'transparent', color: isActive ? text : '#57534e', fontWeight: isActive ? 700 : 500, fontSize: 13, whiteSpace: 'nowrap', borderRadius: '6px 6px 0 0', transition: 'all 0.14s', flexShrink: 0 }}
-                      onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = '#1c1917'; }}
-                      onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = '#57534e'; }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 16px', border: 'none', cursor: 'pointer', borderBottom: isActive ? `2px solid ${dot}` : '2px solid transparent', marginBottom: -1, background: 'transparent', color: isActive ? text : T.apoio, fontWeight: isActive ? 700 : 500, fontSize: 13, whiteSpace: 'nowrap', borderRadius: '6px 6px 0 0', transition: 'all 0.14s', flexShrink: 0 }}
+                      onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = T.text; }}
+                      onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = T.apoio; }}
                     >
                       <TabIcon style={{ width: 13, height: 13, flexShrink: 0 }} />
                       {tab.label}
@@ -5107,7 +5107,7 @@ export default function Arte() {
                           o mesmo fato, e o mais forte deles no elemento menos
                           importante do par. */}
                       {tab.count > 0 && (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 18, height: 18, borderRadius: 999, fontSize: 11, fontWeight: 700, padding: '0 5px', fontVariantNumeric: 'tabular-nums', backgroundColor: isActive ? '#fff7ed' : '#f5f5f4', border: isActive ? '1px solid #fed7aa' : '1px solid #e7e5e4', color: isActive ? '#c2410c' : '#57534e' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 18, height: 18, borderRadius: 999, fontSize: 11, fontWeight: 700, padding: '0 5px', fontVariantNumeric: 'tabular-nums', backgroundColor: isActive ? TOM.laranja.bg : N.n2, border: isActive ? `1px solid ${TOM.laranja.border}` : `1px solid ${T.border}`, color: isActive ? T.accentText : T.apoio }}>
                           {tab.count}
                         </span>
                       )}
@@ -5126,14 +5126,14 @@ export default function Arte() {
               {selectedItemIds.size > 0 && (
                 <span
                   data-testid="chip-selecao"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: isMobile ? 44 : 36, padding: '0 6px 0 12px', borderRadius: 999, background: '#1c1917', color: '#ffffff', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: isMobile ? 44 : 36, padding: '0 6px 0 12px', borderRadius: 999, background: T.text, color: T.surface, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}
                 >
                   {selectedItemIds.size} {selectedItemIds.size === 1 ? 'selecionada' : 'selecionadas'}
                   <button
                     onClick={() => setSelectedItemIds(new Set())}
                     aria-label="Limpar seleção"
                     data-testid="button-clear-selection"
-                    style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(255,255,255,0.16)', border: 'none', cursor: 'pointer', color: '#ffffff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                    style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(255,255,255,0.16)', border: 'none', cursor: 'pointer', color: T.surface, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                   >
                     <X style={{ width: 11, height: 11 }} />
                   </button>
@@ -5146,7 +5146,7 @@ export default function Arte() {
                     else setSelectedItemIds(new Set(filteredItems.map((i: any) => i.id)));
                   }}
                   data-testid="button-select-all"
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: isMobile ? 44 : 36, padding: '0 13px', borderRadius: 9, border: '1px solid #e7e5e4', background: '#ffffff', color: '#44403c', fontSize: 13, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: isMobile ? 44 : 36, padding: '0 13px', borderRadius: 9, border: `1px solid ${T.border}`, background: T.surface, color: T.strong, fontSize: 13, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
                 >
                   {selectedItemIds.size === filteredItems.length
                     ? <><X style={{ width: 11, height: 11 }} /> Desmarcar tudo</>
@@ -5254,7 +5254,7 @@ export default function Arte() {
               <div style={{ backgroundColor: P.amber.bg, border: `1px solid ${P.amber.border}`, borderRadius: R.md, padding: '12px 14px', marginBottom: 16, display: 'flex', gap: 10 }}>
                 <FastForward style={{ width: 16, height: 16, color: P.amber.text, flexShrink: 0, marginTop: 2 }} />
                 <div>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: '#78350f', margin: '0 0 2px' }}>{dispenseItem.displayId} — {dispenseItem.type}</p>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: TOM.alerta.text, margin: '0 0 2px' }}>{dispenseItem.displayId} — {dispenseItem.type}</p>
                   <p style={{ fontSize: 11, color: P.amber.text, margin: 0 }}>A peça vai direto para a <strong>finalização da arte</strong>, sem passar pela aprovação do Atendimento. Você ainda sobe o arquivo final, e a Revisão confere antes da Gráfica.</p>
                 </div>
               </div>
@@ -5262,7 +5262,7 @@ export default function Arte() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
               {/* Motivo OBRIGATÓRIO: pular a aprovação sem dizer por quê
                   deixava a Revisão e o Atendimento sem saber se foi combinado. */}
-              <label htmlFor="motivo-dispensa-arte" style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#57534e' }}>
+              <label htmlFor="motivo-dispensa-arte" style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio }}>
                 Motivo <span style={{ color: P.red.text }}>*</span>
               </label>
               <textarea
@@ -5271,7 +5271,7 @@ export default function Arte() {
                 onChange={e => setDispenseReason(e.target.value)}
                 placeholder="Ex: patrocinador já aprovou por fora; peça sem marca..."
                 data-testid="textarea-dispense-reason"
-                style={{ width: '100%', backgroundColor: '#fafaf9', border: `1px solid ${faltamNoMotivo(dispenseReason, MOTIVO_DISPENSA_MIN) > 0 ? '#e7e5e4' : '#16a34a'}`, borderRadius: 8, padding: '10px 12px', fontSize: 12, resize: 'none', height: 72, fontFamily: 'inherit', color: '#1c1917', boxSizing: 'border-box' }}
+                style={{ width: '100%', backgroundColor: T.bg, border: `1px solid ${faltamNoMotivo(dispenseReason, MOTIVO_DISPENSA_MIN) > 0 ? T.border : TOM.sucesso.text}`, borderRadius: 8, padding: '10px 12px', fontSize: 12, resize: 'none', height: 72, fontFamily: 'inherit', color: T.text, boxSizing: 'border-box' }}
               />
               {faltamNoMotivo(dispenseReason, MOTIVO_DISPENSA_MIN) > 0 && (
                 <p data-testid="dispense-faltam" style={{ margin: 0, fontSize: 11, color: P.amber.text }}>
@@ -5287,7 +5287,7 @@ export default function Arte() {
               {/* Raio 9 não existe em `R` (6/8/12/16/999) — era valor sem fonte. */}
               {/* 40px, a altura dos dois botões do diálogo vizinho (devolver):
                   dois diálogos irmãos, uma régua de rodapé. */}
-              <button onClick={() => { setDispenseItem(null); setDispenseReason(""); }} style={{ height: 40, padding: '0 16px', borderRadius: R.md, backgroundColor: '#ffffff', border: '1px solid #e7e5e4', color: '#57534e', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              <button onClick={() => { setDispenseItem(null); setDispenseReason(""); }} style={{ height: 40, padding: '0 16px', borderRadius: R.md, backgroundColor: T.surface, border: `1px solid ${T.border}`, color: T.apoio, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                 Cancelar
               </button>
               <button
@@ -5304,8 +5304,8 @@ export default function Arte() {
                 // Sem motivo: o cinza de desabilitado da casa (#57534e sobre
                 // #e7e5e4, legível) — o porquê está escrito embaixo do campo.
                 style={faltamNoMotivo(dispenseReason, MOTIVO_DISPENSA_MIN) > 0
-                  ? { height: 40, padding: '0 16px', borderRadius: R.md, backgroundColor: '#e7e5e4', border: '1.5px solid #e7e5e4', color: '#57534e', fontSize: 13, fontWeight: 700, cursor: 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }
-                  : { height: 40, padding: '0 16px', borderRadius: R.md, backgroundColor: '#ffffff', border: `1.5px solid ${P.amber.text}`, color: P.amber.text, fontSize: 13, fontWeight: 700, cursor: dispenseMutation.isPending ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: dispenseMutation.isPending ? 0.7 : 1 }}
+                  ? { height: 40, padding: '0 16px', borderRadius: R.md, backgroundColor: T.border, border: `1.5px solid ${T.border}`, color: T.apoio, fontSize: 13, fontWeight: 700, cursor: 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }
+                  : { height: 40, padding: '0 16px', borderRadius: R.md, backgroundColor: T.surface, border: `1.5px solid ${P.amber.text}`, color: P.amber.text, fontSize: 13, fontWeight: 700, cursor: dispenseMutation.isPending ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: dispenseMutation.isPending ? 0.7 : 1 }}
               >
                 {dispenseMutation.isPending ? (
                   <>
@@ -5343,7 +5343,7 @@ export default function Arte() {
           <ModalHeader
             icon={RotateCcw}
             variant="confirm"
-            tint="#b45309"
+            tint={TOM.alerta.text}
             title="Devolver ao solicitante"
             subtitle="A peça volta para rascunho — quem a criou decide se continua ou descarta"
             onClose={() => { setDevolverItem(null); setDevolverMotivo(""); }}
@@ -5359,8 +5359,8 @@ export default function Arte() {
                 <RotateCcw style={{ width: 16, height: 16, color: P.amber.text, flexShrink: 0, marginTop: 2 }} />
                 <div>
                   {/* #78350f sobre #fffbeb = 9,7:1 ✓ · #92400e = 6,5:1 ✓ */}
-                  <p style={{ fontSize: 12, fontWeight: 700, color: '#78350f', margin: '0 0 2px' }}>{devolverItem.displayId} — {devolverItem.type}</p>
-                  <p style={{ fontSize: 11, color: '#92400e', margin: 0 }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: TOM.alerta.text, margin: '0 0 2px' }}>{devolverItem.displayId} — {devolverItem.type}</p>
+                  <p style={{ fontSize: 11, color: TOM.alerta.text, margin: 0 }}>
                     {DEPOIS_DA_ARTE.has(devolverItem.status)
                       ? `Atenção: esta peça está em "${getStatusLabel(devolverItem.status)}" — ela já saiu da mesa da Arte. Devolver tira a linha da fila de quem está com ela agora, e o que já foi produzido continua produzido. O thumb e o arquivo final ficam guardados.`
                       : "Ela sai da fila da Arte e reaparece como rascunho no evento. O thumb e o arquivo final que você já subiu ficam guardados."}
@@ -5369,7 +5369,7 @@ export default function Arte() {
               </div>
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
-              <label htmlFor="motivo-devolucao-arte" style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#57534e' }}>
+              <label htmlFor="motivo-devolucao-arte" style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio }}>
                 Motivo <span style={{ color: P.red.text }}>*</span>
               </label>
               <textarea
@@ -5379,7 +5379,7 @@ export default function Arte() {
                 onChange={e => setDevolverMotivo(e.target.value)}
                 placeholder="Ex: a medida não fecha com o layout enviado — confirmar largura antes de refazer."
                 data-testid="textarea-devolver-motivo"
-                style={{ width: '100%', backgroundColor: '#fafaf9', border: `1px solid ${motivoCurto(devolverMotivo) ? '#e7e5e4' : '#16a34a'}`, borderRadius: R.md, padding: '10px 12px', fontSize: 12, resize: 'none', height: 84, fontFamily: 'inherit', color: '#1c1917', boxSizing: 'border-box' }}
+                style={{ width: '100%', backgroundColor: T.bg, border: `1px solid ${motivoCurto(devolverMotivo) ? T.border : TOM.sucesso.text}`, borderRadius: R.md, padding: '10px 12px', fontSize: 12, resize: 'none', height: 84, fontFamily: 'inherit', color: T.text, boxSizing: 'border-box' }}
               />
               {/* #b45309 sobre #fafaf9 = 4,79:1 ✓ nos 11px */}
               {motivoCurto(devolverMotivo) && (
@@ -5402,7 +5402,7 @@ export default function Arte() {
 
                   Os 40px ficam: são a altura dos dois botões deste rodapé, e
                   acima do mínimo da casa. */}
-              <button onClick={() => { setDevolverItem(null); setDevolverMotivo(""); }} style={{ height: 40, padding: '0 16px', borderRadius: R.md, backgroundColor: '#ffffff', border: '1px solid #e7e5e4', color: '#57534e', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              <button onClick={() => { setDevolverItem(null); setDevolverMotivo(""); }} style={{ height: 40, padding: '0 16px', borderRadius: R.md, backgroundColor: T.surface, border: `1px solid ${T.border}`, color: T.apoio, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                 Cancelar
               </button>
               <button
@@ -5416,7 +5416,7 @@ export default function Arte() {
                 // motivo mínimo, então o texto ilegível era a leitura normal,
                 // não a exceção. #57534e mede 6,08:1 e é o mesmo cinza que a
                 // casca usa para desabilitado.
-                style={{ height: 40, padding: '0 18px', borderRadius: R.md, backgroundColor: motivoCurto(devolverMotivo) ? '#e7e5e4' : P.amber.text, border: 'none', color: motivoCurto(devolverMotivo) ? '#57534e' : '#ffffff', fontSize: 13, fontWeight: 700, cursor: devolverMutation.isPending || motivoCurto(devolverMotivo) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: devolverMutation.isPending ? 0.7 : 1 }}
+                style={{ height: 40, padding: '0 18px', borderRadius: R.md, backgroundColor: motivoCurto(devolverMotivo) ? T.border : P.amber.text, border: 'none', color: motivoCurto(devolverMotivo) ? T.apoio : T.surface, fontSize: 13, fontWeight: 700, cursor: devolverMutation.isPending || motivoCurto(devolverMotivo) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: devolverMutation.isPending ? 0.7 : 1 }}
               >
                 {devolverMutation.isPending
                   ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />Devolvendo…</>
@@ -5472,7 +5472,7 @@ export default function Arte() {
           <ModalHeader
             variant="confirm"
             icon={RotateCcw}
-            tint="#b91c1c"
+            tint={TOM.perigo.text}
             title="Enviar nova arte"
             subtitle={correcaoItem
               ? [
@@ -5495,36 +5495,36 @@ export default function Arte() {
                 {/* Rejection cards */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
                   {correcaoItem.awaitingArteApprovals.map((approval: any) => (
-                    <div key={approval.id} style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #f0dede' }}>
+                    <div key={approval.id} style={{ borderRadius: 12, overflow: 'hidden', border: `1px solid ${TOM.perigo.border}` }}>
                       {/* Sponsor bar */}
-                      <div style={{ backgroundColor: '#fff8f8', padding: '7px 14px', display: 'flex', alignItems: 'center', gap: 7, borderBottom: '1px solid #f7e6e6' }}>
+                      <div style={{ backgroundColor: TOM.perigo.bg, padding: '7px 14px', display: 'flex', alignItems: 'center', gap: 7, borderBottom: `1px solid ${TOM.perigo.border}` }}>
                         {approval.sponsor?.color && <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: approval.sponsor.color, flexShrink: 0 }} />}
                         {/* Nome em caixa normal e "recusou" como verbo: eram DUAS
                             peças em versalete vermelho na mesma faixa (a marca e
                             um selo "RECUSADO"), e o painel logo abaixo já diz
                             "reprovou" em caixa baixa — mesma notícia, duas vozes. */}
-                        <span style={{ fontSize: 12, fontWeight: 700, color: '#991b1b', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{approval.sponsor?.name || 'Patrocinador'}</span>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: '#991b1b', whiteSpace: 'nowrap' }}>recusou</span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: TOM.perigo.text, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{approval.sponsor?.name || 'Patrocinador'}</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: TOM.perigo.text, whiteSpace: 'nowrap' }}>recusou</span>
                       </div>
                       {/* Reason */}
                       {/* Corpo BRANCO e sem itálico: é o texto que a pessoa
                           abriu o modal para ler, e estava em vermelho escuro
                           inclinado sobre rosa. As aspas já marcam a citação. */}
-                      <div style={{ backgroundColor: '#ffffff', padding: '10px 14px 8px' }}>
-                        <p style={{ fontSize: 12, color: '#44403c', margin: 0, lineHeight: 1.55 }}>
-                          {approval.rejectionReason ? <>"<TextoComLinks texto={approval.rejectionReason} />"</> : <span style={{ color: '#78716c' }}>Sem motivo informado.</span>}
+                      <div style={{ backgroundColor: T.surface, padding: '10px 14px 8px' }}>
+                        <p style={{ fontSize: 12, color: T.strong, margin: 0, lineHeight: 1.55 }}>
+                          {approval.rejectionReason ? <>"<TextoComLinks texto={approval.rejectionReason} />"</> : <span style={{ color: T.second }}>Sem motivo informado.</span>}
                         </p>
                         {(approval.rejectedBy || approval.rejectedAt) && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 6 }}>
                             {approval.rejectedBy && (
                               // Sem o chip rosa em volta do nome: quem recusou
                               // não é um status, é um crédito de linha.
-                              <span style={{ fontSize: 11, fontWeight: 600, color: '#57534e' }}>
+                              <span style={{ fontSize: 11, fontWeight: 600, color: T.apoio }}>
                                 {approval.rejectedBy}
                               </span>
                             )}
                             {approval.rejectedAt && (
-                              <span style={{ fontSize: 11, color: '#57534e', fontVariantNumeric: 'tabular-nums' }}>
+                              <span style={{ fontSize: 11, color: T.apoio, fontVariantNumeric: 'tabular-nums' }}>
                                 {new Date(approval.rejectedAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
                               </span>
                             )}
@@ -5537,12 +5537,12 @@ export default function Arte() {
 
                 {/* Upload zone */}
                 <div style={{ marginBottom: 18 }}>
-                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#57534e', marginBottom: 8 }}>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: T.apoio, marginBottom: 8 }}>
                     Nova versão
                   </label>
                   {correcaoThumbUrl ? (
                     /* Uploaded state — compact pill row */
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, backgroundColor: '#f0fdf4', border: '1px solid #86efac' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, backgroundColor: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}` }}>
                       {/* Ladrilho chapado: o gradiente verde era o ultimo desta
                           area, e num aviso de sucesso de 32px ele nao le como
                           gradiente — le como ruido. */}
@@ -5552,15 +5552,15 @@ export default function Arte() {
                             patrocinador" (rodada 4) — e a pessoa fechava o
                             modal sem clicar no botão de baixo. Subiu para o
                             servidor; ninguém recebeu ainda. */}
-                        <div style={{ fontSize: 11, fontWeight: 700, color: '#15803d' }}>Nova versão carregada — falta enviar</div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: TOM.sucesso.text }}>Nova versão carregada — falta enviar</div>
                         {correcaoFileName && (
-                          <div style={{ fontSize: 11, color: '#15803d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={correcaoFileName}>{correcaoFileName}</div>
+                          <div style={{ fontSize: 11, color: TOM.sucesso.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={correcaoFileName}>{correcaoFileName}</div>
                         )}
                       </div>
                       <button
                         onClick={() => { setCorrecaoThumbUrl(""); setCorrecaoFileName(""); }}
                         data-testid="button-remove-correcao-thumb"
-                        style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#dcfce7', border: '1px solid #86efac', borderRadius: 8, color: '#166534', fontSize: 11, fontWeight: 600, height: 36, padding: '0 12px', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 4, background: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}`, borderRadius: 8, color: TOM.sucesso.text, fontSize: 11, fontWeight: 600, height: 36, padding: '0 12px', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
                       >
                         <X style={{ width: 11, height: 11 }} /> Trocar
                       </button>
@@ -5569,12 +5569,12 @@ export default function Arte() {
                     /* Empty state. A zona dizia "Arraste ou" mas nunca teve
                        handler de drag — só o link e o Ctrl+V funcionavam. */
                     <div style={{
-                      height: 130, border: (isPasteUploading || isDragOverCorrecao) ? '1.5px dashed #ba1a1a' : '1.5px dashed #e2e0dd', borderRadius: 10,
-                      backgroundColor: (isPasteUploading || isDragOverCorrecao) ? '#fff5f5' : '#fafaf9', display: 'flex', flexDirection: 'column',
+                      height: 130, border: (isPasteUploading || isDragOverCorrecao) ? `1.5px dashed ${TOM.perigo.text}` : `1.5px dashed ${T.border}`, borderRadius: 10,
+                      backgroundColor: (isPasteUploading || isDragOverCorrecao) ? TOM.perigo.bg : T.bg, display: 'flex', flexDirection: 'column',
                       alignItems: 'center', justifyContent: 'center', gap: 2, transition: 'all 0.15s', cursor: 'default'
                     }}
-                      onMouseEnter={e => { if (!isPasteUploading && !isDragOverCorrecao) { (e.currentTarget as HTMLElement).style.backgroundColor = '#f5f5f4'; (e.currentTarget as HTMLElement).style.borderColor = '#c7c3be'; } }}
-                      onMouseLeave={e => { if (!isPasteUploading && !isDragOverCorrecao) { (e.currentTarget as HTMLElement).style.backgroundColor = '#fafaf9'; (e.currentTarget as HTMLElement).style.borderColor = '#e2e0dd'; } }}
+                      onMouseEnter={e => { if (!isPasteUploading && !isDragOverCorrecao) { (e.currentTarget as HTMLElement).style.backgroundColor = N.n2; (e.currentTarget as HTMLElement).style.borderColor = T.bdark; } }}
+                      onMouseLeave={e => { if (!isPasteUploading && !isDragOverCorrecao) { (e.currentTarget as HTMLElement).style.backgroundColor = T.bg; (e.currentTarget as HTMLElement).style.borderColor = T.border; } }}
                       onDragOver={e => { e.preventDefault(); setIsDragOverCorrecao(true); }}
                       onDragEnter={e => { e.preventDefault(); setIsDragOverCorrecao(true); }}
                       // Só apaga o destaque quando o arrasto SAI da zona: o dragleave
@@ -5599,13 +5599,13 @@ export default function Arte() {
                       {/* Hairline no lugar da sombra: uma sombra difusa dentro
                           de uma caixa tracejada dá dois contornos concorrentes
                           para o mesmo objeto. */}
-                      <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#fff', border: '1px solid #ebe8e3', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#fff', border: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
                         {isPasteUploading
-                          ? <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2.5px solid #fecaca', borderTopColor: '#dc2626', animation: 'spin 0.8s linear infinite' }} />
-                          : <Upload style={{ width: 18, height: 18, color: '#dc2626' }} />
+                          ? <div style={{ width: 18, height: 18, borderRadius: '50%', border: `2.5px solid ${TOM.perigo.border}`, borderTopColor: TOM.perigo.text, animation: 'spin 0.8s linear infinite' }} />
+                          : <Upload style={{ width: 18, height: 18, color: TOM.perigo.text }} />
                         }
                       </div>
-                      <p style={{ fontSize: 12, fontWeight: 600, color: '#44403c', margin: 0 }}>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: T.strong, margin: 0 }}>
                         {isPasteUploading ? 'Enviando...' : 'Arraste ou'}
                       </p>
                       {!isPasteUploading && (
@@ -5623,7 +5623,7 @@ export default function Arte() {
                       )}
                       {/* O atalho que JÁ existe, desenhado como tecla: escrito no
                           meio da frase ele passava por texto de rodapé. */}
-                      <p style={{ fontSize: 11, color: '#57534e', margin: '3px 0 0' }}>
+                      <p style={{ fontSize: 11, color: T.apoio, margin: '3px 0 0' }}>
                         {isPasteUploading ? 'Aguarde…' : <>PDF, PNG, SVG · ou cole com <kbd style={KBD}>Ctrl</kbd>+<kbd style={KBD}>V</kbd></>}
                       </p>
                       {!isPasteUploading && correcaoItem && (
@@ -5647,11 +5647,11 @@ export default function Arte() {
                     painel de LEITURA: a tela mostra a conta, e o servidor
                     (sponsor-approvals/resubmit) recusa qualquer outro conjunto. */}
                 <div style={{ marginBottom: 20 }} data-testid="painel-reenvio">
-                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#57534e', marginBottom: 8 }}>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: T.apoio, marginBottom: 8 }}>
                     Para quem vai o reenvio — automático
                   </label>
                   {correcaoAprovacoes.length === 0 && (
-                    <p style={{ fontSize: 12, color: '#57534e', margin: '0 0 4px', lineHeight: 1.45 }}>
+                    <p style={{ fontSize: 12, color: T.apoio, margin: '0 0 4px', lineHeight: 1.45 }}>
                       Nenhum patrocinador reprovou individualmente — esta peça foi devolvida inteira.
                       O re-envio manda a arte nova para a aprovação de <strong>todos</strong> os patrocinadores dela.
                     </p>
@@ -5665,17 +5665,17 @@ export default function Arte() {
                         <div
                           key={a.sponsorId}
                           data-testid={`linha-reenvio-${a.sponsorId}`}
-                          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: R.md, minHeight: 44, backgroundColor: recebe ? '#fafaf9' : '#ffffff', border: `1px solid ${recebe ? '#e7e5e4' : '#f0efee'}`, opacity: recebe ? 1 : 0.7 }}
+                          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: R.md, minHeight: 44, backgroundColor: recebe ? T.bg : T.surface, border: `1px solid ${recebe ? T.border : N.n3}`, opacity: recebe ? 1 : 0.7 }}
                         >
                           {a.sponsor?.color && (
                             <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: a.sponsor.color, flexShrink: 0 }} />
                           )}
-                          <span style={{ fontSize: 13, fontWeight: recebe ? 700 : 500, color: '#1c1917', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.sponsor?.name || 'Patrocinador'}</span>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: est?.text ?? '#57534e', background: est?.bg ?? '#f5f5f4', border: `1px solid ${est?.border ?? '#e7e5e4'}`, borderRadius: R.sm, padding: '2px 8px', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
+                          <span style={{ fontSize: 13, fontWeight: recebe ? 700 : 500, color: T.text, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.sponsor?.name || 'Patrocinador'}</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: est?.text ?? T.apoio, background: est?.bg ?? N.n2, border: `1px solid ${est?.border ?? T.border}`, borderRadius: R.sm, padding: '2px 8px', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
                             {estadoTexto}
                           </span>
                           {/* #9a3412 sobre #fff7ed 6,1:1; #15803d sobre #f0fdf4 4,9:1. */}
-                          <span style={{ fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', color: recebe ? '#9a3412' : '#15803d', background: recebe ? '#fff7ed' : '#f0fdf4', border: `1px solid ${recebe ? '#fed7aa' : '#bbf7d0'}`, borderRadius: R.sm, padding: '2px 8px' }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', color: recebe ? T.accentText : TOM.sucesso.text, background: recebe ? TOM.laranja.bg : TOM.sucesso.bg, border: `1px solid ${recebe ? TOM.laranja.border : TOM.sucesso.border}`, borderRadius: R.sm, padding: '2px 8px' }}>
                             {recebe ? 'vai receber' : 'mantém aprovação'}
                           </span>
                         </div>
@@ -5683,7 +5683,7 @@ export default function Arte() {
                     })}
                   </div>
                   {correcaoAprovacoes.length > 0 && (
-                    <p data-testid="text-reenvio-total" style={{ margin: '10px 0 0', fontSize: 12, fontWeight: 700, color: '#44403c' }}>
+                    <p data-testid="text-reenvio-total" style={{ margin: '10px 0 0', fontSize: 12, fontWeight: 700, color: T.strong }}>
                       Vai para {correcaoDestinatarios.length} de {correcaoAprovacoes.length} {correcaoAprovacoes.length === 1 ? 'patrocinador' : 'patrocinadores'}
                     </p>
                   )}
@@ -5733,7 +5733,7 @@ export default function Arte() {
           // quando o dado local estava errado.
           const travado = !correcaoThumbUrl || enviando;
           return (
-          <div style={{ padding: '16px 24px 24px', borderTop: '1px solid #f0eeec', flexShrink: 0 }}>
+          <div style={{ padding: '16px 24px 24px', borderTop: `1px solid ${N.n3}`, flexShrink: 0 }}>
             <button
               disabled={travado}
               onClick={() => {
@@ -5752,21 +5752,21 @@ export default function Arte() {
                 // mede 3,6:1 e reprovava AA em 15px; e os outros primários da
                 // tela (Enviar, Finalizar, Enviar para aprovação) já são tinta.
                 // Desabilitado em cinza padrão, legível.
-                background: travado ? '#e7e5e4' : '#1c1917',
-                color: travado ? '#57534e' : '#ffffff',
+                background: travado ? T.border : T.text,
+                color: travado ? T.apoio : T.surface,
                 fontWeight: 700, fontSize: 15,
                 fontFamily: '"Space Grotesk", sans-serif', letterSpacing: '-0.02em',
                 cursor: travado ? 'not-allowed' : 'pointer',
                 transition: 'background-color 0.15s',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
               }}
-              onMouseEnter={e => { if (!travado) e.currentTarget.style.backgroundColor = '#44403c'; }}
-              onMouseLeave={e => { if (!travado) e.currentTarget.style.backgroundColor = '#1c1917'; }}
+              onMouseEnter={e => { if (!travado) e.currentTarget.style.backgroundColor = T.strong; }}
+              onMouseLeave={e => { if (!travado) e.currentTarget.style.backgroundColor = T.text; }}
             >
               {/* O rótulo diz a QUEM vai: "Confirmar Re-envio" não dizia o quê
                   nem para quem, e a conta já está feita no painel acima. */}
               {enviando ? (
-                <><div style={{ width: 15, height: 15, borderRadius: '50%', border: '2px solid #d6d3d1', borderTopColor: '#57534e', animation: 'spin 0.8s linear infinite' }} />Enviando…</>
+                <><div style={{ width: 15, height: 15, borderRadius: '50%', border: `2px solid ${T.bdark}`, borderTopColor: T.apoio, animation: 'spin 0.8s linear infinite' }} />Enviando…</>
               ) : (
                 <><Send aria-hidden="true" style={{ width: 15, height: 15 }} />{devolvidaInteira
                   ? 'Enviar nova arte a todos os patrocinadores'
@@ -5782,7 +5782,7 @@ export default function Arte() {
                 de patrocinadores embaixo. Quem não vê a que falta fica
                 clicando num botão que não responde. */}
             {travado && !enviando && (
-              <p style={{ margin: '8px 0 0', fontSize: 11, color: '#78716c', textAlign: 'center' }}>
+              <p style={{ margin: '8px 0 0', fontSize: 11, color: T.second, textAlign: 'center' }}>
                 {!correcaoThumbUrl ? 'Suba a nova versão para liberar o envio.' : 'Nenhum patrocinador pendente para receber o reenvio — todos já aprovaram.'}
               </p>
             )}
@@ -5809,10 +5809,10 @@ export default function Arte() {
                 palavra da aba Correção, que é OUTRA coisa (arte recusada pelo
                 patrocinador). Quem lia achava que a peça tinha voltado. */}
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-              <h3 style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: 18, letterSpacing: '-0.02em', color: '#1c1917', margin: 0 }}>
+              <h3 style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: 18, letterSpacing: '-0.02em', color: T.text, margin: 0 }}>
                 {['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) ? 'Finalização de layout' : 'Substituir arquivo final'}
               </h3>
-              <span style={{ fontSize: 12, color: '#746e69', fontWeight: 600 }}>
+              <span style={{ fontSize: 12, color: T.second, fontWeight: 600 }}>
                 {['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) ? 'arte aprovada — falta o arquivo final' : 'a peça já tem arquivo final'}
               </span>
             </div>
@@ -5821,8 +5821,8 @@ export default function Arte() {
                 borda de 2px: verde nesta tela é o ESTADO aprovado, e o bloco
                 inteiro vestido dele competia com o botão de enviar. */}
             <div style={{
-              background: '#ffffff',
-              border: '1px solid #e7e5e4', borderRadius: 12, padding: isMobile ? 16 : 20,
+              background: T.surface,
+              border: `1px solid ${T.border}`, borderRadius: 12, padding: isMobile ? 16 : 20,
               display: 'flex', flexDirection: 'column', gap: 16
             }}>
               {/* Thumb aprovado preview */}
@@ -5831,26 +5831,26 @@ export default function Arte() {
                 const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(url) || selectedItem.approvalThumbUrl.startsWith('/objects/');
                 const isPdf = !isImage;
                 return (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: '#fafaf9', borderRadius: 8, border: '1px solid #f0efee', flexWrap: 'wrap' }}>
-                    <div style={{ width: 40, height: 40, borderRadius: 6, backgroundColor: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: T.bg, borderRadius: 8, border: `1px solid ${N.n3}`, flexWrap: 'wrap' }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 6, backgroundColor: TOM.perigo.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       {isPdf
-                        ? <FileText style={{ width: 20, height: 20, color: '#ef4444' }} />
+                        ? <FileText style={{ width: 20, height: 20, color: TOM.perigo.dot }} />
                         : <img loading="lazy" decoding="async" src={selectedItem.approvalThumbUrl} alt="Thumb" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6 }} />
                       }
                     </div>
                     <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
                       {/* "Thumb aprovado" é o que o bloco É; o nome do arquivo
                           (um hash, em versalete) vai para o `title`. */}
-                      <p title={selectedItem.approvalThumbUrl.split('/').pop() || undefined} style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <p title={selectedItem.approvalThumbUrl.split('/').pop() || undefined} style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         Thumb aprovado
                       </p>
-                      <a href={selectedItem.approvalThumbUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#44403c', textDecoration: 'underline', textUnderlineOffset: 2 }}>
+                      <a href={selectedItem.approvalThumbUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: T.strong, textDecoration: 'underline', textUnderlineOffset: 2 }}>
                         Abrir em nova aba
                       </a>
                       {/* "Trocar thumb" sobe NA HORA, sem confirmação — então o
                           que a troca faz (ou por que não dá) vem escrito antes. */}
                       {regraThumbSel && (
-                        <p data-testid="texto-troca-thumb" style={{ margin: '2px 0 0', fontSize: 11, color: '#57534e', lineHeight: 1.4 }}>
+                        <p data-testid="texto-troca-thumb" style={{ margin: '2px 0 0', fontSize: 11, color: T.apoio, lineHeight: 1.4 }}>
                           {textoDaTrocaDoThumb(selectedItem.status, regraThumbSel)}
                         </p>
                       )}
@@ -5887,7 +5887,7 @@ export default function Arte() {
                     )}
                     {thumbPedeMotivo && (
                       <div style={{ flexBasis: '100%', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <label htmlFor="motivo-troca-thumb" style={{ fontSize: 11, fontWeight: 700, color: '#57534e' }}>
+                        <label htmlFor="motivo-troca-thumb" style={{ fontSize: 11, fontWeight: 700, color: T.apoio }}>
                           Motivo da troca <span style={{ color: P.red.text }}>*</span>
                         </label>
                         <textarea
@@ -5896,7 +5896,7 @@ export default function Arte() {
                           onChange={(e) => setMotivoTrocaThumb(e.target.value)}
                           placeholder="Ex: o patrocinador pediu o logo novo por e-mail depois de aprovar."
                           data-testid="textarea-motivo-troca-thumb"
-                          style={{ width: '100%', backgroundColor: '#ffffff', border: `1px solid ${faltamMotivoThumb > 0 ? '#e7e5e4' : '#16a34a'}`, borderRadius: R.md, padding: '8px 10px', fontSize: 12, resize: 'none', height: 60, fontFamily: 'inherit', color: '#1c1917', boxSizing: 'border-box' }}
+                          style={{ width: '100%', backgroundColor: T.surface, border: `1px solid ${faltamMotivoThumb > 0 ? T.border : TOM.sucesso.text}`, borderRadius: R.md, padding: '8px 10px', fontSize: 12, resize: 'none', height: 60, fontFamily: 'inherit', color: T.text, boxSizing: 'border-box' }}
                         />
                         {faltamMotivoThumb > 0 && (
                           <p data-testid="troca-thumb-faltam" style={{ margin: 0, fontSize: 11, color: P.amber.text }}>
@@ -5911,10 +5911,10 @@ export default function Arte() {
 
               {/* Thumb anterior — gravado quando a Arte troca o thumb aprovado */}
               {selectedItem.previousApprovalThumbUrl && (
-                <div style={{ backgroundColor: '#fffbeb', border: '1px solid #fbbf24', borderRadius: 8, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#92400e' }}>Thumb substituído — a versão anterior ficou guardada</span>
+                <div style={{ backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 8, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: TOM.alerta.text }}>Thumb substituído — a versão anterior ficou guardada</span>
                   <a href={selectedItem.previousApprovalThumbUrl} target="_blank" rel="noopener noreferrer"
-                    style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", color: '#57534e', wordBreak: 'break-all', textDecoration: 'underline' }}>
+                    style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", color: T.apoio, wordBreak: 'break-all', textDecoration: 'underline' }}>
                     {selectedItem.previousApprovalThumbUrl.split('/').pop() || selectedItem.previousApprovalThumbUrl}
                   </a>
                 </div>
@@ -5922,9 +5922,9 @@ export default function Arte() {
 
               {/* Arquivo anterior — exibido quando Arte substitui o arquivo enviado */}
               {selectedItem.previousFinalFileUrl && (
-                <div style={{ backgroundColor: '#fffbeb', border: '1px solid #fbbf24', borderRadius: 8, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#92400e' }}>Arquivo final substituído — o anterior ficou gravado</span>
-                  <span style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", color: '#57534e', wordBreak: 'break-all' }}>
+                <div style={{ backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 8, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: TOM.alerta.text }}>Arquivo final substituído — o anterior ficou gravado</span>
+                  <span style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", color: T.apoio, wordBreak: 'break-all' }}>
                     {selectedItem.previousFinalFileName || selectedItem.previousFinalFileUrl}
                   </span>
                 </div>
@@ -5933,8 +5933,8 @@ export default function Arte() {
               {regraFinalSel && !regraFinalSel.pode ? (
                 // A troca não cabe mais: o motivo no lugar do campo (a rota
                 // responderia 409 com a mesma frase).
-                <p data-testid="final-troca-bloqueada" style={{ display: 'flex', alignItems: 'flex-start', gap: 8, margin: 0, padding: '10px 12px', borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4', fontSize: 12, color: '#44403c', lineHeight: 1.5 }}>
-                  <Lock aria-hidden="true" style={{ width: 14, height: 14, color: '#57534e', flexShrink: 0, marginTop: 2 }} />
+                <p data-testid="final-troca-bloqueada" style={{ display: 'flex', alignItems: 'flex-start', gap: 8, margin: 0, padding: '10px 12px', borderRadius: 8, background: N.n2, border: `1px solid ${T.border}`, fontSize: 12, color: T.strong, lineHeight: 1.5 }}>
+                  <Lock aria-hidden="true" style={{ width: 14, height: 14, color: T.apoio, flexShrink: 0, marginTop: 2 }} />
                   <span><b style={{ fontWeight: 700 }}>Arquivo final não pode mais ser trocado.</b> {regraFinalSel.motivo}</span>
                 </p>
               ) : (
@@ -5944,18 +5944,18 @@ export default function Arte() {
                 {/* htmlFor: o rótulo era um <label> solto (sem vínculo com o
                     campo) em verde a 60% — o leitor de tela anunciava "campo de
                     edição" sem nome, e o texto não passava AA. */}
-                <label htmlFor="finalFilePath" style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#57534e', paddingLeft: 2 }}>
+                <label htmlFor="finalFilePath" style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio, paddingLeft: 2 }}>
                   Caminho do arquivo final
                 </label>
                 <div style={{ position: 'relative' }}>
-                  <FolderOpen aria-hidden="true" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: '#57534e' }} />
+                  <FolderOpen aria-hidden="true" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: T.apoio }} />
                   <Input
                     id="finalFilePath"
                     placeholder="Cole o caminho do ARQUIVO (com nome e extensão)…"
                     value={finalFileUrl}
                     onChange={(e) => { setFinalFileUrl(e.target.value); setFinalDirty(true); }}
                     data-testid="input-final-file-path"
-                    style={{ paddingLeft: 36, paddingRight: 16, height: 44, background: '#ffffff', border: 'none', boxShadow: '0 0 0 1px #d6d3d1', borderRadius: 8, fontSize: 13, fontWeight: 500 }}
+                    style={{ paddingLeft: 36, paddingRight: 16, height: 44, background: T.surface, border: 'none', boxShadow: `0 0 0 1px ${T.bdark}`, borderRadius: 8, fontSize: 13, fontWeight: 500 }}
                   />
                 </div>
                 {/* O arquivo final da mesma arte já está no app — copiar o
@@ -5967,30 +5967,30 @@ export default function Arte() {
                 />
                 {sugestaoVisivel && (
                   finalFileUrl.trim() === "" ? (
-                    <div data-testid="sugestao-arquivo-final" style={{ display: "flex", flexDirection: "column", gap: 8, padding: "10px 12px", borderRadius: 8, background: "#fafaf9", border: "1px solid #e7e5e4" }}>
-                      <p style={{ margin: 0, fontSize: 12, color: "#44403c", lineHeight: 1.5 }}>
-                        <b style={{ fontWeight: 700, color: "#1c1917" }}>Sugestão</b> — arquivo final da {sugestaoVisivel.displayId ?? "peça de origem"}{sugestaoVisivel.evento ? ` (${sugestaoVisivel.evento})` : ""}:
+                    <div data-testid="sugestao-arquivo-final" style={{ display: "flex", flexDirection: "column", gap: 8, padding: "10px 12px", borderRadius: 8, background: T.bg, border: `1px solid ${T.border}` }}>
+                      <p style={{ margin: 0, fontSize: 12, color: T.strong, lineHeight: 1.5 }}>
+                        <b style={{ fontWeight: 700, color: T.text }}>Sugestão</b> — arquivo final da {sugestaoVisivel.displayId ?? "peça de origem"}{sugestaoVisivel.evento ? ` (${sugestaoVisivel.evento})` : ""}:
                       </p>
-                      <p style={{ margin: 0, fontSize: 12, fontFamily: "'DM Mono', monospace", color: "#1c1917", wordBreak: "break-all" }}>{sugestaoVisivel.finalFileUrl}</p>
+                      <p style={{ margin: 0, fontSize: 12, fontFamily: "'DM Mono', monospace", color: T.text, wordBreak: "break-all" }}>{sugestaoVisivel.finalFileUrl}</p>
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                         <button type="button" onClick={usarSugestaoFinal} data-testid="button-usar-sugestao-final"
-                          style={{ minHeight: 44, padding: "0 14px", borderRadius: 8, border: "1px solid #d6d3d1", background: "#ffffff", color: "#1c1917", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                          style={{ minHeight: 44, padding: "0 14px", borderRadius: 8, border: `1px solid ${T.bdark}`, background: T.surface, color: T.text, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                           Usar este caminho
                         </button>
                         <button type="button" onClick={ignorarSugestaoFinal} data-testid="button-ignorar-sugestao-final"
-                          style={{ minHeight: 44, padding: "0 12px", borderRadius: 8, border: "none", background: "transparent", color: "#57534e", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                          style={{ minHeight: 44, padding: "0 12px", borderRadius: 8, border: "none", background: "transparent", color: T.apoio, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
                           Ignorar
                         </button>
                       </div>
-                      <p style={{ margin: 0, fontSize: 11, color: "#746e69", lineHeight: 1.45 }}>
+                      <p style={{ margin: 0, fontSize: 11, color: T.second, lineHeight: 1.45 }}>
                         É só sugestão — nada é enviado até você clicar em enviar. Confira se o arquivo serve para esta peça (medida e evento).
                       </p>
                     </div>
                   ) : (
-                    <p data-testid="sugestao-arquivo-final-linha" style={{ margin: 0, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 11.5, color: "#57534e", paddingLeft: 2 }}>
+                    <p data-testid="sugestao-arquivo-final-linha" style={{ margin: 0, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 11.5, color: T.apoio, paddingLeft: 2 }}>
                       <span style={{ minWidth: 0, wordBreak: "break-all" }}>Sugestão: {sugestaoVisivel.finalFileUrl}</span>
                       <button type="button" onClick={usarSugestaoFinal} data-testid="button-usar-sugestao-final-linha"
-                        style={{ minHeight: 44, padding: "0 8px", border: "none", background: "transparent", color: "#1c1917", fontSize: 12, fontWeight: 700, textDecoration: "underline", textUnderlineOffset: 2, cursor: "pointer" }}>
+                        style={{ minHeight: 44, padding: "0 8px", border: "none", background: "transparent", color: T.text, fontSize: 12, fontWeight: 700, textDecoration: "underline", textUnderlineOffset: 2, cursor: "pointer" }}>
                         Usar
                       </button>
                     </p>
@@ -5999,12 +5999,12 @@ export default function Arte() {
                 {finalFileUrl.trim() && (
                   fileNameFromPath(finalFileUrl)
                     ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, color: '#15803d', paddingLeft: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, color: TOM.sucesso.text, paddingLeft: 4 }}>
                         <FileCheck style={{ width: 13, height: 13, flexShrink: 0 }} />
                         Arquivo: <span style={{ fontFamily: "'DM Mono', monospace" }}>{fileNameFromPath(finalFileUrl)}</span>
                       </div>
                     ) : (
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 11, fontWeight: 600, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '7px 10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 11, fontWeight: 600, color: TOM.alerta.text, background: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 6, padding: '7px 10px' }}>
                         <AlertTriangle style={{ width: 13, height: 13, flexShrink: 0, marginTop: 1 }} />
                         <span>Isto parece uma <b>pasta</b>. Cole o caminho do <b>arquivo específico</b> (com nome e extensão, ex.: …\Rolo_Ministerio.tif) para a gráfica não pegar o arquivo errado.</span>
                       </div>
@@ -6015,7 +6015,7 @@ export default function Arte() {
               {/* Troca que devolve a peça para a Revisão Final: dito ANTES do
                   clique, junto da ação. */}
               {regraFinalSel && avisoDaTrocaDoArquivoFinal(regraFinalSel) && (
-                <p data-testid="aviso-troca-volta-revisao" style={{ display: 'flex', alignItems: 'flex-start', gap: 6, margin: 0, padding: '7px 10px', borderRadius: 6, background: P.amber.bg, border: `1px solid ${P.amber.border}`, fontSize: 11.5, fontWeight: 600, color: '#92400e', lineHeight: 1.45 }}>
+                <p data-testid="aviso-troca-volta-revisao" style={{ display: 'flex', alignItems: 'flex-start', gap: 6, margin: 0, padding: '7px 10px', borderRadius: 6, background: P.amber.bg, border: `1px solid ${P.amber.border}`, fontSize: 11.5, fontWeight: 600, color: TOM.alerta.text, lineHeight: 1.45 }}>
                   <RotateCcw aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0, marginTop: 1 }} />
                   {avisoDaTrocaDoArquivoFinal(regraFinalSel)}
                 </p>
@@ -6033,8 +6033,8 @@ export default function Arte() {
                   // passa a maior parte do tempo) e passa ao cinza da casa.
                   // Sem versalete espaçado a 0,15em em peso 900: gritava mais
                   // que o título do modal.
-                  backgroundColor: (submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) ? '#e7e5e4' : '#1c1917',
-                  color: (submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) ? '#57534e' : '#ffffff',
+                  backgroundColor: (submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) ? T.border : T.text,
+                  color: (submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) ? T.apoio : T.surface,
                   fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700,
                   fontSize: 14,
                   cursor: (submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) ? 'not-allowed' : 'pointer',
@@ -6042,8 +6042,8 @@ export default function Arte() {
                   transition: 'background-color 0.15s'
                 }}
                 title={!finalFileUrl ? 'Cole o caminho do arquivo final para liberar' : (!!selectedItem.finalFileUrl && !finalDirty) ? 'Troque o caminho para atualizar o arquivo' : undefined}
-                onMouseEnter={e => { if (submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) return; e.currentTarget.style.backgroundColor = '#44403c'; }}
-                onMouseLeave={e => { if (submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) return; e.currentTarget.style.backgroundColor = '#1c1917'; }}
+                onMouseEnter={e => { if (submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) return; e.currentTarget.style.backgroundColor = T.strong; }}
+                onMouseLeave={e => { if (submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) return; e.currentTarget.style.backgroundColor = T.text; }}
               >
                 {/* O CTA diz o resultado (rodada 4): "Enviar para revisão"
                     não dizia O QUÊ nem de quem é a revisão. */}
@@ -6053,13 +6053,13 @@ export default function Arte() {
               {/* POR QUE ESTÁ BLOQUEADO, à vista. A razão morava só no `title`
                   (hover, e nunca no celular); o botão cinza parecia quebrado. */}
               {!submitFinalFileMutation.isPending && (!finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) ? (
-                <p data-testid="final-bloqueado-motivo" style={{ margin: '-8px 0 0', fontSize: 11.5, color: '#57534e', textAlign: 'center' }}>
+                <p data-testid="final-bloqueado-motivo" style={{ margin: '-8px 0 0', fontSize: 11.5, color: T.apoio, textAlign: 'center' }}>
                   {!finalFileUrl
                     ? 'Cole o caminho do arquivo acima para liberar o envio.'
                     : 'Troque o caminho acima para atualizar o arquivo final.'}
                 </p>
               ) : !selectedItem.finalFileUrl && !submitFinalFileMutation.isPending ? (
-                <p style={{ margin: '-8px 0 0', fontSize: 11.5, color: '#57534e', textAlign: 'center' }}>
+                <p style={{ margin: '-8px 0 0', fontSize: 11.5, color: T.apoio, textAlign: 'center' }}>
                   Quem pediu a peça confere o arquivo; depois ela vai para a Gráfica.
                 </p>
               ) : null}
@@ -6073,8 +6073,8 @@ export default function Arte() {
           // explica a lista, mas quem abria uma peça que espera a Arte via o
           // modal sem nenhum bloco de ação e não sabia se faltava permissão ou
           // se a tela tinha falhado. Só nas fases em que a Arte age.
-          <p data-testid="modal-modo-consulta" style={{ display: 'flex', alignItems: 'center', gap: 8, margin: 0, padding: '10px 14px', borderRadius: 10, background: '#f5f5f4', border: '1px solid #e7e5e4', fontSize: 12.5, color: '#44403c', lineHeight: 1.5 }}>
-            <Lock aria-hidden="true" style={{ width: 14, height: 14, color: '#57534e', flexShrink: 0 }} />
+          <p data-testid="modal-modo-consulta" style={{ display: 'flex', alignItems: 'center', gap: 8, margin: 0, padding: '10px 14px', borderRadius: 10, background: N.n2, border: `1px solid ${T.border}`, fontSize: 12.5, color: T.strong, lineHeight: 1.5 }}>
+            <Lock aria-hidden="true" style={{ width: 14, height: 14, color: T.apoio, flexShrink: 0 }} />
             <span><b style={{ fontWeight: 700 }}>Modo consulta.</b> Subir o thumb e o arquivo final desta peça é da equipe de Arte.</span>
           </p>
         ) : selectedItem && podeEditar && (
@@ -6087,26 +6087,26 @@ export default function Arte() {
                     do modal para dizer uma regra que o botão travado e o toast
                     já explicam. Vermelho fica para o que deu errado. */}
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                  <h3 style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: 18, letterSpacing: '-0.02em', color: '#1c1917', margin: 0 }}>
+                  <h3 style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: 18, letterSpacing: '-0.02em', color: T.text, margin: 0 }}>
                     Thumb de aprovação
                   </h3>
                   {/* O que É o thumb, e não só que é obrigatório (rodada 4):
                       "thumb × arquivo final" era a dúvida número um de quem
                       chega — e a regra do obrigatório o botão já ensina. */}
-                  <span style={{ fontSize: 12, color: '#746e69', fontWeight: 600 }}>
+                  <span style={{ fontSize: 12, color: T.second, fontWeight: 600 }}>
                     a imagem que o patrocinador vai aprovar
                   </span>
                 </div>
 
                 {approvalThumbPreview && approvalThumbPreview.trim() !== "" ? (
                   /* State A2: thumb uploaded */
-                  <div style={{ background: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {/* Superfície BRANCA com hairline, no lugar do "vidro" lilás
                         com blur: o desfoque não tinha nada atrás para desfocar
                         (o fundo do modal é liso) e o lilás fazia o bloco de
                         decisão parecer um aviso. */}
                     <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-                      <div style={{ width: 96, height: 64, borderRadius: 8, overflow: 'hidden', border: '1px solid #e7e5e4', flexShrink: 0, backgroundColor: '#f5f5f4' }}>
+                      <div style={{ width: 96, height: 64, borderRadius: 8, overflow: 'hidden', border: `1px solid ${T.border}`, flexShrink: 0, backgroundColor: N.n2 }}>
                         <img loading="lazy" decoding="async" 
                           src={approvalThumbPreview}
                           alt="Preview do Thumb"
@@ -6129,18 +6129,18 @@ export default function Arte() {
                               não de "falta a URL": falha e cancelamento desfazem
                               a prévia em vez de deixar o indicador girando. */}
                           {(thumbEnviando || isPasteUploading) ? (
-                            <span role="status" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#57534e', flexShrink: 0 }}>
-                              <span aria-hidden="true" style={{ width: 11, height: 11, borderRadius: '50%', border: '2px solid #e7e5e4', borderTopColor: '#57534e', animation: 'spin 0.8s linear infinite' }} />
+                            <span role="status" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: T.apoio, flexShrink: 0 }}>
+                              <span aria-hidden="true" style={{ width: 11, height: 11, borderRadius: '50%', border: `2px solid ${T.border}`, borderTopColor: T.apoio, animation: 'spin 0.8s linear infinite' }} />
                               Subindo o thumb…
                             </span>
                           ) : approvalThumbUrl ? (
                             <>
-                              <CheckCircle aria-hidden="true" style={{ width: 13, height: 13, color: '#15803d', flexShrink: 0 }} />
-                              <span style={{ fontSize: 12, fontWeight: 600, color: '#15803d', flexShrink: 0 }}>Thumb carregado</span>
+                              <CheckCircle aria-hidden="true" style={{ width: 13, height: 13, color: TOM.sucesso.text, flexShrink: 0 }} />
+                              <span style={{ fontSize: 12, fontWeight: 600, color: TOM.sucesso.text, flexShrink: 0 }}>Thumb carregado</span>
                             </>
                           ) : null}
                           {!approvalThumbPreview.startsWith('data:') && (
-                            <span title={approvalThumbPreview.split('/').pop() || undefined} style={{ fontSize: 11, color: '#57534e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                            <span title={approvalThumbPreview.split('/').pop() || undefined} style={{ fontSize: 11, color: T.apoio, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
                               {approvalThumbPreview.split('/').pop()}
                             </span>
                           )}
@@ -6185,19 +6185,19 @@ export default function Arte() {
                       data-testid="button-submit-approval-header"
                       style={{
                         width: '100%', minHeight: 44, padding: '0 16px', borderRadius: 9, border: 'none',
-                        backgroundColor: (submitForApprovalMutation.isPending || isPasteUploading || thumbEnviando || !approvalThumbUrl) ? '#e7e5e4' : '#1c1917',
-                        color: (submitForApprovalMutation.isPending || isPasteUploading || thumbEnviando || !approvalThumbUrl) ? '#57534e' : '#ffffff',
+                        backgroundColor: (submitForApprovalMutation.isPending || isPasteUploading || thumbEnviando || !approvalThumbUrl) ? T.border : T.text,
+                        color: (submitForApprovalMutation.isPending || isPasteUploading || thumbEnviando || !approvalThumbUrl) ? T.apoio : T.surface,
                         fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700,
                         fontSize: 14,
                         cursor: (submitForApprovalMutation.isPending || isPasteUploading || thumbEnviando || !approvalThumbUrl) ? 'not-allowed' : 'pointer',
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                         transition: 'background-color 0.15s',
                       }}
-                      onMouseEnter={e => { if (submitForApprovalMutation.isPending || isPasteUploading || thumbEnviando || !approvalThumbUrl) return; e.currentTarget.style.backgroundColor = '#44403c'; }}
-                      onMouseLeave={e => { if (submitForApprovalMutation.isPending || isPasteUploading || thumbEnviando || !approvalThumbUrl) return; e.currentTarget.style.backgroundColor = '#1c1917'; }}
+                      onMouseEnter={e => { if (submitForApprovalMutation.isPending || isPasteUploading || thumbEnviando || !approvalThumbUrl) return; e.currentTarget.style.backgroundColor = T.strong; }}
+                      onMouseLeave={e => { if (submitForApprovalMutation.isPending || isPasteUploading || thumbEnviando || !approvalThumbUrl) return; e.currentTarget.style.backgroundColor = T.text; }}
                     >
                       {submitForApprovalMutation.isPending
-                        ? <><span aria-hidden="true" style={{ width: 13, height: 13, borderRadius: '50%', border: '2px solid #d6d3d1', borderTopColor: '#57534e', animation: 'spin 0.8s linear infinite' }} />Enviando…</>
+                        ? <><span aria-hidden="true" style={{ width: 13, height: 13, borderRadius: '50%', border: `2px solid ${T.bdark}`, borderTopColor: T.apoio, animation: 'spin 0.8s linear infinite' }} />Enviando…</>
                         : <><Send aria-hidden="true" style={{ width: 14, height: 14 }} />{ehMolde(selectedItem) ? 'Enviar para a Revisão Final' : selectedItem.skipApproval ? 'Enviar direto para a finalização (arquivo final)' : 'Enviar para aprovação do patrocinador'}</>}
                     </button>
                     {/* "ENVIOU PARA QUEM?" respondido antes do clique (rodada
@@ -6207,14 +6207,14 @@ export default function Arte() {
                     {(() => {
                       if (ehMolde(selectedItem)) {
                         return (
-                          <p data-testid="thumb-vai-para-molde" style={{ margin: '-4px 0 0', fontSize: 12, color: '#57534e', textAlign: 'center', lineHeight: 1.45 }}>
+                          <p data-testid="thumb-vai-para-molde" style={{ margin: '-4px 0 0', fontSize: 12, color: T.apoio, textAlign: 'center', lineHeight: 1.45 }}>
                             Molde: vai direto para a Revisão Final — sem aprovação de patrocinador nem arquivo final.
                           </p>
                         );
                       }
                       if (selectedItem.skipApproval) {
                         return (
-                          <p style={{ margin: '-4px 0 0', fontSize: 12, color: '#57534e', textAlign: 'center', lineHeight: 1.45 }}>
+                          <p style={{ margin: '-4px 0 0', fontSize: 12, color: T.apoio, textAlign: 'center', lineHeight: 1.45 }}>
                             Esta peça não passa por aprovação de patrocinador.
                           </p>
                         );
@@ -6223,8 +6223,8 @@ export default function Arte() {
                       if (nomes.length === 0) return null;
                       const lista = nomes.length <= 3 ? nomes.join(', ') : `${nomes.slice(0, 3).join(', ')} e mais ${nomes.length - 3}`;
                       return (
-                        <p data-testid="thumb-vai-para" style={{ margin: '-4px 0 0', fontSize: 12, color: '#57534e', textAlign: 'center', lineHeight: 1.45 }}>
-                          Vai para a aprovação de <strong style={{ color: '#1c1917', fontWeight: 600 }}>{lista}</strong>
+                        <p data-testid="thumb-vai-para" style={{ margin: '-4px 0 0', fontSize: 12, color: T.apoio, textAlign: 'center', lineHeight: 1.45 }}>
+                          Vai para a aprovação de <strong style={{ color: T.text, fontWeight: 600 }}>{lista}</strong>
                         </p>
                       );
                     })()}
@@ -6238,7 +6238,7 @@ export default function Arte() {
                         role="status"
                         style={{
                           margin: 0, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                          color: '#15803d', fontSize: 13, fontWeight: 600, textAlign: 'center',
+                          color: TOM.sucesso.text, fontSize: 13, fontWeight: 600, textAlign: 'center',
                           animation: thumbJustSaved ? 'thumb-saved-pop 0.25s ease' : 'none',
                         }}
                       >
@@ -6252,15 +6252,15 @@ export default function Arte() {
                         data-testid="button-save-thumb-draft"
                         style={{
                           width: '100%', minHeight: 40, padding: '0 16px', borderRadius: 9,
-                          border: '1px solid #e7e5e4', background: '#ffffff',
-                          color: '#44403c', fontWeight: 600, fontSize: 13,
+                          border: `1px solid ${T.border}`, background: T.surface,
+                          color: T.strong, fontWeight: 600, fontSize: 13,
                           cursor: (saveThumbDraftMutation.isPending || submitForApprovalMutation.isPending) ? 'not-allowed' : 'pointer',
                           opacity: (saveThumbDraftMutation.isPending || submitForApprovalMutation.isPending) ? 0.6 : 1,
                           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                           transition: 'background 0.15s'
                         }}
-                        onMouseEnter={e => { if (saveThumbDraftMutation.isPending || submitForApprovalMutation.isPending) return; e.currentTarget.style.background = '#fafaf9'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; }}
+                        onMouseEnter={e => { if (saveThumbDraftMutation.isPending || submitForApprovalMutation.isPending) return; e.currentTarget.style.background = T.bg; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = T.surface; }}
                       >
                         <FileImage aria-hidden="true" style={{ width: 14, height: 14 }} />
                         {saveThumbDraftMutation.isPending ? 'Salvando…' : 'Salvar como rascunho, sem enviar'}
@@ -6270,13 +6270,13 @@ export default function Arte() {
                 ) : (
                   /* State A1: empty upload zone */
                   <div style={{
-                    background: (isPasteUploading || isDragOver) ? '#f5f5f4' : '#fafaf9',
-                    border: (isPasteUploading || isDragOver) ? '1.5px dashed #57534e' : '1.5px dashed #d6d3d1', borderRadius: 12, padding: isMobile ? '20px 16px' : '24px 32px',
+                    background: (isPasteUploading || isDragOver) ? N.n2 : T.bg,
+                    border: (isPasteUploading || isDragOver) ? `1.5px dashed ${T.apoio}` : `1.5px dashed ${T.bdark}`, borderRadius: 12, padding: isMobile ? '20px 16px' : '24px 32px',
                     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                     textAlign: 'center', gap: 10, transition: 'background 0.15s, border-color 0.15s'
                   }}
-                    onMouseEnter={e => { if (!isPasteUploading && !isDragOver) (e.currentTarget as HTMLElement).style.background = '#f5f5f4'; }}
-                    onMouseLeave={e => { if (!isPasteUploading && !isDragOver) (e.currentTarget as HTMLElement).style.background = '#fafaf9'; }}
+                    onMouseEnter={e => { if (!isPasteUploading && !isDragOver) (e.currentTarget as HTMLElement).style.background = N.n2; }}
+                    onMouseLeave={e => { if (!isPasteUploading && !isDragOver) (e.currentTarget as HTMLElement).style.background = T.bg; }}
                     onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}
                     onDragEnter={e => { e.preventDefault(); setIsDragOver(true); }}
                     // Mesmo cuidado da zona da Correção: ignora o dragleave dos filhos.
@@ -6301,17 +6301,17 @@ export default function Arte() {
                         resto da tela, só marca "rascunho". A zona de upload
                         segue a mesma pele da zona da Correção — tracejado claro
                         que escurece ao arrastar. */}
-                    <div style={{ width: 44, height: 44, borderRadius: '50%', backgroundColor: '#ffffff', border: '1px solid #e7e5e4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ width: 44, height: 44, borderRadius: '50%', backgroundColor: T.surface, border: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {isPasteUploading
-                        ? <div style={{ width: 20, height: 20, borderRadius: '50%', border: '2.5px solid #e7e5e4', borderTopColor: '#1c1917', animation: 'spin 0.8s linear infinite' }} />
-                        : <Upload aria-hidden="true" style={{ width: 20, height: 20, color: '#44403c' }} />
+                        ? <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2.5px solid ${T.border}`, borderTopColor: T.text, animation: 'spin 0.8s linear infinite' }} />
+                        : <Upload aria-hidden="true" style={{ width: 20, height: 20, color: T.strong }} />
                       }
                     </div>
                     <div>
-                      <p style={{ fontSize: 14, fontWeight: 700, color: '#1c1917', margin: '0 0 4px' }}>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: T.text, margin: '0 0 4px' }}>
                         {isPasteUploading ? 'Subindo a imagem…' : 'Suba o thumb para enviar'}
                       </p>
-                      <p style={{ fontSize: 12, color: '#57534e', margin: 0 }}>
+                      <p style={{ fontSize: 12, color: T.apoio, margin: 0 }}>
                         {isPasteUploading ? 'Aguarde o upload concluir' : <>Arraste aqui, escolha o arquivo ou cole com <kbd style={KBD}>Ctrl</kbd>+<kbd style={KBD}>V</kbd></>}
                       </p>
                     </div>
@@ -6374,7 +6374,7 @@ export default function Arte() {
 
           <ModalHeader
             icon={Upload}
-            tint="#2563eb"
+            tint={TOM.info.text}
             title="PDF compartilhado"
             subtitle="Um PDF vira o thumb de todas as peças selecionadas, e elas vão juntas para a aprovação do patrocinador"
             onClose={() => { setShowBulkDialog(false); setSharedPdfUrl(""); }}
@@ -6394,7 +6394,7 @@ export default function Arte() {
                 {/* Rótulo cinza como os dos outros modais (era marrom-laranja
                     #9d4300, uma sexta cor de rótulo na tela) e sem o zero à
                     esquerda: "(05)" é notação de painel de máquina, não conta. */}
-                <h3 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#57534e', margin: 0 }}>
+                <h3 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio, margin: 0 }}>
                   {selectedItemIds.size} {selectedItemIds.size === 1 ? 'peça selecionada' : 'peças selecionadas'}
                 </h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 280, overflowY: 'auto' }}>
@@ -6407,20 +6407,20 @@ export default function Arte() {
                         display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
                         // Sem o filete laranja na PRIMEIRA linha: ele destacava
                         // uma peça que não tem nada de diferente das outras.
-                        backgroundColor: '#fafaf9', border: '1px solid #f0efee', borderRadius: 8,
+                        backgroundColor: T.bg, border: `1px solid ${N.n3}`, borderRadius: 8,
                       }}>
-                        <div style={{ width: 40, height: 40, backgroundColor: '#d6d3d1', borderRadius: 6, flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div style={{ width: 40, height: 40, backgroundColor: T.bdark, borderRadius: 6, flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           {item.approvalThumbUrl ? (
                             <img loading="lazy" decoding="async" src={miniatura(item.approvalThumbUrl)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           ) : (
-                            <FileImage style={{ width: 16, height: 16, color: '#57534e' }} />
+                            <FileImage style={{ width: 16, height: 16, color: T.apoio }} />
                           )}
                         </div>
                         <div style={{ minWidth: 0 }}>
-                          <p style={{ fontSize: 12, fontWeight: 700, color: '#1c1917', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <p style={{ fontSize: 12, fontWeight: 700, color: T.text, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {item.displayId} · {item.type}
                           </p>
-                          <p style={{ fontSize: 11, color: '#57534e', margin: 0 }}>
+                          <p style={{ fontSize: 11, color: T.apoio, margin: 0 }}>
                             {item.event?.name || 'Sem evento'}{item.sponsors?.[0]?.name ? ` • ${item.sponsors[0].name}` : ''}
                           </p>
                         </div>
@@ -6432,24 +6432,24 @@ export default function Arte() {
 
               {/* Right: upload zone */}
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <h3 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#57534e', margin: '0 0 16px' }}>
+                <h3 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio, margin: '0 0 16px' }}>
                   PDF compartilhado
                 </h3>
                 <div style={{
                   flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                  backgroundColor: '#fafaf9', borderRadius: 12, border: '1.5px dashed #d6d3d1',
+                  backgroundColor: T.bg, borderRadius: 12, border: `1.5px dashed ${T.bdark}`,
                   padding: 24, textAlign: 'center', transition: 'border-color 0.15s', minHeight: isMobile ? 160 : 200
                 }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = '#a8a29e'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = '#d6d3d1'; }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = T.muted; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = T.bdark; }}
                 >
                   {sharedPdfUrl ? (
                     <>
-                      <div style={{ width: 48, height: 48, backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-                        <CheckCircle aria-hidden="true" style={{ width: 22, height: 22, color: '#15803d' }} />
+                      <div style={{ width: 48, height: 48, backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                        <CheckCircle aria-hidden="true" style={{ width: 22, height: 22, color: TOM.sucesso.text }} />
                       </div>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', margin: '0 0 4px' }}>PDF carregado</p>
-                      <a href={sharedPdfUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#44403c', textDecoration: 'underline', textUnderlineOffset: 2, display: 'block', marginBottom: 12 }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: '0 0 4px' }}>PDF carregado</p>
+                      <a href={sharedPdfUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: T.strong, textDecoration: 'underline', textUnderlineOffset: 2, display: 'block', marginBottom: 12 }}>
                         Conferir o PDF
                       </a>
                       {/* Botões em caixa normal e 36px: eram pílulas de 32px em
@@ -6468,11 +6468,11 @@ export default function Arte() {
                     </>
                   ) : (
                     <>
-                      <div style={{ width: 48, height: 48, backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-                        <FileText aria-hidden="true" style={{ width: 22, height: 22, color: '#44403c' }} />
+                      <div style={{ width: 48, height: 48, backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                        <FileText aria-hidden="true" style={{ width: 22, height: 22, color: T.strong }} />
                       </div>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', margin: '0 0 4px' }}>Suba o PDF</p>
-                      <p style={{ fontSize: 12, color: '#57534e', margin: '0 0 14px', padding: '0 8px' }}>Ele vale para todas as peças {isMobile ? 'acima' : 'à esquerda'}.</p>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: '0 0 4px' }}>Suba o PDF</p>
+                      <p style={{ fontSize: 12, color: T.apoio, margin: '0 0 14px', padding: '0 8px' }}>Ele vale para todas as peças {isMobile ? 'acima' : 'à esquerda'}.</p>
                       <FileUploader
                         onGetUploadParameters={getUploadUrl}
                         onComplete={(result) => { setSharedPdfUrl(convertGCSUrlToLocalPath(result.url)); toast({ title: "PDF carregado", description: "Confira as peças e envie o lote." }); }}
@@ -6499,7 +6499,7 @@ export default function Arte() {
                 const fora = Array.from(selectedItemIds).filter(id => itemPorId.get(id)?.status !== 'awaiting_submission').length;
                 if (fora === 0) return null;
                 return (
-                  <span data-testid="aviso-fora-do-lote" style={{ marginRight: 'auto', fontSize: 12, color: '#92400e', lineHeight: 1.4 }}>
+                  <span data-testid="aviso-fora-do-lote" style={{ marginRight: 'auto', fontSize: 12, color: TOM.alerta.text, lineHeight: 1.4 }}>
                     {fora} {fora === 1 ? 'selecionada não está' : 'selecionadas não estão'} aguardando envio e {fora === 1 ? 'fica' : 'ficam'} fora
                   </span>
                 );
@@ -6508,7 +6508,7 @@ export default function Arte() {
                   transparente e sem borda ele lia como legenda, não como saída. */}
               <button
                 onClick={() => { setShowBulkDialog(false); setSharedPdfUrl(""); }}
-                style={{ height: 40, padding: '0 16px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#57534e', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                style={{ height: 40, padding: '0 16px', borderRadius: 8, border: `1px solid ${T.border}`, background: T.surface, color: T.apoio, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
               >
                 Cancelar
               </button>
@@ -6520,8 +6520,8 @@ export default function Arte() {
                 style={{
                   height: 40, padding: '0 20px', borderRadius: 8, border: 'none',
                   // Tinta, como os demais primários da Arte (era #c2410c).
-                  backgroundColor: (submitBulkForApprovalMutation.isPending || !sharedPdfUrl) ? '#e7e5e4' : '#1c1917',
-                  color: (submitBulkForApprovalMutation.isPending || !sharedPdfUrl) ? '#57534e' : '#ffffff',
+                  backgroundColor: (submitBulkForApprovalMutation.isPending || !sharedPdfUrl) ? T.border : T.text,
+                  color: (submitBulkForApprovalMutation.isPending || !sharedPdfUrl) ? T.apoio : T.surface,
                   fontWeight: 700, fontSize: 13,
                   cursor: (submitBulkForApprovalMutation.isPending || !sharedPdfUrl) ? 'not-allowed' : 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -6533,7 +6533,7 @@ export default function Arte() {
                     rótulo diz QUANTAS vão — as mesmas que o envio aceita
                     (só aguardando envio; ver handleBulkSubmit). */}
                 {submitBulkForApprovalMutation.isPending ? (
-                  <><div aria-hidden="true" style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #d6d3d1', borderTopColor: '#57534e', animation: 'spin 0.8s linear infinite' }} />Enviando…</>
+                  <><div aria-hidden="true" style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid ${T.bdark}`, borderTopColor: T.apoio, animation: 'spin 0.8s linear infinite' }} />Enviando…</>
                 ) : (() => {
                   const n = Array.from(selectedItemIds).filter(id => itemPorId.get(id)?.status === 'awaiting_submission').length;
                   return <><Send aria-hidden="true" style={{ width: 14, height: 14 }} />{n > 0 ? `Enviar ${n} para aprovação` : 'Enviar lote'}</>;
@@ -6573,7 +6573,7 @@ export default function Arte() {
               título e mesmo botão de fechar dos outros modais da tela. */}
           <ModalHeader
             icon={FileText}
-            tint="#ea580c"
+            tint={T.accentText}
             title={existingBookUrl ? 'Atualizar book (PDF)' : 'Subir book (PDF)'}
             // "serão enviadas aos patrocinadores" prometia um destino que o
             // servidor não tem (rodada 4): salvar publica o book no evento e o
@@ -6595,11 +6595,11 @@ export default function Arte() {
               Agora o teto é do DialogContent (`100vh − 48`, via `modalSurface`) e
               este corpo fica com o que sobrar depois do cabeçalho e do rodapé
               MEDIDOS pelo navegador — `flex: 1 1 auto` + `minHeight: 0`. */}
-          <div style={{ padding: '22px 28px', display: 'flex', flexDirection: 'column', gap: 22, overflowY: 'auto', flex: '1 1 auto', minHeight: 0, backgroundColor: '#fafaf9' }}>
+          <div style={{ padding: '22px 28px', display: 'flex', flexDirection: 'column', gap: 22, overflowY: 'auto', flex: '1 1 auto', minHeight: 0, backgroundColor: T.bg }}>
 
             {/* Evento */}
             <div>
-              <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#57534e', display: 'block', marginBottom: 6 }}>Evento</label>
+              <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio, display: 'block', marginBottom: 6 }}>Evento</label>
               <FilterSelect
                 fullWidth hideWhenEmpty={false} showAllLabelWhenEmpty
                 label="Evento" allLabel="Selecione um evento"
@@ -6612,22 +6612,22 @@ export default function Arte() {
             {/* Book atual — só aparece quando já existe um book para o evento */}
             {existingBookUrl && !bookFileUrl && (
               <div>
-                <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#57534e', display: 'block', marginBottom: 6 }}>Book atual</label>
+                <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio, display: 'block', marginBottom: 6 }}>Book atual</label>
                 {/* Neutro e chapado: o book atual é CONTEXTO (o que existe hoje),
                     não alerta — o ladrilho em gradiente laranja com sombra era o
                     objeto mais saturado do modal, acima do próprio upload. */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, border: '1px solid #e7e5e4', background: '#ffffff', flexWrap: 'wrap' }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 8, background: '#f5f5f4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <FileText aria-hidden="true" style={{ width: 14, height: 14, color: '#44403c' }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, border: `1px solid ${T.border}`, background: T.surface, flexWrap: 'wrap' }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: N.n2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <FileText aria-hidden="true" style={{ width: 14, height: 14, color: T.strong }} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', margin: 0 }}>Este evento já tem book</p>
-                    <p style={{ fontSize: 12, color: '#57534e', margin: '1px 0 0' }}>O PDF que você subir abaixo substitui o atual</p>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: 0 }}>Este evento já tem book</p>
+                    <p style={{ fontSize: 12, color: T.apoio, margin: '1px 0 0' }}>O PDF que você subir abaixo substitui o atual</p>
                   </div>
                   <a
                     href={hrefSeguro(existingBookUrl)} target="_blank" rel="noopener noreferrer"
                     onClick={e => e.stopPropagation()}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minHeight: 32, fontSize: 12, fontWeight: 600, color: '#1c1917', textDecoration: 'none', background: '#fff', border: '1px solid #d6d3d1', borderRadius: 8, padding: '0 10px', flexShrink: 0, whiteSpace: 'nowrap' }}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minHeight: 32, fontSize: 12, fontWeight: 600, color: T.text, textDecoration: 'none', background: '#fff', border: `1px solid ${T.bdark}`, borderRadius: 8, padding: '0 10px', flexShrink: 0, whiteSpace: 'nowrap' }}
                   >
                     <ExternalLink aria-hidden="true" style={{ width: 12, height: 12 }} /> Ver book atual
                   </a>
@@ -6637,19 +6637,19 @@ export default function Arte() {
 
             {/* Upload do PDF */}
             <div>
-              <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#57534e', display: 'block', marginBottom: 6 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio, display: 'block', marginBottom: 6 }}>
                 {existingBookUrl ? 'Novo PDF (substituição)' : 'Arquivo do book'}
               </label>
               {/* Drag & drop real: a zona dizia "Arrastar ou clicar" mas só o
                   clique funcionava — mesmo padrão dos outros dropzones da tela. */}
               <label style={{
                 display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px', borderRadius: 12,
-                border: `1.5px dashed ${isDragOverBook ? '#57534e' : bookFileUrl ? '#86efac' : '#d6d3d1'}`,
-                background: isDragOverBook ? '#f5f5f4' : '#ffffff',
+                border: `1.5px dashed ${isDragOverBook ? T.apoio : bookFileUrl ? TOM.sucesso.border : T.bdark}`,
+                background: isDragOverBook ? N.n2 : T.surface,
                 cursor: 'pointer', transition: 'all 0.15s',
               }}
-                onMouseEnter={e => { if (!bookFileUrl && !isDragOverBook) { (e.currentTarget as HTMLLabelElement).style.borderColor = '#a8a29e'; (e.currentTarget as HTMLLabelElement).style.background = '#fafaf9'; } }}
-                onMouseLeave={e => { if (!bookFileUrl && !isDragOverBook) { (e.currentTarget as HTMLLabelElement).style.borderColor = '#d6d3d1'; (e.currentTarget as HTMLLabelElement).style.background = '#ffffff'; } }}
+                onMouseEnter={e => { if (!bookFileUrl && !isDragOverBook) { (e.currentTarget as HTMLLabelElement).style.borderColor = T.muted; (e.currentTarget as HTMLLabelElement).style.background = T.bg; } }}
+                onMouseLeave={e => { if (!bookFileUrl && !isDragOverBook) { (e.currentTarget as HTMLLabelElement).style.borderColor = T.bdark; (e.currentTarget as HTMLLabelElement).style.background = T.surface; } }}
                 onDragOver={e => { e.preventDefault(); setIsDragOverBook(true); }}
                 onDragEnter={e => { e.preventDefault(); setIsDragOverBook(true); }}
                 // Ignora o dragleave dos filhos (ícone, textos) — o destaque piscava.
@@ -6664,28 +6664,28 @@ export default function Arte() {
                 {/* Ladrilho chapado: dois gradientes laranja com sombra colorida
                     para um ícone de 18px. Carregado, o sinal é o VERDE do
                     "pronto" (o mesmo das outras zonas de upload), não laranja. */}
-                <div style={{ width: 40, height: 40, borderRadius: 12, background: bookFileUrl ? '#f0fdf4' : '#ffffff', border: `1px solid ${bookFileUrl ? '#bbf7d0' : '#e7e5e4'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: bookFileUrl ? TOM.sucesso.bg : T.surface, border: `1px solid ${bookFileUrl ? TOM.sucesso.border : T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
                   {bookUploading
-                    ? <div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #e7e5e4', borderTopColor: '#1c1917', animation: 'spin 0.8s linear infinite' }} />
+                    ? <div style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid ${T.border}`, borderTopColor: T.text, animation: 'spin 0.8s linear infinite' }} />
                     : bookFileUrl
-                      ? <CheckCircle aria-hidden="true" style={{ width: 18, height: 18, color: '#15803d' }} />
+                      ? <CheckCircle aria-hidden="true" style={{ width: 18, height: 18, color: TOM.sucesso.text }} />
                       : existingBookUrl
-                        ? <RefreshCw aria-hidden="true" style={{ width: 16, height: 16, color: '#44403c' }} />
-                        : <Upload aria-hidden="true" style={{ width: 18, height: 18, color: '#44403c' }} />
+                        ? <RefreshCw aria-hidden="true" style={{ width: 16, height: 16, color: T.strong }} />
+                        : <Upload aria-hidden="true" style={{ width: 18, height: 18, color: T.strong }} />
                   }
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {bookUploading ? 'Enviando arquivo…' : bookFileName || (existingBookUrl ? 'Escolher o novo PDF…' : 'Arraste o PDF aqui ou clique para escolher')}
                   </p>
                   {!bookFileUrl && !bookUploading && (
-                    <p style={{ fontSize: 12, color: '#57534e', margin: '2px 0 0' }}>Só arquivos .pdf, de qualquer tamanho</p>
+                    <p style={{ fontSize: 12, color: T.apoio, margin: '2px 0 0' }}>Só arquivos .pdf, de qualquer tamanho</p>
                   )}
                   {bookFileUrl && (
-                    <p style={{ fontSize: 12, color: '#15803d', margin: '2px 0 0', fontWeight: 600 }}>Carregado — marque as peças e salve</p>
+                    <p style={{ fontSize: 12, color: TOM.sucesso.text, margin: '2px 0 0', fontWeight: 600 }}>Carregado — marque as peças e salve</p>
                   )}
                 </div>
-                {bookFileUrl && <span aria-hidden="true" style={{ fontSize: 12, fontWeight: 600, color: '#1c1917', flexShrink: 0, padding: '5px 10px', border: '1px solid #d6d3d1', borderRadius: 8, background: '#fff' }}>Trocar</span>}
+                {bookFileUrl && <span aria-hidden="true" style={{ fontSize: 12, fontWeight: 600, color: T.text, flexShrink: 0, padding: '5px 10px', border: `1px solid ${T.bdark}`, borderRadius: 8, background: '#fff' }}>Trocar</span>}
                 <input type="file" accept="application/pdf,.pdf" className="sr-only"
                   onChange={e => { handleBookFile(e.target.files?.[0]); e.target.value = ''; }} />
               </label>
@@ -6695,10 +6695,10 @@ export default function Arte() {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#57534e' }}>Peças no book</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio }}>Peças no book</span>
                   {bookEventPieces.length > 0 && (
-                    <span style={{ fontSize: 11, fontWeight: 800, color: '#1c1917', fontFamily: '"Space Grotesk", sans-serif' }}>
-                      {bookSelectedIds.size}<span style={{ fontWeight: 500, color: '#57534e' }}> / {bookEventPieces.length}</span>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: T.text, fontFamily: '"Space Grotesk", sans-serif' }}>
+                      {bookSelectedIds.size}<span style={{ fontWeight: 500, color: T.apoio }}> / {bookEventPieces.length}</span>
                     </span>
                   )}
                 </div>
@@ -6707,24 +6707,24 @@ export default function Arte() {
                     {/* minHeight 32: com padding de 3px os dois atalhos tinham
                         ~20px de alvo, abaixo do mínimo de 24. */}
                     <button type="button" onClick={() => setBookSelectedIds(new Set(bookEventPieces.map((i: any) => i.id)))}
-                      style={{ background: 'none', border: 'none', minHeight: 32, padding: '0 8px', fontSize: 12, fontWeight: 700, color: '#c2410c', cursor: 'pointer', borderRadius: 6, transition: 'color 0.1s', textDecoration: 'underline', textDecorationColor: 'transparent', textUnderlineOffset: '2px' }}
-                      onMouseEnter={e => { e.currentTarget.style.textDecorationColor = '#c2410c'; }}
+                      style={{ background: 'none', border: 'none', minHeight: 32, padding: '0 8px', fontSize: 12, fontWeight: 700, color: T.accentText, cursor: 'pointer', borderRadius: 6, transition: 'color 0.1s', textDecoration: 'underline', textDecorationColor: 'transparent', textUnderlineOffset: '2px' }}
+                      onMouseEnter={e => { e.currentTarget.style.textDecorationColor = T.accentText; }}
                       onMouseLeave={e => { e.currentTarget.style.textDecorationColor = 'transparent'; }}
                     >Todas</button>
-                    <span style={{ color: '#d4d4d0', userSelect: 'none' }}>·</span>
+                    <span style={{ color: T.bdark, userSelect: 'none' }}>·</span>
                     <button type="button" onClick={() => setBookSelectedIds(new Set())}
-                      style={{ background: 'none', border: 'none', minHeight: 32, padding: '0 8px', fontSize: 12, fontWeight: 700, color: '#57534e', cursor: 'pointer', borderRadius: 6, transition: 'color 0.1s', textDecoration: 'underline', textDecorationColor: 'transparent', textUnderlineOffset: '2px' }}
-                      onMouseEnter={e => { e.currentTarget.style.textDecorationColor = '#a8a29e'; }}
+                      style={{ background: 'none', border: 'none', minHeight: 32, padding: '0 8px', fontSize: 12, fontWeight: 700, color: T.apoio, cursor: 'pointer', borderRadius: 6, transition: 'color 0.1s', textDecoration: 'underline', textDecorationColor: 'transparent', textUnderlineOffset: '2px' }}
+                      onMouseEnter={e => { e.currentTarget.style.textDecorationColor = T.muted; }}
                       onMouseLeave={e => { e.currentTarget.style.textDecorationColor = 'transparent'; }}
                     >Nenhuma</button>
                   </div>
                 )}
               </div>
-              <div style={{ border: '1px solid #ebe8e3', borderRadius: 12, maxHeight: 240, overflowY: 'auto', backgroundColor: '#ffffff' }}>
+              <div style={{ border: `1px solid ${T.border}`, borderRadius: 12, maxHeight: 240, overflowY: 'auto', backgroundColor: T.surface }}>
                 {bookEventPieces.length === 0 ? (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '28px 20px', gap: 8 }}>
-                    <FileText style={{ width: 26, height: 26, color: '#d4d4d0' }} />
-                    <p style={{ fontSize: 12, color: '#57534e', margin: 0, textAlign: 'center' }}>Selecione um evento para ver as peças disponíveis.</p>
+                    <FileText style={{ width: 26, height: 26, color: T.bdark }} />
+                    <p style={{ fontSize: 12, color: T.apoio, margin: 0, textAlign: 'center' }}>Selecione um evento para ver as peças disponíveis.</p>
                   </div>
                 ) : bookEventPieces.map((item: any, idx: number) => {
                   const on = bookSelectedIds.has(item.id);
@@ -6739,27 +6739,27 @@ export default function Arte() {
                       tabIndex={0}
                       onClick={toggleBookPiece}
                       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBookPiece(); } }}
-                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderBottom: isLast ? 'none' : '1px solid #f5f4f2', cursor: 'pointer', background: on ? '#fff7ed' : '#ffffff', transition: 'background 0.1s' }}
-                      onMouseEnter={e => { if (!on) e.currentTarget.style.background = '#fafaf9'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = on ? '#fff7ed' : '#ffffff'; }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderBottom: isLast ? 'none' : `1px solid ${N.n3}`, cursor: 'pointer', background: on ? TOM.laranja.bg : T.surface, transition: 'background 0.1s' }}
+                      onMouseEnter={e => { if (!on) e.currentTarget.style.background = T.bg; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = on ? TOM.laranja.bg : T.surface; }}
                     >
-                      <div style={{ width: 16, height: 16, borderRadius: 6, flexShrink: 0, border: `2px solid ${on ? '#f97316' : '#d4d4d0'}`, background: on ? '#f97316' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.12s' }}>
+                      <div style={{ width: 16, height: 16, borderRadius: 6, flexShrink: 0, border: `2px solid ${on ? T.accent : T.bdark}`, background: on ? T.accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.12s' }}>
                         {on && <Check style={{ width: 9, height: 9, color: '#fff' }} />}
                       </div>
-                      <span style={{ fontFamily: '"Space Grotesk", monospace', fontSize: 11, fontWeight: 700, color: on ? '#c2410c' : '#746e69', background: on ? '#fed7aa' : '#f0efee', padding: '2px 7px', borderRadius: 6, flexShrink: 0, letterSpacing: '0.01em', transition: 'all 0.12s' }}>{item.displayId}</span>
+                      <span style={{ fontFamily: '"Space Grotesk", monospace', fontSize: 11, fontWeight: 700, color: on ? T.accentText : T.second, background: on ? TOM.laranja.border : N.n3, padding: '2px 7px', borderRadius: 6, flexShrink: 0, letterSpacing: '0.01em', transition: 'all 0.12s' }}>{item.displayId}</span>
                       <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden' }}>
                           {groupOf(item.type) && (
-                            <span style={{ fontSize: 11, fontWeight: 600, color: on ? '#c2410c' : '#78716c', background: on ? '#fff7ed' : '#f5f4f2', border: `1px solid ${on ? '#fed7aa' : '#ebe8e3'}`, borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap', flexShrink: 0, letterSpacing: '0.02em', transition: 'all 0.12s' }}>{groupOf(item.type)}</span>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: on ? T.accentText : T.second, background: on ? TOM.laranja.bg : N.n3, border: `1px solid ${on ? TOM.laranja.border : T.border}`, borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap', flexShrink: 0, letterSpacing: '0.02em', transition: 'all 0.12s' }}>{groupOf(item.type)}</span>
                           )}
-                          <span style={{ fontSize: 12, fontWeight: 600, color: on ? '#1c1917' : '#57534e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', transition: 'color 0.1s' }}>{item.type}</span>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: on ? T.text : T.apoio, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', transition: 'color 0.1s' }}>{item.type}</span>
                         </div>
                         {item.description && item.description !== item.type && (
-                          <span style={{ fontSize: 11, color: '#57534e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.description}</span>
+                          <span style={{ fontSize: 11, color: T.apoio, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.description}</span>
                         )}
                       </span>
                       {item.bookUrl && (
-                        <span title="Esta peça já está no book atual" style={{ marginLeft: 'auto', flexShrink: 0, fontSize: 11, fontWeight: 600, color: '#57534e', background: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 6, padding: '2px 8px', whiteSpace: 'nowrap' }}>no book atual</span>
+                        <span title="Esta peça já está no book atual" style={{ marginLeft: 'auto', flexShrink: 0, fontSize: 11, fontWeight: 600, color: T.apoio, background: N.n2, border: `1px solid ${T.border}`, borderRadius: 6, padding: '2px 8px', whiteSpace: 'nowrap' }}>no book atual</span>
                       )}
                     </div>
                   );
@@ -6781,15 +6781,15 @@ export default function Arte() {
             {/* O QUE FALTA para salvar, escrito (rodada 4) — a mesma conta do
                 `title` do botão, que só aparecia no hover. */}
             {!saveBookMutation.isPending && (!bookFileUrl || bookSelectedIds.size === 0 || bookComentarioFalta) && (
-              <span data-testid="book-falta" style={{ marginRight: 'auto', fontSize: 12, color: '#57534e', lineHeight: 1.4 }}>
+              <span data-testid="book-falta" style={{ marginRight: 'auto', fontSize: 12, color: T.apoio, lineHeight: 1.4 }}>
                 {!bookFileUrl ? 'Falta o PDF do book.' : bookSelectedIds.size === 0 ? 'Marque ao menos uma peça.' : 'Escreva o que mudou nesta versão.'}
               </span>
             )}
             {/* Cancelar com contorno: mesma gramática dos outros rodapés da Arte. */}
             <button onClick={() => setShowBookModal(false)}
-              style={{ height: 40, padding: '0 16px', borderRadius: 8, background: '#ffffff', border: '1px solid #e7e5e4', color: '#57534e', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'color 0.12s' }}
-              onMouseEnter={e => { e.currentTarget.style.color = '#1c1917'; }}
-              onMouseLeave={e => { e.currentTarget.style.color = '#57534e'; }}
+              style={{ height: 40, padding: '0 16px', borderRadius: 8, background: T.surface, border: `1px solid ${T.border}`, color: T.apoio, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'color 0.12s' }}
+              onMouseEnter={e => { e.currentTarget.style.color = T.text; }}
+              onMouseLeave={e => { e.currentTarget.style.color = T.apoio; }}
             >Cancelar</button>
             {/* Filled — Salvar book */}
             <button
@@ -6801,8 +6801,8 @@ export default function Arte() {
                 // 40 no mesmo rodapé) e sem gradiente/sombra, como os outros
                 // primários da tela.
                 height: 40, padding: '0 20px', borderRadius: 8, border: 'none',
-                background: (!bookFileUrl || bookSelectedIds.size === 0 || bookComentarioFalta || saveBookMutation.isPending) ? '#e7e5e4' : '#1c1917',
-                color: (!bookFileUrl || bookSelectedIds.size === 0 || bookComentarioFalta || saveBookMutation.isPending) ? '#57534e' : '#fff',
+                background: (!bookFileUrl || bookSelectedIds.size === 0 || bookComentarioFalta || saveBookMutation.isPending) ? T.border : T.text,
+                color: (!bookFileUrl || bookSelectedIds.size === 0 || bookComentarioFalta || saveBookMutation.isPending) ? T.apoio : '#fff',
                 fontSize: 13, fontWeight: 700, cursor: (!bookFileUrl || bookSelectedIds.size === 0 || bookComentarioFalta) ? 'not-allowed' : 'pointer',
                 display: 'flex', alignItems: 'center', gap: 7, transition: 'filter 0.12s',
               }}
@@ -6810,7 +6810,7 @@ export default function Arte() {
               onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
             >
               {saveBookMutation.isPending
-                ? <><div aria-hidden="true" style={{ width: 13, height: 13, borderRadius: '50%', border: '2px solid #d6d3d1', borderTopColor: '#57534e', animation: 'spin 0.8s linear infinite' }} />Salvando…</>
+                ? <><div aria-hidden="true" style={{ width: 13, height: 13, borderRadius: '50%', border: `2px solid ${T.bdark}`, borderTopColor: T.apoio, animation: 'spin 0.8s linear infinite' }} />Salvando…</>
                 : existingBookUrl
                   ? <><RefreshCw style={{ width: 13, height: 13 }} />{`Atualizar book — ${bookSelectedIds.size} peça${bookSelectedIds.size !== 1 ? 's' : ''}`}</>
                   : <><FileText style={{ width: 13, height: 13 }} />{`Salvar book — ${bookSelectedIds.size} peça${bookSelectedIds.size !== 1 ? 's' : ''}`}</>
@@ -6842,7 +6842,7 @@ export default function Arte() {
 
           <ModalHeader
             icon={Upload}
-            tint="#ea580c"
+            tint={T.accentText}
             title="Envio de thumbs em lote"
             subtitle="O vínculo é automático pelo número no nome do arquivo — ex.: 0277_aplique.jpg"
             onClose={() => closeBulkThumbModal()}
@@ -6869,7 +6869,7 @@ export default function Arte() {
             {/* ══════════════════════════════════════
                 Left panel — upload + controles
             ══════════════════════════════════════ */}
-            <div style={{ width: isMobile ? '100%' : 264, flexShrink: 0, borderRight: isMobile ? 'none' : '1px solid #ebe8e3', borderBottom: isMobile ? '1px solid #ebe8e3' : 'none', display: 'flex', flexDirection: 'column', backgroundColor: '#fafaf9' }}>
+            <div style={{ width: isMobile ? '100%' : 264, flexShrink: 0, borderRight: isMobile ? 'none' : `1px solid ${T.border}`, borderBottom: isMobile ? `1px solid ${T.border}` : 'none', display: 'flex', flexDirection: 'column', backgroundColor: T.bg }}>
 
               {/* ── Drop zone ── */}
               <div style={{ padding: '18px 18px 14px' }}>
@@ -6886,8 +6886,8 @@ export default function Arte() {
                   data-testid="dropzone-bulk-thumb"
                   style={{
                     padding: '20px 12px 18px', borderRadius: 12,
-                    background: isDragOverBulk ? 'linear-gradient(135deg,#f0fdf4,#dcfce7)' : '#ffffff',
-                    border: isDragOverBulk ? '2px dashed #16a34a' : '2px dashed #d4d4d0',
+                    background: isDragOverBulk ? `linear-gradient(135deg,${TOM.sucesso.bg},${TOM.sucesso.bg})` : T.surface,
+                    border: isDragOverBulk ? `2px dashed ${TOM.sucesso.text}` : `2px dashed ${T.bdark}`,
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: 'pointer',
                     transition: 'all 0.15s',
                     boxShadow: isDragOverBulk ? '0 0 0 4px rgba(22,163,74,0.08)' : 'none',
@@ -6909,27 +6909,27 @@ export default function Arte() {
                       conteúdo. Ao arrastar, o verde continua dizendo "solte". */}
                   <div style={{
                     width: 44, height: 44, borderRadius: 10,
-                    background: isDragOverBulk ? '#15803d' : '#1c1917',
+                    background: isDragOverBulk ? TOM.sucesso.text : T.text,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     transition: 'background-color 0.15s',
                   }}>
                     <Upload aria-hidden="true" style={{ width: 20, height: 20, color: '#fff' }} />
                   </div>
                   <div style={{ textAlign: 'center' }}>
-                    <p style={{ fontSize: 12, fontWeight: 700, color: isDragOverBulk ? '#15803d' : '#1c1917', margin: '0 0 2px' }}>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: isDragOverBulk ? TOM.sucesso.text : T.text, margin: '0 0 2px' }}>
                       {isDragOverBulk ? 'Solte aqui' : 'Arrastar ou clicar'}
                     </p>
-                    <p style={{ fontSize: 11, color: '#57534e', margin: 0, letterSpacing: '0.03em' }}>JPG · PNG · WEBP · SVG</p>
+                    <p style={{ fontSize: 11, color: T.apoio, margin: 0, letterSpacing: '0.03em' }}>JPG · PNG · WEBP · SVG</p>
                   </div>
                 </div>
               </div>
 
               {/* ── Divider ── */}
-              <div style={{ margin: '0 18px', borderTop: '1px solid #ebe8e3' }} />
+              <div style={{ margin: '0 18px', borderTop: `1px solid ${T.border}` }} />
 
               {/* ── Event filter ── */}
               <div style={{ padding: '14px 18px 0' }}>
-                <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#57534e', margin: '0 0 6px' }}>Evento</p>
+                <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio, margin: '0 0 6px' }}>Evento</p>
                 <div style={{ width: '100%' }}>
                   <EventFilterDropdown
                     value={bulkThumbEventFilter}
@@ -6943,15 +6943,15 @@ export default function Arte() {
               {/* ── Resumo — só aparece quando há arquivos com count > 0 ── */}
               {bulkThumbEntries.length > 0 && (() => {
                 const rows = [
-                  { label: 'Vinculados',  count: bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length,  dot: '#16a34a', color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
-                  { label: 'Sem vínculo', count: bulkThumbEntries.filter(e => !e.matchedItemId && e.status === 'pending').length, dot: '#f59e0b', color: '#92400e', bg: '#fffbeb', border: '#fde68a' },
-                  { label: 'Concluídos',  count: bulkThumbEntries.filter(e => e.status === 'done').length,                        dot: '#7c3aed', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
-                  { label: 'Erro',        count: bulkThumbEntries.filter(e => e.status === 'error').length,                       dot: '#dc2626', color: '#b91c1c', bg: '#fef2f2', border: '#fecaca' },
+                  { label: 'Vinculados',  count: bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length,  dot: TOM.sucesso.text, color: TOM.sucesso.text, bg: TOM.sucesso.bg, border: TOM.sucesso.border },
+                  { label: 'Sem vínculo', count: bulkThumbEntries.filter(e => !e.matchedItemId && e.status === 'pending').length, dot: TOM.alerta.dot, color: TOM.alerta.text, bg: TOM.alerta.bg, border: TOM.alerta.border },
+                  { label: 'Concluídos',  count: bulkThumbEntries.filter(e => e.status === 'done').length,                        dot: TOM.roxo.text, color: TOM.roxo.text, bg: TOM.roxo.bg, border: TOM.roxo.border },
+                  { label: 'Erro',        count: bulkThumbEntries.filter(e => e.status === 'error').length,                       dot: TOM.perigo.text, color: TOM.perigo.text, bg: TOM.perigo.bg, border: TOM.perigo.border },
                 ].filter(s => s.count > 0);
                 if (rows.length === 0) return null;
                 return (
                   <div style={{ padding: '14px 18px 0' }}>
-                    <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#57534e', margin: '0 0 8px' }}>Resumo</p>
+                    <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio, margin: '0 0 8px' }}>Resumo</p>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       {rows.map(s => (
                         <div key={s.label} style={{
@@ -6979,40 +6979,40 @@ export default function Arte() {
             {/* ══════════════════════════════════════
                 Right panel — lista de arquivos
             ══════════════════════════════════════ */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: '#f7f6f5' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: T.bg }}>
               {bulkThumbEntries.length === 0 ? (
                 /* ── Empty state ── */
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
                   {/* Ladrilho neutro: o gradiente laranja com sombra a 40% de
                       opacidade era um objeto "apagado" de propósito, e parecia
                       um botão desabilitado. */}
-                  <div style={{ width: 56, height: 56, borderRadius: 14, background: '#ffffff', border: '1px solid #e7e5e4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Upload aria-hidden="true" style={{ width: 24, height: 24, color: '#746e69' }} />
+                  <div style={{ width: 56, height: 56, borderRadius: 14, background: T.surface, border: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Upload aria-hidden="true" style={{ width: 24, height: 24, color: T.second }} />
                   </div>
                   <div style={{ textAlign: 'center' }}>
-                    <p style={{ fontSize: 15, fontWeight: 700, color: '#57534e', margin: '0 0 6px' }}>Nenhuma imagem adicionada</p>
-                    <p style={{ fontSize: 12, color: '#57534e', margin: 0, maxWidth: 240, lineHeight: 1.6 }}>
+                    <p style={{ fontSize: 15, fontWeight: 700, color: T.apoio, margin: '0 0 6px' }}>Nenhuma imagem adicionada</p>
+                    <p style={{ fontSize: 12, color: T.apoio, margin: 0, maxWidth: 240, lineHeight: 1.6 }}>
                       Arraste para a área {isMobile ? 'acima' : 'ao lado'} ou toque nela para escolher
                     </p>
                   </div>
                   <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
                     {['JPG', 'PNG', 'WEBP', 'SVG'].map(f => (
-                      <span key={f} style={{ padding: '3px 10px', borderRadius: 999, backgroundColor: '#ebe8e3', fontSize: 11, fontWeight: 700, color: '#57534e', letterSpacing: '0.06em' }}>{f}</span>
+                      <span key={f} style={{ padding: '3px 10px', borderRadius: 999, backgroundColor: T.border, fontSize: 11, fontWeight: 700, color: T.apoio, letterSpacing: '0.06em' }}>{f}</span>
                     ))}
                   </div>
                 </div>
               ) : (
                 <>
                   {/* ── Panel header ── */}
-                  <div style={{ padding: '11px 18px', borderBottom: '1px solid #ebe8e3', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, backgroundColor: '#ffffff' }}>
+                  <div style={{ padding: '11px 18px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, backgroundColor: T.surface }}>
                     {/* As quatro pílulas coloridas de contagem saíram daqui: o
                         "Resumo" do painel ao lado mostra os MESMOS quatro números,
                         com as mesmas cores — duas faixas de selos dizendo a mesma
                         coisa a 200px uma da outra. */}
-                    <span style={{ fontSize: 13, fontWeight: 800, color: '#1c1917', fontFamily: '"Space Grotesk", sans-serif' }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: T.text, fontFamily: '"Space Grotesk", sans-serif' }}>
                       {bulkThumbEntries.length} {bulkThumbEntries.length === 1 ? 'arquivo' : 'arquivos'}
                     </span>
-                    <span style={{ fontSize: 12, color: '#57534e', fontWeight: 600 }}>Confira o vínculo de cada imagem</span>
+                    <span style={{ fontSize: 12, color: T.apoio, fontWeight: 600 }}>Confira o vínculo de cada imagem</span>
                   </div>
 
                   {/* ── Lista de cards (horizontal) ── */}
@@ -7023,14 +7023,14 @@ export default function Arte() {
                       const matchedItem = entry.matchedItemId ? itemPorId.get(entry.matchedItemId) : undefined;
                       const isLinked = !!entry.matchedItemId;
 
-                      const cardBorderColor = entry.status === 'done' ? '#bbf7d0'
-                        : entry.status === 'error' ? '#fecaca'
-                        : entry.status === 'uploading' ? '#ddd6fe'
-                        : isLinked ? (entry.ambiguous ? '#fcd34d' : '#bfdbfe') : '#fcd34d';
-                      const cardAccentBg = entry.status === 'done' ? '#f0fdf4'
-                        : entry.status === 'error' ? '#fef2f2'
-                        : entry.status === 'uploading' ? '#faf5ff'
-                        : isLinked ? (entry.ambiguous ? '#fffbeb' : '#eff6ff') : '#fffbeb';
+                      const cardBorderColor = entry.status === 'done' ? TOM.sucesso.border
+                        : entry.status === 'error' ? TOM.perigo.border
+                        : entry.status === 'uploading' ? TOM.roxo.border
+                        : isLinked ? (entry.ambiguous ? TOM.alerta.border : TOM.info.border) : TOM.alerta.border;
+                      const cardAccentBg = entry.status === 'done' ? TOM.sucesso.bg
+                        : entry.status === 'error' ? TOM.perigo.bg
+                        : entry.status === 'uploading' ? TOM.roxo.bg
+                        : isLinked ? (entry.ambiguous ? TOM.alerta.bg : TOM.info.bg) : TOM.alerta.bg;
 
                       return (
                         <div key={entry.id} data-testid={`bulk-thumb-card-${entry.id}`} style={{
@@ -7040,33 +7040,33 @@ export default function Arte() {
                           // navegador ESPREMIA todos em tirinhas em vez de rolar (dono, 21/09).
                           flexShrink: 0, minHeight: 80,
                           borderRadius: 12, border: `1.5px solid ${cardBorderColor}`,
-                          backgroundColor: '#ffffff',
+                          backgroundColor: T.surface,
                           overflow: 'hidden', position: 'relative',
                           boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
                           transition: 'box-shadow 0.12s',
                         }}>
                           {/* ── Thumbnail quadrado ── */}
-                          <div style={{ position: 'relative', width: 80, flexShrink: 0, backgroundColor: '#f3f4f3' }}>
+                          <div style={{ position: 'relative', width: 80, flexShrink: 0, backgroundColor: T.low }}>
                             <img loading="lazy" decoding="async" src={entry.preview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', minHeight: 80 }} />
                             {/* Status pill */}
                             <div style={{ position: 'absolute', bottom: 4, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
                               {entry.status === 'done' && (
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 6px', borderRadius: 999, backgroundColor: '#15803d', color: '#ffffff', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 6px', borderRadius: 999, backgroundColor: TOM.sucesso.text, color: T.surface, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
                                   <CheckCircle style={{ width: 8, height: 8 }} /> OK
                                 </span>
                               )}
                               {entry.status === 'uploading' && (
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 6px', borderRadius: 999, backgroundColor: '#7c3aed', color: '#ffffff', fontSize: 10, fontWeight: 700, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 6px', borderRadius: 999, backgroundColor: TOM.roxo.text, color: T.surface, fontSize: 10, fontWeight: 700, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
                                   <div style={{ width: 7, height: 7, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />
                                 </span>
                               )}
                               {entry.status === 'error' && (
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 6px', borderRadius: 999, backgroundColor: '#dc2626', color: '#ffffff', fontSize: 10, fontWeight: 700, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 6px', borderRadius: 999, backgroundColor: TOM.perigo.text, color: T.surface, fontSize: 10, fontWeight: 700, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
                                   Erro
                                 </span>
                               )}
                               {entry.status === 'pending' && (
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 6px', borderRadius: 999, backgroundColor: isLinked ? '#1d4ed8' : '#d97706', color: '#ffffff', fontSize: 10, fontWeight: 700, boxShadow: '0 1px 4px rgba(0,0,0,0.2)', whiteSpace: 'nowrap' }}>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 6px', borderRadius: 999, backgroundColor: isLinked ? TOM.info.text : TOM.alerta.text, color: T.surface, fontSize: 10, fontWeight: 700, boxShadow: '0 1px 4px rgba(0,0,0,0.2)', whiteSpace: 'nowrap' }}>
                                   {isLinked ? '✓' : '?'}
                                 </span>
                               )}
@@ -7078,10 +7078,10 @@ export default function Arte() {
                             {/* Top row: filename + remove */}
                             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6, marginBottom: 6 }}>
                               <div style={{ minWidth: 0 }}>
-                                <p style={{ fontSize: 12, fontWeight: 700, color: '#1c1917', margin: '0 0 1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={entry.file.name}>
+                                <p style={{ fontSize: 12, fontWeight: 700, color: T.text, margin: '0 0 1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={entry.file.name}>
                                   {entry.file.name}
                                 </p>
-                                <p style={{ fontSize: 11, color: '#57534e', margin: 0 }}>
+                                <p style={{ fontSize: 11, color: T.apoio, margin: 0 }}>
                                   {(entry.file.size / 1024).toFixed(0)} KB
                                 </p>
                               </div>
@@ -7093,35 +7093,35 @@ export default function Arte() {
                                     return false;
                                   }))}
                                   aria-label={`Remover ${entry.file.name}`}
-                                  style={{ flexShrink: 0, width: 32, height: 32, borderRadius: '50%', backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.12s' }}
-                                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#fef2f2'; e.currentTarget.style.borderColor = '#fecaca'; }}
-                                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
+                                  style={{ flexShrink: 0, width: 32, height: 32, borderRadius: '50%', backgroundColor: N.n2, border: `1px solid ${T.border}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.12s' }}
+                                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = TOM.perigo.bg; e.currentTarget.style.borderColor = TOM.perigo.border; }}
+                                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = N.n2; e.currentTarget.style.borderColor = T.border; }}
                                 >
-                                  <X style={{ width: 13, height: 13, color: '#57534e' }} />
+                                  <X style={{ width: 13, height: 13, color: T.apoio }} />
                                 </button>
                               )}
                             </div>
 
                             {/* ── State-specific content ── */}
                             {entry.status === 'done' ? (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 8px', borderRadius: 6, backgroundColor: '#dcfce7', border: '1px solid #bbf7d0' }}>
-                                <CheckCircle style={{ width: 11, height: 11, color: '#16a34a', flexShrink: 0 }} />
-                                <p style={{ fontSize: 11, fontWeight: 700, color: '#15803d', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 8px', borderRadius: 6, backgroundColor: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}` }}>
+                                <CheckCircle style={{ width: 11, height: 11, color: TOM.sucesso.text, flexShrink: 0 }} />
+                                <p style={{ fontSize: 11, fontWeight: 700, color: TOM.sucesso.text, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                   {matchedItem?.displayId} · {matchedItem?.type?.slice(0, 28)}
                                 </p>
                               </div>
                             ) : entry.status === 'uploading' ? (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderRadius: 6, backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe' }}>
-                                <div style={{ width: 11, height: 11, borderRadius: '50%', border: '2px solid #ddd6fe', borderTopColor: '#7c3aed', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
-                                <span style={{ fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>Enviando...</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderRadius: 6, backgroundColor: TOM.roxo.bg, border: `1px solid ${TOM.roxo.border}` }}>
+                                <div style={{ width: 11, height: 11, borderRadius: '50%', border: `2px solid ${TOM.roxo.border}`, borderTopColor: TOM.roxo.text, animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
+                                <span style={{ fontSize: 11, color: TOM.roxo.text, fontWeight: 600 }}>Enviando...</span>
                               </div>
                             ) : entry.status === 'error' ? (
-                              <div style={{ padding: '5px 8px', borderRadius: 6, backgroundColor: '#fef2f2', border: '1px solid #fecaca', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                              <div style={{ padding: '5px 8px', borderRadius: 6, backgroundColor: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}`, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                                 {/* A frase do servidor inteira, quebrando linha: cortada
                                     em reticências ela escondia justamente o que fazer. */}
                                 <div style={{ flex: '1 1 160px', minWidth: 0 }}>
-                                  <p style={{ fontSize: 11, fontWeight: 700, color: '#b91c1c', margin: '0 0 1px' }}>Falha no envio</p>
-                                  <p data-testid={`bulk-thumb-erro-${entry.id}`} style={{ fontSize: 11, color: '#b91c1c', margin: 0, lineHeight: 1.4, overflowWrap: 'anywhere' }}>{entry.errorMsg}</p>
+                                  <p style={{ fontSize: 11, fontWeight: 700, color: TOM.perigo.text, margin: '0 0 1px' }}>Falha no envio</p>
+                                  <p data-testid={`bulk-thumb-erro-${entry.id}`} style={{ fontSize: 11, color: TOM.perigo.text, margin: 0, lineHeight: 1.4, overflowWrap: 'anywhere' }}>{entry.errorMsg}</p>
                                 </div>
                                 {/* Sem retentativa para o grande demais: o mesmo arquivo
                                     falharia de novo. Sem peça vinculada, falta escolher. */}
@@ -7131,7 +7131,7 @@ export default function Arte() {
                                     onClick={() => tentarDeNovoNoLote(entry.id)}
                                     disabled={bulkThumbRunning}
                                     data-testid={`button-bulk-thumb-tentar-${entry.id}`}
-                                    style={{ minHeight: isMobile ? 44 : 32, padding: '0 12px', borderRadius: 8, border: '1px solid #fecaca', background: '#ffffff', color: '#b91c1c', fontSize: 12, fontWeight: 700, cursor: bulkThumbRunning ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0, opacity: bulkThumbRunning ? 0.6 : 1 }}
+                                    style={{ minHeight: isMobile ? 44 : 32, padding: '0 12px', borderRadius: 8, border: `1px solid ${TOM.perigo.border}`, background: T.surface, color: TOM.perigo.text, fontSize: 12, fontWeight: 700, cursor: bulkThumbRunning ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0, opacity: bulkThumbRunning ? 0.6 : 1 }}
                                   >
                                     <RefreshCw aria-hidden="true" style={{ width: 12, height: 12 }} />
                                     Tentar de novo
@@ -7140,20 +7140,20 @@ export default function Arte() {
                               </div>
                             ) : isLinked && matchedItem ? (
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <div style={{ flex: 1, padding: '5px 8px', borderRadius: 6, backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', minWidth: 0 }}>
+                                <div style={{ flex: 1, padding: '5px 8px', borderRadius: 6, backgroundColor: TOM.info.bg, border: `1px solid ${TOM.info.border}`, minWidth: 0 }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                    <span style={{ fontSize: 11, fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.04em', flexShrink: 0 }}>{matchedItem.displayId}</span>
-                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#1e3a5f', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{matchedItem.type}</span>
+                                    <span style={{ fontSize: 11, fontWeight: 800, color: TOM.info.text, textTransform: 'uppercase', letterSpacing: '0.04em', flexShrink: 0 }}>{matchedItem.displayId}</span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: TOM.info.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{matchedItem.type}</span>
                                   </div>
                                   {matchedItem.event?.name && (
-                                    <p style={{ fontSize: 11, color: '#1d4ed8', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{matchedItem.event.name}</p>
+                                    <p style={{ fontSize: 11, color: TOM.info.text, margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{matchedItem.event.name}</p>
                                   )}
                                   {/* Peça da CORREÇÃO não tem rascunho: os dois
                                       botões do rodapé a reenviam (ver o title de
                                       "Salvar como rascunho"). Dito no card,
                                       antes do clique (rodada 4). */}
                                   {(correcaoItems as any[]).some((c: any) => c.id === matchedItem.id) && (
-                                    <p data-testid={`aviso-correcao-no-lote-${entry.id}`} style={{ fontSize: 11, fontWeight: 700, color: '#991b1b', margin: '3px 0 0' }}>
+                                    <p data-testid={`aviso-correcao-no-lote-${entry.id}`} style={{ fontSize: 11, fontWeight: 700, color: TOM.perigo.text, margin: '3px 0 0' }}>
                                       Na Correção — vai como nova versão
                                     </p>
                                   )}
@@ -7162,7 +7162,7 @@ export default function Arte() {
                                       foi feito pelo último, que é a convenção,
                                       mas concentra a atenção onde ela vale. */}
                                   {entry.ambiguous && (
-                                    <p data-testid={`aviso-vinculo-duvidoso-${entry.id}`} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: '#92400e', margin: '3px 0 0' }}>
+                                    <p data-testid={`aviso-vinculo-duvidoso-${entry.id}`} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: TOM.alerta.text, margin: '3px 0 0' }}>
                                       <AlertTriangle style={{ width: 10, height: 10, flexShrink: 0 }} />
                                       Confira este vínculo
                                     </p>
@@ -7173,9 +7173,9 @@ export default function Arte() {
                                   title="Trocar vínculo"
                                   aria-label={`Trocar a peça vinculada a ${entry.file.name}`}
                                   // 32px de alvo: com padding de 4px o botão tinha ~22.
-                                  style={{ flexShrink: 0, minHeight: 32, background: '#ffffff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '0 10px', cursor: 'pointer', color: '#1d4ed8', fontSize: 12, fontWeight: 700, transition: 'all 0.12s' }}
-                                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#eff6ff'; }}
-                                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
+                                  style={{ flexShrink: 0, minHeight: 32, background: T.surface, border: `1px solid ${TOM.info.border}`, borderRadius: 6, padding: '0 10px', cursor: 'pointer', color: TOM.info.text, fontSize: 12, fontWeight: 700, transition: 'all 0.12s' }}
+                                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = TOM.info.bg; }}
+                                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = T.surface; }}
                                 >Trocar</button>
                               </div>
                             ) : (
@@ -7201,16 +7201,16 @@ export default function Arte() {
                                         <button style={{
                                           width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4,
                                           height: 32, borderRadius: 6,
-                                          border: `1px solid ${isLinked ? '#93c5fd' : '#e7e5e4'}`,
-                                          backgroundColor: '#ffffff', fontSize: 11, fontWeight: 600,
-                                          color: linked ? '#1c1917' : '#746e69', padding: '0 8px', cursor: 'pointer',
+                                          border: `1px solid ${isLinked ? TOM.info.border : T.border}`,
+                                          backgroundColor: T.surface, fontSize: 11, fontWeight: 600,
+                                          color: linked ? T.text : T.second, padding: '0 8px', cursor: 'pointer',
                                         }}>
                                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                             {linked
                                               ? `${linked.displayId} · ${linked.type}`
                                               : 'Selecionar peça...'}
                                           </span>
-                                          <ChevronsUpDown style={{ width: 10, height: 10, color: '#57534e', flexShrink: 0 }} />
+                                          <ChevronsUpDown style={{ width: 10, height: 10, color: T.apoio, flexShrink: 0 }} />
                                         </button>
                                       </PopoverTrigger>
                                       <PopoverContent className="p-0" style={{ width: isMobile ? '90vw' : 320 }} align="start">
@@ -7219,10 +7219,10 @@ export default function Arte() {
                                           <CommandList style={{ maxHeight: 280 }}>
                                             <CommandEmpty>Nenhuma peça encontrada.</CommandEmpty>
                                             {pendingPool.length === 0 && (
-                                              <div style={{ padding: '9px 16px', fontSize: 11, color: '#b45309', fontWeight: 600, lineHeight: 1.5 }}>
+                                              <div style={{ padding: '9px 16px', fontSize: 11, color: TOM.alerta.text, fontWeight: 600, lineHeight: 1.5 }}>
                                                 Nenhuma peça pronta para receber thumb
                                                 {bulkThumbEventFilter !== "all" ? " neste evento" : ""}.
-                                                <span style={{ display: 'block', fontWeight: 500, color: '#57534e', marginTop: 4 }}>
+                                                <span style={{ display: 'block', fontWeight: 500, color: T.apoio, marginTop: 4 }}>
                                                   Só aparecem peças aguardando envio ou em correção. Se a peça é nova,
                                                   ela precisa passar antes por <b>Vincular Patrocinadores</b>.
                                                   {bulkThumbEventFilter !== "all" && " Você também pode trocar o filtro de evento para 'Todos'."}
@@ -7238,8 +7238,8 @@ export default function Arte() {
                                                     setBulkThumbLinkOpenMap(prev => ({ ...prev, [entry.id]: false }));
                                                   }}
                                                 >
-                                                  <X style={{ width: 10, height: 10, marginRight: 6, flexShrink: 0, color: '#dc2626' }} />
-                                                  <span style={{ color: '#dc2626', fontSize: 11 }}>Remover vínculo</span>
+                                                  <X style={{ width: 10, height: 10, marginRight: 6, flexShrink: 0, color: TOM.perigo.text }} />
+                                                  <span style={{ color: TOM.perigo.text, fontSize: 11 }}>Remover vínculo</span>
                                                 </CommandItem>
                                               </CommandGroup>
                                             )}
@@ -7258,13 +7258,13 @@ export default function Arte() {
                                                         setBulkThumbLinkOpenMap(prev => ({ ...prev, [entry.id]: false }));
                                                       }}
                                                     >
-                                                      <Check style={{ width: 10, height: 10, color: '#16a34a', opacity: entry.matchedItemId === item.id ? 1 : 0, marginRight: 4, flexShrink: 0 }} />
+                                                      <Check style={{ width: 10, height: 10, color: TOM.sucesso.text, opacity: entry.matchedItemId === item.id ? 1 : 0, marginRight: 4, flexShrink: 0 }} />
                                                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden', minWidth: 0 }}>
                                                         {/* displayId — destaque */}
-                                                        <span style={{ fontSize: 11, fontWeight: 800, color: '#1c1917', fontFamily: '"Space Grotesk", sans-serif', flexShrink: 0 }}>{item.displayId}</span>
+                                                        <span style={{ fontSize: 11, fontWeight: 800, color: T.text, fontFamily: '"Space Grotesk", sans-serif', flexShrink: 0 }}>{item.displayId}</span>
                                                         {/* descrição ou evento — o tipo já aparece no cabeçalho do grupo */}
                                                         {(item.description || evtName) && (
-                                                          <span style={{ fontSize: 11, color: '#57534e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                          <span style={{ fontSize: 11, color: T.apoio, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                             {item.description ? item.description.slice(0, 48) : evtName}
                                                           </span>
                                                         )}
@@ -7302,13 +7302,13 @@ export default function Arte() {
               : 0;
             return (
               <div style={{
-                borderTop: '1px solid #ebe8e3', padding: isMobile ? '12px 16px' : '12px 24px',
+                borderTop: `1px solid ${T.border}`, padding: isMobile ? '12px 16px' : '12px 24px',
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
                 // Quebra no celular: a fileira da direita (Cancelar + dois botões
                 // com a contagem no rótulo) pedia ~480px e, sem quebra, o
                 // "Enviar N thumbs" saía pela borda do modal em 390px.
                 flexWrap: isMobile ? 'wrap' : 'nowrap',
-                backgroundColor: '#ffffff', borderRadius: '0 0 16px 16px', flexShrink: 0,
+                backgroundColor: T.surface, borderRadius: '0 0 16px 16px', flexShrink: 0,
                 position: 'relative',
               }}>
                 {/* Progresso GLOBAL do lote. 60 imagens de alguns MB levam
@@ -7324,15 +7324,15 @@ export default function Arte() {
                     data-testid="progress-bulk-thumb"
                     style={{ position: 'absolute', top: 0, left: 0, right: 0, display: 'flex', flexDirection: 'column' }}
                   >
-                    <div style={{ height: 4, background: '#e7e5e4' }}>
-                      <div style={{ height: '100%', width: `${pctLote}%`, background: '#15803d', transition: 'width 0.2s' }} />
+                    <div style={{ height: 4, background: T.border }}>
+                      <div style={{ height: '100%', width: `${pctLote}%`, background: TOM.sucesso.text, transition: 'width 0.2s' }} />
                     </div>
                   </div>
                 )}
                 {/* Esquerda: progresso ou limpar concluídos */}
                 <div>
                   {bulkThumbRunning && bulkThumbProgress.total > 0 && (
-                    <span style={{ fontSize: 12, fontWeight: 700, color: '#15803d' }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: TOM.sucesso.text }}>
                       Enviando {bulkThumbProgress.feitos} de {bulkThumbProgress.total} ({pctLote}%)
                     </span>
                   )}
@@ -7343,8 +7343,8 @@ export default function Arte() {
                         URL.revokeObjectURL(e.preview);
                         return false;
                       }))}
-                      style={{ height: 36, padding: '0 14px', borderRadius: 6, background: 'none', border: '1px solid #e7e5e4', color: '#57534e', cursor: 'pointer', fontSize: 12, fontWeight: 600, transition: 'background 0.12s' }}
-                      onMouseEnter={e => { e.currentTarget.style.background = '#f5f5f4'; }}
+                      style={{ height: 36, padding: '0 14px', borderRadius: 6, background: 'none', border: `1px solid ${T.border}`, color: T.apoio, cursor: 'pointer', fontSize: 12, fontWeight: 600, transition: 'background 0.12s' }}
+                      onMouseEnter={e => { e.currentTarget.style.background = N.n2; }}
                       onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
                     >Limpar {doneCount} enviado{doneCount !== 1 ? 's' : ''}</button>
                   )}
@@ -7356,9 +7356,9 @@ export default function Arte() {
                   <button
                     onClick={() => closeBulkThumbModal()}
                     aria-disabled={bulkThumbRunning}
-                    style={{ height: isMobile ? 44 : 40, padding: '0 16px', borderRadius: 8, background: '#ffffff', border: '1px solid #e7e5e4', color: '#57534e', cursor: bulkThumbRunning ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 600, transition: 'color 0.12s', opacity: bulkThumbRunning ? 0.5 : 1 }}
-                    onMouseEnter={e => { e.currentTarget.style.color = '#1c1917'; }}
-                    onMouseLeave={e => { e.currentTarget.style.color = '#57534e'; }}
+                    style={{ height: isMobile ? 44 : 40, padding: '0 16px', borderRadius: 8, background: T.surface, border: `1px solid ${T.border}`, color: T.apoio, cursor: bulkThumbRunning ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 600, transition: 'color 0.12s', opacity: bulkThumbRunning ? 0.5 : 1 }}
+                    onMouseEnter={e => { e.currentTarget.style.color = T.text; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = T.apoio; }}
                   >
                     {/* Com tudo processado não há o que cancelar (rodada 4):
                         "Cancelar" ao lado de cards "OK" fazia perguntar se
@@ -7379,16 +7379,16 @@ export default function Arte() {
                     title="Peça aguardando envio: só salva o thumb, sem enviar — ela continua na fila como rascunho. Peça da Correção não tem rascunho: a imagem vai como nova versão para quem ainda não aprovou."
                     style={{
                       height: isMobile ? 44 : 40, padding: '0 16px', borderRadius: 8,
-                      backgroundColor: '#ffffff',
-                      border: '1px solid #d6d3d1',
-                      color: isDisabled ? '#746e69' : '#44403c',
+                      backgroundColor: T.surface,
+                      border: `1px solid ${T.bdark}`,
+                      color: isDisabled ? T.second : T.strong,
                       opacity: isDisabled ? 0.7 : 1,
                       fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                       flex: isMobile ? '1 1 auto' : undefined,
                       cursor: isDisabled ? 'not-allowed' : 'pointer', transition: 'all 0.15s',
                     }}
-                    onMouseEnter={e => { if (!isDisabled) e.currentTarget.style.backgroundColor = '#fafaf9'; }}
-                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
+                    onMouseEnter={e => { if (!isDisabled) e.currentTarget.style.backgroundColor = T.bg; }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = T.surface; }}
                   >
                     <FileImage aria-hidden="true" style={{ width: 13, height: 13 }} />
                     {/* Sem nada vinculado o botão dizia "Salvar 0 thumbs": o zero
@@ -7413,19 +7413,19 @@ export default function Arte() {
                       // TINTA, como os outros primários da Arte: verde nesta
                       // tela é o ESTADO "enviado" dos cards logo acima, e o
                       // botão que ainda vai enviar vestia a cor do resultado.
-                      background: isDisabled ? '#e7e5e4' : '#1c1917',
+                      background: isDisabled ? T.border : T.text,
                       border: 'none',
-                      color: isDisabled ? '#57534e' : '#ffffff',
+                      color: isDisabled ? T.apoio : T.surface,
                       fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
                       flex: isMobile ? '1 1 auto' : undefined,
                       cursor: isDisabled ? 'not-allowed' : 'pointer',
                       transition: 'background-color 0.15s',
                     }}
-                    onMouseEnter={e => { if (!isDisabled) e.currentTarget.style.backgroundColor = '#44403c'; }}
-                    onMouseLeave={e => { if (!isDisabled) e.currentTarget.style.backgroundColor = '#1c1917'; }}
+                    onMouseEnter={e => { if (!isDisabled) e.currentTarget.style.backgroundColor = T.strong; }}
+                    onMouseLeave={e => { if (!isDisabled) e.currentTarget.style.backgroundColor = T.text; }}
                   >
                     {bulkThumbRunning
-                      ? <><div aria-hidden="true" style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #d6d3d1', borderTopColor: '#57534e', animation: 'spin 0.8s linear infinite' }} />Enviando…</>
+                      ? <><div aria-hidden="true" style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid ${T.bdark}`, borderTopColor: T.apoio, animation: 'spin 0.8s linear infinite' }} />Enviando…</>
                       : <><Send aria-hidden="true" style={{ width: 14, height: 14 }} />{readyCount > 0 ? `Enviar ${readyCount} para aprovação` : 'Enviar para aprovação'}</>
                     }
                   </button>

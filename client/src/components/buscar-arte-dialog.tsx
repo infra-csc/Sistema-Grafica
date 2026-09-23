@@ -32,6 +32,7 @@ import { FileText, ImageIcon, Search, Sparkles } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, ModalFooter, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { miniatura } from "@/lib/miniatura";
+import { T, N, TOM } from "@/lib/theme";
 
 export interface ArteEncontrada {
   id: string;
@@ -123,35 +124,35 @@ function Cartao({ arte, escolhida, onEscolher }: {
         minHeight: 44, textAlign: "left", padding: 10, cursor: "pointer",
         display: "flex", flexDirection: "column", gap: 8,
         background: "#fff", borderRadius: 12,
-        border: escolhida ? "2px solid #1c1917" : "1px solid #e7e5e4",
+        border: escolhida ? `2px solid ${T.text}` : `1px solid ${T.border}`,
         boxShadow: escolhida ? "0 6px 16px -6px rgba(0,0,0,0.25)" : "none",
         transition: "border-color 0.12s, box-shadow 0.12s",
       }}
     >
-      <div style={{ width: "100%", aspectRatio: "4 / 3", borderRadius: 8, overflow: "hidden", background: "#f5f5f4", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ width: "100%", aspectRatio: "4 / 3", borderRadius: 8, overflow: "hidden", background: N.n2, display: "flex", alignItems: "center", justifyContent: "center" }}>
         {url && !falhou
           ? <img src={miniatura(url)} alt="" loading="lazy" decoding="async" onError={() => setFalhou(true)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-          : <ImageIcon size={22} color="#78716c" aria-hidden="true" />}
+          : <ImageIcon size={22} color={T.second} aria-hidden="true" />}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
-        <span style={{ fontSize: 13, fontWeight: 800, color: "#1c1917", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <span style={{ fontSize: 13, fontWeight: 800, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {arte.displayId ?? "Peça"} · {arte.tipo}
         </span>
-        <span style={{ fontSize: 12, color: "#57534e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <span style={{ fontSize: 12, color: T.apoio, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {arte.eventName ?? "Sem evento"}{dia(arte.eventInicio) ? ` · ${dia(arte.eventInicio)}` : ""}
         </span>
         {arte.descricao && (
-          <span style={{ fontSize: 11.5, color: "#746e69", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: 11.5, color: T.second, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {arte.descricao}
           </span>
         )}
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-        {arte.mesmoPatrocinador && <Selo cor="#065f46" fundo="#d1fae5">mesmo patrocinador</Selo>}
-        {arte.eventoParecido && <Selo cor="#1d4ed8" fundo="#eff6ff">evento parecido</Selo>}
-        {arte.mesmoTipo && <Selo cor="#44403c" fundo="#e7e5e4">mesmo tipo</Selo>}
+        {arte.mesmoPatrocinador && <Selo cor={TOM.esmeralda.text} fundo={TOM.esmeralda.bg}>mesmo patrocinador</Selo>}
+        {arte.eventoParecido && <Selo cor={TOM.info.text} fundo={TOM.info.bg}>evento parecido</Selo>}
+        {arte.mesmoTipo && <Selo cor={T.strong} fundo={T.border}>mesmo tipo</Selo>}
         {arte.aprovada && (
-          <Selo cor="#065f46" fundo="#ecfdf5" titulo={textoDaAprovacao(arte) ?? undefined}>
+          <Selo cor={TOM.esmeralda.text} fundo={TOM.esmeralda.bg} titulo={textoDaAprovacao(arte) ?? undefined}>
             <span data-testid={`selo-aprovada-${arte.id}`}>Aprovada</span>
           </Selo>
         )}
@@ -205,7 +206,7 @@ export function BuscarArteDialog({ item, querArquivoFinal, onUsar, onClose }: {
     <Dialog open={!!item} onOpenChange={(aberto) => { if (!aberto) onClose(); }}>
       <DialogContent
         className={`p-0 gap-0 border-0 ${HIDE_NATIVE_CLOSE}`}
-        style={{ ...modalSurface(820), backgroundColor: "#fafaf9" }}
+        style={{ ...modalSurface(820), backgroundColor: T.bg }}
       >
         <DialogTitle className="sr-only">Buscar arte já feita</DialogTitle>
         <DialogDescription className="sr-only">
@@ -214,7 +215,7 @@ export function BuscarArteDialog({ item, querArquivoFinal, onUsar, onClose }: {
 
         <ModalHeader
           icon={Sparkles}
-          tint="#6d28d9"
+          tint={TOM.roxo.text}
           title="Buscar arte já feita"
           subtitle={data?.alvo
             ? `Para ${data.alvo.displayId ?? "esta peça"} · ${data.alvo.tipo} — mesmo patrocinador e eventos do mesmo circuito primeiro.`
@@ -222,9 +223,9 @@ export function BuscarArteDialog({ item, querArquivoFinal, onUsar, onClose }: {
           onClose={onClose}
         />
 
-        <div style={{ padding: "12px 20px", background: "#fff", borderBottom: "1px solid #e7e5e4", flexShrink: 0 }}>
+        <div style={{ padding: "12px 20px", background: "#fff", borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
           <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-            <Search size={15} aria-hidden="true" style={{ position: "absolute", left: 12, color: "#78716c" }} />
+            <Search size={15} aria-hidden="true" style={{ position: "absolute", left: 12, color: T.second }} />
             <input
               type="search"
               value={termo}
@@ -236,12 +237,12 @@ export function BuscarArteDialog({ item, querArquivoFinal, onUsar, onClose }: {
                 // 16px: abaixo disso o Safari do iPhone dá zoom no campo ao
                 // focar e a tela salta.
                 width: "100%", minHeight: 44, padding: "0 12px 0 34px", fontSize: 16,
-                borderRadius: 10, border: "1px solid #d6d3d1", background: "#fff", color: "#1c1917",
+                borderRadius: 10, border: `1px solid ${T.bdark}`, background: "#fff", color: T.text,
               }}
             />
           </div>
           {termoBuscado === "" && (
-            <p style={{ margin: "8px 0 0", fontSize: 11.5, color: "#78716c" }}>
+            <p style={{ margin: "8px 0 0", fontSize: 11.5, color: T.second }}>
               Sugestões para esta peça. Digite para procurar em todo o acervo de artes.
             </p>
           )}
@@ -251,28 +252,28 @@ export function BuscarArteDialog({ item, querArquivoFinal, onUsar, onClose }: {
           {(isLoading || digitando) && (
             <div aria-busy="true" aria-label="Procurando artes" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 }}>
               {[0, 1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="animate-pulse" style={{ background: "#fff", border: "1px solid #e7e5e4", borderRadius: 12, padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-                  <div style={{ width: "100%", aspectRatio: "4 / 3", borderRadius: 8, background: "#e7e5e4" }} />
-                  <div style={{ width: "70%", height: 11, borderRadius: 6, background: "#e7e5e4" }} />
-                  <div style={{ width: "90%", height: 10, borderRadius: 6, background: "#f5f5f4" }} />
+                <div key={i} className="animate-pulse" style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 12, padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ width: "100%", aspectRatio: "4 / 3", borderRadius: 8, background: T.border }} />
+                  <div style={{ width: "70%", height: 11, borderRadius: 6, background: T.border }} />
+                  <div style={{ width: "90%", height: 10, borderRadius: 6, background: N.n2 }} />
                 </div>
               ))}
             </div>
           )}
 
           {isError && !isLoading && (
-            <div role="alert" data-testid="erro-buscar-arte" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "12px 14px", borderRadius: 12, background: "#fef2f2", border: "1px solid #fecaca", fontSize: 13, color: "#b91c1c" }}>
+            <div role="alert" data-testid="erro-buscar-arte" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "12px 14px", borderRadius: 12, background: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}`, fontSize: 13, color: TOM.perigo.text }}>
               <span>Não foi possível procurar as artes agora. A peça continua como está — nada foi alterado.</span>
-              <button type="button" onClick={() => refetch()} style={{ minHeight: 44, padding: "0 16px", borderRadius: 8, border: "1px solid #fecaca", background: "#fff", color: "#1c1917", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+              <button type="button" onClick={() => refetch()} style={{ minHeight: 44, padding: "0 16px", borderRadius: 8, border: `1px solid ${TOM.perigo.border}`, background: "#fff", color: T.text, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
                 Tentar de novo
               </button>
             </div>
           )}
 
           {!isLoading && !isError && !digitando && artes.length === 0 && (
-            <div data-testid="vazio-buscar-arte" style={{ textAlign: "center", padding: "26px 12px", color: "#57534e" }}>
-              <ImageIcon size={26} color="#78716c" aria-hidden="true" />
-              <p style={{ margin: "8px 0 2px", fontSize: 14, fontWeight: 800, color: "#1c1917" }}>Nenhuma arte encontrada</p>
+            <div data-testid="vazio-buscar-arte" style={{ textAlign: "center", padding: "26px 12px", color: T.apoio }}>
+              <ImageIcon size={26} color={T.second} aria-hidden="true" />
+              <p style={{ margin: "8px 0 2px", fontSize: 14, fontWeight: 800, color: T.text }}>Nenhuma arte encontrada</p>
               <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5 }}>
                 {termoBuscado
                   ? <>Nada com “{termoBuscado}”{querArquivoFinal ? " que tenha arquivo final" : ""}. Tente o nome do patrocinador ou do circuito — “estações”, por exemplo.</>
@@ -292,7 +293,7 @@ export function BuscarArteDialog({ item, querArquivoFinal, onUsar, onClose }: {
           )}
 
           {data?.cortou && !isLoading && !isError && (
-            <p style={{ margin: 0, fontSize: 11.5, color: "#78716c", textAlign: "center" }}>
+            <p style={{ margin: 0, fontSize: 11.5, color: T.second, textAlign: "center" }}>
               Mostrando as {artes.length} artes mais parecidas. Refine a busca para achar outra.
             </p>
           )}
@@ -301,21 +302,21 @@ export function BuscarArteDialog({ item, querArquivoFinal, onUsar, onClose }: {
         {escolhida && (
           <ModalFooter>
             <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-              <div style={{ width: 72, height: 54, borderRadius: 8, overflow: "hidden", background: "#f5f5f4", border: "1px solid #e7e5e4", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: 72, height: 54, borderRadius: 8, overflow: "hidden", background: N.n2, border: `1px solid ${T.border}`, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 {previa
                   ? <img src={miniatura(previa)} alt={`Prévia da arte de ${escolhida.displayId ?? "peça"}`} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  : <ImageIcon size={18} color="#78716c" aria-hidden="true" />}
+                  : <ImageIcon size={18} color={T.second} aria-hidden="true" />}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#1c1917", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {escolhida.displayId ?? "Peça"} · {escolhida.eventName ?? "Sem evento"}
                 </div>
-                <div style={{ fontSize: 11.5, color: "#57534e", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <div style={{ fontSize: 11.5, color: T.apoio, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {escolhida.patrocinadores.length > 0 ? escolhida.patrocinadores.join(", ") : "Sem patrocinador"}
                   {escolhida.temArquivoFinal && <> · <FileText size={11} aria-hidden="true" style={{ display: "inline", verticalAlign: "-1px" }} /> arquivo final</>}
                 </div>
                 {escolhida.aprovada && (
-                  <div data-testid="texto-aprovacao-escolhida" style={{ fontSize: 11.5, color: "#065f46", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div data-testid="texto-aprovacao-escolhida" style={{ fontSize: 11.5, color: TOM.esmeralda.text, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {textoDaAprovacao(escolhida)}
                   </div>
                 )}
@@ -327,14 +328,14 @@ export function BuscarArteDialog({ item, querArquivoFinal, onUsar, onClose }: {
               onClick={() => onUsar(escolhida)}
               style={{
                 width: "100%", minHeight: 44, borderRadius: 9, border: "none",
-                background: "#1c1917", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer",
+                background: T.text, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer",
               }}
             >
               Usar esta arte
             </button>
             {/* Dizer ANTES do clique que nada pula etapa: reaproveitar não é
                 atalho de aprovação, é só não subir o arquivo de novo. */}
-            <p style={{ margin: 0, fontSize: 11.5, color: "#78716c", textAlign: "center", lineHeight: 1.45 }}>
+            <p style={{ margin: 0, fontSize: 11.5, color: T.second, textAlign: "center", lineHeight: 1.45 }}>
               A arte é aplicada nesta peça e ela segue o fluxo normal de aprovação.
             </p>
           </ModalFooter>

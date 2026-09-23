@@ -35,7 +35,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { EsqueletoDeFila } from "@/components/esqueleto-de-fila";
 import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
-import { R, FS, onColor, darkenToContrast } from "@/lib/theme";
+import { TOM, T, N, R, FS, onColor, darkenToContrast } from "@/lib/theme";
 import {
   isEventoFinalizado, motivoEventoFinalizado, todayBusinessMs,
   PRODUCTION_STATUSES,
@@ -666,7 +666,7 @@ export default function VincularPatrocinadores() {
   // Opções dos filtros facetadas: só o que existe na lista, aplicando o OUTRO
   // filtro ativo, com contagem por opção.
   const eventFilterOptions = useMemo(() => {
-    const DOT: Record<string, string> = { urgente: '#ef4444', urgent: '#ef4444', alta: '#f97316', media: '#eab308', baixa: '#3b82f6' };
+    const DOT: Record<string, string> = { urgente: TOM.perigo.dot, urgent: TOM.perigo.dot, alta: T.accent, media: TOM.alerta.dot, baixa: TOM.info.dot };
     const map = new Map<string, { value: string; label: string; count: number; dotColor?: string }>();
     visibleItems
       // originalSponsorsMap (o que está SALVO), igual à filtragem em
@@ -694,7 +694,7 @@ export default function VincularPatrocinadores() {
       if (cur) cur.count++;
       else {
         const s: any = byId.get(sid);
-        map.set(sid, { value: sid, label: s?.name || sid, count: 1, dotColor: s?.color || '#3b82f6' });
+        map.set(sid, { value: sid, label: s?.name || sid, count: 1, dotColor: s?.color || TOM.info.dot });
       }
     }));
     return Array.from(map.values());
@@ -1474,7 +1474,7 @@ export default function VincularPatrocinadores() {
   //    do thead, 4,4:1 não passa a régua da casa; este dá 5,5.
   const THC: React.CSSProperties = {
     padding: '9px 12px', textAlign: 'left',
-    fontSize: 11, fontWeight: 700, color: '#7a6154',
+    fontSize: 11, fontWeight: 700, color: T.apoio,
     textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap',
   };
 
@@ -1563,7 +1563,7 @@ export default function VincularPatrocinadores() {
     // A COR DE ESTADO VAI NA BORDA, não no fundo. O fundo colorido da linha
     // inteira competia com os chips, que também são coloridos — e chip de
     // marca sobre fundo tingido perde justamente a cor que o identifica.
-    const corDaBorda = selecionada ? '#c2410c' : estado === 'RASCUNHO' ? '#f97316' : 'transparent';
+    const corDaBorda = selecionada ? T.accentText : estado === 'RASCUNHO' ? T.accent : 'transparent';
 
     // NO CELULAR A LINHA VIRA CARTÃO — sem duplicar a árvore.
     //
@@ -1596,19 +1596,19 @@ export default function VincularPatrocinadores() {
         style={{
           ...(isMobile ? {
             display: 'grid', gridTemplateColumns: '46px 1fr',
-            border: `1px solid ${selecionada ? '#fdba74' : '#e7e5e4'}`,
-            borderLeft: `3px solid ${corDaBorda === 'transparent' ? '#e7e5e4' : corDaBorda}`,
+            border: `1px solid ${selecionada ? TOM.laranja.border : T.border}`,
+            borderLeft: `3px solid ${corDaBorda === 'transparent' ? T.border : corDaBorda}`,
             borderRadius: 12, marginBottom: 10, padding: '10px 12px 10px 0',
-          } : { borderBottom: '1px solid #f0efee' }),
-          backgroundColor: selecionada ? '#fff7ed' : '#ffffff',
+          } : { borderBottom: `1px solid ${N.n3}` }),
+          backgroundColor: selecionada ? TOM.laranja.bg : T.surface,
           // 0.55 + grayscale derrubava a linha inteira abaixo de AA, e o hover
           // (que restaurava) não existe no teclado.
           opacity: estado === 'ENVIADO' ? 0.8 : 1,
           cursor: 'pointer',
           transition: 'background-color 0.12s',
         }}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = selecionada ? '#ffedd5' : '#fafaf9'; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = selecionada ? '#fff7ed' : '#ffffff'; }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = selecionada ? TOM.laranja.bg : T.bg; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = selecionada ? TOM.laranja.bg : T.surface; }}
       >
         {/* ── Seleção ── */}
         <td onClick={e => e.stopPropagation()} style={isMobile
@@ -1635,15 +1635,15 @@ export default function VincularPatrocinadores() {
               onClick={e => { e.stopPropagation(); setSelectedItemForDetails(item); }}
               aria-label={`Ver detalhes da peça ${item.displayId}`}
               data-testid={`text-display-id-${item.id}`}
-              style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 700, color: '#78716c', background: 'none', border: 'none', padding: 0, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
+              style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 700, color: T.second, background: 'none', border: 'none', padding: 0, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
             >
               {item.displayId}
             </button>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', whiteSpace: 'nowrap', flexShrink: 0 }}>{item.type}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: T.text, whiteSpace: 'nowrap', flexShrink: 0 }}>{item.type}</span>
             {item.description && (
               // flexShrink alto: quando falta largura, é a descrição que cede.
               // O tipo e o ID identificam a peça; a descrição a detalha.
-              <span title={item.description} style={{ fontSize: 12, color: '#57534e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 999, minWidth: 0 }}>
+              <span title={item.description} style={{ fontSize: 12, color: T.apoio, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 999, minWidth: 0 }}>
                 {item.description}
               </span>
             )}
@@ -1657,19 +1657,19 @@ export default function VincularPatrocinadores() {
                 title="Ver a referência visual do solicitante"
                 aria-label={`Ver a referência visual de ${item.displayId}`}
                 data-testid={`link-reference-vincular-${item.id}`}
-                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 6, border: 'none', background: 'none', color: '#2563eb', cursor: 'pointer', flexShrink: 0, padding: 0 }}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 6, border: 'none', background: 'none', color: TOM.info.text, cursor: 'pointer', flexShrink: 0, padding: 0 }}
               >
                 <Paperclip style={{ width: 13, height: 13 }} />
               </button>
             )}
             {item.isReuse && (
-              <span title="Reaproveitamento" aria-label="Reaproveitamento" style={{ display: 'inline-flex', color: '#047857', flexShrink: 0 }}>
+              <span title="Reaproveitamento" aria-label="Reaproveitamento" style={{ display: 'inline-flex', color: TOM.esmeralda.text, flexShrink: 0 }}>
                 <Recycle aria-hidden="true" style={{ width: 13, height: 13 }} />
               </span>
             )}
           </div>
           {falha && (
-            <div role="alert" data-testid={`falha-linha-${item.id}`} style={{ display: 'flex', alignItems: 'flex-start', gap: 5, marginTop: 4, fontSize: 12, lineHeight: 1.4, color: '#b91c1c' }}>
+            <div role="alert" data-testid={`falha-linha-${item.id}`} style={{ display: 'flex', alignItems: 'flex-start', gap: 5, marginTop: 4, fontSize: 12, lineHeight: 1.4, color: TOM.perigo.text }}>
               <AlertTriangle aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0, marginTop: 2 }} />
               <span>{falha}</span>
             </div>
@@ -1681,7 +1681,7 @@ export default function VincularPatrocinadores() {
             negativo. Numa célula só e em DM Mono, os números de linhas
             vizinhas se alinham e dá para comparar de relance. */}
         <td style={isMobile ? { ...celula, paddingBottom: 8 } : { padding: '8px 12px', whiteSpace: 'nowrap' }}>
-          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: '#57534e' }}>
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: T.apoio }}>
             {item.quantity ?? 0} un
             {item.calculatedM2 != null && !isNaN(parseFloat(item.calculatedM2))
               ? ` · ${parseFloat(item.calculatedM2).toFixed(2)} m²`
@@ -1698,7 +1698,7 @@ export default function VincularPatrocinadores() {
               do Ministério vinculado é pior que mostrar os dois. */}
           {semPatrocinador && vinculados.length === 0 ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', height: 26, padding: '0 10px', borderRadius: 999, backgroundColor: '#fffbeb', color: '#92400e', border: '1px solid #fcd34d', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', height: 26, padding: '0 10px', borderRadius: 999, backgroundColor: TOM.alerta.bg, color: TOM.alerta.text, border: `1px solid ${TOM.alerta.border}`, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
                 Sem patrocinador
               </span>
               {editavel && (
@@ -1706,14 +1706,14 @@ export default function VincularPatrocinadores() {
                   type="button"
                   onClick={() => toggleItemSkipApproval(item)}
                   data-testid={`btn-undo-skip-${item.id}`}
-                  style={{ height: ALVO, padding: '0 10px', borderRadius: R.sm, border: '1px solid #e7e5e4', background: '#fff', color: '#57534e', font: 'inherit', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                  style={{ height: ALVO, padding: '0 10px', borderRadius: R.sm, border: `1px solid ${T.border}`, background: '#fff', color: T.apoio, font: 'inherit', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
                 >
                   Desfazer
                 </button>
               )}
             </div>
           ) : eventSponsors.length === 0 ? (
-            <span style={{ fontSize: 12, color: '#57534e', fontStyle: 'italic' }}>Sem patrocinadores no evento</span>
+            <span style={{ fontSize: 12, color: T.apoio, fontStyle: 'italic' }}>Sem patrocinadores no evento</span>
           ) : (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
               {/* ENVIADA SEM NENHUMA MARCA.
@@ -1730,7 +1730,7 @@ export default function VincularPatrocinadores() {
                 <span
                   data-testid={`sem-vinculo-enviada-${item.id}`}
                   title="Esta peça foi enviada à Arte sem nenhum patrocinador vinculado — não vai passar por aprovação."
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 26, padding: '0 10px', borderRadius: 999, backgroundColor: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 26, padding: '0 10px', borderRadius: 999, backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, color: TOM.alerta.text, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}
                 >
                   Enviada sem patrocinador
                 </span>
@@ -1759,13 +1759,13 @@ export default function VincularPatrocinadores() {
                       // ele não é uma marca, é o atalho para todas elas.
                       display: 'inline-flex', alignItems: 'center', gap: 6,
                       height: isMobile ? 44 : 26, padding: '0 10px', borderRadius: 999,
-                      border: `1px solid ${todosMarcados ? '#1c1917' : '#e7e5e4'}`,
-                      backgroundColor: todosMarcados ? '#1c1917' : '#ffffff',
-                      color: todosMarcados ? '#ffffff' : '#44403c',
+                      border: `1px solid ${todosMarcados ? T.text : T.border}`,
+                      backgroundColor: todosMarcados ? T.text : T.surface,
+                      color: todosMarcados ? T.surface : T.strong,
                       cursor: 'pointer', font: 'inherit', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
                     }}
                   >
-                    <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: todosMarcados ? '#ffffff' : '#78716c', flexShrink: 0 }} />
+                    <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: todosMarcados ? T.surface : T.second, flexShrink: 0 }} />
                     Todos
                   </button>
                 );
@@ -1782,19 +1782,19 @@ export default function VincularPatrocinadores() {
                       key={sp.id}
                       title="Peça já enviada — vínculo travado"
                       data-testid={`chip-sponsor-${item.id}-${sp.id}`}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 26, padding: '0 10px', borderRadius: 999, backgroundColor: '#f0efee', color: '#57534e', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 26, padding: '0 10px', borderRadius: 999, backgroundColor: N.n3, color: T.apoio, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}
                     >
-                      <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: '#a8a29e', flexShrink: 0 }} />
+                      <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: T.muted, flexShrink: 0 }} />
                       {sp.name}
                     </span>
                   );
                 }
-                const marca = sp.color || '#3b82f6';
+                const marca = sp.color || TOM.info.dot;
                 // A cor da marca em texto de 12px precisa de 4,5:1 sobre o
                 // fundo de 10% dela mesma. `darkenToContrast` escurece só o
                 // necessário — a marca continua reconhecível, que é o que faz
                 // a tabela legível de longe.
-                const corDoTexto = darkenToContrast(marca, '#ffffff', 4.5);
+                const corDoTexto = darkenToContrast(marca, T.surface, 4.5);
                 return (
                   <button
                     key={sp.id}
@@ -1818,15 +1818,15 @@ export default function VincularPatrocinadores() {
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: 6,
                       height: isMobile ? 44 : 26, padding: '0 10px', borderRadius: 999,
-                      backgroundColor: marcado ? hexToRgba(marca, 0.1) : '#ffffff',
-                      color: marcado ? corDoTexto : '#57534e',
-                      border: `1px solid ${marcado ? hexToRgba(marca, 0.45) : '#e7e5e4'}`,
+                      backgroundColor: marcado ? hexToRgba(marca, 0.1) : T.surface,
+                      color: marcado ? corDoTexto : T.apoio,
+                      border: `1px solid ${marcado ? hexToRgba(marca, 0.45) : T.border}`,
                       cursor: editavel ? 'pointer' : 'not-allowed',
                       font: 'inherit', fontSize: 12, fontWeight: 600,
                       whiteSpace: 'nowrap', transition: 'background 0.12s, border-color 0.12s',
                     }}
                   >
-                    <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: marcado ? marca : '#d6d3d1', flexShrink: 0 }} />
+                    <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: marcado ? marca : T.bdark, flexShrink: 0 }} />
                     {sp.name}
                   </button>
                 );
@@ -1848,9 +1848,9 @@ export default function VincularPatrocinadores() {
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 6,
                     height: isMobile ? 44 : 26, padding: '0 10px', borderRadius: 999,
-                    border: semPatrocinador ? '1px solid #fde68a' : '1px dashed #d6d3d1',
-                    backgroundColor: semPatrocinador ? '#fffbeb' : '#ffffff',
-                    color: semPatrocinador ? '#92400e' : '#57534e',
+                    border: semPatrocinador ? `1px solid ${TOM.alerta.border}` : `1px dashed ${T.bdark}`,
+                    backgroundColor: semPatrocinador ? TOM.alerta.bg : T.surface,
+                    color: semPatrocinador ? TOM.alerta.text : T.apoio,
                     cursor: 'pointer', font: 'inherit', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
                   }}
                 >
@@ -1872,10 +1872,10 @@ export default function VincularPatrocinadores() {
                 display: 'inline-flex', alignItems: 'center', gap: 5,
                 height: 24, padding: '0 9px', borderRadius: 999,
                 fontSize: 12, fontWeight: 700,
-                ...(estado === 'RASCUNHO' ? { backgroundColor: '#ffedd5', color: '#9a3412' }
-                  : estado === 'PRONTO' ? { backgroundColor: '#dcfce7', color: '#166534' }
-                  : estado === 'ENVIADO' ? { backgroundColor: '#1c1917', color: '#ffffff' }
-                  : { backgroundColor: '#f0efee', color: '#44403c' }),
+                ...(estado === 'RASCUNHO' ? { backgroundColor: TOM.laranja.bg, color: T.accentText }
+                  : estado === 'PRONTO' ? { backgroundColor: TOM.sucesso.bg, color: TOM.sucesso.text }
+                  : estado === 'ENVIADO' ? { backgroundColor: T.text, color: T.surface }
+                  : { backgroundColor: N.n3, color: T.strong }),
               }}
             >
               {estado === 'RASCUNHO' ? <Save aria-hidden="true" style={{ width: 11, height: 11 }} />
@@ -1924,7 +1924,7 @@ export default function VincularPatrocinadores() {
                 }}
                 title="Descartar as alterações e voltar ao que está salvo"
                 data-testid={`button-discard-item-${item.id}`}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: ALVO, padding: '0 10px', borderRadius: R.sm, border: '1px solid #e7e5e4', backgroundColor: '#ffffff', color: '#57534e', font: 'inherit', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: ALVO, padding: '0 10px', borderRadius: R.sm, border: `1px solid ${T.border}`, backgroundColor: T.surface, color: T.apoio, font: 'inherit', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
               >
                 Descartar
               </button>
@@ -1938,7 +1938,7 @@ export default function VincularPatrocinadores() {
                 }}
                 disabled={saveLinkingMutation.isPending}
                 aria-busy={salvandoEsta || undefined}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: ALVO, padding: '0 12px', borderRadius: R.sm, backgroundColor: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412', font: 'inherit', fontSize: 12, fontWeight: 700, cursor: saveLinkingMutation.isPending ? 'wait' : 'pointer' }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: ALVO, padding: '0 12px', borderRadius: R.sm, backgroundColor: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, color: T.accentText, font: 'inherit', fontSize: 12, fontWeight: 700, cursor: saveLinkingMutation.isPending ? 'wait' : 'pointer' }}
                 data-testid={`button-save-item-${item.id}`}
               >
                 <Save aria-hidden="true" style={{ width: 12, height: 12 }} />
@@ -1951,7 +1951,7 @@ export default function VincularPatrocinadores() {
                 onClick={() => openSendModalForItem(item)}
                 disabled={sendToArteMutation.isPending}
                 data-testid={`button-send-item-${item.id}`}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: ALVO, padding: '0 12px', borderRadius: R.sm, backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', font: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: ALVO, padding: '0 12px', borderRadius: R.sm, backgroundColor: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}`, color: TOM.sucesso.text, font: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
               >
                 <Send aria-hidden="true" style={{ width: 12, height: 12 }} />
                 Enviar
@@ -2145,8 +2145,8 @@ export default function VincularPatrocinadores() {
     // lista e a chegada dos dados não empurra a tela.
     return (
       <div aria-busy="true" style={{ padding: '18px 18px 64px', maxWidth: 1100, margin: '0 auto' }}>
-        <div className="animate-pulse" style={{ width: 260, height: 22, borderRadius: 6, backgroundColor: '#e7e5e4', marginBottom: 8 }} />
-        <div className="animate-pulse" style={{ width: 360, height: 13, borderRadius: 4, backgroundColor: '#f0efee', marginBottom: 20 }} />
+        <div className="animate-pulse" style={{ width: 260, height: 22, borderRadius: 6, backgroundColor: T.border, marginBottom: 8 }} />
+        <div className="animate-pulse" style={{ width: 360, height: 13, borderRadius: 4, backgroundColor: N.n3, marginBottom: 20 }} />
         <EsqueletoDeFila linhas={9} />
       </div>
     );
@@ -2160,18 +2160,18 @@ export default function VincularPatrocinadores() {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', padding: 24 }}>
         <div style={{ maxWidth: 420, textAlign: 'center' }}>
-          <div style={{ width: 64, height: 64, borderRadius: R.lg, backgroundColor: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' }}>
-            <AlertTriangle style={{ width: 28, height: 28, color: '#dc2626' }} />
+          <div style={{ width: 64, height: 64, borderRadius: R.lg, backgroundColor: TOM.perigo.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' }}>
+            <AlertTriangle style={{ width: 28, height: 28, color: TOM.perigo.text }} />
           </div>
-          <h2 style={{ fontSize: 18, fontWeight: 800, color: '#1a1c1c', margin: '0 0 8px', letterSpacing: '-0.02em' }}>
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: T.text, margin: '0 0 8px', letterSpacing: '-0.02em' }}>
             Não foi possível carregar as peças
           </h2>
-          <p style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6, margin: '0 0 18px' }}>
+          <p style={{ fontSize: 13, color: T.apoio, lineHeight: 1.6, margin: '0 0 18px' }}>
             Verifique sua conexão e tente novamente.
           </p>
           <button
             onClick={() => { refetchItems(); refetchEvents(); refetchSponsors(); }}
-            style={{ height: 40, padding: '0 20px', backgroundColor: '#c2410c', color: '#fff', fontWeight: 700, fontSize: 13, borderRadius: R.md, border: 'none', cursor: 'pointer' }}
+            style={{ height: 40, padding: '0 20px', backgroundColor: T.accentText, color: '#fff', fontWeight: 700, fontSize: 13, borderRadius: R.md, border: 'none', cursor: 'pointer' }}
             data-testid="button-retry-items"
           >
             Tentar de novo
@@ -2185,13 +2185,13 @@ export default function VincularPatrocinadores() {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', padding: 24 }}>
         <div style={{ maxWidth: 420, textAlign: 'center' }}>
-          <div style={{ width: 64, height: 64, borderRadius: R.lg, backgroundColor: '#f5f5f4', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' }}>
-            <CheckCircle2 style={{ width: 28, height: 28, color: '#a8a29e' }} />
+          <div style={{ width: 64, height: 64, borderRadius: R.lg, backgroundColor: N.n2, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' }}>
+            <CheckCircle2 style={{ width: 28, height: 28, color: T.muted }} />
           </div>
-          <h2 style={{ fontSize: 18, fontWeight: 800, color: '#1a1c1c', margin: '0 0 8px', letterSpacing: '-0.02em' }}>
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: T.text, margin: '0 0 8px', letterSpacing: '-0.02em' }}>
             Nada para vincular agora
           </h2>
-          <p style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6, margin: 0 }}>
+          <p style={{ fontSize: 13, color: T.apoio, lineHeight: 1.6, margin: 0 }}>
             Esta tela mostra apenas peças de eventos que ainda vão acontecer.
             Assim que a Solicitação cadastrar peças em um evento futuro, elas
             aparecem aqui para receber os patrocinadores.
@@ -2218,13 +2218,13 @@ export default function VincularPatrocinadores() {
           <ModalHeader
             variant="confirm"
             icon={Paperclip}
-            tint="#1d4ed8"
+            tint={TOM.info.text}
             title="Referência visual"
             onClose={() => setPreviewRefUrl(null)}
           />
           {previewRefUrl && (
             <div style={{
-              backgroundColor: '#f5f5f4', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              backgroundColor: N.n2, display: 'flex', alignItems: 'center', justifyContent: 'center',
               // ALTURA: cabeçalho 73 + imagem de até 480 + rodapé 43 = 596px. Numa
               // janela de 445 o Radix centrava e cortava 75px em cima e 75 embaixo
               // ao mesmo tempo. O teto de `100vh − 48` agora vem do `modalSurface`;
@@ -2234,7 +2234,7 @@ export default function VincularPatrocinadores() {
               minHeight: 200, maxHeight: 480, overflow: 'hidden', flex: '0 1 auto',
             }}>
               {refImgFailed ? (
-                <p style={{ fontSize: 13, color: '#57534e', margin: 0, padding: '24px', textAlign: 'center' }}>
+                <p style={{ fontSize: 13, color: T.apoio, margin: 0, padding: '24px', textAlign: 'center' }}>
                   Não foi possível carregar a imagem
                 </p>
               ) : (
@@ -2252,12 +2252,12 @@ export default function VincularPatrocinadores() {
             </div>
           )}
           {previewRefUrl && (
-            <div style={{ padding: '12px 24px', borderTop: '1px solid #ebe8e4', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
+            <div style={{ padding: '12px 24px', borderTop: `1px solid ${T.border}`, display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
               <a
                 href={previewRefUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#1d4ed8', textDecoration: 'none', fontWeight: 700 }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: TOM.info.text, textDecoration: 'none', fontWeight: 700 }}
                 data-testid="link-open-ref-new-tab"
               >
                 <ExternalLink style={{ width: 13, height: 13 }} />
@@ -2275,7 +2275,7 @@ export default function VincularPatrocinadores() {
           <DialogDescription className="sr-only">Vincula patrocinadores conforme as regras de cota do evento</DialogDescription>
           <ModalHeader
             icon={Zap}
-            tint="#4f46e5"
+            tint={TOM.info.text}
             title="Auto-vincular por cota"
             /* O NOME do evento: aberto do cabeçalho de um grupo, o diálogo
                precisa dizer sobre qual evento está falando. */
@@ -2293,8 +2293,8 @@ export default function VincularPatrocinadores() {
               já existia aqui finalmente liga, porque agora existe um "não coube". */}
           <div style={{ padding: '20px 24px', minHeight: 160, maxHeight: 420, overflowY: 'auto', flex: '0 1 auto' }}>
             {autoLinkLoading && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, height: 120, color: '#746e69', fontSize: 13 }}>
-                <svg className="animate-spin" style={{ width: 20, height: 20, color: '#4f46e5' }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, height: 120, color: T.second, fontSize: 13 }}>
+                <svg className="animate-spin" style={{ width: 20, height: 20, color: TOM.info.text }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle style={{ opacity: 0.25 }} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path style={{ opacity: 0.75 }} fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                 </svg>
@@ -2304,7 +2304,7 @@ export default function VincularPatrocinadores() {
             {!autoLinkLoading && autoLinkPreview !== null && (
               <>
                 {autoLinkPreview.length === 0 && (
-                  <div style={{ textAlign: 'center', color: '#746e69', fontSize: 13, padding: '32px 0' }}>
+                  <div style={{ textAlign: 'center', color: T.second, fontSize: 13, padding: '32px 0' }}>
                     Nenhuma peça elegível para auto-vínculo neste evento.<br />
                     <span style={{ fontSize: 11, marginTop: 6, display: 'block' }}>Verifique se os patrocinadores têm cota definida e se há regras configuradas para este evento.</span>
                   </div>
@@ -2312,22 +2312,22 @@ export default function VincularPatrocinadores() {
                 {autoLinkPreview.length > 0 && (
                   <div>
                     {/* Total count */}
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#4f46e5', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: TOM.info.text, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>
                       {autoLinkPreview.reduce((acc: number, e: any) => acc + e.items.length, 0)} vínculo{autoLinkPreview.reduce((acc: number, e: any) => acc + e.items.length, 0) !== 1 ? 's' : ''} a criar · {autoLinkPreview.length} patrocinador{autoLinkPreview.length !== 1 ? 'es' : ''}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                       {autoLinkPreview.map((entry: any) => (
-                        <div key={entry.sponsorId} style={{ padding: '10px 14px', borderRadius: 8, backgroundColor: '#f0f0ff', border: '1px solid #e0e0ff' }}>
+                        <div key={entry.sponsorId} style={{ padding: '10px 14px', borderRadius: 8, backgroundColor: TOM.info.bg, border: `1px solid ${TOM.info.border}` }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                            <span style={{ padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700, backgroundColor: '#4f46e5', color: '#fff', textTransform: 'uppercase' }}>
+                            <span style={{ padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700, backgroundColor: TOM.info.text, color: '#fff', textTransform: 'uppercase' }}>
                               {entry.quota}
                             </span>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: '#1c1917' }}>{entry.sponsorName}</span>
-                            <span style={{ marginLeft: 'auto', fontSize: 11, color: '#746e69' }}>{entry.items.length} {entry.items.length === 1 ? 'peça' : 'peças'}</span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{entry.sponsorName}</span>
+                            <span style={{ marginLeft: 'auto', fontSize: 11, color: T.second }}>{entry.items.length} {entry.items.length === 1 ? 'peça' : 'peças'}</span>
                           </div>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                             {entry.items.map((it: any) => (
-                              <span key={it.itemId} style={{ padding: '2px 8px', borderRadius: 6, fontSize: 11, backgroundColor: '#fff', border: '1px solid #e0e0ff', color: '#4f46e5' }}>
+                              <span key={it.itemId} style={{ padding: '2px 8px', borderRadius: 6, fontSize: 11, backgroundColor: '#fff', border: `1px solid ${TOM.info.border}`, color: TOM.info.text }}>
                                 {it.displayId} · {it.type}
                               </span>
                             ))}
@@ -2342,8 +2342,8 @@ export default function VincularPatrocinadores() {
           </div>
 
           {/* Footer */}
-          <div style={{ padding: '14px 24px', borderTop: '1px solid #f0efed', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, flexShrink: 0 }}>
-            <p style={{ fontSize: 12, color: '#57534e', lineHeight: 1.45, flex: '1 1 auto', minWidth: 0, marginRight: 12 }}>
+          <div style={{ padding: '14px 24px', borderTop: `1px solid ${N.n3}`, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, flexShrink: 0 }}>
+            <p style={{ fontSize: 12, color: T.apoio, lineHeight: 1.45, flex: '1 1 auto', minWidth: 0, marginRight: 12 }}>
               {/* Dizia "os vínculos entram como rascunho" — e não entram: a rota
                   grava direto. A promessa errada fazia procurar um Salvar que
                   não existe. */}
@@ -2352,7 +2352,7 @@ export default function VincularPatrocinadores() {
             <button
               onClick={() => { setAutoLinkOpen(false); setAutoLinkPreview(null); }}
               disabled={autoLinkConfirming}
-              style={{ padding: '9px 20px', backgroundColor: '#f5f5f4', color: autoLinkConfirming ? '#78716c' : '#1c1917', fontWeight: 600, fontSize: 13, borderRadius: 6, border: 'none', cursor: autoLinkConfirming ? 'not-allowed' : 'pointer' }}
+              style={{ padding: '9px 20px', backgroundColor: N.n2, color: autoLinkConfirming ? T.second : T.text, fontWeight: 600, fontSize: 13, borderRadius: 6, border: 'none', cursor: autoLinkConfirming ? 'not-allowed' : 'pointer' }}
               data-testid="button-auto-link-cancel"
             >
               Cancelar
@@ -2402,7 +2402,7 @@ export default function VincularPatrocinadores() {
                   setAutoLinkConfirming(false);
                 }
               }}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 20px', backgroundColor: !autoLinkPreview || autoLinkPreview.length === 0 ? '#e7e5e4' : '#4f46e5', color: !autoLinkPreview || autoLinkPreview.length === 0 ? '#746e69' : '#ffffff', fontWeight: 700, fontSize: 13, borderRadius: 6, border: 'none', cursor: !autoLinkPreview || autoLinkPreview.length === 0 ? 'not-allowed' : 'pointer' }}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 20px', backgroundColor: !autoLinkPreview || autoLinkPreview.length === 0 ? T.border : TOM.info.text, color: !autoLinkPreview || autoLinkPreview.length === 0 ? T.second : T.surface, fontWeight: 700, fontSize: 13, borderRadius: 6, border: 'none', cursor: !autoLinkPreview || autoLinkPreview.length === 0 ? 'not-allowed' : 'pointer' }}
               data-testid="button-auto-link-confirm"
             >
               <Zap style={{ width: 13, height: 13 }} />
@@ -2422,10 +2422,10 @@ export default function VincularPatrocinadores() {
               em maiúsculas — que o título logo abaixo repete por extenso. */}
           {/* "Fluxo de Verificação" não situava ninguém: o eyebrow agora diz
               ONDE esta etapa fica no caminho da peça. */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 10, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#c2410c' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 10, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.accentText }}>
             Antes da Arte
           </div>
-          <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: FS.h1, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.1, color: '#1a1c1c', marginBottom: 6 }}>
+          <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: FS.h1, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.1, color: T.text, marginBottom: 6 }}>
             Vincular Patrocinadores
           </h1>
           {/* A legenda era a mesma frase todo dia: "Associe patrocinadores a
@@ -2433,16 +2433,16 @@ export default function VincularPatrocinadores() {
               chega aqui já sabe. No lugar dela, o que muda a cada visita: o que
               falta fazer agora. #57534e e não o #746e69 de antes — 4,4:1 não
               passa a régua da casa. */}
-          <p data-testid="frase-resolucao" style={{ color: '#57534e', fontSize: 14, fontWeight: 500, lineHeight: 1.5, marginBottom: 4, maxWidth: 560 }}>
+          <p data-testid="frase-resolucao" style={{ color: T.apoio, fontSize: 14, fontWeight: 500, lineHeight: 1.5, marginBottom: 4, maxWidth: 560 }}>
             {fraseDeResolucao}
           </p>
           {/* O QUE É E PARA ONDE VAI, numa linha secundária. A frase acima diz
               o que falta hoje; quem chega pela primeira vez precisava também
               saber o que "vincular" faz, que o rascunho só vale salvo e para
               onde a peça segue depois do envio. */}
-          <p data-testid="explicacao-vincular" style={{ color: '#57534e', fontSize: 12, lineHeight: 1.5, margin: '0 0 10px', maxWidth: 640 }}>
-            Marque quem aprova a arte de cada peça (ou <strong style={{ color: '#44403c' }}>Sem patrocinador</strong>) e <strong style={{ color: '#44403c' }}>salve</strong> — marcar sem salvar é rascunho.
-            {' '}Depois, <strong style={{ color: '#44403c' }}>Enviar para Arte</strong>: a Arte faz o layout e os patrocinadores vinculados aprovam; a peça continua aqui como Enviado.
+          <p data-testid="explicacao-vincular" style={{ color: T.apoio, fontSize: 12, lineHeight: 1.5, margin: '0 0 10px', maxWidth: 640 }}>
+            Marque quem aprova a arte de cada peça (ou <strong style={{ color: T.strong }}>Sem patrocinador</strong>) e <strong style={{ color: T.strong }}>salve</strong> — marcar sem salvar é rascunho.
+            {' '}Depois, <strong style={{ color: T.strong }}>Enviar para Arte</strong>: a Arte faz o layout e os patrocinadores vinculados aprovam; a peça continua aqui como Enviado.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, flexShrink: 0, flexWrap: 'wrap' }}>
@@ -2457,8 +2457,8 @@ export default function VincularPatrocinadores() {
             /* Secundário e não preenchido: só a ação primária ("Enviar para
                Arte") fica sólida. Dois botões cheios lado a lado disputavam a
                atenção e nada indicava qual era o caminho principal da tela. */
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, height: 44, padding: '0 18px', backgroundColor: '#fff', color: eventFilter.length !== 1 ? '#746e69' : '#4338ca', fontWeight: 700, fontSize: 13, borderRadius: R.md, border: `1px solid ${eventFilter.length !== 1 ? '#e7e5e4' : '#c7d2fe'}`, cursor: eventFilter.length !== 1 ? 'not-allowed' : 'pointer' }}
-            onMouseEnter={e => { if (eventFilter.length === 1) e.currentTarget.style.backgroundColor = '#eef2ff'; }}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, height: 44, padding: '0 18px', backgroundColor: '#fff', color: eventFilter.length !== 1 ? T.second : TOM.info.text, fontWeight: 700, fontSize: 13, borderRadius: R.md, border: `1px solid ${eventFilter.length !== 1 ? T.border : TOM.info.border}`, cursor: eventFilter.length !== 1 ? 'not-allowed' : 'pointer' }}
+            onMouseEnter={e => { if (eventFilter.length === 1) e.currentTarget.style.backgroundColor = TOM.info.bg; }}
             onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#fff'; }}
           >
             <Zap style={{ width: 14, height: 14 }} />
@@ -2496,8 +2496,8 @@ export default function VincularPatrocinadores() {
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               height: 44, padding: '0 20px',
-              backgroundColor: contextStatusCounts.PRONTO === 0 ? '#f5f5f4' : '#c2410c',
-              color: contextStatusCounts.PRONTO === 0 ? '#746e69' : '#ffffff',
+              backgroundColor: contextStatusCounts.PRONTO === 0 ? N.n2 : T.accentText,
+              color: contextStatusCounts.PRONTO === 0 ? T.second : T.surface,
               borderRadius: R.md,
               border: 'none',
               fontWeight: 800, fontSize: 13, letterSpacing: '-0.01em',
@@ -2507,8 +2507,8 @@ export default function VincularPatrocinadores() {
             /* brightness(1.1) clareava o laranja e reduzia o contraste do texto
                branco justamente no momento do apontamento. Escurecer mantém a
                leitura e ainda dá a sensação de "apertar". */
-            onMouseEnter={e => { if (contextStatusCounts.PRONTO > 0) e.currentTarget.style.backgroundColor = '#9a3412'; }}
-            onMouseLeave={e => { if (contextStatusCounts.PRONTO > 0) e.currentTarget.style.backgroundColor = '#c2410c'; }}
+            onMouseEnter={e => { if (contextStatusCounts.PRONTO > 0) e.currentTarget.style.backgroundColor = T.accentText; }}
+            onMouseLeave={e => { if (contextStatusCounts.PRONTO > 0) e.currentTarget.style.backgroundColor = T.accentText; }}
           >
             <Send style={{ width: 14, height: 14, flexShrink: 0 }} />
             {/* A CONTAGEM ENTRA NO RÓTULO. Era um selo separado ao lado dele:
@@ -2535,18 +2535,18 @@ export default function VincularPatrocinadores() {
           nenhum chip responde sozinho.
       ══════════════════════════════════════════════════════════════════ */}
       <div style={{
-        borderTop: '1px solid #ebe8e4', borderBottom: '1px solid #ebe8e4',
+        borderTop: `1px solid ${T.border}`, borderBottom: `1px solid ${T.border}`,
         padding: '12px 0 14px', marginBottom: 20,
         display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
       }}>
         {/* Proporção + total */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          <div aria-hidden="true" style={{ width: 132, height: 8, backgroundColor: '#e7e5e4', borderRadius: 999, overflow: 'hidden', display: 'flex' }}>
+          <div aria-hidden="true" style={{ width: 132, height: 8, backgroundColor: T.border, borderRadius: 999, overflow: 'hidden', display: 'flex' }}>
             {([
-              ['PENDENTE', '#78716c'],
-              ['RASCUNHO', '#c2410c'],
-              ['PRONTO',   '#15803d'],
-              ['ENVIADO',  '#1c1917'],
+              ['PENDENTE', T.second],
+              ['RASCUNHO', T.accentText],
+              ['PRONTO',   TOM.sucesso.text],
+              ['ENVIADO',  T.text],
             ] as const)
               .map(([k, cor]) => ({ k, cor, pct: (contagemPorEstado[k] / (totalDoContexto || 1)) * 100 }))
               .filter(seg => seg.pct > 0)
@@ -2554,7 +2554,7 @@ export default function VincularPatrocinadores() {
                 <div key={seg.k} style={{ width: `${seg.pct}%`, height: '100%', backgroundColor: seg.cor, transition: 'width 0.4s ease' }} />
               ))}
           </div>
-          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: '#57534e', whiteSpace: 'nowrap' }}>
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: T.apoio, whiteSpace: 'nowrap' }}>
             {contagemPorEstado.ENVIADO}/{totalDoContexto} enviadas
           </span>
         </div>
@@ -2565,10 +2565,10 @@ export default function VincularPatrocinadores() {
               acessível): "Pronto" para quê? "Rascunho" de quem? A ordem dos
               chips já é a do caminho da peça. */}
           {([
-            ['PENDENTE', 'Pendente', '#78716c'],
-            ['RASCUNHO', 'Rascunho', '#c2410c'],
-            ['PRONTO',   'Pronto',   '#15803d'],
-            ['ENVIADO',  'Enviado',  '#1c1917'],
+            ['PENDENTE', 'Pendente', T.second],
+            ['RASCUNHO', 'Rascunho', T.accentText],
+            ['PRONTO',   'Pronto',   TOM.sucesso.text],
+            ['ENVIADO',  'Enviado',  T.text],
           ] as const).map(([estado, rotulo, cor]) => {
             const significado = UI_STATUS_SIGNIFICADO[estado];
             const n = contagemPorEstado[estado];
@@ -2590,14 +2590,14 @@ export default function VincularPatrocinadores() {
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 7,
                   height: 32, padding: '0 12px', borderRadius: 999,
-                  border: marcado ? '1px solid #1c1917' : '1px solid #e7e5e4',
-                  backgroundColor: marcado ? '#1c1917' : '#ffffff',
-                  color: marcado ? '#ffffff' : '#44403c',
+                  border: marcado ? `1px solid ${T.text}` : `1px solid ${T.border}`,
+                  backgroundColor: marcado ? T.text : T.surface,
+                  color: marcado ? T.surface : T.strong,
                   cursor: 'pointer', font: 'inherit', fontSize: 13, fontWeight: 600,
                   whiteSpace: 'nowrap', transition: 'background 0.15s, color 0.15s',
                 }}
               >
-                <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: marcado ? '#ffffff' : cor, flexShrink: 0 }} />
+                <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: marcado ? T.surface : cor, flexShrink: 0 }} />
                 {rotulo}
                 <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, opacity: marcado ? 1 : 0.75 }}>{n}</span>
               </button>
@@ -2631,7 +2631,7 @@ export default function VincularPatrocinadores() {
             style={{
               marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 7,
               height: 32, padding: '0 14px', borderRadius: R.md,
-              backgroundColor: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412',
+              backgroundColor: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, color: T.accentText,
               cursor: 'pointer', font: 'inherit', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
             }}
           >
@@ -2658,7 +2658,7 @@ export default function VincularPatrocinadores() {
       }}>
         {/* Busca */}
         <div style={{ position: 'relative', flex: '1 1 220px', maxWidth: isMobile ? 'none' : 320, minWidth: 180 }}>
-          <Search aria-hidden="true" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 15, height: 15, color: '#78716c', pointerEvents: 'none' }} />
+          <Search aria-hidden="true" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 15, height: 15, color: T.second, pointerEvents: 'none' }} />
           <input
             ref={searchInputRef}
             value={buscaDigitada}
@@ -2672,8 +2672,8 @@ export default function VincularPatrocinadores() {
               // Sem `outline: none` inline: ele vencia o :focus-visible global
               // e quem chegava por teclado (Tab ou "/") não via o anel.
               width: '100%', height: isMobile ? 44 : 36, padding: isMobile ? '0 44px 0 34px' : '0 30px 0 34px',
-              borderRadius: R.md, border: '1px solid #e7e5e4', backgroundColor: '#ffffff',
-              font: 'inherit', fontSize: isMobile ? 16 : 13, color: '#1c1917',
+              borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.surface,
+              font: 'inherit', fontSize: isMobile ? 16 : 13, color: T.text,
             }}
           />
           {buscaDigitada && (
@@ -2681,7 +2681,7 @@ export default function VincularPatrocinadores() {
               type="button"
               onClick={() => { setSearchQuery(''); searchInputRef.current?.focus(); }}
               aria-label="Limpar a busca"
-              style={{ position: 'absolute', right: isMobile ? 0 : 6, top: '50%', transform: 'translateY(-50%)', width: isMobile ? 44 : 24, height: isMobile ? 44 : 24, borderRadius: 999, border: 'none', background: 'none', color: '#78716c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              style={{ position: 'absolute', right: isMobile ? 0 : 6, top: '50%', transform: 'translateY(-50%)', width: isMobile ? 44 : 24, height: isMobile ? 44 : 24, borderRadius: 999, border: 'none', background: 'none', color: T.second, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >
               <X style={{ width: 13, height: 13 }} />
             </button>
@@ -2717,8 +2717,8 @@ export default function VincularPatrocinadores() {
           data-testid="segmented-group-by"
           style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}
         >
-          <span style={{ fontSize: 12, color: '#57534e', whiteSpace: 'nowrap' }}>Agrupar</span>
-          <div style={{ display: 'flex', backgroundColor: '#f3f4f3', padding: 2, borderRadius: R.md }}>
+          <span style={{ fontSize: 12, color: T.apoio, whiteSpace: 'nowrap' }}>Agrupar</span>
+          <div style={{ display: 'flex', backgroundColor: T.low, padding: 2, borderRadius: R.md }}>
             {([
               ['evento',       'Evento',       Calendar],
               ['patrocinador', 'Patrocinador', Building2],
@@ -2741,9 +2741,9 @@ export default function VincularPatrocinadores() {
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 6,
                     height: 32, padding: '0 12px', borderRadius: 6, border: 'none',
-                    backgroundColor: ativo ? '#ffffff' : 'transparent',
+                    backgroundColor: ativo ? T.surface : 'transparent',
                     boxShadow: ativo ? '0 1px 3px rgba(0,0,0,0.10)' : 'none',
-                    color: ativo ? '#1c1917' : '#57534e',
+                    color: ativo ? T.text : T.apoio,
                     cursor: 'pointer', font: 'inherit', fontSize: 13, fontWeight: ativo ? 700 : 600,
                     whiteSpace: 'nowrap', transition: 'background 0.15s, color 0.15s',
                   }}
@@ -2770,16 +2770,16 @@ export default function VincularPatrocinadores() {
         // "Aplicar" lado a lado ela passava dos 390px e cortava o último botão
         // — justamente o da ação principal.
         <div style={{ position: 'fixed', bottom: isMobile ? 12 : 32, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 720, padding: isMobile ? '0 12px' : '0 24px', zIndex: 50, boxSizing: 'border-box' }}>
-          <div style={{ backgroundColor: '#1c1917', color: '#ffffff', padding: isMobile ? '12px 14px' : '14px 20px', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, boxShadow: '0 16px 48px rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ backgroundColor: T.text, color: T.surface, padding: isMobile ? '12px 14px' : '14px 20px', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, boxShadow: '0 16px 48px rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.08)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{ width: 40, height: 40, backgroundColor: '#c2410c', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: '#ffffff', flexShrink: 0 }}>
+              <div style={{ width: 40, height: 40, backgroundColor: T.accentText, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: T.surface, flexShrink: 0 }}>
                 {selectedItemIds.size}
               </div>
               {/* Uma frase só. A segunda linha era o rótulo "Ação em lote" —
                   que não informa nada: a barra inteira é a ação em lote, e ela
                   já custava a altura de duas linhas fixa no rodapé da tela. */}
               <div style={{ minWidth: 0 }}>
-                <p style={{ fontSize: 14, fontWeight: 700, letterSpacing: '-0.01em', color: '#ffffff', margin: 0 }}>
+                <p style={{ fontSize: 14, fontWeight: 700, letterSpacing: '-0.01em', color: T.surface, margin: 0 }}>
                   {selectedItemIds.size} {selectedItemIds.size === 1 ? 'peça selecionada' : 'peças selecionadas'}
                 </p>
                 {/* O DESCONTO, DITO ANTES DO CLIQUE: "Aplicar" não alcança peça
@@ -2797,7 +2797,7 @@ export default function VincularPatrocinadores() {
                 onClick={() => setSelectedItemIds(new Set())}
                 data-testid="button-clear-selection"
                 style={{ background: 'none', border: 'none', cursor: 'pointer', minHeight: isMobile ? 44 : 32, padding: '0 8px', font: 'inherit', fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.72)', transition: 'color 0.12s ease' }}
-                onMouseEnter={e => (e.currentTarget.style.color = '#ffffff')}
+                onMouseEnter={e => (e.currentTarget.style.color = T.surface)}
                 onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.72)')}
               >
                 Limpar
@@ -2816,7 +2816,7 @@ export default function VincularPatrocinadores() {
                     }}
                     disabled={saveLinkingMutation.isPending}
                     data-testid="button-save-selected"
-                    style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8, padding: '8px 18px', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: saveLinkingMutation.isPending ? 0.7 : 1 }}
+                    style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: T.surface, border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8, padding: '8px 18px', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: saveLinkingMutation.isPending ? 0.7 : 1 }}
                     onMouseEnter={e => { if (!saveLinkingMutation.isPending) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'; }}
                     onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'; }}
                   >
@@ -2832,7 +2832,7 @@ export default function VincularPatrocinadores() {
                 onClick={() => { setAcrescentarSponsorId(null); setBuscaAcrescentar(""); setAcrescentarAlvo(Array.from(selectedItemIds)); setAcrescentarAberto(true); }}
                 data-testid="button-acrescentar-sponsor"
                 title="Acrescenta UM patrocinador às peças selecionadas, sem mexer nos vínculos que elas já têm — funciona mesmo depois do envio à Arte"
-                style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8, padding: '8px 16px', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
+                style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: T.surface, border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8, padding: '8px 16px', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
                 onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)')}
                 onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)')}
               >
@@ -2848,9 +2848,9 @@ export default function VincularPatrocinadores() {
                   onClick={handleOpenBulkApplyDialog}
                   data-testid="button-apply-bulk-sponsors"
                   title={enviadasSelecionadas > 0 ? `Reescreve os patrocinadores das ${naVinculacao} que ainda estão na vinculação` : undefined}
-                  style={{ backgroundColor: '#c2410c', color: '#ffffff', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 700, fontSize: 13, letterSpacing: '-0.01em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
-                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#9a3412')}
-                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#c2410c')}
+                  style={{ backgroundColor: T.accentText, color: T.surface, border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 700, fontSize: 13, letterSpacing: '-0.01em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = T.accentText)}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = T.accentText)}
                 >
                   <Users style={{ width: 14, height: 14 }} />
                   Aplicar{enviadasSelecionadas > 0 ? ` em ${naVinculacao}` : ' patrocinadores'}
@@ -2895,10 +2895,10 @@ export default function VincularPatrocinadores() {
           const faltando = sponsor
             ? itens.filter(i => getItemEditability(i) && !(itemSponsorsMap[i.id] ?? []).includes(sponsor.id))
             : [];
-          const corDoPatrocinador = sponsor ? (sponsor.color || '#3b82f6') : '#c2410c';
+          const corDoPatrocinador = sponsor ? (sponsor.color || TOM.info.dot) : T.accentText;
 
           return (
-            <section key={chave} data-testid={`grupo-${chave}`} style={{ border: '1px solid #e7e5e4', borderRadius: 12, overflow: 'hidden' }}>
+            <section key={chave} data-testid={`grupo-${chave}`} style={{ border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
 
               {/* ── Cabeçalho do grupo ── */}
               <header style={{
@@ -2913,7 +2913,7 @@ export default function VincularPatrocinadores() {
                   <span aria-hidden="true" style={{
                     width: 38, height: 38, borderRadius: 8, flexShrink: 0,
                     backgroundColor: sponsor ? corDoPatrocinador : 'rgba(255,255,255,0.1)',
-                    color: sponsor ? onColor(corDoPatrocinador) : '#fdba74',
+                    color: sponsor ? onColor(corDoPatrocinador) : TOM.laranja.border,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 16, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif",
                   }}>
@@ -2922,7 +2922,7 @@ export default function VincularPatrocinadores() {
 
                   <div style={{ minWidth: 0 }}>
                     <h2 style={{
-                      fontFamily: "'Space Grotesk', sans-serif", color: '#ffffff',
+                      fontFamily: "'Space Grotesk', sans-serif", color: T.surface,
                       fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', margin: 0,
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                     }}>
@@ -2933,13 +2933,13 @@ export default function VincularPatrocinadores() {
                           (~11:1): #a8a29e passaria aqui, mas a casa não usa
                           esse tom como texto em lugar nenhum. */}
                       <span aria-hidden="true" style={{ width: 84, height: 5, backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 999, overflow: 'hidden', display: 'inline-block', flexShrink: 0 }}>
-                        <span style={{ display: 'block', height: '100%', width: `${pct}%`, backgroundColor: pct === 100 ? '#4ade80' : '#fdba74', transition: 'width 0.4s ease' }} />
+                        <span style={{ display: 'block', height: '100%', width: `${pct}%`, backgroundColor: pct === 100 ? '#4ade80' : TOM.laranja.border, transition: 'width 0.4s ease' }} />
                       </span>
-                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: pct === 100 ? '#4ade80' : '#d6d3d1', whiteSpace: 'nowrap' }}>
+                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: pct === 100 ? '#4ade80' : T.bdark, whiteSpace: 'nowrap' }}>
                         {vinculadas}/{total} {sponsor ? 'com esta marca' : 'vinculadas'}
                       </span>
                       {!sponsor && event.startDate && (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#d6d3d1', whiteSpace: 'nowrap' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: T.bdark, whiteSpace: 'nowrap' }}>
                           <Truck aria-hidden="true" style={{ width: 12, height: 12 }} />
                           {event.truckDepartureDate
                             ? format(toUTCDisplayDate(event.truckDepartureDate), "dd/MM 'às' HH:mm", { locale: ptBR })
@@ -2947,7 +2947,7 @@ export default function VincularPatrocinadores() {
                         </span>
                       )}
                       {sponsor && (
-                        <span style={{ fontSize: 12, color: '#d6d3d1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 240 }}>
+                        <span style={{ fontSize: 12, color: T.bdark, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 240 }}>
                           {event.name}
                         </span>
                       )}
@@ -2971,7 +2971,7 @@ export default function VincularPatrocinadores() {
                       display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0,
                       height: isMobile ? 44 : 34, padding: '0 14px', borderRadius: R.sm,
                       backgroundColor: faltando.length === 0 ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.12)',
-                      color: faltando.length === 0 ? 'rgba(255,255,255,0.55)' : '#ffffff',
+                      color: faltando.length === 0 ? 'rgba(255,255,255,0.55)' : T.surface,
                       border: '1px solid rgba(255,255,255,0.2)',
                       cursor: faltando.length === 0 ? 'not-allowed' : 'pointer',
                       font: 'inherit', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
@@ -2996,7 +2996,7 @@ export default function VincularPatrocinadores() {
                       style={{
                         display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0,
                         height: isMobile ? 44 : 34, padding: '0 14px', borderRadius: R.sm,
-                        backgroundColor: 'transparent', color: '#ffffff',
+                        backgroundColor: 'transparent', color: T.surface,
                         border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer',
                         font: 'inherit', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
                       }}
@@ -3013,7 +3013,7 @@ export default function VincularPatrocinadores() {
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0,
                       height: isMobile ? 44 : 34, padding: '0 14px', borderRadius: R.sm,
-                      backgroundColor: 'rgba(255,255,255,0.12)', color: '#ffffff',
+                      backgroundColor: 'rgba(255,255,255,0.12)', color: T.surface,
                       border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer',
                       font: 'inherit', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
                     }}
@@ -3030,11 +3030,11 @@ export default function VincularPatrocinadores() {
               </header>
 
               {/* ── A tabela ── */}
-              <div style={{ backgroundColor: '#ffffff' }}>
+              <div style={{ backgroundColor: T.surface }}>
                 <div className="overflow-x-auto scrollbar-visible">
                   <table style={{ width: '100%', borderCollapse: 'collapse', ...(isMobile ? { display: 'block', padding: 12 } : {}) }}>
                     <thead style={{ display: isMobile ? 'none' : 'table-header-group' }}>
-                      <tr style={{ backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4' }}>
+                      <tr style={{ backgroundColor: T.bg, borderBottom: `1px solid ${T.border}` }}>
                         <th style={{ ...THC, width: 46, textAlign: 'center', padding: '9px 0' }}>
                           <Checkbox
                             /* "indeterminate" em seleção parcial: sem isto o
@@ -3078,7 +3078,7 @@ export default function VincularPatrocinadores() {
                           const selecionaveisDoTipo = doTipo.filter(i => { const st = itemUIStates[i.id] || 'PENDENTE'; return st === 'PENDENTE' || st === 'RASCUNHO'; });
                           const tudoEnviado = enviadas === doTipo.length;
                           const tudoVinculado = semPatrocinador === 0;
-                          const corDoLote = tudoEnviado ? '#1c1917' : tudoVinculado ? '#15803d' : '#c2410c';
+                          const corDoLote = tudoEnviado ? T.text : tudoVinculado ? TOM.sucesso.text : T.accentText;
                           const textoDoLote = tudoEnviado ? 'tudo enviado'
                             : tudoVinculado ? 'tudo vinculado'
                             : `${semPatrocinador} sem patrocinador`;
@@ -3099,7 +3099,7 @@ export default function VincularPatrocinadores() {
                                o ciclo e derrubava a tela com "Maximum update
                                depth exceeded". */
                             <tr key={`tipo-${item.id}`} style={{ borderLeft: `3px solid ${corDoLote}`, ...(isMobile ? { display: 'block', marginBottom: 8 } : {}) }}>
-                              <td colSpan={5} style={{ padding: 0, backgroundColor: '#fafaf9', borderBottom: '1px solid #f0efee', ...(isMobile ? { display: 'block' } : {}) }}>
+                              <td colSpan={5} style={{ padding: 0, backgroundColor: T.bg, borderBottom: `1px solid ${N.n3}`, ...(isMobile ? { display: 'block' } : {}) }}>
                                 <div style={{ display: 'flex', alignItems: 'center' }}>
                                 {/* O CHECKBOX DO TIPO. Numa fila de 1.120 peças,
                                     marcar 14 "Placa KM" uma a uma é o gargalo
@@ -3136,11 +3136,11 @@ export default function VincularPatrocinadores() {
                                     background: 'none', border: 'none', cursor: 'pointer', font: 'inherit', textAlign: 'left',
                                   }}
                                 >
-                                  <ChevronDown aria-hidden="true" style={{ width: 13, height: 13, color: '#57534e', flexShrink: 0, transform: tipoFechado ? 'rotate(-90deg)' : 'none', transition: 'transform 0.15s' }} />
-                                  <span data-testid={item.kitRemessaId ? `secao-kit-${chaveTipo}` : undefined} style={{ fontSize: 11, fontWeight: 800, color: item.kitRemessaId ? '#5b21b6' : '#44403c', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  <ChevronDown aria-hidden="true" style={{ width: 13, height: 13, color: T.apoio, flexShrink: 0, transform: tipoFechado ? 'rotate(-90deg)' : 'none', transition: 'transform 0.15s' }} />
+                                  <span data-testid={item.kitRemessaId ? `secao-kit-${chaveTipo}` : undefined} style={{ fontSize: 11, fontWeight: 800, color: item.kitRemessaId ? TOM.roxo.text : T.strong, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                     {secaoDaPeca(item)}
                                   </span>
-                                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: '#57534e', flexShrink: 0 }}>
+                                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: T.apoio, flexShrink: 0 }}>
                                     {doTipo.length}
                                   </span>
                                   <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 600, color: corDoLote, whiteSpace: 'nowrap', flexShrink: 0 }}>
@@ -3169,7 +3169,7 @@ export default function VincularPatrocinadores() {
                       return n;
                     })}
                     data-testid={`button-show-all-${chave}`}
-                    style={{ width: '100%', minHeight: 38, background: '#fafaf9', border: 'none', borderTop: '1px solid #e7e5e4', color: '#c2410c', font: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                    style={{ width: '100%', minHeight: 38, background: T.bg, border: 'none', borderTop: `1px solid ${T.border}`, color: T.accentText, font: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
                   >
                     {mostrarTodas ? 'Mostrar menos' : `Mostrar todas as ${itens.length} peças (+${itens.length - ITEM_RENDER_CAP})`}
                   </button>
@@ -3182,14 +3182,14 @@ export default function VincularPatrocinadores() {
         {/* Filtros zeraram tudo: sem isto a área principal ficava em branco
             absoluto, sem explicação e sem saída. */}
         {gruposDaLista.length === 0 && (
-          <div style={{ backgroundColor: '#fff', border: '1px dashed #d6d3d1', borderRadius: 12, padding: '40px 24px', textAlign: 'center' }}>
-            <Search aria-hidden="true" style={{ width: 26, height: 26, color: '#78716c', margin: '0 auto 12px', display: 'block' }} />
-            <p style={{ fontSize: 14, fontWeight: 700, color: '#1c1917', margin: '0 0 4px' }}>
+          <div style={{ backgroundColor: '#fff', border: `1px dashed ${T.bdark}`, borderRadius: 12, padding: '40px 24px', textAlign: 'center' }}>
+            <Search aria-hidden="true" style={{ width: 26, height: 26, color: T.second, margin: '0 auto 12px', display: 'block' }} />
+            <p style={{ fontSize: 14, fontWeight: 700, color: T.text, margin: '0 0 4px' }}>
               {temFiltroAtivo ? 'Nenhuma peça com os filtros atuais' : agrupamento === 'patrocinador' ? 'Nenhum evento com patrocinadores' : 'Nada a vincular'}
             </p>
             {/* Com filtro: "por que a peça que eu procuro não aparece?" — além
                 do filtro, as duas regras de entrada da tela. */}
-            <p style={{ fontSize: 13, color: '#57534e', margin: '0 0 16px', maxWidth: 400, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.5 }}>
+            <p style={{ fontSize: 13, color: T.apoio, margin: '0 0 16px', maxWidth: 400, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.5 }}>
               {temFiltroAtivo
                 ?'Ajuste a busca ou os filtros acima. Se procura uma peça específica: as que ainda são rascunho no evento (não enviadas para vinculação) e as de evento finalizado não entram nesta tela.'
                 : agrupamento === 'patrocinador'
@@ -3201,7 +3201,7 @@ export default function VincularPatrocinadores() {
                 type="button"
                 onClick={() => { setSearchQuery(''); setEventFilter([]); setSponsorFilter([]); setItemFilter([]); setStatusFilter([]); }}
                 data-testid="button-clear-filters"
-                style={{ height: 36, padding: '0 16px', backgroundColor: '#f5f5f4', color: '#1c1917', font: 'inherit', fontWeight: 700, fontSize: 13, borderRadius: R.md, border: '1px solid #e7e5e4', cursor: 'pointer' }}
+                style={{ height: 36, padding: '0 16px', backgroundColor: N.n2, color: T.text, font: 'inherit', fontWeight: 700, fontSize: 13, borderRadius: R.md, border: `1px solid ${T.border}`, cursor: 'pointer' }}
               >
                 Limpar filtros
               </button>
@@ -3211,7 +3211,7 @@ export default function VincularPatrocinadores() {
                 type="button"
                 onClick={() => setAgrupamento('evento')}
                 data-testid="button-agrupar-por-evento-vazio"
-                style={{ height: 36, padding: '0 16px', backgroundColor: '#f5f5f4', color: '#1c1917', font: 'inherit', fontWeight: 700, fontSize: 13, borderRadius: R.md, border: '1px solid #e7e5e4', cursor: 'pointer' }}
+                style={{ height: 36, padding: '0 16px', backgroundColor: N.n2, color: T.text, font: 'inherit', fontWeight: 700, fontSize: 13, borderRadius: R.md, border: `1px solid ${T.border}`, cursor: 'pointer' }}
               >
                 Agrupar por evento
               </button>
@@ -3237,7 +3237,7 @@ export default function VincularPatrocinadores() {
           <DialogDescription className="sr-only">Escolha quais patrocinadores participam deste evento</DialogDescription>
           <ModalHeader
             icon={Building2}
-            tint="#c2410c"
+            tint={T.accentText}
             title="Patrocinadores do evento"
             subtitle={selectedEventForSponsors?.name}
             onClose={() => { setSponsorDialogOpen(false); setSponsorModalSearch(''); }}
@@ -3251,17 +3251,17 @@ export default function VincularPatrocinadores() {
           <div style={{ padding: '16px 24px 0', flexShrink: 0 }}>
             {/* Barra de busca */}
             <div style={{ position: 'relative' }}>
-              <Search style={{ width: 13, height: 13, color: '#a8a29e', position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+              <Search style={{ width: 13, height: 13, color: T.muted, position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
               <input
                 type="text"
                 value={sponsorModalSearch}
                 onChange={e => setSponsorModalSearch(e.target.value)}
                 placeholder="Buscar patrocinador..."
                 aria-label="Buscar patrocinador"
-                style={{ width: '100%', height: 36, paddingLeft: 32, paddingRight: 36, borderRadius: 8, border: '1px solid #e7e5e4', backgroundColor: '#fafaf9', color: '#1c1917', fontSize: 13, boxSizing: 'border-box' }}
+                style={{ width: '100%', height: 36, paddingLeft: 32, paddingRight: 36, borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: T.bg, color: T.text, fontSize: 13, boxSizing: 'border-box' }}
               />
               {sponsorModalSearch && (
-                <button aria-label="Limpar busca" title="Limpar busca" onClick={() => setSponsorModalSearch('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0, color: '#746e69' }}>
+                <button aria-label="Limpar busca" title="Limpar busca" onClick={() => setSponsorModalSearch('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0, color: T.second }}>
                   <X style={{ width: 13, height: 13 }} />
                 </button>
               )}
@@ -3270,11 +3270,11 @@ export default function VincularPatrocinadores() {
             {/* Ações rápidas */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
               {selectedSponsorIds.length > 0 ? (
-                <button onClick={() => setSelectedSponsorIds([])} style={{ fontSize: 11, fontWeight: 600, color: '#746e69', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                <button onClick={() => setSelectedSponsorIds([])} style={{ fontSize: 11, fontWeight: 600, color: T.second, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                   Limpar seleção
                 </button>
               ) : (
-                <button onClick={() => setSelectedSponsorIds(sponsors.map((s: any) => s.id))} style={{ fontSize: 11, fontWeight: 600, color: '#c2410c', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                <button onClick={() => setSelectedSponsorIds(sponsors.map((s: any) => s.id))} style={{ fontSize: 11, fontWeight: 600, color: T.accentText, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                   Selecionar todos
                 </button>
               )}
@@ -3298,8 +3298,8 @@ export default function VincularPatrocinadores() {
 
               if (sorted.length === 0) {
                 return (
-                  <div style={{ textAlign: 'center', padding: '40px 0', color: '#57534e', fontSize: 13 }}>
-                    <Search style={{ width: 22, height: 22, color: '#d4d0ca', margin: '0 auto 10px', display: 'block' }} />
+                  <div style={{ textAlign: 'center', padding: '40px 0', color: T.apoio, fontSize: 13 }}>
+                    <Search style={{ width: 22, height: 22, color: T.bdark, margin: '0 auto 10px', display: 'block' }} />
                     {sponsorModalSearch
                       ? <>Nenhum patrocinador com “{sponsorModalSearch}”</>
                       : 'Nenhum patrocinador cadastrado'}
@@ -3310,7 +3310,7 @@ export default function VincularPatrocinadores() {
               return (
                 <>
                   {selected.length > 0 && unselected.length > 0 && (
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '2px 4px 4px' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: T.second, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '2px 4px 4px' }}>
                       Selecionados ({selected.length})
                     </div>
                   )}
@@ -3327,7 +3327,7 @@ export default function VincularPatrocinadores() {
                     return (
                       <div key={sponsor.id}>
                         {showDivider && (
-                          <div style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '8px 4px 4px' }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: T.second, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '8px 4px 4px' }}>
                             Disponíveis ({unselected.length})
                           </div>
                         )}
@@ -3341,8 +3341,8 @@ export default function VincularPatrocinadores() {
                           style={{
                             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                             padding: '11px 14px',
-                            backgroundColor: isSelected ? '#fff7ed' : '#fafaf9',
-                            border: isSelected ? '1.5px solid #fdba74' : '1.5px solid #f0efee',
+                            backgroundColor: isSelected ? TOM.laranja.bg : T.bg,
+                            border: isSelected ? `1.5px solid ${TOM.laranja.border}` : `1.5px solid ${N.n3}`,
                             borderRadius: 8, cursor: 'pointer',
                             transition: 'all 0.12s',
                           }}
@@ -3355,20 +3355,20 @@ export default function VincularPatrocinadores() {
                           }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: sponsor.color || '#3b82f6', flexShrink: 0 }} />
-                            <span style={{ fontSize: 13, fontWeight: isSelected ? 700 : 500, color: isSelected ? '#92400e' : '#1c1917' }}>
+                            <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: sponsor.color || TOM.info.dot, flexShrink: 0 }} />
+                            <span style={{ fontSize: 13, fontWeight: isSelected ? 700 : 500, color: isSelected ? TOM.alerta.text : T.text }}>
                               {sponsor.name}
                             </span>
                             {sponsor.company && (
-                              <span style={{ fontSize: 11, fontWeight: 400, color: '#746e69' }}>({sponsor.company})</span>
+                              <span style={{ fontSize: 11, fontWeight: 400, color: T.second }}>({sponsor.company})</span>
                             )}
                           </div>
                           {isSelected ? (
-                            <div style={{ width: 18, height: 18, borderRadius: '50%', backgroundColor: '#c2410c', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                              <Check style={{ width: 11, height: 11, color: '#ffffff' }} />
+                            <div style={{ width: 18, height: 18, borderRadius: '50%', backgroundColor: T.accentText, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              <Check style={{ width: 11, height: 11, color: T.surface }} />
                             </div>
                           ) : (
-                            <div style={{ width: 18, height: 18, borderRadius: '50%', border: '1.5px solid #d6d3d1', flexShrink: 0 }} />
+                            <div style={{ width: 18, height: 18, borderRadius: '50%', border: `1.5px solid ${T.bdark}`, flexShrink: 0 }} />
                           )}
                         </div>
                       </div>
@@ -3380,23 +3380,23 @@ export default function VincularPatrocinadores() {
           </div>
 
           {/* Footer */}
-          <div style={{ flexShrink: 0, padding: '14px 20px', borderTop: '1px solid #f0efee', backgroundColor: '#fafaf9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ flexShrink: 0, padding: '14px 20px', borderTop: `1px solid ${N.n3}`, backgroundColor: T.bg, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
-                <span style={{ fontSize: 12, color: '#57534e', lineHeight: 1.45 }}>
-                  <strong style={{ fontWeight: 700, color: '#1c1917' }}>{selectedSponsorIds.length} de {sponsors.length} ativos.</strong>{' '}
+                <span style={{ fontSize: 12, color: T.apoio, lineHeight: 1.45 }}>
+                  <strong style={{ fontWeight: 700, color: T.text }}>{selectedSponsorIds.length} de {sponsors.length} ativos.</strong>{' '}
                   Só estes aparecem como opção nas peças.
                 </span>
               </div>
-              <div style={{ height: 4, borderRadius: 999, backgroundColor: '#e7e5e4', overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${sponsors.length > 0 ? (selectedSponsorIds.length / sponsors.length) * 100 : 0}%`, backgroundColor: '#c2410c', borderRadius: 999, transition: 'width 0.2s' }} />
+              <div style={{ height: 4, borderRadius: 999, backgroundColor: T.border, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${sponsors.length > 0 ? (selectedSponsorIds.length / sponsors.length) * 100 : 0}%`, backgroundColor: T.accentText, borderRadius: 999, transition: 'width 0.2s' }} />
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
               <button
                 onClick={() => { setSponsorDialogOpen(false); setSponsorModalSearch(''); }}
                 disabled={manageEventSponsorsMutation.isPending}
-                style={{ height: 36, padding: '0 14px', background: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#44403c', cursor: 'pointer' }}
+                style={{ height: 36, padding: '0 14px', background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 13, fontWeight: 600, color: T.strong, cursor: 'pointer' }}
               >
                 Cancelar
               </button>
@@ -3404,7 +3404,7 @@ export default function VincularPatrocinadores() {
                 onClick={handleSaveEventSponsors}
                 disabled={manageEventSponsorsMutation.isPending}
                 data-testid="button-save-event-sponsors"
-                style={{ height: 36, padding: '0 16px', backgroundColor: '#c2410c', color: '#ffffff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                style={{ height: 36, padding: '0 16px', backgroundColor: T.accentText, color: T.surface, border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
               >
                 {manageEventSponsorsMutation.isPending ? "Salvando..." : "Salvar"}
               </button>
@@ -3422,26 +3422,26 @@ export default function VincularPatrocinadores() {
           <FreezeWhileClosing open={acrescentarAberto}>
             <ModalHeader
               icon={PlusCircle}
-              tint="#15803d"
+              tint={TOM.sucesso.text}
               title="Acrescentar patrocinador"
               subtitle={`${acrescentarAlvo.length} ${acrescentarAlvo.length === 1 ? 'peça selecionada' : 'peças selecionadas'}`}
               onClose={() => setAcrescentarAberto(false)}
             />
             <div style={{ padding: '14px 24px 0', flexShrink: 0 }}>
-              <p style={{ margin: 0, fontSize: 13, color: '#57534e', lineHeight: 1.55 }}>
-                Soma <strong style={{ color: '#1c1917' }}>um</strong> patrocinador às peças escolhidas, sem mexer nos vínculos que elas já têm.
-                Funciona <strong style={{ color: '#1c1917' }}>mesmo depois do envio à Arte</strong>: quem espera o layout entra na aprovação quando ele chegar; quem está em aprovação ganha a pendência agora.
-                Peça que <strong style={{ color: '#1c1917' }}>já passou</strong> (finalização ou revisão) <strong style={{ color: '#9a3412' }}>volta para a aprovação</strong> — só o novo decide, quem já aprovou segue aprovado e a arte fica. Peça já liberada para a Gráfica não entra.
+              <p style={{ margin: 0, fontSize: 13, color: T.apoio, lineHeight: 1.55 }}>
+                Soma <strong style={{ color: T.text }}>um</strong> patrocinador às peças escolhidas, sem mexer nos vínculos que elas já têm.
+                Funciona <strong style={{ color: T.text }}>mesmo depois do envio à Arte</strong>: quem espera o layout entra na aprovação quando ele chegar; quem está em aprovação ganha a pendência agora.
+                Peça que <strong style={{ color: T.text }}>já passou</strong> (finalização ou revisão) <strong style={{ color: T.accentText }}>volta para a aprovação</strong> — só o novo decide, quem já aprovou segue aprovado e a arte fica. Peça já liberada para a Gráfica não entra.
               </p>
               <div style={{ position: 'relative', marginTop: 12 }}>
-                <Search style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: '#a8a29e' }} />
+                <Search style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: T.muted }} />
                 <input
                   value={buscaAcrescentar}
                   onChange={(e) => setBuscaAcrescentar(e.target.value)}
                   placeholder="Buscar patrocinador…"
                   aria-label="Buscar patrocinador"
                   data-testid="input-busca-acrescentar"
-                  style={{ width: '100%', height: 38, paddingLeft: 34, paddingRight: 12, borderRadius: 8, border: '1px solid #d6d3d1', fontSize: 13, fontFamily: 'inherit', color: '#1c1917', backgroundColor: '#fff' }}
+                  style={{ width: '100%', height: 38, paddingLeft: 34, paddingRight: 12, borderRadius: 8, border: `1px solid ${T.bdark}`, fontSize: 13, fontFamily: 'inherit', color: T.text, backgroundColor: '#fff' }}
                 />
               </div>
             </div>
@@ -3456,7 +3456,7 @@ export default function VincularPatrocinadores() {
                   .sort((a, b) => String(a.name ?? '').localeCompare(String(b.name ?? ''), 'pt-BR'))
                   .slice(0, 60);
                 if (lista.length === 0) {
-                  return <p style={{ fontSize: 13, color: '#78716c', margin: '8px 0' }}>Nenhum patrocinador com “{buscaAcrescentar.trim()}”.</p>;
+                  return <p style={{ fontSize: 13, color: T.second, margin: '8px 0' }}>Nenhum patrocinador com “{buscaAcrescentar.trim()}”.</p>;
                 }
                 return lista.map((s: any) => {
                   const escolhido = acrescentarSponsorId === s.id;
@@ -3470,14 +3470,14 @@ export default function VincularPatrocinadores() {
                       style={{
                         display: 'flex', alignItems: 'center', gap: 9, width: '100%', minHeight: 42, padding: '0 12px',
                         borderRadius: 8, cursor: 'pointer', font: 'inherit', fontSize: 13, fontWeight: 600, textAlign: 'left',
-                        border: `1px solid ${escolhido ? '#86efac' : '#e7e5e4'}`,
-                        backgroundColor: escolhido ? '#f0fdf4' : '#ffffff',
-                        color: '#1c1917',
+                        border: `1px solid ${escolhido ? TOM.sucesso.border : T.border}`,
+                        backgroundColor: escolhido ? TOM.sucesso.bg : T.surface,
+                        color: T.text,
                       }}
                     >
-                      <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: s.color || '#a8a29e', flexShrink: 0 }} />
+                      <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: s.color || T.muted, flexShrink: 0 }} />
                       <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
-                      {escolhido && <Check style={{ width: 15, height: 15, color: '#15803d', flexShrink: 0 }} />}
+                      {escolhido && <Check style={{ width: 15, height: 15, color: TOM.sucesso.text, flexShrink: 0 }} />}
                     </button>
                   );
                 });
@@ -3494,8 +3494,8 @@ export default function VincularPatrocinadores() {
                 data-testid="button-confirmar-acrescentar"
                 style={{
                   width: '100%', height: 44, borderRadius: 9, border: 'none',
-                  backgroundColor: !acrescentarSponsorId || acrescentarAlvo.length === 0 ? '#e7e5e4' : '#1c1917',
-                  color: !acrescentarSponsorId || acrescentarAlvo.length === 0 ? '#78716c' : '#ffffff',
+                  backgroundColor: !acrescentarSponsorId || acrescentarAlvo.length === 0 ? T.border : T.text,
+                  color: !acrescentarSponsorId || acrescentarAlvo.length === 0 ? T.second : T.surface,
                   fontSize: 13, fontWeight: 700, cursor: !acrescentarSponsorId || acrescentarAlvo.length === 0 ? 'not-allowed' : 'pointer',
                 }}
               >
@@ -3515,7 +3515,7 @@ export default function VincularPatrocinadores() {
           <DialogDescription className="sr-only">Aplica os patrocinadores escolhidos a todas as peças selecionadas</DialogDescription>
           <ModalHeader
             icon={Users}
-            tint="#c2410c"
+            tint={T.accentText}
             title="Aplicar em lote"
             subtitle={`${selectedItemIds.size} ${selectedItemIds.size === 1 ? 'peça selecionada' : 'peças selecionadas'}`}
             onClose={() => { setBulkApplyDialogOpen(false); setBulkSponsorSearch(''); }}
@@ -3530,9 +3530,9 @@ export default function VincularPatrocinadores() {
               }).length;
               if (exemptCount === 0 || bulkSkipApproval) return null;
               return (
-                <div style={{ marginTop: 16, padding: '10px 14px', backgroundColor: '#fff7ed', borderRadius: R.md, display: 'flex', gap: 10, alignItems: 'flex-start', border: '1px solid #fed7aa' }}>
-                  <Info style={{ width: 14, height: 14, color: '#c2410c', flexShrink: 0, marginTop: 1 }} />
-                  <p style={{ fontSize: 11, lineHeight: 1.5, color: '#7c2d12', fontWeight: 500, margin: 0 }}>
+                <div style={{ marginTop: 16, padding: '10px 14px', backgroundColor: TOM.laranja.bg, borderRadius: R.md, display: 'flex', gap: 10, alignItems: 'flex-start', border: `1px solid ${TOM.laranja.border}` }}>
+                  <Info style={{ width: 14, height: 14, color: T.accentText, flexShrink: 0, marginTop: 1 }} />
+                  <p style={{ fontSize: 11, lineHeight: 1.5, color: TOM.laranja.text, fontWeight: 500, margin: 0 }}>
                     {exemptCount} {exemptCount === 1 ? 'peça marcada' : 'peças marcadas'} como sem patrocinador não {exemptCount === 1 ? 'receberá' : 'receberão'} as marcas selecionadas.
                   </p>
                 </div>
@@ -3543,16 +3543,16 @@ export default function VincularPatrocinadores() {
           {/* Campo de busca */}
           <div style={{ padding: '16px 24px 0', flexShrink: 0 }}>
             <div style={{ position: 'relative', marginBottom: 12 }}>
-              <Search style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: '#a8a29e', pointerEvents: 'none' }} />
+              <Search style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: T.muted, pointerEvents: 'none' }} />
               <input
                 type="text"
                 placeholder="Buscar patrocinador..."
                 aria-label="Buscar patrocinador"
                 value={bulkSponsorSearch}
                 onChange={e => setBulkSponsorSearch(e.target.value)}
-                style={{ width: '100%', paddingLeft: 32, paddingRight: 12, paddingTop: 8, paddingBottom: 8, borderRadius: 8, border: '1.5px solid #e7e5e4', fontSize: 13, color: '#1a1c1c', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
-                onFocus={e => (e.currentTarget.style.borderColor = '#f97316')}
-                onBlur={e => (e.currentTarget.style.borderColor = '#e7e5e4')}
+                style={{ width: '100%', paddingLeft: 32, paddingRight: 12, paddingTop: 8, paddingBottom: 8, borderRadius: 8, border: `1.5px solid ${T.border}`, fontSize: 13, color: T.text, backgroundColor: T.surface, boxSizing: 'border-box' }}
+                onFocus={e => (e.currentTarget.style.borderColor = T.accent)}
+                onBlur={e => (e.currentTarget.style.borderColor = T.border)}
               />
             </div>
           </div>
@@ -3573,8 +3573,8 @@ export default function VincularPatrocinadores() {
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 padding: '12px 14px',
-                backgroundColor: '#ffffff',
-                border: bulkSkipApproval ? '2px solid #f97316' : '2px dashed #dadad9',
+                backgroundColor: T.surface,
+                border: bulkSkipApproval ? `2px solid ${T.accent}` : `2px dashed ${T.border}`,
                 borderRadius: 8, cursor: 'pointer',
                 // Sem opacity no desligado: 0,65 derrubava o rótulo abaixo de
                 // AA. A borda tracejada já diz "opção, não marca".
@@ -3590,13 +3590,13 @@ export default function VincularPatrocinadores() {
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <X style={{ width: 15, height: 15, color: '#625d5b', flexShrink: 0 }} />
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#1a1c1c' }}>Sem patrocinador</span>
+                <X style={{ width: 15, height: 15, color: T.apoio, flexShrink: 0 }} />
+                <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>Sem patrocinador</span>
               </div>
               {bulkSkipApproval ? (
-                <CheckCircle2 style={{ width: 17, height: 17, color: '#c2410c', flexShrink: 0 }} />
+                <CheckCircle2 style={{ width: 17, height: 17, color: T.accentText, flexShrink: 0 }} />
               ) : (
-                <div style={{ width: 17, height: 17, borderRadius: '50%', border: '1.5px solid #dadad9', flexShrink: 0 }} />
+                <div style={{ width: 17, height: 17, borderRadius: '50%', border: `1.5px solid ${T.border}`, flexShrink: 0 }} />
               )}
             </div>
             )}
@@ -3624,8 +3624,8 @@ export default function VincularPatrocinadores() {
                 return a.name.localeCompare(b.name, 'pt-BR');
               });
               if (sorted.length === 0) return (
-                <p style={{ fontSize: 13, textAlign: 'center', padding: '36px 0', color: '#57534e', margin: 0 }}>
-                  <Search style={{ width: 22, height: 22, color: '#d4d0ca', margin: '0 auto 10px', display: 'block' }} />
+                <p style={{ fontSize: 13, textAlign: 'center', padding: '36px 0', color: T.apoio, margin: 0 }}>
+                  <Search style={{ width: 22, height: 22, color: T.bdark, margin: '0 auto 10px', display: 'block' }} />
                   {q ? `Nenhum patrocinador com “${bulkSponsorSearch}”` : 'Nenhum patrocinador cadastrado para este evento'}
                 </p>
               );
@@ -3650,8 +3650,8 @@ export default function VincularPatrocinadores() {
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                       padding: '11px 14px',
-                      backgroundColor: isSelected ? '#fff7ed' : '#ffffff',
-                      border: isSelected ? '2px solid #f97316' : '1px solid #eeeeed',
+                      backgroundColor: isSelected ? TOM.laranja.bg : T.surface,
+                      border: isSelected ? `2px solid ${T.accent}` : `1px solid ${T.border}`,
                       borderRadius: 8, cursor: 'pointer',
                       transition: 'all 0.15s',
                     }}
@@ -3666,18 +3666,18 @@ export default function VincularPatrocinadores() {
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ width: 11, height: 11, borderRadius: '50%', backgroundColor: sponsor.color || '#a8a29e', flexShrink: 0, boxShadow: isSelected ? `0 0 0 2px rgba(249,115,22,0.2)` : 'none' }} />
-                      <span style={{ fontSize: 13, fontWeight: isSelected ? 700 : 600, color: isSelected ? '#1a1c1c' : '#44403c' }}>
+                      <div style={{ width: 11, height: 11, borderRadius: '50%', backgroundColor: sponsor.color || T.muted, flexShrink: 0, boxShadow: isSelected ? `0 0 0 2px rgba(249,115,22,0.2)` : 'none' }} />
+                      <span style={{ fontSize: 13, fontWeight: isSelected ? 700 : 600, color: isSelected ? T.text : T.strong }}>
                         {sponsor.name}
                         {sponsor.company && (
-                          <span style={{ marginLeft: 6, fontWeight: 400, color: '#746e69', fontSize: 13 }}> {sponsor.company}</span>
+                          <span style={{ marginLeft: 6, fontWeight: 400, color: T.second, fontSize: 13 }}> {sponsor.company}</span>
                         )}
                       </span>
                     </div>
                     {isSelected ? (
-                      <CheckCircle2 style={{ width: 17, height: 17, color: '#c2410c', flexShrink: 0 }} />
+                      <CheckCircle2 style={{ width: 17, height: 17, color: T.accentText, flexShrink: 0 }} />
                     ) : (
-                      <div style={{ width: 17, height: 17, borderRadius: '50%', border: '1.5px solid #dadad9', flexShrink: 0 }} />
+                      <div style={{ width: 17, height: 17, borderRadius: '50%', border: `1.5px solid ${T.border}`, flexShrink: 0 }} />
                     )}
                   </div>
                 );
@@ -3689,9 +3689,9 @@ export default function VincularPatrocinadores() {
                       {selectedOnes.map(renderSponsor)}
                       {unselectedOnes.length > 0 && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
-                          <div style={{ flex: 1, height: 1, backgroundColor: '#eeeeed' }} />
-                          <span style={{ fontSize: 11, color: '#746e69', fontWeight: 600, letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>outros</span>
-                          <div style={{ flex: 1, height: 1, backgroundColor: '#eeeeed' }} />
+                          <div style={{ flex: 1, height: 1, backgroundColor: T.border }} />
+                          <span style={{ fontSize: 11, color: T.second, fontWeight: 600, letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>outros</span>
+                          <div style={{ flex: 1, height: 1, backgroundColor: T.border }} />
                         </div>
                       )}
                     </>
@@ -3702,14 +3702,14 @@ export default function VincularPatrocinadores() {
             })()}
           </div>
 
-          <div style={{ flexShrink: 0, padding: '14px 24px', borderTop: '1px solid #eeeeed', backgroundColor: '#f3f4f3', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, borderRadius: '0 0 12px 12px' }}>
+          <div style={{ flexShrink: 0, padding: '14px 24px', borderTop: `1px solid ${T.border}`, backgroundColor: T.low, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, borderRadius: '0 0 12px 12px' }}>
             {/* SOMA, NÃO SUBSTITUI. Sem esta frase não há como saber se aplicar
                 dois patrocinadores a vinte peças APAGA o que cada uma já tinha
                 — e, na dúvida, a saída segura é não usar o lote, aplicando um a
                 um vinte vezes. A variante do "sem patrocinador" diz o contrário
                 de propósito: essa opção REMOVE os vínculos, e é a única aqui
                 que descarta trabalho. */}
-            <p style={{ fontSize: 12, color: '#57534e', lineHeight: 1.45, flex: '1 1 auto', minWidth: 0, marginRight: 12 }}>
+            <p style={{ fontSize: 12, color: T.apoio, lineHeight: 1.45, flex: '1 1 auto', minWidth: 0, marginRight: 12 }}>
               {(() => {
                 const pecas = `${selectedItemIds.size} ${selectedItemIds.size === 1 ? 'peça' : 'peças'}`;
                 if (bulkSkipApproval) {
@@ -3722,9 +3722,9 @@ export default function VincularPatrocinadores() {
             </p>
             <button
               onClick={() => setBulkApplyDialogOpen(false)}
-              style={{ padding: '9px 20px', background: '#ffffff', border: '1.5px solid #d6d3d1', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#44403c', cursor: 'pointer' }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f4')}
-              onMouseLeave={e => (e.currentTarget.style.background = '#ffffff')}
+              style={{ padding: '9px 20px', background: T.surface, border: `1.5px solid ${T.bdark}`, borderRadius: 8, fontSize: 13, fontWeight: 600, color: T.strong, cursor: 'pointer' }}
+              onMouseEnter={e => (e.currentTarget.style.background = N.n2)}
+              onMouseLeave={e => (e.currentTarget.style.background = T.surface)}
             >
               Cancelar
             </button>
@@ -3737,14 +3737,14 @@ export default function VincularPatrocinadores() {
               data-testid="button-confirm-bulk-apply"
               style={{
                 padding: '9px 20px',
-                backgroundColor: (bulkSelectedSponsors.length === 0 && !bulkSkipApproval) ? '#e7e5e4' : '#c2410c',
-                color: (bulkSelectedSponsors.length === 0 && !bulkSkipApproval) ? '#746e69' : '#ffffff',
+                backgroundColor: (bulkSelectedSponsors.length === 0 && !bulkSkipApproval) ? T.border : T.accentText,
+                color: (bulkSelectedSponsors.length === 0 && !bulkSkipApproval) ? T.second : T.surface,
                 border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700,
                 cursor: (bulkSelectedSponsors.length === 0 && !bulkSkipApproval) ? 'not-allowed' : 'pointer',
                 boxShadow: (bulkSelectedSponsors.length === 0 && !bulkSkipApproval) ? 'none' : '0 2px 8px rgba(194,65,12,0.3)',
               }}
-              onMouseEnter={e => { if (!(bulkSelectedSponsors.length === 0 && !bulkSkipApproval)) e.currentTarget.style.backgroundColor = '#9a3412'; }}
-              onMouseLeave={e => { if (!(bulkSelectedSponsors.length === 0 && !bulkSkipApproval)) e.currentTarget.style.backgroundColor = '#c2410c'; }}
+              onMouseEnter={e => { if (!(bulkSelectedSponsors.length === 0 && !bulkSkipApproval)) e.currentTarget.style.backgroundColor = T.accentText; }}
+              onMouseLeave={e => { if (!(bulkSelectedSponsors.length === 0 && !bulkSkipApproval)) e.currentTarget.style.backgroundColor = T.accentText; }}
             >
               Aplicar em lote
             </button>
@@ -3774,17 +3774,17 @@ export default function VincularPatrocinadores() {
           <ModalHeader
             variant="confirm"
             icon={AlertTriangle}
-            tint="#b45309"
+            tint={TOM.alerta.text}
             title={resultadoDoLote?.titulo ?? 'Peças recusadas'}
             subtitle="Nenhuma dessas peças foi alterada — cada linha diz o porquê."
             onClose={() => setResultadoDoLote(null)}
           />
           <div style={{ padding: '14px 24px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
-          <div style={{ border: '1px solid #e7e5e4', borderRadius: 10 }}>
+          <div style={{ border: `1px solid ${T.border}`, borderRadius: 10 }}>
             {(resultadoDoLote?.recusadas ?? []).map((rec, i) => (
-              <div key={i} style={{ display: 'flex', gap: 10, padding: '9px 12px', borderBottom: '1px solid #f5f4f2', fontSize: 12.5 }}>
-                <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, color: '#c2410c', whiteSpace: 'nowrap' }}>{rec.displayId}</span>
-                <span style={{ color: '#44403c' }}>{rec.motivo}</span>
+              <div key={i} style={{ display: 'flex', gap: 10, padding: '9px 12px', borderBottom: `1px solid ${N.n3}`, fontSize: 12.5 }}>
+                <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, color: T.accentText, whiteSpace: 'nowrap' }}>{rec.displayId}</span>
+                <span style={{ color: T.strong }}>{rec.motivo}</span>
               </div>
             ))}
           </div>
@@ -3794,7 +3794,7 @@ export default function VincularPatrocinadores() {
               type="button"
               onClick={() => setResultadoDoLote(null)}
               data-testid="button-fechar-resultado-lote"
-              style={{ width: '100%', height: 44, borderRadius: R.md, border: 'none', backgroundColor: '#1c1917', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+              style={{ width: '100%', height: 44, borderRadius: R.md, border: 'none', backgroundColor: T.text, color: T.surface, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
             >
               Entendi
             </button>
@@ -3817,7 +3817,7 @@ export default function VincularPatrocinadores() {
           <DialogDescription className="sr-only">Revise as peças e os patrocinadores antes de enviar para a Arte</DialogDescription>
 
           {/* ── Hero Header ── */}
-          <div style={{ background: 'linear-gradient(135deg, #1c1917 0%, #292524 100%)', padding: '28px 32px 24px', position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
+          <div style={{ background: `linear-gradient(135deg, ${T.text} 0%, ${T.strong} 100%)`, padding: '28px 32px 24px', position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
             {/* decorative circle */}
             <div style={{ position: 'absolute', top: -40, right: -40, width: 180, height: 180, borderRadius: '50%', background: 'rgba(249,115,22,0.08)', pointerEvents: 'none' }} />
             <div style={{ position: 'absolute', bottom: -30, right: 40, width: 100, height: 100, borderRadius: '50%', background: 'rgba(249,115,22,0.05)', pointerEvents: 'none' }} />
@@ -3829,7 +3829,7 @@ export default function VincularPatrocinadores() {
               disabled={isSending}
               aria-label="Fechar"
               data-testid="button-close-send-modal"
-              style={{ position: 'absolute', top: 14, right: 14, width: 30, height: 30, borderRadius: R.sm, backgroundColor: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: isSending ? 'not-allowed' : 'pointer', opacity: isSending ? 0.5 : 1, zIndex: 1 }}
+              style={{ position: 'absolute', top: 14, right: 14, width: 30, height: 30, borderRadius: R.sm, backgroundColor: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)', color: T.surface, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: isSending ? 'not-allowed' : 'pointer', opacity: isSending ? 0.5 : 1, zIndex: 1 }}
               onMouseEnter={e => { if (!isSending) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.16)'; }}
               onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; }}
             >
@@ -3838,14 +3838,14 @@ export default function VincularPatrocinadores() {
 
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 18, position: 'relative' }}>
               {/* Icon badge */}
-              <div style={{ width: 52, height: 52, borderRadius: 12, background: 'linear-gradient(135deg, #c2410c, #9a3412)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 16px rgba(249,115,22,0.4)' }}>
-                <Send style={{ width: 22, height: 22, color: '#ffffff' }} />
+              <div style={{ width: 52, height: 52, borderRadius: 12, background: `linear-gradient(135deg, ${T.accentText}, ${T.accentText})`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 16px rgba(249,115,22,0.4)' }}>
+                <Send style={{ width: 22, height: 22, color: T.surface }} />
               </div>
               <div style={{ flex: 1 }}>
                 <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)', marginBottom: 4 }}>
                   Envio para a equipe de Arte
                 </p>
-                <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: '#ffffff', margin: 0, lineHeight: 1.1 }}>
+                <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: T.surface, margin: 0, lineHeight: 1.1 }}>
                   Enviar para Arte
                 </h2>
                 <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', marginTop: 6, lineHeight: 1.4 }}>
@@ -3855,7 +3855,7 @@ export default function VincularPatrocinadores() {
               {/* Count pill. marginRight abre espaço para o X do canto
                   (top:14/right:14/30px) — sem isso os dois se sobrepunham. */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px 18px', background: 'rgba(249,115,22,0.15)', border: '1px solid rgba(249,115,22,0.3)', borderRadius: 12, flexShrink: 0, marginRight: 30 }}>
-                <span style={{ fontSize: 26, fontWeight: 700, color: '#fb923c', fontFamily: 'Space Grotesk, sans-serif', lineHeight: 1 }}>
+                <span style={{ fontSize: 26, fontWeight: 700, color: TOM.laranja.dot, fontFamily: 'Space Grotesk, sans-serif', lineHeight: 1 }}>
                   {sendConfirmModal?.items.length ?? 0}
                 </span>
                 <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>
@@ -3904,7 +3904,7 @@ export default function VincularPatrocinadores() {
                           marginLeft: 'auto', flexShrink: 0,
                           height: isMobile ? 44 : 30, padding: '0 12px', borderRadius: R.sm,
                           backgroundColor: soSemPatrocinador ? '#fbbf24' : 'rgba(255,255,255,0.1)',
-                          color: soSemPatrocinador ? '#1c1917' : '#ffffff',
+                          color: soSemPatrocinador ? T.text : T.surface,
                           border: '1px solid rgba(251,191,36,0.4)', cursor: 'pointer',
                           font: 'inherit', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
                         }}
@@ -3949,30 +3949,30 @@ export default function VincularPatrocinadores() {
                   <div key={item.id} style={{
                     padding: '14px 16px',
                     borderRadius: 12,
-                    border: `1px solid ${hasSponsor ? '#e7e5e4' : '#fde68a'}`,
-                    backgroundColor: hasSponsor ? '#ffffff' : '#fffbeb',
+                    border: `1px solid ${hasSponsor ? T.border : TOM.alerta.border}`,
+                    backgroundColor: hasSponsor ? T.surface : TOM.alerta.bg,
                     display: 'flex',
                     gap: 12,
                     alignItems: 'flex-start',
                     transition: 'box-shadow 0.15s',
                   }}>
                     {/* Index number */}
-                    <div style={{ width: 26, height: 26, borderRadius: 6, background: hasSponsor ? '#f4f4f3' : '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: hasSponsor ? '#746e69' : '#92400e' }}>{idx + 1}</span>
+                    <div style={{ width: 26, height: 26, borderRadius: 6, background: hasSponsor ? T.low : TOM.alerta.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: hasSponsor ? T.second : TOM.alerta.text }}>{idx + 1}</span>
                     </div>
 
                     <div style={{ flex: 1, minWidth: 0 }}>
                       {/* Top row */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                        <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 11, fontWeight: 700, color: '#c2410c', flexShrink: 0, background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 6, padding: '1px 6px' }}>
+                        <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 11, fontWeight: 700, color: T.accentText, flexShrink: 0, background: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, borderRadius: 6, padding: '1px 6px' }}>
                           {item.displayId}
                         </span>
                         <SeloKit peca={item} style={{ flexShrink: 0 }} />
-                        <span style={{ fontSize: 13, fontWeight: 700, color: '#1a1c1c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
                           {item.type}
                         </span>
                         {eventName && (
-                          <span style={{ fontSize: 11, color: '#746e69', whiteSpace: 'nowrap', flexShrink: 0, background: '#f4f4f3', borderRadius: 6, padding: '2px 7px' }}>
+                          <span style={{ fontSize: 11, color: T.second, whiteSpace: 'nowrap', flexShrink: 0, background: T.low, borderRadius: 6, padding: '2px 7px' }}>
                             {eventName}
                           </span>
                         )}
@@ -3980,7 +3980,7 @@ export default function VincularPatrocinadores() {
 
                       {/* Description */}
                       {item.description && (
-                        <p style={{ fontSize: 11, color: '#746e69', marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <p style={{ fontSize: 11, color: T.second, marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {item.description}
                         </p>
                       )}
@@ -3994,21 +3994,21 @@ export default function VincularPatrocinadores() {
                               <span key={sp.id} style={{
                                 display: 'inline-flex', alignItems: 'center', gap: 5,
                                 padding: '3px 9px', borderRadius: 999,
-                                backgroundColor: isNew ? 'rgba(249,115,22,0.08)' : '#f4f4f3',
-                                border: `1px solid ${isNew ? 'rgba(249,115,22,0.35)' : '#e7e5e4'}`,
-                                fontSize: 11, fontWeight: 600, color: '#44403c',
+                                backgroundColor: isNew ? 'rgba(249,115,22,0.08)' : T.low,
+                                border: `1px solid ${isNew ? 'rgba(249,115,22,0.35)' : T.border}`,
+                                fontSize: 11, fontWeight: 600, color: T.strong,
                               }}>
-                                <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: isNew ? '#f97316' : '#a8a29e', flexShrink: 0 }} />
+                                <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: isNew ? T.accent : T.muted, flexShrink: 0 }} />
                                 {sp.name}
-                                {isNew && <span style={{ fontSize: 11, color: '#c2410c', fontWeight: 700, letterSpacing: '0.04em' }}>+NOVO</span>}
+                                {isNew && <span style={{ fontSize: 11, color: T.accentText, fontWeight: 700, letterSpacing: '0.04em' }}>+NOVO</span>}
                               </span>
                             );
                           })}
                         </div>
                       ) : (
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, backgroundColor: '#fef3c7', border: '1px solid #fde68a' }}>
-                          <AlertTriangle style={{ width: 10, height: 10, color: '#d97706', flexShrink: 0 }} />
-                          <span style={{ fontSize: 11, color: '#92400e', fontWeight: 600 }}>Sem patrocinadores vinculados</span>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}` }}>
+                          <AlertTriangle style={{ width: 10, height: 10, color: TOM.alerta.text, flexShrink: 0 }} />
+                          <span style={{ fontSize: 11, color: TOM.alerta.text, fontWeight: 600 }}>Sem patrocinadores vinculados</span>
                         </div>
                       )}
                     </div>
@@ -4016,8 +4016,8 @@ export default function VincularPatrocinadores() {
                     {/* Check/warn icon */}
                     <div style={{ flexShrink: 0, marginTop: 2 }}>
                       {hasSponsor
-                        ? <CheckCircle2 style={{ width: 16, height: 16, color: '#22c55e' }} />
-                        : <AlertTriangle style={{ width: 16, height: 16, color: '#f59e0b' }} />
+                        ? <CheckCircle2 style={{ width: 16, height: 16, color: TOM.sucesso.dot }} />
+                        : <AlertTriangle style={{ width: 16, height: 16, color: TOM.alerta.dot }} />
                       }
                     </div>
                   </div>
@@ -4027,22 +4027,22 @@ export default function VincularPatrocinadores() {
           </ScrollArea>
 
           {/* ── Footer ── */}
-          <div style={{ flexShrink: 0, padding: '18px 32px', borderTop: '1px solid #eeeeed', backgroundColor: '#fafaf9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ flexShrink: 0, padding: '18px 32px', borderTop: `1px solid ${T.border}`, backgroundColor: T.bg, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             {/* A consequência é a saída daqui, não só a chegada lá: a peça
                 deixa esta tela e não volta a aparecer nela. */}
             {/* Dizia "as peças saem desta tela" — e não saem: ficam aqui como
                 Enviado, travadas. A frase agora diz o que acontece de fato e
                 quem age a seguir. */}
-            <p style={{ fontSize: 12, color: '#57534e', lineHeight: 1.45, maxWidth: 340 }}>
+            <p style={{ fontSize: 12, color: T.apoio, lineHeight: 1.45, maxWidth: 340 }}>
               As peças entram na fila da Arte, que faz o layout para os patrocinadores aprovarem. Aqui elas ficam como Enviado.
             </p>
             <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
               <button
                 onClick={() => setSendConfirmModal(null)}
                 disabled={!!isSending}
-                style={{ padding: '11px 22px', background: '#ffffff', border: '1.5px solid #d6d3d1', borderRadius: 12, fontSize: 13, fontWeight: 600, color: '#44403c', cursor: isSending ? 'not-allowed' : 'pointer', transition: 'background 0.15s', opacity: isSending ? 0.5 : 1 }}
-                onMouseEnter={e => { if (!isSending) e.currentTarget.style.background = '#f5f5f4'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; }}
+                style={{ padding: '11px 22px', background: T.surface, border: `1.5px solid ${T.bdark}`, borderRadius: 12, fontSize: 13, fontWeight: 600, color: T.strong, cursor: isSending ? 'not-allowed' : 'pointer', transition: 'background 0.15s', opacity: isSending ? 0.5 : 1 }}
+                onMouseEnter={e => { if (!isSending) e.currentTarget.style.background = N.n2; }}
+                onMouseLeave={e => { e.currentTarget.style.background = T.surface; }}
               >
                 Cancelar
               </button>
@@ -4051,8 +4051,8 @@ export default function VincularPatrocinadores() {
                 disabled={isSending || sendToArteMutation.isPending}
                 style={{
                   padding: '11px 26px',
-                  background: (isSending || sendToArteMutation.isPending) ? '#f5f5f4' : 'linear-gradient(135deg, #c2410c, #9a3412)',
-                  color: (isSending || sendToArteMutation.isPending) ? '#57534e' : '#ffffff',
+                  background: (isSending || sendToArteMutation.isPending) ? N.n2 : `linear-gradient(135deg, ${T.accentText}, ${T.accentText})`,
+                  color: (isSending || sendToArteMutation.isPending) ? T.apoio : T.surface,
                   border: 'none', borderRadius: R.md,
                   fontSize: 15, fontWeight: 700, cursor: (isSending || sendToArteMutation.isPending) ? 'wait' : 'pointer',
                   display: 'flex', alignItems: 'center', gap: 9,
@@ -4062,8 +4062,8 @@ export default function VincularPatrocinadores() {
                 }}
                 /* Escurece em vez de clarear: brightness(1.08) sobre o laranja
                    reduzia o contraste do rótulo branco justo ao apontar. */
-                onMouseEnter={e => { if (!(isSending || sendToArteMutation.isPending)) e.currentTarget.style.background = 'linear-gradient(135deg, #9a3412, #7c2d12)'; }}
-                onMouseLeave={e => { if (!(isSending || sendToArteMutation.isPending)) e.currentTarget.style.background = 'linear-gradient(135deg, #c2410c, #9a3412)'; }}
+                onMouseEnter={e => { if (!(isSending || sendToArteMutation.isPending)) e.currentTarget.style.background = `linear-gradient(135deg, ${T.accentText}, ${TOM.laranja.text})`; }}
+                onMouseLeave={e => { if (!(isSending || sendToArteMutation.isPending)) e.currentTarget.style.background = `linear-gradient(135deg, ${T.accentText}, ${T.accentText})`; }}
               >
                 <Send style={{ width: 15, height: 15 }} />
                 {(isSending || sendToArteMutation.isPending)

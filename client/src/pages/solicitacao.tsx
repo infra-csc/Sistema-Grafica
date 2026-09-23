@@ -45,16 +45,16 @@ import {
   aguardandoEstoque, chaveDaConsulta, estoqueRespondeu, useConsultaDaPeca, useEstoqueDaRevisao,
 } from "@/components/consulta-de-estoque/na-revisao";
 import { SOLICITACAO_AO_ESTOQUE_ATIVA, propostaDaLiberacao, respostaEsperandoConfirmar, resumoDoLoteComEstoque } from "@shared/consultas-de-estoque";
-import { FS } from "@/lib/theme";
+import { T, TOM, N, FS } from "@/lib/theme";
 import { hrefSeguro } from "@shared/url-segura";
 
 // Tons de texto desta paleta valem para superfícies CLARAS (bg/surface).
 // Sobre os painéis escuros (#0c0a09/#1c1917) use #a8a29e ou mais claro —
 // #746e69 e #57534e reprovam WCAG AA nesses fundos.
 const TI = {
-  bg: "#fafaf9", surface: "#ffffff", border: "#e7e5e4",
-  text: "#1c1917", secondary: "#746e69", muted: "#a8a29e",
-  accent: "#f97316", dark: "#0c0a09",
+  bg: T.bg, surface: T.surface, border: T.border,
+  text: T.text, secondary: T.second, muted: T.muted,
+  accent: T.accent, dark: T.text,
 };
 
 // Status que esta tela revisa. O vocabulário canônico (rótulo/cores) vive em
@@ -99,16 +99,16 @@ async function buscarPecaAtual(id: string): Promise<any | null> {
 // `dot` (tom saturado 500) é só da bolinha; `text` (tom escuro 700, AA sobre
 // fundo claro) é o que vai no rótulo — mesma disciplina do StatusMeta.
 const NON_STATUS_LOG_CFG: Record<string, { label: string; dot: string; text: string }> = {
-  updated:          { label: "Atualizado",            dot: "#f97316", text: "#c2410c" },
-  rejected:         { label: "Reprovado",             dot: "#ef4444", text: "#b91c1c" },
-  submitted:        { label: "Enviado",               dot: "#0e7490", text: "#0e7490" },
-  linked:           { label: "Vinculado",             dot: "#0f766e", text: "#0f766e" },
-  released:         { label: "Liberado",              dot: "#3b82f6", text: "#1d4ed8" },
-  status_changed:   { label: "Status alterado",       dot: "#f97316", text: "#c2410c" },
-  sponsor_approved: { label: "Patrocinador aprovado", dot: "#10b981", text: "#047857" },
-  sponsor_rejected: { label: "Patrocinador reprovou", dot: "#ef4444", text: "#b91c1c" },
-  file_uploaded:    { label: "Arquivo enviado",       dot: "#7e22ce", text: "#7e22ce" },
-  thumb_uploaded:   { label: "Thumb enviado",         dot: "#7e22ce", text: "#7e22ce" },
+  updated:          { label: "Atualizado",            dot: T.accent, text: T.accentText },
+  rejected:         { label: "Reprovado",             dot: TOM.perigo.dot, text: TOM.perigo.text },
+  submitted:        { label: "Enviado",               dot: TOM.ciano.text, text: TOM.ciano.text },
+  linked:           { label: "Vinculado",             dot: TOM.turquesa.text, text: TOM.turquesa.text },
+  released:         { label: "Liberado",              dot: TOM.info.dot, text: TOM.info.text },
+  status_changed:   { label: "Status alterado",       dot: T.accent, text: T.accentText },
+  sponsor_approved: { label: "Patrocinador aprovado", dot: TOM.esmeralda.dot, text: TOM.esmeralda.text },
+  sponsor_rejected: { label: "Patrocinador reprovou", dot: TOM.perigo.dot, text: TOM.perigo.text },
+  file_uploaded:    { label: "Arquivo enviado",       dot: TOM.roxo.text, text: TOM.roxo.text },
+  thumb_uploaded:   { label: "Thumb enviado",         dot: TOM.roxo.text, text: TOM.roxo.text },
 };
 
 function getLogCfg(log: any): { label: string; dot: string; text: string } {
@@ -118,7 +118,7 @@ function getLogCfg(log: any): { label: string; dot: string; text: string } {
     return { label: m.label, dot: m.dot, text: m.text };
   }
   if (action && NON_STATUS_LOG_CFG[action]) return NON_STATUS_LOG_CFG[action];
-  return { label: action?.replace(/_/g, " ") ?? log?.details ?? "Ação", dot: "#a8a29e", text: "#746e69" };
+  return { label: action?.replace(/_/g, " ") ?? log?.details ?? "Ação", dot: T.muted, text: T.second };
 }
 
 // ── O recorte na URL ────────────────────────────────────────────────────────
@@ -310,7 +310,7 @@ export default function Solicitacao() {
      A opção destrutiva NÃO é a padrão e avisa o que perde. */
   const seletorDestino = (
     <div style={{ marginBottom: 12 }}>
-      <p style={{ margin: "0 0 6px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#57534e" }}>
+      <p style={{ margin: "0 0 6px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: T.apoio }}>
         O que a Arte precisa refazer?
       </p>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -330,23 +330,23 @@ export default function Solicitacao() {
               data-testid={`destino-${op.valor}`}
               style={{
                 textAlign: "left", cursor: "pointer", borderRadius: 8, padding: "9px 11px",
-                border: `1.5px solid ${ativo ? "#c2410c" : "#e7e5e4"}`,
-                background: ativo ? "#fff7ed" : "#ffffff",
+                border: `1.5px solid ${ativo ? T.accentText : T.border}`,
+                background: ativo ? TOM.laranja.bg : T.surface,
                 display: "flex", gap: 9, alignItems: "flex-start", font: "inherit",
               }}
             >
               <span aria-hidden="true" style={{
                 width: 14, height: 14, borderRadius: "50%", flexShrink: 0, marginTop: 2,
-                border: `1.5px solid ${ativo ? "#c2410c" : "#d6d3d1"}`,
-                background: ativo ? "#c2410c" : "transparent",
-                boxShadow: ativo ? "inset 0 0 0 2.5px #ffffff" : "none",
+                border: `1.5px solid ${ativo ? T.accentText : T.bdark}`,
+                background: ativo ? T.accentText : "transparent",
+                boxShadow: ativo ? `inset 0 0 0 2.5px ${T.surface}` : "none",
               }} />
               <span style={{ minWidth: 0 }}>
                 {/* #c2410c sobre #fff7ed = 4,88:1 ✓ · #57534e sobre branco = 7,03:1 ✓ */}
-                <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: ativo ? "#c2410c" : "#1c1917" }}>
+                <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: ativo ? T.accentText : T.text }}>
                   {op.titulo}
                 </span>
-                <span style={{ display: "block", fontSize: 11, color: "#57534e", lineHeight: 1.4, marginTop: 1 }}>
+                <span style={{ display: "block", fontSize: 11, color: T.apoio, lineHeight: 1.4, marginTop: 1 }}>
                   {op.desc}
                 </span>
               </span>
@@ -405,7 +405,7 @@ export default function Solicitacao() {
   const contadorDoMotivo = (t: string) => {
     const falta = Math.max(0, MOTIVO_MIN - t.trim().replace(/\s+/g, " ").length);
     return (
-      <p aria-live="polite" style={{ margin: "4px 0 0", fontSize: 12, lineHeight: 1.4, color: falta > 0 ? "#92400e" : "#047857" }}>
+      <p aria-live="polite" style={{ margin: "4px 0 0", fontSize: 12, lineHeight: 1.4, color: falta > 0 ? TOM.alerta.text : TOM.esmeralda.text }}>
         {falta > 0 ? `Faltam ${falta} ${falta === 1 ? "caractere" : "caracteres"} — a Arte precisa saber o que corrigir.` : "Motivo pronto."}
       </p>
     );
@@ -976,7 +976,7 @@ export default function Solicitacao() {
     <span
       data-testid={`badge-travada-${onde}-${item.id}`}
       title={fraseDaTrava(item)}
-      style={{ display: "inline-flex", alignItems: "center", gap: 4, maxWidth: "100%", fontSize: 11, fontWeight: 700, color: "#7f1d1d", backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 999, padding: "1px 8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0 }}
+      style={{ display: "inline-flex", alignItems: "center", gap: 4, maxWidth: "100%", fontSize: 11, fontWeight: 700, color: TOM.perigo.text, backgroundColor: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}`, borderRadius: 999, padding: "1px 8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0 }}
     >
       <Lock aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0 }} />
       <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{seloDaTrava(item)}</span>
@@ -984,7 +984,7 @@ export default function Solicitacao() {
   ) : null;
   // O MOTIVO da última recusa num lote, escrito na linha (#b91c1c = 6,5:1).
   const falhaNaLinha = (item: any) => falhasPorId[item.id] ? (
-    <p role="status" data-testid={`falha-lote-${item.id}`} style={{ flexBasis: "100%", margin: "4px 0 0", fontSize: 12, lineHeight: 1.4, color: "#b91c1c", fontWeight: 600, overflowWrap: "anywhere" }}>
+    <p role="status" data-testid={`falha-lote-${item.id}`} style={{ flexBasis: "100%", margin: "4px 0 0", fontSize: 12, lineHeight: 1.4, color: TOM.perigo.text, fontWeight: 600, overflowWrap: "anywhere" }}>
       {falhasPorId[item.id]}
     </p>
   ) : null;
@@ -1415,7 +1415,7 @@ export default function Solicitacao() {
     return (
       <div role="status" style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center", justifyContent: "center", height: "100%" }}>
         <div aria-hidden="true" className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: TI.accent }} />
-        <p style={{ margin: 0, fontSize: 13, color: "#57534e" }}>Carregando a fila de revisão…</p>
+        <p style={{ margin: 0, fontSize: 13, color: T.apoio }}>Carregando a fila de revisão…</p>
       </div>
     );
   }
@@ -1423,7 +1423,7 @@ export default function Solicitacao() {
   if (itemsError || eventsError) {
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12, textAlign: "center", padding: "0 24px" }}>
-        <p role="alert" style={{ fontSize: 15, fontWeight: 700, color: "#b91c1c", margin: 0 }}>
+        <p role="alert" style={{ fontSize: 15, fontWeight: 700, color: TOM.perigo.text, margin: 0 }}>
           {itemsError ? "Não foi possível carregar as peças" : "Não foi possível carregar os eventos"}
         </p>
         <p style={{ fontSize: 13, color: TI.secondary, margin: 0 }}>Verifique sua conexão e tente novamente.</p>
@@ -1461,7 +1461,7 @@ export default function Solicitacao() {
               Revisão Final
             </h1>
             {/* #57534e e não o TI.secondary: em 13px a régua da casa é 4,5:1. */}
-            <p data-testid="frase-resolucao" style={{ margin: "4px 0 0", fontSize: 13, color: "#57534e", maxWidth: 620, lineHeight: 1.5 }}>
+            <p data-testid="frase-resolucao" style={{ margin: "4px 0 0", fontSize: 13, color: T.apoio, maxWidth: 620, lineHeight: 1.5 }}>
               {fraseDeResolucao}
             </p>
             {/* O QUE É ESTA TELA, numa linha. A rodada de 13/09 tirou a
@@ -1470,10 +1470,10 @@ export default function Solicitacao() {
                 dizer, nem para onde a peça vai depois do clique. Uma linha
                 curta, em tom secundário, responde as duas coisas sem competir
                 com a frase de resolução. */}
-            <p data-testid="explicacao-revisao" style={{ margin: "2px 0 0", fontSize: 12, color: "#57534e", maxWidth: 680, lineHeight: 1.5 }}>
+            <p data-testid="explicacao-revisao" style={{ margin: "2px 0 0", fontSize: 12, color: T.apoio, maxWidth: 680, lineHeight: 1.5 }}>
               Última conferência antes da Gráfica: compare o aprovado pelo patrocinador com o arquivo final da Arte.
-              {" "}<strong style={{ fontWeight: 700, color: "#44403c" }}>Liberar</strong> manda para a fila da Gráfica;
-              {" "}<strong style={{ fontWeight: 700, color: "#44403c" }}>Devolver</strong> volta para a Arte com o seu motivo.
+              {" "}<strong style={{ fontWeight: 700, color: T.strong }}>Liberar</strong> manda para a fila da Gráfica;
+              {" "}<strong style={{ fontWeight: 700, color: T.strong }}>Devolver</strong> volta para a Arte com o seu motivo.
             </p>
           </div>
 
@@ -1494,12 +1494,12 @@ export default function Solicitacao() {
               style={{
                 display: "inline-flex", alignItems: "center", gap: 7, flexShrink: 0,
                 height: 40, padding: "0 14px", borderRadius: 8,
-                border: "1px solid #d6d3d1", backgroundColor: "#fff", color: "#44403c",
+                border: `1px solid ${T.bdark}`, backgroundColor: "#fff", color: T.strong,
                 cursor: avisarRevisaoMutation.isPending ? "wait" : "pointer",
                 font: "inherit", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap",
                 opacity: avisarRevisaoMutation.isPending ? 0.6 : 1,
               }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#fafaf9"; }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.bg; }}
               onMouseLeave={e => { e.currentTarget.style.backgroundColor = "#fff"; }}
             >
               <Mail aria-hidden="true" style={{ width: 15, height: 15 }} />
@@ -1514,11 +1514,11 @@ export default function Solicitacao() {
               style={{
                 display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0,
                 height: 40, padding: "0 18px", borderRadius: 8, border: "none",
-                backgroundColor: "#1c1917", color: "#fff", cursor: "pointer",
+                backgroundColor: T.text, color: "#fff", cursor: "pointer",
                 font: "inherit", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap",
               }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#292524"; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = "#1c1917"; }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.strong; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = T.text; }}
             >
               <Eye aria-hidden="true" style={{ width: 15, height: 15 }} />
               Revisar em fila ({filteredItems.length})
@@ -1550,7 +1550,7 @@ export default function Solicitacao() {
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               data-testid="input-search"
-              style={{ width: "100%", height: alturaControle, paddingLeft: 34, paddingRight: searchTerm ? 40 : 12, backgroundColor: "#f3f4f3", border: "none", borderRadius: 8, fontSize: isMobile ? 16 : 13, color: TI.text, boxSizing: "border-box" }}
+              style={{ width: "100%", height: alturaControle, paddingLeft: 34, paddingRight: searchTerm ? 40 : 12, backgroundColor: T.low, border: "none", borderRadius: 8, fontSize: isMobile ? 16 : 13, color: TI.text, boxSizing: "border-box" }}
             />
             {searchTerm && (
               <button type="button" onClick={() => { setSearchTerm(""); searchRef.current?.focus(); }} aria-label="Limpar busca" style={{ position: "absolute", right: 2, top: "50%", transform: "translateY(-50%)", width: isMobile ? 40 : 30, height: isMobile ? 40 : 30, background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: TI.secondary, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1573,7 +1573,7 @@ export default function Solicitacao() {
             options={typeFilterOptions}
             searchPlaceholder="Buscar tipo..." emptyText="Nenhum tipo encontrado."
             testId="select-type-filter"
-            triggerStyle={{ backgroundColor: "#f3f4f3", border: "none", fontSize: 13, color: TI.text, minWidth: 150 }}
+            triggerStyle={{ backgroundColor: T.low, border: "none", fontSize: 13, color: TI.text, minWidth: 150 }}
           />
 
           {/* ── OS DOIS CHIPS DE FACETA ──
@@ -1587,12 +1587,12 @@ export default function Solicitacao() {
               vazia sem dizer por que. Fica se ja estiver ligado, senao o chip
               sumiria com o filtro aceso e nao haveria como apaga-lo. */}
           {([
-            { id: "sem-arquivo", rotulo: "Sem arquivo final", n: contagemSemArquivo, ligado: soSemArquivo, alterna: () => setSoSemArquivo(v => !v), cor: "#9a3412", testid: "chip-sem-arquivo" },
-            { id: "evento-finalizado", rotulo: "Evento finalizado", n: contagemEventoFinalizado, ligado: soEventoFinalizado, alterna: () => setSoEventoFinalizado(v => !v), cor: "#78716c", testid: "chip-evento-finalizado-faceta" },
+            { id: "sem-arquivo", rotulo: "Sem arquivo final", n: contagemSemArquivo, ligado: soSemArquivo, alterna: () => setSoSemArquivo(v => !v), cor: T.accentText, testid: "chip-sem-arquivo" },
+            { id: "evento-finalizado", rotulo: "Evento finalizado", n: contagemEventoFinalizado, ligado: soEventoFinalizado, alterna: () => setSoEventoFinalizado(v => !v), cor: T.second, testid: "chip-evento-finalizado-faceta" },
             // Solicitação ao estoque: só com a chave ligada (dono, 21/09 — segurar).
             ...(SOLICITACAO_AO_ESTOQUE_ATIVA ? [
-            { id: "estoque-respondeu", rotulo: "Estoque respondeu", n: contagemDoEstoque.respondeu, ligado: filtroEstoque === "respondeu", alterna: () => setFiltroEstoque(v => (v === "respondeu" ? "" : "respondeu")), cor: "#15803d", testid: "chip-estoque-respondeu" },
-            { id: "aguardando-estoque", rotulo: "Aguardando estoque", n: contagemDoEstoque.aguardando, ligado: filtroEstoque === "aguardando", alterna: () => setFiltroEstoque(v => (v === "aguardando" ? "" : "aguardando")), cor: "#d97706", testid: "chip-aguardando-estoque" },
+            { id: "estoque-respondeu", rotulo: "Estoque respondeu", n: contagemDoEstoque.respondeu, ligado: filtroEstoque === "respondeu", alterna: () => setFiltroEstoque(v => (v === "respondeu" ? "" : "respondeu")), cor: TOM.sucesso.text, testid: "chip-estoque-respondeu" },
+            { id: "aguardando-estoque", rotulo: "Aguardando estoque", n: contagemDoEstoque.aguardando, ligado: filtroEstoque === "aguardando", alterna: () => setFiltroEstoque(v => (v === "aguardando" ? "" : "aguardando")), cor: TOM.alerta.text, testid: "chip-aguardando-estoque" },
             ] : []),
           ]).map(chip => {
             if (chip.n === 0 && !chip.ligado) return null;
@@ -1607,9 +1607,9 @@ export default function Solicitacao() {
                 style={{
                   display: "inline-flex", alignItems: "center", gap: 7,
                   height: alturaControle, padding: "0 12px", borderRadius: 999,
-                  border: `1px solid ${chip.ligado ? "#1c1917" : "#e7e5e4"}`,
-                  backgroundColor: chip.ligado ? "#1c1917" : "#fff",
-                  color: chip.ligado ? "#fff" : "#44403c",
+                  border: `1px solid ${chip.ligado ? T.text : T.border}`,
+                  backgroundColor: chip.ligado ? T.text : "#fff",
+                  color: chip.ligado ? "#fff" : T.strong,
                   cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap",
                 }}
               >
@@ -1674,14 +1674,14 @@ export default function Solicitacao() {
           <div style={{ maxWidth: 1200, margin: "10px auto 0", display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
             <span
               data-testid="chip-selecao"
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, height: alturaControle, padding: "0 6px 0 12px", borderRadius: 999, background: "#1c1917", color: "#ffffff", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, height: alturaControle, padding: "0 6px 0 12px", borderRadius: 999, background: T.text, color: T.surface, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}
             >
               {selecaoLote.ids.length} {selecaoLote.ids.length === 1 ? "selecionada" : "selecionadas"}
               <button
                 onClick={() => setSelectedItemIds(new Set())}
                 aria-label="Limpar seleção"
                 data-testid="button-clear-selection"
-                style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(255,255,255,0.16)", border: "none", cursor: "pointer", color: "#ffffff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+                style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(255,255,255,0.16)", border: "none", cursor: "pointer", color: T.surface, display: "inline-flex", alignItems: "center", justifyContent: "center" }}
               >
                 <X style={{ width: 12, height: 12 }} />
               </button>
@@ -1706,7 +1706,7 @@ export default function Solicitacao() {
                   de fora, com o motivo na linha. "Liberar as 9 prontas" diz o
                   desconto antes do clique. #ffffff sobre #9d4300 = 6,49:1 ✓ */}
               {selecaoLote.vivas.length > 0 && loteDeLiberar.prontas.length === 0 && (
-                <span role="status" data-testid="aviso-lote-nenhuma-pronta" style={{ alignSelf: "center", fontSize: 12, color: "#92400e" }}>
+                <span role="status" data-testid="aviso-lote-nenhuma-pronta" style={{ alignSelf: "center", fontSize: 12, color: TOM.alerta.text }}>
                   Nenhuma pronta para liberar: {loteDeLiberar.nFora === 1 ? "a selecionada está" : "as selecionadas estão"} sem arquivo final ou travada{loteDeLiberar.nFora === 1 ? "" : "s"}.
                 </span>
               )}
@@ -1719,8 +1719,8 @@ export default function Solicitacao() {
                 data-testid="button-bulk-release-hero"
                 style={{
                   height: alturaControle, padding: "0 14px", borderRadius: 8, border: "none",
-                  backgroundColor: loteDeLiberar.prontas.length === 0 ? "#e7e5e4" : "#9d4300",
-                  color: loteDeLiberar.prontas.length === 0 ? "#78716c" : "#ffffff",
+                  backgroundColor: loteDeLiberar.prontas.length === 0 ? T.border : T.accentText,
+                  color: loteDeLiberar.prontas.length === 0 ? T.second : T.surface,
                   fontSize: 13, fontWeight: 700, whiteSpace: "nowrap",
                   cursor: loteDeLiberar.prontas.length === 0 || bulkReleaseMutation.isPending ? "not-allowed" : "pointer",
                 }}>
@@ -1740,7 +1740,7 @@ export default function Solicitacao() {
                 style={{
                   height: alturaControle, padding: "0 14px", borderRadius: 8,
                   border: `1px solid ${TI.border}`, backgroundColor: TI.surface,
-                  color: selecaoLote.vivas.length === 0 ? "#78716c" : "#44403c",
+                  color: selecaoLote.vivas.length === 0 ? T.second : T.strong,
                   fontSize: 13, fontWeight: 700, whiteSpace: "nowrap",
                   cursor: selecaoLote.vivas.length === 0 || bulkReturnMutation.isPending ? "not-allowed" : "pointer",
                 }}>
@@ -1762,9 +1762,9 @@ export default function Solicitacao() {
                   data-testid="button-bulk-reuse-hero"
                   style={{
                     height: alturaControle, padding: "0 14px", borderRadius: 8,
-                    border: `1px solid ${selecaoLote.vivas.length === 0 ? TI.border : "#86efac"}`,
-                    backgroundColor: selecaoLote.vivas.length === 0 ? TI.surface : "#f0fdf4",
-                    color: selecaoLote.vivas.length === 0 ? "#78716c" : "#15803d",
+                    border: `1px solid ${selecaoLote.vivas.length === 0 ? TI.border : TOM.sucesso.border}`,
+                    backgroundColor: selecaoLote.vivas.length === 0 ? TI.surface : TOM.sucesso.bg,
+                    color: selecaoLote.vivas.length === 0 ? T.second : TOM.sucesso.text,
                     fontSize: 13, fontWeight: 700, whiteSpace: "nowrap",
                     cursor: selecaoLote.vivas.length === 0 || bulkReuseMutation.isPending ? "not-allowed" : "pointer",
                   }}>
@@ -1784,12 +1784,12 @@ export default function Solicitacao() {
           /* DOIS VAZIOS DIFERENTES. "Tudo revisado" é conquista (verde, texto
              escuro); "nada neste recorte" é filtro demais — e precisa da saída
              ali mesmo, sem subir até a barra para achar o "Limpar filtros". */
-          <div style={{ backgroundColor: "#fff", border: "1px solid #e7e5e4", borderRadius: 8, textAlign: "center", padding: isMobile ? "48px 20px" : "80px 24px" }}>
-            <CheckCircle aria-hidden="true" style={{ width: 48, height: 48, color: pendingItems.length === 0 ? "#15803d" : "#d1cfce", margin: "0 auto 16px" }} />
+          <div style={{ backgroundColor: "#fff", border: `1px solid ${T.border}`, borderRadius: 8, textAlign: "center", padding: isMobile ? "48px 20px" : "80px 24px" }}>
+            <CheckCircle aria-hidden="true" style={{ width: 48, height: 48, color: pendingItems.length === 0 ? TOM.sucesso.text : T.bdark, margin: "0 auto 16px" }} />
             <p style={{ fontSize: 15, fontWeight: 700, color: TI.text, margin: "0 0 8px" }}>
               {pendingItems.length === 0 ? "Tudo revisado!" : "Nenhuma peça neste recorte"}
             </p>
-            <p style={{ fontSize: 13, color: "#57534e", margin: 0 }}>
+            <p style={{ fontSize: 13, color: T.apoio, margin: 0 }}>
               {pendingItems.length === 0
                 ? "Não há peças aguardando revisão no momento."
                 : `${pendingItems.length} ${pendingItems.length === 1 ? "peça aguardando revisão ficou" : "peças aguardando revisão ficaram"} fora da busca e dos filtros.`}
@@ -1797,7 +1797,7 @@ export default function Solicitacao() {
             {/* "POR QUE A PEÇA NÃO ESTÁ AQUI?" — a pergunta de quem chega
                 procurando uma peça específica. A resposta é a regra de entrada
                 da fila, dita onde a ausência é notada. */}
-            <p data-testid="regra-da-fila-revisao" style={{ fontSize: 12, color: "#57534e", margin: "10px auto 0", maxWidth: 460, lineHeight: 1.5 }}>
+            <p data-testid="regra-da-fila-revisao" style={{ fontSize: 12, color: T.apoio, margin: "10px auto 0", maxWidth: 460, lineHeight: 1.5 }}>
               Aqui só entram peças que a Arte mandou para a revisão final. Peça ainda em criação na Arte, em aprovação do patrocinador
               ou já liberada para a Gráfica não aparece — abra o evento dela para ver em que etapa está.
               {user?.role === "solicitacao" && !user?.kit ? " Peças do Kit são revisadas pela equipe do Kit." : ""}
@@ -1807,7 +1807,7 @@ export default function Solicitacao() {
                 type="button"
                 onClick={() => { setSearchTerm(""); setEventFilter([]); setItemTypeFilter([]); setSoSemArquivo(false); setSoEventoFinalizado(false); }}
                 data-testid="button-clear-filters-empty"
-                style={{ marginTop: 16, height: alturaControle, padding: "0 16px", borderRadius: 8, border: "1px solid #e7e5e4", backgroundColor: "#fff", color: TI.text, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+                style={{ marginTop: 16, height: alturaControle, padding: "0 16px", borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: "#fff", color: TI.text, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
               >
                 Limpar filtros
               </button>
@@ -1820,15 +1820,15 @@ export default function Solicitacao() {
               return (
                 <div key={eventKey} style={{marginBottom:16}}>
                   {/* Event header */}
-                  <div style={{padding:"8px 0 6px", borderBottom:"2px solid #f97316", marginBottom:8}}>
-                    <span style={{fontSize:11,fontWeight:900,textTransform:"uppercase",letterSpacing:"0.08em",color:"#746e69"}}>{evInfo?.name || "Sem Evento"}</span>
+                  <div style={{padding:"8px 0 6px", borderBottom:`2px solid ${T.accent}`, marginBottom:8}}>
+                    <span style={{fontSize:11,fontWeight:900,textTransform:"uppercase",letterSpacing:"0.08em",color:T.second}}>{evInfo?.name || "Sem Evento"}</span>
                   </div>
                   {eventItems.map((item:any) => (
                     /* Card mobile: o checkbox fica FORA do alvo role="button"
                        (checkbox aninhado em botão é estrutura inválida para
                        leitor de tela); o corpo do card segue abrindo o modal
                        por toque, Enter e Espaço. */
-                    <div key={item.id} style={{position:"relative",backgroundColor:"#fff",border:"1px solid #e7e5e4",borderRadius:8,marginBottom:8}}>
+                    <div key={item.id} style={{position:"relative",backgroundColor:"#fff",border:`1px solid ${T.border}`,borderRadius:8,marginBottom:8}}>
                       {/* ALVO de 44, CAIXA de 20. Este checkbox e a unica porta
                           para "Liberar selecionadas" / "Devolver selecionadas"
                           no celular, e tinha 20px de lado — metade do piso de
@@ -1843,7 +1843,7 @@ export default function Solicitacao() {
                           checked={selectedItemIds.has(item.id)}
                           onChange={()=>toggleItem(item.id)}
                           aria-label={`Selecionar ${item.displayId}`}
-                          style={{accentColor:"#f97316",width:20,height:20,cursor:"pointer"}}
+                          style={{accentColor:T.accent,width:20,height:20,cursor:"pointer"}}
                         />
                       </label>
                       <div
@@ -1858,7 +1858,7 @@ export default function Solicitacao() {
                         onClick={() => openModal(item)}
                         style={{padding:"12px",cursor:"pointer",display:"flex",flexDirection:"column",gap:6}}>
                         <div style={{display:"flex",justifyContent:"flex-start",alignItems:"center",gap:6,flexWrap:"wrap",paddingRight:44}}>
-                          <span style={{fontFamily:"monospace",fontWeight:700,color:"#c2410c",fontSize:13}}>{item.displayId}</span>
+                          <span style={{fontFamily:"monospace",fontWeight:700,color:T.accentText,fontSize:13}}>{item.displayId}</span>
                           <SeloKit peca={item} />
                           <SeloDoEstoqueNaLinha linha={estoquePorPeca.get(item.id)} />
                           {/* EVENTO FINALIZADO — a peça voltou para a fila (ver
@@ -1881,10 +1881,10 @@ export default function Solicitacao() {
                         </div>
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
                           <div style={{flex:1}}>
-                            <span style={{fontSize:13,fontWeight:700,color:"#1c1917"}}>{item.type}</span>
-                            {item.description && <p style={{fontSize:13,color:"#746e69",margin:"2px 0 0"}}>{item.description}</p>}
+                            <span style={{fontSize:13,fontWeight:700,color:T.text}}>{item.type}</span>
+                            {item.description && <p style={{fontSize:13,color:T.second,margin:"2px 0 0"}}>{item.description}</p>}
                           </div>
-                          <span style={{fontSize:10,fontWeight:700,color:"#746e69",whiteSpace:"nowrap"}}>{item.quantity}×</span>
+                          <span style={{fontSize:10,fontWeight:700,color:T.second,whiteSpace:"nowrap"}}>{item.quantity}×</span>
                         </div>
                         {/* O ARQUIVO FINAL também no celular. No desktop ele tem
                             coluna própria (decide se a peça é revisável); no
@@ -1892,22 +1892,22 @@ export default function Solicitacao() {
                         <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
                           {ehMolde(item) ? (
                             <>
-                              <span data-testid={`chip-arquivo-mobile-${item.id}`} title="Molde não tem arquivo final — libera só com o thumb" style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:999,backgroundColor:"#f5f5f4",border:"1px solid #d6d3d1",color:"#44403c"}}>
+                              <span data-testid={`chip-arquivo-mobile-${item.id}`} title="Molde não tem arquivo final — libera só com o thumb" style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:999,backgroundColor:N.n2,border:`1px solid ${T.bdark}`,color:T.strong}}>
                                 Molde · sem arquivo final
                               </span>
                               {/* Prazo do molde (22/09): só o fluxo do molde o lê. */}
                               <SeloPrazoMolde item={item} />
                             </>
                           ) : item.finalFileUrl ? (
-                            <span data-testid={`chip-arquivo-mobile-${item.id}`} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:999,backgroundColor:"#f0fdf4",border:"1px solid #bbf7d0",color:"#166534"}}>
+                            <span data-testid={`chip-arquivo-mobile-${item.id}`} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:999,backgroundColor:TOM.sucesso.bg,border:`1px solid ${TOM.sucesso.border}`,color:TOM.sucesso.text}}>
                               <Check aria-hidden="true" style={{width:10,height:10}} /> Arquivo recebido
                             </span>
                           ) : (
-                            <span data-testid={`chip-arquivo-mobile-${item.id}`} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:999,backgroundColor:"#fff7ed",border:"1px solid #fed7aa",color:"#9a3412"}}>
+                            <span data-testid={`chip-arquivo-mobile-${item.id}`} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:999,backgroundColor:TOM.laranja.bg,border:`1px solid ${TOM.laranja.border}`,color:T.accentText}}>
                               <Clock aria-hidden="true" style={{width:10,height:10}} /> Aguardando arquivo
                             </span>
                           )}
-                          {item.sponsors?.map((s:any)=><span key={s.id} style={{fontSize:11,padding:"2px 6px",borderRadius:6,backgroundColor:"#f5f5f4",color:"#57534e",fontWeight:600}}>{s.name}</span>)}
+                          {item.sponsors?.map((s:any)=><span key={s.id} style={{fontSize:11,padding:"2px 6px",borderRadius:6,backgroundColor:N.n2,color:T.apoio,fontWeight:600}}>{s.name}</span>)}
                         </div>
                         {falhaNaLinha(item)}
                       </div>
@@ -1942,7 +1942,7 @@ export default function Solicitacao() {
                                 data-testid={`button-reuse-${item.id}`}
                                 aria-pressed={!!item.isReuse}
                                 title={selo ? motivoAcaoBloqueada(selo.motivo, "marcar reaproveitamento") : undefined}
-                                style={{minHeight:44,padding:"0 12px",background:item.isReuse ? "#dcfce7" : "none",border:item.isReuse ? "1px solid #86efac" : "1px solid transparent",borderRadius:8,cursor:selo ? "not-allowed" : "pointer",color:selo ? "#78716c" : "#15803d",fontSize:12,fontWeight:700,display:"inline-flex",alignItems:"center",gap:6}}
+                                style={{minHeight:44,padding:"0 12px",background:item.isReuse ? TOM.sucesso.bg : "none",border:item.isReuse ? `1px solid ${TOM.sucesso.border}` : "1px solid transparent",borderRadius:8,cursor:selo ? "not-allowed" : "pointer",color:selo ? T.second : TOM.sucesso.text,fontSize:12,fontWeight:700,display:"inline-flex",alignItems:"center",gap:6}}
                               >
                                 <Recycle aria-hidden="true" style={{width:14,height:14}} />
                                 {desfazendoReuse(item.id) ? "Desfazendo…" : item.isReuse ? "Reaproveitada · desfazer" : "Reaproveitar"}
@@ -1955,7 +1955,7 @@ export default function Solicitacao() {
                             data-testid={`button-delete-${item.id}`}
                             title="Excluir peça"
                             aria-label={`Excluir a peça ${item.displayId}`}
-                            style={{minHeight:44,padding:"0 12px",background:"none",border:"none",borderRadius:8,cursor:"pointer",color:"#b91c1c",fontSize:12,fontWeight:700,display:"inline-flex",alignItems:"center",gap:6}}
+                            style={{minHeight:44,padding:"0 12px",background:"none",border:"none",borderRadius:8,cursor:"pointer",color:TOM.perigo.text,fontSize:12,fontWeight:700,display:"inline-flex",alignItems:"center",gap:6}}
                           >
                             <Trash2 aria-hidden="true" style={{width:14,height:14}} />
                             Excluir
@@ -1969,13 +1969,13 @@ export default function Solicitacao() {
             })}
           </div>
         ) : (
-          <div style={{ backgroundColor: "#fff", border: "1px solid #e7e5e4", borderRadius: 8, overflowX: "auto", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+          <div style={{ backgroundColor: "#fff", border: `1px solid ${T.border}`, borderRadius: 8, overflowX: "auto", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
             {/* SEM ROLAGEM (dono, 15/09): layout fixo — as colunas de dado têm
                 largura, a Peça fica com o resto e QUEBRA linha em vez de
                 alargar a tabela. */}
             <table style={{ width: "100%", tableLayout: "fixed", textAlign: "left", borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ backgroundColor: "#fafaf9", borderBottom: "1px solid #e7e5e4" }}>
+                <tr style={{ backgroundColor: T.bg, borderBottom: `1px solid ${T.border}` }}>
                   {/* Select all */}
                   <th style={{ padding: "14px 24px", width: 48, textAlign: "center" }}>
                     <input
@@ -1985,7 +1985,7 @@ export default function Solicitacao() {
                       onChange={toggleAll}
                       aria-label="Selecionar todos"
                       data-testid="checkbox-select-all-header"
-                      style={{ accentColor: "#f97316", width: 20, height: 20, cursor: "pointer" }}
+                      style={{ accentColor: T.accent, width: 20, height: 20, cursor: "pointer" }}
                     />
                   </th>
                   {[
@@ -2010,7 +2010,7 @@ export default function Solicitacao() {
                         // #746e69 sobre o #fafaf9 do thead da 4,55 — passa
                         // raspando. #7a6154 da 5,49 e e o tom que as outras
                         // telas ja usam em rotulo de coluna.
-                        color: "#7a6154",
+                        color: T.apoio,
                       }}
                     >
                       {col.label}
@@ -2034,7 +2034,7 @@ export default function Solicitacao() {
                   return (
                     <Fragment key={eventId}>
                       {/* ── Group header row ── */}
-                      <tr style={{ backgroundColor: "#1c1917", borderTop: "1px solid #292524", borderBottom: "1px solid #292524" }}>
+                      <tr style={{ backgroundColor: T.text, borderTop: `1px solid ${T.strong}`, borderBottom: `1px solid ${T.strong}` }}>
                         <td style={{ padding: "10px 24px", textAlign: "center" }}>
                           <input
                             type="checkbox"
@@ -2042,7 +2042,7 @@ export default function Solicitacao() {
                             onChange={toggleGroup}
                             aria-label={`Selecionar evento ${event?.name || "sem evento"}`}
                             data-testid={`checkbox-group-${eventId}`}
-                            style={{ accentColor: "#f97316", width: 20, height: 20, cursor: "pointer", backgroundColor: "#292524" }}
+                            style={{ accentColor: T.accent, width: 20, height: 20, cursor: "pointer", backgroundColor: T.strong }}
                           />
                         </td>
                         {/* colSpan 4 = as quatro colunas de dados depois do checkbox.
@@ -2067,7 +2067,7 @@ export default function Solicitacao() {
                                 {event?.name || "Sem Evento"}
                               </span>
                               <span style={{
-                                backgroundColor: "#c2410c", color: "#fff",
+                                backgroundColor: T.accentText, color: "#fff",
                                 fontSize: 10, fontWeight: 900,
                                 padding: "1px 8px", borderRadius: 999,
                                 textTransform: "uppercase", letterSpacing: "0.04em",
@@ -2076,9 +2076,9 @@ export default function Solicitacao() {
                               </span>
                             </div>
                             {event && (
-                              <div style={{ display: "flex", gap: "6px 12px", fontSize: 10, color: "#d6d3d1", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", flexWrap: "wrap", alignItems: "center", minWidth: 0 }}>
+                              <div style={{ display: "flex", gap: "6px 12px", fontSize: 10, color: T.bdark, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", flexWrap: "wrap", alignItems: "center", minWidth: 0 }}>
                                 {event.startDate && (
-                                  <span>Início: <span style={{ color: "#d6d3d1" }}>{parseDateLocal(event.startDate).toLocaleDateString("pt-BR")}</span></span>
+                                  <span>Início: <span style={{ color: T.bdark }}>{parseDateLocal(event.startDate).toLocaleDateString("pt-BR")}</span></span>
                                 )}
                                 {/* ── A SAIDA DO CAMINHAO, COM OS DIAS ──
 
@@ -2098,7 +2098,7 @@ export default function Solicitacao() {
                                   const hoje = new Date(); hoje.setHours(0,0,0,0);
                                   const dia = new Date(saida); dia.setHours(0,0,0,0);
                                   const dias = Math.ceil((dia.getTime() - hoje.getTime()) / 86400000);
-                                  const cor = dias <= 7 ? "#fca5a5" : dias <= 30 ? "#fdba74" : "rgba(255,255,255,0.7)";
+                                  const cor = dias <= 7 ? TOM.perigo.border : dias <= 30 ? TOM.laranja.border : "rgba(255,255,255,0.7)";
                                   const quando = dias < 0 ? `há ${-dias}d`
                                     : dias === 0 ? "hoje"
                                     : dias === 1 ? "amanhã"
@@ -2162,16 +2162,16 @@ export default function Solicitacao() {
                         return (
                           <Fragment key={item.id}>
                             {showGroupHeader && (
-                              <tr style={{ backgroundColor: '#dbeafe' }}>
+                              <tr style={{ backgroundColor: TOM.info.border }}>
                                 <td colSpan={5} style={{ padding: '5px 16px' }}>
-                                  <span style={{ fontSize: 10, fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{itemGroupName}</span>
+                                  <span style={{ fontSize: 10, fontWeight: 800, color: TOM.info.text, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{itemGroupName}</span>
                                 </td>
                               </tr>
                             )}
                             {showTypeHeader && (
-                              <tr style={{ backgroundColor: '#f0ede8' }}>
+                              <tr style={{ backgroundColor: N.n3 }}>
                                 <td colSpan={5} style={{ padding: '5px 16px' }}>
-                                  <span style={{ fontSize: 10, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{item.type}</span>
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: T.apoio, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{item.type}</span>
                                 </td>
                               </tr>
                             )}
@@ -2179,14 +2179,14 @@ export default function Solicitacao() {
                             key={`row-${item.id}`}
                             data-testid={`row-item-${item.id}`}
                             style={{
-                              borderBottom: isLast ? "none" : "1px solid #f0efee",
-                              backgroundColor: isSelected ? "#fff8f5" : "#fff",
+                              borderBottom: isLast ? "none" : `1px solid ${N.n3}`,
+                              backgroundColor: isSelected ? TOM.laranja.bg : "#fff",
                               transition: "background-color 0.1s",
                               cursor: "pointer",
                             }}
                             onClick={() => openModal(item)}
-                            onMouseEnter={e => { if (!isSelected) e.currentTarget.style.backgroundColor = "#fafaf9"; }}
-                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = isSelected ? "#fff8f5" : "#fff"; }}
+                            onMouseEnter={e => { if (!isSelected) e.currentTarget.style.backgroundColor = T.bg; }}
+                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = isSelected ? TOM.laranja.bg : "#fff"; }}
                           >
                             {/* Checkbox. `stopPropagation` no <td>: a linha
                                 inteira abre o modal, e marcar para o lote não é
@@ -2198,7 +2198,7 @@ export default function Solicitacao() {
                                 onChange={() => toggleItem(item.id)}
                                 aria-label={`Selecionar ${item.displayId}`}
                                 data-testid={`checkbox-item-${item.id}`}
-                                style={{ accentColor: "#f97316", width: 20, height: 20, cursor: "pointer" }}
+                                style={{ accentColor: T.accent, width: 20, height: 20, cursor: "pointer" }}
                               />
                             </td>
 
@@ -2211,7 +2211,7 @@ export default function Solicitacao() {
                               <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "4px 8px", minWidth: 0 }}>
                                 <span
                                   data-testid={`text-display-id-${item.id}`}
-                                  style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700, color: "#c2410c", flexShrink: 0, whiteSpace: "nowrap" }}
+                                  style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700, color: T.accentText, flexShrink: 0, whiteSpace: "nowrap" }}
                                 >
                                   {item.displayId}
                                 </span>
@@ -2222,7 +2222,7 @@ export default function Solicitacao() {
                                 {item.description && (
                                   // flexShrink alto: falta largura, a descrição
                                   // é que cede. ID e tipo identificam a peça.
-                                  <span title={item.description} style={{ fontSize: 12, color: "#57534e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 999, minWidth: 0 }}>
+                                  <span title={item.description} style={{ fontSize: 12, color: T.apoio, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 999, minWidth: 0 }}>
                                     {item.description}
                                   </span>
                                 )}
@@ -2238,13 +2238,13 @@ export default function Solicitacao() {
                                     title="Ver a referência visual do solicitante"
                                     aria-label={`Referência visual de ${item.displayId}`}
                                     data-testid={`link-reference-solicitacao-${item.id}`}
-                                    style={{ display: "inline-flex", color: "#2563eb", flexShrink: 0 }}
+                                    style={{ display: "inline-flex", color: TOM.info.text, flexShrink: 0 }}
                                   >
                                     <Paperclip style={{ width: 13, height: 13 }} />
                                   </a>
                                 )}
                                 {item.isReuse && (
-                                  <span title="Reaproveitamento" aria-label="Reaproveitamento" style={{ display: "inline-flex", color: "#15803d", flexShrink: 0 }}>
+                                  <span title="Reaproveitamento" aria-label="Reaproveitamento" style={{ display: "inline-flex", color: TOM.sucesso.text, flexShrink: 0 }}>
                                     <Recycle aria-hidden="true" style={{ width: 13, height: 13 }} />
                                   </span>
                                 )}
@@ -2274,7 +2274,7 @@ export default function Solicitacao() {
                                 relance, que é o que três colunas prometiam e
                                 não entregavam. */}
                             <td style={{ padding: "12px 16px", whiteSpace: "nowrap" }}>
-                              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#57534e" }}>
+                              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: T.apoio }}>
                                 {item.quantity ?? 0} un
                                 {item.fileWidth && item.fileHeight ? ` · ${item.fileWidth}×${item.fileHeight}` : ""}
                                 {item.calculatedM2 ? ` · ${item.calculatedM2} m²` : ""}
@@ -2291,18 +2291,18 @@ export default function Solicitacao() {
                             <td data-testid={`cell-final-file-${item.id}`} style={{ padding: "12px 16px", whiteSpace: "nowrap" }}>
                               {ehMolde(item) ? (
                                 <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
-                                  <span title="Molde não tem arquivo final — libera só com o thumb" style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 24, padding: "0 9px", borderRadius: 999, backgroundColor: "#f5f5f4", border: "1px solid #d6d3d1", color: "#44403c", fontSize: 12, fontWeight: 700 }}>
+                                  <span title="Molde não tem arquivo final — libera só com o thumb" style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 24, padding: "0 9px", borderRadius: 999, backgroundColor: N.n2, border: `1px solid ${T.bdark}`, color: T.strong, fontSize: 12, fontWeight: 700 }}>
                                     Não se aplica
                                   </span>
                                   {/* Prazo do molde (22/09): só o fluxo do molde o lê. */}
                                   <SeloPrazoMolde item={item} />
                                 </div>
                               ) : item.finalFileUrl ? (
-                                <span style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 24, padding: "0 9px", borderRadius: 999, backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", fontSize: 12, fontWeight: 700 }}>
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 24, padding: "0 9px", borderRadius: 999, backgroundColor: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}`, color: TOM.sucesso.text, fontSize: 12, fontWeight: 700 }}>
                                   <Check aria-hidden="true" style={{ width: 11, height: 11 }} /> Recebido
                                 </span>
                               ) : (
-                                <span title="A Arte ainda não enviou o arquivo final — dá para abrir e devolver, mas liberar só depois do arquivo." style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 24, padding: "0 9px", borderRadius: 999, backgroundColor: "#fff7ed", border: "1px solid #fed7aa", color: "#9a3412", fontSize: 12, fontWeight: 700 }}>
+                                <span title="A Arte ainda não enviou o arquivo final — dá para abrir e devolver, mas liberar só depois do arquivo." style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 24, padding: "0 9px", borderRadius: 999, backgroundColor: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, color: T.accentText, fontSize: 12, fontWeight: 700 }}>
                                   <Clock aria-hidden="true" style={{ width: 11, height: 11 }} /> Aguardando
                                 </span>
                               )}
@@ -2315,7 +2315,7 @@ export default function Solicitacao() {
                                   onClick={() => openModal(item)}
                                   data-testid={`button-review-${item.id}`}
                                   style={{
-                                    backgroundColor: "#1c1917", color: "#fff",
+                                    backgroundColor: T.text, color: "#fff",
                                     border: "none", borderRadius: 6,
                                     // 12px sem caixa alta: o 10px/900 em
                                     // maiúsculas espaçadas repetido em cada uma
@@ -2326,8 +2326,8 @@ export default function Solicitacao() {
                                   }}
                                   // #c2410c e não #ea580c no hover: branco sobre
                                   // #ea580c dá 3,6:1 — o rótulo sumia justo ao apontar.
-                                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#c2410c")}
-                                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#1c1917")}
+                                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = T.accentText)}
+                                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = T.text)}
                                 >
                                   Revisar
                                 </button>
@@ -2353,23 +2353,23 @@ export default function Solicitacao() {
                                     ? motivoAcaoBloqueada(selo.motivo, "marcar reaproveitamento")
                                     : item.isReuse ? "Remover marcação de reaproveitamento" : "Marcar para reaproveitamento"}
                                   style={{
-                                    background: selo ? "#f5f5f4" : item.isReuse ? "#dcfce7" : "none",
-                                    border: selo ? "1px solid #e7e5e4" : item.isReuse ? "1px solid #86efac" : "1px solid transparent",
+                                    background: selo ? N.n2 : item.isReuse ? TOM.sucesso.bg : "none",
+                                    border: selo ? `1px solid ${T.border}` : item.isReuse ? `1px solid ${TOM.sucesso.border}` : "1px solid transparent",
                                     cursor: selo ? "not-allowed" : "pointer",
-                                    color: selo ? "#78716c" : item.isReuse ? "#15803d" : "#746e69",
+                                    color: selo ? T.second : item.isReuse ? TOM.sucesso.text : T.second,
                                     padding: 6,
                                     display: "flex", alignItems: "center",
                                     borderRadius: 6, transition: "all 0.15s",
                                   }}
                                   onMouseEnter={e => {
                                     if (!selo && !item.isReuse) {
-                                      (e.currentTarget as HTMLButtonElement).style.color = "#15803d";
-                                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#f0fdf4";
+                                      (e.currentTarget as HTMLButtonElement).style.color = TOM.sucesso.text;
+                                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = TOM.sucesso.bg;
                                     }
                                   }}
                                   onMouseLeave={e => {
                                     if (!selo && !item.isReuse) {
-                                      (e.currentTarget as HTMLButtonElement).style.color = "#746e69";
+                                      (e.currentTarget as HTMLButtonElement).style.color = T.second;
                                       (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
                                     }
                                   }}
@@ -2387,12 +2387,12 @@ export default function Solicitacao() {
                                     aria-label={`Excluir a peça ${item.displayId}`}
                                     style={{
                                       background: "none", border: "none", cursor: "pointer",
-                                      color: "#746e69", padding: 6,
+                                      color: T.second, padding: 6,
                                       display: "flex", alignItems: "center",
                                       borderRadius: 6, transition: "color 0.15s",
                                     }}
-                                    onMouseEnter={e => (e.currentTarget.style.color = "#ef4444")}
-                                    onMouseLeave={e => (e.currentTarget.style.color = "#746e69")}
+                                    onMouseEnter={e => (e.currentTarget.style.color = TOM.perigo.dot)}
+                                    onMouseLeave={e => (e.currentTarget.style.color = T.second)}
                                   >
                                     <Trash2 style={{ width: 15, height: 15 }} />
                                   </button>
@@ -2411,8 +2411,8 @@ export default function Solicitacao() {
 
             {/* Table footer */}
             <div style={{
-              backgroundColor: "#fafaf9", padding: "12px 24px",
-              borderTop: "1px solid #e7e5e4",
+              backgroundColor: T.bg, padding: "12px 24px",
+              borderTop: `1px solid ${T.border}`,
               display: "flex", justifyContent: "space-between", alignItems: "center",
             }}>
               {/* O par de botoes que ficava aqui SAIU. Com as acoes na barra
@@ -2484,16 +2484,16 @@ export default function Solicitacao() {
             <div style={{ flexShrink: 0, background: "linear-gradient(135deg, #1c1917, #2d2926)", padding: isMobile ? "12px 14px" : "14px 20px", display: "flex", alignItems: "center", gap: isMobile ? 10 : 14, ...(isMobile ? { position: "sticky" as const, top: 0, zIndex: 2 } : {}) }}>
               {!isMobile && (
                 <div aria-hidden="true" style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: "rgba(249,115,22,0.14)", border: "1px solid rgba(249,115,22,0.35)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Eye style={{ width: 18, height: 18, color: "#fdba74" }} />
+                  <Eye style={{ width: 18, height: 18, color: TOM.laranja.border }} />
                 </div>
               )}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
-                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: "#fdba74", flexShrink: 0 }}>{selectedItem?.displayId}</span>
+                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: TOM.laranja.border, flexShrink: 0 }}>{selectedItem?.displayId}</span>
                   {selectedItem && <SeloKit peca={selectedItem} style={{ flexShrink: 0, alignSelf: "center" }} />}
                   <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 800, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{selectedItem?.type}</span>
                   {selectedItem?.isReuse && (
-                    <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "#dcfce7", color: "#166534", borderRadius: 999, padding: "3px 10px", flexShrink: 0 }}>
+                    <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: TOM.sucesso.bg, color: TOM.sucesso.text, borderRadius: 999, padding: "3px 10px", flexShrink: 0 }}>
                       Reaproveitamento
                     </span>
                   )}
@@ -2582,10 +2582,10 @@ export default function Solicitacao() {
               <div
                 data-testid="motivo-ultima-devolucao"
                 title={String(selectedItem.rejectionReason).trim()}
-                style={{ flexShrink: 0, display: "flex", alignItems: "flex-start", gap: 10, padding: isMobile ? "10px 14px" : "10px 20px", backgroundColor: "#fff7ed", borderBottom: "1px solid #fed7aa" }}
+                style={{ flexShrink: 0, display: "flex", alignItems: "flex-start", gap: 10, padding: isMobile ? "10px 14px" : "10px 20px", backgroundColor: TOM.laranja.bg, borderBottom: `1px solid ${TOM.laranja.border}` }}
               >
-                <RotateCcw aria-hidden="true" style={{ width: 15, height: 15, color: "#c2410c", flexShrink: 0, marginTop: 2 }} />
-                <p style={{ margin: 0, minWidth: 0, fontSize: 13, lineHeight: 1.45, color: "#7c2d12", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere" }}>
+                <RotateCcw aria-hidden="true" style={{ width: 15, height: 15, color: T.accentText, flexShrink: 0, marginTop: 2 }} />
+                <p style={{ margin: 0, minWidth: 0, fontSize: 13, lineHeight: 1.45, color: TOM.laranja.text, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere" }}>
                   <strong style={{ fontWeight: 700 }}>Motivo da última devolução: </strong>
                   {String(selectedItem.rejectionReason).trim()}
                 </p>
@@ -2599,7 +2599,7 @@ export default function Solicitacao() {
                 contas — sem piso a faixa colapsa; com 300px ela empurra os
                 botões abaixo da dobra numa janela de 540px. No celular
                 empilha, a única situação em que empilhar aqui é certo. */}
-            <div style={{ flex: "1 1 auto", minHeight: 200, overflow: "hidden", backgroundColor: "#f5f5f4", padding: isMobile ? 12 : "14px 20px", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 10 : 14 }}>
+            <div style={{ flex: "1 1 auto", minHeight: 200, overflow: "hidden", backgroundColor: N.n2, padding: isMobile ? 12 : "14px 20px", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 10 : 14 }}>
               {[
                 { label: "Aprovado pelo patrocinador", url: selectedItem?.approvalThumbUrl, empty: "Sem thumb aprovado" },
                 { label: "Arquivo final da Arte", url: selectedItem?.finalFileUrl, empty: ehMolde(selectedItem) ? "Molde não tem arquivo final — revise pelo thumb" : "A Arte ainda não subiu o arquivo final" },
@@ -2610,8 +2610,8 @@ export default function Solicitacao() {
                 const caminhoDeRede = !!url && !isWebUrl(url);
                 return (
                   <div key={label} style={{ display: "flex", flexDirection: "column", gap: 6, minHeight: 0, overflow: "hidden" }}>
-                    <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 800, color: "#57534e", textTransform: "uppercase", letterSpacing: "0.08em", margin: 0, flexShrink: 0 }}>
-                      <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: url ? "#15803d" : "#c2410c", flexShrink: 0 }} />
+                    <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 800, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.08em", margin: 0, flexShrink: 0 }}>
+                      <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: url ? TOM.sucesso.text : T.accentText, flexShrink: 0 }} />
                       <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>
                       {url && isWebUrl(url) && (
                         <a
@@ -2620,15 +2620,15 @@ export default function Solicitacao() {
                           rel="noopener noreferrer"
                           title={"Ampliar: abrir " + label.toLowerCase() + " em nova aba"}
                           aria-label={"Abrir " + label.toLowerCase() + " em nova aba"}
-                          style={{ display: "flex", padding: 4, borderRadius: 6, color: "#78716c", flexShrink: 0 }}
+                          style={{ display: "flex", padding: 4, borderRadius: 6, color: T.second, flexShrink: 0 }}
                         >
                           <Maximize2 style={{ width: 14, height: 14 }} />
                         </a>
                       )}
                     </p>
                     {caminhoDeRede ? (
-                      <div style={{ backgroundColor: "#fff", borderRadius: 8, border: "1px solid #e7e5e4", padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
-                        <FileImage style={{ width: 20, height: 20, color: "#a8a29e", flexShrink: 0 }} />
+                      <div style={{ backgroundColor: "#fff", borderRadius: 8, border: `1px solid ${T.border}`, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+                        <FileImage style={{ width: 20, height: 20, color: T.muted, flexShrink: 0 }} />
                         <p style={{ fontSize: 11, fontWeight: 600, color: TI.secondary, margin: 0 }}>
                           Arquivo salvo na rede local — sem pré-visualização. Copie o caminho na tira abaixo.
                         </p>
@@ -2640,12 +2640,12 @@ export default function Solicitacao() {
                        moldura toma a altura que a faixa deu (`flex: 1` dentro
                        de um pai de altura definida) e o conteúdo cabe inteiro
                        com `objectFit: contain`. */
-                    <div style={{ flex: "1 1 auto", minHeight: isMobile ? 180 : 140, width: "100%", backgroundColor: "#fff", borderRadius: 8, overflow: "hidden", border: "1px solid #e7e5e4", boxShadow: "inset 0 1px 4px rgba(0,0,0,0.06)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <div style={{ flex: "1 1 auto", minHeight: isMobile ? 180 : 140, width: "100%", backgroundColor: "#fff", borderRadius: 8, overflow: "hidden", border: `1px solid ${T.border}`, boxShadow: "inset 0 1px 4px rgba(0,0,0,0.06)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       {url ? (
                         <FilePreview url={url} noLink objectFit="contain" />
                       ) : (
                         <div style={{ textAlign: "center", color: TI.secondary, padding: 12 }}>
-                          <FileImage style={{ width: 32, height: 32, margin: "0 auto 8px", color: "#a8a29e" }} />
+                          <FileImage style={{ width: 32, height: 32, margin: "0 auto 8px", color: T.muted }} />
                           <p style={{ fontSize: 12, fontWeight: 600, margin: 0 }}>{empty}</p>
                         </div>
                       )}
@@ -2662,16 +2662,16 @@ export default function Solicitacao() {
                 filetes. Cada bloco encolhe (`min-width: 0`, valor em elipse
                 com o texto completo no title); no celular a linha rola na
                 horizontal — cortar em silêncio é o único desfecho proibido. */}
-            <div style={{ flexShrink: 0, borderTop: "1px solid #e7e5e4", backgroundColor: "#fff", padding: isMobile ? "8px 12px" : "8px 20px", display: "flex", alignItems: "center", overflowX: isMobile ? "auto" : "hidden" }}>
+            <div style={{ flexShrink: 0, borderTop: `1px solid ${T.border}`, backgroundColor: "#fff", padding: isMobile ? "8px 12px" : "8px 20px", display: "flex", alignItems: "center", overflowX: isMobile ? "auto" : "hidden" }}>
               {[
                 { label: "Material", value: selectedItem?.material || "—" },
                 { label: "Acabamento", value: selectedItem?.finish || "—" },
                 { label: "Dimensões (ARQ.)", value: selectedItem?.fileWidth && selectedItem?.fileHeight ? `${selectedItem.fileWidth}×${selectedItem.fileHeight}` : "—" },
                 { label: "M²", value: selectedItem?.calculatedM2 || "—" },
               ].map(({ label, value }, i) => (
-                <div key={label} style={{ flex: "1 1 0", minWidth: isMobile ? 76 : 0, padding: "2px 14px 2px " + (i === 0 ? "0" : "14px"), borderLeft: i === 0 ? "none" : "1px solid #e7e5e4" }}>
-                  <p style={{ fontSize: 10, color: "#7a6154", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", margin: 0, whiteSpace: "nowrap" }}>{label}</p>
-                  <p title={String(value)} style={{ fontSize: 13, fontWeight: 700, color: "#1c1917", margin: "2px 0 0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</p>
+                <div key={label} style={{ flex: "1 1 0", minWidth: isMobile ? 76 : 0, padding: "2px 14px 2px " + (i === 0 ? "0" : "14px"), borderLeft: i === 0 ? "none" : `1px solid ${T.border}` }}>
+                  <p style={{ fontSize: 10, color: T.apoio, textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", margin: 0, whiteSpace: "nowrap" }}>{label}</p>
+                  <p title={String(value)} style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: "2px 0 0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</p>
                 </div>
               ))}
 
@@ -2684,7 +2684,7 @@ export default function Solicitacao() {
                 role={editingQuantity || seloSelecionado ? undefined : "button"}
                 tabIndex={editingQuantity || seloSelecionado ? undefined : 0}
                 aria-label={seloSelecionado ? undefined : "Editar quantidade"}
-                style={{ flex: "1 1 0", minWidth: isMobile ? 104 : 96, padding: "2px 0 2px 14px", borderLeft: "1px solid #e7e5e4", cursor: seloSelecionado ? "default" : "pointer" }}
+                style={{ flex: "1 1 0", minWidth: isMobile ? 104 : 96, padding: "2px 0 2px 14px", borderLeft: `1px solid ${T.border}`, cursor: seloSelecionado ? "default" : "pointer" }}
                 onClick={() => {
                   if (!editingQuantity && !seloSelecionado) {
                     setEditingQuantity(true);
@@ -2703,10 +2703,10 @@ export default function Solicitacao() {
                   ? motivoAcaoBloqueada(seloSelecionado.motivo, "mudar a quantidade")
                   : "Clique para editar a quantidade"}
               >
-                <p style={{ fontSize: 10, color: "#7a6154", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", margin: 0, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
+                <p style={{ fontSize: 10, color: T.apoio, textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", margin: 0, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
                   Qtd
                   {!seloSelecionado && (
-                    <span style={{ fontSize: 10, color: "#c2410c", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em" }}>· editar</span>
+                    <span style={{ fontSize: 10, color: T.accentText, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em" }}>· editar</span>
                   )}
                 </p>
                 {editingQuantity ? (
@@ -2728,8 +2728,8 @@ export default function Solicitacao() {
                       }}
                       style={{
                         width: 52, padding: "2px 6px", fontSize: 13, fontWeight: 700,
-                        border: "1.5px solid #f97316", borderRadius: 6,
-                        color: TI.text, background: "#fff9f5",
+                        border: `1.5px solid ${T.accent}`, borderRadius: 6,
+                        color: TI.text, background: TOM.laranja.bg,
                       }}
                       data-testid="input-quantity-edit"
                       autoFocus
@@ -2739,7 +2739,7 @@ export default function Solicitacao() {
                     <button
                       onClick={() => updateQuantityMutation.mutate({ itemId: selectedItem.id, quantity: quantityValue })}
                       disabled={updateQuantityMutation.isPending}
-                      style={{ minWidth: isMobile ? 44 : 32, height: isMobile ? 40 : 28, padding: "0 10px", fontSize: 12, fontWeight: 700, backgroundColor: "#c2410c", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}
+                      style={{ minWidth: isMobile ? 44 : 32, height: isMobile ? 40 : 28, padding: "0 10px", fontSize: 12, fontWeight: 700, backgroundColor: T.accentText, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}
                       data-testid="button-confirm-quantity"
                       aria-label="Salvar a quantidade"
                     >
@@ -2747,7 +2747,7 @@ export default function Solicitacao() {
                     </button>
                     <button
                       onClick={() => { setQuantityValue(selectedItem.quantity ?? 1); setEditingQuantity(false); }}
-                      style={{ minWidth: isMobile ? 40 : 28, height: isMobile ? 40 : 28, padding: 0, fontSize: 12, fontWeight: 700, backgroundColor: "#f3f4f3", color: "#57534e", border: "none", borderRadius: 6, cursor: "pointer" }}
+                      style={{ minWidth: isMobile ? 40 : 28, height: isMobile ? 40 : 28, padding: 0, fontSize: 12, fontWeight: 700, backgroundColor: T.low, color: T.apoio, border: "none", borderRadius: 6, cursor: "pointer" }}
                       data-testid="button-cancel-quantity"
                       aria-label="Cancelar a edição da quantidade"
                     >
@@ -2755,7 +2755,7 @@ export default function Solicitacao() {
                     </button>
                   </div>
                 ) : (
-                  <p style={{ fontSize: 13, fontWeight: 700, color: "#1c1917", margin: "2px 0 0" }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: "2px 0 0" }}>
                     {selectedItem?.quantity ?? "—"}x
                   </p>
                 )}
@@ -2774,7 +2774,7 @@ export default function Solicitacao() {
                       .then(() => toast({ title: "Caminho copiado", description: "Cole no Explorer para abrir o arquivo." }))
                       .catch(() => toast({ title: "Não foi possível copiar", description: "Selecione o caminho e copie manualmente.", variant: "destructive" }));
                   }}
-                  style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginLeft: 14, minWidth: isMobile ? 44 : undefined, minHeight: isMobile ? 44 : undefined, padding: "8px 12px", borderRadius: 6, border: "1px solid #e7e5e4", backgroundColor: "#fff", color: "#57534e", cursor: "pointer", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}
+                  style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginLeft: 14, minWidth: isMobile ? 44 : undefined, minHeight: isMobile ? 44 : undefined, padding: "8px 12px", borderRadius: 6, border: `1px solid ${T.border}`, backgroundColor: "#fff", color: T.apoio, cursor: "pointer", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}
                 >
                   <Copy style={{ width: 13, height: 13 }} />
                   {!isMobile && "Copiar caminho da rede"}
@@ -2794,7 +2794,7 @@ export default function Solicitacao() {
                 media ~40% mais que "Liberar para produção" e era o que
                 produzia a sobreposição dos botões. Caixa normal resolve na
                 origem — sem elipse, sem empilhar. */}
-            <div style={{ flexShrink: 0, borderTop: "1px solid #e7e5e4", backgroundColor: "#fafaf9", padding: isMobile ? 12 : "14px 20px", display: "flex", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 12 : 24 }}>
+            <div style={{ flexShrink: 0, borderTop: `1px solid ${T.border}`, backgroundColor: T.bg, padding: isMobile ? 12 : "14px 20px", display: "flex", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 12 : 24 }}>
               <div className="review-modal-scroll" style={{ flex: isMobile ? undefined : "1 1 0", minWidth: 0, minHeight: 0, maxHeight: isMobile ? "34vh" : "32vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
                 {/* PATCH creator-review (liberar) e PATCH return-to-arte
                     (devolver) são as duas rotas mais claramente barradas pela
@@ -2813,12 +2813,12 @@ export default function Solicitacao() {
                       flex: "1 1 0", minWidth: 0, height: 48,
                       display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                       borderRadius: 8,
-                      border: seloSelecionado || semArquivoParaLiberar ? "1px solid #e7e5e4" : "none",
-                      backgroundColor: seloSelecionado || semArquivoParaLiberar ? "#f5f5f4" : "#c2410c",
+                      border: seloSelecionado || semArquivoParaLiberar ? `1px solid ${T.border}` : "none",
+                      backgroundColor: seloSelecionado || semArquivoParaLiberar ? N.n2 : T.accentText,
                       /* #6f6a64 sobre #f5f5f4 → 4,91:1: o "off" continua legível
                          porque desabilitado-por-evento-finalizado é o único
                          estado off desta tela que carrega informação nova. */
-                      color: seloSelecionado || semArquivoParaLiberar ? "#6f6a64" : "#fff",
+                      color: seloSelecionado || semArquivoParaLiberar ? T.second : "#fff",
                       fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap",
                       cursor: seloSelecionado || semArquivoParaLiberar || creatorReviewMutation.isPending ? "not-allowed" : "pointer",
                     }}
@@ -2838,9 +2838,9 @@ export default function Solicitacao() {
                     style={{
                       flex: "1 1 0", minWidth: 0, height: 48,
                       display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                      borderRadius: 8, border: "1px solid #e7e5e4",
-                      backgroundColor: seloSelecionado ? "#f5f5f4" : "#fff",
-                      color: seloSelecionado ? "#6f6a64" : "#1c1917",
+                      borderRadius: 8, border: `1px solid ${T.border}`,
+                      backgroundColor: seloSelecionado ? N.n2 : "#fff",
+                      color: seloSelecionado ? T.second : T.text,
                       fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap",
                       cursor: seloSelecionado ? "not-allowed" : "pointer",
                     }}
@@ -2878,10 +2878,10 @@ export default function Solicitacao() {
                       flex: isMobile ? "1 1 100%" : "0 0 auto", height: 48, padding: "0 16px",
                       display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                       borderRadius: 8,
-                      border: seloSelecionado ? "1px solid #e7e5e4" : selectedItem?.isReuse ? "1px solid #86efac" : "1px solid #e7e5e4",
-                      backgroundColor: seloSelecionado ? "#f5f5f4" : selectedItem?.isReuse ? "#dcfce7" : "#fff",
+                      border: seloSelecionado ? `1px solid ${T.border}` : selectedItem?.isReuse ? `1px solid ${TOM.sucesso.border}` : `1px solid ${T.border}`,
+                      backgroundColor: seloSelecionado ? N.n2 : selectedItem?.isReuse ? TOM.sucesso.bg : "#fff",
                       /* #15803d sobre #dcfce7 = 4,6:1; #1c1917 sobre branco. */
-                      color: seloSelecionado ? "#6f6a64" : selectedItem?.isReuse ? "#15803d" : "#1c1917",
+                      color: seloSelecionado ? T.second : selectedItem?.isReuse ? TOM.sucesso.text : T.text,
                       fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap",
                       cursor: seloSelecionado ? "not-allowed" : "pointer",
                     }}
@@ -2894,7 +2894,7 @@ export default function Solicitacao() {
                     motivo e o Destravar; livre, o Travar (com motivo) — as
                     mesmas rotas e o mesmo texto da Gráfica. */}
                 {pecaDaFicha && (fichaTravada ? (
-                  <div role="status" data-testid="selo-travada-revisao" title={fraseDaTrava(pecaDaFicha)} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 10px", borderRadius: 8, background: "#7f1d1d", color: "#ffffff", fontSize: 12, fontWeight: 700, lineHeight: 1.4 }}>
+                  <div role="status" data-testid="selo-travada-revisao" title={fraseDaTrava(pecaDaFicha)} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 10px", borderRadius: 8, background: TOM.perigo.text, color: T.surface, fontSize: 12, fontWeight: 700, lineHeight: 1.4 }}>
                     <Lock aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0 }} />
                     <span style={{ flex: "1 1 160px", minWidth: 0, overflowWrap: "anywhere" }}>{seloDaTrava(pecaDaFicha)}</span>
                     {podeTravar(user?.role) && (
@@ -2903,7 +2903,7 @@ export default function Solicitacao() {
                         onClick={() => destravarMutation.mutate({ itemId: pecaDaFicha.id, displayId: pecaDaFicha.displayId })}
                         disabled={destravarMutation.isPending}
                         data-testid="button-destravar-revisao"
-                        style={{ display: "inline-flex", alignItems: "center", gap: 5, minHeight: isMobile ? 44 : 30, padding: "0 10px", borderRadius: 6, border: "1px solid #fecaca", background: "#ffffff", color: "#7f1d1d", fontSize: 12, fontWeight: 700, cursor: destravarMutation.isPending ? "wait" : "pointer", whiteSpace: "nowrap" }}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 5, minHeight: isMobile ? 44 : 30, padding: "0 10px", borderRadius: 6, border: `1px solid ${TOM.perigo.border}`, background: T.surface, color: TOM.perigo.text, fontSize: 12, fontWeight: 700, cursor: destravarMutation.isPending ? "wait" : "pointer", whiteSpace: "nowrap" }}
                       >
                         <Unlock aria-hidden="true" style={{ width: 12, height: 12 }} /> {destravarMutation.isPending ? "Destravando…" : "Destravar"}
                       </button>
@@ -2915,7 +2915,7 @@ export default function Solicitacao() {
                     onClick={() => { setMotivoDaTrava(""); setTravandoItem(pecaDaFicha); }}
                     data-testid="button-travar-revisao"
                     title="Travar a peça: mesmo liberada, a Gráfica não consegue fazê-la andar até alguém da Solicitação destravar"
-                    style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6, minHeight: isMobile ? 44 : 32, padding: "0 12px", borderRadius: 8, border: "1px solid #d6d3d1", background: "#ffffff", color: "#7f1d1d", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
+                    style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6, minHeight: isMobile ? 44 : 32, padding: "0 12px", borderRadius: 8, border: `1px solid ${T.bdark}`, background: T.surface, color: TOM.perigo.text, fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
                   >
                     <Lock aria-hidden="true" style={{ width: 12, height: 12 }} /> Travar
                   </button>
@@ -2931,17 +2931,17 @@ export default function Solicitacao() {
                   <RespostaDoEstoqueNaFicha item={selectedItem} usar={usarMenos} onUsar={setUsarMenos} />
                 )}
                 {!seloSelecionado && selectedItem && (
-                  <p data-testid="destino-da-decisao" style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: "#57534e" }}>
+                  <p data-testid="destino-da-decisao" style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: T.apoio }}>
                     {prontaParaLiberar(selectedItem) ? (
                       <>
-                        <strong style={{ color: "#1c1917" }}>Liberar</strong>: {reaproveitamentoTotal(selectedItem)
+                        <strong style={{ color: T.text }}>Liberar</strong>: {reaproveitamentoTotal(selectedItem)
                           ? "sai da Revisão Final e vai direto para Impresso / Acabamento (reaproveitamento total, sem impressão)."
                           : "sai da Revisão Final e entra na fila da Gráfica como Pronto para Produção."}{" "}
-                        <strong style={{ color: "#1c1917" }}>Devolver</strong>: volta para a Arte, que é avisada com o seu motivo.
+                        <strong style={{ color: T.text }}>Devolver</strong>: volta para a Arte, que é avisada com o seu motivo.
                       </>
                     ) : (
                       <>
-                        <strong style={{ color: "#92400e" }}>Liberar fica disponível quando a Arte enviar o arquivo final.</strong>{" "}
+                        <strong style={{ color: TOM.alerta.text }}>Liberar fica disponível quando a Arte enviar o arquivo final.</strong>{" "}
                         Dá para devolver agora, se algo já precisa mudar.
                       </>
                     )}
@@ -2951,15 +2951,15 @@ export default function Solicitacao() {
                   <p
                     role="status"
                     data-testid="aviso-ficha-evento-finalizado"
-                    style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: "#44403c", backgroundColor: "#f5f5f4", border: "1px solid #e7e5e4", borderRadius: 8, padding: "8px 12px" }}
+                    style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: T.strong, backgroundColor: N.n2, border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px 12px" }}
                   >
-                    <strong style={{ color: "#1c1917" }}>{seloSelecionado.label}.</strong>{" "}
+                    <strong style={{ color: T.text }}>{seloSelecionado.label}.</strong>{" "}
                     {seloSelecionado.hint}{" "}
                     Nesta peça continua liberado apenas excluir.
                   </p>
                 )}
                 {selectedItem?.isReuse && (
-                  <p style={{ margin: 0, fontSize: 11, lineHeight: 1.5, color: "#166534", backgroundColor: "#f0fdf4", border: "1px solid #86efac", borderRadius: 8, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+                  <p style={{ margin: 0, fontSize: 11, lineHeight: 1.5, color: TOM.sucesso.text, backgroundColor: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}`, borderRadius: 8, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
                     <Recycle style={{ width: 14, height: 14, flexShrink: 0 }} />
                     <span>Peça de reaproveitamento — não será enviada para nova produção gráfica. Verifique o arquivo e libere normalmente.</span>
                   </p>
@@ -2967,13 +2967,13 @@ export default function Solicitacao() {
 
                 {/* Observações do item — campo próprio, sempre editável.
                     Existe para anotar sem ter de devolver a peça. */}
-                <div style={{ backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "10px 12px", display: "flex", gap: 8 }}>
-                  <AlertCircle style={{ width: 14, height: 14, color: "#d97706", flexShrink: 0, marginTop: 2 }} />
+                <div style={{ backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 8, padding: "10px 12px", display: "flex", gap: 8 }}>
+                  <AlertCircle style={{ width: 14, height: 14, color: TOM.alerta.text, flexShrink: 0, marginTop: 2 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     {/* "Salvar observação libera a peça?" — não. A frase curta
                         separa o recado da decisão, que é o que o bloco existe
                         para permitir. */}
-                    <p style={{ fontSize: 11, fontWeight: 700, color: "#92400e", margin: "0 0 6px" }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: TOM.alerta.text, margin: "0 0 6px" }}>
                       Observações do item <span style={{ fontWeight: 500 }}>· fica gravada na peça, sem liberar nem devolver</span>
                     </p>
                     <textarea
@@ -2983,8 +2983,8 @@ export default function Solicitacao() {
                       data-testid="textarea-item-observations"
                       style={{
                         width: "100%", minHeight: 48, padding: "8px 10px", borderRadius: 6,
-                        border: "1px solid #fde68a", backgroundColor: "#fffdf5",
-                        color: "#78350f", fontSize: 13, resize: "vertical",
+                        border: `1px solid ${TOM.alerta.border}`, backgroundColor: TOM.alerta.bg,
+                        color: TOM.alerta.text, fontSize: 13, resize: "vertical",
                         fontFamily: "inherit", boxSizing: "border-box",
                       }}
                     />
@@ -2999,9 +2999,9 @@ export default function Solicitacao() {
                           data-testid="button-save-observations"
                           style={{
                             padding: "6px 14px", borderRadius: 6,
-                            border: seloSelecionado ? "1px solid #e7e5e4" : "none",
-                            backgroundColor: seloSelecionado ? "#f5f5f4" : "#d97706",
-                            color: seloSelecionado ? "#6f6a64" : "#fff",
+                            border: seloSelecionado ? `1px solid ${T.border}` : "none",
+                            backgroundColor: seloSelecionado ? N.n2 : TOM.alerta.text,
+                            color: seloSelecionado ? T.second : "#fff",
                             fontSize: 12, fontWeight: 700, cursor: seloSelecionado || updateObservationsMutation.isPending ? "not-allowed" : "pointer",
                           }}
                         >
@@ -3009,7 +3009,7 @@ export default function Solicitacao() {
                         </button>
                         <button
                           onClick={() => setCardObservations(selectedItem?.observations || "")}
-                          style={{ padding: "6px 12px", borderRadius: 6, border: "none", background: "none", color: "#92400e", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                          style={{ padding: "6px 12px", borderRadius: 6, border: "none", background: "none", color: TOM.alerta.text, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
                         >
                           Descartar
                         </button>
@@ -3024,12 +3024,12 @@ export default function Solicitacao() {
               <div className="review-modal-scroll" style={{ flex: "1 1 0", minWidth: 0, minHeight: 0, maxHeight: isMobile ? "26vh" : "32vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 14 }}>
                 {(selectedItem?.sponsors?.length ?? 0) > 0 && (
                   <div>
-                    <h3 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: TI.secondary, paddingBottom: 8, borderBottom: "1px solid #f0efee", margin: "0 0 10px" }}>
+                    <h3 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: TI.secondary, paddingBottom: 8, borderBottom: `1px solid ${N.n3}`, margin: "0 0 10px" }}>
                       Patrocinadores da peça
                     </h3>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       {selectedItem.sponsors.map((s: any) => (
-                        <span key={s.id} style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999, backgroundColor: "#f5f5f4", border: "1px solid #e7e5e4", color: TI.secondary }}>
+                        <span key={s.id} style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999, backgroundColor: N.n2, border: `1px solid ${T.border}`, color: TI.secondary }}>
                           {s.name}
                         </span>
                       ))}
@@ -3038,16 +3038,16 @@ export default function Solicitacao() {
                 )}
 
                 <div>
-                  <h3 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: TI.secondary, paddingBottom: 8, borderBottom: "1px solid #f0efee", margin: "0 0 14px" }}>
+                  <h3 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: TI.secondary, paddingBottom: 8, borderBottom: `1px solid ${N.n3}`, margin: "0 0 14px" }}>
                     Histórico
                   </h3>
                   {historicoCarregando ? (
-                    <p role="status" style={{ fontSize: 13, color: "#57534e", margin: 0 }}>Carregando o histórico…</p>
+                    <p role="status" style={{ fontSize: 13, color: T.apoio, margin: 0 }}>Carregando o histórico…</p>
                   ) : itemAuditLogs.length === 0 ? (
                     <p style={{ fontSize: 13, color: TI.secondary, margin: 0 }}>Sem histórico disponível.</p>
                   ) : (
                     <div style={{ position: "relative", paddingLeft: 24 }}>
-                      <div style={{ position: "absolute", left: 11, top: 8, bottom: 0, width: 2, backgroundColor: "#f0efee" }} />
+                      <div style={{ position: "absolute", left: 11, top: 8, bottom: 0, width: 2, backgroundColor: N.n3 }} />
                       <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
                         {itemAuditLogs.map((log: any, idx: number) => {
                           const cfg = getLogCfg(log);
@@ -3063,12 +3063,12 @@ export default function Solicitacao() {
                                   <p style={{ fontSize: 13, fontWeight: 700, color: cfg.text, margin: 0 }}>{cfg.label}</p>
                                   {log.userName && <p style={{ fontSize: 10, color: TI.secondary, margin: "2px 0 0" }}>{log.userName}</p>}
                                   {log.details && log.action && (
-                                    <p style={{ fontSize: 11, fontStyle: "italic", color: TI.secondary, backgroundColor: "#f3f4f3", padding: "6px 8px", borderRadius: 6, margin: "6px 0 0" }}>
+                                    <p style={{ fontSize: 11, fontStyle: "italic", color: TI.secondary, backgroundColor: T.low, padding: "6px 8px", borderRadius: 6, margin: "6px 0 0" }}>
                                       "{log.details}"
                                     </p>
                                   )}
                                 </div>
-                                <span style={{ fontSize: 10, fontWeight: 700, color: "#78716c", whiteSpace: "nowrap", fontFamily: "monospace" }}>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: T.second, whiteSpace: "nowrap", fontFamily: "monospace" }}>
                                   {log.createdAt ? new Date(log.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}
                                 </span>
                               </div>
@@ -3085,7 +3085,7 @@ export default function Solicitacao() {
             {/* ── 5 · RODAPÉ de atalhos: só no desktop — no mobile não há
                 teclado físico e o rodapé roubava altura do modal. */}
             {!isMobile && (
-              <div style={{ padding: "12px 20px", backgroundColor: "#fafaf9", borderTop: "1px solid #f0efee", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+              <div style={{ padding: "12px 20px", backgroundColor: T.bg, borderTop: `1px solid ${N.n3}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={{ fontSize: 10, fontWeight: 700, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.08em" }}>Atalhos:</span>
                   {([
@@ -3097,7 +3097,7 @@ export default function Solicitacao() {
                     ["Esc", "fechar"],
                   ] as const).map(([tecla, oque]) => (
                     <Fragment key={tecla}>
-                      <span style={{ fontSize: 10, fontWeight: 900, backgroundColor: "#e7e5e4", padding: "2px 6px", borderRadius: 6, color: TI.text, whiteSpace: "nowrap" }}>{tecla}</span>
+                      <span style={{ fontSize: 10, fontWeight: 900, backgroundColor: T.border, padding: "2px 6px", borderRadius: 6, color: TI.text, whiteSpace: "nowrap" }}>{tecla}</span>
                       <span style={{ fontSize: 10, color: TI.secondary, whiteSpace: "nowrap" }}>{oque}</span>
                     </Fragment>
                   ))}
@@ -3137,18 +3137,18 @@ export default function Solicitacao() {
                     ? <> vai direto para <strong>Impresso / Acabamento</strong>, na conferência da Gráfica: é reaproveitamento total e não passa pela impressão.</>
                     : <> entra na fila da Gráfica como <strong>Pronto para Produção</strong>. Se algo estiver errado depois, a Gráfica pode devolvê-la para a Revisão Final.</>}
                   {propostaDaFicha && propostaDaFicha.reaproveitadas > 0 && (
-                    <span data-testid="confirmacao-com-estoque" style={{ display: "block", marginTop: 8, color: "#14532d" }}>
+                    <span data-testid="confirmacao-com-estoque" style={{ display: "block", marginTop: 8, color: TOM.sucesso.text }}>
                       <strong>{propostaDaFicha.reaproveitadas} un. vêm do estoque</strong> como reaproveitamento
                       {propostaDaFicha.aProduzir > 0 ? <> e a Gráfica produz as outras {propostaDaFicha.aProduzir}.</> : <>: nada a produzir, a peça vai direto para Impresso / Acabamento.</>}
                     </span>
                   )}
                   {fichaTravada && pecaDaFicha && (
-                    <span data-testid="confirmacao-travada" style={{ display: "block", marginTop: 8, color: "#7f1d1d" }}>
+                    <span data-testid="confirmacao-travada" style={{ display: "block", marginTop: 8, color: TOM.perigo.text }}>
                       <strong>{seloDaTrava(pecaDaFicha)}.</strong> Liberar mantendo a trava leva a peça à fila da Gráfica, mas ela não anda lá até alguém destravar.
                     </span>
                   )}
                   {pedidoEmAberto && (
-                    <span data-testid="confirmacao-pedido-em-aberto" style={{ display: "block", marginTop: 8, color: "#78350f" }}>
+                    <span data-testid="confirmacao-pedido-em-aberto" style={{ display: "block", marginTop: 8, color: TOM.alerta.text }}>
                       <strong>Liberar sem esperar a resposta do estoque?</strong> O pedido continua aberto: se a Gráfica atender, o reaproveitamento entra direto na peça já liberada e você é avisada.
                     </span>
                   )}
@@ -3186,7 +3186,7 @@ export default function Solicitacao() {
                   trava: "destravar",
                 })}
                 disabled={creatorReviewMutation.isPending}
-                style={{ backgroundColor: "#c2410c", color: "#fff" }}
+                style={{ backgroundColor: T.accentText, color: "#fff" }}
                 data-testid="button-release-destravar"
               >
                 Liberar e destravar
@@ -3213,7 +3213,7 @@ export default function Solicitacao() {
           </AlertDialogHeader>
           <div style={{ padding: 0 }}>
             {ehMolde(selectedItem) ? (
-              <p data-testid="aviso-devolucao-molde" style={{ margin: "0 0 12px", fontSize: 12, lineHeight: 1.5, color: "#44403c", backgroundColor: "#f5f5f4", border: "1px solid #e7e5e4", borderRadius: 8, padding: "8px 12px" }}>
+              <p data-testid="aviso-devolucao-molde" style={{ margin: "0 0 12px", fontSize: 12, lineHeight: 1.5, color: T.strong, backgroundColor: N.n2, border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px 12px" }}>
                 Molde não tem Finalização: ele volta para o começo da Arte, <strong>com o thumb</strong>, que a Arte corrige e reenvia.
               </p>
             ) : seletorDestino}
@@ -3264,7 +3264,7 @@ export default function Solicitacao() {
                 </span>
               )}
               {propostasDoLote.some(x => x.reaproveitadas > 0) && (
-                <span data-testid="aviso-bulk-release-estoque" style={{ display: "block", marginTop: 8, color: "#14532d" }}>
+                <span data-testid="aviso-bulk-release-estoque" style={{ display: "block", marginTop: 8, color: TOM.sucesso.text }}>
                   <strong>{resumoDoLoteComEstoque(loteDeLiberar.prontas.length, propostasDoLote)}</strong> — entram com o que o estoque atendeu, sem digitar nada.
                 </span>
               )}
@@ -3328,7 +3328,7 @@ export default function Solicitacao() {
           <div style={{ padding: 0 }}>
             {!loteSoDeMoldes && seletorDestino}
             {moldesNoLote > 0 && (
-              <p data-testid="aviso-bulk-return-moldes" style={{ margin: "0 0 12px", fontSize: 12, lineHeight: 1.5, color: "#44403c", backgroundColor: "#f5f5f4", border: "1px solid #e7e5e4", borderRadius: 8, padding: "8px 12px" }}>
+              <p data-testid="aviso-bulk-return-moldes" style={{ margin: "0 0 12px", fontSize: 12, lineHeight: 1.5, color: T.strong, backgroundColor: N.n2, border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px 12px" }}>
                 {loteSoDeMoldes
                   ? (moldesNoLote === 1 ? "O molde volta" : `Os ${moldesNoLote} moldes voltam`)
                   : (moldesNoLote === 1 ? "1 molde volta" : `${moldesNoLote} moldes voltam`)} para o começo da Arte, com o thumb — molde não tem Finalização{loteSoDeMoldes ? "." : ", seja qual for a escolha acima."}
@@ -3389,7 +3389,7 @@ export default function Solicitacao() {
                 bulkReuseMutation.mutate(selecaoLote.vivas);
               }}
               disabled={bulkReuseMutation.isPending || selecaoLote.vivas.length === 0}
-              style={{ backgroundColor: "#15803d", color: "#fff" }}
+              style={{ backgroundColor: TOM.sucesso.text, color: "#fff" }}
               data-testid="button-bulk-reuse-confirm"
             >
               {bulkReuseMutation.isPending
@@ -3428,7 +3428,7 @@ export default function Solicitacao() {
                 <ModalHeader
                   variant="confirm"
                   icon={Recycle}
-                  tint="#15803d"
+                  tint={TOM.sucesso.text}
                   title="Reaproveitamento"
                   subtitle={`${dialogItem.displayId} · ${dialogItem.type} · ${qty} un.`}
                   onClose={() => setReuseDialogItemId(null)}
@@ -3467,7 +3467,7 @@ export default function Solicitacao() {
                 disabled={toggleReuseMutation.isPending || partialReuseMutation.isPending}
                 style={{
                   width: "100%", padding: "12px 16px", marginBottom: 10,
-                  backgroundColor: "#15803d", color: "#fff",
+                  backgroundColor: TOM.sucesso.text, color: "#fff",
                   border: "none", borderRadius: 8, cursor: "pointer",
                   fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
@@ -3479,8 +3479,8 @@ export default function Solicitacao() {
 
               {/* Opção: reaproveitar parcialmente (só aparece se qty > 1) */}
               {qty > 1 && (
-                <div style={{ border: "1px solid #e7e5e4", borderRadius: 8, padding: "14px 16px" }}>
-                  <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 700, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                <div style={{ border: `1px solid ${T.border}`, borderRadius: 8, padding: "14px 16px" }}>
+                  <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                     Reaproveitar parcialmente
                   </p>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
@@ -3492,17 +3492,17 @@ export default function Solicitacao() {
                       onChange={e => setPartialReuseQty(Math.max(1, Math.min(qty - 1, parseInt(e.target.value) || 1)))}
                       aria-label="Unidades reaproveitadas"
                       data-testid="input-partial-reuse-qty"
-                      style={{ width: 64, height: 34, padding: "0 8px", borderRadius: 6, border: "1px solid #d4d4d0", fontSize: 15, fontWeight: 700, textAlign: "center" }}
+                      style={{ width: 64, height: 34, padding: "0 8px", borderRadius: 6, border: `1px solid ${T.bdark}`, fontSize: 15, fontWeight: 700, textAlign: "center" }}
                     />
-                    <span style={{ fontSize: 13, color: "#746e69" }}>de {qty} un. reaproveitadas</span>
+                    <span style={{ fontSize: 13, color: T.second }}>de {qty} un. reaproveitadas</span>
                   </div>
-                  <p style={{ margin: "0 0 10px", fontSize: 11, color: "#746e69" }}>
+                  <p style={{ margin: "0 0 10px", fontSize: 11, color: T.second }}>
                     As outras <strong>{qty - partialReuseQty}</strong> un. seguirão para produção normal.
                   </p>
                   {/* O parcial LIBERA o restante para produção — e produção pede
                       arquivo final. Dito aqui, antes do 409 do servidor. */}
                   {!arquivoFinalOk(dialogItem) && (
-                    <p role="status" data-testid="aviso-parcial-sem-arquivo" style={{ margin: "0 0 10px", fontSize: 12, lineHeight: 1.45, color: "#92400e", backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, padding: "6px 10px" }}>
+                    <p role="status" data-testid="aviso-parcial-sem-arquivo" style={{ margin: "0 0 10px", fontSize: 12, lineHeight: 1.45, color: TOM.alerta.text, backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 6, padding: "6px 10px" }}>
                       Sem arquivo final da Arte: o parcial manda o restante para a Gráfica, que precisa do arquivo. Espere a Arte enviar, ou reaproveite tudo.
                     </p>
                   )}
@@ -3515,7 +3515,7 @@ export default function Solicitacao() {
                     disabled={toggleReuseMutation.isPending || partialReuseMutation.isPending || !arquivoFinalOk(dialogItem)}
                     style={{
                       width: "100%", padding: "10px 16px",
-                      backgroundColor: arquivoFinalOk(dialogItem) ? "#0c0a09" : "#e7e5e4", color: arquivoFinalOk(dialogItem) ? "#fff" : "#78716c",
+                      backgroundColor: arquivoFinalOk(dialogItem) ? T.text : T.border, color: arquivoFinalOk(dialogItem) ? "#fff" : T.second,
                       border: "none", borderRadius: 6, cursor: "pointer",
                       fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em",
                     }}
@@ -3528,7 +3528,7 @@ export default function Solicitacao() {
 
                   <button
                     onClick={() => setReuseDialogItemId(null)}
-                    style={{ width: "100%", marginTop: 12, height: 36, background: "none", border: "none", fontSize: 13, color: "#746e69", cursor: "pointer" }}
+                    style={{ width: "100%", marginTop: 12, height: 36, background: "none", border: "none", fontSize: 13, color: T.second, cursor: "pointer" }}
                   >
                     Cancelar
                   </button>
@@ -3585,13 +3585,13 @@ export default function Solicitacao() {
           <ModalHeader
             variant="confirm"
             icon={Lock}
-            tint="#7f1d1d"
+            tint={TOM.perigo.text}
             title="Travar peça"
             subtitle={travandoItem ? `${travandoItem.displayId ?? ""} · ${travandoItem.type ?? ""}` : undefined}
             onClose={() => { if (!travarMutation.isPending) { setTravandoItem(null); setMotivoDaTrava(""); } }}
           />
           <div style={{ padding: "16px 24px 20px", overflowY: "auto", flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-            <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: "#44403c" }}>
+            <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: T.strong }}>
               Travada, a peça pode ser liberada, mas não anda na Gráfica (imprimir, conferir, embalar) até alguém da Solicitação destravar.
             </p>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -3600,7 +3600,7 @@ export default function Solicitacao() {
                   key={sug}
                   type="button"
                   onClick={() => setMotivoDaTrava(sug)}
-                  style={{ minHeight: isMobile ? 44 : 30, padding: "0 10px", borderRadius: 999, border: "1px solid #e7e5e4", background: motivoDaTrava === sug ? "#fef2f2" : "#ffffff", color: "#44403c", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                  style={{ minHeight: isMobile ? 44 : 30, padding: "0 10px", borderRadius: 999, border: `1px solid ${T.border}`, background: motivoDaTrava === sug ? TOM.perigo.bg : T.surface, color: T.strong, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
                 >
                   {sug}
                 </button>
@@ -3615,7 +3615,7 @@ export default function Solicitacao() {
               className="w-full min-h-20 p-2 border rounded-md bg-background text-foreground resize-none text-sm"
             />
             {!motivoDaTravaLido.ok && (
-              <p aria-live="polite" style={{ margin: 0, fontSize: 12, color: "#92400e" }}>
+              <p aria-live="polite" style={{ margin: 0, fontSize: 12, color: TOM.alerta.text }}>
                 {`Escreva o motivo (pelo menos ${MOTIVO_MINIMO} letras) — é o que a Gráfica vai ler.`}
               </p>
             )}
@@ -3624,7 +3624,7 @@ export default function Solicitacao() {
                 type="button"
                 onClick={() => { setTravandoItem(null); setMotivoDaTrava(""); }}
                 disabled={travarMutation.isPending}
-                style={{ minHeight: 40, padding: "0 14px", borderRadius: 8, border: "1px solid #e7e5e4", background: "#ffffff", color: "#44403c", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                style={{ minHeight: 40, padding: "0 14px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.surface, color: T.strong, fontSize: 13, fontWeight: 600, cursor: "pointer" }}
               >
                 Cancelar
               </button>
@@ -3633,7 +3633,7 @@ export default function Solicitacao() {
                 onClick={() => { if (travandoItem && motivoDaTravaLido.ok) travarMutation.mutate({ itemId: travandoItem.id, motivo: motivoDaTravaLido.motivo, displayId: travandoItem.displayId }); }}
                 disabled={!motivoDaTravaLido.ok || travarMutation.isPending}
                 data-testid="button-travar-confirm-revisao"
-                style={{ minHeight: 40, padding: "0 14px", borderRadius: 8, border: "none", background: motivoDaTravaLido.ok ? "#7f1d1d" : "#e7e5e4", color: motivoDaTravaLido.ok ? "#ffffff" : "#78716c", fontSize: 13, fontWeight: 700, cursor: motivoDaTravaLido.ok && !travarMutation.isPending ? "pointer" : "not-allowed" }}
+                style={{ minHeight: 40, padding: "0 14px", borderRadius: 8, border: "none", background: motivoDaTravaLido.ok ? TOM.perigo.text : T.border, color: motivoDaTravaLido.ok ? T.surface : T.second, fontSize: 13, fontWeight: 700, cursor: motivoDaTravaLido.ok && !travarMutation.isPending ? "pointer" : "not-allowed" }}
               >
                 {travarMutation.isPending ? "Travando…" : "Travar"}
               </button>

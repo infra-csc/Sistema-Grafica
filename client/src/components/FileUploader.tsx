@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle, Loader2, RotateCcw, X } from "lucide-react";
 import { useFileUpload, type EstadoDoEnvio, type FalhaDoEnvio } from "@/hooks/use-file-upload";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { FS, R } from "@/lib/theme";
+import { T, TOM, FS, R } from "@/lib/theme";
 
 interface FileUploaderProps {
   maxFileSize?: number;
@@ -77,7 +77,7 @@ export function ProgressoDoEnvio({ envio, falha, onCancelar, onTentarDeNovo, onD
   // envio. Cresce a área de clique, não o traço.
   const BOTAO: React.CSSProperties = {
     display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0, minHeight: isMobile ? 44 : 36, padding: "0 6px",
-    borderRadius: R.sm, border: "none", background: "transparent", color: "#44403c",
+    borderRadius: R.sm, border: "none", background: "transparent", color: T.strong,
     fontSize: FS.small, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap",
     textDecoration: "underline", textUnderlineOffset: 2,
   };
@@ -88,8 +88,8 @@ export function ProgressoDoEnvio({ envio, falha, onCancelar, onTentarDeNovo, onD
     return (
       <div data-testid="progresso-do-envio" style={{ display: "flex", flexDirection: "column", gap: 0, marginTop: 2, maxWidth: 280, minWidth: 0 }}>
         <div style={LINHA}>
-          <span style={{ ...NOME, color: "#57534e" }} title={envio.nome}>
-            <strong style={{ color: "#1c1917", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{rotuloDoEnvio(envio)}</strong>
+          <span style={{ ...NOME, color: T.apoio }} title={envio.nome}>
+            <strong style={{ color: T.text, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{rotuloDoEnvio(envio)}</strong>
             {" · "}{lote}{envio.nome}
           </span>
           {/* Na fase "finalizando" os bytes já chegaram e o servidor está
@@ -107,9 +107,9 @@ export function ProgressoDoEnvio({ envio, falha, onCancelar, onTentarDeNovo, onD
           aria-valuemax={100}
           aria-valuenow={envio.percentual}
           aria-valuetext={`${rotuloDoEnvio(envio)} — ${lote}${envio.nome}`}
-          style={{ height: 4, borderRadius: R.pill, background: "#e7e5e4", overflow: "hidden" }}
+          style={{ height: 4, borderRadius: R.pill, background: T.border, overflow: "hidden" }}
         >
-          <div style={{ height: "100%", width: `${Math.max(envio.percentual, envio.fase === "preparando" ? 0 : 3)}%`, background: "#44403c", borderRadius: R.pill, transition: "width 0.2s linear" }} />
+          <div style={{ height: "100%", width: `${Math.max(envio.percentual, envio.fase === "preparando" ? 0 : 3)}%`, background: T.strong, borderRadius: R.pill, transition: "width 0.2s linear" }} />
         </div>
       </div>
     );
@@ -120,20 +120,20 @@ export function ProgressoDoEnvio({ envio, falha, onCancelar, onTentarDeNovo, onD
     const nomes = um ? falha.arquivos[0].name : `${falha.arquivos.length} arquivos`;
     return (
       <div data-testid="falha-do-envio" role={mensagemNaFalha ? "alert" : undefined}
-        style={{ display: "flex", flexDirection: "column", marginTop: 6, maxWidth: 280, minWidth: 0, padding: "0 0 0 10px", borderRadius: R.md, background: "#fef2f2", border: "1px solid #fecaca" }}>
+        style={{ display: "flex", flexDirection: "column", marginTop: 6, maxWidth: 280, minWidth: 0, padding: "0 0 0 10px", borderRadius: R.md, background: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}` }}>
         <div style={LINHA}>
-          <AlertCircle aria-hidden="true" style={{ width: 13, height: 13, color: "#b91c1c", flexShrink: 0 }} />
-          <span style={{ ...NOME, color: "#991b1b", fontWeight: 700 }} title={nomes}>{um ? "Não foi enviado" : "Não foram enviados"} · {nomes}</span>
+          <AlertCircle aria-hidden="true" style={{ width: 13, height: 13, color: TOM.perigo.text, flexShrink: 0 }} />
+          <span style={{ ...NOME, color: TOM.perigo.text, fontWeight: 700 }} title={nomes}>{um ? "Não foi enviado" : "Não foram enviados"} · {nomes}</span>
           <button type="button" onClick={onDispensar} aria-label="Dispensar o aviso de falha"
-            style={{ ...BOTAO, width: isMobile ? 44 : 36, padding: 0, justifyContent: "center", color: "#57534e", textDecoration: "none" }}>
+            style={{ ...BOTAO, width: isMobile ? 44 : 36, padding: 0, justifyContent: "center", color: T.apoio, textDecoration: "none" }}>
             <X aria-hidden="true" style={{ width: 13, height: 13 }} />
           </button>
         </div>
         {mensagemNaFalha && falha.mensagem && (
-          <span style={{ paddingRight: 10, fontSize: FS.small, color: "#7f1d1d", lineHeight: 1.4, overflowWrap: "anywhere" }}>{falha.mensagem}</span>
+          <span style={{ paddingRight: 10, fontSize: FS.small, color: TOM.perigo.text, lineHeight: 1.4, overflowWrap: "anywhere" }}>{falha.mensagem}</span>
         )}
         <button type="button" onClick={onTentarDeNovo} disabled={desabilitado} data-testid="button-tentar-envio-de-novo"
-          style={{ ...BOTAO, alignSelf: "flex-start", marginLeft: -6, color: "#991b1b", cursor: desabilitado ? "not-allowed" : "pointer" }}>
+          style={{ ...BOTAO, alignSelf: "flex-start", marginLeft: -6, color: TOM.perigo.text, cursor: desabilitado ? "not-allowed" : "pointer" }}>
           <RotateCcw aria-hidden="true" style={{ width: 12, height: 12 }} /> Tentar de novo
         </button>
       </div>

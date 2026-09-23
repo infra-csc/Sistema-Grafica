@@ -25,12 +25,11 @@
 //     uma vez seriam 231 downloads simultâneos.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDaTela } from "./fonte-da-tela";
 import { readFileSync } from "fs";
 
-const TELA = readFileSync(
-  new URL("../../client/src/pages/atendimento.tsx", import.meta.url),
-  "utf8",
-);
+// A página e os pedaços dela em components/atendimento/ (fonte-da-tela.ts).
+const TELA = fonteDaTela("atendimento");
 
 describe("a fila chega inteira", () => {
   it("nenhuma peça é cortada antes de agrupar por evento", () => {

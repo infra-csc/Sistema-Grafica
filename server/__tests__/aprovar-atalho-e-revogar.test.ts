@@ -16,6 +16,8 @@
 //     assim, com o mesmo botão que o admin já usa.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDaTela } from "./fonte-da-tela";
+import { fonteDoComponente } from "./fonte-dos-componentes";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 
@@ -77,7 +79,7 @@ describe("3 · e a TELA oferece o clique no estado incoerente", () => {
   // revogar só aparecia com a linha não-pendente. No estado herdado
   // ("Aguardando" + peça avançada) ele agora aparece, com o título dizendo
   // o que vai acontecer.
-  const DIALOGO = readFileSync(new URL("../../client/src/components/item-details-dialog.tsx", import.meta.url), "utf8");
+  const DIALOGO = fonteDoComponente("client/src/components/item-details-dialog.tsx");
 
   it("linha pendente + peça avançada mostra o botão de reabrir", () => {
     expect(DIALOGO).toContain('const reabrirIncoerente = approval?.status === "pending" && pecaAvancada;');
@@ -133,7 +135,7 @@ describe("5 · o admin adiciona o patrocinador que faltava, do próprio modal", 
   // Caso #2801 (25/08): a arte carregava a Crystal e não havia linha para
   // aprovar — a marca não estava vinculada à peça. Só admin.
   const SPONSORS = readFileSync(new URL("../routes/sponsors.ts", import.meta.url), "utf8");
-  const ATEND = readFileSync(new URL("../../client/src/pages/atendimento.tsx", import.meta.url), "utf8");
+  const ATEND = fonteDaTela("atendimento");
 
   it("vincular numa peça em aprovação cria a linha pendente JUNTO", () => {
     // Sem a linha, o reenvio da Arte (que deriva das LINHAS) não incluiria o
@@ -155,7 +157,7 @@ describe("5 · o admin adiciona o patrocinador que faltava, do próprio modal", 
   });
 
   it("a linha nova aparece na hora, como Aguardando decisão", () => {
-    expect(ATEND).toContain('setSponsorApprovals(prev => [...prev, { itemId: selectedItem.id, sponsorId: sp.id, status: "pending" } as any]);');
+    expect(ATEND).toContain('setSponsorApprovals(prev => [...prev, { itemId: selectedItem.id, sponsorId: sp.id, status: "pending" }]);');
   });
 
   it("a busca dos patrocinadores do evento só roda para admin com o modal aberto", () => {

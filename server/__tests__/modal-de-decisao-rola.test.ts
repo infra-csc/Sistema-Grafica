@@ -27,12 +27,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
+import { fonteDaTela } from "./fonte-da-tela";
 import { readFileSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
 const CSS = ler("client/src/index.css");
-const ATEND = ler("client/src/pages/atendimento.tsx");
+const ATEND = fonteDaTela("atendimento");
 
 /** O bloco de uma regra CSS, pelo seletor. */
 function regra(css: string, seletor: string): string {

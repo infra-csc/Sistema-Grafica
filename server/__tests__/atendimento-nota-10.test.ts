@@ -25,15 +25,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
+import { fonteDaTela } from "./fonte-da-tela";
 import { readFileSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
-const A = ler("client/src/pages/atendimento.tsx");
+const A = fonteDaTela("atendimento");
 
 describe("1 · quem falta responder, por nome", () => {
   it("a lista de quem falta sai dos vínculos e das decisões, não de um contador", () => {
-    expect(A).toContain("const quemFalta = (item: any): string[] => {");
+    expect(A).toContain("const quemFalta = (item: { id: string }): string[] => {");
     expect(A).toContain('return !st || st === "pending" || st === "new_version_pending";');
   });
 
@@ -73,12 +74,12 @@ describe("2 · a ordem declarada e trocável", () => {
   });
 
   it("a lista E a fila usam o MESMO comparador — senão 'Próxima peça' desencontra da tela", () => {
-    expect(A).toContain("const comparaPecas = useCallback((a: any, b: any) => {");
+    expect(A).toContain("const comparaPecas = useCallback((a: PecaAtendimento, b: PecaAtendimento) => {");
     expect((A.match(/\[\.\.\.pendingGroup\]\.sort\(comparaPecas\)/g) ?? []).length).toBe(2);
   });
 
   it("o agrupamento por evento continua — a ordem decide a sequência dos grupos", () => {
-    expect(A).toContain("const pesoDoEvento = useCallback((eventId: string, pecas: any[]) => {");
+    expect(A).toContain("const pesoDoEvento = useCallback((eventId: string, pecas: PecaAtendimento[]) => {");
     expect(A).toContain("// Sem marco não é \"no prazo\": é desconhecido, e vai para o fim.");
     expect(A).toContain("return wa.num - wb.num || COLLATOR.compare(wa.chave, wb.chave);");
   });
@@ -115,7 +116,7 @@ describe("4 · o status no card", () => {
 
 describe("5 e 6 · a jornada, uma vez só e com o tempo calculado", () => {
   it("as datas de cada etapa saem dos carimbos do próprio fluxo", () => {
-    expect(A).toContain("const DATA_DA_ETAPA: Record<string, (i: any) => string | null | undefined> = {");
+    expect(A).toContain("const DATA_DA_ETAPA: Record<string, (i: PecaAtendimento) => string | null | undefined> = {");
     for (const campo of ["i.createdAt", "i.approvalThumbUpdatedAt", "i.sponsorApprovedAt", "i.approvedAt", "i.producedAt"]) {
       expect(A).toContain(campo);
     }
@@ -156,7 +157,7 @@ describe("7 · ordenar o histórico pelas mais demoradas", () => {
   });
 
   it("a duração usada na ordem é a MESMA que o cartão mostra", () => {
-    expect(A).toContain("const duracaoDe = (item: any) => jornadaDaPeca(item,");
+    expect(A).toContain("const duracaoDe = (item: PecaAtendimento) => jornadaDaPeca(item,");
     expect(A).toContain('if (ordemHistorico === "demoradas") return duracaoDe(b) - duracaoDe(a);');
   });
 });

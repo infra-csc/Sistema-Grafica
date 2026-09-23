@@ -322,7 +322,8 @@ describe("os descontos fixos de altura não voltam", () => {
     ["client/src/pages/historico.tsx", ['maxHeight: "56vh"']],
     ["client/src/pages/arte.tsx", ["maxHeight: '62vh'"]],
     ["client/src/pages/grafica.tsx", ['"calc(88vh - 96px)"', '"calc(88vh - 112px)"']],
-    ["client/src/pages/atendimento.tsx", ["maxHeight: '75vh'"]],
+    // O preview da arte do lote saiu da página do Atendimento para o componente dele.
+    ["client/src/components/atendimento/preview-do-lote.tsx", ["maxHeight: '75vh'"]],
     ["client/src/pages/registros.tsx", ['maxHeight: "72vh"']],
     ["client/src/components/aumentar-quantidade-dialog.tsx",
       ['"min(62vh, calc(100vh - 300px))"', '"calc(88vh - 168px)"']],

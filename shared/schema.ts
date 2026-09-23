@@ -41,6 +41,19 @@ export const ssoTokensDeTroca = pgTable(
   (table) => [index("IDX_sso_tokens_expira").on(table.expiraEm)],
 );
 
+// Tentativas de login por janela (por IP e por conta, chave em hash). No banco
+// e não na memória: com várias cópias do servidor, cada uma contava sozinha e
+// o limite valia N vezes. Declarada aqui para o `db:push` não derrubá-la.
+export const limiteDeTentativas = pgTable(
+  "limite_de_tentativas",
+  {
+    chave: text("chave").primaryKey(),
+    contagem: integer("contagem").notNull(),
+    reiniciaEm: timestamp("reinicia_em", { withTimezone: true }).notNull(),
+  },
+  (table) => [index("IDX_limite_de_tentativas_reinicia_em").on(table.reiniciaEm)],
+);
+
 // Events table
 export const events = pgTable("events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

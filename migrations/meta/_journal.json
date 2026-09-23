@@ -15,6 +15,13 @@
       "when": 1790177476708,
       "tag": "0001_busca-trigram-fora-do-schema",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790186312844,
+      "tag": "0002_limite-de-tentativas",
+      "breakpoints": true
     }
   ]
 }

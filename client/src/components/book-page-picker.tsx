@@ -19,6 +19,7 @@
 // As duas bibliotecas entram por import dinâmico: são pesadas e só fazem
 // sentido quando este modal abre, então não pesam no bundle das telas.
 import { useState, useEffect, useRef, useCallback } from "react";
+import type { PDFDocumentProxy } from "pdfjs-dist";
 import { X, Download, Loader2, FileText, Scissors, Hash, Check } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { FilterSelect } from "@/components/filter-select";
@@ -107,7 +108,7 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
   // O ArrayBuffer fica guardado para o recorte não precisar baixar de novo — o
   // download deste book leva ~3s.
   const bytesRef = useRef<ArrayBuffer | null>(null);
-  const docRef   = useRef<any>(null);
+  const docRef   = useRef<PDFDocumentProxy | null>(null);
   // Fila serial: o pdf.js tem um worker só, disparar 22 renders juntos apenas
   // enfileira lá dentro e ainda tira a ordem de quem está na tela.
   const queueRef = useRef<number[]>([]);
@@ -145,9 +146,9 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
         setNumPages(doc.numPages);
         setOpening(false);
         if (doc.numPages === 0) setError("O book não tem páginas.");
-      } catch (e: any) {
+      } catch (e) {
         if (genRef.current !== gen) return;
-        setError(e?.message || "Falha ao abrir o book.");
+        setError((e instanceof Error && e.message) || "Falha ao abrir o book.");
         setOpening(false);
       }
     })();
@@ -178,7 +179,7 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
       canvas.width = Math.ceil(viewport.width);
       canvas.height = Math.ceil(viewport.height);
       const ctx = canvas.getContext("2d")!;
-      await page.render({ canvas, canvasContext: ctx, viewport } as any).promise;
+      await page.render({ canvas, canvasContext: ctx, viewport }).promise;
       if (genRef.current === gen) {
         const src = canvas.toDataURL("image/jpeg", 0.72);
         setThumbs(prev => ({ ...prev, [n]: src }));
@@ -238,8 +239,8 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
       // downloads, e "N página(s) baixadas" não dizia onde nem como.
       toast({ variant: "success", title: indexes.length === 1 ? "Página extraída" : `${indexes.length} páginas extraídas`, description: `Salvo como "${safeName} — ${indexes.length} pág.pdf".` });
       onOpenChange(false);
-    } catch (e: any) {
-      toast({ title: "Não foi possível extrair", description: e?.message || "Erro ao recortar o book.", variant: "destructive" });
+    } catch (e) {
+      toast({ title: "Não foi possível extrair", description: (e instanceof Error && e.message) || "Erro ao recortar o book.", variant: "destructive" });
     } finally {
       setExtracting(false);
     }

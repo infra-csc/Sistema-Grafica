@@ -47,6 +47,68 @@ import { Selo } from "@/components/ui/selo";
 import { T, TOM, FS, FW, R, FONT } from "@/lib/theme";
 
 // ─────────────────────────────────────────────────────────────────────────────
+// A peça que o modal e a ficha leem
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Data como a tela pode ter: string do JSON da API ou Date já convertida. */
+type DataDaApi = string | Date;
+
+/** Um complemento (peça-filha) como o enrich do servidor o anexa à mãe. */
+export type ComplementoAnexado = {
+  id: string;
+  displayId?: string | null;
+  status: string;
+  quantity?: number | string | null;
+  complementSeq?: number | null;
+  quantityProduced?: number | string | null;
+  conferredQty?: number | string | null;
+  deliveredQty?: number | string | null;
+  complementReason?: string | null;
+  complementRequestedBy?: string | null;
+};
+
+/**
+ * O que este arquivo lê da peça. Estrutural e tolerante de propósito: cada
+ * tela passa a peça do jeito que a tipa, e só estes campos precisam bater.
+ * É `type` (não `interface`) para caber no `SaldoItem` do getSaldo, que tem
+ * assinatura de índice.
+ */
+export type PecaDoComplemento = {
+  id: string;
+  displayId?: string | null;
+  type: string;
+  description?: string | null;
+  status: string;
+  approvalThumbUrl?: string | null;
+  finalFileUrl?: string | null;
+  eventId?: string | null;
+  deletedAt?: DataDaApi | null;
+  parentItemId?: string | null;
+  // Os campos do saldo (getSaldo) — números às vezes chegam como string (decimal).
+  quantity?: number | string | null;
+  quantityProduced?: number | string | null;
+  reuseQty?: number | string | null;
+  isReuse?: boolean | null;
+  conferredQty?: number | string | null;
+  deliveredQty?: number | string | null;
+  calculatedM2?: number | string | null;
+  fileWidth?: string | number | null;
+  fileHeight?: string | number | null;
+  contractedTotal?: number | string | null;
+  complements?: ComplementoAnexado[] | null;
+  complementReason?: string | null;
+  complementRequestedBy?: string | null;
+  complementRequestedAt?: DataDaApi | null;
+  parent?: { id: string; displayId?: string | null; quantity?: number | string | null; status?: string | null } | null;
+  event?: { name?: string | null; truckDepartureDate?: DataDaApi | null } | null;
+};
+
+/** A peça-filha que a rota devolve (Item cru) com a mãe costurada pela tela. */
+export type ComplementoCriado = PecaDoComplemento & {
+  parent: NonNullable<PecaDoComplemento["parent"]>;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Vocabulário e gates
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -67,8 +129,8 @@ export const COMPLEMENT_ALLOWED_STATUSES: readonly string[] = [
 ];
 
 /** A peça já entrou em produção (aumentar aqui = complemento). */
-export function entrouEmProducao(item: any): boolean {
-  return !!item && COMPLEMENT_ALLOWED_STATUSES.includes(item.status);
+export function entrouEmProducao(item: { status?: string | null } | null | undefined): boolean {
+  return !!item && item.status != null && COMPLEMENT_ALLOWED_STATUSES.includes(item.status);
 }
 
 /**
@@ -88,7 +150,7 @@ export function podeMexerNaQuantidade(role?: string | null): boolean {
   return role === "admin" || role === "solicitacao";
 }
 
-export function podeAumentarQuantidade(item: any, podeMexer: boolean): boolean {
+export function podeAumentarQuantidade(item: PecaDoComplemento | null | undefined, podeMexer: boolean): boolean {
   return (
     podeMexer &&
     !!item &&
@@ -108,7 +170,18 @@ export interface ApiError {
   /** `code` do corpo JSON: USE_COMPLEMENT, QUANTITY_FLOOR, MIGRATION_PENDING… */
   code?: string;
   /** Corpo inteiro — carrega `suggestedComplement`, `minimum`, `complements`… */
-  data?: any;
+  data?: DadosDoErro;
+}
+
+/** O corpo do erro: os campos que as telas leem, e o resto sem forma garantida. */
+export interface DadosDoErro {
+  /** 409 QUANTITY_FLOOR: o piso físico da quantidade. */
+  minimum?: number;
+  /** 409 USE_COMPLEMENT: a peça que recusou o aumento. */
+  itemId?: string;
+  /** 409 USE_COMPLEMENT: a diferença que o modal já pode sugerir. */
+  suggestedComplement?: number;
+  [campo: string]: unknown;
 }
 
 /**
@@ -130,7 +203,7 @@ export interface ApiError {
  * Regra de manutenção: mudou a frase em server/routes/items.ts, muda o padrão
  * aqui. É o mesmo acoplamento dos dois mapas de status que já convivem.
  */
-const CODIGO_POR_MENSAGEM: Array<{ re: RegExp; code: string; extra?: (m: RegExpMatchArray) => any }> = [
+const CODIGO_POR_MENSAGEM: Array<{ re: RegExp; code: string; extra?: (m: RegExpMatchArray) => DadosDoErro }> = [
   { re: /Para aumentar, use "Aumentar quantidade"/i,          code: "USE_COMPLEMENT" },
   { re: /Mínimo:\s*(\d+)/i,                                    code: "QUANTITY_FLOOR", extra: (m) => ({ minimum: Number(m[1]) }) },
   { re: /Migração pendente/i,                                  code: "MIGRATION_PENDING" },
@@ -163,7 +236,7 @@ export function parseApiError(err: unknown): ApiError {
   const raw = err instanceof Error ? err.message : String(err ?? "");
   let message = raw;
   let code: string | undefined;
-  let data: any;
+  let data: DadosDoErro | undefined;
 
   try {
     const parsed = JSON.parse(raw);
@@ -205,7 +278,7 @@ const fmtM2 = (v: number) => v.toFixed(2).replace(".", ",");
  * da mãe → indefinido. O preview precisa contar a mesma história que o audit
  * log vai gravar; um número diferente aqui viraria discussão no fechamento.
  */
-function m2DoComplemento(item: any, quantidade: number): number | null {
+function m2DoComplemento(item: PecaDoComplemento | null, quantidade: number): number | null {
   const w = parseFloat(String(item?.fileWidth ?? ""));
   const h = parseFloat(String(item?.fileHeight ?? ""));
   if (Number.isFinite(w) && w > 0 && Number.isFinite(h) && h > 0 && quantidade > 0) {
@@ -225,9 +298,9 @@ function m2DoComplemento(item: any, quantidade: number): number | null {
  * tela, então o pior caso é a tira dizer -C2 e sair -C3 — nunca um número
  * menor, que é o que confundiria.
  */
-function proximoSufixo(item: any): number {
+function proximoSufixo(item: PecaDoComplemento | null): number {
   const seqs = (item?.complements ?? [])
-    .map((c: any) => Number(c?.complementSeq) || 0)
+    .map((c) => Number(c?.complementSeq) || 0)
     .filter((n: number) => n > 0);
   return (seqs.length ? Math.max(...seqs) : 0) + 1;
 }
@@ -334,7 +407,7 @@ function Azulejo({ rotulo, valor, sub, subCor }: {
 
 export interface AumentarQuantidadeDialogProps {
   /** A peça-MÃE. O modal não abre sem ela. */
-  item: any | null;
+  item: PecaDoComplemento | null;
   /** Evento da peça — só para o aviso de caminhão já saído. Opcional. */
   event?: { name?: string | null; truckDepartureDate?: string | Date | null } | null;
   open: boolean;
@@ -345,7 +418,7 @@ export interface AumentarQuantidadeDialogProps {
    */
   sugestao?: number | null;
   /** Chamado com a peça-filha criada (ou reaproveitada pelo dedupe). */
-  onCreated?: (child: any) => void;
+  onCreated?: (child: ComplementoCriado) => void;
 }
 
 export function AumentarQuantidadeDialog({
@@ -396,8 +469,8 @@ export function AumentarQuantidadeDialog({
   const sufixo = proximoSufixo(item);
   const displayFilho = `${item?.displayId ?? ""}-C${sufixo}`;
   const { base: idBase, suffix: idSuffix } = splitDisplayId(item?.displayId ?? "");
-  const complementos: any[] = item?.complements ?? [];
-  const nomeEvento = (item as any)?.event?.name ?? event?.name ?? null;
+  const complementos: ComplementoAnexado[] = item?.complements ?? [];
+  const nomeEvento = item?.event?.name ?? event?.name ?? null;
 
   // Faixa de sanidade: não bloqueia nada, só pede uma segunda olhada quando o
   // número digitado é grande demais para o tamanho da peça (o dedo escorregou
@@ -408,9 +481,9 @@ export function AumentarQuantidadeDialog({
   // ANTES de a Gráfica imprimir. Formatado em UTC como no restante da tela de
   // evento (o valor gravado É o horário que a pessoa digitou).
   const saidaCaminhao = useMemo(() => {
-    const raw = event?.truckDepartureDate ?? (item as any)?.event?.truckDepartureDate;
+    const raw = event?.truckDepartureDate ?? item?.event?.truckDepartureDate;
     if (!raw) return null;
-    const d = new Date(raw as any);
+    const d = new Date(raw);
     if (isNaN(d.getTime())) return null;
     return d.getTime() < Date.now()
       ? d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "UTC" })
@@ -428,7 +501,11 @@ export function AumentarQuantidadeDialog({
 
   const criarMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/items/${item.id}/complement`, {
+      // submeter() não dispara sem peça; a guarda existe para o tipo. A mãe vai
+      // junto no resultado: é para ela que a filha nasceu.
+      const mae = item;
+      if (!mae) throw new Error("Nenhuma peça selecionada.");
+      const res = await apiRequest("POST", `/api/items/${mae.id}/complement`, {
         quantity: qtd,
         reason: motivoLimpo,
       });
@@ -436,10 +513,10 @@ export function AumentarQuantidadeDialog({
       // O servidor devolve o complemento QUE JÁ EXISTE em vez de criar um
       // gêmeo na fila da Gráfica — para a tela isto é sucesso, não erro.
       const deduped = res.headers.get("X-Complement-Deduped") === "1";
-      const child = await res.json();
-      return { child, deduped };
+      const child: PecaDoComplemento = await res.json();
+      return { child, deduped, mae };
     },
-    onSuccess: ({ child, deduped }) => {
+    onSuccess: ({ child, deduped, mae }) => {
       // O servidor faz broadcast, mas quem clicou não pode depender do
       // WebSocket para ver o próprio trabalho: invalidação explícita das
       // listagens que rodam com staleTime Infinity.
@@ -458,7 +535,7 @@ export function AumentarQuantidadeDialog({
       // pessoa precisa confirmar o que acabou de fazer.
       onCreated?.({
         ...child,
-        parent: { id: item.id, displayId: item.displayId, quantity: item.quantity, status: item.status },
+        parent: { id: mae.id, displayId: mae.displayId, quantity: mae.quantity, status: mae.status },
       });
       onOpenChange(false);
       toast(deduped
@@ -736,7 +813,7 @@ export function AumentarQuantidadeDialog({
                     <strong>Já existem:</strong>{" "}
                     {complementos
                       .slice(0, 3)
-                      .map((c: any) => `${c.displayId} (+${c.quantity}, ${getStatusLabel(c.status).toLowerCase()})`)
+                      .map((c) => `${c.displayId} (+${c.quantity}, ${getStatusLabel(c.status).toLowerCase()})`)
                       .join(" · ")}
                     {complementos.length > 3 && ` · +${complementos.length - 3} mais`}
                   </div>
@@ -1170,7 +1247,7 @@ export function AumentarQuantidadeDialog({
  * Detalhe do Evento, onde aumentar deixou de morar): ali o bloco só existe se
  * houver complemento de verdade para contar.
  */
-export function temBlocoDeComplemento(item: any, podeMexer: boolean, comBotao = true): boolean {
+export function temBlocoDeComplemento(item: PecaDoComplemento | null | undefined, podeMexer: boolean, comBotao = true): boolean {
   if (!item) return false;
   return (
     (item.complements?.length ?? 0) > 0 ||
@@ -1191,20 +1268,20 @@ export function temBlocoDeComplemento(item: any, podeMexer: boolean, comBotao = 
  *    Evento, onde o gatilho passou a morar na Gráfica).
  * Devolve `null` quando não há nada a dizer.
  */
-export function ComplementoDaFicha({
+export function ComplementoDaFicha<P extends PecaDoComplemento>({
   item, canEditLists, onAumentar, onAbrirPeca,
 }: {
-  item: any | null;
+  item: P | null;
   /** Papel que pode mexer na quantidade (admin/solicitacao). */
   canEditLists: boolean;
   /** Ausente = bloco sem gatilho (só leitura). */
-  onAumentar?: (item: any) => void;
+  onAumentar?: (item: P) => void;
   /** Troca a peça exibida na ficha (mãe ↔ filho). Opcional. */
   onAbrirPeca?: (itemId: string) => void;
 }) {
   if (!item) return null;
 
-  const complementos: any[] = item.complements ?? [];
+  const complementos: ComplementoAnexado[] = item.complements ?? [];
   const ehFilho = !!item.parentItemId;
   const podeAumentar = !!onAumentar && podeAumentarQuantidade(item, canEditLists);
   if (!complementos.length && !ehFilho && !podeAumentar) return null;
@@ -1215,6 +1292,7 @@ export function ComplementoDaFicha({
   const pedidoEm = item.complementRequestedAt
     ? new Date(item.complementRequestedAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
     : null;
+  const idDaMae = item.parent?.id;
 
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -1227,14 +1305,14 @@ export function ComplementoDaFicha({
         <div style={{ backgroundColor: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, borderRadius: R.md, padding: "12px 14px" }}>
           <p style={{ margin: 0, fontSize: FS.meta, color: TOM.laranja.text, lineHeight: 1.5 }}>
             Complemento de{" "}
-            {onAbrirPeca && item.parent?.id ? (
+            {onAbrirPeca && idDaMae ? (
               <button
                 type="button"
-                onClick={() => onAbrirPeca(item.parent.id)}
+                onClick={() => onAbrirPeca(idDaMae)}
                 data-testid="button-abrir-peca-mae"
                 style={{ background: "none", border: "none", padding: 0, fontFamily: FONT.mono, fontWeight: FW.rotulo, fontSize: FS.meta, color: T.accentText, cursor: "pointer", textDecoration: "underline" }}
               >
-                {item.parent.displayId}
+                {item.parent?.displayId}
               </button>
             ) : (
               <strong style={{ fontFamily: FONT.mono, color: T.accentText }}>{item.parent?.displayId ?? "peça original"}</strong>
@@ -1252,7 +1330,7 @@ export function ComplementoDaFicha({
 
       {complementos.length > 0 && (
         <div style={{ border: `1px solid ${TOM.laranja.border}`, borderRadius: R.md, overflow: "hidden" }}>
-          {complementos.map((c: any) => (
+          {complementos.map((c) => (
             <div key={c.id} style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", padding: "10px 14px", backgroundColor: TOM.laranja.bg, borderBottom: `1px solid ${TOM.laranja.border}` }}>
               {onAbrirPeca ? (
                 <button

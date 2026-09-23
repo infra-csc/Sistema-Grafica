@@ -88,6 +88,32 @@ export function isUrgente(priority: string | null | undefined): boolean {
   return priority === "urgente" || priority === "urgent";
 }
 
+// ── O que as regras leem da peça ────────────────────────────────────────────
+// Tipos ESTRUTURAIS: descrevem só os campos que as regras abaixo leem, para
+// aceitar a peça de qualquer tela sem que ela precise ser deste formato.
+// Datas vêm do JSON da API, então chegam como string.
+
+/** Campos do evento que guardam o deslocamento (em dias) de cada marco. */
+export type CampoDoMarco = "deadlineEntregaLayouts" | "deadlineAprovacaoLayout" | "deadlineFinalizacao";
+
+export type EventoDoPrazo = { truckDepartureDate?: string | null } & { [K in CampoDoMarco]?: number | null };
+
+export interface PecaNasRegrasDaArte {
+  eventId?: string | null;
+  type?: string | null;
+  material?: string | null;
+  displayId?: string | null;
+  description?: string | null;
+  approvalThumbUrl?: string | null;
+  finalFileUrl?: string | null;
+  event?: (EventoDoPrazo & { name?: string | null; priority?: string | null }) | null;
+  sponsors?: ReadonlyArray<{ id: string }> | null;
+}
+
+/** `lista.includes(v)` que aceita campo nulo — nulo nunca está na lista. */
+const estaNaLista = (lista: readonly string[], v: string | null | undefined): boolean =>
+  v != null && lista.includes(v);
+
 // ── Filtros ─────────────────────────────────────────────────────────────────
 
 export interface ArteFilters {
@@ -179,10 +205,10 @@ export function makeDateBounds(now: Date = new Date()): DateBounds {
  *
  * `search` já deve chegar em minúsculas (o chamador tem o valor deferido).
  */
-export function matchesArteFilters(item: any, f: ArteFilters, b: DateBounds): boolean {
-  if (f.eventIds.length && !f.eventIds.includes(item.eventId)) return false;
-  if (f.types.length && !f.types.includes(item.type)) return false;
-  if (f.materials.length && !f.materials.includes(item.material)) return false;
+export function matchesArteFilters(item: PecaNasRegrasDaArte, f: ArteFilters, b: DateBounds): boolean {
+  if (f.eventIds.length && !estaNaLista(f.eventIds, item.eventId)) return false;
+  if (f.types.length && !estaNaLista(f.types, item.type)) return false;
+  if (f.materials.length && !estaNaLista(f.materials, item.material)) return false;
 
   // Item sem data de saída fica DE FORA quando um filtro de data está ativo —
   // antes ele passava e "Saída 10 dias" listava eventos sem saída nenhuma.
@@ -200,11 +226,11 @@ export function matchesArteFilters(item: any, f: ArteFilters, b: DateBounds): bo
   }
   if (f.search) {
     const hit = [item.displayId, item.type, item.description, item.event?.name].some(
-      (v: any) => v && String(v).toLowerCase().includes(f.search),
+      (v) => v && String(v).toLowerCase().includes(f.search),
     );
     if (!hit) return false;
   }
-  if (f.sponsorIds.length && !(item.sponsors ?? []).some((s: any) => f.sponsorIds.includes(s.id)))
+  if (f.sponsorIds.length && !(item.sponsors ?? []).some((s) => f.sponsorIds.includes(s.id)))
     return false;
   if (f.thumb === "sem" && item.approvalThumbUrl) return false;
   if (f.thumb === "com" && !item.approvalThumbUrl) return false;
@@ -440,7 +466,7 @@ export function matchFileToItem<T extends { id: string; displayId?: string | nul
  */
 export const PHASE_DEADLINE: Record<
   string,
-  { label: string; field: string; fallback: number; allDays: boolean }
+  { label: string; field: CampoDoMarco | ""; fallback: number; allDays: boolean }
 > = {
   "criar-aprovacoes": { label: "Entrega de Layouts", field: "deadlineEntregaLayouts", fallback: -20, allDays: false },
   correcao: { label: "Entrega de Layouts", field: "deadlineEntregaLayouts", fallback: -20, allDays: false },
@@ -500,7 +526,7 @@ function ajustaFimDeSemana(d: Date): void {
  * máquina, e o "dia −20" tem que ser o dia −20 no calendário.
  */
 export function phaseDeadline(
-  event: any,
+  event: EventoDoPrazo | null | undefined,
   tab: string,
   today: Date = makeDateBounds().today,
 ): PhaseDeadline | null {
@@ -523,7 +549,12 @@ export function phaseDeadline(
  * Ordena os eventos de uma aba por urgência do marco da fase. Evento sem saída
  * marcada vai para o fim: sem âncora não dá para dizer que é urgente.
  */
-export function compareEventUrgency(a: any, b: any, tab: string, today?: Date): number {
+export function compareEventUrgency(
+  a: EventoDoPrazo | null | undefined,
+  b: EventoDoPrazo | null | undefined,
+  tab: string,
+  today?: Date,
+): number {
   const da = phaseDeadline(a, tab, today);
   const db = phaseDeadline(b, tab, today);
   if (!da && !db) return 0;
@@ -557,14 +588,14 @@ export function compareEventUrgency(a: any, b: any, tab: string, today?: Date): 
  * do caminhão, que para uma peça já pronta costuma ter passado — chamar isso
  * de atraso acenderia alarme falso na lista inteira. Lá nada é atrasado.
  */
-export function isAtrasadaNaFase(item: any, tab: string, today: Date): boolean {
+export function isAtrasadaNaFase(item: PecaNasRegrasDaArte | null | undefined, tab: string, today: Date): boolean {
   if (tab === "finalizados") return false;
   const p = phaseDeadline(item?.event, tab, today);
   return !!p && p.diff < 0;
 }
 
 /** Recorte "só atrasadas" de um balde já filtrado, com a fase daquele balde. */
-export function filtrarAtrasadasDaFase(items: any[], tab: string, today: Date): any[] {
+export function filtrarAtrasadasDaFase<T extends PecaNasRegrasDaArte>(items: T[], tab: string, today: Date): T[] {
   if (tab === "finalizados") return [];
   return items.filter((i) => isAtrasadaNaFase(i, tab, today));
 }
@@ -579,7 +610,7 @@ export function filtrarAtrasadasDaFase(items: any[], tab: string, today: Date): 
 export const FINALIZADOS_JANELA_DIAS = 90;
 
 export function dentroDaJanelaFinalizados(
-  item: any,
+  item: PecaNasRegrasDaArte,
   today: Date,
   dias = FINALIZADOS_JANELA_DIAS,
 ): boolean {

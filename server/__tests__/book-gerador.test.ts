@@ -7,13 +7,14 @@
 // publicando pelo MESMO caminho do book manual — nada de segundo fluxo.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDaTela } from "./fonte-da-tela";
 import { readFileSync } from "fs";
 import { BOOK, celulasDaPagina, encaixeContain, mioloDoBook, paginarGrupos } from "../../client/src/lib/book-spec";
 
 const GERADOR = readFileSync(new URL("../../client/src/lib/book-gerador.ts", import.meta.url), "utf8");
 const PAGINA = readFileSync(new URL("../../client/src/pages/book-gerador.tsx", import.meta.url), "utf8");
 const APP = readFileSync(new URL("../../client/src/App.tsx", import.meta.url), "utf8");
-const DETALHE = readFileSync(new URL("../../client/src/pages/event-detail.tsx", import.meta.url), "utf8");
+const DETALHE = fonteDaTela("detalhe-do-evento");
 
 describe("a régua é a do exemplar", () => {
   it("A4 paisagem exato, rodapé medido, teto de 6", () => {

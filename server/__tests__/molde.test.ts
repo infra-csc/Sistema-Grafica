@@ -16,6 +16,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
+import { fonteDaTela } from "./fonte-da-tela";
 import { txDeMentira } from "./tx-de-mentira";
 import { readFileSync } from "fs";
 import path from "path";
@@ -94,9 +95,9 @@ describe("shared/molde — reconhecer o tipo", () => {
     for (const t of ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso", "Pórtico", "Prismas", "Qd Fotos", "Rolo", "Stand", "Testeiras", "WindBanner"]) {
       expect(TIPOS_DE_PECA, t).toContain(t);
     }
-    for (const tela of ["client/src/pages/event-detail.tsx", "client/src/pages/modelos.tsx"]) {
-      expect(ler(tela), tela).toContain("const itemTypes = [...TIPOS_DE_PECA];");
-    }
+    // O Detalhe do Evento é página + pedaços (a lista mora em detalhe-do-evento/regras.ts).
+    expect(fonteDaTela("detalhe-do-evento"), "detalhe do evento").toContain("const itemTypes = [...TIPOS_DE_PECA];");
+    expect(ler("client/src/pages/modelos.tsx"), "modelos").toContain("const itemTypes = [...TIPOS_DE_PECA];");
   });
 });
 

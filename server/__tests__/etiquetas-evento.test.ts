@@ -8,12 +8,13 @@
 // nasce da CONFERÊNCIA, não da lista inteira.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDaTela } from "./fonte-da-tela";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 
 const PAGINA = readFileSync(new URL("../../client/src/pages/etiquetas-evento.tsx", import.meta.url), "utf8");
 const APP = readFileSync(new URL("../../client/src/App.tsx", import.meta.url), "utf8");
-const DETALHE = readFileSync(new URL("../../client/src/pages/event-detail.tsx", import.meta.url), "utf8");
+const DETALHE = fonteDaTela("detalhe-do-evento");
 
 describe("a página /eventos/:id/etiquetas", () => {
   it("existe na rota, protegida, com a porta no Detalhe do Evento", () => {

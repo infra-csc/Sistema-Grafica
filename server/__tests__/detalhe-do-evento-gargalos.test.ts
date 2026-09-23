@@ -16,10 +16,12 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
+import { fonteDaTela, lerDoCliente } from "./fonte-da-tela";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
-const ED = ler("client/src/pages/event-detail.tsx");
-const EV = ler("client/src/pages/eventos.tsx");
+// A tela é a página + os pedaços em components/detalhe-do-evento/ (fonte-da-tela).
+const ED = fonteDaTela("detalhe-do-evento");
+const EV = fonteDaTela("eventos");
 const FASES = ler("client/src/lib/fases.ts");
 const semCom = (s: string) => s.replace(/\r\n/g, "\n").replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").map(l => l.replace(/^\s*\/\/.*$/, "")).join("\n");
@@ -39,7 +41,7 @@ describe("Mudança 1 · a timeline diz quantas peças estão atrás de cada marc
   });
 
   it("os seis marcos vêm da fonte única, numa função pura lida por cabeçalho e timeline", () => {
-    expect(ED).toContain("function calcularMarcos(event: any, today: Date)");
+    expect(ED).toContain("function calcularMarcos(event: EventoParaMarcos, today: Date)");
     expect(ED).toContain("const marcos = MARCOS_DO_EVENTO.map((m) => {");
     // sábado→sexta, domingo→segunda, e `todosOsDias` só onde a fonte diz.
     expect(ED).toContain("const { date, adjusted } = adjustWeekend(raw, m.todosOsDias);");
@@ -88,8 +90,11 @@ describe("Mudança 2 · frase de resolução e barra de fases no cabeçalho", ()
   it("a barra usa a MESMA contagem do cartão de Eventos — lib/fases, não um derivado local", () => {
     expect(FASES).toContain("export const PHASES = PRODUCTION_STATUSES.map((key) => ({");
     expect(FASES).toContain("export function contarPorFase(");
-    expect(ED).toContain('import { PHASES, contarPorFase, FORA_DO_FUNIL } from "@/lib/fases";');
-    expect(EV).toContain('import { PHASES, contarPorFaseDoEvento as contarPorFase, FORA_DO_FUNIL } from "@/lib/fases";');
+    // A barra (título) lê PHASES e as contagens leem contarPorFase/FORA_DO_FUNIL — de lib/fases.
+    expect(lerDoCliente("components/detalhe-do-evento/titulo-do-evento.tsx")).toContain('import { PHASES } from "@/lib/fases";');
+    expect(lerDoCliente("components/detalhe-do-evento/use-contagens-do-evento.ts")).toContain('import { contarPorFase, FORA_DO_FUNIL } from "@/lib/fases";');
+    // Eventos: o cartão lê a MESMA conta de lib/fases.
+    expect(lerDoCliente("components/eventos/cartao-do-evento.tsx")).toContain('import { PHASES, contarPorFaseDoEvento as contarPorFase } from "@/lib/fases";');
     // Nenhuma das duas telas redefine a lista de fases.
     expect(semCom(ED)).not.toContain("PHASE_ALIASES");
     expect(semCom(EV)).not.toContain("const PHASE_ALIASES");
@@ -115,7 +120,7 @@ describe("Mudança 3 · agrupar por tipo ou por status", () => {
   });
 
   it("a linha é a MESMA nos dois modos — uma função, duas chamadas", () => {
-    expect(ED).toContain("const renderTabelaDeItens = (typeItems: typeof visibleEventItems) => (");
+    expect(ED).toContain("const renderTabelaDeItens = (typeItems: PecaDoEvento[]) => (");
     expect(ED).toContain("{renderTabelaDeItens(lista)}");
     expect(ED).toContain("{renderTabelaDeItens(typeItems)}");
     // UMA tabela no arquivo inteiro. O mínimo deixou de ser um número fixo

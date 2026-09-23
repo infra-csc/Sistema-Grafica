@@ -9,10 +9,12 @@
 //     Detalhe do evento usam o mesmo selo; o aviso discreto no evento.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, afterEach, vi } from "vitest";
+import { fonteDoComponente } from "./fonte-dos-componentes";
 import * as React from "react";
 import { render, cleanup } from "@testing-library/react";
 import { readFileSync } from "fs";
 import path from "path";
+import { fonteDaTela } from "./fonte-da-tela";
 
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: () => {} }), toast: () => {} }));
 
@@ -62,7 +64,7 @@ describe("a Gráfica montada", () => {
 
 describe("as telas (fonte)", () => {
   it("formulário do evento: campo opcional, ajuda, limpar, e vai no payload (vazio = null)", () => {
-    const f = ler("client/src/pages/eventos.tsx");
+    const f = fonteDaTela("eventos");
     expect(f).toContain("Prazo do molde (opcional)");
     expect(f).toContain('data-testid="input-prazo-molde"');
     expect(f).toContain("{AJUDA_PRAZO_MOLDE}");
@@ -78,10 +80,10 @@ describe("as telas (fonte)", () => {
 
   it("Revisão Final, ficha e Detalhe do evento usam o mesmo selo; o evento avisa molde sem prazo", () => {
     expect(ler("client/src/pages/solicitacao.tsx").split("<SeloPrazoMolde item={item} />").length - 1).toBe(2);
-    expect(ler("client/src/components/item-details-dialog.tsx")).toContain("<SeloPrazoMolde item={item} caixa />");
-    const d = ler("client/src/pages/event-detail.tsx");
+    expect(fonteDoComponente("client/src/components/item-details-dialog.tsx")).toContain("<SeloPrazoMolde item={item} caixa />");
+    const d = fonteDaTela("detalhe-do-evento");
     expect(d.split("<SeloPrazoMolde item={item} evento={event} />").length - 1).toBe(3);
     expect(d).toContain('data-testid="aviso-molde-sem-prazo"');
-    expect(d).toContain("eventoTemMoldeSemPrazo(event, rawItems as any[])");
+    expect(d).toContain("eventoTemMoldeSemPrazo(event, rawItems)");
   });
 });

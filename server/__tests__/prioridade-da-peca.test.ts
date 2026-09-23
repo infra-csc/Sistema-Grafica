@@ -17,6 +17,7 @@
 //     inclusive da ordenação por prazo.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDaTela } from "./fonte-da-tela";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
@@ -25,7 +26,7 @@ const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel),
 const SCHEMA = ler("shared/schema.ts");
 const ITEMS = fonteDasRotasDeItens();
 const ARTE = ler("client/src/pages/arte.tsx");
-const EVENT_DETAIL = ler("client/src/pages/event-detail.tsx");
+const EVENT_DETAIL = fonteDaTela("detalhe-do-evento");
 
 describe("a coluna e o contrato", () => {
   it("isPriority vive na peça, com default false — e no allow-list do PATCH", () => {

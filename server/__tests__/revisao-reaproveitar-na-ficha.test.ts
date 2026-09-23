@@ -24,7 +24,8 @@ describe("o botão da ficha", () => {
 
   it("existe, na faixa de decisão, depois de Liberar e Devolver", () => {
     expect(i).toBeGreaterThan(REV.indexOf('data-testid="button-return-toggle"'));
-    expect(bloco).toContain("<Recycle style={{ width: 15, height: 15, flexShrink: 0 }} />");
+    // O ícone do reaproveitamento, agora pelo <Botao icone>.
+    expect(bloco).toContain("icone={Recycle}");
     expect(bloco).toContain('selectedItem?.isReuse ? "Reaproveitada · desfazer" : "Reaproveitar"}');
   });
 

@@ -18,16 +18,19 @@ import {
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+// A primitiva, e não o AlertDialogAction/Cancel de ui/: aqueles aplicam as
+// classes do botão do shadcn, que brigariam com o <Botao> passado por asChild.
+import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
+import { Botao } from "@/components/ui/botao";
+import { Selo } from "@/components/ui/selo";
+import { EstadoVazio, EstadoErro } from "@/components/ui/estados";
+import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
 import { useState, useMemo, useEffect, Fragment, useRef, useCallback } from "react";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile, usePonteiroGrosso, alvo, densityFromWidth } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
 import { ehBookCompleto } from "@shared/fluxo-peca";
 import { arquivoFinalOk, ehMolde } from "@shared/molde";
@@ -45,7 +48,7 @@ import {
   aguardandoEstoque, chaveDaConsulta, estoqueRespondeu, useConsultaDaPeca, useEstoqueDaRevisao,
 } from "@/components/consulta-de-estoque/na-revisao";
 import { SOLICITACAO_AO_ESTOQUE_ATIVA, propostaDaLiberacao, respostaEsperandoConfirmar, resumoDoLoteComEstoque } from "@shared/consultas-de-estoque";
-import { T, TOM, N, FS } from "@/lib/theme";
+import { T, TOM, N, FS, R, FONT } from "@/lib/theme";
 import { hrefSeguro } from "@shared/url-segura";
 
 // Tons de texto desta paleta valem para superfícies CLARAS (bg/surface).
@@ -118,7 +121,9 @@ function getLogCfg(log: any): { label: string; dot: string; text: string } {
     return { label: m.label, dot: m.dot, text: m.text };
   }
   if (action && NON_STATUS_LOG_CFG[action]) return NON_STATUS_LOG_CFG[action];
-  return { label: action?.replace(/_/g, " ") ?? log?.details ?? "Ação", dot: T.muted, text: T.second };
+  // Tipo de log sem rótulo: o nome interno ("creator_review") não diz nada a
+  // quem revisa — o detalhe, quando existe, aparece logo abaixo.
+  return { label: action ? "Alteração na peça" : (log?.details || "Alteração na peça"), dot: T.muted, text: T.second };
 }
 
 // ── O recorte na URL ────────────────────────────────────────────────────────
@@ -184,6 +189,41 @@ function prontaParaLiberar(item: any): boolean {
   return arquivoFinalOk(item) || reaproveitamentoTotal(item);
 }
 
+// ── A casca das confirmações (substitui a classe .review-confirm-content) ──
+/** Corpo rolável: com o teto do `modalSurface`, é ele que cede numa janela baixa. */
+const CORPO_DA_CONFIRMACAO: React.CSSProperties = { padding: "4px 24px 18px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 };
+/** A pergunta: T.apoio (7:1 sobre branco), como a descrição de antes. */
+const TEXTO_DA_CONFIRMACAO: React.CSSProperties = { fontSize: FS.body, lineHeight: 1.55, color: T.apoio };
+/** Cancelar à esquerda, a ação à direita; quebra no celular estreito. */
+const RODAPE_DA_CONFIRMACAO: React.CSSProperties = {
+  display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: 8, flexShrink: 0,
+  padding: "14px 24px", borderTop: `1px solid ${T.border}`,
+};
+/** Caixa do motivo (devolver, travar): borda forte, papel branco, altura de 4 linhas. */
+const CAMPO_DO_MOTIVO: React.CSSProperties = {
+  display: "block", width: "100%", boxSizing: "border-box", minHeight: 92, resize: "vertical",
+  padding: "11px 12px", border: `1px solid ${T.bdark}`, borderRadius: R.md,
+  backgroundColor: T.surface, color: T.text, lineHeight: 1.45, fontFamily: "inherit",
+  boxShadow: "inset 0 1px 2px rgba(28,25,23,.04)",
+};
+
+/**
+ * O "desligado" das três decisões da ficha. O .ds-botao:disabled só apaga o
+ * botão pela metade (opacity .5) — e o escuro do primário a 50% leva o rótulo
+ * para ~3:1. Aqui o desligado CARREGA informação (evento finalizado, arquivo
+ * que não chegou), então fica cinza legível: T.second sobre N.n2 = 4,91:1.
+ */
+const DESLIGADO_LEGIVEL: React.CSSProperties = {
+  backgroundColor: N.n2, color: T.second, border: `1px solid ${T.border}`, opacity: 1,
+};
+
+/** "3 un · 100×200 · 2 m²" — a mesma frase na coluna própria ou fundida na Peça. */
+function medidaDaPeca(item: any): string {
+  return `${item.quantity ?? 0} un`
+    + (item.fileWidth && item.fileHeight ? ` · ${item.fileWidth}×${item.fileHeight}` : "")
+    + (item.calculatedM2 ? ` · ${item.calculatedM2} m²` : "");
+}
+
 /** Quantas chamadas o lote faz ao mesmo tempo: 40 de uma vez afogavam o servidor. */
 const LOTE_CONCORRENTE = 5;
 
@@ -197,7 +237,7 @@ async function emLotes(ids: string[], fazer: (id: string) => Promise<unknown>): 
     const fatia = ids.slice(i, i + LOTE_CONCORRENTE);
     const r = await Promise.allSettled(fatia.map((id) => fazer(id)));
     r.forEach((x, j) => {
-      if (x.status === "rejected") falhas[fatia[j]] = parseApiError(x.reason).message || "Falha sem mensagem do servidor.";
+      if (x.status === "rejected") falhas[fatia[j]] = parseApiError(x.reason).message || "Não deu certo, e o motivo não veio junto — tente de novo.";
     });
   }
   return falhas;
@@ -310,7 +350,7 @@ export default function Solicitacao() {
      A opção destrutiva NÃO é a padrão e avisa o que perde. */
   const seletorDestino = (
     <div style={{ marginBottom: 12 }}>
-      <p style={{ margin: "0 0 6px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: T.apoio }}>
+      <p style={{ margin: "0 0 6px", fontSize: FS.small, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: T.apoio }}>
         O que a Arte precisa refazer?
       </p>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -329,7 +369,7 @@ export default function Solicitacao() {
               aria-pressed={ativo}
               data-testid={`destino-${op.valor}`}
               style={{
-                textAlign: "left", cursor: "pointer", borderRadius: 8, padding: "9px 11px",
+                textAlign: "left", cursor: "pointer", borderRadius: R.md, padding: "9px 11px",
                 border: `1.5px solid ${ativo ? T.accentText : T.border}`,
                 background: ativo ? TOM.laranja.bg : T.surface,
                 display: "flex", gap: 9, alignItems: "flex-start", font: "inherit",
@@ -343,10 +383,10 @@ export default function Solicitacao() {
               }} />
               <span style={{ minWidth: 0 }}>
                 {/* #c2410c sobre #fff7ed = 4,88:1 ✓ · #57534e sobre branco = 7,03:1 ✓ */}
-                <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: ativo ? T.accentText : T.text }}>
+                <span style={{ display: "block", fontSize: FS.body, fontWeight: 700, color: ativo ? T.accentText : T.text }}>
                   {op.titulo}
                 </span>
-                <span style={{ display: "block", fontSize: 11, color: T.apoio, lineHeight: 1.4, marginTop: 1 }}>
+                <span style={{ display: "block", fontSize: FS.small, color: T.apoio, lineHeight: 1.4, marginTop: 1 }}>
                   {op.desc}
                 </span>
               </span>
@@ -357,21 +397,32 @@ export default function Solicitacao() {
     </div>
   );
 
-  /** Altura dos controles: 44 no toque, 36 no ponteiro. */
-  const alturaControle = isMobile ? 44 : 36;
+  /** Altura dos controles: 44 quando o ponteiro é o dedo, 36 no mouse. */
+  const dedo = usePonteiroGrosso();
+  const alturaControle = alvo(36, dedo);
+  // Campo com fonte < 16px faz o celular dar zoom ao focar.
+  const fonteDeCampo = dedo || isMobile ? FS.lead : FS.body;
 
-  // ── TABELA OU CARTÕES: decide a LARGURA DA LISTA, não a da janela ──
-  // `isMobile` lê a janela. Num tablet de 768–1024 com a barra lateral aberta
-  // sobram 512–768px para a lista, e a tabela de layout fixo precisa de ~920:
+  // ── TABELA OU CARTÕES: a régua do app, pela ÁREA ÚTIL da tela ──
+  // (hooks/use-mobile: <820 cartões, 820–1180 compacto, ≥1180 inteira). A
+  // medida é a da caixa da TELA menos o padding de 32 de cada lado da lista —
+  // não a da janela: com a barra lateral aberta um notebook de 1024 deixa
+  // ~700px para a lista.
+  //
+  // O COMPACTO FUNDE UMA COLUNA. A tabela de layout fixo precisa de ~920px:
   // checkbox 96 (48 + 24 de cada lado) + Qtd·Dim·m² 262 + Arquivo 172 + Ações
-  // 192 = 722, mais ~200 para a Peça ler alguma coisa. Com menos que isso a
-  // Peça colapsava e a tabela ganhava rolagem horizontal — justo o que o dono
-  // pediu para não existir (15/09). Os 980 são esses ~920 + o padding de 32 da
-  // seção de cada lado. Abaixo deles a lista usa os cartões que o celular já
-  // tinha, sem nada novo.
-  // Callback ref, e não `useElementSize`: a seção só monta DEPOIS do
+  // 192 = 722, mais ~200 para a Peça ler alguma coisa. Na faixa compacta (a
+  // partir de 820) ela não cabe inteira — a Peça colapsava e a tabela ganhava
+  // rolagem horizontal, justo o que o dono pediu para não existir (15/09).
+  // Cartões no compacto também resolveria, mas jogaria um notebook comum
+  // inteiro para cartões. Então no compacto "Qtd · Dim · m²" desce para uma
+  // segunda linha DENTRO da célula da Peça: sobram 460px fixos e a Peça fica
+  // com ≥360 já nos 820. Sem rolagem lateral em nenhuma faixa.
+  //
+  // Callback ref, e não `useDensidadeDoConteudo`: a tela só monta DEPOIS do
   // carregamento (há retornos antecipados acima dela), e o efeito de montagem
-  // daquele hook rodaria com a ref ainda vazia e nunca mais observaria.
+  // de `useElementSize` rodaria com a ref ainda vazia e nunca mais observaria.
+  // A conta é a mesma do hook (`densityFromWidth` sobre a área útil).
   const [larguraLista, setLarguraLista] = useState(0);
   const observadorLista = useRef<ResizeObserver | null>(null);
   const listaRef = useCallback((el: HTMLElement | null) => {
@@ -389,7 +440,16 @@ export default function Solicitacao() {
     ro.observe(el);
     observadorLista.current = ro;
   }, []);
-  const listaEmCartoes = isMobile || (larguraLista > 0 && larguraLista < 980);
+  /** Padding lateral da lista (32 de cada lado) — o que a área útil desconta. */
+  const PADDING_DA_LISTA = 64;
+  // Antes de medir (largura 0), o mesmo fallback do hook: celular → cartões.
+  const densidade = larguraLista === 0
+    ? (isMobile ? "cards" : "full")
+    : densityFromWidth(larguraLista - PADDING_DA_LISTA);
+  const listaEmCartoes = isMobile || densidade === "cards";
+  /** Tabela reduzida: "Qtd · Dim · m²" funde na célula da Peça. */
+  const compacto = !listaEmCartoes && densidade === "compact";
+  const colunasDeDados = compacto ? 3 : 4;
   // A tela ja exigia motivo NAO VAZIO; o servidor agora exige 10 caracteres em
   // TODAS as portas de devolucao (lerMotivoDevolucao, routes/items.ts). Uma
   // regua so, nos dois lados: senao o botao habilita e a requisicao volta 400.
@@ -405,7 +465,7 @@ export default function Solicitacao() {
   const contadorDoMotivo = (t: string) => {
     const falta = Math.max(0, MOTIVO_MIN - t.trim().replace(/\s+/g, " ").length);
     return (
-      <p aria-live="polite" style={{ margin: "4px 0 0", fontSize: 12, lineHeight: 1.4, color: falta > 0 ? TOM.alerta.text : TOM.esmeralda.text }}>
+      <p aria-live="polite" style={{ margin: "4px 0 0", fontSize: FS.meta, lineHeight: 1.4, color: falta > 0 ? TOM.alerta.text : TOM.esmeralda.text }}>
         {falta > 0 ? `Faltam ${falta} ${falta === 1 ? "caractere" : "caracteres"} — a Arte precisa saber o que corrigir.` : "Motivo pronto."}
       </p>
     );
@@ -452,8 +512,9 @@ export default function Solicitacao() {
       // ponto do botão é justamente saber o que aconteceu.
       toast({
         title: r?.status === "enviado" ? "Aviso enviado" : "Aviso não enviado",
-        description: r?.mensagem ?? "Sem resposta do servidor.",
-        variant: r?.status === "enviado" ? undefined : "destructive",
+        description: r?.mensagem ?? "O envio não respondeu — tente de novo em instantes.",
+        // Não enviado (fila vazia, remetente ausente) é aviso, não falha.
+        variant: r?.status === "enviado" ? "success" : "warning",
       });
     },
     onError: (error: any) => toast({ title: "Erro ao disparar o aviso", description: error.message, variant: "destructive" }),
@@ -471,7 +532,7 @@ export default function Solicitacao() {
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setSelectedItem((prev: any) => prev ? { ...prev, quantity: updatedItem.quantity ?? quantityValue } : prev);
       setEditingQuantity(false);
-      toast({ title: "Quantidade atualizada", description: `Nova quantidade: ${updatedItem.quantity ?? quantityValue}x` });
+      toast({ title: "Quantidade atualizada", description: `Nova quantidade: ${updatedItem.quantity ?? quantityValue}x`, variant: "success" });
     },
     // Rede de segurança do modelo de COMPLEMENTO. Esta tela só lista peças em
     // "Aguardando Revisão Final" — ou seja, pré-produção, onde editar a
@@ -491,6 +552,7 @@ export default function Solicitacao() {
         toast({
           title: "Peça em produção",
           description: 'Use "Aumentar quantidade" — o aumento vira uma peça complementar.',
+          variant: "warning",
         });
         const abrirComplemento = (alvo: any) => {
           if (!alvo) return;
@@ -519,7 +581,7 @@ export default function Solicitacao() {
         toast({
           title: "Redução não permitida",
           description: `Já há ${data?.minimum ?? "?"} un. produzidas/conferidas/entregues. Mínimo: ${data?.minimum ?? "?"}.`,
-          variant: "destructive",
+          variant: "warning",
         });
         return;
       }
@@ -535,7 +597,7 @@ export default function Solicitacao() {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setSelectedItem((prev: any) => prev ? { ...prev, observations: cardObservations } : prev);
-      toast({ title: "Observação salva" });
+      toast({ title: "Observação salva", variant: "success" });
     },
     onError: (error: any) => toast({ title: "Erro ao salvar observação", description: parseApiError(error).message, variant: "destructive" }),
   });
@@ -578,6 +640,7 @@ export default function Solicitacao() {
       // onde o recado aparece — e a trilha da ficha guarda o texto.
       toast({
         title: "Liberada para a Gráfica",
+        variant: "success",
         action: <ToastAction altText="Ver a peça na fila da Gráfica" onClick={() => { window.location.href = `/grafica?item=${itemId}`; }}>Ver na Gráfica</ToastAction>,
         description: `${id} ${doEstoque && doEstoque.reaproveitadas > 0
           ? (doEstoque.pulaProducao
@@ -623,7 +686,7 @@ export default function Solicitacao() {
         toast({
           title: "Liberação parcial",
           description: `${released} de ${total} foram para a fila da Gráfica. ${failed} não ${failed === 1 ? "passou" : "passaram"} — o motivo está escrito na linha${failed === 1 ? "" : " de cada uma"}, que continua marcada.`,
-          variant: "destructive",
+          variant: "warning",
         });
       } else {
         // Reaproveitamento total vai para Impresso / Acabamento, não para a impressão
@@ -633,7 +696,7 @@ export default function Solicitacao() {
           ? ` ${reaproveitadas === released ? (released === 1 ? "Era" : "Todas eram") : (reaproveitadas === 1 ? "1 era" : `${reaproveitadas} eram`)} de reaproveitamento total e ${reaproveitadas === 1 ? "foi" : "foram"} direto para Impresso / Acabamento.`
           : "";
         const deForaTxt = fora > 0 ? ` ${fora} ${fora === 1 ? "não estava pronta e continua marcada" : "não estavam prontas e continuam marcadas"}, com o motivo na linha.` : "";
-        toast({ title: "Liberadas para a Gráfica", description: `${released} ${released === 1 ? "peça saiu" : "peças saíram"} da Revisão Final para a fila da Gráfica.${extra}${deForaTxt}` });
+        toast({ title: "Liberadas para a Gráfica", description: `${released} ${released === 1 ? "peça saiu" : "peças saíram"} da Revisão Final para a fila da Gráfica.${extra}${deForaTxt}`, variant: "success" });
       }
     },
     onError: (error: any) => toast({ title: "Não foi possível liberar as peças", description: parseApiError(error).message, variant: "destructive" }),
@@ -660,6 +723,7 @@ export default function Solicitacao() {
       const molde = ehMolde(resposta) || ehMolde(pendingItems.find((i: any) => i.id === payload.itemId));
       toast({
         title: "Devolvida para a Arte",
+        variant: "success",
         description: (molde
           ? "O molde voltou para o começo da Arte, com o thumb dele."
           : destino === "arte"
@@ -679,7 +743,7 @@ export default function Solicitacao() {
       const result: { success: number; errors?: Array<{ itemId: string; error: string }> | number; failedItemIds?: string[]; destinos?: Record<string, string> } = await res.json();
       const falhas: Record<string, string> = {};
       if (Array.isArray(result.errors)) for (const e of result.errors) falhas[e.itemId] = e.error;
-      else for (const id of result.failedItemIds ?? []) falhas[id] = "O servidor recusou esta peça.";
+      else for (const id of result.failedItemIds ?? []) falhas[id] = "Esta peça não pôde ser devolvida — tente de novo pela ficha.";
       return { total: payload.ids.length, falhas, destinos: result.destinos ?? {} };
     },
     onSuccess: ({ total, falhas, destinos }, { ids: enviados }) => {
@@ -704,9 +768,9 @@ export default function Solicitacao() {
         ? `${paraFinalizacao} para a Finalização e ${paraArte} para o começo da Arte`
         : paraArte > 0 ? "o começo da Arte" : "a Finalização";
       if (failed > 0) {
-        toast({ title: "Devolução parcial", description: `${ok} ${ok === 1 ? "voltou" : "voltaram"} para a Arte; ${failed} não ${failed === 1 ? "passou e continua marcada" : "passaram e continuam marcadas"} — o motivo está na linha.`, variant: "destructive" });
+        toast({ title: "Devolução parcial", description: `${ok} ${ok === 1 ? "voltou" : "voltaram"} para a Arte; ${failed} não ${failed === 1 ? "passou e continua marcada" : "passaram e continuam marcadas"} — o motivo está na linha.`, variant: "warning" });
       } else {
-        toast({ title: "Devolvidas para a Arte", description: `${ok} ${ok === 1 ? "peça voltou" : "peças voltaram"} ${paraArte > 0 && paraFinalizacao > 0 ? `(${onde})` : `para ${onde}`}. A Arte foi avisada com o motivo.` });
+        toast({ title: "Devolvidas para a Arte", description: `${ok} ${ok === 1 ? "peça voltou" : "peças voltaram"} ${paraArte > 0 && paraFinalizacao > 0 ? `(${onde})` : `para ${onde}`}. A Arte foi avisada com o motivo.`, variant: "success" });
       }
     },
     onError: (error: any) => toast({ title: "Não foi possível devolver as peças", description: parseApiError(error).message, variant: "destructive" }),
@@ -746,18 +810,18 @@ export default function Solicitacao() {
       const nFalhas = Object.keys(falhas).length, nSem = Object.keys(semLiberar).length;
       const ok = total - nFalhas - nSem;
       if (nFalhas === 0 && nSem === 0) {
-        toast({ title: "Reaproveitamento confirmado", description: `${ok} peça(s) enviada(s) à Gráfica como produzida(s).` });
+        toast({ title: "Reaproveitamento confirmado", description: `${ok} peça(s) enviada(s) à Gráfica como produzida(s).`, variant: "success" });
       } else if (nFalhas === 0) {
         toast({
           title: "Marcadas, mas nem todas liberadas",
           description: `${ok} enviada(s) à Gráfica; ${nSem} marcada(s) sem liberar — continuam selecionadas, com o motivo na linha.`,
-          variant: "destructive",
+          variant: "warning",
         });
       } else {
         toast({
           title: "Reaproveitamento parcial",
           description: `${ok} de ${total} enviada(s). ${nFalhas} falhou(aram)${nSem > 0 ? ` e ${nSem} marcou sem liberar` : ""} — continuam selecionadas, com o motivo na linha.`,
-          variant: "destructive",
+          variant: "warning",
         });
       }
     },
@@ -770,7 +834,7 @@ export default function Solicitacao() {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setDeleteConfirmItemId(null);
-      toast({ title: "Peça excluída", description: "A peça foi removida com sucesso." });
+      toast({ title: "Peça excluída", description: "A peça foi removida com sucesso.", variant: "success" });
     },
     onError: (error: any) => toast({ title: "Erro ao excluir", description: parseApiError(error).message, variant: "destructive" }),
   });
@@ -861,7 +925,7 @@ export default function Solicitacao() {
         toast({
           title: "Reaproveitamento marcado, mas não liberado",
           description: `${erro ?? "A liberação falhou."} Abra a peça e libere quando o motivo estiver resolvido.`,
-          variant: "destructive",
+          variant: "warning",
         });
         return;
       }
@@ -870,6 +934,7 @@ export default function Solicitacao() {
         description: isReuse
           ? "Peça enviada diretamente para a Gráfica como produzida."
           : "A peça volta ao fluxo normal: para liberar, precisa do arquivo final.",
+        variant: "success",
       });
     },
     onError: (error: any) => { setDesfazerReuseId(null); toast({ title: "Não foi possível salvar o reaproveitamento", description: parseApiError(error).message, variant: "destructive" }); },
@@ -889,7 +954,8 @@ export default function Solicitacao() {
       setReuseDialogItemId(null);
       toast({
         title: "Reaproveitamento parcial confirmado",
-        description: "As unidades reaproveitadas foram registradas. O restante segue para produção.",
+        description: "As unidades reaproveitadas foram guardadas. O restante segue para produção.",
+        variant: "success",
       });
     },
     onError: (error: any) => toast({ title: "Não foi possível reaproveitar em parte", description: parseApiError(error).message, variant: "destructive" }),
@@ -908,7 +974,7 @@ export default function Solicitacao() {
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setSelectedItem((prev: any) => (prev?.id === v.itemId ? { ...prev, ...item } : prev));
       setTravandoItem(null); setMotivoDaTrava("");
-      toast({ title: `${v.displayId ?? "Peça"} travada`, description: `Mesmo liberada, a Gráfica não consegue fazê-la andar até alguém destravar: ${v.motivo}` });
+      toast({ title: `${v.displayId ?? "Peça"} travada`, description: `Mesmo liberada, a Gráfica não consegue fazê-la andar até alguém destravar: ${v.motivo}`, variant: "success" });
     },
     onError: (error: any) => toast({ title: "Não foi possível travar", description: parseApiError(error).message, variant: "destructive" }),
   });
@@ -921,7 +987,7 @@ export default function Solicitacao() {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setSelectedItem((prev: any) => (prev?.id === v.itemId ? { ...prev, ...item } : prev));
-      toast({ title: `${v.displayId ?? "Peça"} destravada` });
+      toast({ title: `${v.displayId ?? "Peça"} destravada`, variant: "success" });
     },
     onError: (error: any) => toast({ title: "Não foi possível destravar", description: parseApiError(error).message, variant: "destructive" }),
   });
@@ -972,19 +1038,23 @@ export default function Solicitacao() {
 
   // A TRAVA na linha: sem ela, "Liberar" numa peça travada só mostrava a
   // escolha dentro da ficha — e o lote a deixava de fora sem dizer por quê.
+  // O motivo QUEBRA LINHA em vez de virar reticências: cortado, o porquê só
+  // existia no `title`, que o toque não mostra.
   const seloTravaNaLinha = (item: any, onde: "tabela" | "cartao") => pecaTravada(item) ? (
-    <span
+    <Selo
       data-testid={`badge-travada-${onde}-${item.id}`}
       title={fraseDaTrava(item)}
-      style={{ display: "inline-flex", alignItems: "center", gap: 4, maxWidth: "100%", fontSize: 11, fontWeight: 700, color: TOM.perigo.text, backgroundColor: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}`, borderRadius: 999, padding: "1px 8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0 }}
+      tom="perigo"
+      forma="retangulo"
+      icone={Lock}
+      style={{ whiteSpace: "normal", overflowWrap: "anywhere", maxWidth: "100%", minWidth: 0, flexShrink: 1, lineHeight: 1.35 }}
     >
-      <Lock aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0 }} />
-      <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{seloDaTrava(item)}</span>
-    </span>
+      {seloDaTrava(item)}
+    </Selo>
   ) : null;
   // O MOTIVO da última recusa num lote, escrito na linha (#b91c1c = 6,5:1).
   const falhaNaLinha = (item: any) => falhasPorId[item.id] ? (
-    <p role="status" data-testid={`falha-lote-${item.id}`} style={{ flexBasis: "100%", margin: "4px 0 0", fontSize: 12, lineHeight: 1.4, color: TOM.perigo.text, fontWeight: 600, overflowWrap: "anywhere" }}>
+    <p role="status" data-testid={`falha-lote-${item.id}`} style={{ flexBasis: "100%", margin: "4px 0 0", fontSize: FS.meta, lineHeight: 1.4, color: TOM.perigo.text, fontWeight: 600, overflowWrap: "anywhere" }}>
       {falhasPorId[item.id]}
     </p>
   ) : null;
@@ -1241,7 +1311,7 @@ export default function Solicitacao() {
     if (encerrado > 0) partes.push(`${encerrado} em evento encerrado por um administrador`);
     if (realizado > 0) partes.push(`${realizado} em evento cuja data já passou`);
     return `${finalizadas} ${finalizadas === 1 ? "peça fica" : "peças ficam"} de fora`
-      + ` (${partes.join(" e ")}): o servidor recusa qualquer ação que faça o trabalho andar num evento finalizado.`;
+      + ` (${partes.join(" e ")}): em evento finalizado, nenhuma ação que faça o trabalho andar é aceita.`;
   };
 
   // O selo da peça ABERTA no modal. Vem do mesmo mapa da lista — a ficha não
@@ -1262,6 +1332,23 @@ export default function Solicitacao() {
     return t(selectedItem) > t(daLista) ? selectedItem : daLista;
   })();
   const fichaTravada = pecaTravada(pecaDaFicha);
+
+  // O subtítulo da ficha: a descrição da peça e o evento com a saída do
+  // caminhão. A saída é gravada no "horário de exibição" (UTC = relógio de São
+  // Paulo), como lê o chip do cabeçalho do evento na tabela — sem timeZone
+  // "UTC" a ficha mostrava a hora 3h antes da lista.
+  const subtituloDaFicha = (() => {
+    if (!selectedItem) return undefined;
+    const ev: any = events.find((e: any) => e.id === selectedItem.eventId);
+    const saida = ev?.truckDepartureDate ? new Date(ev.truckDepartureDate) : null;
+    const linhaDoEvento = ev
+      ? ev.name + (saida
+        ? " · caminhão " + saida.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", timeZone: "UTC" }).replace(".", "").replace(" de ", " ")
+          + " · " + saida.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })
+        : "")
+      : "";
+    return [selectedItem.description, linhaDoEvento].filter(Boolean).join(" — ") || undefined;
+  })();
 
   // Bloco do Kit ("<evento>#kit-<remessa>"): o evento da peça já vem com as
   // datas do Kit (servidor); o nome ganha "· KIT".
@@ -1415,25 +1502,25 @@ export default function Solicitacao() {
     return (
       <div role="status" style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center", justifyContent: "center", height: "100%" }}>
         <div aria-hidden="true" className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: TI.accent }} />
-        <p style={{ margin: 0, fontSize: 13, color: T.apoio }}>Carregando a fila de revisão…</p>
+        <p style={{ margin: 0, fontSize: FS.body, color: T.apoio }}>Carregando a fila de revisão…</p>
       </div>
     );
   }
 
   if (itemsError || eventsError) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12, textAlign: "center", padding: "0 24px" }}>
-        <p role="alert" style={{ fontSize: 15, fontWeight: 700, color: TOM.perigo.text, margin: 0 }}>
-          {itemsError ? "Não foi possível carregar as peças" : "Não foi possível carregar os eventos"}
-        </p>
-        <p style={{ fontSize: 13, color: TI.secondary, margin: 0 }}>Verifique sua conexão e tente novamente.</p>
-        <button onClick={() => { refetchItems(); refetchEvents(); }} style={{ marginTop: 4, background: TI.text, color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Tentar novamente</button>
+      <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", height: "100%", padding: "0 24px", maxWidth: 560, margin: "0 auto" }}>
+        <EstadoErro
+          titulo={itemsError ? "Não foi possível carregar as peças" : "Não foi possível carregar os eventos"}
+          detalhe="Verifique sua conexão e tente novamente."
+          aoTentarDeNovo={() => { refetchItems(); refetchEvents(); }}
+        />
       </div>
     );
   }
 
   return (
-    <div style={{ backgroundColor: TI.bg, height: "100%", overflowY: "auto" }}>
+    <div ref={listaRef} style={{ backgroundColor: TI.bg, height: "100%", overflowY: "auto" }}>
 
       {/* ── 1. CABEÇALHO ───────────────────────────────────────────────
           Era um bloco preto de 275px — 45% da primeira dobra — com titulo de
@@ -1451,87 +1538,72 @@ export default function Solicitacao() {
           Os contadores sairam daqui. "Aguardando: 74" e o "74 de 74 pecas" da
           barra de filtros eram o MESMO numero dito duas vezes, a 200px de
           distancia; ficou o da barra, que e onde o resto do app poe. */}
-      <section style={{ backgroundColor: TI.surface, padding: isMobile ? "16px 12px" : "20px 32px", borderBottom: `1px solid ${TI.border}` }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-          <div>
-            <h1 style={{
-              margin: 0, fontSize: isMobile ? 20 : FS.h1, fontWeight: 700, color: TI.text,
-              fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", lineHeight: 1.1,
-            }}>
-              Revisão Final
-            </h1>
-            {/* #57534e e não o TI.secondary: em 13px a régua da casa é 4,5:1. */}
-            <p data-testid="frase-resolucao" style={{ margin: "4px 0 0", fontSize: 13, color: T.apoio, maxWidth: 620, lineHeight: 1.5 }}>
-              {fraseDeResolucao}
-            </p>
-            {/* O QUE É ESTA TELA, numa linha. A rodada de 13/09 tirou a
-                descrição diária (a frase acima diz o que muda a cada visita),
-                mas quem chega pela primeira vez não sabia o que "revisar" quer
-                dizer, nem para onde a peça vai depois do clique. Uma linha
-                curta, em tom secundário, responde as duas coisas sem competir
-                com a frase de resolução. */}
-            <p data-testid="explicacao-revisao" style={{ margin: "2px 0 0", fontSize: 12, color: T.apoio, maxWidth: 680, lineHeight: 1.5 }}>
-              Última conferência antes da Gráfica: compare o aprovado pelo patrocinador com o arquivo final da Arte.
-              {" "}<strong style={{ fontWeight: 700, color: T.strong }}>Liberar</strong> manda para a fila da Gráfica;
-              {" "}<strong style={{ fontWeight: 700, color: T.strong }}>Devolver</strong> volta para a Arte com o seu motivo.
-            </p>
-          </div>
-
-          {/* A ENTRADA DA FILA. Sem ela, comecar a revisar exige achar a
-              primeira linha e mirar num botao de 90px — e quem abre esta tela
-              para trabalhar quer comecar do comeco, nao escolher por onde. */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
-          {/* O DISPARO À MÃO DO AVISO. Discreto de propósito: é ferramenta de
-              manutenção, não parte do trabalho de revisar — quem entra aqui
-              para revisar não deve tropeçar nele. */}
-          {user?.role === "admin" && (
-            <button
-              type="button"
-              onClick={() => avisarRevisaoMutation.mutate()}
-              disabled={avisarRevisaoMutation.isPending}
-              data-testid="button-avisar-revisao"
-              title="Manda agora o resumo da fila para quem recebe o aviso das 10h, 15h e 18h. Se a fila estiver vazia, nada é enviado."
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 7, flexShrink: 0,
-                height: 40, padding: "0 14px", borderRadius: 8,
-                border: `1px solid ${T.bdark}`, backgroundColor: "#fff", color: T.strong,
-                cursor: avisarRevisaoMutation.isPending ? "wait" : "pointer",
-                font: "inherit", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap",
-                opacity: avisarRevisaoMutation.isPending ? 0.6 : 1,
-              }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.bg; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = "#fff"; }}
-            >
-              <Mail aria-hidden="true" style={{ width: 15, height: 15 }} />
-              {avisarRevisaoMutation.isPending ? "Enviando…" : "Avisar por e-mail"}
-            </button>
-          )}
-          {filteredItems.length > 0 && (
-            <button
-              type="button"
-              onClick={() => openModal(filteredItems[0])}
-              data-testid="button-queue-start"
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0,
-                height: 40, padding: "0 18px", borderRadius: 8, border: "none",
-                backgroundColor: T.text, color: "#fff", cursor: "pointer",
-                font: "inherit", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.strong; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = T.text; }}
-            >
-              <Eye aria-hidden="true" style={{ width: 15, height: 15 }} />
-              Revisar em fila ({filteredItems.length})
-            </button>
-          )}
-          </div>
+      <section style={{ backgroundColor: TI.surface, padding: isMobile ? "16px 12px 0" : "20px 32px 0", borderBottom: `1px solid ${TI.border}` }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+          <CabecalhoDaPagina
+            titulo="Revisão Final"
+            subtitulo={
+              <>
+                {/* T.apoio e não T.second: a frase é o estado da fila, e em 13px
+                    ela precisa da folga do tom de apoio. */}
+                <span data-testid="frase-resolucao" style={{ display: "block", color: T.apoio, maxWidth: 620 }}>
+                  {fraseDeResolucao}
+                </span>
+                {/* O QUE É ESTA TELA, numa linha. A rodada de 13/09 tirou a
+                    descrição diária (a frase acima diz o que muda a cada visita),
+                    mas quem chega pela primeira vez não sabia o que "revisar" quer
+                    dizer, nem para onde a peça vai depois do clique. Uma linha
+                    curta, em tom secundário, responde as duas coisas sem competir
+                    com a frase de resolução. */}
+                <span data-testid="explicacao-revisao" style={{ display: "block", margin: "2px 0 0", fontSize: FS.meta, color: T.apoio, maxWidth: 680 }}>
+                  Última conferência antes da Gráfica: compare o aprovado pelo patrocinador com o arquivo final da Arte.
+                  {" "}<strong style={{ fontWeight: 700, color: T.strong }}>Liberar</strong> manda para a fila da Gráfica;
+                  {" "}<strong style={{ fontWeight: 700, color: T.strong }}>Devolver</strong> volta para a Arte com o seu motivo.
+                </span>
+              </>
+            }
+            acoes={
+              <>
+                {/* O DISPARO À MÃO DO AVISO. Discreto de propósito: é ferramenta
+                    de manutenção, não parte do trabalho de revisar — quem entra
+                    aqui para revisar não deve tropeçar nele. */}
+                {user?.role === "admin" && (
+                  <Botao
+                    variante="secundario"
+                    tamanho={dedo ? "toque" : "md"}
+                    icone={Mail}
+                    carregando={avisarRevisaoMutation.isPending}
+                    onClick={() => avisarRevisaoMutation.mutate()}
+                    data-testid="button-avisar-revisao"
+                    title="Manda agora o resumo da fila para quem recebe o aviso das 10h, 15h e 18h. Se a fila estiver vazia, nada é enviado."
+                  >
+                    {avisarRevisaoMutation.isPending ? "Enviando…" : "Avisar por e-mail"}
+                  </Botao>
+                )}
+                {/* A ENTRADA DA FILA. Sem ela, começar a revisar exige achar a
+                    primeira linha e mirar num botão de 90px — e quem abre esta
+                    tela para trabalhar quer começar do começo. */}
+                {filteredItems.length > 0 && (
+                  <Botao
+                    variante="primario"
+                    tamanho={dedo ? "toque" : "md"}
+                    icone={Eye}
+                    onClick={() => openModal(filteredItems[0])}
+                    data-testid="button-queue-start"
+                  >
+                    Revisar em fila ({filteredItems.length})
+                  </Botao>
+                )}
+              </>
+            }
+          />
         </div>
       </section>
 
 
       {/* ── 2. FILTER BAR ──────────────────────────────────────────────── */}
       <section style={{
-        backgroundColor: "#fff", padding: isMobile ? "12px 12px" : "12px 32px",
+        backgroundColor: T.surface, padding: isMobile ? "12px 12px" : "12px 32px",
         borderBottom: `1px solid ${TI.border}`,
         position: "sticky", top: 0, zIndex: 30,
         boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
@@ -1550,10 +1622,10 @@ export default function Solicitacao() {
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               data-testid="input-search"
-              style={{ width: "100%", height: alturaControle, paddingLeft: 34, paddingRight: searchTerm ? 40 : 12, backgroundColor: T.low, border: "none", borderRadius: 8, fontSize: isMobile ? 16 : 13, color: TI.text, boxSizing: "border-box" }}
+              style={{ width: "100%", height: alturaControle, paddingLeft: 34, paddingRight: searchTerm ? 40 : 12, backgroundColor: T.low, border: "none", borderRadius: R.md, fontSize: fonteDeCampo, color: TI.text, boxSizing: "border-box" }}
             />
             {searchTerm && (
-              <button type="button" onClick={() => { setSearchTerm(""); searchRef.current?.focus(); }} aria-label="Limpar busca" style={{ position: "absolute", right: 2, top: "50%", transform: "translateY(-50%)", width: isMobile ? 40 : 30, height: isMobile ? 40 : 30, background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: TI.secondary, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <button type="button" onClick={() => { setSearchTerm(""); searchRef.current?.focus(); }} aria-label="Limpar busca" style={{ position: "absolute", right: 2, top: "50%", transform: "translateY(-50%)", width: alvo(30, dedo), height: alvo(30, dedo), background: "none", border: "none", borderRadius: R.sm, cursor: "pointer", color: TI.secondary, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <X style={{ width: 13, height: 13 }} />
               </button>
             )}
@@ -1573,7 +1645,7 @@ export default function Solicitacao() {
             options={typeFilterOptions}
             searchPlaceholder="Buscar tipo..." emptyText="Nenhum tipo encontrado."
             testId="select-type-filter"
-            triggerStyle={{ backgroundColor: T.low, border: "none", fontSize: 13, color: TI.text, minWidth: 150 }}
+            triggerStyle={{ backgroundColor: T.low, border: "none", fontSize: FS.body, color: TI.text, minWidth: 150 }}
           />
 
           {/* ── OS DOIS CHIPS DE FACETA ──
@@ -1606,32 +1678,35 @@ export default function Solicitacao() {
                 data-testid={chip.testid}
                 style={{
                   display: "inline-flex", alignItems: "center", gap: 7,
-                  height: alturaControle, padding: "0 12px", borderRadius: 999,
+                  height: alturaControle, padding: "0 12px", borderRadius: R.pill,
                   border: `1px solid ${chip.ligado ? T.text : T.border}`,
-                  backgroundColor: chip.ligado ? T.text : "#fff",
-                  color: chip.ligado ? "#fff" : T.strong,
-                  cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap",
+                  backgroundColor: chip.ligado ? T.text : T.surface,
+                  color: chip.ligado ? T.surface : T.strong,
+                  cursor: "pointer", font: "inherit", fontSize: FS.body, fontWeight: 600, whiteSpace: "nowrap",
                 }}
               >
-                <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: chip.ligado ? "#fff" : chip.cor, flexShrink: 0 }} />
+                <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: chip.ligado ? T.surface : chip.cor, flexShrink: 0 }} />
                 {chip.rotulo}
-                <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, opacity: chip.ligado ? 1 : 0.75 }}>{chip.n}</span>
+                <span style={{ fontFamily: FONT.mono, fontWeight: 700, opacity: chip.ligado ? 1 : 0.75 }}>{chip.n}</span>
               </button>
             );
           })}
 
           {(searchTerm || eventFilter.length > 0 || itemTypeFilter.length > 0 || soSemArquivo || soEventoFinalizado || filtroEstoque) && (
-            <button
+            <Botao
+              variante="fantasma"
+              tamanho={dedo ? "toque" : "md"}
+              icone={X}
               onClick={() => { setSearchTerm(""); setEventFilter([]); setItemTypeFilter([]); setSoSemArquivo(false); setSoEventoFinalizado(false); setFiltroEstoque(""); }}
               data-testid="button-clear-filters"
-              style={{ height: alturaControle, fontSize: 13, fontWeight: 600, color: TI.secondary, textDecoration: "underline", textUnderlineOffset: 3, background: "none", border: "none", cursor: "pointer", padding: "0 8px" }}>
+            >
               Limpar filtros
-            </button>
+            </Botao>
           )}
 
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
             {filteredItems.length > 0 && (
-              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: TI.secondary, cursor: "pointer", userSelect: "none" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, minHeight: alturaControle, fontSize: FS.body, color: TI.secondary, cursor: "pointer", userSelect: "none" }}>
                 <input
                   type="checkbox"
                   checked={selectedItemIds.size === filteredItems.length && filteredItems.length > 0}
@@ -1648,7 +1723,7 @@ export default function Solicitacao() {
                 tela e "todo contador conta o que a tela mostra"), mas quem le
                 "74" precisa saber quanto daquilo e trabalho que ninguem vai
                 mais fazer. #746e69 sobre branco = 5,15:1 nos 11px. */}
-            <span style={{ fontSize: 11, color: TI.secondary, whiteSpace: "nowrap" }}>
+            <span style={{ fontSize: FS.small, color: TI.secondary, whiteSpace: "nowrap" }}>
               {filteredItems.length} de {pendingItems.length} peças
               {selosPorItem.size > 0 && (
                 <span
@@ -1674,14 +1749,14 @@ export default function Solicitacao() {
           <div style={{ maxWidth: 1200, margin: "10px auto 0", display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
             <span
               data-testid="chip-selecao"
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, height: alturaControle, padding: "0 6px 0 12px", borderRadius: 999, background: T.text, color: T.surface, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, height: alturaControle, padding: "0 6px 0 12px", borderRadius: R.pill, background: T.text, color: T.surface, fontSize: FS.meta, fontWeight: 700, whiteSpace: "nowrap" }}
             >
               {selecaoLote.ids.length} {selecaoLote.ids.length === 1 ? "selecionada" : "selecionadas"}
               <button
                 onClick={() => setSelectedItemIds(new Set())}
                 aria-label="Limpar seleção"
                 data-testid="button-clear-selection"
-                style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(255,255,255,0.16)", border: "none", cursor: "pointer", color: T.surface, display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+                style={{ width: alvo(28, dedo), height: alvo(28, dedo), borderRadius: "50%", background: "rgba(255,255,255,0.16)", border: "none", cursor: "pointer", color: T.surface, display: "inline-flex", alignItems: "center", justifyContent: "center" }}
               >
                 <X style={{ width: 12, height: 12 }} />
               </button>
@@ -1694,7 +1769,7 @@ export default function Solicitacao() {
                 role="status"
                 data-testid="aviso-lote-evento-finalizado"
                 title={avisoLoteFinalizadas() ?? undefined}
-                style={{ fontSize: 12, color: TI.secondary }}
+                style={{ fontSize: FS.meta, color: TI.secondary }}
               >
                 {selecaoLote.finalizadas} em evento finalizado, fora do lote
               </span>
@@ -1704,74 +1779,67 @@ export default function Solicitacao() {
               {/* O CONTADOR DO BOTAO e o das pecas que de fato vao: so as
                   PRONTAS (`loteDeLiberar`) — sem arquivo final ou travada fica
                   de fora, com o motivo na linha. "Liberar as 9 prontas" diz o
-                  desconto antes do clique. #ffffff sobre #9d4300 = 6,49:1 ✓ */}
+                  desconto antes do clique. O porquê do botão apagado já está
+                  escrito ao lado (os avisos com role="status"). */}
               {selecaoLote.vivas.length > 0 && loteDeLiberar.prontas.length === 0 && (
-                <span role="status" data-testid="aviso-lote-nenhuma-pronta" style={{ alignSelf: "center", fontSize: 12, color: TOM.alerta.text }}>
+                <span role="status" data-testid="aviso-lote-nenhuma-pronta" style={{ alignSelf: "center", fontSize: FS.meta, color: TOM.alerta.text }}>
                   Nenhuma pronta para liberar: {loteDeLiberar.nFora === 1 ? "a selecionada está" : "as selecionadas estão"} sem arquivo final ou travada{loteDeLiberar.nFora === 1 ? "" : "s"}.
                 </span>
               )}
-              <button
+              <Botao
+                variante="primario"
+                tamanho={dedo ? "toque" : "md"}
+                icone={Check}
                 onClick={() => loteDeLiberar.prontas.length > 0 && setBulkReleaseConfirmOpen(true)}
                 disabled={loteDeLiberar.prontas.length === 0 || bulkReleaseMutation.isPending}
                 title={selecaoLote.vivas.length === 0
                   ? "Toda a seleção é de evento finalizado — liberar para produção está bloqueado nessas peças."
                   : undefined}
                 data-testid="button-bulk-release-hero"
-                style={{
-                  height: alturaControle, padding: "0 14px", borderRadius: 8, border: "none",
-                  backgroundColor: loteDeLiberar.prontas.length === 0 ? T.border : T.accentText,
-                  color: loteDeLiberar.prontas.length === 0 ? T.second : T.surface,
-                  fontSize: 13, fontWeight: 700, whiteSpace: "nowrap",
-                  cursor: loteDeLiberar.prontas.length === 0 || bulkReleaseMutation.isPending ? "not-allowed" : "pointer",
-                }}>
+              >
                 {bulkReleaseMutation.isPending
                   ? "Liberando..."
                   : loteDeLiberar.nFora > 0
                   ? `Liberar ${loteDeLiberar.prontas.length === 1 ? "a pronta" : `as ${loteDeLiberar.prontas.length} prontas`}`
                   : `Liberar ${loteDeLiberar.prontas.length}`}
-              </button>
-              <button
+              </Botao>
+              <Botao
+                variante="secundario"
+                tamanho={dedo ? "toque" : "md"}
+                icone={RotateCcw}
                 onClick={() => selecaoLote.vivas.length > 0 && setBulkReturnConfirmOpen(true)}
                 disabled={selecaoLote.vivas.length === 0 || bulkReturnMutation.isPending}
                 title={selecaoLote.vivas.length === 0
                   ? "Toda a seleção é de evento finalizado — devolver para a Arte está bloqueado nessas peças."
                   : undefined}
                 data-testid="button-bulk-return-hero"
-                style={{
-                  height: alturaControle, padding: "0 14px", borderRadius: 8,
-                  border: `1px solid ${TI.border}`, backgroundColor: TI.surface,
-                  color: selecaoLote.vivas.length === 0 ? T.second : T.strong,
-                  fontSize: 13, fontWeight: 700, whiteSpace: "nowrap",
-                  cursor: selecaoLote.vivas.length === 0 || bulkReturnMutation.isPending ? "not-allowed" : "pointer",
-                }}>
+              >
                 {bulkReturnMutation.isPending
                   ? "Processando..."
                   : `Devolver ${selecaoLote.vivas.length}`}
-              </button>
+              </Botao>
               {/* REAPROVEITAR em lote (pedido do dono, 25/08) — só com 2+
                   selecionadas: com uma, o ícone da linha faz o mesmo e ainda
                   oferece o parcial. Verde é a identidade do reaproveitamento
                   na tela (o selo e o ícone da linha). #15803d/#f0fdf4 = 5,0:1 */}
               {selecaoLote.ids.length >= 2 && (
-                <button
+                <Botao
+                  variante="secundario"
+                  tamanho={dedo ? "toque" : "md"}
+                  icone={Recycle}
                   onClick={() => selecaoLote.vivas.length > 0 && setBulkReuseConfirmOpen(true)}
                   disabled={selecaoLote.vivas.length === 0 || bulkReuseMutation.isPending}
                   title={selecaoLote.vivas.length === 0
                     ? "Toda a seleção é de evento finalizado — reaproveitar está bloqueado nessas peças."
                     : "Marcar como reaproveitamento total e enviar à Gráfica como produzidas"}
                   data-testid="button-bulk-reuse-hero"
-                  style={{
-                    height: alturaControle, padding: "0 14px", borderRadius: 8,
-                    border: `1px solid ${selecaoLote.vivas.length === 0 ? TI.border : TOM.sucesso.border}`,
-                    backgroundColor: selecaoLote.vivas.length === 0 ? TI.surface : TOM.sucesso.bg,
-                    color: selecaoLote.vivas.length === 0 ? T.second : TOM.sucesso.text,
-                    fontSize: 13, fontWeight: 700, whiteSpace: "nowrap",
-                    cursor: selecaoLote.vivas.length === 0 || bulkReuseMutation.isPending ? "not-allowed" : "pointer",
-                  }}>
+                  // O verde é a identidade do reaproveitamento na tela.
+                  style={selecaoLote.vivas.length === 0 ? undefined : { border: `1px solid ${TOM.sucesso.border}`, backgroundColor: TOM.sucesso.bg, color: TOM.sucesso.text }}
+                >
                   {bulkReuseMutation.isPending
                     ? "Processando..."
                     : `Reaproveitar ${selecaoLote.vivas.length}`}
-                </button>
+                </Botao>
               )}
             </div>
           </div>
@@ -1779,40 +1847,40 @@ export default function Solicitacao() {
       </section>
 
       {/* ── 3 & 4. HIGH-DENSITY TABLE ──────────────────────────────────── */}
-      <section ref={listaRef} style={{ padding: isMobile ? "12px 12px" : listaEmCartoes ? "20px" : "32px", maxWidth: 1200, margin: "0 auto", paddingBottom: isMobile ? 20 : 80 }}>
+      <section style={{ padding: isMobile ? "12px 12px" : listaEmCartoes ? "20px" : "32px", maxWidth: 1200, margin: "0 auto", paddingBottom: isMobile ? 20 : 80 }}>
         {filteredItems.length === 0 ? (
-          /* DOIS VAZIOS DIFERENTES. "Tudo revisado" é conquista (verde, texto
+          /* DOIS VAZIOS DIFERENTES. "Tudo revisado" é conquista (ícone de check, texto
              escuro); "nada neste recorte" é filtro demais — e precisa da saída
              ali mesmo, sem subir até a barra para achar o "Limpar filtros". */
-          <div style={{ backgroundColor: "#fff", border: `1px solid ${T.border}`, borderRadius: 8, textAlign: "center", padding: isMobile ? "48px 20px" : "80px 24px" }}>
-            <CheckCircle aria-hidden="true" style={{ width: 48, height: 48, color: pendingItems.length === 0 ? TOM.sucesso.text : T.bdark, margin: "0 auto 16px" }} />
-            <p style={{ fontSize: 15, fontWeight: 700, color: TI.text, margin: "0 0 8px" }}>
-              {pendingItems.length === 0 ? "Tudo revisado!" : "Nenhuma peça neste recorte"}
-            </p>
-            <p style={{ fontSize: 13, color: T.apoio, margin: 0 }}>
-              {pendingItems.length === 0
-                ? "Não há peças aguardando revisão no momento."
-                : `${pendingItems.length} ${pendingItems.length === 1 ? "peça aguardando revisão ficou" : "peças aguardando revisão ficaram"} fora da busca e dos filtros.`}
-            </p>
-            {/* "POR QUE A PEÇA NÃO ESTÁ AQUI?" — a pergunta de quem chega
-                procurando uma peça específica. A resposta é a regra de entrada
-                da fila, dita onde a ausência é notada. */}
-            <p data-testid="regra-da-fila-revisao" style={{ fontSize: 12, color: T.apoio, margin: "10px auto 0", maxWidth: 460, lineHeight: 1.5 }}>
-              Aqui só entram peças que a Arte mandou para a revisão final. Peça ainda em criação na Arte, em aprovação do patrocinador
-              ou já liberada para a Gráfica não aparece — abra o evento dela para ver em que etapa está.
-              {user?.role === "solicitacao" && !user?.kit ? " Peças do Kit são revisadas pela equipe do Kit." : ""}
-            </p>
-            {pendingItems.length > 0 && (
-              <button
-                type="button"
+          <EstadoVazio
+            icone={pendingItems.length === 0 ? CheckCircle : Search}
+            titulo={pendingItems.length === 0 ? "Tudo revisado!" : "Nenhuma peça neste recorte"}
+            descricao={
+              <>
+                {pendingItems.length === 0
+                  ? "Não há peças aguardando revisão no momento."
+                  : `${pendingItems.length} ${pendingItems.length === 1 ? "peça aguardando revisão ficou" : "peças aguardando revisão ficaram"} fora da busca e dos filtros.`}
+                {/* "POR QUE A PEÇA NÃO ESTÁ AQUI?" — a pergunta de quem chega
+                    procurando uma peça específica. A resposta é a regra de
+                    entrada da fila, dita onde a ausência é notada. */}
+                <span data-testid="regra-da-fila-revisao" style={{ display: "block", fontSize: FS.meta, color: T.apoio, marginTop: 10, lineHeight: 1.5 }}>
+                  Aqui só entram peças que a Arte mandou para a revisão final. Peça ainda em criação na Arte, em aprovação do patrocinador
+                  ou já liberada para a Gráfica não aparece — abra o evento dela para ver em que etapa está.
+                  {user?.role === "solicitacao" && !user?.kit ? " Peças do Kit são revisadas pela equipe do Kit." : ""}
+                </span>
+              </>
+            }
+            acao={pendingItems.length > 0 ? (
+              <Botao
+                variante="secundario"
+                tamanho={dedo ? "toque" : "md"}
                 onClick={() => { setSearchTerm(""); setEventFilter([]); setItemTypeFilter([]); setSoSemArquivo(false); setSoEventoFinalizado(false); }}
                 data-testid="button-clear-filters-empty"
-                style={{ marginTop: 16, height: alturaControle, padding: "0 16px", borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: "#fff", color: TI.text, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
               >
                 Limpar filtros
-              </button>
-            )}
-          </div>
+              </Botao>
+            ) : undefined}
+          />
         ) : listaEmCartoes ? (
           <div>
             {Array.from(itemsByEvent.entries()).map(([eventKey, eventItems]) => {
@@ -1821,14 +1889,14 @@ export default function Solicitacao() {
                 <div key={eventKey} style={{marginBottom:16}}>
                   {/* Event header */}
                   <div style={{padding:"8px 0 6px", borderBottom:`2px solid ${T.accent}`, marginBottom:8}}>
-                    <span style={{fontSize:11,fontWeight:900,textTransform:"uppercase",letterSpacing:"0.08em",color:T.second}}>{evInfo?.name || "Sem Evento"}</span>
+                    <span style={{fontSize:FS.small,fontWeight:900,textTransform:"uppercase",letterSpacing:"0.08em",color:T.second}}>{evInfo?.name || "Sem Evento"}</span>
                   </div>
                   {eventItems.map((item:any) => (
                     /* Card mobile: o checkbox fica FORA do alvo role="button"
                        (checkbox aninhado em botão é estrutura inválida para
                        leitor de tela); o corpo do card segue abrindo o modal
                        por toque, Enter e Espaço. */
-                    <div key={item.id} style={{position:"relative",backgroundColor:"#fff",border:`1px solid ${T.border}`,borderRadius:8,marginBottom:8}}>
+                    <div key={item.id} style={{position:"relative",backgroundColor:T.surface,border:`1px solid ${T.border}`,borderRadius:R.md,marginBottom:8}}>
                       {/* ALVO de 44, CAIXA de 20. Este checkbox e a unica porta
                           para "Liberar selecionadas" / "Devolver selecionadas"
                           no celular, e tinha 20px de lado — metade do piso de
@@ -1858,7 +1926,7 @@ export default function Solicitacao() {
                         onClick={() => openModal(item)}
                         style={{padding:"12px",cursor:"pointer",display:"flex",flexDirection:"column",gap:6}}>
                         <div style={{display:"flex",justifyContent:"flex-start",alignItems:"center",gap:6,flexWrap:"wrap",paddingRight:44}}>
-                          <span style={{fontFamily:"monospace",fontWeight:700,color:T.accentText,fontSize:13}}>{item.displayId}</span>
+                          <span style={{fontFamily:FONT.mono,fontWeight:700,color:T.accentText,fontSize:FS.body}}>{item.displayId}</span>
                           <SeloKit peca={item} />
                           <SeloDoEstoqueNaLinha linha={estoquePorPeca.get(item.id)} />
                           {/* EVENTO FINALIZADO — a peça voltou para a fila (ver
@@ -1867,24 +1935,26 @@ export default function Solicitacao() {
                           {seloDoItem(item) && (() => {
                             const selo = seloDoItem(item)!;
                             return (
-                              <span
+                              <Selo
                                 data-testid={`badge-evento-finalizado-mobile-${item.id}`}
                                 title={selo.hint}
-                                style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:9,fontWeight:800,color:selo.text,background:selo.bg,border:`1px solid ${selo.border}`,borderRadius:6,padding:"1px 5px",letterSpacing:"0.06em",whiteSpace:"nowrap",textTransform:"uppercase"}}
+                                cores={selo}
+                                ponto
+                                tamanho="sm"
+                                forma="retangulo"
                               >
-                                <span aria-hidden="true" style={{width:5,height:5,borderRadius:"50%",background:selo.dot,flexShrink:0}} />
                                 {selo.label}
-                              </span>
+                              </Selo>
                             );
                           })()}
                           {seloTravaNaLinha(item, "cartao")}
                         </div>
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
                           <div style={{flex:1}}>
-                            <span style={{fontSize:13,fontWeight:700,color:T.text}}>{item.type}</span>
-                            {item.description && <p style={{fontSize:13,color:T.second,margin:"2px 0 0"}}>{item.description}</p>}
+                            <span style={{fontSize:FS.body,fontWeight:700,color:T.text}}>{item.type}</span>
+                            {item.description && <p style={{fontSize:FS.body,color:T.second,margin:"2px 0 0"}}>{item.description}</p>}
                           </div>
-                          <span style={{fontSize:10,fontWeight:700,color:T.second,whiteSpace:"nowrap"}}>{item.quantity}×</span>
+                          <span style={{fontSize:FS.micro,fontWeight:700,color:T.second,whiteSpace:"nowrap"}}>{item.quantity}×</span>
                         </div>
                         {/* O ARQUIVO FINAL também no celular. No desktop ele tem
                             coluna própria (decide se a peça é revisável); no
@@ -1892,28 +1962,28 @@ export default function Solicitacao() {
                         <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
                           {ehMolde(item) ? (
                             <>
-                              <span data-testid={`chip-arquivo-mobile-${item.id}`} title="Molde não tem arquivo final — libera só com o thumb" style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:999,backgroundColor:N.n2,border:`1px solid ${T.bdark}`,color:T.strong}}>
+                              <Selo data-testid={`chip-arquivo-mobile-${item.id}`} title="Molde não tem arquivo final — libera só com o thumb" cores={{ bg: N.n2, border: T.bdark, text: T.strong }}>
                                 Molde · sem arquivo final
-                              </span>
+                              </Selo>
                               {/* Prazo do molde (22/09): só o fluxo do molde o lê. */}
                               <SeloPrazoMolde item={item} />
                             </>
                           ) : item.finalFileUrl ? (
-                            <span data-testid={`chip-arquivo-mobile-${item.id}`} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:999,backgroundColor:TOM.sucesso.bg,border:`1px solid ${TOM.sucesso.border}`,color:TOM.sucesso.text}}>
-                              <Check aria-hidden="true" style={{width:10,height:10}} /> Arquivo recebido
-                            </span>
+                            <Selo data-testid={`chip-arquivo-mobile-${item.id}`} tom="sucesso" icone={Check}>
+                              Arquivo recebido
+                            </Selo>
                           ) : (
-                            <span data-testid={`chip-arquivo-mobile-${item.id}`} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:999,backgroundColor:TOM.laranja.bg,border:`1px solid ${TOM.laranja.border}`,color:T.accentText}}>
-                              <Clock aria-hidden="true" style={{width:10,height:10}} /> Aguardando arquivo
-                            </span>
+                            <Selo data-testid={`chip-arquivo-mobile-${item.id}`} tom="laranja" icone={Clock}>
+                              Aguardando arquivo
+                            </Selo>
                           )}
-                          {item.sponsors?.map((s:any)=><span key={s.id} style={{fontSize:11,padding:"2px 6px",borderRadius:6,backgroundColor:N.n2,color:T.apoio,fontWeight:600}}>{s.name}</span>)}
+                          {item.sponsors?.map((s:any)=><Selo key={s.id} forma="retangulo" cores={{ bg: N.n2, border: N.n2, text: T.apoio }}>{s.name}</Selo>)}
                         </div>
                         {falhaNaLinha(item)}
                       </div>
                       {/* EXCLUIR PEÇA — a lixeira da tabela, que não existe na
-                          ficha. Desde que os cartões valem abaixo de 980px de
-                          lista (e não só no celular), o admin no notebook
+                          ficha. Desde que os cartões valem pela área útil da
+                          tela (e não só no celular), o admin no notebook
                           estreito perdia a ação. Mesmo gate de papel da tabela
                           (o DELETE trava "solicitacao" nesse status) e mesmo
                           diálogo de confirmação. Fica FORA do alvo role="button"
@@ -1921,8 +1991,8 @@ export default function Solicitacao() {
                           inválida. Mesmo testid da tabela, pelo mesmo motivo do
                           `button-review-`: os dois layouts nunca coexistem. */}
                       {/* REAPROVEITAR também no cartão (rodada 4): a tabela
-                          tinha o ♻ na linha e o cartão não — abaixo de 980px de
-                          lista a ação só existia abrindo a ficha. Mesmo fluxo e
+                          tinha o ♻ na linha e o cartão não — nos cartões a ação
+                          só existia abrindo a ficha. Mesmo fluxo e
                           mesmo testid do botão da tabela (os layouts nunca
                           coexistem): desfaz a marcação ou abre total/parcial;
                           em evento finalizado fica visível, travado, com o
@@ -1931,8 +2001,10 @@ export default function Solicitacao() {
                           {(() => {
                             const selo = seloDoItem(item);
                             return (
-                              <button
-                                type="button"
+                              <Botao
+                                variante="fantasma"
+                                tamanho={dedo ? "toque" : "sm"}
+                                icone={Recycle}
                                 onClick={() => {
                                   if (selo) return;
                                   if (item.isReuse) setDesfazerReuseId(item.id);
@@ -1942,24 +2014,26 @@ export default function Solicitacao() {
                                 data-testid={`button-reuse-${item.id}`}
                                 aria-pressed={!!item.isReuse}
                                 title={selo ? motivoAcaoBloqueada(selo.motivo, "marcar reaproveitamento") : undefined}
-                                style={{minHeight:44,padding:"0 12px",background:item.isReuse ? TOM.sucesso.bg : "none",border:item.isReuse ? `1px solid ${TOM.sucesso.border}` : "1px solid transparent",borderRadius:8,cursor:selo ? "not-allowed" : "pointer",color:selo ? T.second : TOM.sucesso.text,fontSize:12,fontWeight:700,display:"inline-flex",alignItems:"center",gap:6}}
+                                // O verde é a identidade do reaproveitamento na tela.
+                                style={{ color: TOM.sucesso.text, ...(item.isReuse ? { backgroundColor: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}` } : {}) }}
                               >
-                                <Recycle aria-hidden="true" style={{width:14,height:14}} />
                                 {desfazendoReuse(item.id) ? "Desfazendo…" : item.isReuse ? "Reaproveitada · desfazer" : "Reaproveitar"}
-                              </button>
+                              </Botao>
                             );
                           })()}
                       {user?.role === "admin" && (
-                          <button
+                          <Botao
+                            variante="fantasma"
+                            tamanho={dedo ? "toque" : "sm"}
+                            icone={Trash2}
                             onClick={() => setDeleteConfirmItemId(item.id)}
                             data-testid={`button-delete-${item.id}`}
                             title="Excluir peça"
                             aria-label={`Excluir a peça ${item.displayId}`}
-                            style={{minHeight:44,padding:"0 12px",background:"none",border:"none",borderRadius:8,cursor:"pointer",color:TOM.perigo.text,fontSize:12,fontWeight:700,display:"inline-flex",alignItems:"center",gap:6}}
+                            style={{ color: TOM.perigo.text }}
                           >
-                            <Trash2 aria-hidden="true" style={{width:14,height:14}} />
                             Excluir
-                          </button>
+                          </Botao>
                       )}
                       </div>
                     </div>
@@ -1969,7 +2043,7 @@ export default function Solicitacao() {
             })}
           </div>
         ) : (
-          <div style={{ backgroundColor: "#fff", border: `1px solid ${T.border}`, borderRadius: 8, overflowX: "auto", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+          <div style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.md, overflowX: "auto", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
             {/* SEM ROLAGEM (dono, 15/09): layout fixo — as colunas de dado têm
                 largura, a Peça fica com o resto e QUEBRA linha em vez de
                 alargar a tabela. */}
@@ -1994,18 +2068,21 @@ export default function Solicitacao() {
                     // divisórias; Qtd, Dim e M² são a mesma medida contada de
                     // três jeitos. Juntas, cabem numa linha — e sobra largura
                     // para a coluna que faltava.
+                    //
+                    // No COMPACTO a medida funde na célula da Peça (segunda
+                    // linha) — ver `colunasDeDados`, perto da régua.
                     { label: "Peça", w: undefined },
-                    { label: "Qtd · Dim · m²", w: 230 },
+                    { label: "Qtd · Dim · m²", w: 230, fundeNoCompacto: true },
                     { label: "Arquivo final", w: 140 },
                     { label: "Ações", w: 160, right: true },
-                  ].map(col => (
+                  ].filter(col => !(compacto && col.fundeNoCompacto)).map(col => (
                     <th
                       key={col.label}
                       style={{
                         padding: "14px 16px",
                         width: col.w,
                         textAlign: col.right ? "right" : "left",
-                        fontSize: 10, fontWeight: 900,
+                        fontSize: FS.micro, fontWeight: 900,
                         textTransform: "uppercase", letterSpacing: "0.1em",
                         // #746e69 sobre o #fafaf9 do thead da 4,55 — passa
                         // raspando. #7a6154 da 5,49 e e o tom que as outras
@@ -2045,7 +2122,8 @@ export default function Solicitacao() {
                             style={{ accentColor: T.accent, width: 20, height: 20, cursor: "pointer", backgroundColor: T.strong }}
                           />
                         </td>
-                        {/* colSpan 4 = as quatro colunas de dados depois do checkbox.
+                        {/* colSpan = as colunas de dados depois do checkbox
+                            (quatro; três no compacto, com a medida fundida).
                             Era 7 (e 8 nos subgrupos): sobra do tempo em que a
                             tabela tinha sete colunas. Declarar mais colunas do
                             que existem faz o navegador criar colunas FANTASMA e
@@ -2054,26 +2132,21 @@ export default function Solicitacao() {
                             empurrava o botão Revisar para fora do card, onde a
                             rolagem horizontal ficava no pé de uma lista de dezenas
                             de linhas (dono, 11/09: "cortando o botão"). */}
-                        <td colSpan={4} style={{ padding: "10px 16px" }}>
+                        <td colSpan={colunasDeDados} style={{ padding: "10px 16px" }}>
                           {/* flexWrap: quando os chips não cabem ao lado do nome,
                               DESCEM de linha — nunca empurram a largura da tabela. */}
                           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "8px 16px" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
                               <span style={{
-                                fontFamily: "'Space Grotesk', sans-serif",
-                                fontSize: 11, fontWeight: 900,
-                                color: "#fff", textTransform: "uppercase", letterSpacing: "0.06em",
+                                fontFamily: FONT.display,
+                                fontSize: FS.small, fontWeight: 900,
+                                color: T.surface, textTransform: "uppercase", letterSpacing: "0.06em",
                               }}>
                                 {event?.name || "Sem Evento"}
                               </span>
-                              <span style={{
-                                backgroundColor: T.accentText, color: "#fff",
-                                fontSize: 10, fontWeight: 900,
-                                padding: "1px 8px", borderRadius: 999,
-                                textTransform: "uppercase", letterSpacing: "0.04em",
-                              }}>
+                              <Selo tamanho="sm" cores={{ bg: T.accentText, border: T.accentText, text: T.surface }}>
                                 {eventItems.length} PENDENTE{eventItems.length !== 1 ? "S" : ""}
-                              </span>
+                              </Selo>
                             </div>
                             {event && (
                               <div style={{ display: "flex", gap: "6px 12px", fontSize: 10, color: T.bdark, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", flexWrap: "wrap", alignItems: "center", minWidth: 0 }}>
@@ -2163,15 +2236,15 @@ export default function Solicitacao() {
                           <Fragment key={item.id}>
                             {showGroupHeader && (
                               <tr style={{ backgroundColor: TOM.info.border }}>
-                                <td colSpan={5} style={{ padding: '5px 16px' }}>
-                                  <span style={{ fontSize: 10, fontWeight: 800, color: TOM.info.text, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{itemGroupName}</span>
+                                <td colSpan={colunasDeDados + 1} style={{ padding: '5px 16px' }}>
+                                  <span style={{ fontSize: FS.micro, fontWeight: 800, color: TOM.info.text, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{itemGroupName}</span>
                                 </td>
                               </tr>
                             )}
                             {showTypeHeader && (
                               <tr style={{ backgroundColor: N.n3 }}>
-                                <td colSpan={5} style={{ padding: '5px 16px' }}>
-                                  <span style={{ fontSize: 10, fontWeight: 700, color: T.apoio, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{item.type}</span>
+                                <td colSpan={colunasDeDados + 1} style={{ padding: '5px 16px' }}>
+                                  <span style={{ fontSize: FS.micro, fontWeight: 700, color: T.apoio, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{item.type}</span>
                                 </td>
                               </tr>
                             )}
@@ -2180,13 +2253,13 @@ export default function Solicitacao() {
                             data-testid={`row-item-${item.id}`}
                             style={{
                               borderBottom: isLast ? "none" : `1px solid ${N.n3}`,
-                              backgroundColor: isSelected ? TOM.laranja.bg : "#fff",
+                              backgroundColor: isSelected ? TOM.laranja.bg : T.surface,
                               transition: "background-color 0.1s",
                               cursor: "pointer",
                             }}
                             onClick={() => openModal(item)}
                             onMouseEnter={e => { if (!isSelected) e.currentTarget.style.backgroundColor = T.bg; }}
-                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = isSelected ? TOM.laranja.bg : "#fff"; }}
+                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = isSelected ? TOM.laranja.bg : T.surface; }}
                           >
                             {/* Checkbox. `stopPropagation` no <td>: a linha
                                 inteira abre o modal, e marcar para o lote não é
@@ -2211,18 +2284,20 @@ export default function Solicitacao() {
                               <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "4px 8px", minWidth: 0 }}>
                                 <span
                                   data-testid={`text-display-id-${item.id}`}
-                                  style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700, color: T.accentText, flexShrink: 0, whiteSpace: "nowrap" }}
+                                  style={{ fontFamily: FONT.mono, fontSize: FS.meta, fontWeight: 700, color: T.accentText, flexShrink: 0, whiteSpace: "nowrap" }}
                                 >
                                   {item.displayId}
                                 </span>
                                 <SeloKit peca={item} style={{ flexShrink: 0 }} />
-                                <span style={{ fontSize: 13, fontWeight: 700, color: TI.text, minWidth: 0, overflowWrap: "anywhere" }}>
+                                <span style={{ fontSize: FS.body, fontWeight: 700, color: TI.text, minWidth: 0, overflowWrap: "anywhere" }}>
                                   {item.type}
                                 </span>
                                 {item.description && (
                                   // flexShrink alto: falta largura, a descrição
-                                  // é que cede. ID e tipo identificam a peça.
-                                  <span title={item.description} style={{ fontSize: 12, color: T.apoio, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 999, minWidth: 0 }}>
+                                  // é que cede. Cede em DUAS LINHAS, não em
+                                  // reticências — cortada numa, o texto só
+                                  // existia no `title`, que o toque não mostra.
+                                  <span title={item.description} style={{ fontSize: FS.meta, color: T.apoio, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere", flexShrink: 999, minWidth: 0 }}>
                                     {item.description}
                                   </span>
                                 )}
@@ -2253,16 +2328,25 @@ export default function Solicitacao() {
                                     mostra "Revisar" e dois botões apagados sem
                                     dizer por quê. */}
                                 {selo && (
-                                  <span
+                                  <Selo
                                     data-testid={`badge-evento-finalizado-${item.id}`}
                                     title={selo.hint}
-                                    style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: selo.bg, color: selo.text, border: `1px solid ${selo.border}`, borderRadius: 999, padding: "2px 7px", whiteSpace: "nowrap", flexShrink: 0 }}
+                                    cores={selo}
+                                    ponto
+                                    tamanho="sm"
+                                    style={{ flexShrink: 0 }}
                                   >
-                                    <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: selo.dot, flexShrink: 0 }} />
                                     {selo.label}
-                                  </span>
+                                  </Selo>
                                 )}
                                 {seloTravaNaLinha(item, "tabela")}
+                                {/* COMPACTO: a medida desce para uma segunda linha
+                                    aqui dentro, em vez de ocupar coluna própria. */}
+                                {compacto && (
+                                  <span data-testid={`medida-fundida-${item.id}`} style={{ flexBasis: "100%", fontFamily: FONT.mono, fontSize: FS.meta, color: T.apoio }}>
+                                    {medidaDaPeca(item)}
+                                  </span>
+                                )}
                                 {falhaNaLinha(item)}
                               </div>
                             </td>
@@ -2273,13 +2357,13 @@ export default function Solicitacao() {
                                 vizinhas se alinham e dá para comparar de
                                 relance, que é o que três colunas prometiam e
                                 não entregavam. */}
-                            <td style={{ padding: "12px 16px", whiteSpace: "nowrap" }}>
-                              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: T.apoio }}>
-                                {item.quantity ?? 0} un
-                                {item.fileWidth && item.fileHeight ? ` · ${item.fileWidth}×${item.fileHeight}` : ""}
-                                {item.calculatedM2 ? ` · ${item.calculatedM2} m²` : ""}
-                              </span>
-                            </td>
+                            {!compacto && (
+                              <td style={{ padding: "12px 16px", whiteSpace: "nowrap" }}>
+                                <span style={{ fontFamily: FONT.mono, fontSize: FS.meta, color: T.apoio }}>
+                                  {medidaDaPeca(item)}
+                                </span>
+                              </td>
+                            )}
 
                             {/* ── Arquivo final ──
                                 Só se descobria que ele não chegou ABRINDO o
@@ -2291,46 +2375,33 @@ export default function Solicitacao() {
                             <td data-testid={`cell-final-file-${item.id}`} style={{ padding: "12px 16px", whiteSpace: "nowrap" }}>
                               {ehMolde(item) ? (
                                 <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
-                                  <span title="Molde não tem arquivo final — libera só com o thumb" style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 24, padding: "0 9px", borderRadius: 999, backgroundColor: N.n2, border: `1px solid ${T.bdark}`, color: T.strong, fontSize: 12, fontWeight: 700 }}>
+                                  <Selo title="Molde não tem arquivo final — libera só com o thumb" cores={{ bg: N.n2, border: T.bdark, text: T.strong }}>
                                     Não se aplica
-                                  </span>
+                                  </Selo>
                                   {/* Prazo do molde (22/09): só o fluxo do molde o lê. */}
                                   <SeloPrazoMolde item={item} />
                                 </div>
                               ) : item.finalFileUrl ? (
-                                <span style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 24, padding: "0 9px", borderRadius: 999, backgroundColor: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}`, color: TOM.sucesso.text, fontSize: 12, fontWeight: 700 }}>
-                                  <Check aria-hidden="true" style={{ width: 11, height: 11 }} /> Recebido
-                                </span>
+                                <Selo tom="sucesso" icone={Check}>Recebido</Selo>
                               ) : (
-                                <span title="A Arte ainda não enviou o arquivo final — dá para abrir e devolver, mas liberar só depois do arquivo." style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 24, padding: "0 9px", borderRadius: 999, backgroundColor: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, color: T.accentText, fontSize: 12, fontWeight: 700 }}>
-                                  <Clock aria-hidden="true" style={{ width: 11, height: 11 }} /> Aguardando
-                                </span>
+                                <Selo tom="laranja" icone={Clock} title="A Arte ainda não enviou o arquivo final — dá para abrir e devolver, mas liberar só depois do arquivo.">Aguardando</Selo>
                               )}
                             </td>
 
                             {/* Ação */}
                             <td onClick={e => e.stopPropagation()} style={{ padding: "12px 16px", textAlign: "right" }}>
                               <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
-                                <button
+                                {/* Caixa normal: o 10px/900 em maiúsculas
+                                    espaçadas repetido em cada uma das 74 linhas
+                                    gritava mais que a peça. */}
+                                <Botao
+                                  variante="primario"
+                                  tamanho={dedo ? "toque" : "sm"}
                                   onClick={() => openModal(item)}
                                   data-testid={`button-review-${item.id}`}
-                                  style={{
-                                    backgroundColor: T.text, color: "#fff",
-                                    border: "none", borderRadius: 6,
-                                    // 12px sem caixa alta: o 10px/900 em
-                                    // maiúsculas espaçadas repetido em cada uma
-                                    // das 74 linhas gritava mais que a peça.
-                                    fontSize: 12, fontWeight: 700,
-                                    height: 32, padding: "0 14px", cursor: "pointer",
-                                    transition: "background-color 0.15s",
-                                  }}
-                                  // #c2410c e não #ea580c no hover: branco sobre
-                                  // #ea580c dá 3,6:1 — o rótulo sumia justo ao apontar.
-                                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = T.accentText)}
-                                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = T.text)}
                                 >
                                   Revisar
-                                </button>
+                                </Botao>
                                 {/* Reaproveitamento passa por PATCH /api/items/:id
                                     (isReuse) e por creator-review: as duas rotas
                                     são barradas em evento finalizado. */}
@@ -2357,9 +2428,9 @@ export default function Solicitacao() {
                                     border: selo ? `1px solid ${T.border}` : item.isReuse ? `1px solid ${TOM.sucesso.border}` : "1px solid transparent",
                                     cursor: selo ? "not-allowed" : "pointer",
                                     color: selo ? T.second : item.isReuse ? TOM.sucesso.text : T.second,
-                                    padding: 6,
+                                    padding: 6, minWidth: alvo(28, dedo), minHeight: alvo(28, dedo), justifyContent: "center",
                                     display: "flex", alignItems: "center",
-                                    borderRadius: 6, transition: "all 0.15s",
+                                    borderRadius: R.sm, transition: "all 0.15s",
                                   }}
                                   onMouseEnter={e => {
                                     if (!selo && !item.isReuse) {
@@ -2387,9 +2458,9 @@ export default function Solicitacao() {
                                     aria-label={`Excluir a peça ${item.displayId}`}
                                     style={{
                                       background: "none", border: "none", cursor: "pointer",
-                                      color: T.second, padding: 6,
+                                      color: T.second, padding: 6, minWidth: alvo(28, dedo), minHeight: alvo(28, dedo), justifyContent: "center",
                                       display: "flex", alignItems: "center",
-                                      borderRadius: 6, transition: "color 0.15s",
+                                      borderRadius: R.sm, transition: "color 0.15s",
                                     }}
                                     onMouseEnter={e => (e.currentTarget.style.color = TOM.perigo.dot)}
                                     onMouseLeave={e => (e.currentTarget.style.color = T.second)}
@@ -2422,7 +2493,7 @@ export default function Solicitacao() {
                   prometia "Liberar 12" e mandava 9, e nao tinha o guard que
                   espelha o 409 de lote inteiro do servidor. Duas versoes da
                   mesma acao com contas diferentes e pior que nenhuma. */}
-              <span style={{ fontSize: 10, fontWeight: 700, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              <span style={{ fontSize: FS.micro, fontWeight: 700, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                 Mostrando {filteredItems.length} de {pendingItems.length} {pendingItems.length !== 1 ? "peças aguardando revisão" : "peça aguardando revisão"}
               </span>
             </div>
@@ -2432,7 +2503,17 @@ export default function Solicitacao() {
 
       {/* ── 5. REVIEW MODAL ────────────────────────────────────────────── */}
       <Dialog open={modalOpen} onOpenChange={open => { setModalOpen(open); if (!open) setReturnObservations(""); }}>
-        <DialogContent className={`review-dialog-shell max-w-6xl p-0 gap-0 rounded-xl overflow-hidden flex flex-col ${HIDE_NATIVE_CLOSE}`} style={{ height: isMobile ? "94dvh" : "87vh", maxHeight: 900, maxWidth: isMobile ? "95vw" : undefined }} onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+        {/* Casca da casa (`modalSurface`), com a ALTURA de tela de trabalho por
+            cima: a revisão ocupa ~87vh no desktop (94dvh no celular) mesmo com
+            pouco conteúdo — a comparação é a faixa que cresce, e o teto de 900
+            segura o monitor alto. max-w-6xl = 1152. */}
+        <DialogContent
+          data-testid="modal-revisao"
+          className={`gap-0 ${HIDE_NATIVE_CLOSE}`}
+          style={{ ...modalSurface(1152), height: isMobile ? "94dvh" : "87vh", maxHeight: 900 }}
+          onInteractOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
           {/* POR QUE congelar aqui: é o pior onSuccess da tela. Liberar (ou
               devolver) dispara TRÊS invalidateQueries, fecha este modal, fecha
               o AlertDialog de confirmação E faz `setSelectedItem(null)` — tudo
@@ -2470,100 +2551,75 @@ export default function Solicitacao() {
               quatro têm flexShrink: 0 — numa janela de 540px de altura, a
               comparação e os dois botões estão visíveis sem rolar, porque as
               faixas fixas somam ~340px e o resto é da comparação. */}
-          {/* NO CELULAR O MIOLO ROLA INTEIRO. As faixas fixas somam mais que a
-              tela: cabeçalho ~70 + comparação 200 (piso) + metadados ~50 +
-              decisão (34vh + 26vh + folgas) ≈ 860px num aparelho de 844, cujo
-              modal tem 94dvh ≈ 793. Com overflow hidden o excesso era CORTADO
-              em silêncio — o fim do histórico, e com o motivo da devolução no
-              topo, o rodapé da decisão. Rolando, nada some; o cabeçalho gruda
-              (sticky) para a fila e o X continuarem à mão. No desktop fica
-              como estava: a conta das faixas foi feita para caber. */}
-          <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden", ...(isMobile ? { overflowY: "auto" as const } : {}) }}>
-
-            {/* ── 1 · CABEÇALHO ── */}
-            <div style={{ flexShrink: 0, background: "linear-gradient(135deg, #1c1917, #2d2926)", padding: isMobile ? "12px 14px" : "14px 20px", display: "flex", alignItems: "center", gap: isMobile ? 10 : 14, ...(isMobile ? { position: "sticky" as const, top: 0, zIndex: 2 } : {}) }}>
-              {!isMobile && (
-                <div aria-hidden="true" style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: "rgba(249,115,22,0.14)", border: "1px solid rgba(249,115,22,0.35)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Eye style={{ width: 18, height: 18, color: TOM.laranja.border }} />
-                </div>
-              )}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
-                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: TOM.laranja.border, flexShrink: 0 }}>{selectedItem?.displayId}</span>
-                  {selectedItem && <SeloKit peca={selectedItem} style={{ flexShrink: 0, alignSelf: "center" }} />}
-                  <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 800, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{selectedItem?.type}</span>
-                  {selectedItem?.isReuse && (
-                    <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: TOM.sucesso.bg, color: TOM.sucesso.text, borderRadius: 999, padding: "3px 10px", flexShrink: 0 }}>
-                      Reaproveitamento
-                    </span>
-                  )}
-                </div>
-                {selectedItem?.description && (
-                  <p style={{ margin: "1px 0 0", fontSize: 13, color: "rgba(255,255,255,0.72)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{selectedItem.description}</p>
+          {/* ── 1 · CABEÇALHO — a casca da casa (`ModalHeader` work) ──
+              Identidade da peça no título, descrição e caminhão no subtítulo
+              (que QUEBRA linha em vez de cortar com reticências), e a fila à
+              direita. O X é o do próprio ModalHeader. */}
+          <ModalHeader
+            variant="work"
+            icon={Eye}
+            tint={T.accentText}
+            title={`${selectedItem?.displayId ?? ""} · ${selectedItem?.type ?? ""}`}
+            subtitle={subtituloDaFicha}
+            onClose={() => setModalOpen(false)}
+            trailing={
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                {selectedItem && <SeloKit peca={selectedItem} style={{ flexShrink: 0 }} />}
+                {selectedItem?.isReuse && (
+                  <Selo tom="sucesso" tamanho="sm" style={{ flexShrink: 0 }}>Reaproveitamento</Selo>
                 )}
-                {(() => {
-                  const ev: any = events.find((e: any) => e.id === selectedItem?.eventId);
-                  if (!ev) return null;
-                  // A saída é gravada no "horário de exibição" (UTC = relógio de
-                  // São Paulo), como lê o chip do cabeçalho do evento na tabela.
-                  // Sem timeZone "UTC" a ficha mostrava a hora 3h antes da lista.
-                  const saida = ev.truckDepartureDate ? new Date(ev.truckDepartureDate) : null;
-                  return (
-                    <p style={{ margin: "2px 0 0", fontSize: 11, color: "rgba(255,255,255,0.72)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {ev.name}
-                      {saida && " · caminhão " + saida.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", timeZone: "UTC" }).replace(".", "").replace(" de ", " ") + " · " + saida.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })}
-                    </p>
-                  );
-                })()}
+                {/* ── A FILA mora no cabeçalho, não no corpo ──
+                    Sem isto o modal é uma ficha isolada quando o trabalho é uma
+                    fila de 74: decidir, o modal fecha, procurar a próxima na
+                    tabela, clicar de novo. E a tabela mudou entre uma e outra (a
+                    peça decidida saiu dela), então "procurar a próxima" nem é
+                    procurar a linha de baixo. */}
+                {filaIdx >= 0 && filteredItems.length > 1 && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
+                    <button
+                      type="button"
+                      onClick={() => irParaFila(filaIdx - 1)}
+                      disabled={!temAnterior}
+                      title="Peça anterior (←)"
+                      aria-label="Peça anterior"
+                      data-testid="button-modal-prev"
+                      style={{ width: alvo(32, dedo), height: alvo(32, dedo), borderRadius: R.md, border: "1px solid rgba(255,255,255,0.22)", background: "transparent", color: temAnterior ? T.surface : "rgba(255,255,255,0.35)", cursor: temAnterior ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+                    >
+                      <ChevronLeft style={{ width: 15, height: 15 }} />
+                    </button>
+                    <span
+                      data-testid="text-queue-position"
+                      aria-live="polite"
+                      style={{ fontFamily: FONT.mono, fontSize: FS.meta, fontWeight: 700, color: "rgba(255,255,255,0.85)", padding: "0 6px", whiteSpace: "nowrap" }}
+                    >
+                      {filaIdx + 1} / {filteredItems.length}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => irParaFila(filaIdx + 1)}
+                      disabled={!temProxima}
+                      title="Próxima peça (→)"
+                      aria-label="Próxima peça"
+                      data-testid="button-modal-next"
+                      style={{ width: alvo(32, dedo), height: alvo(32, dedo), borderRadius: R.md, border: "1px solid rgba(255,255,255,0.22)", background: "transparent", color: temProxima ? T.surface : "rgba(255,255,255,0.35)", cursor: temProxima ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+                    >
+                      <ChevronRight style={{ width: 15, height: 15 }} />
+                    </button>
+                  </div>
+                )}
               </div>
-              {/* ── A FILA mora no cabeçalho, não no corpo ──
-                  Sem isto o modal é uma ficha isolada quando o trabalho é uma
-                  fila de 74: decidir, o modal fecha, procurar a próxima na
-                  tabela, clicar de novo. E a tabela mudou entre uma e outra (a
-                  peça decidida saiu dela), então "procurar a próxima" nem é
-                  procurar a linha de baixo. */}
-              {filaIdx >= 0 && filteredItems.length > 1 && (
-                <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
-                  <button
-                    type="button"
-                    onClick={() => irParaFila(filaIdx - 1)}
-                    disabled={!temAnterior}
-                    title="Peça anterior (←)"
-                    aria-label="Peça anterior"
-                    data-testid="button-modal-prev"
-                    style={{ width: isMobile ? 40 : 32, height: isMobile ? 40 : 32, borderRadius: 8, border: "1px solid rgba(255,255,255,0.22)", background: "transparent", color: temAnterior ? "#fff" : "rgba(255,255,255,0.35)", cursor: temAnterior ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
-                  >
-                    <ChevronLeft style={{ width: 15, height: 15 }} />
-                  </button>
-                  <span
-                    data-testid="text-queue-position"
-                    aria-live="polite"
-                    style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.85)", padding: "0 6px", whiteSpace: "nowrap" }}
-                  >
-                    {filaIdx + 1} / {filteredItems.length}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => irParaFila(filaIdx + 1)}
-                    disabled={!temProxima}
-                    title="Próxima peça (→)"
-                    aria-label="Próxima peça"
-                    data-testid="button-modal-next"
-                    style={{ width: isMobile ? 40 : 32, height: isMobile ? 40 : 32, borderRadius: 8, border: "1px solid rgba(255,255,255,0.22)", background: "transparent", color: temProxima ? "#fff" : "rgba(255,255,255,0.35)", cursor: temProxima ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
-                  >
-                    <ChevronRight style={{ width: 15, height: 15 }} />
-                  </button>
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={() => setModalOpen(false)}
-                aria-label="Fechar"
-                style={{ width: isMobile ? 44 : 36, height: isMobile ? 44 : 36, borderRadius: 8, border: "none", background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.8)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}
-              >
-                <X style={{ width: 17, height: 17 }} />
-              </button>
-            </div>
+            }
+          />
+
+          {/* O CORPO ROLA. No desktop a conta das faixas foi feita para caber
+              (a comparação é a única que flexiona, piso 200) e a barra nem
+              aparece; numa janela baixa, ou no celular — cabeçalho + comparação
+              200 + metadados ~50 + decisão (34vh + 26vh + folgas) ≈ 860px num
+              aparelho de 844, cujo modal tem 94dvh ≈ 793 —, o excesso ROLA em
+              vez de ser cortado em silêncio (o fim do histórico e, com o motivo
+              da devolução no topo, o rodapé da decisão). O cabeçalho fica fora
+              da rolagem, então a fila e o X continuam à mão. */}
+          <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column" }}>
 
             {/* ── 1b · POR QUE ELA VOLTOU ──
                 `rejectionReason` já chega em cada peça do /api/items (é coluna
@@ -2585,7 +2641,7 @@ export default function Solicitacao() {
                 style={{ flexShrink: 0, display: "flex", alignItems: "flex-start", gap: 10, padding: isMobile ? "10px 14px" : "10px 20px", backgroundColor: TOM.laranja.bg, borderBottom: `1px solid ${TOM.laranja.border}` }}
               >
                 <RotateCcw aria-hidden="true" style={{ width: 15, height: 15, color: T.accentText, flexShrink: 0, marginTop: 2 }} />
-                <p style={{ margin: 0, minWidth: 0, fontSize: 13, lineHeight: 1.45, color: TOM.laranja.text, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere" }}>
+                <p style={{ margin: 0, minWidth: 0, fontSize: FS.body, lineHeight: 1.45, color: TOM.laranja.text, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere" }}>
                   <strong style={{ fontWeight: 700 }}>Motivo da última devolução: </strong>
                   {String(selectedItem.rejectionReason).trim()}
                 </p>
@@ -2610,7 +2666,7 @@ export default function Solicitacao() {
                 const caminhoDeRede = !!url && !isWebUrl(url);
                 return (
                   <div key={label} style={{ display: "flex", flexDirection: "column", gap: 6, minHeight: 0, overflow: "hidden" }}>
-                    <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 800, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.08em", margin: 0, flexShrink: 0 }}>
+                    <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: FS.small, fontWeight: 800, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.08em", margin: 0, flexShrink: 0 }}>
                       <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: url ? TOM.sucesso.text : T.accentText, flexShrink: 0 }} />
                       <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>
                       {url && isWebUrl(url) && (
@@ -2620,16 +2676,16 @@ export default function Solicitacao() {
                           rel="noopener noreferrer"
                           title={"Ampliar: abrir " + label.toLowerCase() + " em nova aba"}
                           aria-label={"Abrir " + label.toLowerCase() + " em nova aba"}
-                          style={{ display: "flex", padding: 4, borderRadius: 6, color: T.second, flexShrink: 0 }}
+                          style={{ display: "flex", padding: 4, borderRadius: R.sm, color: T.second, flexShrink: 0 }}
                         >
                           <Maximize2 style={{ width: 14, height: 14 }} />
                         </a>
                       )}
                     </p>
                     {caminhoDeRede ? (
-                      <div style={{ backgroundColor: "#fff", borderRadius: 8, border: `1px solid ${T.border}`, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ backgroundColor: T.surface, borderRadius: R.md, border: `1px solid ${T.border}`, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
                         <FileImage style={{ width: 20, height: 20, color: T.muted, flexShrink: 0 }} />
-                        <p style={{ fontSize: 11, fontWeight: 600, color: TI.secondary, margin: 0 }}>
+                        <p style={{ fontSize: FS.small, fontWeight: 600, color: TI.secondary, margin: 0 }}>
                           Arquivo salvo na rede local — sem pré-visualização. Copie o caminho na tira abaixo.
                         </p>
                       </div>
@@ -2640,13 +2696,13 @@ export default function Solicitacao() {
                        moldura toma a altura que a faixa deu (`flex: 1` dentro
                        de um pai de altura definida) e o conteúdo cabe inteiro
                        com `objectFit: contain`. */
-                    <div style={{ flex: "1 1 auto", minHeight: isMobile ? 180 : 140, width: "100%", backgroundColor: "#fff", borderRadius: 8, overflow: "hidden", border: `1px solid ${T.border}`, boxShadow: "inset 0 1px 4px rgba(0,0,0,0.06)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <div style={{ flex: "1 1 auto", minHeight: isMobile ? 180 : 140, width: "100%", backgroundColor: T.surface, borderRadius: R.md, overflow: "hidden", border: `1px solid ${T.border}`, boxShadow: "inset 0 1px 4px rgba(0,0,0,0.06)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       {url ? (
                         <FilePreview url={url} noLink objectFit="contain" />
                       ) : (
                         <div style={{ textAlign: "center", color: TI.secondary, padding: 12 }}>
                           <FileImage style={{ width: 32, height: 32, margin: "0 auto 8px", color: T.muted }} />
-                          <p style={{ fontSize: 12, fontWeight: 600, margin: 0 }}>{empty}</p>
+                          <p style={{ fontSize: FS.meta, fontWeight: 600, margin: 0 }}>{empty}</p>
                         </div>
                       )}
                     </div>
@@ -2659,10 +2715,12 @@ export default function Solicitacao() {
             {/* ── 3 · METADADOS NUMA LINHA ──
                 Os cartões que quebravam em duas linhas (e a segunda era
                 cortada pela borda) viraram UMA linha de blocos separados por
-                filetes. Cada bloco encolhe (`min-width: 0`, valor em elipse
-                com o texto completo no title); no celular a linha rola na
-                horizontal — cortar em silêncio é o único desfecho proibido. */}
-            <div style={{ flexShrink: 0, borderTop: `1px solid ${T.border}`, backgroundColor: "#fff", padding: isMobile ? "8px 12px" : "8px 20px", display: "flex", alignItems: "center", overflowX: isMobile ? "auto" : "hidden" }}>
+                filetes. Cada bloco encolhe (`min-width: 0`) e o VALOR quebra em
+                até duas linhas — material e acabamento são o que se confere,
+                e cortados numa só o resto existia só no title, que o toque não
+                mostra; no celular a linha rola na horizontal — cortar em
+                silêncio é o único desfecho proibido. */}
+            <div style={{ flexShrink: 0, borderTop: `1px solid ${T.border}`, backgroundColor: T.surface, padding: isMobile ? "8px 12px" : "8px 20px", display: "flex", alignItems: "center", overflowX: isMobile ? "auto" : "hidden" }}>
               {[
                 { label: "Material", value: selectedItem?.material || "—" },
                 { label: "Acabamento", value: selectedItem?.finish || "—" },
@@ -2670,8 +2728,8 @@ export default function Solicitacao() {
                 { label: "M²", value: selectedItem?.calculatedM2 || "—" },
               ].map(({ label, value }, i) => (
                 <div key={label} style={{ flex: "1 1 0", minWidth: isMobile ? 76 : 0, padding: "2px 14px 2px " + (i === 0 ? "0" : "14px"), borderLeft: i === 0 ? "none" : `1px solid ${T.border}` }}>
-                  <p style={{ fontSize: 10, color: T.apoio, textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", margin: 0, whiteSpace: "nowrap" }}>{label}</p>
-                  <p title={String(value)} style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: "2px 0 0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</p>
+                  <p style={{ fontSize: FS.micro, color: T.apoio, textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", margin: 0, whiteSpace: "nowrap" }}>{label}</p>
+                  <p title={String(value)} style={{ fontSize: FS.body, fontWeight: 700, color: T.text, margin: "2px 0 0", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere", lineHeight: 1.3 }}>{value}</p>
                 </div>
               ))}
 
@@ -2703,10 +2761,10 @@ export default function Solicitacao() {
                   ? motivoAcaoBloqueada(seloSelecionado.motivo, "mudar a quantidade")
                   : "Clique para editar a quantidade"}
               >
-                <p style={{ fontSize: 10, color: T.apoio, textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", margin: 0, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
+                <p style={{ fontSize: FS.micro, color: T.apoio, textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", margin: 0, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
                   Qtd
                   {!seloSelecionado && (
-                    <span style={{ fontSize: 10, color: T.accentText, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em" }}>· editar</span>
+                    <span style={{ fontSize: FS.micro, color: T.accentText, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em" }}>· editar</span>
                   )}
                 </p>
                 {editingQuantity ? (
@@ -2727,35 +2785,38 @@ export default function Solicitacao() {
                         }
                       }}
                       style={{
-                        width: 52, padding: "2px 6px", fontSize: 13, fontWeight: 700,
-                        border: `1.5px solid ${T.accent}`, borderRadius: 6,
+                        width: 52, height: alvo(28, dedo), padding: "2px 6px", fontSize: fonteDeCampo, fontWeight: 700,
+                        border: `1.5px solid ${T.accent}`, borderRadius: R.sm, boxSizing: "border-box",
                         color: TI.text, background: TOM.laranja.bg,
                       }}
                       data-testid="input-quantity-edit"
                       autoFocus
                     />
-                    {/* OK e ✕ com alvo de 40 no celular: eram ~22px de altura,
+                    {/* OK e ✕ com alvo de 44 no toque: eram ~22px de altura,
                         colados um no outro — errar o dedo descartava a edição. */}
-                    <button
+                    <Botao
+                      variante="primario"
+                      tamanho={dedo ? "toque" : "sm"}
+                      carregando={updateQuantityMutation.isPending}
                       onClick={() => updateQuantityMutation.mutate({ itemId: selectedItem.id, quantity: quantityValue })}
-                      disabled={updateQuantityMutation.isPending}
-                      style={{ minWidth: isMobile ? 44 : 32, height: isMobile ? 40 : 28, padding: "0 10px", fontSize: 12, fontWeight: 700, backgroundColor: T.accentText, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}
+                      style={{ padding: "0 10px" }}
                       data-testid="button-confirm-quantity"
                       aria-label="Salvar a quantidade"
                     >
-                      {updateQuantityMutation.isPending ? "…" : "OK"}
-                    </button>
-                    <button
+                      OK
+                    </Botao>
+                    <Botao
+                      variante="fantasma"
+                      tamanho={dedo ? "toque" : "sm"}
+                      icone={X}
                       onClick={() => { setQuantityValue(selectedItem.quantity ?? 1); setEditingQuantity(false); }}
-                      style={{ minWidth: isMobile ? 40 : 28, height: isMobile ? 40 : 28, padding: 0, fontSize: 12, fontWeight: 700, backgroundColor: T.low, color: T.apoio, border: "none", borderRadius: 6, cursor: "pointer" }}
+                      style={{ padding: 0, minWidth: alvo(32, dedo) }}
                       data-testid="button-cancel-quantity"
                       aria-label="Cancelar a edição da quantidade"
-                    >
-                      ✕
-                    </button>
+                    />
                   </div>
                 ) : (
-                  <p style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: "2px 0 0" }}>
+                  <p style={{ fontSize: FS.body, fontWeight: 700, color: T.text, margin: "2px 0 0" }}>
                     {selectedItem?.quantity ?? "—"}x
                   </p>
                 )}
@@ -2765,20 +2826,21 @@ export default function Solicitacao() {
                   servidor local; "Abrir" para caminho de rede é promessa que
                   nunca funciona. */}
               {selectedItem?.finalFileUrl && (
-                <button
-                  type="button"
+                <Botao
+                  variante="secundario"
+                  tamanho={dedo ? "toque" : "sm"}
+                  icone={Copy}
                   title={"Copiar caminho: " + selectedItem.finalFileUrl}
                   aria-label="Copiar caminho do arquivo final"
                   onClick={() => {
                     navigator.clipboard.writeText(selectedItem.finalFileUrl!)
-                      .then(() => toast({ title: "Caminho copiado", description: "Cole no Explorer para abrir o arquivo." }))
-                      .catch(() => toast({ title: "Não foi possível copiar", description: "Selecione o caminho e copie manualmente.", variant: "destructive" }));
+                      .then(() => toast({ title: "Caminho copiado", description: "Cole no Explorer para abrir o arquivo.", variant: "success" }))
+                      .catch(() => toast({ title: "Não foi possível copiar", description: "Selecione o caminho e copie manualmente.", variant: "warning" }));
                   }}
-                  style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginLeft: 14, minWidth: isMobile ? 44 : undefined, minHeight: isMobile ? 44 : undefined, padding: "8px 12px", borderRadius: 6, border: `1px solid ${T.border}`, backgroundColor: "#fff", color: T.apoio, cursor: "pointer", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}
+                  style={{ flexShrink: 0, marginLeft: 14, minWidth: alvo(32, dedo) }}
                 >
-                  <Copy style={{ width: 13, height: 13 }} />
                   {!isMobile && "Copiar caminho da rede"}
-                </button>
+                </Botao>
               )}
             </div>
 
@@ -2795,59 +2857,48 @@ export default function Solicitacao() {
                 produzia a sobreposição dos botões. Caixa normal resolve na
                 origem — sem elipse, sem empilhar. */}
             <div style={{ flexShrink: 0, borderTop: `1px solid ${T.border}`, backgroundColor: T.bg, padding: isMobile ? 12 : "14px 20px", display: "flex", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 12 : 24 }}>
-              <div className="review-modal-scroll" style={{ flex: isMobile ? undefined : "1 1 0", minWidth: 0, minHeight: 0, maxHeight: isMobile ? "34vh" : "32vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ flex: isMobile ? undefined : "1 1 0", minWidth: 0, minHeight: 0, maxHeight: isMobile ? "34vh" : "32vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
                 {/* PATCH creator-review (liberar) e PATCH return-to-arte
                     (devolver) são as duas rotas mais claramente barradas pela
                     guarda de evento finalizado. Ficam visíveis e DESABILITADAS,
                     com o motivo — sumi-las deixaria a ficha sem explicação
-                    nenhuma para a ausência. */}
+                    nenhuma para a ausência. O motivo VISÍVEL mora logo abaixo
+                    (`destino-da-decisao` e `aviso-ficha-evento-finalizado`);
+                    por isso estes três não levam `motivo` do Botao, que
+                    embrulharia o botão num span e quebraria a divisão da
+                    largura (flex: "1 1 0"). */}
                 <div style={{ display: "flex", gap: 10, flexWrap: isMobile ? "wrap" : "nowrap" }}>
-                  <button
+                  {/* LIBERAR é a ação principal da ficha: `primario`, o escuro
+                      do DS (era o laranja #c2410c). Devolver é secundário. */}
+                  <Botao
+                    variante="primario"
+                    icone={Check}
                     onClick={() => { if (!seloSelecionado) setReleaseConfirmOpen(true); }}
                     disabled={!!seloSelecionado || creatorReviewMutation.isPending || semArquivoParaLiberar}
+                    carregando={creatorReviewMutation.isPending}
                     data-testid="button-release-modal"
                     title={seloSelecionado
                       ? motivoAcaoBloqueada(seloSelecionado.motivo, "liberar para produção")
                       : semArquivoParaLiberar ? "Arquivo final não enviado" : ""}
-                    style={{
-                      flex: "1 1 0", minWidth: 0, height: 48,
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                      borderRadius: 8,
-                      border: seloSelecionado || semArquivoParaLiberar ? `1px solid ${T.border}` : "none",
-                      backgroundColor: seloSelecionado || semArquivoParaLiberar ? N.n2 : T.accentText,
-                      /* #6f6a64 sobre #f5f5f4 → 4,91:1: o "off" continua legível
-                         porque desabilitado-por-evento-finalizado é o único
-                         estado off desta tela que carrega informação nova. */
-                      color: seloSelecionado || semArquivoParaLiberar ? T.second : "#fff",
-                      fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap",
-                      cursor: seloSelecionado || semArquivoParaLiberar || creatorReviewMutation.isPending ? "not-allowed" : "pointer",
-                    }}
+                    style={{ flex: "1 1 0", minWidth: 0, height: 48, fontSize: FS.read, ...(seloSelecionado || semArquivoParaLiberar ? DESLIGADO_LEGIVEL : {}) }}
                   >
-                    <Check style={{ width: 16, height: 16, flexShrink: 0 }} />
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
                       {creatorReviewMutation.isPending ? "Liberando..."
                         : propostaDaFicha ? propostaDaFicha.rotulo
                         : "Liberar para produção"}
                     </span>
-                  </button>
-                  <button
+                  </Botao>
+                  <Botao
+                    variante="secundario"
+                    icone={RotateCcw}
                     onClick={() => { if (!seloSelecionado) setReturnConfirmOpen(true); }}
                     disabled={!!seloSelecionado}
                     title={seloSelecionado ? motivoAcaoBloqueada(seloSelecionado.motivo, "devolver para a Arte") : undefined}
                     data-testid="button-return-toggle"
-                    style={{
-                      flex: "1 1 0", minWidth: 0, height: 48,
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                      borderRadius: 8, border: `1px solid ${T.border}`,
-                      backgroundColor: seloSelecionado ? N.n2 : "#fff",
-                      color: seloSelecionado ? T.second : T.text,
-                      fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap",
-                      cursor: seloSelecionado ? "not-allowed" : "pointer",
-                    }}
+                    style={{ flex: "1 1 0", minWidth: 0, height: 48, fontSize: FS.read, ...(seloSelecionado ? DESLIGADO_LEGIVEL : {}) }}
                   >
-                    <RotateCcw style={{ width: 15, height: 15, flexShrink: 0 }} />
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>Devolver para Arte</span>
-                  </button>
+                  </Botao>
                   {/* REAPROVEITAR, aqui também. O gesto existia só na linha da
                       tabela; quem revisa em fila (26/48) decide dentro da
                       ficha e não quer fechar, achar a linha, clicar. É o
@@ -2857,7 +2908,9 @@ export default function Solicitacao() {
                       ordem e mais estreito de propósito: é a decisão menos
                       frequente das três, e os dois primeiros não podem
                       perder largura (a colisão de rótulos já aconteceu). */}
-                  <button
+                  <Botao
+                    variante="secundario"
+                    icone={Recycle}
                     onClick={() => {
                       if (seloSelecionado || !selectedItem) return;
                       if (selectedItem.isReuse) {
@@ -2875,50 +2928,49 @@ export default function Solicitacao() {
                     aria-pressed={!!selectedItem?.isReuse}
                     data-testid="button-reuse-modal"
                     style={{
-                      flex: isMobile ? "1 1 100%" : "0 0 auto", height: 48, padding: "0 16px",
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                      borderRadius: 8,
-                      border: seloSelecionado ? `1px solid ${T.border}` : selectedItem?.isReuse ? `1px solid ${TOM.sucesso.border}` : `1px solid ${T.border}`,
-                      backgroundColor: seloSelecionado ? N.n2 : selectedItem?.isReuse ? TOM.sucesso.bg : "#fff",
-                      /* #15803d sobre #dcfce7 = 4,6:1; #1c1917 sobre branco. */
-                      color: seloSelecionado ? T.second : selectedItem?.isReuse ? TOM.sucesso.text : T.text,
-                      fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap",
-                      cursor: seloSelecionado ? "not-allowed" : "pointer",
+                      flex: isMobile ? "1 1 100%" : "0 0 auto", height: 48, padding: "0 16px", fontSize: FS.read,
+                      // Marcada, o verde do reaproveitamento (#15803d sobre #dcfce7 = 4,6:1).
+                      ...(selectedItem?.isReuse && !seloSelecionado
+                        ? { border: `1px solid ${TOM.sucesso.border}`, backgroundColor: TOM.sucesso.bg, color: TOM.sucesso.text }
+                        : seloSelecionado ? DESLIGADO_LEGIVEL : {}),
                     }}
                   >
-                    <Recycle style={{ width: 15, height: 15, flexShrink: 0 }} />
                     {selectedItem && desfazendoReuse(selectedItem.id) ? "Desfazendo…" : selectedItem?.isReuse ? "Reaproveitada · desfazer" : "Reaproveitar"}
-                  </button>
+                  </Botao>
                 </div>
                 {/* A TRAVA DA SOLICITAÇÃO, também aqui: travada, o selo com o
                     motivo e o Destravar; livre, o Travar (com motivo) — as
                     mesmas rotas e o mesmo texto da Gráfica. */}
                 {pecaDaFicha && (fichaTravada ? (
-                  <div role="status" data-testid="selo-travada-revisao" title={fraseDaTrava(pecaDaFicha)} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 10px", borderRadius: 8, background: TOM.perigo.text, color: T.surface, fontSize: 12, fontWeight: 700, lineHeight: 1.4 }}>
+                  <div role="status" data-testid="selo-travada-revisao" title={fraseDaTrava(pecaDaFicha)} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 10px", borderRadius: R.md, background: TOM.perigo.text, color: T.surface, fontSize: FS.meta, fontWeight: 700, lineHeight: 1.4 }}>
                     <Lock aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0 }} />
                     <span style={{ flex: "1 1 160px", minWidth: 0, overflowWrap: "anywhere" }}>{seloDaTrava(pecaDaFicha)}</span>
                     {podeTravar(user?.role) && (
-                      <button
-                        type="button"
+                      <Botao
+                        variante="secundario"
+                        tamanho={dedo ? "toque" : "sm"}
+                        icone={Unlock}
+                        carregando={destravarMutation.isPending}
                         onClick={() => destravarMutation.mutate({ itemId: pecaDaFicha.id, displayId: pecaDaFicha.displayId })}
-                        disabled={destravarMutation.isPending}
                         data-testid="button-destravar-revisao"
-                        style={{ display: "inline-flex", alignItems: "center", gap: 5, minHeight: isMobile ? 44 : 30, padding: "0 10px", borderRadius: 6, border: `1px solid ${TOM.perigo.border}`, background: T.surface, color: TOM.perigo.text, fontSize: 12, fontWeight: 700, cursor: destravarMutation.isPending ? "wait" : "pointer", whiteSpace: "nowrap" }}
+                        style={{ border: `1px solid ${TOM.perigo.border}`, color: TOM.perigo.text }}
                       >
-                        <Unlock aria-hidden="true" style={{ width: 12, height: 12 }} /> {destravarMutation.isPending ? "Destravando…" : "Destravar"}
-                      </button>
+                        {destravarMutation.isPending ? "Destravando…" : "Destravar"}
+                      </Botao>
                     )}
                   </div>
                 ) : podeTravar(user?.role) && !seloSelecionado ? (
-                  <button
-                    type="button"
+                  <Botao
+                    variante="secundario"
+                    tamanho={dedo ? "toque" : "sm"}
+                    icone={Lock}
                     onClick={() => { setMotivoDaTrava(""); setTravandoItem(pecaDaFicha); }}
                     data-testid="button-travar-revisao"
                     title="Travar a peça: mesmo liberada, a Gráfica não consegue fazê-la andar até alguém da Solicitação destravar"
-                    style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6, minHeight: isMobile ? 44 : 32, padding: "0 12px", borderRadius: 8, border: `1px solid ${T.bdark}`, background: T.surface, color: TOM.perigo.text, fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
+                    style={{ alignSelf: "flex-start", color: TOM.perigo.text }}
                   >
-                    <Lock aria-hidden="true" style={{ width: 12, height: 12 }} /> Travar
-                  </button>
+                    Travar
+                  </Botao>
                 ) : null)}
                 {/* PARA ONDE A PEÇA VAI, dito ANTES do clique. "Liberei — foi
                     para a Gráfica?" e "Devolvi — quem recebe?" eram as duas
@@ -2931,7 +2983,7 @@ export default function Solicitacao() {
                   <RespostaDoEstoqueNaFicha item={selectedItem} usar={usarMenos} onUsar={setUsarMenos} />
                 )}
                 {!seloSelecionado && selectedItem && (
-                  <p data-testid="destino-da-decisao" style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: T.apoio }}>
+                  <p data-testid="destino-da-decisao" style={{ margin: 0, fontSize: FS.meta, lineHeight: 1.5, color: T.apoio }}>
                     {prontaParaLiberar(selectedItem) ? (
                       <>
                         <strong style={{ color: T.text }}>Liberar</strong>: {reaproveitamentoTotal(selectedItem)
@@ -2951,7 +3003,7 @@ export default function Solicitacao() {
                   <p
                     role="status"
                     data-testid="aviso-ficha-evento-finalizado"
-                    style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: T.strong, backgroundColor: N.n2, border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px 12px" }}
+                    style={{ margin: 0, fontSize: FS.meta, lineHeight: 1.5, color: T.strong, backgroundColor: N.n2, border: `1px solid ${T.border}`, borderRadius: R.md, padding: "8px 12px" }}
                   >
                     <strong style={{ color: T.text }}>{seloSelecionado.label}.</strong>{" "}
                     {seloSelecionado.hint}{" "}
@@ -2959,7 +3011,7 @@ export default function Solicitacao() {
                   </p>
                 )}
                 {selectedItem?.isReuse && (
-                  <p style={{ margin: 0, fontSize: 11, lineHeight: 1.5, color: TOM.sucesso.text, backgroundColor: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}`, borderRadius: 8, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+                  <p style={{ margin: 0, fontSize: FS.small, lineHeight: 1.5, color: TOM.sucesso.text, backgroundColor: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}`, borderRadius: R.md, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
                     <Recycle style={{ width: 14, height: 14, flexShrink: 0 }} />
                     <span>Peça de reaproveitamento — não será enviada para nova produção gráfica. Verifique o arquivo e libere normalmente.</span>
                   </p>
@@ -2967,13 +3019,13 @@ export default function Solicitacao() {
 
                 {/* Observações do item — campo próprio, sempre editável.
                     Existe para anotar sem ter de devolver a peça. */}
-                <div style={{ backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 8, padding: "10px 12px", display: "flex", gap: 8 }}>
+                <div style={{ backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: R.md, padding: "10px 12px", display: "flex", gap: 8 }}>
                   <AlertCircle style={{ width: 14, height: 14, color: TOM.alerta.text, flexShrink: 0, marginTop: 2 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     {/* "Salvar observação libera a peça?" — não. A frase curta
                         separa o recado da decisão, que é o que o bloco existe
                         para permitir. */}
-                    <p style={{ fontSize: 11, fontWeight: 700, color: TOM.alerta.text, margin: "0 0 6px" }}>
+                    <p style={{ fontSize: FS.small, fontWeight: 700, color: TOM.alerta.text, margin: "0 0 6px" }}>
                       Observações do item <span style={{ fontWeight: 500 }}>· fica gravada na peça, sem liberar nem devolver</span>
                     </p>
                     <textarea
@@ -2982,9 +3034,9 @@ export default function Solicitacao() {
                       onChange={e => setCardObservations(e.target.value)}
                       data-testid="textarea-item-observations"
                       style={{
-                        width: "100%", minHeight: 48, padding: "8px 10px", borderRadius: 6,
+                        width: "100%", minHeight: 48, padding: "8px 10px", borderRadius: R.sm,
                         border: `1px solid ${TOM.alerta.border}`, backgroundColor: TOM.alerta.bg,
-                        color: TOM.alerta.text, fontSize: 13, resize: "vertical",
+                        color: TOM.alerta.text, fontSize: fonteDeCampo, resize: "vertical",
                         fontFamily: "inherit", boxSizing: "border-box",
                       }}
                     />
@@ -2992,27 +3044,26 @@ export default function Solicitacao() {
                       <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                         {/* Salvar observação é PATCH /api/items/:id, a mesma
                             rota (e a mesma guarda) da edição de quantidade. */}
-                        <button
+                        <Botao
+                          variante="primario"
+                          tamanho={dedo ? "toque" : "sm"}
+                          carregando={updateObservationsMutation.isPending}
                           onClick={() => { if (!seloSelecionado && selectedItem) updateObservationsMutation.mutate({ itemId: selectedItem.id, observations: cardObservations }); }}
                           disabled={!!seloSelecionado || updateObservationsMutation.isPending}
                           title={seloSelecionado ? motivoAcaoBloqueada(seloSelecionado.motivo, "salvar a observação") : undefined}
+                          motivo={seloSelecionado ? motivoAcaoBloqueada(seloSelecionado.motivo, "salvar a observação") : undefined}
                           data-testid="button-save-observations"
-                          style={{
-                            padding: "6px 14px", borderRadius: 6,
-                            border: seloSelecionado ? `1px solid ${T.border}` : "none",
-                            backgroundColor: seloSelecionado ? N.n2 : TOM.alerta.text,
-                            color: seloSelecionado ? T.second : "#fff",
-                            fontSize: 12, fontWeight: 700, cursor: seloSelecionado || updateObservationsMutation.isPending ? "not-allowed" : "pointer",
-                          }}
                         >
                           {updateObservationsMutation.isPending ? "Salvando..." : "Salvar observação"}
-                        </button>
-                        <button
+                        </Botao>
+                        <Botao
+                          variante="fantasma"
+                          tamanho={dedo ? "toque" : "sm"}
                           onClick={() => setCardObservations(selectedItem?.observations || "")}
-                          style={{ padding: "6px 12px", borderRadius: 6, border: "none", background: "none", color: TOM.alerta.text, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                          style={{ color: TOM.alerta.text }}
                         >
                           Descartar
-                        </button>
+                        </Botao>
                       </div>
                     )}
                   </div>
@@ -3021,30 +3072,30 @@ export default function Solicitacao() {
 
               {/* Direita da faixa: patrocinadores e histórico, com o mesmo
                   teto de 32vh — listas crescem, decisões não podem descer. */}
-              <div className="review-modal-scroll" style={{ flex: "1 1 0", minWidth: 0, minHeight: 0, maxHeight: isMobile ? "26vh" : "32vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ flex: "1 1 0", minWidth: 0, minHeight: 0, maxHeight: isMobile ? "26vh" : "32vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 14 }}>
                 {(selectedItem?.sponsors?.length ?? 0) > 0 && (
                   <div>
-                    <h3 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: TI.secondary, paddingBottom: 8, borderBottom: `1px solid ${N.n3}`, margin: "0 0 10px" }}>
+                    <h3 style={{ fontSize: FS.small, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: TI.secondary, paddingBottom: 8, borderBottom: `1px solid ${N.n3}`, margin: "0 0 10px" }}>
                       Patrocinadores da peça
                     </h3>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       {selectedItem.sponsors.map((s: any) => (
-                        <span key={s.id} style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999, backgroundColor: N.n2, border: `1px solid ${T.border}`, color: TI.secondary }}>
+                        <Selo key={s.id} cores={{ bg: N.n2, border: T.border, text: TI.secondary }}>
                           {s.name}
-                        </span>
+                        </Selo>
                       ))}
                     </div>
                   </div>
                 )}
 
                 <div>
-                  <h3 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: TI.secondary, paddingBottom: 8, borderBottom: `1px solid ${N.n3}`, margin: "0 0 14px" }}>
+                  <h3 style={{ fontSize: FS.small, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: TI.secondary, paddingBottom: 8, borderBottom: `1px solid ${N.n3}`, margin: "0 0 14px" }}>
                     Histórico
                   </h3>
                   {historicoCarregando ? (
-                    <p role="status" style={{ fontSize: 13, color: T.apoio, margin: 0 }}>Carregando o histórico…</p>
+                    <p role="status" style={{ fontSize: FS.body, color: T.apoio, margin: 0 }}>Carregando o histórico…</p>
                   ) : itemAuditLogs.length === 0 ? (
-                    <p style={{ fontSize: 13, color: TI.secondary, margin: 0 }}>Sem histórico disponível.</p>
+                    <EstadoVazio compacto icone={Clock} titulo="Sem histórico disponível." />
                   ) : (
                     <div style={{ position: "relative", paddingLeft: 24 }}>
                       <div style={{ position: "absolute", left: 11, top: 8, bottom: 0, width: 2, backgroundColor: N.n3 }} />
@@ -3056,19 +3107,19 @@ export default function Solicitacao() {
                               <span style={{
                                 position: "absolute", left: -22, top: 2,
                                 width: 16, height: 16, borderRadius: "50%",
-                                backgroundColor: "#fff", border: `4px solid ${cfg.dot}`, zIndex: 1,
+                                backgroundColor: T.surface, border: `4px solid ${cfg.dot}`, zIndex: 1,
                               }} />
                               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                                 <div>
-                                  <p style={{ fontSize: 13, fontWeight: 700, color: cfg.text, margin: 0 }}>{cfg.label}</p>
-                                  {log.userName && <p style={{ fontSize: 10, color: TI.secondary, margin: "2px 0 0" }}>{log.userName}</p>}
+                                  <p style={{ fontSize: FS.body, fontWeight: 700, color: cfg.text, margin: 0 }}>{cfg.label}</p>
+                                  {log.userName && <p style={{ fontSize: FS.micro, color: TI.secondary, margin: "2px 0 0" }}>{log.userName}</p>}
                                   {log.details && log.action && (
-                                    <p style={{ fontSize: 11, fontStyle: "italic", color: TI.secondary, backgroundColor: T.low, padding: "6px 8px", borderRadius: 6, margin: "6px 0 0" }}>
+                                    <p style={{ fontSize: FS.small, fontStyle: "italic", color: TI.secondary, backgroundColor: T.low, padding: "6px 8px", borderRadius: R.sm, margin: "6px 0 0" }}>
                                       "{log.details}"
                                     </p>
                                   )}
                                 </div>
-                                <span style={{ fontSize: 10, fontWeight: 700, color: T.second, whiteSpace: "nowrap", fontFamily: "monospace" }}>
+                                <span style={{ fontSize: FS.micro, fontWeight: 700, color: T.second, whiteSpace: "nowrap", fontFamily: FONT.mono }}>
                                   {log.createdAt ? new Date(log.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}
                                 </span>
                               </div>
@@ -3087,7 +3138,7 @@ export default function Solicitacao() {
             {!isMobile && (
               <div style={{ padding: "12px 20px", backgroundColor: T.bg, borderTop: `1px solid ${N.n3}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.08em" }}>Atalhos:</span>
+                  <span style={{ fontSize: FS.micro, fontWeight: 700, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.08em" }}>Atalhos:</span>
                   {([
                     // A confirmação abre com o foco no "Liberar": Enter de
                     // novo confirma. Dito aqui para ninguém procurar o mouse.
@@ -3097,8 +3148,8 @@ export default function Solicitacao() {
                     ["Esc", "fechar"],
                   ] as const).map(([tecla, oque]) => (
                     <Fragment key={tecla}>
-                      <span style={{ fontSize: 10, fontWeight: 900, backgroundColor: T.border, padding: "2px 6px", borderRadius: 6, color: TI.text, whiteSpace: "nowrap" }}>{tecla}</span>
-                      <span style={{ fontSize: 10, color: TI.secondary, whiteSpace: "nowrap" }}>{oque}</span>
+                      <kbd style={{ fontFamily: "inherit", fontSize: FS.micro, fontWeight: 900, backgroundColor: T.border, padding: "2px 6px", borderRadius: R.sm, color: TI.text, whiteSpace: "nowrap" }}>{tecla}</kbd>
+                      <span style={{ fontSize: FS.micro, color: TI.secondary, whiteSpace: "nowrap" }}>{oque}</span>
                     </Fragment>
                   ))}
                 </div>
@@ -3109,7 +3160,13 @@ export default function Solicitacao() {
         </DialogContent>
       </Dialog>
 
-      {/* ── CONFIRM DIALOGS ─────────────────────────────────────────────── */}
+      {/* ── CONFIRM DIALOGS ───────────────────────────────────────────────
+          Todas na casca da casa: `modalSurface(470)` + ModalHeader `confirm`
+          + corpo rolável + fileira de <Botao>. O título visível é o do
+          ModalHeader; o AlertDialogTitle fica só para o leitor de tela. Os
+          botões passam pelas primitivas Cancel/Action (asChild): o Action
+          continua FECHANDO no clique onde fechava, e o Cancel continua sendo
+          o foco inicial onde era. */}
 
       {/* Release single */}
       <AlertDialog open={releaseConfirmOpen} onOpenChange={setReleaseConfirmOpen}>
@@ -3119,7 +3176,8 @@ export default function Solicitacao() {
             destrói nada — é o caminho que a tela existe para percorrer —, e
             a confirmação continua existindo porque a peça sai para impressão. */}
         <AlertDialogContent
-          className="review-confirm-content"
+          className={HIDE_NATIVE_CLOSE}
+          style={modalSurface(470)}
           onOpenAutoFocus={(e) => { e.preventDefault(); botaoConfirmarLiberarRef.current?.focus(); }}
         >
           {/* POR QUE congelar aqui: o mesmo onSuccess que fecha esta confirmação
@@ -3127,93 +3185,107 @@ export default function Solicitacao() {
               escreve o ID e o tipo da peça na descrição. Sem congelar, a frase
               inteira some antes do diálogo terminar de sair. */}
           <FreezeWhileClosing open={releaseConfirmOpen}>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Liberar para produção</AlertDialogTitle>
-            <AlertDialogDescription>
-              {selectedItem && (
-                <span>
-                  <strong>{selectedItem.displayId}</strong> — {selectedItem.type} sai da Revisão Final e
-                  {reaproveitamentoTotal(selectedItem)
-                    ? <> vai direto para <strong>Impresso / Acabamento</strong>, na conferência da Gráfica: é reaproveitamento total e não passa pela impressão.</>
-                    : <> entra na fila da Gráfica como <strong>Pronto para Produção</strong>. Se algo estiver errado depois, a Gráfica pode devolvê-la para a Revisão Final.</>}
-                  {propostaDaFicha && propostaDaFicha.reaproveitadas > 0 && (
-                    <span data-testid="confirmacao-com-estoque" style={{ display: "block", marginTop: 8, color: TOM.sucesso.text }}>
-                      <strong>{propostaDaFicha.reaproveitadas} un. vêm do estoque</strong> como reaproveitamento
-                      {propostaDaFicha.aProduzir > 0 ? <> e a Gráfica produz as outras {propostaDaFicha.aProduzir}.</> : <>: nada a produzir, a peça vai direto para Impresso / Acabamento.</>}
-                    </span>
-                  )}
-                  {fichaTravada && pecaDaFicha && (
-                    <span data-testid="confirmacao-travada" style={{ display: "block", marginTop: 8, color: TOM.perigo.text }}>
-                      <strong>{seloDaTrava(pecaDaFicha)}.</strong> Liberar mantendo a trava leva a peça à fila da Gráfica, mas ela não anda lá até alguém destravar.
-                    </span>
-                  )}
-                  {pedidoEmAberto && (
-                    <span data-testid="confirmacao-pedido-em-aberto" style={{ display: "block", marginTop: 8, color: TOM.alerta.text }}>
-                      <strong>Liberar sem esperar a resposta do estoque?</strong> O pedido continua aberto: se a Gráfica atender, o reaproveitamento entra direto na peça já liberada e você é avisada.
-                    </span>
-                  )}
-                </span>
-              )}
+          <ModalHeader variant="confirm" icon={Check} tint={T.text} title="Liberar para produção" onClose={() => setReleaseConfirmOpen(false)} />
+          <AlertDialogTitle className="sr-only">Liberar para produção</AlertDialogTitle>
+          <div style={CORPO_DA_CONFIRMACAO}>
+            <AlertDialogDescription asChild>
+              <div style={TEXTO_DA_CONFIRMACAO}>
+                {selectedItem && (
+                  <span>
+                    <strong>{selectedItem.displayId}</strong> — {selectedItem.type} sai da Revisão Final e
+                    {reaproveitamentoTotal(selectedItem)
+                      ? <> vai direto para <strong>Impresso / Acabamento</strong>, na conferência da Gráfica: é reaproveitamento total e não passa pela impressão.</>
+                      : <> entra na fila da Gráfica como <strong>Pronto para Produção</strong>. Se algo estiver errado depois, a Gráfica pode devolvê-la para a Revisão Final.</>}
+                    {propostaDaFicha && propostaDaFicha.reaproveitadas > 0 && (
+                      <span data-testid="confirmacao-com-estoque" style={{ display: "block", marginTop: 8, color: TOM.sucesso.text }}>
+                        <strong>{propostaDaFicha.reaproveitadas} un. vêm do estoque</strong> como reaproveitamento
+                        {propostaDaFicha.aProduzir > 0 ? <> e a Gráfica produz as outras {propostaDaFicha.aProduzir}.</> : <>: nada a produzir, a peça vai direto para Impresso / Acabamento.</>}
+                      </span>
+                    )}
+                    {fichaTravada && pecaDaFicha && (
+                      <span data-testid="confirmacao-travada" style={{ display: "block", marginTop: 8, color: TOM.perigo.text }}>
+                        <strong>{seloDaTrava(pecaDaFicha)}.</strong> Liberar mantendo a trava leva a peça à fila da Gráfica, mas ela não anda lá até alguém destravar.
+                      </span>
+                    )}
+                    {pedidoEmAberto && (
+                      <span data-testid="confirmacao-pedido-em-aberto" style={{ display: "block", marginTop: 8, color: TOM.alerta.text }}>
+                        <strong>Liberar sem esperar a resposta do estoque?</strong> O pedido continua aberto: se a Gráfica atender, o reaproveitamento entra direto na peça já liberada e você é avisada.
+                      </span>
+                    )}
+                  </span>
+                )}
+              </div>
             </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-release-cancel">Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              ref={botaoConfirmarLiberarRef}
-              // Com o foco já no botão, o repeat de um Enter SEGURADO (o mesmo
-              // aperto que abriu esta confirmação) ativaria o clique sozinho.
-              // Barrar o repeat obriga soltar e apertar de novo: confirmar
-              // continua a um Enter, mas nunca por inércia do dedo.
-              onKeyDown={(e) => { if (e.repeat) e.preventDefault(); }}
-              onClick={() => selectedItem && creatorReviewMutation.mutate({
-                itemId: selectedItem.id,
-                ...(propostaDaFicha && usarMenos != null ? { corpo: { reuseQty: propostaDaFicha.reaproveitadas, peloEstoque: true as const } } : {}),
-                ...(fichaTravada ? { trava: "manter" as const } : {}),
-              })}
-              disabled={creatorReviewMutation.isPending}
-              style={{ backgroundColor: TI.text, color: "#fff" }}
-              data-testid="button-release-confirm"
-            >
-              {creatorReviewMutation.isPending ? "Liberando..." : fichaTravada ? "Liberar mantendo a trava" : "Liberar"}
-            </AlertDialogAction>
+          </div>
+          <div style={RODAPE_DA_CONFIRMACAO}>
+            <AlertDialogPrimitive.Cancel asChild>
+              <Botao variante="fantasma" tamanho={dedo ? "toque" : "md"} data-testid="button-release-cancel">Cancelar</Botao>
+            </AlertDialogPrimitive.Cancel>
             {/* Travada: a segunda saída libera E destrava na mesma gravação. */}
             {fichaTravada && (
-              <AlertDialogAction
+              <AlertDialogPrimitive.Action asChild>
+                <Botao
+                  variante="secundario"
+                  tamanho={dedo ? "toque" : "md"}
+                  icone={Unlock}
+                  onKeyDown={(e) => { if (e.repeat) e.preventDefault(); }}
+                  onClick={() => selectedItem && creatorReviewMutation.mutate({
+                    itemId: selectedItem.id,
+                    ...(propostaDaFicha && usarMenos != null ? { corpo: { reuseQty: propostaDaFicha.reaproveitadas, peloEstoque: true as const } } : {}),
+                    trava: "destravar",
+                  })}
+                  disabled={creatorReviewMutation.isPending}
+                  data-testid="button-release-destravar"
+                >
+                  Liberar e destravar
+                </Botao>
+              </AlertDialogPrimitive.Action>
+            )}
+            <AlertDialogPrimitive.Action asChild>
+              <Botao
+                ref={botaoConfirmarLiberarRef}
+                variante="primario"
+                tamanho={dedo ? "toque" : "md"}
+                icone={Check}
+                // Com o foco já no botão, o repeat de um Enter SEGURADO (o mesmo
+                // aperto que abriu esta confirmação) ativaria o clique sozinho.
+                // Barrar o repeat obriga soltar e apertar de novo: confirmar
+                // continua a um Enter, mas nunca por inércia do dedo.
                 onKeyDown={(e) => { if (e.repeat) e.preventDefault(); }}
                 onClick={() => selectedItem && creatorReviewMutation.mutate({
                   itemId: selectedItem.id,
                   ...(propostaDaFicha && usarMenos != null ? { corpo: { reuseQty: propostaDaFicha.reaproveitadas, peloEstoque: true as const } } : {}),
-                  trava: "destravar",
+                  ...(fichaTravada ? { trava: "manter" as const } : {}),
                 })}
                 disabled={creatorReviewMutation.isPending}
-                style={{ backgroundColor: T.accentText, color: "#fff" }}
-                data-testid="button-release-destravar"
+                data-testid="button-release-confirm"
               >
-                Liberar e destravar
-              </AlertDialogAction>
-            )}
-          </AlertDialogFooter>
+                {creatorReviewMutation.isPending ? "Liberando..." : fichaTravada ? "Liberar mantendo a trava" : "Liberar"}
+              </Botao>
+            </AlertDialogPrimitive.Action>
+          </div>
           </FreezeWhileClosing>
         </AlertDialogContent>
       </AlertDialog>
 
       {/* Return to Arte from card (quick) */}
       <AlertDialog open={returnConfirmOpen} onOpenChange={setReturnConfirmOpen}>
-        <AlertDialogContent className="review-confirm-content">
+        <AlertDialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(470)}>
           {/* POR QUE congelar aqui: o onSuccess da devolução fecha este diálogo,
               zera `selectedItem` (o ID na descrição) e ainda esvazia
               `returnObservations` — o texto que a pessoa acabou de escrever
               sumia do textarea à vista, no meio do fade. */}
           <FreezeWhileClosing open={returnConfirmOpen}>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Devolver para Arte</AlertDialogTitle>
-            <AlertDialogDescription>
-              {selectedItem && <span><strong>{selectedItem.displayId}</strong> sai da Revisão Final e volta para a Arte. Quem recebe é a Arte: ela é avisada com o motivo que você escrever abaixo.</span>}
+          <ModalHeader variant="confirm" icon={RotateCcw} tint={T.text} title="Devolver para Arte" onClose={() => setReturnConfirmOpen(false)} />
+          <AlertDialogTitle className="sr-only">Devolver para Arte</AlertDialogTitle>
+          <div style={CORPO_DA_CONFIRMACAO}>
+            <AlertDialogDescription asChild>
+              <div style={{ ...TEXTO_DA_CONFIRMACAO, marginBottom: 12 }}>
+                {selectedItem && <span><strong>{selectedItem.displayId}</strong> sai da Revisão Final e volta para a Arte. Quem recebe é a Arte: ela é avisada com o motivo que você escrever abaixo.</span>}
+              </div>
             </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div style={{ padding: 0 }}>
             {ehMolde(selectedItem) ? (
-              <p data-testid="aviso-devolucao-molde" style={{ margin: "0 0 12px", fontSize: 12, lineHeight: 1.5, color: T.strong, backgroundColor: N.n2, border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px 12px" }}>
+              <p data-testid="aviso-devolucao-molde" style={{ margin: "0 0 12px", fontSize: FS.meta, lineHeight: 1.5, color: T.strong, backgroundColor: N.n2, border: `1px solid ${T.border}`, borderRadius: R.md, padding: "8px 12px" }}>
                 Molde não tem Finalização: ele volta para o começo da Arte, <strong>com o thumb</strong>, que a Arte corrige e reenvia.
               </p>
             ) : seletorDestino}
@@ -3223,112 +3295,141 @@ export default function Solicitacao() {
               value={returnObservations}
               onChange={e => setReturnObservations(e.target.value)}
               data-testid="textarea-return-quick"
-              className="w-full min-h-20 p-2 border rounded-md bg-background text-foreground resize-none text-sm"
+              className="placeholder:text-muted-foreground"
+              style={{ ...CAMPO_DO_MOTIVO, fontSize: fonteDeCampo }}
             />
             {contadorDoMotivo(returnObservations)}
           </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-return-cancel" onClick={() => { setReturnObservations(""); }}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => selectedItem && returnToArteMutation.mutate({ itemId: selectedItem.id, notes: returnObservations, destino: ehMolde(selectedItem) ? "arte" : destinoDevolucao })}
-              disabled={returnToArteMutation.isPending || motivoCurto(returnObservations)}
-              title={motivoCurto(returnObservations) ? avisoMotivoCurto : undefined}
-              style={{ backgroundColor: TI.text, color: "#fff" }}
-              data-testid="button-return-confirm"
-            >
-              {returnToArteMutation.isPending ? "Devolvendo..." : "Devolver para Arte"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
+          <div style={RODAPE_DA_CONFIRMACAO}>
+            <AlertDialogPrimitive.Cancel asChild>
+              <Botao variante="fantasma" tamanho={dedo ? "toque" : "md"} data-testid="button-return-cancel" onClick={() => { setReturnObservations(""); }}>Cancelar</Botao>
+            </AlertDialogPrimitive.Cancel>
+            <AlertDialogPrimitive.Action asChild>
+              <Botao
+                variante="primario"
+                tamanho={dedo ? "toque" : "md"}
+                icone={RotateCcw}
+                onClick={() => selectedItem && returnToArteMutation.mutate({ itemId: selectedItem.id, notes: returnObservations, destino: ehMolde(selectedItem) ? "arte" : destinoDevolucao })}
+                disabled={returnToArteMutation.isPending || motivoCurto(returnObservations)}
+                title={motivoCurto(returnObservations) ? avisoMotivoCurto : undefined}
+                data-testid="button-return-confirm"
+              >
+                {returnToArteMutation.isPending ? "Devolvendo..." : "Devolver para Arte"}
+              </Botao>
+            </AlertDialogPrimitive.Action>
+          </div>
           </FreezeWhileClosing>
         </AlertDialogContent>
       </AlertDialog>
 
       {/* Bulk release */}
       <AlertDialog open={bulkReleaseConfirmOpen} onOpenChange={setBulkReleaseConfirmOpen}>
-        <AlertDialogContent className="review-confirm-content">
+        <AlertDialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(470)}>
           {/* POR QUE congelar aqui: o onSuccess troca `selectedItemIds` pelo
               conjunto do que FALHOU e fecha o diálogo no mesmo commit. O
               título é contado a partir desse conjunto — "Liberar 12 itens"
               virava "Liberar 0 itens" enquanto a caixa saía de cena. */}
           <FreezeWhileClosing open={bulkReleaseConfirmOpen}>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Liberar {loteDeLiberar.prontas.length} {loteDeLiberar.prontas.length === 1 ? "peça" : "peças"}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {loteDeLiberar.prontas.length === 1 ? "A peça sai" : `As ${loteDeLiberar.prontas.length} peças saem`} da Revisão Final
-              {reaproveitadasNoLote > 0 && reaproveitadasNoLote === loteDeLiberar.prontas.length
-                ? <> e {reaproveitadasNoLote === 1 ? "vai" : "vão"} direto para Impresso / Acabamento (conferência da Gráfica): reaproveitamento total, sem impressão e sem precisar de arquivo final.</>
-                : <> e {loteDeLiberar.prontas.length === 1 ? "entra" : "entram"} na fila da Gráfica como Pronto para Produção.</>}
-              {reaproveitadasNoLote > 0 && reaproveitadasNoLote < loteDeLiberar.prontas.length && (
-                <span data-testid="aviso-bulk-release-reaproveitadas" style={{ display: "block", marginTop: 8 }}>
-                  Exceção: {reaproveitadasNoLote === 1 ? "1 é" : `${reaproveitadasNoLote} são`} de reaproveitamento total e {reaproveitadasNoLote === 1 ? "vai" : "vão"} direto para Impresso / Acabamento (conferência da Gráfica), sem impressão e sem precisar de arquivo final.
-                </span>
-              )}
-              {propostasDoLote.some(x => x.reaproveitadas > 0) && (
-                <span data-testid="aviso-bulk-release-estoque" style={{ display: "block", marginTop: 8, color: TOM.sucesso.text }}>
-                  <strong>{resumoDoLoteComEstoque(loteDeLiberar.prontas.length, propostasDoLote)}</strong> — entram com o que o estoque atendeu, sem digitar nada.
-                </span>
-              )}
-              {/* FICAM DE FORA, dito antes: sem arquivo final o servidor recusa
-                  (reaproveitamento total não conta — não imprime), e travada
-                  pede a escolha da trava, que é da ficha. Nenhuma das duas vai;
-                  as duas seguem marcadas com o motivo na linha. */}
-              {loteDeLiberar.nSemArquivo > 0 && (
-                <span data-testid="aviso-bulk-release-sem-arquivo" style={{ display: "block", marginTop: 8 }}>
-                  {loteDeLiberar.nSemArquivo === 1 ? "1 ainda não tem" : `${loteDeLiberar.nSemArquivo} ainda não têm`} arquivo final da Arte e {loteDeLiberar.nSemArquivo === 1 ? "fica de fora — continua marcada" : "ficam de fora — continuam marcadas"}.
-                </span>
-              )}
-              {loteDeLiberar.nTravadas > 0 && (
-                <span data-testid="aviso-bulk-release-travadas" style={{ display: "block", marginTop: 8 }}>
-                  {loteDeLiberar.nTravadas === 1 ? "1 está travada" : `${loteDeLiberar.nTravadas} estão travadas`} pela Solicitação e {loteDeLiberar.nTravadas === 1 ? "fica" : "ficam"} de fora: libere pela ficha, escolhendo destravar ou manter a trava.
-                </span>
-              )}
-              {selecaoLote.finalizadas > 0 && (
-                <span data-testid="aviso-bulk-release-finalizadas" style={{ display: "block", marginTop: 8 }}>
-                  {avisoLoteFinalizadas()}
-                </span>
-              )}
+          <ModalHeader
+            variant="confirm"
+            icon={Check}
+            tint={T.text}
+            title={`Liberar ${loteDeLiberar.prontas.length} ${loteDeLiberar.prontas.length === 1 ? "peça" : "peças"}`}
+            onClose={() => setBulkReleaseConfirmOpen(false)}
+          />
+          <AlertDialogTitle className="sr-only">Liberar {loteDeLiberar.prontas.length} {loteDeLiberar.prontas.length === 1 ? "peça" : "peças"}</AlertDialogTitle>
+          <div style={CORPO_DA_CONFIRMACAO}>
+            <AlertDialogDescription asChild>
+              <div style={TEXTO_DA_CONFIRMACAO}>
+                {loteDeLiberar.prontas.length === 1 ? "A peça sai" : `As ${loteDeLiberar.prontas.length} peças saem`} da Revisão Final
+                {reaproveitadasNoLote > 0 && reaproveitadasNoLote === loteDeLiberar.prontas.length
+                  ? <> e {reaproveitadasNoLote === 1 ? "vai" : "vão"} direto para Impresso / Acabamento (conferência da Gráfica): reaproveitamento total, sem impressão e sem precisar de arquivo final.</>
+                  : <> e {loteDeLiberar.prontas.length === 1 ? "entra" : "entram"} na fila da Gráfica como Pronto para Produção.</>}
+                {reaproveitadasNoLote > 0 && reaproveitadasNoLote < loteDeLiberar.prontas.length && (
+                  <span data-testid="aviso-bulk-release-reaproveitadas" style={{ display: "block", marginTop: 8 }}>
+                    Exceção: {reaproveitadasNoLote === 1 ? "1 é" : `${reaproveitadasNoLote} são`} de reaproveitamento total e {reaproveitadasNoLote === 1 ? "vai" : "vão"} direto para Impresso / Acabamento (conferência da Gráfica), sem impressão e sem precisar de arquivo final.
+                  </span>
+                )}
+                {propostasDoLote.some(x => x.reaproveitadas > 0) && (
+                  <span data-testid="aviso-bulk-release-estoque" style={{ display: "block", marginTop: 8, color: TOM.sucesso.text }}>
+                    <strong>{resumoDoLoteComEstoque(loteDeLiberar.prontas.length, propostasDoLote)}</strong> — entram com o que o estoque atendeu, sem digitar nada.
+                  </span>
+                )}
+                {/* FICAM DE FORA, dito antes: sem arquivo final o servidor recusa
+                    (reaproveitamento total não conta — não imprime), e travada
+                    pede a escolha da trava, que é da ficha. Nenhuma das duas vai;
+                    as duas seguem marcadas com o motivo na linha. */}
+                {loteDeLiberar.nSemArquivo > 0 && (
+                  <span data-testid="aviso-bulk-release-sem-arquivo" style={{ display: "block", marginTop: 8 }}>
+                    {loteDeLiberar.nSemArquivo === 1 ? "1 ainda não tem" : `${loteDeLiberar.nSemArquivo} ainda não têm`} arquivo final da Arte e {loteDeLiberar.nSemArquivo === 1 ? "fica de fora — continua marcada" : "ficam de fora — continuam marcadas"}.
+                  </span>
+                )}
+                {loteDeLiberar.nTravadas > 0 && (
+                  <span data-testid="aviso-bulk-release-travadas" style={{ display: "block", marginTop: 8 }}>
+                    {loteDeLiberar.nTravadas === 1 ? "1 está travada" : `${loteDeLiberar.nTravadas} estão travadas`} pela Solicitação e {loteDeLiberar.nTravadas === 1 ? "fica" : "ficam"} de fora: libere pela ficha, escolhendo destravar ou manter a trava.
+                  </span>
+                )}
+                {selecaoLote.finalizadas > 0 && (
+                  <span data-testid="aviso-bulk-release-finalizadas" style={{ display: "block", marginTop: 8 }}>
+                    {avisoLoteFinalizadas()}
+                  </span>
+                )}
+              </div>
             </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-bulk-release-cancel">Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => bulkReleaseMutation.mutate({ prontas: loteDeLiberar.prontas, deFora: loteDeLiberar.deFora })}
-              disabled={bulkReleaseMutation.isPending || loteDeLiberar.prontas.length === 0}
-              style={{ backgroundColor: TI.text, color: "#fff" }}
-              data-testid="button-bulk-release-confirm"
-            >
-              {bulkReleaseMutation.isPending
-                ? "Liberando..."
-                : selecaoLote.finalizadas > 0 || loteDeLiberar.nFora > 0 ? `Liberar ${loteDeLiberar.prontas.length === 1 ? "a pronta" : `as ${loteDeLiberar.prontas.length} prontas`}` : "Liberar todas"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
+          </div>
+          <div style={RODAPE_DA_CONFIRMACAO}>
+            <AlertDialogPrimitive.Cancel asChild>
+              <Botao variante="fantasma" tamanho={dedo ? "toque" : "md"} data-testid="button-bulk-release-cancel">Cancelar</Botao>
+            </AlertDialogPrimitive.Cancel>
+            <AlertDialogPrimitive.Action asChild>
+              <Botao
+                variante="primario"
+                tamanho={dedo ? "toque" : "md"}
+                icone={Check}
+                onClick={() => bulkReleaseMutation.mutate({ prontas: loteDeLiberar.prontas, deFora: loteDeLiberar.deFora })}
+                disabled={bulkReleaseMutation.isPending || loteDeLiberar.prontas.length === 0}
+                data-testid="button-bulk-release-confirm"
+              >
+                {bulkReleaseMutation.isPending
+                  ? "Liberando..."
+                  : selecaoLote.finalizadas > 0 || loteDeLiberar.nFora > 0 ? `Liberar ${loteDeLiberar.prontas.length === 1 ? "a pronta" : `as ${loteDeLiberar.prontas.length} prontas`}` : "Liberar todas"}
+              </Botao>
+            </AlertDialogPrimitive.Action>
+          </div>
           </FreezeWhileClosing>
         </AlertDialogContent>
       </AlertDialog>
 
       {/* Bulk return */}
       <AlertDialog open={bulkReturnConfirmOpen} onOpenChange={setBulkReturnConfirmOpen}>
-        <AlertDialogContent className="review-confirm-content">
+        <AlertDialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(470)}>
           {/* POR QUE congelar aqui: o onSuccess fecha, reescreve
               `selectedItemIds` (que conta o título) e esvazia
               `bulkReturnObservations` (que é o valor do textarea) no mesmo
               commit — dois campos visíveis apagando durante o fade. */}
           <FreezeWhileClosing open={bulkReturnConfirmOpen}>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Devolver {selecaoLote.vivas.length} {selecaoLote.vivas.length === 1 ? "peça" : "peças"} para a Arte</AlertDialogTitle>
-            <AlertDialogDescription>
-              {selecaoLote.vivas.length === 1 ? "A peça sai" : `As ${selecaoLote.vivas.length} peças saem`} da Revisão Final e {selecaoLote.vivas.length === 1 ? "volta" : "voltam"} para a Arte, que é avisada com o motivo escrito abaixo.
-              {selecaoLote.finalizadas > 0 && (
-                <span data-testid="aviso-bulk-return-finalizadas" style={{ display: "block", marginTop: 8 }}>
-                  {avisoLoteFinalizadas()}
-                </span>
-              )}
+          <ModalHeader
+            variant="confirm"
+            icon={RotateCcw}
+            tint={T.text}
+            title={`Devolver ${selecaoLote.vivas.length} ${selecaoLote.vivas.length === 1 ? "peça" : "peças"} para a Arte`}
+            onClose={() => setBulkReturnConfirmOpen(false)}
+          />
+          <AlertDialogTitle className="sr-only">Devolver {selecaoLote.vivas.length} {selecaoLote.vivas.length === 1 ? "peça" : "peças"} para a Arte</AlertDialogTitle>
+          <div style={CORPO_DA_CONFIRMACAO}>
+            <AlertDialogDescription asChild>
+              <div style={{ ...TEXTO_DA_CONFIRMACAO, marginBottom: 12 }}>
+                {selecaoLote.vivas.length === 1 ? "A peça sai" : `As ${selecaoLote.vivas.length} peças saem`} da Revisão Final e {selecaoLote.vivas.length === 1 ? "volta" : "voltam"} para a Arte, que é avisada com o motivo escrito abaixo.
+                {selecaoLote.finalizadas > 0 && (
+                  <span data-testid="aviso-bulk-return-finalizadas" style={{ display: "block", marginTop: 8 }}>
+                    {avisoLoteFinalizadas()}
+                  </span>
+                )}
+              </div>
             </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div style={{ padding: 0 }}>
             {!loteSoDeMoldes && seletorDestino}
             {moldesNoLote > 0 && (
-              <p data-testid="aviso-bulk-return-moldes" style={{ margin: "0 0 12px", fontSize: 12, lineHeight: 1.5, color: T.strong, backgroundColor: N.n2, border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px 12px" }}>
+              <p data-testid="aviso-bulk-return-moldes" style={{ margin: "0 0 12px", fontSize: FS.meta, lineHeight: 1.5, color: T.strong, backgroundColor: N.n2, border: `1px solid ${T.border}`, borderRadius: R.md, padding: "8px 12px" }}>
                 {loteSoDeMoldes
                   ? (moldesNoLote === 1 ? "O molde volta" : `Os ${moldesNoLote} moldes voltam`)
                   : (moldesNoLote === 1 ? "1 molde volta" : `${moldesNoLote} moldes voltam`)} para o começo da Arte, com o thumb — molde não tem Finalização{loteSoDeMoldes ? "." : ", seja qual for a escolha acima."}
@@ -3340,25 +3441,32 @@ export default function Solicitacao() {
               value={bulkReturnObservations}
               onChange={e => setBulkReturnObservations(e.target.value)}
               data-testid="textarea-bulk-return"
-              className="w-full min-h-20 p-2 border rounded-md bg-background text-foreground resize-none text-sm"
+              className="placeholder:text-muted-foreground"
+              style={{ ...CAMPO_DO_MOTIVO, fontSize: fonteDeCampo }}
             />
             {contadorDoMotivo(bulkReturnObservations)}
           </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-bulk-return-cancel">Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault(); // a mutation controla o fechamento (mantém aberto em erro)
-                bulkReturnMutation.mutate({ ids: selecaoLote.vivas, notes: bulkReturnObservations, destino: destinoDevolucao });
-              }}
-              disabled={bulkReturnMutation.isPending || motivoCurto(bulkReturnObservations) || selecaoLote.vivas.length === 0}
-              title={motivoCurto(bulkReturnObservations) ? avisoMotivoCurto : undefined}
-              style={{ backgroundColor: TI.text, color: "#fff" }}
-              data-testid="button-bulk-return-confirm"
-            >
-              {bulkReturnMutation.isPending ? "Devolvendo..." : "Devolver para Arte"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
+          <div style={RODAPE_DA_CONFIRMACAO}>
+            <AlertDialogPrimitive.Cancel asChild>
+              <Botao variante="fantasma" tamanho={dedo ? "toque" : "md"} data-testid="button-bulk-return-cancel">Cancelar</Botao>
+            </AlertDialogPrimitive.Cancel>
+            <AlertDialogPrimitive.Action asChild>
+              <Botao
+                variante="primario"
+                tamanho={dedo ? "toque" : "md"}
+                icone={RotateCcw}
+                onClick={(e) => {
+                  e.preventDefault(); // a mutation controla o fechamento (mantém aberto em erro)
+                  bulkReturnMutation.mutate({ ids: selecaoLote.vivas, notes: bulkReturnObservations, destino: destinoDevolucao });
+                }}
+                disabled={bulkReturnMutation.isPending || motivoCurto(bulkReturnObservations) || selecaoLote.vivas.length === 0}
+                title={motivoCurto(bulkReturnObservations) ? avisoMotivoCurto : undefined}
+                data-testid="button-bulk-return-confirm"
+              >
+                {bulkReturnMutation.isPending ? "Devolvendo..." : "Devolver para Arte"}
+              </Botao>
+            </AlertDialogPrimitive.Action>
+          </div>
           </FreezeWhileClosing>
         </AlertDialogContent>
       </AlertDialog>
@@ -3366,37 +3474,52 @@ export default function Solicitacao() {
       {/* Bulk reuse — reaproveitamento TOTAL em lote. O parcial fica no ícone
           da linha, onde a quantidade é decidida peça a peça. */}
       <AlertDialog open={bulkReuseConfirmOpen} onOpenChange={setBulkReuseConfirmOpen}>
-        <AlertDialogContent className="review-confirm-content">
+        <AlertDialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(470)}>
           {/* Mesmo congelamento dos outros lotes: o onSuccess reescreve
               `selectedItemIds` (que conta o título) e fecha no mesmo commit. */}
           <FreezeWhileClosing open={bulkReuseConfirmOpen}>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Reaproveitar {selecaoLote.vivas.length} {selecaoLote.vivas.length === 1 ? "peça" : "peças"}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {selecaoLote.vivas.length === 1 ? "A peça será marcada" : "As peças serão marcadas"} como reaproveitamento <strong>total</strong> e enviadas direto à Gráfica como produzidas — sem nova impressão. Para reaproveitar só parte das unidades de uma peça, use o ícone ♻ na linha dela.
-              {selecaoLote.finalizadas > 0 && (
-                <span data-testid="aviso-bulk-reuse-finalizadas" style={{ display: "block", marginTop: 8 }}>
-                  {avisoLoteFinalizadas()}
-                </span>
-              )}
+          <ModalHeader
+            variant="confirm"
+            icon={Recycle}
+            tint={TOM.sucesso.text}
+            title={`Reaproveitar ${selecaoLote.vivas.length} ${selecaoLote.vivas.length === 1 ? "peça" : "peças"}`}
+            onClose={() => setBulkReuseConfirmOpen(false)}
+          />
+          <AlertDialogTitle className="sr-only">Reaproveitar {selecaoLote.vivas.length} {selecaoLote.vivas.length === 1 ? "peça" : "peças"}</AlertDialogTitle>
+          <div style={CORPO_DA_CONFIRMACAO}>
+            <AlertDialogDescription asChild>
+              <div style={TEXTO_DA_CONFIRMACAO}>
+                {selecaoLote.vivas.length === 1 ? "A peça será marcada" : "As peças serão marcadas"} como reaproveitamento <strong>total</strong> e enviadas direto à Gráfica como produzidas — sem nova impressão. Para reaproveitar só parte das unidades de uma peça, use o ícone ♻ na linha dela.
+                {selecaoLote.finalizadas > 0 && (
+                  <span data-testid="aviso-bulk-reuse-finalizadas" style={{ display: "block", marginTop: 8 }}>
+                    {avisoLoteFinalizadas()}
+                  </span>
+                )}
+              </div>
             </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-bulk-reuse-cancel">Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault(); // a mutation controla o fechamento (mantém aberto em erro)
-                bulkReuseMutation.mutate(selecaoLote.vivas);
-              }}
-              disabled={bulkReuseMutation.isPending || selecaoLote.vivas.length === 0}
-              style={{ backgroundColor: TOM.sucesso.text, color: "#fff" }}
-              data-testid="button-bulk-reuse-confirm"
-            >
-              {bulkReuseMutation.isPending
-                ? "Reaproveitando..."
-                : selecaoLote.finalizadas > 0 ? `Reaproveitar as ${selecaoLote.vivas.length}` : "Reaproveitar todas"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
+          </div>
+          <div style={RODAPE_DA_CONFIRMACAO}>
+            <AlertDialogPrimitive.Cancel asChild>
+              <Botao variante="fantasma" tamanho={dedo ? "toque" : "md"} data-testid="button-bulk-reuse-cancel">Cancelar</Botao>
+            </AlertDialogPrimitive.Cancel>
+            <AlertDialogPrimitive.Action asChild>
+              <Botao
+                variante="primario"
+                tamanho={dedo ? "toque" : "md"}
+                icone={Recycle}
+                onClick={(e) => {
+                  e.preventDefault(); // a mutation controla o fechamento (mantém aberto em erro)
+                  bulkReuseMutation.mutate(selecaoLote.vivas);
+                }}
+                disabled={bulkReuseMutation.isPending || selecaoLote.vivas.length === 0}
+                data-testid="button-bulk-reuse-confirm"
+              >
+                {bulkReuseMutation.isPending
+                  ? "Reaproveitando..."
+                  : selecaoLote.finalizadas > 0 ? `Reaproveitar as ${selecaoLote.vivas.length}` : "Reaproveitar todas"}
+              </Botao>
+            </AlertDialogPrimitive.Action>
+          </div>
           </FreezeWhileClosing>
         </AlertDialogContent>
       </AlertDialog>
@@ -3455,8 +3578,12 @@ export default function Solicitacao() {
                   só o admin, atrás de "Já conferi no estoque — aplicar agora". */}
               <AplicarAgoraNoModal admin={user?.role === "admin"}>
 
-              {/* Opção: reaproveitar tudo */}
-              <button
+              {/* Opção: reaproveitar tudo — a ação principal deste modal. */}
+              <Botao
+                variante="primario"
+                tamanho={dedo ? "toque" : "md"}
+                larguraCheia
+                icone={Recycle}
                 onClick={() => {
                   // Aberto de dentro da ficha: decidir avança para a próxima da
                   // fila, como Liberar e Devolver — ou fecha, se era a última.
@@ -3465,22 +3592,15 @@ export default function Solicitacao() {
                   setReuseDialogItemId(null);
                 }}
                 disabled={toggleReuseMutation.isPending || partialReuseMutation.isPending}
-                style={{
-                  width: "100%", padding: "12px 16px", marginBottom: 10,
-                  backgroundColor: TOM.sucesso.text, color: "#fff",
-                  border: "none", borderRadius: 8, cursor: "pointer",
-                  fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                }}
+                style={{ marginBottom: 10, height: 44 }}
               >
-                <Recycle style={{ width: 13, height: 13 }} />
                 Reaproveitar tudo ({qty} un.) — pula produção
-              </button>
+              </Botao>
 
               {/* Opção: reaproveitar parcialmente (só aparece se qty > 1) */}
               {qty > 1 && (
-                <div style={{ border: `1px solid ${T.border}`, borderRadius: 8, padding: "14px 16px" }}>
-                  <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                <div style={{ border: `1px solid ${T.border}`, borderRadius: R.md, padding: "14px 16px" }}>
+                  <p style={{ margin: "0 0 10px", fontSize: FS.small, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                     Reaproveitar parcialmente
                   </p>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
@@ -3492,46 +3612,48 @@ export default function Solicitacao() {
                       onChange={e => setPartialReuseQty(Math.max(1, Math.min(qty - 1, parseInt(e.target.value) || 1)))}
                       aria-label="Unidades reaproveitadas"
                       data-testid="input-partial-reuse-qty"
-                      style={{ width: 64, height: 34, padding: "0 8px", borderRadius: 6, border: `1px solid ${T.bdark}`, fontSize: 15, fontWeight: 700, textAlign: "center" }}
+                      style={{ width: 64, height: alvo(34, dedo), padding: "0 8px", borderRadius: R.sm, border: `1px solid ${T.bdark}`, fontSize: dedo || isMobile ? FS.lead : FS.strong, fontWeight: 700, textAlign: "center" }}
                     />
-                    <span style={{ fontSize: 13, color: T.second }}>de {qty} un. reaproveitadas</span>
+                    <span style={{ fontSize: FS.body, color: T.second }}>de {qty} un. reaproveitadas</span>
                   </div>
-                  <p style={{ margin: "0 0 10px", fontSize: 11, color: T.second }}>
+                  <p style={{ margin: "0 0 10px", fontSize: FS.small, color: T.second }}>
                     As outras <strong>{qty - partialReuseQty}</strong> un. seguirão para produção normal.
                   </p>
                   {/* O parcial LIBERA o restante para produção — e produção pede
-                      arquivo final. Dito aqui, antes do 409 do servidor. */}
+                      arquivo final. Dito aqui, antes do 409 do servidor; é
+                      também o motivo visível do botão apagado logo abaixo. */}
                   {!arquivoFinalOk(dialogItem) && (
-                    <p role="status" data-testid="aviso-parcial-sem-arquivo" style={{ margin: "0 0 10px", fontSize: 12, lineHeight: 1.45, color: TOM.alerta.text, backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 6, padding: "6px 10px" }}>
+                    <p role="status" data-testid="aviso-parcial-sem-arquivo" style={{ margin: "0 0 10px", fontSize: FS.meta, lineHeight: 1.45, color: TOM.alerta.text, backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: R.sm, padding: "6px 10px" }}>
                       Sem arquivo final da Arte: o parcial manda o restante para a Gráfica, que precisa do arquivo. Espere a Arte enviar, ou reaproveite tudo.
                     </p>
                   )}
-                  <button
+                  <Botao
+                    variante="secundario"
+                    tamanho={dedo ? "toque" : "md"}
+                    larguraCheia
+                    carregando={partialReuseMutation.isPending}
                     onClick={() => {
                       if (!arquivoFinalOk(dialogItem)) return;
                       if (modalOpen && selectedItem?.id === dialogItem.id && !marcarAvanco()) { setModalOpen(false); setSelectedItem(null); }
                       partialReuseMutation.mutate({ itemId: dialogItem.id, reuseQty: partialReuseQty });
                     }}
                     disabled={toggleReuseMutation.isPending || partialReuseMutation.isPending || !arquivoFinalOk(dialogItem)}
-                    style={{
-                      width: "100%", padding: "10px 16px",
-                      backgroundColor: arquivoFinalOk(dialogItem) ? T.text : T.border, color: arquivoFinalOk(dialogItem) ? "#fff" : T.second,
-                      border: "none", borderRadius: 6, cursor: "pointer",
-                      fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em",
-                    }}
                   >
                     {partialReuseMutation.isPending ? "Salvando..." : `Confirmar ${partialReuseQty} un. reaproveitadas`}
-                  </button>
+                  </Botao>
                 </div>
               )}
               </AplicarAgoraNoModal>
 
-                  <button
+                  <Botao
+                    variante="fantasma"
+                    tamanho={dedo ? "toque" : "md"}
+                    larguraCheia
                     onClick={() => setReuseDialogItemId(null)}
-                    style={{ width: "100%", marginTop: 12, height: 36, background: "none", border: "none", fontSize: 13, color: T.second, cursor: "pointer" }}
+                    style={{ marginTop: 12 }}
                   >
                     Cancelar
-                  </button>
+                  </Botao>
                 </div>
               </>
             );
@@ -3543,35 +3665,49 @@ export default function Solicitacao() {
       {/* Desfazer o reaproveitamento — confirmação: a peça volta a precisar
           de arquivo final e de produção. */}
       <AlertDialog open={!!desfazerReuseId} onOpenChange={open => { if (!open && !toggleReuseMutation.isPending) setDesfazerReuseId(null); }}>
-        <AlertDialogContent className="review-confirm-content">
+        <AlertDialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(470)}>
           <FreezeWhileClosing open={!!desfazerReuseId}>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Desfazer o reaproveitamento</AlertDialogTitle>
-            <AlertDialogDescription>
-              {(() => {
-                const it: any = pendingItems.find((i: any) => i.id === desfazerReuseId);
-                return (
-                  <span>
-                    {it ? <strong>{it.displayId}</strong> : "A peça"} deixa de ser reaproveitamento total e volta ao fluxo normal: para liberar, vai precisar do arquivo final da Arte, e a Gráfica produz as unidades.
-                  </span>
-                );
-              })()}
+          <ModalHeader
+            variant="confirm"
+            icon={Recycle}
+            tint={T.text}
+            title="Desfazer o reaproveitamento"
+            onClose={() => { if (!toggleReuseMutation.isPending) setDesfazerReuseId(null); }}
+          />
+          <AlertDialogTitle className="sr-only">Desfazer o reaproveitamento</AlertDialogTitle>
+          <div style={CORPO_DA_CONFIRMACAO}>
+            <AlertDialogDescription asChild>
+              <div style={TEXTO_DA_CONFIRMACAO}>
+                {(() => {
+                  const it: any = pendingItems.find((i: any) => i.id === desfazerReuseId);
+                  return (
+                    <span>
+                      {it ? <strong>{it.displayId}</strong> : "A peça"} deixa de ser reaproveitamento total e volta ao fluxo normal: para liberar, vai precisar do arquivo final da Arte, e a Gráfica produz as unidades.
+                    </span>
+                  );
+                })()}
+              </div>
             </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-desfazer-reuse-cancel" disabled={toggleReuseMutation.isPending}>Manter reaproveitada</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault(); // a mutation fecha (mantém aberto em erro)
-                if (desfazerReuseId) toggleReuseMutation.mutate({ itemId: desfazerReuseId, isReuse: false });
-              }}
-              disabled={toggleReuseMutation.isPending}
-              style={{ backgroundColor: TI.text, color: "#fff" }}
-              data-testid="button-desfazer-reuse-confirm"
-            >
-              {toggleReuseMutation.isPending ? "Desfazendo…" : "Desfazer"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
+          </div>
+          <div style={RODAPE_DA_CONFIRMACAO}>
+            <AlertDialogPrimitive.Cancel asChild>
+              <Botao variante="fantasma" tamanho={dedo ? "toque" : "md"} data-testid="button-desfazer-reuse-cancel" disabled={toggleReuseMutation.isPending}>Manter reaproveitada</Botao>
+            </AlertDialogPrimitive.Cancel>
+            <AlertDialogPrimitive.Action asChild>
+              <Botao
+                variante="primario"
+                tamanho={dedo ? "toque" : "md"}
+                onClick={(e) => {
+                  e.preventDefault(); // a mutation fecha (mantém aberto em erro)
+                  if (desfazerReuseId) toggleReuseMutation.mutate({ itemId: desfazerReuseId, isReuse: false });
+                }}
+                disabled={toggleReuseMutation.isPending}
+                data-testid="button-desfazer-reuse-confirm"
+              >
+                {toggleReuseMutation.isPending ? "Desfazendo…" : "Desfazer"}
+              </Botao>
+            </AlertDialogPrimitive.Action>
+          </div>
           </FreezeWhileClosing>
         </AlertDialogContent>
       </AlertDialog>
@@ -3591,7 +3727,7 @@ export default function Solicitacao() {
             onClose={() => { if (!travarMutation.isPending) { setTravandoItem(null); setMotivoDaTrava(""); } }}
           />
           <div style={{ padding: "16px 24px 20px", overflowY: "auto", flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-            <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: T.strong }}>
+            <p style={{ margin: 0, fontSize: FS.body, lineHeight: 1.5, color: T.strong }}>
               Travada, a peça pode ser liberada, mas não anda na Gráfica (imprimir, conferir, embalar) até alguém da Solicitação destravar.
             </p>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -3600,7 +3736,8 @@ export default function Solicitacao() {
                   key={sug}
                   type="button"
                   onClick={() => setMotivoDaTrava(sug)}
-                  style={{ minHeight: isMobile ? 44 : 30, padding: "0 10px", borderRadius: 999, border: `1px solid ${T.border}`, background: motivoDaTrava === sug ? TOM.perigo.bg : T.surface, color: T.strong, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                  aria-pressed={motivoDaTrava === sug}
+                  style={{ minHeight: alvo(30, dedo), padding: "0 10px", borderRadius: R.pill, border: `1px solid ${T.border}`, background: motivoDaTrava === sug ? TOM.perigo.bg : T.surface, color: T.strong, fontSize: FS.meta, fontWeight: 600, cursor: "pointer" }}
                 >
                   {sug}
                 </button>
@@ -3612,32 +3749,35 @@ export default function Solicitacao() {
               aria-label="Motivo da trava"
               placeholder="Por que a peça fica travada?"
               data-testid="textarea-motivo-trava-revisao"
-              className="w-full min-h-20 p-2 border rounded-md bg-background text-foreground resize-none text-sm"
+              className="placeholder:text-muted-foreground"
+              style={{ ...CAMPO_DO_MOTIVO, fontSize: fonteDeCampo }}
             />
             {!motivoDaTravaLido.ok && (
-              <p aria-live="polite" style={{ margin: 0, fontSize: 12, color: TOM.alerta.text }}>
+              <p aria-live="polite" style={{ margin: 0, fontSize: FS.meta, color: TOM.alerta.text }}>
                 {`Escreva o motivo (pelo menos ${MOTIVO_MINIMO} letras) — é o que a Gráfica vai ler.`}
               </p>
             )}
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
-              <button
-                type="button"
-                onClick={() => { setTravandoItem(null); setMotivoDaTrava(""); }}
-                disabled={travarMutation.isPending}
-                style={{ minHeight: 40, padding: "0 14px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.surface, color: T.strong, fontSize: 13, fontWeight: 600, cursor: "pointer" }}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => { if (travandoItem && motivoDaTravaLido.ok) travarMutation.mutate({ itemId: travandoItem.id, motivo: motivoDaTravaLido.motivo, displayId: travandoItem.displayId }); }}
-                disabled={!motivoDaTravaLido.ok || travarMutation.isPending}
-                data-testid="button-travar-confirm-revisao"
-                style={{ minHeight: 40, padding: "0 14px", borderRadius: 8, border: "none", background: motivoDaTravaLido.ok ? TOM.perigo.text : T.border, color: motivoDaTravaLido.ok ? T.surface : T.second, fontSize: 13, fontWeight: 700, cursor: motivoDaTravaLido.ok && !travarMutation.isPending ? "pointer" : "not-allowed" }}
-              >
-                {travarMutation.isPending ? "Travando…" : "Travar"}
-              </button>
-            </div>
+          </div>
+          <div style={RODAPE_DA_CONFIRMACAO}>
+            <Botao
+              variante="fantasma"
+              tamanho={dedo ? "toque" : "md"}
+              onClick={() => { setTravandoItem(null); setMotivoDaTrava(""); }}
+              disabled={travarMutation.isPending}
+            >
+              Cancelar
+            </Botao>
+            <Botao
+              variante="perigo"
+              tamanho={dedo ? "toque" : "md"}
+              icone={Lock}
+              carregando={travarMutation.isPending}
+              onClick={() => { if (travandoItem && motivoDaTravaLido.ok) travarMutation.mutate({ itemId: travandoItem.id, motivo: motivoDaTravaLido.motivo, displayId: travandoItem.displayId }); }}
+              disabled={!motivoDaTravaLido.ok || travarMutation.isPending}
+              data-testid="button-travar-confirm-revisao"
+            >
+              {travarMutation.isPending ? "Travando…" : "Travar"}
+            </Botao>
           </div>
           </FreezeWhileClosing>
         </DialogContent>
@@ -3645,35 +3785,44 @@ export default function Solicitacao() {
 
       {/* Delete confirmation */}
       <AlertDialog open={!!deleteConfirmItemId} onOpenChange={open => { if (!open) setDeleteConfirmItemId(null); }}>
-        <AlertDialogContent className="review-confirm-content">
+        <AlertDialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(470)}>
           {/* POR QUE congelar aqui: o onSuccess da exclusão invalida, toasta e
               zera `deleteConfirmItemId` — que é quem escreve o ID da peça na
               descrição. Sem congelar, "A peça SOL-123 será excluída" cai para
               o texto genérico durante a saída. */}
           <FreezeWhileClosing open={!!deleteConfirmItemId}>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Excluir peça</AlertDialogTitle>
-            <AlertDialogDescription>
-              {deleteConfirmItemId && (() => {
-                const item = pendingItems.find(i => i.id === deleteConfirmItemId);
-                return item ? <span>A peça <strong>{item.displayId}</strong> será permanentemente excluída. Esta ação não pode ser desfeita.</span> : "Esta peça será permanentemente excluída.";
-              })()}
+          <ModalHeader variant="confirm" icon={Trash2} tint={TOM.perigo.text} title="Excluir peça" onClose={() => setDeleteConfirmItemId(null)} />
+          <AlertDialogTitle className="sr-only">Excluir peça</AlertDialogTitle>
+          <div style={CORPO_DA_CONFIRMACAO}>
+            <AlertDialogDescription asChild>
+              <div style={TEXTO_DA_CONFIRMACAO}>
+                {deleteConfirmItemId && (() => {
+                  const item = pendingItems.find(i => i.id === deleteConfirmItemId);
+                  return item ? <span>A peça <strong>{item.displayId}</strong> será permanentemente excluída. Esta ação não pode ser desfeita.</span> : "Esta peça será permanentemente excluída.";
+                })()}
+              </div>
             </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-delete-cancel">Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault(); // a mutation controla o fechamento (mantém aberto em erro)
-                if (deleteConfirmItemId) deleteItemMutation.mutate(deleteConfirmItemId);
-              }}
-              disabled={deleteItemMutation.isPending}
-              className="bg-destructive text-destructive-foreground"
-              data-testid="button-delete-confirm"
-            >
-              {deleteItemMutation.isPending ? "Excluindo..." : "Excluir peça"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
+          </div>
+          <div style={RODAPE_DA_CONFIRMACAO}>
+            <AlertDialogPrimitive.Cancel asChild>
+              <Botao variante="fantasma" tamanho={dedo ? "toque" : "md"} data-testid="button-delete-cancel">Cancelar</Botao>
+            </AlertDialogPrimitive.Cancel>
+            <AlertDialogPrimitive.Action asChild>
+              <Botao
+                variante="perigo"
+                tamanho={dedo ? "toque" : "md"}
+                icone={Trash2}
+                onClick={(e) => {
+                  e.preventDefault(); // a mutation controla o fechamento (mantém aberto em erro)
+                  if (deleteConfirmItemId) deleteItemMutation.mutate(deleteConfirmItemId);
+                }}
+                disabled={deleteItemMutation.isPending}
+                data-testid="button-delete-confirm"
+              >
+                {deleteItemMutation.isPending ? "Excluindo..." : "Excluir peça"}
+              </Botao>
+            </AlertDialogPrimitive.Action>
+          </div>
           </FreezeWhileClosing>
         </AlertDialogContent>
       </AlertDialog>

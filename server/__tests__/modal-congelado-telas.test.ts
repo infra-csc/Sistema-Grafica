@@ -435,7 +435,9 @@ describe("modal de Solicitação: o item zerado não esvazia o modal que está s
       (document.querySelector('[data-testid="button-release-confirm"]') as HTMLElement)?.click();
     });
 
-    const revisao = () => document.querySelector('.review-dialog-shell');
+    // O DialogContent da revisão, pela marca (a classe .review-dialog-shell saiu
+    // quando o modal passou para a casca modalSurface).
+    const revisao = () => document.querySelector('[data-testid="modal-revisao"]');
     for (let i = 0; i < 40 && revisao()?.getAttribute("data-state") !== "closed"; i++) await tick(10);
     expect(revisao()?.getAttribute("data-state")).toBe("closed");
 

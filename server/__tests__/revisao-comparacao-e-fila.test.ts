@@ -79,11 +79,11 @@ describe("a comparação se vê de uma vez", () => {
     // comparação é uma faixa de largura cheia, e é a única que flexiona.
     expect(codigo).not.toContain('width: isMobile ? "100%" : "56%"');
     expect(codigo).not.toContain("review-modal-columns");
-    expect(tela).toContain('flex: "1 1 auto", minHeight: 200, overflow: "hidden", backgroundColor: "#f5f5f4"');
+    expect(tela).toContain('flex: "1 1 auto", minHeight: 200, overflow: "hidden", backgroundColor: N.n2');
   });
 
   it("cada pane declara se o arquivo existe", () => {
-    expect(tela).toContain('backgroundColor: url ? "#15803d" : "#c2410c"');
+    expect(tela).toContain("backgroundColor: url ? TOM.sucesso.text : T.accentText");
   });
 
   it("a ficha técnica saiu da grade de seis cartões para uma linha", () => {
@@ -161,8 +161,10 @@ describe("o modal é uma fila", () => {
 describe("dá para saber o que falta sem abrir nada", () => {
   it("a coluna de arquivo final existe, nos dois estados", () => {
     expect(tela).toContain("data-testid={`cell-final-file-${item.id}`}");
-    expect(tela).toContain("/> Recebido");
-    expect(tela).toContain("/> Aguardando");
+    // Os dois estados viraram <Selo> do DS, com o ícone no lugar do filho.
+    expect(tela).toContain('<Selo tom="sucesso" icone={Check}>Recebido</Selo>');
+    expect(tela).toContain('<Selo tom="laranja" icone={Clock} title=');
+    expect(tela).toContain(">Aguardando</Selo>");
   });
 
   it("a frase de resolução substitui a descrição da tela", () => {
@@ -181,7 +183,8 @@ describe("dá para saber o que falta sem abrir nada", () => {
   it("são quatro colunas, não sete", () => {
     expect(tela).toContain('{ label: "Peça", w: undefined }');
     // 15/09: layout fixo sem rolagem — a medida ganhou largura para não quebrar.
-    expect(tela).toContain('{ label: "Qtd · Dim · m²", w: 230 }');
+    // No compacto (820–1180 de área útil) ela funde na célula da Peça.
+    expect(tela).toContain('{ label: "Qtd · Dim · m²", w: 230, fundeNoCompacto: true }');
     expect(tela).toContain('{ label: "Arquivo final", w: 140 }');
     expect(codigo).not.toContain('{ label: "Descrição da Peça"');
     expect(codigo).not.toContain('{ label: "Dim (LxA)"');
@@ -291,8 +294,12 @@ describe("as guardas de evento finalizado", () => {
     // contraste trocou junto: era #d6d3d1 sobre #292524 (10,18:1); agora é
     // #6f6a64 sobre #f5f5f4 (4,91:1) — o único "off" desta tela que carrega
     // informação nova continua legível. O sólido virou #c2410c com branco.
-    expect(tela).toContain('color: seloSelecionado || semArquivoParaLiberar ? "#6f6a64" : "#fff"');
-    expect(contraste("#6f6a64", "#f5f5f4")).toBeGreaterThanOrEqual(4.5);
+    // Com o <Botao>, o desligado vem de DESLIGADO_LEGIVEL (T.second sobre
+    // N.n2, opacidade cheia) — o .ds-botao:disabled sozinho apagaria o
+    // primário escuro pela metade e o rótulo cairia para ~3:1.
+    expect(tela).toContain("...(seloSelecionado || semArquivoParaLiberar ? DESLIGADO_LEGIVEL : {})");
+    expect(tela).toContain("backgroundColor: N.n2, color: T.second, border: `1px solid ${T.border}`, opacity: 1,");
+    expect(contraste("#746e69", "#f5f5f4")).toBeGreaterThanOrEqual(4.5); // T.second sobre N.n2
     expect(contraste("#ffffff", "#c2410c")).toBeGreaterThanOrEqual(4.5);
   });
 });
@@ -312,7 +319,10 @@ describe("o resto do que estava certo", () => {
   it("o cabeçalho enxuto não voltou a crescer", () => {
     // Era um bloco preto de 275px com título de 56px e um olho decorativo.
     // Hoje segue o título padrão das páginas (FS.h1 = 26 no desktop).
-    expect(tela).toContain("fontSize: isMobile ? 20 : FS.h1");
+    // Hoje é o <CabecalhoDaPagina> do DS (título em FS.h1), o mesmo das
+    // outras telas — e não um bloco próprio.
+    expect(tela).toContain("<CabecalhoDaPagina");
+    expect(tela).toContain('titulo="Revisão Final"');
   });
 });
 

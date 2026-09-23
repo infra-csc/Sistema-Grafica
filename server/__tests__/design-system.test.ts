@@ -519,10 +519,29 @@ describe("o contraste que a régua da casa cobra", () => {
   });
 
   it("o Confirmar da Revisão Final e o placeholder saíram dos tons que reprovavam", () => {
+    // A casca própria (.review-confirm-content) saiu do CSS: as confirmações
+    // da Revisão usam <Botao> — primário escuro ou perigo, nunca o laranja da
+    // marca sob texto branco — e o placeholder do motivo usa o
+    // muted-foreground AA (~#736d67), não o n6.
     const css = readFileSync(path.resolve(__dirname, "../../client/src/index.css"), "utf8");
-    const confirmar = css.match(/button\[data-testid\$="-confirm"\]\s*\{[^}]+\}/)![0];
-    expect(confirmar).toContain("background: #c2410c");
-    expect(confirmar).not.toContain("#f97316");
-    expect(css).toContain(".review-confirm-content textarea::placeholder { color: var(--n7); }");
+    expect(css).not.toMatch(/^\.review-confirm-content\b/m);
+    expect(css).not.toMatch(/^\.review-dialog-shell\b/m);
+
+    const rev = readFileSync(path.resolve(__dirname, "../../client/src/pages/solicitacao.tsx"), "utf8");
+    // Do `<Botao` mais próximo até o testid: o onClick tem `=>`, então um
+    // regex de tag única pararia no primeiro `>`.
+    const confirmacoes = Array.from(rev.matchAll(/data-testid="button-[a-z-]+-confirm"/g)).map((m) => {
+      const ini = rev.lastIndexOf("<Botao", m.index!);
+      return ini >= 0 && m.index! - ini < 2000 ? rev.slice(ini, m.index! + m[0].length) : "";
+    });
+    expect(confirmacoes.length).toBeGreaterThanOrEqual(6);
+    for (const b of confirmacoes) {
+      expect(b).toMatch(/variante="(primario|perigo)"/);
+      expect(b).not.toContain("T.accent}");
+      expect(b).not.toContain("#f97316");
+    }
+    const motivos = Array.from(rev.matchAll(/<textarea[\s\S]*?\/>/g)).map((m) => m[0]).filter((t) => t.includes("CAMPO_DO_MOTIVO"));
+    expect(motivos.length).toBeGreaterThan(0);
+    for (const t of motivos) expect(t).toContain("placeholder:text-muted-foreground");
   });
 });

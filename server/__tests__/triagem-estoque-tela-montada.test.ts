@@ -400,7 +400,9 @@ describe("triagem · quadro agrupado por quantidade", () => {
     expect(campo.getAttribute("inputmode")).toBe("numeric");
     expect(px(campo.style.fontSize)).toBe(16);
     expect(px(campo.style.height)).toBeGreaterThanOrEqual(44);
-    expect(px(tid("dividir-aplicar")!.style.height)).toBeGreaterThanOrEqual(44);
+    // <Botao tamanho="toque"> garante o alvo por minHeight (44px).
+    const aplicar = tid("dividir-aplicar")!;
+    expect(Math.max(px(aplicar.style.height), px(aplicar.style.minHeight))).toBeGreaterThanOrEqual(44);
     expect(tid("dividir-aplicar")!.parentElement!.style.paddingBottom).toContain("safe-area-inset-bottom");
     await act(async () => { fireEvent.click(tid("tudo-para-galpao")!); });
     expect(campo.value).toBe("24");

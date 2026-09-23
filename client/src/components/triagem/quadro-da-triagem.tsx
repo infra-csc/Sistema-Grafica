@@ -23,7 +23,10 @@ import { ArrowLeft, BookmarkCheck, CheckCircle2, ChevronDown, Package, Search, S
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useElementSize, useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
-import { FS } from "@/lib/theme";
+import { T, N, TOM, FS, FW, R, FONT, SHADOW } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { Selo } from "@/components/ui/selo";
+import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -44,10 +47,10 @@ import type { ReservaDaTriagem } from "@/components/triagem/eventos-da-triagem";
 export type DestinoDaTriagem = "triar" | "galpao" | "manutencao" | "descartar";
 
 const COLUNAS: Record<DestinoDaTriagem, { titulo: string; sub: string; cor: string; fundo: string; borda: string; Icon: React.ElementType }> = {
-  triar:      { titulo: "A triar",    sub: "Arraste o material para o destino", cor: "#334155", fundo: "#f8fafc", borda: "#e2e8f0", Icon: Package },
-  galpao:     { titulo: "Galpão",     sub: "Volta ao estoque",                 cor: "#1e40af", fundo: "#eff6ff", borda: "#bfdbfe", Icon: Warehouse },
-  manutencao: { titulo: "Manutenção", sub: "Fora do estoque até o reparo",     cor: "#92400e", fundo: "#fffbeb", borda: "#fde68a", Icon: Wrench },
-  descartar:  { titulo: "Descartar",  sub: "Sai do inventário como sucata",    cor: "#991b1b", fundo: "#fef2f2", borda: "#fecaca", Icon: Trash2 },
+  triar:      { titulo: "A triar",    sub: "Arraste o material para o destino", cor: T.strong,          fundo: T.bg,            borda: T.border,            Icon: Package },
+  galpao:     { titulo: "Galpão",     sub: "Volta ao estoque",                 cor: TOM.info.text,     fundo: TOM.info.bg,     borda: TOM.info.border,     Icon: Warehouse },
+  manutencao: { titulo: "Manutenção", sub: "Fora do estoque até o reparo",     cor: TOM.alerta.text,   fundo: TOM.alerta.bg,   borda: TOM.alerta.border,   Icon: Wrench },
+  descartar:  { titulo: "Descartar",  sub: "Sai do inventário como sucata",    cor: TOM.perigo.text,   fundo: TOM.perigo.bg,   borda: TOM.perigo.border,   Icon: Trash2 },
 };
 const DESTINOS: DestinoDaTriagem[] = ["galpao", "manutencao", "descartar"];
 
@@ -127,10 +130,10 @@ const CartaoDoGrupo = memo(function CartaoDoGrupo({ grupo, coluna, quantidade, r
       onDragStart={(e) => onArrastar(e, f)}
       onDragEnd={onSoltar}
       style={{
-        display: "flex", flexDirection: "column", borderRadius: 12,
-        background: selecionada ? "#fff7ed" : "#fff", cursor: podeArrastar ? "grab" : "pointer", userSelect: "none",
-        border: `2px solid ${selecionada ? "#c2410c" : "#e2e8f0"}`,
-        boxShadow: selecionada ? "0 0 0 3px rgba(194,65,12,0.15)" : "0 1px 2px rgba(0,0,0,0.05)",
+        display: "flex", flexDirection: "column", borderRadius: R.lg,
+        background: selecionada ? TOM.laranja.bg : T.surface, cursor: podeArrastar ? "grab" : "pointer", userSelect: "none",
+        border: `2px solid ${selecionada ? T.accentText : T.border}`,
+        boxShadow: selecionada ? "0 0 0 3px rgba(194,65,12,0.15)" : SHADOW.sm,
         opacity: fantasma ? 0.4 : 1, transition: "border-color 0.12s, box-shadow 0.12s, opacity 0.12s, background-color 0.12s",
       }}
     >
@@ -151,30 +154,30 @@ const CartaoDoGrupo = memo(function CartaoDoGrupo({ grupo, coluna, quantidade, r
         style={{ display: "flex", flexDirection: "column", gap: 8, padding: "10px 10px 8px", borderRadius: 10 }}
       >
         <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 0 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 8, overflow: "hidden", background: "#f1f5f9", border: "1px solid #e2e8f0", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            {ehImagem(grupo.miniatura) ? <img src={miniatura(grupo.miniatura!)} alt="" loading="lazy" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Package size={16} color="#94a3b8" aria-hidden="true" />}
+          <div style={{ width: 44, height: 44, borderRadius: R.md, overflow: "hidden", background: N.n2, border: `1px solid ${T.border}`, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {ehImagem(grupo.miniatura) ? <img src={miniatura(grupo.miniatura!)} alt="" loading="lazy" decoding="async" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Package size={16} color={T.muted} aria-hidden="true" />}
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div title={grupo.nome} style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{grupo.nome}</div>
+            <div title={grupo.nome} style={{ fontSize: FS.body, fontWeight: FW.forte, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{grupo.nome}</div>
             {grupo.patrocinadores.length > 0 && (
-              <div style={{ fontSize: 12, color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{grupo.patrocinadores.join(" · ")}</div>
+              <div style={{ fontSize: FS.meta, color: T.apoio, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{grupo.patrocinadores.join(" · ")}</div>
             )}
-            <div style={{ fontFamily: "DM Mono, monospace", fontSize: 11, fontWeight: 600, color: "#9a3412", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <div style={{ fontFamily: FONT.mono, fontSize: FS.small, fontWeight: FW.medio, color: T.accentText, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {primeiro}{grupo.ativos.length > 1 ? ` +${grupo.ativos.length - 1}` : ""}
             </div>
           </div>
           {/* A QUANTIDADE é a informação do cartão: número grande, unidade pequena. */}
           <div data-testid={`quantidade-${id}`} style={{ flexShrink: 0, textAlign: "right", lineHeight: 1 }}>
-            <span style={{ fontFamily: "Space Grotesk, sans-serif", fontSize: 22, fontWeight: 700, color: "#0f172a", fontVariantNumeric: "tabular-nums" }}>{quantidade}</span>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginLeft: 3 }}>un.</span>
-            {parcial && <div style={{ fontSize: 11, color: "#64748b", marginTop: 3 }}>de {grupo.unidades}</div>}
+            <span style={{ fontFamily: FONT.display, fontSize: FS.h2, fontWeight: FW.forte, color: T.text, fontVariantNumeric: "tabular-nums" }}>{quantidade}</span>
+            <span style={{ fontSize: FS.small, fontWeight: FW.medio, color: T.second, marginLeft: 3 }}>un.</span>
+            {parcial && <div style={{ fontSize: FS.small, color: T.second, marginTop: 3 }}>de {grupo.unidades}</div>}
           </div>
-          {selecionada && <CheckCircle2 size={18} color="#c2410c" aria-hidden="true" style={{ flexShrink: 0 }} />}
+          {selecionada && <CheckCircle2 size={18} color={T.accentText} aria-hidden="true" style={{ flexShrink: 0 }} />}
         </div>
         {reservadas > 0 && (
-          <span style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 4, maxWidth: "100%", fontSize: 11, fontWeight: 700, color: "#1d4ed8", background: "#eff6ff", borderRadius: 6, padding: "2px 7px" }}>
-            <BookmarkCheck size={11} aria-hidden="true" style={{ flexShrink: 0 }} /> {reservadas === 1 ? "1 reservada" : `${reservadas} reservadas`}{saida ? ` · saída ${diaEMes(saida)}` : ""}
-          </span>
+          <Selo tom="info" forma="retangulo" icone={BookmarkCheck} style={{ alignSelf: "flex-start", maxWidth: "100%", whiteSpace: "normal" }}>
+            {reservadas === 1 ? "1 reservada" : `${reservadas} reservadas`}{saida ? ` · saída ${diaEMes(saida)}` : ""}
+          </Selo>
         )}
       </div>
 
@@ -182,10 +185,13 @@ const CartaoDoGrupo = memo(function CartaoDoGrupo({ grupo, coluna, quantidade, r
         <div role="radiogroup" aria-label={`Condição de ${grupo.nome} no galpão`} style={{ display: "flex", gap: 4, padding: "0 10px 8px" }}>
           {([["PERFEITO", "Perfeito"], ["AVARIA_LEVE", "Avaria leve"]] as const).map(([valor, rotulo]) => {
             const ativa = condicao === valor;
+            const tom = valor === "PERFEITO" ? TOM.sucesso : TOM.alerta;
+            // Rádio de duas opções com a cor da condição: é um campo, não uma
+            // ação — por isso segue <button role="radio"> nativo.
             return (
               <button key={valor} type="button" role="radio" aria-checked={ativa} data-testid={`condicao-${valor}-${id}`}
                 onClick={() => onCondicao(grupo.chave, valor)}
-                style={{ flex: 1, height: alvo, borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: "pointer", border: `1px solid ${ativa ? (valor === "PERFEITO" ? "#15803d" : "#b45309") : "#e2e8f0"}`, background: ativa ? (valor === "PERFEITO" ? "#f0fdf4" : "#fffbeb") : "#fff", color: ativa ? (valor === "PERFEITO" ? "#15803d" : "#b45309") : "#475569", transition: "background-color 0.12s, border-color 0.12s, color 0.12s" }}>
+                style={{ flex: 1, height: alvo, borderRadius: R.sm, fontFamily: FONT.corpo, fontSize: FS.meta, fontWeight: FW.forte, cursor: "pointer", border: `1px solid ${ativa ? tom.text : T.border}`, background: ativa ? tom.bg : T.surface, color: ativa ? tom.text : T.apoio, transition: "background-color 0.12s, border-color 0.12s, color 0.12s" }}>
                 {rotulo}
               </button>
             );
@@ -195,20 +201,20 @@ const CartaoDoGrupo = memo(function CartaoDoGrupo({ grupo, coluna, quantidade, r
 
       {grupo.unidades > 1 && (
         <div style={{ display: "flex", gap: 4, padding: "0 10px 10px" }}>
-          <button type="button" data-testid={`dividir-${id}`} onClick={() => onDividir(grupo.chave)}
-            style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, height: alvo, borderRadius: 7, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#334155", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-            <Split size={13} aria-hidden="true" /> Dividir…
-          </button>
-          <button type="button" data-testid={`ver-pecas-${id}`} aria-expanded={aberto} onClick={() => setAberto((v) => !v)}
-            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4, height: alvo, padding: "0 10px", borderRadius: 7, border: "1px solid #e2e8f0", background: "#fff", color: "#475569", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+          <Botao tamanho="sm" icone={Split} data-testid={`dividir-${id}`} onClick={() => onDividir(grupo.chave)}
+            style={{ flex: 1, minHeight: alvo }}>
+            Dividir…
+          </Botao>
+          <Botao tamanho="sm" variante="fantasma" data-testid={`ver-pecas-${id}`} aria-expanded={aberto} onClick={() => setAberto((v) => !v)}
+            style={{ minHeight: alvo, fontWeight: FW.medio }}>
             {grupo.ativos.length} {grupo.ativos.length === 1 ? "registro" : "registros"} <ChevronDown size={13} aria-hidden="true" style={{ transform: aberto ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
-          </button>
+          </Botao>
         </div>
       )}
       {aberto && (
         <ul data-testid={`pecas-${id}`} style={{ listStyle: "none", margin: 0, padding: "0 10px 10px", display: "flex", flexWrap: "wrap", gap: 4, maxHeight: 132, overflowY: "auto" }}>
           {grupo.ativos.map((a) => (
-            <li key={a.id} style={{ fontFamily: "DM Mono, monospace", fontSize: 11, color: "#334155", background: "#f1f5f9", borderRadius: 5, padding: "2px 6px" }}>
+            <li key={a.id} style={{ fontFamily: FONT.mono, fontSize: FS.small, color: T.strong, background: N.n2, borderRadius: 5, padding: "2px 6px" }}>
               {a.displayId}{(a.quantity ?? 1) > 1 ? ` ×${a.quantity}` : ""}
             </li>
           ))}
@@ -239,51 +245,50 @@ function DividirGrupo({ grupo, inicial, reservadas, toque, onAplicar, onFechar }
       <DialogContent ref={superficieRef} data-testid="dialogo-dividir" className={HIDE_NATIVE_CLOSE} style={modalSurface(460)}>
         <DialogTitle className="sr-only">Dividir {grupo.nome}</DialogTitle>
         <DialogDescription className="sr-only">Distribua as {grupo.unidades} unidades entre Galpão, Manutenção e Descartar.</DialogDescription>
-        <ModalHeader icon={Split} tint="#c2410c" title={grupo.nome} subtitle={`${grupo.unidades} unidades — quantas vão para cada destino?`} onClose={onFechar} />
+        <ModalHeader icon={Split} tint={T.accentText} title={grupo.nome} subtitle={`${grupo.unidades} unidades — quantas vão para cada destino?`} onClose={onFechar} />
         <div style={{ padding: isMobile ? 16 : 24, overflowY: "auto", flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", gap: 14 }}>
           {DESTINOS_FINAIS.map((destino) => {
             const meta = COLUNAS[destino];
             const teto = d[destino] + resta;
             const muda = (v: number) => setD((atual) => ajustarDistribuicao(grupo.unidades, atual, destino, v));
-            const passo: React.CSSProperties = { width: alvo, height: alvo, borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", color: "#0f172a", fontSize: 18, fontWeight: 700, cursor: "pointer", flexShrink: 0 };
+            // Passo de ±1: quadrado, do tamanho do alvo (44px no toque).
+            const passo: React.CSSProperties = { width: alvo, minHeight: alvo, padding: 0, fontSize: 18, flexShrink: 0 };
             return (
               <div key={destino} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span aria-hidden="true" style={{ width: 34, height: 34, borderRadius: 8, background: meta.fundo, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><meta.Icon size={16} color={meta.cor} /></span>
-                <label htmlFor={`qtd-${destino}`} style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700, color: meta.cor }}>
+                <span aria-hidden="true" style={{ width: 34, height: 34, borderRadius: R.md, background: meta.fundo, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><meta.Icon size={16} color={meta.cor} /></span>
+                <label htmlFor={`qtd-${destino}`} style={{ flex: 1, minWidth: 0, fontSize: FS.read, fontWeight: FW.forte, color: meta.cor }}>
                   {meta.titulo}
-                  <span style={{ display: "block", fontSize: 12, fontWeight: 500, color: "#64748b" }}>{meta.sub}</span>
+                  <span style={{ display: "block", fontSize: FS.meta, fontWeight: FW.corpo, color: T.second }}>{meta.sub}</span>
                 </label>
-                <button type="button" aria-label={`Uma a menos em ${meta.titulo}`} disabled={d[destino] === 0} onClick={() => muda(d[destino] - 1)} style={{ ...passo, opacity: d[destino] === 0 ? 0.4 : 1 }}>−</button>
+                <Botao aria-label={`Uma a menos em ${meta.titulo}`} disabled={d[destino] === 0} onClick={() => muda(d[destino] - 1)} style={passo}>−</Botao>
                 <input id={`qtd-${destino}`} data-testid={`qtd-${destino}`} type="text" inputMode="numeric" pattern="[0-9]*" autoComplete="off"
                   value={String(d[destino])}
                   onFocus={(e) => e.currentTarget.select()}
                   onChange={(e) => muda(parseInt(e.target.value.replace(/\D/g, "") || "0", 10))}
-                  style={{ width: 64, height: alvo, textAlign: "center", borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff", fontFamily: "Space Grotesk, sans-serif", fontSize: toque ? 16 : 15, fontWeight: 700, color: "#0f172a", fontVariantNumeric: "tabular-nums" }} />
-                <button type="button" aria-label={`Uma a mais em ${meta.titulo}`} disabled={resta === 0} onClick={() => muda(d[destino] + 1)} style={{ ...passo, opacity: resta === 0 ? 0.4 : 1 }}>+</button>
-                <button type="button" data-testid={`tudo-para-${destino}`} onClick={() => setD(tudoPara(grupo.unidades, destino))} title={`Tudo para ${meta.titulo}`}
-                  style={{ height: alvo, padding: "0 10px", borderRadius: 8, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#334155", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+                  style={{ width: 64, height: alvo, textAlign: "center", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, fontFamily: FONT.display, fontSize: toque ? 16 : 15, fontWeight: FW.forte, color: T.text, fontVariantNumeric: "tabular-nums" }} />
+                <Botao aria-label={`Uma a mais em ${meta.titulo}`} disabled={resta === 0} onClick={() => muda(d[destino] + 1)} style={passo}>+</Botao>
+                <Botao tamanho="sm" data-testid={`tudo-para-${destino}`} onClick={() => setD(tudoPara(grupo.unidades, destino))} title={`Tudo para ${meta.titulo}`}
+                  style={{ minHeight: alvo }}>
                   {isMobile ? "Tudo" : teto === d[destino] && resta === 0 && d[destino] === grupo.unidades ? "Tudo aqui" : "Tudo"}
-                </button>
+                </Botao>
               </div>
             );
           })}
-          <p role="status" aria-live="polite" data-testid="resta-sem-destino" style={{ margin: 0, padding: "10px 12px", borderRadius: 10, fontSize: 13, fontWeight: 600, lineHeight: 1.4, background: resta === 0 ? "#f0fdf4" : "#f8fafc", border: `1px solid ${resta === 0 ? "#bbf7d0" : "#e2e8f0"}`, color: resta === 0 ? "#166534" : "#334155" }}>
+          <p role="status" aria-live="polite" data-testid="resta-sem-destino" style={{ margin: 0, padding: "10px 12px", borderRadius: R.md, fontSize: FS.body, fontWeight: FW.medio, lineHeight: 1.4, background: resta === 0 ? TOM.sucesso.bg : T.bg, border: `1px solid ${resta === 0 ? TOM.sucesso.border : T.border}`, color: resta === 0 ? TOM.sucesso.text : T.strong }}>
             {resta === 0 ? `As ${grupo.unidades} unidades têm destino.` : `${resta === 1 ? "Resta 1" : `Restam ${resta}`} sem destino — ${resta === 1 ? "continua" : "continuam"} aguardando triagem.`}
           </p>
           {/* Reservada só sai da triagem para o Galpão (o servidor recusa o
               resto): avisa AQUI, antes de chegar ao Salvar. */}
           {reservadas > d.galpao + resta && (
-            <p role="alert" data-testid="aviso-reservadas-dividir" style={{ margin: 0, padding: "10px 12px", borderRadius: 10, fontSize: 13, fontWeight: 600, lineHeight: 1.4, background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1e40af" }}>
+            <p role="alert" data-testid="aviso-reservadas-dividir" style={{ margin: 0, padding: "10px 12px", borderRadius: R.md, fontSize: FS.body, fontWeight: FW.medio, lineHeight: 1.4, background: TOM.info.bg, border: `1px solid ${TOM.info.border}`, color: TOM.info.text }}>
               {reservadas === 1 ? "1 unidade está reservada" : `${reservadas} unidades estão reservadas`} para outro evento e só {reservadas === 1 ? "pode" : "podem"} ir para o Galpão. Deixe pelo menos {reservadas - resta} no Galpão, ou libere a reserva.
             </p>
           )}
         </div>
         <ModalFooter>
           <div style={{ display: "flex", gap: 8, paddingBottom: "calc(0px + env(safe-area-inset-bottom, 0px))" }}>
-            <button type="button" data-testid="dividir-zerar" onClick={() => setD(SEM_DISTRIBUICAO)}
-              style={{ height: 44, padding: "0 14px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#475569", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Zerar</button>
-            <button type="button" data-testid="dividir-aplicar" onClick={() => onAplicar(d)}
-              style={{ flex: 1, height: 44, borderRadius: 10, border: "none", background: "#c2410c", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Aplicar no quadro</button>
+            <Botao tamanho="toque" data-testid="dividir-zerar" onClick={() => setD(SEM_DISTRIBUICAO)}>Zerar</Botao>
+            <Botao tamanho="toque" variante="primario" data-testid="dividir-aplicar" onClick={() => onAplicar(d)} style={{ flex: 1 }}>Aplicar no quadro</Botao>
           </div>
         </ModalFooter>
       </DialogContent>
@@ -377,7 +382,7 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
     toast({
       title: encolheu ? "Outra pessoa triou parte deste grupo — refaça a divisão" : "Chegaram mais unidades deste grupo — refaça a divisão",
       description: `${mudaram.map(([, e]) => e.nome).join(", ")}: a divisão foi desfeita e nada foi gravado.`,
-      variant: "destructive",
+      variant: "warning",
     });
   }, [dist, grupoPorChave, toast]);
 
@@ -470,7 +475,7 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
     // quando nenhuma escolha de registros fecha a conta.)
     const incompleto = todos.flatMap((p) => p.plano.incompletos.map((i) => ({ ...i, nome: p.grupo.nome })))[0];
     if (incompleto) {
-      toast({ title: `${incompleto.displayId} é um registro de ${incompleto.quantidade} unidades`, description: `Ele precisa ser distribuído inteiro: faltam ${incompleto.faltam} un. de ${incompleto.nome} sem destino.`, variant: "destructive" });
+      toast({ title: `${incompleto.displayId} é um registro de ${incompleto.quantidade} unidades`, description: `Ele precisa ser distribuído inteiro: faltam ${incompleto.faltam} un. de ${incompleto.nome} sem destino.`, variant: "warning" });
       return;
     }
     // Reservado fora do Galpão: o servidor recusaria (409). Avisa ANTES.
@@ -480,7 +485,7 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
       toast({
         title: conflitos.length === 1 ? "Uma peça reservada iria para fora do Galpão" : `${conflitos.length} peças reservadas iriam para fora do Galpão`,
         description: `${recusaPorReserva(c.displayId, c.reserva)}. Aumente o Galpão de ${c.nome} (ou deixe sem destino) e salve de novo.`,
-        variant: "destructive",
+        variant: "warning",
       });
       return;
     }
@@ -533,7 +538,7 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
       toast({ title: resumo, description: `${motivo ? `${motivo}. ` : ""}As que falharam continuam no destino — tente salvar de novo.`, variant: "destructive" });
     } else {
       const restam = ativos.filter((a) => !saiuDaFila.has(a.id)).length;
-      toast({ title: resumo, description: jaTriadas > 0 ? "Outra pessoa triou parte desta pilha — lista atualizada." : restam > 0 ? "Ainda há material deste evento para triar." : "Este evento terminou a triagem." });
+      toast({ title: resumo, description: jaTriadas > 0 ? "Outra pessoa triou parte desta pilha — lista atualizada." : restam > 0 ? "Ainda há material deste evento para triar." : "Este evento terminou a triagem.", variant: "success" });
       if (restam <= 0) { onConcluido(); return; }
     }
     await recarga;
@@ -546,7 +551,6 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
   };
 
   const alvo = toque ? 44 : 38;
-  const travado = unidadesMovidas === 0 || salvando || atualizando;
   const layout: "uma" | "tablet" | "larga" =
     larguraDoQuadro === 0 ? (isMobile ? "uma" : "larga")
       : larguraDoQuadro < 600 ? "uma"
@@ -579,40 +583,43 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
           setSobre(null); setArrastando(null);
         }}
         style={{
-          display: "flex", flexDirection: "column", gap: 10, padding: 12, borderRadius: 16,
+          display: "flex", flexDirection: "column", gap: 10, padding: 12, borderRadius: R.xl,
           minHeight: layout === "larga" ? 360 : destino === "triar" ? undefined : 140,
           gridColumn: layout === "tablet" && destino === "triar" ? "1 / -1" : undefined,
-          background: destacada ? meta.fundo : destino === "triar" ? "#f1f5f9" : "#ffffff",
+          background: destacada ? meta.fundo : destino === "triar" ? T.low : T.surface,
           border: `2px ${destino === "triar" ? "solid" : "dashed"} ${destacada ? meta.cor : meta.borda}`,
           transition: "background 0.12s, border-color 0.12s",
         }}
       >
         <header style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span aria-hidden="true" style={{ width: 30, height: 30, borderRadius: 8, background: meta.fundo, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <span aria-hidden="true" style={{ width: 30, height: 30, borderRadius: R.md, background: meta.fundo, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <meta.Icon size={15} color={meta.cor} />
           </span>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <h2 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: meta.cor, fontFamily: "Space Grotesk, sans-serif" }}>{meta.titulo}</h2>
-            <div style={{ fontSize: 12, color: "#475569" }}>{destino === "triar" && toque ? "Toque no material e escolha o destino" : meta.sub}</div>
+            <h2 style={{ margin: 0, fontSize: FS.read, fontWeight: FW.forte, color: meta.cor, fontFamily: FONT.display }}>{meta.titulo}</h2>
+            <div style={{ fontSize: FS.meta, color: T.apoio }}>{destino === "triar" && toque ? "Toque no material e escolha o destino" : meta.sub}</div>
           </div>
-          <span data-testid={`unidades-${destino}`} aria-label={`${total} ${total === 1 ? "unidade" : "unidades"}`} style={{ minWidth: 26, height: 24, padding: "0 8px", borderRadius: 999, background: meta.fundo, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: meta.cor, fontFamily: "Space Grotesk, sans-serif", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{total} un.</span>
+          <Selo data-testid={`unidades-${destino}`} aria-label={`${total} ${total === 1 ? "unidade" : "unidades"}`}
+            cores={{ bg: meta.fundo, text: meta.cor, border: meta.borda }}
+            style={{ fontSize: FS.body, fontFamily: FONT.display, fontVariantNumeric: "tabular-nums" }}>{total} un.</Selo>
         </header>
 
         {destino === "triar" && porColuna.triar.length > 8 && (
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             <div style={{ position: "relative", flex: "1 1 180px", minWidth: 0 }}>
-              <Search size={14} color="#64748b" aria-hidden="true" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+              <Search size={14} color={T.second} aria-hidden="true" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
               <input type="search" data-testid="input-busca-quadro" aria-label="Buscar material a triar por nome, código ou patrocinador"
                 placeholder="Buscar nesta pilha…" value={busca}
                 onChange={(e) => { setBusca(e.target.value); setMostrando((m) => ({ ...m, triar: LOTE_DA_COLUNA })); }}
-                style={{ width: "100%", boxSizing: "border-box", height: alvo, padding: "0 10px 0 30px", borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", fontSize: toque ? 16 : 13, color: "#0f172a" }} />
+                style={{ width: "100%", boxSizing: "border-box", height: alvo, padding: "0 10px 0 30px", borderRadius: R.md, border: `1px solid ${T.border}`, background: T.surface, fontFamily: FONT.corpo, fontSize: toque ? 16 : 13, color: T.text }} />
             </div>
-            <button type="button" data-testid="button-selecionar-visiveis" disabled={pecas.length === 0}
+            <Botao tamanho="sm" data-testid="button-selecionar-visiveis" disabled={pecas.length === 0}
+              motivo={pecas.length === 0 ? "Nada na tela para marcar" : undefined}
               title="Marca só o que está na tela — o resto da pilha entra por Mostrar mais"
               onClick={() => setSelecionadas(todasMarcadas ? new Set() : new Set(pecas.map(({ grupo }) => fatia(destino, grupo.chave))))}
-              style={{ height: alvo, padding: "0 12px", borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: 13, fontWeight: 700, cursor: pecas.length === 0 ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}>
+              style={{ minHeight: alvo, fontSize: FS.body }}>
               {todasMarcadas ? "Desmarcar" : `Selecionar os ${pecas.length} visíveis`}
-            </button>
+            </Botao>
           </div>
         )}
 
@@ -623,7 +630,7 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
             : { display: "flex", flexDirection: "column" }),
         }}>
           {pecas.length === 0 ? (
-            <div style={{ flex: 1, gridColumn: "1 / -1", minHeight: 70, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", fontSize: 13, color: "#64748b", padding: 12 }}>
+            <div style={{ flex: 1, gridColumn: "1 / -1", minHeight: 70, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", fontSize: FS.body, color: T.second, padding: 12 }}>
               {destino === "triar" ? (termo && porColuna.triar.length > 0 ? `Nenhum material com “${busca.trim()}” nesta pilha` : "Tudo arrumado — salve a triagem") : toque ? "Selecione e toque no destino" : "Solte aqui"}
             </div>
           ) : pecas.map(({ grupo, quantidade }) => {
@@ -653,11 +660,11 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
           })}
         </div>
         {escondidas > 0 && (
-          <button type="button" data-testid={`mostrar-mais-${destino}`}
+          <Botao tamanho="toque" icone={ChevronDown} data-testid={`mostrar-mais-${destino}`}
             onClick={() => setMostrando((m) => ({ ...m, [destino]: m[destino] + LOTE_DA_COLUNA }))}
-            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 44, borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-            <ChevronDown size={15} aria-hidden="true" /> Mostrar mais {Math.min(LOTE_DA_COLUNA, escondidas)} · faltam {escondidas}
-          </button>
+            style={{ fontSize: FS.body, whiteSpace: "normal" }}>
+            Mostrar mais {Math.min(LOTE_DA_COLUNA, escondidas)} · faltam {escondidas}
+          </Botao>
         )}
       </section>
     );
@@ -667,34 +674,38 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
 
   return (
     <div data-testid="quadro-triagem" style={{ display: "flex", flexDirection: "column", gap: 16, paddingBottom: selecionadas.size > 0 ? (isMobile ? 200 : 96) : 0 }}>
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <div style={{ minWidth: 0 }}>
-          <button type="button" onClick={voltar} data-testid="button-voltar-eventos"
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: toque ? 44 : 32, background: "none", border: "none", padding: 0, fontSize: 13, fontWeight: 700, color: "#475569", cursor: "pointer", transition: "color 0.12s" }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = "#0f172a"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = "#475569"; }}>
-            <ArrowLeft size={15} aria-hidden="true" /> Eventos da triagem
-          </button>
-          <h1 style={{ margin: "2px 0 3px", fontSize: FS.h1, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif", color: "#1c1917", letterSpacing: "-0.03em", lineHeight: 1.15, overflowWrap: "anywhere" }}>{evento.nome}</h1>
-          <p aria-live="polite" data-testid="resumo-do-quadro" style={{ margin: 0, fontSize: 13, color: "#475569", lineHeight: 1.45 }}>
-            {evento.data ? `Evento ${diaEMes(evento.data)} · ` : ""}{grupos.length} {grupos.length === 1 ? "material" : "materiais"} · {unidadesEm("triar")} de {totalDeUnidades} un. a triar ·{" "}
-            {toque ? "toque no material e escolha o destino; Dividir reparte a quantidade" : "arraste o material inteiro, ou use Dividir para repartir a quantidade; no teclado, G, M ou D no cartão"}
-            {" · "}nada é gravado até salvar
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", width: isMobile ? "100%" : undefined }}>
-          <button type="button" onClick={onTabela} data-testid="button-quadro-tabela" title="A tabela mostra registro por registro, com observação individual"
-            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, height: alvo, padding: "0 14px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: 13, fontWeight: 700, cursor: "pointer", flex: isMobile ? "1 1 100%" : undefined, transition: "background-color 0.12s, border-color 0.12s" }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "#f8fafc"; e.currentTarget.style.borderColor = "#cbd5e1"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.borderColor = "#e2e8f0"; }}>
-            <Table2 size={15} aria-hidden="true" /> Tabela (registro por registro)
-          </button>
-          <button type="button" onClick={salvar} data-testid="button-salvar-triagem" disabled={unidadesMovidas === 0 || salvando || atualizando}
-            title={unidadesMovidas === 0 ? "Dê destino a pelo menos uma unidade" : `Grava o destino de ${unidadesMovidas} un.`}
-            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, height: alvo, padding: "0 18px", borderRadius: 10, border: "none", fontSize: 14, fontWeight: 700, cursor: travado ? "not-allowed" : "pointer", background: travado ? "#e2e8f0" : "#c2410c", color: travado ? "#64748b" : "#fff", boxShadow: !travado ? "0 4px 14px rgba(194,65,12,0.28)" : "none", flex: isMobile ? "1 1 100%" : undefined, transition: "background-color 0.15s, box-shadow 0.15s" }}>
-            <CheckCircle2 size={16} aria-hidden="true" /> {salvando ? `Salvando ${gravadas} de ${aGravar}…` : atualizando ? "Atualizando a lista…" : unidadesMovidas === 0 ? "Salvar triagem" : `Salvar ${unidadesMovidas} un.`}
-          </button>
-        </div>
+      <div style={{ minWidth: 0 }}>
+        <Botao variante="fantasma" tamanho={toque ? "toque" : "sm"} icone={ArrowLeft} onClick={voltar} data-testid="button-voltar-eventos"
+          style={{ fontSize: FS.body, paddingLeft: 4 }}>
+          Eventos da triagem
+        </Botao>
+        {/* Subtítulo = o ESTADO da pilha (quantos materiais, quanto falta
+            triar) e o jeito de mexer nela; as ações ficam à direita. */}
+        <CabecalhoDaPagina
+          titulo={evento.nome}
+          subtitulo={(
+            <span aria-live="polite" data-testid="resumo-do-quadro">
+              {evento.data ? `Evento ${diaEMes(evento.data)} · ` : ""}{grupos.length} {grupos.length === 1 ? "material" : "materiais"} · {unidadesEm("triar")} de {totalDeUnidades} un. a triar ·{" "}
+              {toque ? "toque no material e escolha o destino; Dividir reparte a quantidade" : "arraste o material inteiro, ou use Dividir para repartir a quantidade; no teclado, G, M ou D no cartão"}
+              {" · "}nada é gravado até salvar
+            </span>
+          )}
+          acoes={(
+            <>
+              <Botao tamanho={toque ? "toque" : "md"} icone={Table2} onClick={onTabela} data-testid="button-quadro-tabela" title="A tabela mostra registro por registro, com observação individual"
+                larguraCheia={isMobile} style={{ minHeight: alvo, fontSize: FS.body }}>
+                Tabela (registro por registro)
+              </Botao>
+              <Botao variante="primario" tamanho={toque ? "toque" : "md"} icone={CheckCircle2} onClick={salvar} data-testid="button-salvar-triagem"
+                disabled={unidadesMovidas === 0 || atualizando} carregando={salvando}
+                motivo={unidadesMovidas === 0 && !atualizando ? "Dê destino a pelo menos uma unidade" : undefined} alinharMotivo="end"
+                title={unidadesMovidas === 0 ? "Dê destino a pelo menos uma unidade" : `Grava o destino de ${unidadesMovidas} un.`}
+                larguraCheia={isMobile} style={{ minHeight: alvo, fontSize: FS.read }}>
+                {salvando ? `Salvando ${gravadas} de ${aGravar}…` : atualizando ? "Atualizando a lista…" : unidadesMovidas === 0 ? "Salvar triagem" : `Salvar ${unidadesMovidas} un.`}
+              </Botao>
+            </>
+          )}
+        />
       </div>
 
       <div ref={refDoQuadro} style={{
@@ -710,29 +721,29 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
       {selecionadas.size > 0 && (
         <div role="toolbar" aria-label="Mover o material selecionado" data-testid="barra-mover-selecionadas"
           style={{
-            position: "fixed", zIndex: 50, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "10px 12px", borderRadius: 16, background: "#0f172a", boxShadow: "0 12px 40px rgba(0,0,0,0.35)",
+            position: "fixed", zIndex: 50, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "10px 12px", borderRadius: R.xl, background: T.dark, boxShadow: "0 12px 40px rgba(0,0,0,0.35)",
             ...(isMobile
               ? { left: 12, right: 12, bottom: "calc(12px + env(safe-area-inset-bottom, 0px))", transform: "none" }
               : { left: "50%", bottom: 20, transform: "translateX(-50%)", maxWidth: "calc(100vw - 32px)" }),
           }}>
-          <span role="status" style={{ color: "#f1f5f9", fontSize: 13, fontWeight: 700, padding: "0 6px", flex: isMobile ? "1 1 100%" : undefined }}>
+          <span role="status" style={{ color: N.n2, fontSize: FS.body, fontWeight: FW.forte, padding: "0 6px", flex: isMobile ? "1 1 100%" : undefined }}>
             {selecionadas.size} {selecionadas.size === 1 ? "selecionado" : "selecionados"} →
           </span>
           {DESTINOS.map((d) => {
             const meta = COLUNAS[d];
             return (
               <button key={d} type="button" data-testid={`mover-para-${d}`} onClick={() => mover(Array.from(selecionadas), d)}
-                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, height: alvo, padding: "0 12px", borderRadius: 10, border: "none", background: meta.fundo, color: meta.cor, fontSize: 13, fontWeight: 700, cursor: "pointer", flex: isMobile ? "1 1 0" : undefined, minWidth: 0 }}>
+                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, height: alvo, padding: "0 12px", borderRadius: R.md, border: "none", background: meta.fundo, color: meta.cor, fontFamily: FONT.corpo, fontSize: FS.body, fontWeight: FW.forte, cursor: "pointer", flex: isMobile ? "1 1 0" : undefined, minWidth: 0 }}>
                 <meta.Icon size={15} aria-hidden="true" /> {meta.titulo}
               </button>
             );
           })}
           <button type="button" data-testid="mover-para-triar" onClick={() => mover(Array.from(selecionadas), "triar")}
-            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, height: alvo, padding: "0 12px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.2)", background: "transparent", color: "#e2e8f0", fontSize: 13, fontWeight: 600, cursor: "pointer", flex: isMobile ? "1 1 0" : undefined }}>
+            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, height: alvo, padding: "0 12px", borderRadius: R.md, border: "1px solid rgba(255,255,255,0.2)", background: "transparent", color: T.border, fontFamily: FONT.corpo, fontSize: FS.body, fontWeight: FW.medio, cursor: "pointer", flex: isMobile ? "1 1 0" : undefined }}>
             <Undo2 size={15} aria-hidden="true" /> A triar
           </button>
           <button type="button" aria-label="Limpar seleção" title="Limpar seleção" onClick={() => setSelecionadas(new Set())}
-            style={{ width: alvo, height: alvo, borderRadius: 10, border: "none", background: "rgba(255,255,255,0.1)", color: "#e2e8f0", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            style={{ width: alvo, height: alvo, borderRadius: R.md, border: "none", background: "rgba(255,255,255,0.1)", color: T.border, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <X size={16} aria-hidden="true" />
           </button>
         </div>
@@ -769,7 +780,7 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
           <AlertDialogFooter style={{ gap: 8 }}>
             <AlertDialogCancel data-testid="button-rever-descarte" style={{ minHeight: 44 }}>Rever</AlertDialogCancel>
             <AlertDialogAction data-testid="button-confirmar-descarte" onClick={() => gravar()}
-              style={{ minHeight: 44, background: "#b91c1c", color: "#fff" }}>
+              style={{ minHeight: 44, background: TOM.perigo.text, color: N.n0 }}>
               Descartar e salvar
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -787,7 +798,7 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
           <AlertDialogFooter style={{ gap: 8 }}>
             <AlertDialogCancel data-testid="button-ficar-no-quadro" style={{ minHeight: 44 }}>Continuar arrumando</AlertDialogCancel>
             <AlertDialogAction data-testid="button-sair-sem-salvar" onClick={() => { setConfirmarSaida(false); onVoltar(); }}
-              style={{ minHeight: 44, background: "#b91c1c", color: "#fff" }}>
+              style={{ minHeight: 44, background: TOM.perigo.text, color: N.n0 }}>
               Sair sem salvar
             </AlertDialogAction>
           </AlertDialogFooter>

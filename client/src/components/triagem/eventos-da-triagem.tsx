@@ -14,7 +14,11 @@ import { ArrowRight, BookmarkCheck, CalendarDays, ChevronDown, Package, ScanSear
 import { miniatura } from "@/lib/miniatura";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { diaEMes } from "@shared/estoque";
-import { FS } from "@/lib/theme";
+import { T, N, TOM, FS, FW, R, FONT, SHADOW } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { Selo } from "@/components/ui/selo";
+import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
+import { EstadoErro, EstadoVazio, Esqueleto } from "@/components/ui/estados";
 import type { EnrichedAsset } from "@/lib/inventory-meta";
 
 export type ReservaDaTriagem = { assetId: string; eventName: string; saida: string | null; itemDisplayId: string | null };
@@ -27,7 +31,7 @@ export function tempoDeEspera(desde: number, agora: number) {
   return {
     dias,
     texto: dias === 0 ? "voltou hoje" : dias === 1 ? "voltou ontem" : `voltou há ${dias} dias`,
-    cor: dias > 14 ? "#b91c1c" : dias > 7 ? "#b45309" : "#475569",
+    cor: dias > 14 ? TOM.perigo.text : dias > 7 ? TOM.alerta.text : T.apoio,
   };
 }
 
@@ -113,158 +117,153 @@ export function EventosDaTriagem({ ativos, reservaPorAtivo, isLoading, isError, 
   // de duas semanas (o vermelho do cartão, somado).
   const atrasados = useMemo(() => eventos.filter((e) => tempoDeEspera(e.desde, agora).dias > 14).length, [eventos, agora]);
 
+  // O subtítulo é o ESTADO da fila (quantos eventos, quantas peças); a dica do
+  // que é triar vem logo abaixo, só quando há o que triar.
+  const subtitulo = (
+    <>
+      <span aria-live="polite" style={{ display: "block" }}>
+        {isLoading ? "Carregando…" : totalPecas === 0
+          ? "Nada esperando triagem."
+          : `${eventos.length} ${eventos.length === 1 ? "evento voltou" : "eventos voltaram"} · ${totalPecas} ${totalPecas === 1 ? "peça esperando" : "peças esperando"} — escolha um para começar`}
+      </span>
+      {/* O QUE É TRIAR, para quem abre a tela pela primeira vez: a palavra
+          sozinha não dizia o que se decide nem que dá para rearrumar antes
+          de gravar. */}
+      {!isLoading && totalPecas > 0 && (
+        <span data-testid="dica-o-que-e-triar" style={{ display: "block", marginTop: 4, fontSize: FS.meta, color: T.second }}>
+          Triar = decidir, peça por peça, se volta ao <strong style={{ color: TOM.info.text }}>Galpão</strong>, vai para <strong style={{ color: TOM.alerta.text }}>Manutenção</strong> ou é <strong style={{ color: TOM.perigo.text }}>descartada</strong>. Nada é gravado até salvar.
+        </span>
+      )}
+    </>
+  );
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 16 : 24 }}>
-      <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 12 : 16, minWidth: 0 }}>
-          <div style={{ width: isMobile ? 44 : 48, height: isMobile ? 44 : 48, borderRadius: 12, background: "#c2410c", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(194,65,12,0.22)", flexShrink: 0 }}>
-            <ScanSearch size={22} color="#fff" strokeWidth={2.2} aria-hidden="true" />
-          </div>
-          <div style={{ minWidth: 0 }}>
-            {/* Título no padrão da casa (FS.h1, 700): esta é a PRIMEIRA tela da
-                triagem e estava em 28/900, diferente da tabela logo depois —
-                entrar na tabela parecia trocar de produto. */}
-            <h1 style={{ margin: "0 0 3px", fontSize: FS.h1, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif", color: "#1c1917", letterSpacing: "-0.03em", lineHeight: 1.1 }}>
-              Triagem de Retorno
-            </h1>
-            <p aria-live="polite" style={{ margin: 0, fontSize: 13, color: "#475569", lineHeight: 1.45 }}>
-              {isLoading ? "Carregando…" : totalPecas === 0
-                ? "Nada esperando triagem."
-                : `${eventos.length} ${eventos.length === 1 ? "evento voltou" : "eventos voltaram"} · ${totalPecas} ${totalPecas === 1 ? "peça esperando" : "peças esperando"} — escolha um para começar`}
-            </p>
-            {/* O QUE É TRIAR, para quem abre a tela pela primeira vez: a
-                palavra sozinha não dizia o que se decide nem que dá para
-                rearrumar antes de gravar. */}
-            {!isLoading && totalPecas > 0 && (
-              <p data-testid="dica-o-que-e-triar" style={{ margin: "4px 0 0", fontSize: 12.5, color: "#64748b", lineHeight: 1.45 }}>
-                Triar = decidir, peça por peça, se volta ao <strong style={{ color: "#1e40af" }}>Galpão</strong>, vai para <strong style={{ color: "#92400e" }}>Manutenção</strong> ou é <strong style={{ color: "#991b1b" }}>descartada</strong>. Nada é gravado até salvar.
-              </p>
-            )}
-          </div>
-        </div>
-        {totalPecas > 0 && (
-          <button type="button" onClick={onTabela} data-testid="button-triagem-tabela"
-            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, height: 44, padding: "0 14px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: 13, fontWeight: 700, cursor: "pointer", width: isMobile ? "100%" : undefined, transition: "background-color 0.12s, border-color 0.12s" }}
-            onMouseEnter={(ev) => { ev.currentTarget.style.background = "#f8fafc"; ev.currentTarget.style.borderColor = "#cbd5e1"; }}
-            onMouseLeave={(ev) => { ev.currentTarget.style.background = "#fff"; ev.currentTarget.style.borderColor = "#e2e8f0"; }}>
-            <Table2 size={15} aria-hidden="true" /> Ver todas em tabela
-          </button>
-        )}
-      </div>
+      <CabecalhoDaPagina
+        titulo="Triagem de Retorno"
+        icone={ScanSearch}
+        subtitulo={subtitulo}
+        acoes={totalPecas > 0 ? (
+          <Botao tamanho="toque" icone={Table2} onClick={onTabela} data-testid="button-triagem-tabela" larguraCheia={isMobile}>
+            Ver todas em tabela
+          </Botao>
+        ) : undefined}
+      />
 
       {isLoading ? (
-        <div aria-busy="true" aria-label="Carregando os eventos da triagem" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 290px), 1fr))", gap: isMobile ? 12 : 16 }}>
-          {[0, 1, 2].map((i) => <div key={i} className="animate-pulse" style={{ height: 210, borderRadius: 16, background: "#e2e8f0" }} />)}
-        </div>
+        <Esqueleto variante="cartoes" linhas={3} rotulo="Carregando os eventos da triagem" />
       ) : isError ? (
-        <div role="alert" style={{ background: "#fff", borderRadius: 16, border: "1px solid #fecaca", padding: isMobile ? "32px 20px" : 40, textAlign: "center" }}>
-          <p style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 700, color: "#b91c1c", fontFamily: "Space Grotesk, sans-serif" }}>Não foi possível carregar a triagem</p>
-          <p style={{ margin: "0 0 16px", fontSize: 13, color: "#475569" }}>Verifique sua conexão e tente novamente.</p>
-          <button type="button" onClick={onTentarDeNovo} style={{ minHeight: 44, background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "0 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Tentar novamente</button>
-        </div>
+        <EstadoErro
+          titulo="Não foi possível carregar a triagem"
+          detalhe="Verifique sua conexão e tente novamente."
+          aoTentarDeNovo={onTentarDeNovo}
+        />
       ) : eventos.length === 0 ? (
-        <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", padding: isMobile ? "40px 20px" : 56, textAlign: "center" }}>
-          <div style={{ width: 56, height: 56, borderRadius: 16, background: "#f0fdf4", border: "1px solid #bbf7d0", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
-            <ScanSearch size={24} color="#15803d" aria-hidden="true" />
-          </div>
-          <p style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: "#0f172a", fontFamily: "Space Grotesk, sans-serif" }}>Nenhum material aguardando triagem</p>
-          <p style={{ margin: 0, fontSize: 13, color: "#475569" }}>As peças entram aqui sozinhas no dia seguinte ao evento.</p>
-        </div>
+        <EstadoVazio
+          icone={ScanSearch}
+          titulo="Nenhum material aguardando triagem"
+          descricao="As peças entram aqui sozinhas no dia seguinte ao evento."
+        />
       ) : (
         <>
         {eventos.length > 6 && (
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <div style={{ position: "relative", flex: "1 1 260px", maxWidth: isMobile ? undefined : 380 }}>
-              <Search size={15} color="#64748b" aria-hidden="true" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+              <Search size={15} color={T.second} aria-hidden="true" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
               <input type="search" data-testid="input-busca-eventos-triagem" aria-label="Buscar evento da triagem por nome ou patrocinador"
                 placeholder="Buscar evento ou patrocinador…" value={busca}
                 onChange={(ev) => { setBusca(ev.target.value); setMostrando(LOTE_DE_EVENTOS); }}
-                style={{ width: "100%", boxSizing: "border-box", height: 44, padding: "0 12px 0 36px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", fontSize: isMobile ? 16 : 13, color: "#0f172a" }} />
+                style={{ width: "100%", boxSizing: "border-box", height: 44, padding: "0 12px 0 36px", borderRadius: R.md, border: `1px solid ${T.border}`, background: T.surface, fontFamily: FONT.corpo, fontSize: isMobile ? FS.lead : FS.body, color: T.text }} />
             </div>
-            <p role="status" data-testid="resumo-eventos-triagem" style={{ margin: 0, fontSize: 13, color: "#475569" }}>
+            <p role="status" data-testid="resumo-eventos-triagem" style={{ margin: 0, fontSize: FS.body, color: T.apoio }}>
               {busca.trim() ? `${noRecorte.length} de ${eventos.length} eventos` : null}
-              {!busca.trim() && atrasados > 0 ? <><strong style={{ color: "#b91c1c" }}>{atrasados}</strong> {atrasados === 1 ? "evento espera" : "eventos esperam"} há mais de 14 dias</> : null}
+              {!busca.trim() && atrasados > 0 ? <><strong style={{ color: TOM.perigo.text }}>{atrasados}</strong> {atrasados === 1 ? "evento espera" : "eventos esperam"} há mais de 14 dias</> : null}
             </p>
           </div>
         )}
         {noRecorte.length === 0 && (
-          <div data-testid="eventos-sem-resultado" style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", padding: isMobile ? "32px 20px" : 40, textAlign: "center" }}>
-            <p style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: "#0f172a", fontFamily: "Space Grotesk, sans-serif" }}>Nenhum evento com “{busca.trim()}”</p>
-            <p style={{ margin: "0 0 14px", fontSize: 13, color: "#475569" }}>{eventos.length} eventos esperam triagem fora desta busca.</p>
-            <button type="button" onClick={() => setBusca("")} style={{ minHeight: 44, background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "0 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Limpar busca</button>
+          <div data-testid="eventos-sem-resultado">
+            <EstadoVazio
+              compacto
+              icone={Search}
+              titulo={`Nenhum evento com “${busca.trim()}”`}
+              descricao={`${eventos.length} eventos esperam triagem fora desta busca.`}
+              acao={<Botao tamanho="toque" onClick={() => setBusca("")}>Limpar busca</Botao>}
+            />
           </div>
         )}
         <div data-testid="lista-eventos-triagem" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 290px), 1fr))", gap: isMobile ? 12 : 16 }}>
           {visiveis.map((e) => {
             const espera = tempoDeEspera(e.desde, agora);
+            // O cartão inteiro é o botão (é a escolha da pilha): <button> de
+            // verdade, com o realce de hover/foco da classe da casa.
             return (
               <button
                 key={e.id}
                 type="button"
                 data-testid={`evento-triagem-${e.id}`}
                 onClick={() => onAbrir(e.id)}
-                style={{ textAlign: "left", display: "flex", flexDirection: "column", gap: 12, padding: isMobile ? 16 : 18, borderRadius: 16, cursor: "pointer", background: "#fff", border: `1px solid ${e.reservadas ? "#bfdbfe" : "#e2e8f0"}`, borderTop: `3px solid ${e.reservadas ? "#1d4ed8" : "#c2410c"}`, boxShadow: "0 1px 3px rgba(0,0,0,0.05)", transition: "box-shadow 0.15s, border-color 0.15s" }}
-                onMouseEnter={(ev) => { ev.currentTarget.style.boxShadow = "0 6px 18px rgba(15,23,42,0.08)"; ev.currentTarget.style.borderColor = "#cbd5e1"; }}
-                onMouseLeave={(ev) => { ev.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.05)"; ev.currentTarget.style.borderColor = e.reservadas ? "#bfdbfe" : "#e2e8f0"; }}
+                className="ds-botao"
+                style={{ textAlign: "left", display: "flex", flexDirection: "column", gap: 12, padding: isMobile ? 16 : 18, borderRadius: R.xl, cursor: "pointer", background: T.surface, border: `1px solid ${e.reservadas ? TOM.info.border : T.border}`, borderTop: `3px solid ${e.reservadas ? TOM.info.text : T.accentText}`, boxShadow: SHADOW.sm }}
               >
                 {/* Miniaturas decorativas (aria-hidden): o leitor de tela lia o
                     "+N" solto antes do nome do evento. */}
                 <div aria-hidden="true" style={{ display: "flex", gap: 6, minHeight: 48 }}>
                   {e.thumbs.length === 0 ? (
-                    <div style={{ width: 48, height: 48, borderRadius: 10, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center" }}><Package size={18} color="#94a3b8" /></div>
+                    <div style={{ width: 48, height: 48, borderRadius: 10, background: N.n2, display: "flex", alignItems: "center", justifyContent: "center" }}><Package size={18} color={T.muted} /></div>
                   ) : e.thumbs.map((t) => (
-                    <div key={t} style={{ width: 48, height: 48, borderRadius: 10, overflow: "hidden", background: "#f1f5f9", border: "1px solid #e2e8f0" }}>
-                      {ehImagem(t) ? <img src={miniatura(t)} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}
+                    <div key={t} style={{ width: 48, height: 48, borderRadius: 10, overflow: "hidden", background: N.n2, border: `1px solid ${T.border}` }}>
+                      {ehImagem(t) ? <img src={miniatura(t)} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}
                     </div>
                   ))}
                   {e.pecas > e.thumbs.length && e.thumbs.length > 0 && (
-                    <div style={{ width: 48, height: 48, borderRadius: 10, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: "#475569" }}>+{e.pecas - e.thumbs.length}</div>
+                    <div style={{ width: 48, height: 48, borderRadius: 10, background: N.n2, display: "flex", alignItems: "center", justifyContent: "center", fontSize: FS.meta, fontWeight: FW.rotulo, color: T.apoio }}>+{e.pecas - e.thumbs.length}</div>
                   )}
                 </div>
 
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 17, fontWeight: 800, color: "#0f172a", fontFamily: "Space Grotesk, sans-serif", lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.nome}</div>
+                  <div style={{ fontSize: 17, fontWeight: FW.rotulo, color: T.text, fontFamily: FONT.display, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.nome}</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
                     {e.data && (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, color: "#475569" }}>
-                        <CalendarDays size={12} /> evento {diaEMes(e.data)}
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: FS.meta, color: T.apoio }}>
+                        <CalendarDays size={12} aria-hidden="true" /> evento {diaEMes(e.data)}
                       </span>
                     )}
-                    <span data-testid={`espera-evento-triagem-${e.id}`} style={{ fontSize: 12.5, fontWeight: espera.dias > 7 ? 800 : 600, color: espera.cor }}>{espera.texto}</span>
+                    <span data-testid={`espera-evento-triagem-${e.id}`} style={{ fontSize: 12.5, fontWeight: espera.dias > 7 ? FW.rotulo : FW.medio, color: espera.cor }}>{espera.texto}</span>
                   </div>
                 </div>
 
                 <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                  <span style={{ fontSize: 30, fontWeight: 900, color: "#0f172a", fontFamily: "Space Grotesk, sans-serif", lineHeight: 1 }}>{e.pecas}</span>
-                  <span style={{ fontSize: 13, color: "#475569", fontWeight: 600 }}>
+                  <span style={{ fontSize: 30, fontWeight: 900, color: T.text, fontFamily: FONT.display, lineHeight: 1 }}>{e.pecas}</span>
+                  <span style={{ fontSize: FS.body, color: T.apoio, fontWeight: FW.medio }}>
                     {e.pecas === 1 ? "peça" : "peças"}{e.unidades !== e.pecas ? ` · ${e.unidades} un.` : ""}
                   </span>
                 </div>
 
                 {e.reservadas > 0 && (
-                  <span style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 800, color: "#1d4ed8", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 999, padding: "3px 10px" }}>
-                    <BookmarkCheck size={12} /> {e.reservadas} {e.reservadas === 1 ? "reservada" : "reservadas"}{e.saidaMaisProxima ? ` · saída ${diaEMes(new Date(e.saidaMaisProxima).toISOString())}` : ""}
-                  </span>
+                  <Selo tom="info" icone={BookmarkCheck} style={{ alignSelf: "flex-start", fontSize: FS.meta, fontWeight: FW.rotulo, whiteSpace: "normal" }}>
+                    {e.reservadas} {e.reservadas === 1 ? "reservada" : "reservadas"}{e.saidaMaisProxima ? ` · saída ${diaEMes(new Date(e.saidaMaisProxima).toISOString())}` : ""}
+                  </Selo>
                 )}
 
                 {e.patrocinadores.length > 0 && (
-                  <div style={{ fontSize: 12, color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div style={{ fontSize: FS.meta, color: T.apoio, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {e.patrocinadores.slice(0, 3).join(" · ")}{e.patrocinadores.length > 3 ? ` +${e.patrocinadores.length - 3}` : ""}
                   </div>
                 )}
 
-                <span style={{ marginTop: "auto", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 800, color: "#c2410c" }}>
-                  Começar triagem <ArrowRight size={14} />
+                <span style={{ marginTop: "auto", display: "inline-flex", alignItems: "center", gap: 6, fontSize: FS.body, fontWeight: FW.rotulo, color: T.accentText }}>
+                  Começar triagem <ArrowRight size={14} aria-hidden="true" />
                 </span>
               </button>
             );
           })}
         </div>
         {noRecorte.length > visiveis.length && (
-          <button type="button" data-testid="mostrar-mais-eventos" onClick={() => setMostrando((n) => n + LOTE_DE_EVENTOS)}
-            style={{ alignSelf: "center", display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, padding: "0 18px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-            <ChevronDown size={15} aria-hidden="true" /> Mostrar mais {Math.min(LOTE_DE_EVENTOS, noRecorte.length - visiveis.length)} · faltam {noRecorte.length - visiveis.length}
-          </button>
+          <Botao tamanho="toque" icone={ChevronDown} data-testid="mostrar-mais-eventos" onClick={() => setMostrando((n) => n + LOTE_DE_EVENTOS)}
+            style={{ alignSelf: "center" }}>
+            Mostrar mais {Math.min(LOTE_DE_EVENTOS, noRecorte.length - visiveis.length)} · faltam {noRecorte.length - visiveis.length}
+          </Botao>
         )}
         </>
       )}

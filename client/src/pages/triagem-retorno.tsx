@@ -22,16 +22,22 @@ import { SponsorChips } from "@/components/sponsor-chips";
 import { useAuth } from "@/contexts/auth-context";
 import { useDensidadeDoConteudo, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { CONDITION_META, type Condition, type ConditionMeta, type EnrichedAsset } from "@/lib/inventory-meta";
-import { FS } from "@/lib/theme";
+import { T, N, TOM, FS, FW, R, FONT, SHADOW } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { CartaoKpi } from "@/components/ui/cartao-kpi";
+import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
+import { EstadoErro, EstadoVazio, Esqueleto } from "@/components/ui/estados";
 
 // Re-export para compatibilidade — a definição vive em @/lib/inventory-meta.
 export type { EnrichedAsset };
 
 type TriagemResult = "NO_GALPAO" | "MANUTENCAO" | "DESCARTADO";
+// activeBg sob texto branco usa o `text` do tom (AA com branco); Manutenção
+// fica na tinta clara com o texto escuro, como sempre foi.
 const RESULT_META: Record<TriagemResult, { label: string; color: string; bg: string; border: string; activeBg: string; activeColor: string }> = {
-  NO_GALPAO:  { label: "Galpão",       color: "#1e40af", bg: "#eff6ff", border: "#93c5fd", activeBg: "#1e40af", activeColor: "#fff" },
-  MANUTENCAO: { label: "Manutenção",   color: "#92400e", bg: "#fffbeb", border: "#fcd34d", activeBg: "#fef3c7", activeColor: "#92400e" },
-  DESCARTADO: { label: "Descartar",    color: "#991b1b", bg: "#fff1f2", border: "#fca5a5", activeBg: "#dc2626", activeColor: "#fff" },
+  NO_GALPAO:  { label: "Galpão",       color: TOM.info.text,   bg: TOM.info.bg,   border: TOM.info.border,   activeBg: TOM.info.text,   activeColor: N.n0 },
+  MANUTENCAO: { label: "Manutenção",   color: TOM.alerta.text, bg: TOM.alerta.bg, border: TOM.alerta.border, activeBg: TOM.alerta.bg,   activeColor: TOM.alerta.text },
+  DESCARTADO: { label: "Descartar",    color: TOM.perigo.text, bg: TOM.perigo.bg, border: TOM.perigo.border, activeBg: TOM.perigo.text, activeColor: N.n0 },
 };
 
 interface SplitLine { qty: number; condition: Condition | null; result: TriagemResult; }
@@ -57,11 +63,13 @@ function makeSplits(totalQty: number): SplitLine[] {
 // ─── ThumbCell — fallback quando a imagem falha ou URL está vazia ─────────────
 function ThumbCell({ url, size = 15 }: { url?: string | null; size?: number }) {
   const [failed, setFailed] = useState(false);
-  if (!url || failed) return <Package size={size} color="#64748b" />;
+  if (!url || failed) return <Package size={size} color={T.second} aria-hidden="true" />;
   return (
     <img
       src={url}
       alt=""
+      loading="lazy"
+      decoding="async"
       style={{ width: "100%", height: "100%", objectFit: "cover" }}
       onError={() => setFailed(true)}
     />
@@ -70,38 +78,6 @@ function ThumbCell({ url, size = 15 }: { url?: string | null; size?: number }) {
 
 function makeEntry(totalQty: number): TriagemEntry {
   return { splits: makeSplits(totalQty), notes: "", selected: false, mode: "all" };
-}
-
-// ─── Stat card (matches estoque layout) ───────────────────────────────────────
-function StatCard({ label, value, color, Icon, compacto }: {
-  label: string; value: number; color: string; Icon: React.ElementType;
-  /** Celular: três cartões em ~110px cada — sem o ícone d'água e com o
-   *  número menor, senão "Triados nesta sessão" estourava o cartão. */
-  compacto?: boolean;
-}) {
-  return (
-    <div style={{
-      background: "#fff",
-      padding: compacto ? "12px 12px 10px" : "18px 20px 16px",
-      borderRadius: 12,
-      border: "1px solid #e2e8f0",
-      borderBottom: `3px solid ${color}`,
-      boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-      display: "flex", flexDirection: "column", gap: compacto ? 4 : 8, minWidth: 0,
-    }}>
-      {/* Rótulo em texto corrido: caixa alta com 0.18em nos três cartões
-          disputava atenção com o número, que é o que importa. */}
-      <span style={{ fontSize: compacto ? 11 : 12, fontWeight: 600, color: "#64748b", fontFamily: "Space Grotesk, sans-serif", lineHeight: 1.25 }}>
-        {label}
-      </span>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <p style={{ margin: 0, fontSize: compacto ? 22 : 30, fontWeight: 800, color, fontFamily: "Space Grotesk, sans-serif", letterSpacing: "-0.03em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
-          {value}
-        </p>
-        {!compacto && <Icon size={28} color={color} aria-hidden="true" style={{ opacity: 0.15 }} />}
-      </div>
-    </div>
-  );
 }
 
 // ─── ConditionToggles ─────────────────────────────────────────────────────────
@@ -114,7 +90,7 @@ function ConditionToggles({ condition, onCondition, disabled, grayscale, grande 
   return (
     <div role="group" aria-label="Condição do item" style={{
       display: grande ? "flex" : "inline-flex", width: grande ? "100%" : undefined,
-      background: "#f3f4f3", padding: 3, borderRadius: 8,
+      background: T.low, padding: 3, borderRadius: R.md,
       filter: grayscale ? "grayscale(1)" : "none",
     }}>
       {(Object.entries(CONDITION_META) as [Condition, ConditionMeta][]).map(([val, meta]) => {
@@ -125,12 +101,12 @@ function ConditionToggles({ condition, onCondition, disabled, grayscale, grande 
             style={{
               display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4,
               flex: grande ? 1 : undefined, minHeight: grande ? 44 : 28,
-              padding: grande ? "0 6px" : "0 10px", borderRadius: 6, border: "none",
+              padding: grande ? "0 6px" : "0 10px", borderRadius: R.sm, border: "none",
               cursor: disabled ? "default" : "pointer",
-              fontSize: grande ? 13 : 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
+              fontSize: grande ? FS.body : FS.small, fontWeight: FW.forte, fontFamily: FONT.display,
               whiteSpace: "nowrap", transition: "background-color 0.12s, color 0.12s, box-shadow 0.12s",
-              background: active ? "#fff" : "transparent",
-              color: active ? meta.color : "#475569",
+              background: active ? T.surface : "transparent",
+              color: active ? meta.color : T.apoio,
               boxShadow: active ? "0 1px 3px rgba(0,0,0,0.12)" : "none",
             }}>
             <meta.Icon size={grande ? 13 : 11} aria-hidden="true" />
@@ -150,7 +126,7 @@ function ResultToggles({ result, onResult, disabled, grayscale, grande }: {
   return (
     <div role="group" aria-label="Destino do item" style={{
       display: grande ? "flex" : "inline-flex", width: grande ? "100%" : undefined,
-      background: "#f3f4f3", padding: 3, borderRadius: 8,
+      background: T.low, padding: 3, borderRadius: R.md,
       filter: grayscale ? "grayscale(1)" : "none",
     }}>
       {(Object.entries(RESULT_META) as [TriagemResult, typeof RESULT_META[TriagemResult]][]).map(([val, meta]) => {
@@ -162,12 +138,12 @@ function ResultToggles({ result, onResult, disabled, grayscale, grande }: {
             style={{
               display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4,
               flex: grande ? 1 : undefined, minHeight: grande ? 44 : 28,
-              padding: grande ? "0 6px" : "0 10px", borderRadius: 6, border: "none",
+              padding: grande ? "0 6px" : "0 10px", borderRadius: R.sm, border: "none",
               cursor: disabled ? "default" : "pointer",
-              fontSize: grande ? 13 : 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
+              fontSize: grande ? FS.body : FS.small, fontWeight: FW.forte, fontFamily: FONT.display,
               whiteSpace: "nowrap", transition: "background-color 0.12s, color 0.12s, box-shadow 0.12s",
               background: active ? meta.activeBg : "transparent",
-              color: active ? meta.activeColor : "#475569",
+              color: active ? meta.activeColor : T.apoio,
               boxShadow: active ? "0 1px 3px rgba(0,0,0,0.15)" : "none",
             }}>
             {val === "MANUTENCAO" && <Wrench size={grande ? 13 : 11} aria-hidden="true" />}
@@ -206,8 +182,8 @@ function LabeledTriageToggles({
   // No celular o rótulo vai ACIMA dos botões: ao lado ele comia 62px dos
   // ~320 disponíveis e os três botões não cabiam.
   const labelStyle: React.CSSProperties = {
-    fontSize: 11, fontWeight: 600, color: "#64748b",
-    fontFamily: "Space Grotesk, sans-serif", minWidth: grande ? undefined : 62, flexShrink: 0,
+    fontSize: FS.small, fontWeight: FW.medio, color: T.second,
+    fontFamily: FONT.display, minWidth: grande ? undefined : 62, flexShrink: 0,
   };
   const linha: React.CSSProperties = grande
     ? { display: "flex", flexDirection: "column", alignItems: "stretch", gap: 4 }
@@ -218,7 +194,7 @@ function LabeledTriageToggles({
         <span style={labelStyle}>Condição</span>
         <ConditionToggles condition={condition} onCondition={onCondition} disabled={disabled} grayscale={grayscale} grande={grande} />
       </div>
-      <div style={{ height: 1, background: "#f1f5f9", marginBottom: 7 }} />
+      <div style={{ height: 1, background: N.n3, marginBottom: 7 }} />
       <div style={linha}>
         <span style={labelStyle}>Destino</span>
         <ResultToggles result={result} onResult={onResult} disabled={disabled} grayscale={grayscale} grande={grande} />
@@ -237,22 +213,22 @@ function SplitProgress({ splits, total }: { splits: SplitLine[]; total: number }
   const pct = Math.min(100, Math.round((sum / total) * 100));
   return (
     <div style={{ marginTop: 8 }}>
-      <div style={{ height: 6, borderRadius: 3, background: "#f1f5f9", overflow: "hidden", display: "flex" }}>
+      <div style={{ height: 6, borderRadius: 3, background: N.n3, overflow: "hidden", display: "flex" }}>
         {splits.map((s, i) => (
           <div key={i} style={{
             height: "100%",
             width: `${(s.qty / total) * 100}%`,
-            background: s.condition ? PROG_COLORS[s.condition] : "#e2e8f0",
+            background: s.condition ? PROG_COLORS[s.condition] : T.border,
             transition: "width 0.2s",
           }} />
         ))}
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 3 }}>
-        <span style={{ fontSize: 11, fontFamily: "DM Mono, monospace", fontWeight: 700, color: pct === 100 ? "#15803d" : "#b91c1c" }}>
+        <span style={{ fontSize: FS.small, fontFamily: FONT.mono, fontWeight: FW.forte, color: pct === 100 ? TOM.sucesso.text : TOM.perigo.text }}>
           {sum}/{total} un ({pct}%)
         </span>
         {pct < 100 && (
-          <span style={{ fontSize: 11, fontFamily: "DM Mono, monospace", color: "#746e69" }}>
+          <span style={{ fontSize: FS.small, fontFamily: FONT.mono, color: T.second }}>
             faltam {total - sum} un
           </span>
         )}
@@ -461,11 +437,11 @@ export default function TriagemRetorno() {
     const totalQty = asset.quantity ?? 1;
     const entry = getEntry(asset.id, totalQty);
     if (entry.splits.some(l => l.condition === null)) {
-      toast({ title: "Selecione a condição antes de salvar.", variant: "destructive" });
+      toast({ title: "Selecione a condição antes de salvar.", variant: "warning" });
       return false;
     }
     if (!isSplitValid(entry, totalQty)) {
-      toast({ title: `A soma das quantidades deve ser ${totalQty}.`, variant: "destructive" });
+      toast({ title: `A soma das quantidades deve ser ${totalQty}.`, variant: "warning" });
       return false;
     }
     if (savedIds.has(asset.id)) return true;
@@ -483,13 +459,13 @@ export default function TriagemRetorno() {
       // registrada." não dizia QUAL linha acabou de sair da fila.
       const destino = entry.splits.length > 1 ? `${entry.splits.length} lotes`
         : RESULT_META[entry.splits[0].result].label;
-      toast({ title: `${asset.displayId} triada · ${destino}` });
+      toast({ title: `${asset.displayId} triada · ${destino}`, variant: "success" });
       return true;
     } catch (e: any) {
       // Outra pessoa chegou antes (409): não é erro de quem está aqui — a
       // lista só estava velha. Aviso neutro e lista nova.
       if (ehRecusaDeJaTriada(e?.message)) {
-        toast({ title: `Outra pessoa já triou ${asset.displayId} — lista atualizada` });
+        toast({ title: `Outra pessoa já triou ${asset.displayId} — lista atualizada`, variant: "warning" });
         refetch();
         return false;
       }
@@ -592,7 +568,7 @@ export default function TriagemRetorno() {
       toast({
         title: `${somaErrada.length} ${somaErrada.length === 1 ? "peça está" : "peças estão"} com a divisão incompleta.`,
         description: `Confira os lotes de ${ativoPorId.get(somaErrada[0])?.displayId ?? "uma peça"}: a soma precisa fechar a quantidade.`,
-        variant: "destructive",
+        variant: "warning",
       });
       return;
     }
@@ -633,7 +609,7 @@ export default function TriagemRetorno() {
       title: resumoDaGravacao(okIds.length, jaTriadas.length, failed),
       description: failed > 0 ? `${primeiraFalha?.reason?.message ?? "Erro ao gravar"}. As que falharam continuam selecionadas.`
         : jaTriadas.length > 0 ? "Outra pessoa triou parte da seleção — lista atualizada." : undefined,
-      variant: failed > 0 ? "destructive" : "default",
+      variant: failed > 0 ? "destructive" : "success",
     });
     refetch();
   };
@@ -657,7 +633,7 @@ export default function TriagemRetorno() {
 
   const allSelected = linhasVisiveis.length > 0 && linhasVisiveis.every(a => entries[a.id]?.selected);
 
-  const moldura: React.CSSProperties = { padding: isMobile ? "14px 16px" : "32px 36px", background: "#f8fafc", height: "100%", overflowY: "auto" };
+  const moldura: React.CSSProperties = { padding: isMobile ? "14px 16px" : "32px 36px", background: T.bg, height: "100%", overflowY: "auto" };
 
   const doEventoDoQuadro = vista === "quadro" && eventoDoQuadro
     ? awaitingAssets.filter((a) => (a.eventId ?? SEM_EVENTO) === eventoDoQuadro) : VAZIO as EnrichedAsset[];
@@ -699,11 +675,14 @@ export default function TriagemRetorno() {
   }
 
   const TH: React.CSSProperties = {
-    padding: "12px 14px", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em",
-    textTransform: "uppercase", color: "#fff", fontFamily: "Space Grotesk, sans-serif",
-    textAlign: "left", background: "#0f172a", borderBottom: "none",
+    padding: "12px 14px", fontSize: FS.small, fontWeight: FW.forte, letterSpacing: "0.06em",
+    textTransform: "uppercase", color: N.n0, fontFamily: FONT.display,
+    textAlign: "left", background: T.dark, borderBottom: "none",
     whiteSpace: "nowrap",
   };
+
+  const loteTravado = selectedIds.length === 0 || savingIds.size > 0;
+  const limparFiltros = () => { setFilterEvent([]); setFilterSponsor([]); setSearch(""); };
 
   return (
     <div style={{
@@ -713,86 +692,66 @@ export default function TriagemRetorno() {
       // No celular a pill quebra em três linhas de 44px — os 130 do desktop
       // deixavam o Salvar da última peça escondido atrás dela.
       paddingBottom: selectedIds.length > 0 ? (isMobile ? 240 : 130) : undefined,
-      background: "#f8fafc", height: "100%", overflowY: "auto", display: "flex", flexDirection: "column", gap: isMobile ? 16 : 28,
+      background: T.bg, height: "100%", overflowY: "auto", display: "flex", flexDirection: "column", gap: isMobile ? 16 : 28,
     }}>
 
-      <button type="button" data-testid="button-voltar-eventos-triagem" onClick={() => setVista("eventos")}
-        style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6, minHeight: dedo ? 44 : 32, background: "none", border: "none", padding: 0, fontSize: 13, fontWeight: 700, color: "#475569", cursor: "pointer", transition: "color 0.12s" }}
-        onMouseEnter={e => { e.currentTarget.style.color = "#0f172a"; }}
-        onMouseLeave={e => { e.currentTarget.style.color = "#475569"; }}>
-        <ArrowLeft size={15} aria-hidden="true" /> Eventos da triagem
-      </button>
-
-      {/* ── Header ── */}
-      <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 12 : 16, minWidth: 0 }}>
-          <div style={{ width: isMobile ? 44 : 48, height: isMobile ? 44 : 48, borderRadius: 12, background: "#c2410c", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 4px 12px rgba(194,65,12,0.22)" }}>
-            <ClipboardCheck size={22} color="#fff" strokeWidth={2.2} aria-hidden="true" />
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <h1 style={{ margin: "0 0 3px", fontSize: FS.h1, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif", color: "#1c1917", letterSpacing: "-0.03em", lineHeight: 1.1 }}>
-              Triagem de Retorno
-            </h1>
-            {/* Subtítulo em texto corrido — a caixa alta com 0.18em era o
-                elemento mais ruidoso do cabeçalho. */}
-            <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: "#746e69", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-              Peças que voltaram do evento: escolha a condição e o destino
-            </p>
-          </div>
-        </div>
-        {/* Cinza sem dizer por quê era o "travou?" desta tela: o lote só
-            existe depois de marcar a caixa das peças. */}
-        <button data-testid="button-bulk-triage-header" onClick={() => handleBulk()}
-          disabled={selectedIds.length === 0 || savingIds.size > 0}
-          title={selectedIds.length === 0 ? "Marque a caixa à esquerda das peças para triar várias de uma vez" : `Grava a triagem das ${selectedIds.length} peças marcadas`}
-          style={{
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-            minHeight: 44, padding: "0 20px", borderRadius: 10, border: "none", flexShrink: 0,
-            width: isMobile ? "100%" : undefined,
-            background: (selectedIds.length === 0 || savingIds.size > 0) ? "#e2e8f0" : "#c2410c",
-            color: (selectedIds.length === 0 || savingIds.size > 0) ? "#64748b" : "#fff", fontSize: 14,
-            cursor: (selectedIds.length === 0 || savingIds.size > 0) ? "not-allowed" : "pointer",
-            fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-            boxShadow: (selectedIds.length === 0 || savingIds.size > 0) ? "none" : "0 4px 14px rgba(194,65,12,0.28)",
-            transition: "background-color 0.15s, box-shadow 0.15s, color 0.15s",
-          }}>
-          <CheckCircle2 size={16} aria-hidden="true" />
-          {savingIds.size > 1 ? `Registrando ${gravadasDoLote} de ${savingIds.size}…` : savingIds.size > 0 ? "Registrando…" : `Confirmar lote (${selectedIds.length})`}
-        </button>
+      <div>
+        <Botao variante="fantasma" tamanho={dedo ? "toque" : "sm"} icone={ArrowLeft} data-testid="button-voltar-eventos-triagem" onClick={() => setVista("eventos")}
+          style={{ fontSize: FS.body, paddingLeft: 4 }}>
+          Eventos da triagem
+        </Botao>
+        {/* Subtítulo = o ESTADO da fila (quantas peças pendentes); a ação do
+            lote fica à direita. Cinza sem dizer por quê era o "travou?" desta
+            tela: o lote só existe depois de marcar a caixa das peças — o
+            motivo aparece escrito embaixo do botão. */}
+        <CabecalhoDaPagina
+          titulo="Triagem de Retorno"
+          icone={ClipboardCheck}
+          subtitulo={isLoading ? "Carregando…" : `${pendingAssets.length} ${pendingAssets.length === 1 ? "peça pendente" : "peças pendentes"}${hasFilters ? " neste recorte" : ""} — escolha a condição e o destino`}
+          acoes={(
+            <Botao variante="primario" tamanho="toque" icone={CheckCircle2} data-testid="button-bulk-triage-header" onClick={() => handleBulk()}
+              disabled={selectedIds.length === 0} carregando={savingIds.size > 0}
+              motivo={selectedIds.length === 0 ? "Marque a caixa à esquerda das peças para triar várias de uma vez" : undefined} alinharMotivo="end"
+              title={loteTravado ? undefined : `Grava a triagem das ${selectedIds.length} peças marcadas`}
+              larguraCheia={isMobile}>
+              {savingIds.size > 1 ? `Registrando ${gravadasDoLote} de ${savingIds.size}…` : savingIds.size > 0 ? "Registrando…" : `Confirmar lote (${selectedIds.length})`}
+            </Botao>
+          )}
+        />
       </div>
 
-      {/* ── Stats ── minmax(0, 1fr): com `1fr` puro o mínimo automático é o
+      {/* ── Números ── minmax(0, 1fr): com `1fr` puro o mínimo automático é o
           min-content do cartão e, em 375px, "Triados nesta sessão" estourava
           a grade e dava rolagem lateral na página. */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: isMobile ? 8 : 14 }}>
         {/* Desconta os já triados na sessão — o card acompanha a fila real. */}
-        <StatCard compacto={isMobile} label="Na fila" value={Math.max(0, awaitingAssets.length - savedIds.size)} color="#c2410c" Icon={ScanSearch} />
-        <StatCard compacto={isMobile} label="Selecionados" value={selectedIds.length} color="#15803d" Icon={Users} />
-        <StatCard compacto={isMobile} label="Triados nesta sessão" value={savedIds.size} color="#1d4ed8" Icon={CheckCircle2} />
+        <CartaoKpi compacto={isMobile} rotulo="Na fila" valor={Math.max(0, awaitingAssets.length - savedIds.size)} tom="laranja" icone={ScanSearch} />
+        <CartaoKpi compacto={isMobile} rotulo="Selecionados" valor={selectedIds.length} tom="sucesso" icone={Users} />
+        <CartaoKpi compacto={isMobile} rotulo="Triados nesta sessão" valor={savedIds.size} tom="info" icone={CheckCircle2} />
       </div>
 
       {/* ── Filter bar ── */}
       {(() => {
         const FL: React.CSSProperties = {
-          fontSize: 11, fontWeight: 500, color: "#64748b",
-          fontFamily: "Plus Jakarta Sans, sans-serif", marginBottom: 6, display: "block",
+          fontSize: FS.small, fontWeight: FW.corpo, color: T.second,
+          fontFamily: FONT.corpo, marginBottom: 6, display: "block",
         };
         // Sem `outline: none`: o inline anulava o anel de foco global e o
-        // teclado não via qual filtro estava focado. Texto ativo em #9a3412 —
-        // o #c2610c dava 4,17:1 e reprovava AA.
+        // teclado não via qual filtro estava focado. Texto ativo no
+        // accentText — o laranja da marca não carrega leitura.
         const SEL = (active: boolean): React.CSSProperties => ({
           height: 44, width: "100%",
-          border: `1.5px solid ${active ? "#c2410c" : "#e2e8f0"}`,
-          borderRadius: 8, fontSize: 13, fontWeight: 500,
-          fontFamily: "Plus Jakarta Sans, sans-serif",
-          padding: "0 12px", background: "#fff",
-          color: active ? "#9a3412" : "#374151",
+          border: `1.5px solid ${active ? T.accentText : T.border}`,
+          borderRadius: R.md, fontSize: FS.body, fontWeight: FW.corpo,
+          fontFamily: FONT.corpo,
+          padding: "0 12px", background: T.surface,
+          color: active ? T.accentText : T.strong,
           cursor: "pointer",
           transition: "border-color 0.15s",
         });
         return (
           <div style={{
-            background: "#fff", borderRadius: 12, border: "1px solid #e2e8f0",
+            background: T.surface, borderRadius: R.lg, border: `1px solid ${T.border}`,
             padding: isMobile ? "12px 14px 14px" : "16px 20px 18px",
             display: "flex", alignItems: "flex-end", gap: isMobile ? 10 : 14, flexWrap: "wrap",
           }}>
@@ -824,18 +783,18 @@ export default function TriagemRetorno() {
             <div style={{ display: "flex", flexDirection: "column", flex: "1 1 150px" }}>
               <label style={FL}>Buscar</label>
               <div style={{ position: "relative" }}>
-                <Search size={14} color="#64748b" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+                <Search size={14} color={T.second} aria-hidden="true" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
                 <input
                   data-testid="input-triage-search"
                   style={{
                     width: "100%", paddingLeft: 34, paddingRight: 12, height: 44,
-                    border: `1.5px solid ${search ? "#c2610c" : "#e2e8f0"}`, borderRadius: 8,
-                    fontSize: isMobile ? 16 : 13, fontWeight: 400, fontFamily: "Plus Jakarta Sans, sans-serif",
-                    background: "#fff", color: "#374151", boxSizing: "border-box",
+                    border: `1.5px solid ${search ? T.accentText : T.border}`, borderRadius: R.md,
+                    fontSize: isMobile ? FS.lead : FS.body, fontWeight: 400, fontFamily: FONT.corpo,
+                    background: T.surface, color: T.strong, boxSizing: "border-box",
                     transition: "border-color 0.15s",
                   }}
-                  onFocus={e => (e.target.style.borderColor = "#c2410c")}
-                  onBlur={e => (e.target.style.borderColor = search ? "#c2610c" : "#e2e8f0")}
+                  onFocus={e => (e.target.style.borderColor = T.accentText)}
+                  onBlur={e => (e.target.style.borderColor = search ? T.accentText : T.border)}
                   aria-label="Buscar peças na triagem"
                   placeholder="Nome ou ID..."
                   value={search}
@@ -846,23 +805,17 @@ export default function TriagemRetorno() {
 
             {/* Limpar + contador */}
             <div style={{ display: "flex", alignItems: "flex-end", gap: 10, marginLeft: "auto" }}>
-              <button
+              <Botao
+                tamanho="toque"
+                icone={X}
                 data-testid="button-triage-clear-filters"
                 disabled={!hasFilters}
-                onClick={() => { setFilterEvent([]); setFilterSponsor([]); setSearch(""); }}
-                style={{
-                  height: 44, display: "flex", alignItems: "center", gap: 5, padding: "0 14px",
-                  borderRadius: 8,
-                  border: `1.5px solid ${hasFilters ? "#fecaca" : "#e2e8f0"}`,
-                  background: hasFilters ? "#fef2f2" : "#f8fafc",
-                  color: hasFilters ? "#b91c1c" : "#94a3b8",
-                  fontSize: 12, cursor: hasFilters ? "pointer" : "not-allowed",
-                  fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-                  transition: "all 0.15s",
-                }}>
-                <X size={12} /> Limpar filtros
-              </button>
-              <span style={{ fontSize: 11, color: "#746e69", fontFamily: "DM Mono, monospace", fontWeight: 600, whiteSpace: "nowrap", paddingBottom: 12 }}>
+                motivo={!hasFilters ? "Nenhum filtro ativo" : undefined}
+                onClick={limparFiltros}
+                style={{ fontSize: FS.meta }}>
+                Limpar filtros
+              </Botao>
+              <span style={{ fontSize: FS.small, color: T.second, fontFamily: FONT.mono, fontWeight: FW.medio, whiteSpace: "nowrap", paddingBottom: 12 }}>
                 {pendingAssets.length} pend. · {savedIds.size} triados
               </span>
             </div>
@@ -873,60 +826,39 @@ export default function TriagemRetorno() {
       {/* ── Table ── */}
       <div>
       {isLoading ? (
-        /* Skeleton no padrão da tabela do estoque — evita o "salto" do spinner. */
-        <div data-testid="skeleton-triagem" aria-busy="true" style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", padding: isMobile ? "4px 14px" : "8px 24px", boxShadow: "0 1px 3px rgba(15,23,42,0.05)" }}>
-          {[0, 1, 2, 3, 4, 5].map(i => (
-            <div key={i} className="animate-pulse" style={{ display: "flex", alignItems: "center", gap: 18, padding: "16px 0", borderBottom: i < 5 ? "1px solid #f1f5f9" : "none" }}>
-              <div style={{ width: 15, height: 15, borderRadius: 4, background: "#e2e8f0", flexShrink: 0 }} />
-              <div style={{ width: 36, height: 36, borderRadius: 8, background: "#e2e8f0", flexShrink: 0 }} />
-              <div style={{ flex: 1, height: 12, borderRadius: 6, background: "#e2e8f0" }} />
-              {!isMobile && <div style={{ width: 130, height: 12, borderRadius: 6, background: "#e2e8f0", flexShrink: 0 }} />}
-              {!isMobile && <div style={{ width: 180, height: 22, borderRadius: 8, background: "#e2e8f0", flexShrink: 0 }} />}
-              {!isMobile && <div style={{ width: 70, height: 12, borderRadius: 6, background: "#e2e8f0", flexShrink: 0 }} />}
-            </div>
-          ))}
+        /* Esqueleto no desenho da tabela — evita o "salto" do spinner. */
+        <div data-testid="skeleton-triagem">
+          <Esqueleto variante={isMobile ? "lista" : "tabela"} linhas={6} rotulo="Carregando as peças da triagem" />
         </div>
       ) : isError ? (
-        <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #fecaca", padding: isMobile ? "36px 20px" : 60, textAlign: "center" }}>
-          <p style={{ fontSize: 15, fontWeight: 700, color: "#b91c1c", margin: "0 0 6px", fontFamily: "Space Grotesk, sans-serif" }}>Não foi possível carregar os materiais</p>
-          <p style={{ color: "#64748b", fontSize: 12, margin: "0 0 16px" }}>Verifique sua conexão e tente novamente.</p>
-          <button onClick={() => refetch()} style={{ minHeight: 44, background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "0 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Tentar novamente</button>
-        </div>
+        <EstadoErro
+          titulo="Não foi possível carregar os materiais"
+          detalhe="Verifique sua conexão e tente novamente."
+          aoTentarDeNovo={() => refetch()}
+        />
       ) : pendingAssets.length === 0 && savedIds.size === 0 ? (
         /* Dois vazios diferentes: a fila vazia de verdade, ou o RECORTE vazio.
            Antes os dois diziam "Nenhum material aguardando triagem" — com um
            filtro esquecido a pessoa concluía que não havia trabalho. */
-        <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", padding: isMobile ? "36px 20px" : 60, textAlign: "center" }}>
-          <div style={{ width: 56, height: 56, borderRadius: 16, background: "#f8fafc", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
-            <ScanSearch size={24} color="#64748b" />
-          </div>
-          <p style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", margin: "0 0 6px", fontFamily: "Space Grotesk, sans-serif" }}>
-            {hasFilters && awaitingAssets.length > 0 ? "Nenhuma peça neste recorte" : "Nenhum material aguardando triagem"}
-          </p>
-          <p style={{ color: "#64748b", fontSize: 12, fontFamily: "Plus Jakarta Sans, sans-serif", margin: 0 }}>
-            {hasFilters && awaitingAssets.length > 0
-              ? `${awaitingAssets.length} ${awaitingAssets.length === 1 ? "peça espera" : "peças esperam"} triagem fora dos filtros atuais.`
-              : "Os materiais são movidos automaticamente para triagem após o evento."}
-          </p>
-          {hasFilters && awaitingAssets.length > 0 && (
-            <button type="button" onClick={() => { setFilterEvent([]); setFilterSponsor([]); setSearch(""); }}
-              style={{ marginTop: 16, minHeight: 44, background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "0 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-              Limpar filtros
-            </button>
-          )}
-        </div>
+        <EstadoVazio
+          icone={ScanSearch}
+          titulo={hasFilters && awaitingAssets.length > 0 ? "Nenhuma peça neste recorte" : "Nenhum material aguardando triagem"}
+          descricao={hasFilters && awaitingAssets.length > 0
+            ? `${awaitingAssets.length} ${awaitingAssets.length === 1 ? "peça espera" : "peças esperam"} triagem fora dos filtros atuais.`
+            : "Os materiais são movidos automaticamente para triagem após o evento."}
+          acao={hasFilters && awaitingAssets.length > 0 ? (
+            <Botao tamanho="toque" icone={X} onClick={limparFiltros}>Limpar filtros</Botao>
+          ) : undefined}
+        />
       ) : pendingAssets.length === 0 ? (
         /* Tudo o que estava no recorte foi triado nesta sessão: a tabela só
            teria linhas cinzas "Salvo" — o fechamento merece ser dito. */
-        <div data-testid="triagem-concluida-no-recorte" style={{ background: "#fff", borderRadius: 16, border: "1px solid #bbf7d0", padding: isMobile ? "32px 20px" : 48, textAlign: "center" }}>
-          <CheckCircle2 size={28} color="#15803d" />
-          <p style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", margin: "10px 0 6px", fontFamily: "Space Grotesk, sans-serif" }}>
-            {savedIds.size} {savedIds.size === 1 ? "peça triada" : "peças triadas"} nesta sessão — nada pendente {hasFilters ? "neste recorte" : "na fila"}
-          </p>
-          <button type="button" onClick={() => setVista("eventos")}
-            style={{ marginTop: 10, minHeight: 44, background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "0 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-            Voltar aos eventos da triagem
-          </button>
+        <div data-testid="triagem-concluida-no-recorte">
+          <EstadoVazio
+            icone={CheckCircle2}
+            titulo={`${savedIds.size} ${savedIds.size === 1 ? "peça triada" : "peças triadas"} nesta sessão — nada pendente ${hasFilters ? "neste recorte" : "na fila"}`}
+            acao={<Botao variante="primario" tamanho="toque" icone={ArrowLeft} onClick={() => setVista("eventos")}>Voltar aos eventos da triagem</Botao>}
+          />
         </div>
       ) : (
         <>
@@ -934,13 +866,13 @@ export default function TriagemRetorno() {
             quem marcava "Avaria leve" via o destino pular para Manutenção e
             achava que tinha tocado errado. Uma linha diz a regra e o caminho
             de volta; também diz o que o Salvar grava. */}
-        <p data-testid="dica-triagem-tabela" style={{ margin: "0 0 10px", fontSize: 12.5, color: "#475569", lineHeight: 1.5, fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+        <p data-testid="dica-triagem-tabela" style={{ margin: "0 0 10px", fontSize: 12.5, color: T.apoio, lineHeight: 1.5, fontFamily: FONT.corpo }}>
           A condição já sugere o destino (Perfeito → Galpão, Avaria leve → Manutenção, Sucata → Descartar) — troque o destino se precisar.
-          Nada é gravado até <strong style={{ color: "#0f172a" }}>Salvar</strong> na linha ou <strong style={{ color: "#0f172a" }}>Confirmar lote</strong>.
+          Nada é gravado até <strong style={{ color: T.text }}>Salvar</strong> na linha ou <strong style={{ color: T.text }}>Confirmar lote</strong>.
         </p>
         {/* `listaRef` mede a ÁREA ÚTIL desta caixa: é ela que decide entre
             tabela e cartões (ver a régua em use-mobile.tsx). */}
-        <div ref={listaRef} style={{ background: "#fff", borderRadius: isMobile ? 12 : 16, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 3px rgba(15,23,42,0.05)" }}>
+        <div ref={listaRef} style={{ background: T.surface, borderRadius: isMobile ? R.lg : R.xl, border: `1px solid ${T.border}`, overflow: "hidden", boxShadow: SHADOW.sm }}>
           {(() => {
             // As peças de cada linha são montadas UMA vez e servem às duas
             // vistas: tabela no desktop, cartões quando a área útil aperta.
@@ -962,8 +894,8 @@ export default function TriagemRetorno() {
               // Cor do anel derivada de CONDITION_META — fonte única.
               const condRingColor = entry.splits[0].condition
                 ? CONDITION_META[entry.splits[0].condition].color
-                : "#e2e8f0";
-              const thumbRing = isSaved ? "0 0 0 2px #e2e8f0" : `0 0 0 2px ${condRingColor}`;
+                : T.border;
+              const thumbRing = isSaved ? `0 0 0 2px ${T.border}` : `0 0 0 2px ${condRingColor}`;
               const alternarSelecao = () => {
                 if (!isSaved) {
                   setFocusedId(asset.id);
@@ -975,7 +907,7 @@ export default function TriagemRetorno() {
               // dentro de um rótulo de 44px: os 16px do quadradinho eram o
               // único jeito de marcar a peça sem abrir nada.
               const checkboxEl = isSaved
-                ? <CheckCircle2 size={17} color="#15803d" aria-label="Triagem salva" />
+                ? <CheckCircle2 size={17} color={TOM.sucesso.text} aria-label="Triagem salva" />
                 : (
                   <label onClick={e => e.stopPropagation()}
                     style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: dedo ? 44 : 24, height: dedo ? 44 : 24, margin: dedo ? "-10px 0 0 -10px" : 0, cursor: "pointer", flexShrink: 0 }}>
@@ -985,15 +917,15 @@ export default function TriagemRetorno() {
                       onChange={e => { e.stopPropagation(); updateEntry(asset.id, { selected: e.target.checked }, qty); }}
                       onClick={e => e.stopPropagation()}
                       onFocus={() => setFocusedId(asset.id)}
-                      style={{ width: dedo ? 20 : 16, height: dedo ? 20 : 16, cursor: "pointer", accentColor: "#c2410c" }}
+                      style={{ width: dedo ? 20 : 16, height: dedo ? 20 : 16, cursor: "pointer", accentColor: T.accentText }}
                     />
                   </label>
                 );
 
               const miniaturaEl = (
                 <div style={{
-                  width: dedo ? 44 : 36, height: dedo ? 44 : 36, borderRadius: 8, flexShrink: 0,
-                  background: "#f1f5f9",
+                  width: dedo ? 44 : 36, height: dedo ? 44 : 36, borderRadius: R.md, flexShrink: 0,
+                  background: N.n2,
                   display: "flex", alignItems: "center", justifyContent: "center",
                   overflow: "hidden",
                   boxShadow: thumbRing,
@@ -1003,24 +935,24 @@ export default function TriagemRetorno() {
                 </div>
               );
 
-              // ID em #9a3412: o #c2610c dava 4,17:1 no DM Mono de 10px.
+              // ID no accentText: o #c2610c de antes dava 4,17:1 no mono pequeno.
               const materialEl = (
                 <div style={{ minWidth: 0 }}>
-                  <span style={{ fontSize: 11, color: "#9a3412", fontFamily: "DM Mono, monospace", fontWeight: 600, display: "block", marginBottom: 2 }}>
+                  <span style={{ fontSize: FS.small, color: T.accentText, fontFamily: FONT.mono, fontWeight: FW.medio, display: "block", marginBottom: 2 }}>
                     {asset.displayId}
                   </span>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                    <span style={{ fontWeight: 700, fontSize: isMobile ? 14 : 13, color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif", overflowWrap: "anywhere" }}>{asset.name}</span>
+                    <span style={{ fontWeight: FW.forte, fontSize: isMobile ? FS.read : FS.body, color: T.text, fontFamily: FONT.corpo, overflowWrap: "anywhere" }}>{asset.name}</span>
                     <span style={{
                       display: "inline-flex", alignItems: "center", justifyContent: "center",
                       height: 18, borderRadius: 5, padding: "0 5px",
-                      background: qty > 1 ? "#0f172a" : "#f1f5f9",
-                      color: qty > 1 ? "#fff" : "#64748b",
-                      fontSize: 11, fontWeight: 700, fontFamily: "DM Mono, monospace",
+                      background: qty > 1 ? T.dark : N.n2,
+                      color: qty > 1 ? N.n0 : T.second,
+                      fontSize: FS.small, fontWeight: FW.forte, fontFamily: FONT.mono,
                     }}>×{qty}</span>
                     {(iguaisPorChave.get(chaveDoGrupo(asset)) ?? 0) > qty && (
                       <span data-testid={`iguais-${asset.id}`} title="Registros do mesmo material ficam juntos; para repartir a quantidade entre destinos, use Dividir no quadro do evento"
-                        style={{ fontSize: 11, fontWeight: 600, color: "#475569", background: "#f1f5f9", borderRadius: 5, padding: "1px 6px", whiteSpace: "nowrap" }}>
+                        style={{ fontSize: FS.small, fontWeight: FW.medio, color: T.apoio, background: N.n2, borderRadius: 5, padding: "1px 6px", whiteSpace: "nowrap" }}>
                         {iguaisPorChave.get(chaveDoGrupo(asset))} un. iguais
                       </span>
                     )}
@@ -1031,7 +963,7 @@ export default function TriagemRetorno() {
                     return (
                       <span data-testid={`chip-reservada-${asset.id}`}
                         title={`Reservada para ${reserva.itemDisplayId ?? "uma peça"} do evento ${reserva.eventName}`}
-                        style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 4, padding: "2px 7px", borderRadius: 6, background: "#eff6ff", color: "#1d4ed8", fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", maxWidth: "100%" }}>
+                        style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 4, padding: "2px 7px", borderRadius: R.sm, background: TOM.info.bg, color: TOM.info.text, fontSize: FS.small, fontWeight: FW.forte, fontFamily: FONT.display, maxWidth: "100%" }}>
                         <BookmarkCheck size={11} aria-hidden="true" style={{ flexShrink: 0 }} /> Reservada · {reserva.eventName}{reserva.saida ? ` · saída ${diaEMes(reserva.saida)}` : ""}
                       </span>
                     );
@@ -1047,47 +979,45 @@ export default function TriagemRetorno() {
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      padding: 6, background: "#eff6ff", borderRadius: 6, flexShrink: 0,
+                      padding: 6, background: TOM.info.bg, borderRadius: R.sm, flexShrink: 0,
                     }}>
-                      <CalendarDays size={14} color="#1d4ed8" aria-hidden="true" />
+                      <CalendarDays size={14} color={TOM.info.text} aria-hidden="true" />
                     </span>
                     <span style={{
-                      fontSize: 13, fontWeight: 700, color: "#0f172a",
-                      fontFamily: "Plus Jakarta Sans, sans-serif", lineHeight: 1.25,
+                      fontSize: FS.body, fontWeight: FW.forte, color: T.text,
+                      fontFamily: FONT.corpo, lineHeight: 1.25,
                     }}>
                       {asset.eventName}
                     </span>
                   </div>
                   <div style={{ paddingLeft: 34, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                     {dataDoEvento && (
-                      <span style={{ fontFamily: "DM Mono, monospace", fontSize: 11, color: "#64748b", letterSpacing: "-0.02em" }}>
+                      <span style={{ fontFamily: FONT.mono, fontSize: FS.small, color: T.second, letterSpacing: "-0.02em" }}>
                         {dataDoEvento}
                       </span>
                     )}
                   </div>
                 </div>
-              ) : <span style={{ fontSize: 12, color: "#746e69", fontStyle: "italic", fontFamily: "Plus Jakarta Sans, sans-serif" }}>Sem evento</span>;
+              ) : <span style={{ fontSize: FS.meta, color: T.second, fontStyle: "italic", fontFamily: FONT.corpo }}>Sem evento</span>;
 
               const patrocinadoresEl = <SponsorChips sponsors={asset.sponsors ?? []} />;
 
               // Botão de modo (qty > 1). Caixa alta em 10px saiu: é um controle,
-              // e o rótulo precisa ser lido, não gritado.
+              // e o rótulo precisa ser lido, não gritado. Segue nativo: é um
+              // par de alternância com a cor do modo e alvo de 40px no dedo —
+              // o <Segmentado> não tem tamanho de toque nem ícone.
               const botaoModo = (ativo: boolean, cor: string, fundo: string): React.CSSProperties => ({
-                display: "inline-flex", alignItems: "center", gap: 4, minHeight: dedo ? 40 : 26, padding: "0 10px", borderRadius: 6,
-                fontSize: 12, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer",
-                border: ativo ? `2px solid ${cor}` : "1px solid #e2e8f0", background: ativo ? fundo : "#f8fafc",
-                color: ativo ? cor : "#475569", transition: "background-color 0.12s, color 0.12s, border-color 0.12s",
+                display: "inline-flex", alignItems: "center", gap: 4, minHeight: dedo ? 40 : 26, padding: "0 10px", borderRadius: R.sm,
+                fontSize: FS.meta, fontWeight: FW.forte, fontFamily: FONT.display, cursor: "pointer",
+                border: ativo ? `2px solid ${cor}` : `1px solid ${T.border}`, background: ativo ? fundo : T.bg,
+                color: ativo ? cor : T.apoio, transition: "background-color 0.12s, color 0.12s, border-color 0.12s",
               });
-              const botaoPreset = (borda: string, fundo: string, cor: string): React.CSSProperties => ({
-                display: "inline-flex", alignItems: "center", gap: 4, minHeight: dedo ? 40 : 26, padding: "0 10px", borderRadius: 6,
-                border: `1px solid ${borda}`, background: fundo, color: cor, fontSize: 12, fontWeight: 600,
-                fontFamily: "Space Grotesk, sans-serif", cursor: "pointer",
+              // Atalhos do lote: <Botao> com a tinta do destino (a cor diz o
+              // que o atalho faz antes de ler).
+              const botaoPreset = (tom: { bg: string; text: string; border: string }): React.CSSProperties => ({
+                minHeight: dedo ? 40 : 26, borderColor: tom.border, background: tom.bg, color: tom.text, fontWeight: FW.medio,
               });
-              const botaoPasso = (desabilitado: boolean): React.CSSProperties => ({
-                width: alvo, height: alvo, borderRadius: 6, border: "1px solid #e2e8f0", background: "#fff",
-                cursor: desabilitado ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 16, lineHeight: 1, color: desabilitado ? "#cbd5e1" : "#0f172a", fontWeight: 700, padding: 0,
-              });
+              const botaoPasso: React.CSSProperties = { width: alvo, minHeight: alvo, padding: 0, fontSize: 16 };
 
               const togglesEl = isSaved ? (
                 <LabeledTriageToggles
@@ -1097,7 +1027,7 @@ export default function TriagemRetorno() {
                   disabled grayscale grande={dedo}
                 />
               ) : qty === 1 ? (
-                <div style={{ background: "#f8fafc", borderRadius: 8, padding: "8px 10px", border: "1px solid #f1f5f9" }}>
+                <div style={{ background: T.bg, borderRadius: R.md, padding: "8px 10px", border: `1px solid ${N.n3}` }}>
                   <LabeledTriageToggles
                     condition={entry.splits[0].condition}
                     result={entry.splits[0].result}
@@ -1109,20 +1039,20 @@ export default function TriagemRetorno() {
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }} onClick={e => e.stopPropagation()}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 28, height: 22, borderRadius: 6, background: "#0f172a", color: "#fff", fontSize: 12, fontWeight: 700, fontFamily: "DM Mono, monospace", padding: "0 6px" }}>×{qty}</span>
-                    <button data-testid={`button-mode-all-${asset.id}`} onClick={() => setMode(asset.id, "all", qty)}
+                    <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 28, height: 22, borderRadius: R.sm, background: T.dark, color: N.n0, fontSize: FS.meta, fontWeight: FW.forte, fontFamily: FONT.mono, padding: "0 6px" }}>×{qty}</span>
+                    <button type="button" data-testid={`button-mode-all-${asset.id}`} onClick={() => setMode(asset.id, "all", qty)}
                       aria-pressed={entry.mode === "all"}
-                      style={botaoModo(entry.mode === "all", "#1d4ed8", "#eff6ff")}>
+                      style={botaoModo(entry.mode === "all", TOM.info.text, TOM.info.bg)}>
                       Aplicar a todas
                     </button>
-                    <button data-testid={`button-mode-split-${asset.id}`} onClick={() => setMode(asset.id, "split", qty)}
+                    <button type="button" data-testid={`button-mode-split-${asset.id}`} onClick={() => setMode(asset.id, "split", qty)}
                       aria-pressed={entry.mode === "split"}
-                      style={botaoModo(entry.mode === "split", "#c2410c", "#fff7ed")}>
+                      style={botaoModo(entry.mode === "split", T.accentText, TOM.laranja.bg)}>
                       <Scissors size={12} aria-hidden="true" /> Dividir por condição
                     </button>
                   </div>
                   {entry.mode === "all" ? (
-                    <div style={{ background: "#f8fafc", borderRadius: 8, padding: "8px 10px", border: "1px solid #f1f5f9" }}>
+                    <div style={{ background: T.bg, borderRadius: R.md, padding: "8px 10px", border: `1px solid ${N.n3}` }}>
                       <LabeledTriageToggles
                         condition={entry.splits[0].condition}
                         result={entry.splits[0].result}
@@ -1132,39 +1062,36 @@ export default function TriagemRetorno() {
                       />
                     </div>
                   ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6, background: "rgba(248,250,252,0.7)", borderRadius: 10, padding: isMobile ? "8px 8px 8px 10px" : "8px 8px 8px 16px", borderLeft: "4px solid #e2e8f0", marginLeft: isMobile ? 0 : 6 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, background: T.bg, borderRadius: 10, padding: isMobile ? "8px 8px 8px 10px" : "8px 8px 8px 16px", borderLeft: `4px solid ${T.border}`, marginLeft: isMobile ? 0 : 6 }}>
                       <div style={{ display: "flex", gap: 6, marginBottom: 2, flexWrap: "wrap" }}>
-                        <button data-testid={`button-preset-perfeito-${asset.id}`} onClick={() => applyPreset(asset.id, "PERFEITO", "NO_GALPAO", qty)}
-                          style={botaoPreset("#86efac", "#f0fdf4", "#166534")}>
-                          <Sparkles size={12} aria-hidden="true" /> Tudo perfeito → Galpão
-                        </button>
-                        <button data-testid={`button-preset-sucata-${asset.id}`} onClick={() => applyPreset(asset.id, "SUCATA", "DESCARTADO", qty)}
-                          style={botaoPreset("#fca5a5", "#fff1f2", "#991b1b")}>
-                          <Trash2 size={12} aria-hidden="true" /> Tudo sucata → Descartar
-                        </button>
+                        <Botao tamanho="sm" icone={Sparkles} data-testid={`button-preset-perfeito-${asset.id}`} onClick={() => applyPreset(asset.id, "PERFEITO", "NO_GALPAO", qty)}
+                          style={botaoPreset(TOM.sucesso)}>
+                          Tudo perfeito → Galpão
+                        </Botao>
+                        <Botao tamanho="sm" icone={Trash2} data-testid={`button-preset-sucata-${asset.id}`} onClick={() => applyPreset(asset.id, "SUCATA", "DESCARTADO", qty)}
+                          style={botaoPreset(TOM.perigo)}>
+                          Tudo sucata → Descartar
+                        </Botao>
                       </div>
                       {entry.splits.map((split, si) => (
-                        <div key={si} style={{ border: "1px solid #e2e8f0", borderRadius: 8, background: "#fafafa", overflow: "hidden" }}>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, padding: "5px 8px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc" }}>
-                            <span style={{ fontSize: 12, fontWeight: 600, color: "#64748b", fontFamily: "Space Grotesk, sans-serif" }}>Lote {si + 1}</span>
+                        <div key={si} style={{ border: `1px solid ${T.border}`, borderRadius: R.md, background: T.bg, overflow: "hidden" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, padding: "5px 8px", borderBottom: `1px solid ${N.n3}`, background: N.n2 }}>
+                            <span style={{ fontSize: FS.meta, fontWeight: FW.medio, color: T.second, fontFamily: FONT.display }}>Lote {si + 1}</span>
                             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                               {/* Rótulo falado: "−" sozinho não diz nada ao leitor
-                                  de tela. Desabilitado em #cbd5e1 (sai o #a8a29e,
-                                  proibido como cor de texto). 44px no celular. */}
-                              <button data-testid={`button-split-minus-${asset.id}-${si}`} onClick={() => stepSplit(asset.id, si, -1, qty)} disabled={split.qty <= 1}
+                                  de tela. 44px no celular. */}
+                              <Botao data-testid={`button-split-minus-${asset.id}-${si}`} onClick={() => stepSplit(asset.id, si, -1, qty)} disabled={split.qty <= 1}
                                 aria-label={`Uma unidade a menos no lote ${si + 1}`}
-                                style={botaoPasso(split.qty <= 1)}>−</button>
-                              <span aria-live="polite" style={{ minWidth: 28, textAlign: "center", fontSize: 13, fontWeight: 700, fontFamily: "DM Mono, monospace", color: splitValid ? "#0f172a" : "#b91c1c" }}>{split.qty}</span>
-                              <button data-testid={`button-split-plus-${asset.id}-${si}`} onClick={() => stepSplit(asset.id, si, +1, qty)} disabled={splitSum >= qty}
+                                style={botaoPasso}>−</Botao>
+                              <span aria-live="polite" style={{ minWidth: 28, textAlign: "center", fontSize: FS.body, fontWeight: FW.forte, fontFamily: FONT.mono, color: splitValid ? T.text : TOM.perigo.text }}>{split.qty}</span>
+                              <Botao data-testid={`button-split-plus-${asset.id}-${si}`} onClick={() => stepSplit(asset.id, si, +1, qty)} disabled={splitSum >= qty}
                                 aria-label={`Uma unidade a mais no lote ${si + 1}`}
-                                style={botaoPasso(splitSum >= qty)}>+</button>
+                                style={botaoPasso}>+</Botao>
                             </div>
                             {entry.splits.length >= 2 && (
-                              <button data-testid={`button-remove-split-${asset.id}-${si}`} onClick={() => removeSplit(asset.id, si)}
+                              <Botao variante="fantasma" icone={X} data-testid={`button-remove-split-${asset.id}-${si}`} onClick={() => removeSplit(asset.id, si)}
                                 aria-label={`Remover o lote ${si + 1}`} title="Remover este lote"
-                                style={{ width: alvo, height: alvo, border: "none", borderRadius: 6, background: "none", cursor: "pointer", color: "#64748b", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                <X size={14} aria-hidden="true" />
-                              </button>
+                                style={{ width: alvo, minHeight: alvo, padding: 0 }} />
                             )}
                           </div>
                           <div style={{ padding: "6px 8px" }}>
@@ -1173,14 +1100,14 @@ export default function TriagemRetorno() {
                         </div>
                       ))}
                       {splitSum < qty && (
-                        <button data-testid={`button-add-split-${asset.id}`} onClick={() => addSplit(asset.id, qty)}
-                          style={{ alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 4, minHeight: dedo ? 40 : 26, border: "1px dashed #cbd5e1", borderRadius: 6, background: "transparent", cursor: "pointer", color: "#475569", fontSize: 12, fontWeight: 600, fontFamily: "Space Grotesk, sans-serif", padding: "0 10px" }}>
+                        <Botao tamanho="sm" data-testid={`button-add-split-${asset.id}`} onClick={() => addSplit(asset.id, qty)}
+                          style={{ alignSelf: "flex-start", minHeight: dedo ? 40 : 26, borderStyle: "dashed", borderColor: T.bdark, fontWeight: FW.medio }}>
                           + Adicionar lote
-                        </button>
+                        </Botao>
                       )}
                       <SplitProgress splits={entry.splits} total={qty} />
                       {!splitValid && (
-                        <span role="status" style={{ fontSize: 12, fontWeight: 600, color: "#b91c1c", fontFamily: "Space Grotesk, sans-serif" }}>
+                        <span role="status" style={{ fontSize: FS.meta, fontWeight: FW.medio, color: TOM.perigo.text, fontFamily: FONT.display }}>
                           {splitSum < qty ? `Faltam ${qty - splitSum} unidades para distribuir` : `${splitSum - qty} unidades a mais`}
                         </span>
                       )}
@@ -1193,14 +1120,14 @@ export default function TriagemRetorno() {
               // guarda ONDE a peça fica no galpão). 16px no celular (abaixo
               // disso o Safari dá zoom ao focar).
               const campo = (faltando: boolean): React.CSSProperties => ({
-                minHeight: dedo ? 44 : 32, padding: "0 10px", borderRadius: 6,
-                border: `1px solid ${faltando ? "#fca5a5" : "#e2e8f0"}`,
-                fontSize: isMobile ? 16 : 12, fontFamily: "Plus Jakarta Sans, sans-serif",
-                background: faltando ? "#fff7f7" : "#f8fafc", color: "#0f172a",
+                minHeight: dedo ? 44 : 32, padding: "0 10px", borderRadius: R.sm,
+                border: `1px solid ${faltando ? TOM.perigo.border : T.border}`,
+                fontSize: isMobile ? FS.lead : FS.meta, fontFamily: FONT.corpo,
+                background: faltando ? TOM.perigo.bg : T.bg, color: T.text,
                 width: "100%", boxSizing: "border-box",
               });
               const notaEl = isSaved ? (
-                entry.notes ? <span style={{ fontSize: 12, color: "#475569" }}>{entry.notes}</span> : null
+                entry.notes ? <span style={{ fontSize: FS.meta, color: T.apoio }}>{entry.notes}</span> : null
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   <input data-testid={`input-notes-${asset.id}`}
@@ -1216,44 +1143,41 @@ export default function TriagemRetorno() {
                 </div>
               );
 
-              // #c2410c no hover (regra da casa: #f97316 nunca como cor de
-              // texto/ícone sobre claro) e #64748b em repouso — o #94a3b8
-              // dava 2,6:1 num ícone de ação.
+              // Abrir o detalhe: fantasma (lista densa), com o hover/foco da
+              // classe da casa — sai o par de onMouseEnter/Leave trocando cor.
               const verEl = (
-                <button
+                <Botao
+                  variante="fantasma"
+                  icone={Eye}
                   data-testid={`button-view-item-${asset.id}`}
                   onClick={e => { e.stopPropagation(); setSelectedAsset(asset); }}
                   title="Abrir triagem"
                   aria-label={`Abrir a triagem de ${asset.displayId}`}
-                  onMouseEnter={e => { e.currentTarget.style.color = "#c2410c"; e.currentTarget.style.background = "rgba(194,65,12,0.08)"; }}
-                  onMouseLeave={e => { e.currentTarget.style.color = "#64748b"; e.currentTarget.style.background = "transparent"; }}
-                  style={{ width: dedo ? 44 : 32, height: dedo ? 44 : 32, borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "color 0.15s, background 0.15s" }}>
-                  <Eye size={dedo ? 18 : 15} aria-hidden="true" />
-                </button>
+                  style={{ width: dedo ? 44 : 32, minHeight: dedo ? 44 : 32, padding: 0, flexShrink: 0, color: T.second }}
+                />
               );
+              // O Salvar da linha é a ação do bloco. Soma aberta trava o botão e
+              // o motivo fica escrito embaixo dele (o `title` não existe no toque).
               const salvarEl = isSaved ? (
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#15803d", fontSize: 13, fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: TOM.sucesso.text, fontSize: FS.body, fontFamily: FONT.display, fontWeight: FW.forte }}>
                   <CheckCircle2 size={15} aria-hidden="true" /> Salvo
                 </span>
               ) : (
-                <button data-testid={`button-save-triage-${asset.id}`}
-                  disabled={isSaving || !splitValid}
+                <Botao
+                  variante="primario"
+                  tamanho={dedo ? "toque" : "sm"}
+                  icone={Save}
+                  data-testid={`button-save-triage-${asset.id}`}
+                  disabled={!splitValid}
+                  carregando={isSaving}
+                  motivo={!splitValid ? `A soma deve ser ${qty}` : undefined}
+                  alinharMotivo="end"
                   onClick={e => { e.stopPropagation(); handleSingle(asset); }}
                   title={!splitValid ? `Soma deve ser ${qty}` : "Salvar (Enter)"}
-                  style={{
-                    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
-                    minHeight: dedo ? 44 : 32, padding: "0 14px", borderRadius: 8, border: "none",
-                    width: isMobile ? "100%" : undefined,
-                    // #c2410c: branco sobre #f97316 dava 2,8:1 (reprova AA).
-                    background: isSaving || !splitValid ? "#e2e8f0" : "#c2410c",
-                    color: isSaving || !splitValid ? "#64748b" : "#fff",
-                    fontSize: isMobile ? 14 : 12, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
-                    cursor: isSaving || !splitValid ? "not-allowed" : "pointer",
-                    boxShadow: !isSaving && splitValid ? "0 2px 8px rgba(194,65,12,0.25)" : "none",
-                    transition: "background-color 0.15s, box-shadow 0.15s", whiteSpace: "nowrap",
-                  }}>
-                  {isSaving ? "Salvando…" : <><Save size={13} aria-hidden="true" /> Salvar</>}
-                </button>
+                  larguraCheia={isMobile}
+                >
+                  {isSaving ? "Salvando…" : "Salvar"}
+                </Botao>
               );
 
               return { entry, isSaved, isFocused, alternarSelecao, checkboxEl, miniaturaEl, materialEl, eventoEl, patrocinadoresEl, togglesEl, notaEl, verEl, salvarEl };
@@ -1262,13 +1186,13 @@ export default function TriagemRetorno() {
             if (emCards) {
               return (
                 <>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "6px 14px", borderBottom: "1px solid #e2e8f0", background: "#f8fafc" }}>
-                  <span style={{ fontSize: 12, color: "#475569" }}>{linhasVisiveis.length} de {pendingAssets.length} na tela</span>
-                  <button type="button" data-testid="button-selecionar-visiveis-tabela" onClick={() => toggleAll(!allSelected)}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "6px 14px", borderBottom: `1px solid ${T.border}`, background: T.bg }}>
+                  <span style={{ fontSize: FS.meta, color: T.apoio }}>{linhasVisiveis.length} de {pendingAssets.length} na tela</span>
+                  <Botao variante="fantasma" tamanho="toque" data-testid="button-selecionar-visiveis-tabela" onClick={() => toggleAll(!allSelected)}
                     aria-pressed={allSelected}
-                    style={{ minHeight: 44, padding: "0 4px", background: "none", border: "none", fontSize: 13, fontWeight: 700, color: "#9a3412", cursor: "pointer" }}>
+                    style={{ fontSize: FS.body, color: T.accentText, padding: "0 6px" }}>
                     {allSelected ? "Desmarcar todas" : `Selecionar as ${linhasVisiveis.length} visíveis`}
-                  </button>
+                  </Botao>
                 </div>
                 <ul aria-label="Peças aguardando triagem" style={{ listStyle: "none", margin: 0, padding: 0 }}>
                   {linhas.map((asset, idx) => {
@@ -1279,9 +1203,9 @@ export default function TriagemRetorno() {
                         onClick={p.alternarSelecao}
                         style={{
                           display: "flex", flexDirection: "column", gap: 12, padding: "14px 14px 16px 11px",
-                          borderBottom: idx < linhas.length - 1 ? "1px solid #e2e8f0" : "none",
-                          borderLeft: realce ? "3px solid #c2410c" : "3px solid transparent",
-                          background: realce ? "#fff7ed" : "#fff",
+                          borderBottom: idx < linhas.length - 1 ? `1px solid ${T.border}` : "none",
+                          borderLeft: realce ? `3px solid ${T.accentText}` : "3px solid transparent",
+                          background: realce ? TOM.laranja.bg : T.surface,
                           opacity: p.isSaved ? 0.8 : 1, filter: p.isSaved ? "grayscale(0.5)" : "none",
                           cursor: p.isSaved ? "default" : "pointer",
                           transition: "background-color 0.12s",
@@ -1309,12 +1233,12 @@ export default function TriagemRetorno() {
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", minWidth: compacto ? 760 : 920 }}>
                   <thead>
-                    <tr style={{ background: "#f8fafc" }}>
+                    <tr style={{ background: T.bg }}>
                       <th style={{ ...TH, width: 44 }}>
                         <input type="checkbox" data-testid="checkbox-select-all"
                           aria-label="Selecionar todas as peças visíveis"
                           checked={allSelected} onChange={e => toggleAll(e.target.checked)}
-                          style={{ width: 16, height: 16, cursor: "pointer", accentColor: "#c2410c" }} />
+                          style={{ width: 16, height: 16, cursor: "pointer", accentColor: T.accentText }} />
                       </th>
                       {/* Entre 820 e 1180px de área útil, Evento e
                           Patrocinadores descem para dentro da célula do
@@ -1340,7 +1264,7 @@ export default function TriagemRetorno() {
                     {linhas.map((asset, idx) => {
                       const p = pecasDe(asset);
                       const { entry, isSaved, isFocused } = p;
-                      const baseRowBg = idx % 2 === 1 ? "#fafaf9" : "#ffffff";
+                      const baseRowBg = idx % 2 === 1 ? T.bg : T.surface;
                       return (
                         <tr key={asset.id} data-testid={`row-triage-${asset.id}`}
                           /* Sem role="button" no <tr>: a linha mantém a semântica
@@ -1350,15 +1274,14 @@ export default function TriagemRetorno() {
                             opacity: isSaved ? 0.8 : 1,
                             filter: isSaved ? "grayscale(0.5)" : "none",
                             // Selecionada tem realce próprio; foco e zebra são fallback.
-                            backgroundColor: entry.selected && !isSaved ? "#fff7ed"
-                              : isFocused && !isSaved ? "#f8fafc" : baseRowBg,
+                            backgroundColor: entry.selected && !isSaved ? TOM.laranja.bg
+                              : isFocused && !isSaved ? N.n2 : baseRowBg,
                             transition: "background-color 0.12s",
                             borderBottom: "1px solid rgba(226,232,240,0.6)",
-                            borderLeft: (entry.selected || isFocused) && !isSaved ? "3px solid #c2410c" : "3px solid transparent",
+                            borderLeft: (entry.selected || isFocused) && !isSaved ? `3px solid ${T.accentText}` : "3px solid transparent",
                             cursor: isSaved ? "default" : "pointer",
                           }}
-                          onMouseEnter={e => { if (!isSaved && !isFocused && !entry.selected) (e.currentTarget as HTMLTableRowElement).style.backgroundColor = "#f8fafc"; }}
-                          onMouseLeave={e => { if (!isSaved && !isFocused && !entry.selected) (e.currentTarget as HTMLTableRowElement).style.backgroundColor = baseRowBg; }}
+                          className={!isSaved && !isFocused && !entry.selected ? "triagem-linha" : undefined}
                         >
                           <td style={{ padding: "12px 14px", verticalAlign: "middle" }}>
                             {p.checkboxEl}
@@ -1414,14 +1337,14 @@ export default function TriagemRetorno() {
             );
           })()}
           {pendingAssets.length > linhasVisiveis.length && (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: isMobile ? "12px 14px" : "12px 24px", borderTop: "1px solid #e2e8f0", background: "#f8fafc" }}>
-              <span role="status" style={{ fontSize: 12.5, color: "#475569" }}>
-                Mostrando <strong style={{ color: "#0f172a", fontFamily: "Space Grotesk, sans-serif" }}>{linhasVisiveis.length}</strong> de <strong style={{ color: "#0f172a", fontFamily: "Space Grotesk, sans-serif" }}>{pendingAssets.length}</strong> peças — use os filtros para chegar na pilha certa
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: isMobile ? "12px 14px" : "12px 24px", borderTop: `1px solid ${T.border}`, background: T.bg }}>
+              <span role="status" style={{ fontSize: 12.5, color: T.apoio }}>
+                Mostrando <strong style={{ color: T.text, fontFamily: FONT.display }}>{linhasVisiveis.length}</strong> de <strong style={{ color: T.text, fontFamily: FONT.display }}>{pendingAssets.length}</strong> peças — use os filtros para chegar na pilha certa
               </span>
-              <button type="button" data-testid="mostrar-mais-tabela" onClick={() => setMostrando(n => n + LOTE_DA_TABELA)}
-                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 44, padding: "0 16px", borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: 13, fontWeight: 700, cursor: "pointer", width: isMobile ? "100%" : undefined }}>
-                <ChevronDown size={15} aria-hidden="true" /> Mostrar mais {Math.min(LOTE_DA_TABELA, pendingAssets.length - linhasVisiveis.length)}
-              </button>
+              <Botao tamanho="toque" icone={ChevronDown} data-testid="mostrar-mais-tabela" onClick={() => setMostrando(n => n + LOTE_DA_TABELA)}
+                larguraCheia={isMobile} style={{ fontSize: FS.body }}>
+                Mostrar mais {Math.min(LOTE_DA_TABELA, pendingAssets.length - linhasVisiveis.length)}
+              </Botao>
             </div>
           )}
         </div>
@@ -1445,15 +1368,17 @@ export default function TriagemRetorno() {
             flexWrap: isMobile ? "wrap" : "nowrap",
             justifyContent: isMobile ? "space-between" : "flex-start",
             padding: isMobile ? "10px 12px" : "10px 12px 10px 16px", borderRadius: isMobile ? 16 : 9999,
-            background: "#0f172a",
+            background: T.dark,
             boxShadow: "0 12px 40px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.06)",
           }}>
-            {/* Count badge — "1 item selecionados" corrigido para concordar. */}
+            {/* Count badge — "1 item selecionados" corrigido para concordar.
+                A pill é escura: os botões dela seguem nativos, porque nenhuma
+                variante do <Botao> foi desenhada para superfície escura. */}
             <div role="status" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#c2410c", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 12, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", fontVariantNumeric: "tabular-nums" }}>
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: T.accentText, display: "flex", alignItems: "center", justifyContent: "center", color: N.n0, fontSize: FS.meta, fontWeight: FW.forte, fontFamily: FONT.display, fontVariantNumeric: "tabular-nums" }}>
                 {selectedIds.length}
               </div>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "#f1f5f9", fontFamily: "Space Grotesk, sans-serif", whiteSpace: "nowrap" }}>
+              <span style={{ fontSize: FS.body, fontWeight: FW.medio, color: N.n2, fontFamily: FONT.display, whiteSpace: "nowrap" }}>
                 {selectedIds.length === 1 ? "item selecionado" : "itens selecionados"}
               </span>
             </div>
@@ -1464,15 +1389,15 @@ export default function TriagemRetorno() {
                 <div aria-hidden="true" style={{ width: 1, height: 24, background: "rgba(255,255,255,0.12)" }} />
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   <button data-testid="button-bulk-preset-perfeito" onClick={() => applyBulkPreset("PERFEITO", "NO_GALPAO")}
-                    style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 32, padding: "0 12px", borderRadius: 9999, border: "1px solid rgba(147,197,253,0.4)", background: "rgba(30,64,175,0.5)", color: "#bfdbfe", fontSize: 12, fontWeight: 600, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}>
+                    style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 32, padding: "0 12px", borderRadius: 9999, border: "1px solid rgba(147,197,253,0.4)", background: "rgba(30,64,175,0.5)", color: TOM.info.border, fontSize: FS.meta, fontWeight: FW.medio, fontFamily: FONT.display, cursor: "pointer", whiteSpace: "nowrap" }}>
                     <Sparkles size={12} aria-hidden="true" /> Perfeitos → Galpão
                   </button>
                   <button data-testid="button-bulk-preset-manutencao" onClick={() => applyBulkPreset("AVARIA_LEVE", "MANUTENCAO")}
-                    style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 32, padding: "0 12px", borderRadius: 9999, border: "1px solid rgba(252,211,77,0.4)", background: "rgba(146,64,14,0.45)", color: "#fde68a", fontSize: 12, fontWeight: 600, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}>
+                    style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 32, padding: "0 12px", borderRadius: 9999, border: "1px solid rgba(252,211,77,0.4)", background: "rgba(146,64,14,0.45)", color: TOM.alerta.border, fontSize: FS.meta, fontWeight: FW.medio, fontFamily: FONT.display, cursor: "pointer", whiteSpace: "nowrap" }}>
                     <Wrench size={12} aria-hidden="true" /> Avaria → Manutenção
                   </button>
                   <button data-testid="button-bulk-preset-sucata" onClick={() => applyBulkPreset("SUCATA", "DESCARTADO")}
-                    style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 32, padding: "0 12px", borderRadius: 9999, border: "1px solid rgba(252,165,165,0.4)", background: "rgba(185,28,28,0.45)", color: "#fecaca", fontSize: 12, fontWeight: 600, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}>
+                    style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 32, padding: "0 12px", borderRadius: 9999, border: "1px solid rgba(252,165,165,0.4)", background: "rgba(185,28,28,0.45)", color: TOM.perigo.border, fontSize: FS.meta, fontWeight: FW.medio, fontFamily: FONT.display, cursor: "pointer", whiteSpace: "nowrap" }}>
                     <Trash2 size={12} aria-hidden="true" /> Sucata → Descartar
                   </button>
                 </div>
@@ -1483,13 +1408,13 @@ export default function TriagemRetorno() {
             <div style={{ display: "flex", gap: 8, flex: isMobile ? "1 1 100%" : undefined }}>
               <button data-testid="button-bulk-confirm" onClick={() => handleBulk()}
                 disabled={savingIds.size > 0}
-                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: dedo ? 44 : 36, padding: "0 16px", flex: isMobile ? 1 : undefined, borderRadius: 9999, border: "none", background: savingIds.size > 0 ? "#64748b" : "#15803d", color: "#fff", fontSize: 13, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: savingIds.size > 0 ? "not-allowed" : "pointer", whiteSpace: "nowrap", boxShadow: "0 2px 8px rgba(21,128,61,0.3)", transition: "background-color 0.15s" }}>
+                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: dedo ? 44 : 36, padding: "0 16px", flex: isMobile ? 1 : undefined, borderRadius: R.pill, border: "none", background: savingIds.size > 0 ? T.second : TOM.sucesso.text, color: N.n0, fontSize: FS.body, fontWeight: FW.forte, fontFamily: FONT.display, cursor: savingIds.size > 0 ? "not-allowed" : "pointer", whiteSpace: "nowrap", boxShadow: "0 2px 8px rgba(21,128,61,0.3)", transition: "background-color 0.15s" }}>
                 <CheckCircle2 size={14} aria-hidden="true" /> {savingIds.size > 1 ? `Registrando ${gravadasDoLote} de ${savingIds.size}…` : savingIds.size > 0 ? "Registrando…" : "Confirmar triagem"}
               </button>
               {/* "Cancelar" soava como desfazer a triagem; o botão só
                   desmarca as linhas (o que foi preenchido nelas fica). */}
               <button data-testid="button-bulk-cancel" onClick={() => toggleAll(false)}
-                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, height: dedo ? 44 : 36, padding: "0 14px", borderRadius: 9999, border: "1px solid rgba(255,255,255,0.18)", background: "transparent", color: "#e2e8f0", fontSize: 13, fontWeight: 600, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}>
+                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, height: dedo ? 44 : 36, padding: "0 14px", borderRadius: R.pill, border: "1px solid rgba(255,255,255,0.18)", background: "transparent", color: T.border, fontSize: FS.body, fontWeight: FW.medio, fontFamily: FONT.display, cursor: "pointer", whiteSpace: "nowrap" }}>
                 <X size={13} aria-hidden="true" /> Limpar seleção
               </button>
             </div>
@@ -1530,7 +1455,7 @@ export default function TriagemRetorno() {
           </AlertDialogHeader>
           <AlertDialogFooter style={{ gap: 8 }}>
             <AlertDialogCancel data-testid="button-rever-descarte" style={{ minHeight: 44 }}>Rever</AlertDialogCancel>
-            <AlertDialogAction data-testid="button-confirmar-descarte" style={{ minHeight: 44, background: "#b91c1c", color: "#fff" }}
+            <AlertDialogAction data-testid="button-confirmar-descarte" style={{ minHeight: 44, background: TOM.perigo.text, color: N.n0 }}
               onClick={async () => {
                 const d = descarte;
                 setDescarte(null);
@@ -1549,9 +1474,12 @@ export default function TriagemRetorno() {
 
       {/* Iguala o trigger do EventFilterDropdown aos demais filtros (44px de
           altura e largura total) — componente compartilhado, sem prop de estilo. */}
+      {/* Hover da linha da tabela em CSS (var --n2 = N.n2), no lugar do par
+          onMouseEnter/Leave que escrevia a cor na mão. */}
       <style>{`
         .event-filter-44 > div { width: 100%; }
         .event-filter-44 > div > button { height: 44px !important; width: 100%; }
+        .triagem-linha:hover { background-color: var(--n2) !important; }
       `}</style>
     </div>
   );

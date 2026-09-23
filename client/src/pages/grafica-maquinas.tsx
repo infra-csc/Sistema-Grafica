@@ -30,11 +30,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useIsMutating, useMutation } from "@tanstack/react-query";
 import { Link, useLocation, useSearch } from "wouter";
-import { AlertTriangle, ArrowLeft, ArrowRight, Printer, RotateCcw } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, HelpCircle, Printer, RotateCcw } from "lucide-react";
 import { useIsMobile, useDensidadeDoConteudo, densityFromWidth, usePonteiroGrosso, alvo as alvoDe } from "@/hooks/use-mobile";
 import { Botao } from "@/components/ui/botao";
 import { Abas } from "@/components/ui/abas";
 import { EstadoVazio } from "@/components/ui/estados";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -296,6 +297,8 @@ export default function GraficaMaquinas() {
   // PEÇAS, não linhas de cartão: a peça dividida aparece no cartão de cada
   // impressora, mas é UMA peça — o mesmo número do card "Em Impressão" da Gráfica.
   const totalImprimindo = pecasEmImpressao.length;
+  // A linha de estado do topo: impressoras com peça (a mesma régua do "Imprimindo" do cartão).
+  const impressorasImprimindo = maquinas.filter((m) => m.imprimindo.length > 0).length;
   // "Liberados" da Gráfica = peças liberadas, com ou sem impressora reservada.
   // Aqui elas se dividem entre a fila geral e as filas dos cartões (a mesma
   // peça pode estar nas duas, com unidades diferentes) — o número é o de lá.
@@ -452,10 +455,33 @@ export default function GraficaMaquinas() {
               </Link>
             </div>
           </div>
-          <p style={{ margin: 0, fontSize: FS.body, color: T.second, maxWidth: 680 }}>
-            O que cada impressora está imprimindo agora, a fila do que vem, o resumo do período e o diário do que saiu de cada uma.
-            {podeAgir && " Daqui você reserva impressora, inicia, informa as impressas, manda para o acabamento ou troca de máquina."}
-          </p>
+          {/* UMA linha de ESTADO, como o subtítulo das outras telas; o que a
+              tela faz mora no "?" ao lado (à mão, sem ocupar três linhas). */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: FS.body, lineHeight: 1.45, color: T.second }}>
+            {data && (
+              <span data-testid="estado-maquinas">
+                {`${impressorasImprimindo} de ${maquinas.length} impressoras imprimindo · ${plural(liberadasNaTela, "peça", "peças")} na fila`}
+              </span>
+            )}
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="O que a tela Máquinas mostra e o que dá para fazer nela"
+                  data-testid="button-como-funciona-maquinas"
+                  style={{ width: alvoDe(28, toque), height: alvoDe(28, toque), borderRadius: R.pill, border: "none", background: "transparent", color: T.apoio, display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, margin: "-4px 0" }}
+                >
+                  <HelpCircle aria-hidden="true" style={{ width: 16, height: 16 }} />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="start" data-testid="explicacao-maquinas" style={{ width: 300, maxWidth: "calc(100vw - 32px)", padding: 14 }}>
+                <p style={{ margin: 0, fontSize: FS.body, color: T.strong, lineHeight: 1.5 }}>
+                  O que cada impressora está imprimindo agora, a fila do que vem, o resumo do período e o diário do que saiu de cada uma.
+                  {podeAgir && " Daqui você reserva impressora, inicia, informa as impressas, manda para o acabamento ou troca de máquina."}
+                </p>
+              </PopoverContent>
+            </Popover>
+          </div>
         </header>
 
         {/* As abas: o MESMO <Abas> da Gráfica (Fila | Tubos) e da aba Tubos —

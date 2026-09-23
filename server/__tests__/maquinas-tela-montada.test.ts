@@ -1397,3 +1397,44 @@ describe("a aba Máquinas no celular", () => {
     expect(miudas.map((e) => `${e.textContent?.slice(0, 30)} (${e.style.fontSize})`)).toEqual([]);
   });
 });
+
+describe("o topo: UMA linha de estado; o que a tela faz mora no '?'", () => {
+  const clicar = async (el: HTMLElement | null) => {
+    expect(el).not.toBeNull();
+    await act(async () => {
+      fireEvent.pointerDown(el!, { button: 0, pointerType: "mouse" });
+      fireEvent.click(el!);
+    });
+    await tick(20);
+  };
+
+  it("desktop: o subtítulo é o estado (impressoras imprimindo · peças na fila) e a explicação abre no '?'", async () => {
+    await montar(1280, retrato({ fila: true }));
+    // 1 das 4 imprimindo; 5 liberadas (3 na fila geral + 2 reservadas à Impressora 2).
+    expect($('[data-testid="estado-maquinas"]')!.textContent).toBe("1 de 4 impressoras imprimindo · 5 peças na fila");
+    expect(document.body.textContent).not.toContain("O que cada impressora está imprimindo agora");
+    const ajuda = $('[data-testid="button-como-funciona-maquinas"]')!;
+    expect(ajuda.getAttribute("aria-label")).toBeTruthy();
+    expect(ajuda.getAttribute("aria-expanded")).toBe("false");
+    await clicar(ajuda);
+    expect(ajuda.getAttribute("aria-expanded")).toBe("true");
+    const texto = $('[data-testid="explicacao-maquinas"]')!.textContent ?? "";
+    expect(texto).toContain("O que cada impressora está imprimindo agora");
+    expect(texto).toContain("Daqui você reserva impressora");
+  });
+
+  it("a Solicitação lê a explicação sem a frase do que dá para fazer", async () => {
+    papel.atual = "solicitacao";
+    await montar(1280, retrato());
+    expect($('[data-testid="estado-maquinas"]')!.textContent).toBe("1 de 4 impressoras imprimindo · 0 peças na fila");
+    await clicar($('[data-testid="button-como-funciona-maquinas"]'));
+    expect($('[data-testid="explicacao-maquinas"]')!.textContent).not.toContain("Daqui você reserva");
+  });
+
+  it("celular: o '?' tem alvo de 44px", async () => {
+    await montar(390, retrato());
+    const ajuda = $('[data-testid="button-como-funciona-maquinas"]')!;
+    expect(px(ajuda.style.width)).toBe(44);
+    expect(px(ajuda.style.height)).toBe(44);
+  });
+});

@@ -284,8 +284,17 @@ const TELA_DA_PAGINA: Record<string, Tela> = {
   "client/src/pages/painel-geral.tsx": "painel",
   "client/src/pages/eventos.tsx": "eventos",
 };
+// Arte, Revisão Final e Vinculação também viraram composição, com o apoio
+// próprio (fonte-das-telas-da-arte.ts): a página + components/arte|revisao|vinculacao.
+const PAGINAS_DE_AREA = new Set([
+  "client/src/pages/arte.tsx",
+  "client/src/pages/solicitacao.tsx",
+  "client/src/pages/vincular-patrocinadores.tsx",
+]);
 const fonteDoContrato = (arquivo: string) =>
-  TELA_DA_PAGINA[arquivo] ? fonteDaTela(TELA_DA_PAGINA[arquivo]) : fonteDoComponente(arquivo);
+  TELA_DA_PAGINA[arquivo] ? fonteDaTela(TELA_DA_PAGINA[arquivo])
+  : PAGINAS_DE_AREA.has(arquivo) ? lerTelaOuArquivo(arquivo)
+  : fonteDoComponente(arquivo);
 
 describe("nenhuma revisão de design leva uma capacidade junto", () => {
   for (const [arquivo, esperados] of Object.entries(CONTRATO)) {

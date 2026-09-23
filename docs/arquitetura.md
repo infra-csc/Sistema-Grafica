@@ -107,6 +107,31 @@ fica em `session.papelReal` — e é `papelReal`, não `userRole`, que autoriza 
 próxima troca; senão o primeiro "ver como" trancaria o admin fora do botão de
 voltar. Tudo que ele fizer entra na trilha como "Ana (como Gráfica)".
 
+### Integração com o Checklist de Arena (23/09)
+
+Um terceiro caminho, **sem sessão e só de leitura**: o app Checklist de Arena
+(outro servidor) lê as peças da Arena já entregues para conferir na montagem.
+Ele não ganha login de usuário — um login daria a ele tudo o que aquela pessoa
+vê e escreve. Ganha um token que abre só `/api/integracao/checklist/*`
+(`server/routes/integracao-checklist.ts`):
+
+* `Authorization: Bearer <CHECKLIST_INTEGRACAO_TOKEN>`, comparado por digest
+  sha256 + `timingSafeEqual` (tempo constante, sem revelar o tamanho).
+* Variável ausente ou com menos de 32 caracteres → **503**, integração
+  desligada (falha fechada). Token errado ou ausente → **401**, com log de quem
+  bateu — nunca do token. Toda resposta sai com `Cache-Control: no-store`.
+* Fora do GET → 405; caminho desconhecido do prefixo → 404 em JSON.
+
+| Rota | Devolve |
+| --- | --- |
+| `GET /api/integracao/checklist/eventos` | `{ eventos: [{ id, nome, inicio, saidaCaminhao, status, pecasEntregues }] }` — eventos com início nos últimos 120 dias e ao menos uma peça da Arena entregue, do mais recente para o mais antigo; `pecasEntregues` conta peças (linhas), não unidades |
+| `GET /api/integracao/checklist/eventos/:id/entregues` | `{ evento, geradoEm, itens: [{ id, codigo, grupo, tipo, descricao, material, acabamento, medida, quantidade, quantidadeEntregue, status, entregueEm, recebidoPor, volumes }] }` — na ordem da Revisão Final; `volumes` são os números dos volumes já entregues com a peça (avulso é negativo). 404 se o evento não existe |
+
+"Peça da Arena entregue" é `shared/integracao-checklist.ts`: não excluída, sem
+remessa do Kit, não é book completo, não cancelada, e com **unidade entregue**
+(parcial conta; legado entregue com `delivered_qty` 0 vale a quantidade toda).
+A lista de eventos repete a regra em SQL — mexeu numa, mexa na outra.
+
 ---
 
 ## Tempo real: LISTEN/NOTIFY

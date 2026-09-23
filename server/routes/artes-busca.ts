@@ -49,6 +49,7 @@ import {
 } from "@shared/artes-parecidas";
 import { requireRole } from "./shared";
 import { urlDeThumbValida } from "./thumb-url";
+import { doEventoNaoArquivado } from "../services/arquivamento";
 
 // Mexer na Arte é de `arte` e `admin` (shared/permissoes.ts: update-thumb,
 // update-final-file, submit-final-file, submit-for-approval). Quem não pode
@@ -186,6 +187,8 @@ export function registerArtesBuscaRoutes(app: Express) {
       //     esconderia justamente a arte do Bradesco de dois anos atrás.
       const base = [
         isNull(itemsTable.deletedAt),
+        // Arte de evento arquivado não é sugerida: o evento sumiu das telas.
+        doEventoNaoArquivado(itemsTable.eventId),
         // "Peça COM arte" = tem thumb de aprovação ou prévia do final. O
         // arquivo final sozinho não entra: sem imagem não há o que conferir
         // no olho antes de reaproveitar.
@@ -391,6 +394,7 @@ export function registerArtesBuscaRoutes(app: Express) {
         .leftJoin(events, eq(events.id, itemsTable.eventId))
         .where(and(
           isNull(itemsTable.deletedAt),
+          doEventoNaoArquivado(itemsTable.eventId),
           ne(itemsTable.id, alvo.id),
           isNotNull(itemsTable.finalFileUrl),
           sql`${itemsTable.finalFileUrl} <> ''`,

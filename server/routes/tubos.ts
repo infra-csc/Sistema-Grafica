@@ -61,6 +61,7 @@ import { aEmbalar, planejarEmbalar, planejarEntrega, planejarRetirada, problemaN
 import { pecaTravada, fraseDaTrava } from "@shared/trava-da-peca";
 import { pecaVisivelPara } from "@shared/kit";
 import { urlDeThumbValida } from "./thumb-url";
+import { doEventoNaoArquivado, EVENTO_ARQUIVADO_ERRO } from "../services/arquivamento";
 import { entregarEmLote, idsDoLote, MAXIMO_DO_LOTE } from "../services/entrega-em-lote";
 import {
   requireAuth,
@@ -186,6 +187,9 @@ async function travarTubo(tx: Ex, tuboId: string, recadoEntregue?: (t: Volume) =
   const [tubo] = await tx.select().from(tubos).where(eq(tubos.id, tuboId)).for("update");
   if (!tubo) throw new Recusa(404, "Tubo não encontrado");
   if (tubo.entregueEm) throw new Recusa(409, recadoEntregue ? recadoEntregue(tubo) : `${oVolume(tubo)} já foi entregue`);
+  // Volume de evento ARQUIVADO não se mexe: o evento sumiu das telas.
+  const [doEvento] = await tx.select({ arquivadoEm: events.arquivadoEm }).from(events).where(eq(events.id, tubo.eventId));
+  if (doEvento?.arquivadoEm) throw new Recusa(409, EVENTO_ARQUIVADO_ERRO);
   return tubo;
 }
 
@@ -208,7 +212,11 @@ async function depoisDoCommit(oQue: string, fazer: () => Promise<unknown>): Prom
 
 /** Os volumes que as listas enxergam: todo volume ABERTO e o entregue há até 60 dias. */
 const JANELA_DE_DIAS = 60;
-const volumeNaJanela = () => or(isNull(tubos.entregueEm), gte(tubos.entregueEm, sql`now() - (${JANELA_DE_DIAS} * interval '1 day')`));
+// Volume de evento arquivado fica fora das listas, como o evento.
+const volumeNaJanela = () => and(
+  or(isNull(tubos.entregueEm), gte(tubos.entregueEm, sql`now() - (${JANELA_DE_DIAS} * interval '1 day')`)),
+  doEventoNaoArquivado(tubos.eventId),
+);
 
 /** Tubo já fotografado que teve o conteúdo mexido: a foto pode não bater mais. */
 async function marcarConteudoAlterado(tubo: { id: string; fechadoEm: Date | null }, agora: Date, ex: Ex = db) {
@@ -540,7 +548,8 @@ export function registerTubosRoutes(app: Express): void {
     if (!podeMexerEmTubo(req)) return res.status(403).json({ error: SEM_PAPEL });
     try {
       const eventId = req.params.eventId;
-      const [evento] = await db.select({ id: events.id, name: events.name }).from(events).where(eq(events.id, eventId));
+      // Arquivado responde como inexistente: sumiu de todas as listas.
+      const [evento] = await db.select({ id: events.id, name: events.name }).from(events).where(and(eq(events.id, eventId), isNull(events.arquivadoEm)));
       if (!evento) return res.status(404).json({ error: "Evento não encontrado" });
 
       const lista = await db.select().from(tubos).where(eq(tubos.eventId, eventId)).orderBy(asc(tubos.numero));
@@ -726,7 +735,10 @@ export function registerTubosRoutes(app: Express): void {
       const doKit = quemVe(req).kit;
 
       const quando = sql`coalesce(${tubos.entregueEm}, ${tubos.fechadoEm}, ${tubos.createdAt})`;
-      const filtros: any[] = [sql`(${tubos.entregueEm} is not null or coalesce(array_length(${tubos.fotosFechamento}, 1), 0) > 0)`];
+      const filtros: any[] = [
+        sql`(${tubos.entregueEm} is not null or coalesce(array_length(${tubos.fotosFechamento}, 1), 0) > 0)`,
+        doEventoNaoArquivado(tubos.eventId),
+      ];
       if (desde) filtros.push(sql`coalesce(${tubos.entregueEm}, ${tubos.fechadoEm}) >= ${desde}`);
       if (eventos.length) filtros.push(inArray(tubos.eventId, eventos));
       if (itemId) filtros.push(sql`${tubos.id} in (select ${tuboItens.tuboId} from ${tuboItens} where ${tuboItens.itemId} = ${itemId})`);
@@ -808,8 +820,9 @@ export function registerTubosRoutes(app: Express): void {
     let criado: any = null;
     try {
       const eventId = req.params.eventId;
-      const [evento] = await db.select({ id: events.id, name: events.name }).from(events).where(eq(events.id, eventId));
+      const [evento] = await db.select({ id: events.id, name: events.name, arquivadoEm: events.arquivadoEm }).from(events).where(eq(events.id, eventId));
       if (!evento) return res.status(404).json({ error: "Evento não encontrado" });
+      if (evento.arquivadoEm) return res.status(409).json({ error: EVENTO_ARQUIVADO_ERRO });
 
       // Pré-checagem (frase boa e nada criado à toa); a conta que VALE é a de
       // dentro da transação, com as peças travadas.

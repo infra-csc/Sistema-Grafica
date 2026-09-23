@@ -350,13 +350,25 @@ CREATE UNIQUE INDEX IF NOT EXISTS "UQ_item_sponsor_approvals_peca_patrocinador" 
 -- No Autoscale cada cópia contava as tentativas sozinha (10 viravam 10×N).
 -- O servidor conta aqui (server/routes/shared.ts): uma linha por chave
 -- (hash de IP ou de e-mail, nunca o texto), contagem e fim da janela; o
--- próprio servidor apaga as janelas vencidas. Fica FORA de shared/schema.ts:
--- um `db:push` a DERRUBA — rode esta migração de novo depois de qualquer
--- push. Sem a tabela, o login segue contando na memória de cada cópia, com
--- aviso no log.
+-- próprio servidor apaga as janelas vencidas. Declarada em shared/schema.ts
+-- (migração versionada 0002). Sem a tabela, o login segue contando na memória
+-- de cada cópia, com aviso no log.
 CREATE TABLE IF NOT EXISTS limite_de_tentativas (
   chave text PRIMARY KEY,
   contagem integer NOT NULL,
   reinicia_em timestamptz NOT NULL
 );
 CREATE INDEX IF NOT EXISTS "IDX_limite_de_tentativas_reinicia_em" ON limite_de_tentativas (reinicia_em);
+
+-- ── Arquivar no lugar de excluir (eventos e patrocinadores) ─────────────
+-- Excluir apagava a linha e, por ON DELETE CASCADE, levava junto peças,
+-- aprovações, impressões e tubos — sem volta. Agora "excluir" arquiva: a linha
+-- fica, some das listas e restaura com um clique. Nullable, sem default e sem
+-- preencher nada: todo evento e patrocinador existente continua vivo.
+-- As FKs em cascata NÃO mudam aqui (mudar constraint não é aditivo); o código
+-- apenas deixou de apagar a linha.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS arquivado_em timestamp;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS arquivado_por text;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS restaurado_em timestamp;
+ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS arquivado_em timestamp;
+ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS arquivado_por text;

@@ -61,6 +61,8 @@ export function registerBuscaRoutes(app: Express): void {
           .leftJoin(events, sql`${events.id} = ${items.eventId}`)
           .where(and(
             isNull(items.deletedAt),
+            // Evento arquivado some da busca também (peças e o próprio evento).
+            isNull(events.arquivadoEm),
             or(
               ilike(items.displayId, padraoCodigo),
               ilike(items.description, padraoTexto),
@@ -78,7 +80,7 @@ export function registerBuscaRoutes(app: Express): void {
         db
           .select({ id: events.id, name: events.name, truckDepartureDate: events.truckDepartureDate })
           .from(events)
-          .where(ilike(events.name, padraoTexto))
+          .where(and(ilike(events.name, padraoTexto), isNull(events.arquivadoEm)))
           .orderBy(desc(events.truckDepartureDate))
           .limit(BUSCA_MAX_EVENTOS),
       ]);

@@ -59,6 +59,14 @@
 import { storage } from "../storage";
 import { motivoEventoFinalizado, todayBusinessMs } from "@shared/prazo-dates";
 import type { EventoFinalizadoMotivo } from "@shared/prazo-dates";
+import { EVENTO_ARQUIVADO_ERRO } from "../services/arquivamento";
+
+/**
+ * Os motivos do servidor para barrar escrita em peça: os dois de
+ * shared/prazo-dates (que as telas também usam) e o ARQUIVADO, que só o
+ * servidor conhece — evento arquivado nem chega às telas.
+ */
+export type MotivoBloqueioDoEvento = EventoFinalizadoMotivo | "arquivado";
 
 /**
  * Bloqueio por encerramento À MÃO — esse tem volta, então a frase oferece.
@@ -91,8 +99,11 @@ export const EVENTO_REALIZADO_ERRO =
  * evento encerrado), isto é, invisível para quem teria de fazê-la.
  */
 export function motivoEventoFechado(
-  event: { status?: string | null; startDate?: string | Date | null; manuallyClosed?: boolean | null } | null | undefined,
-): EventoFinalizadoMotivo | null {
+  event: { status?: string | null; startDate?: string | Date | null; manuallyClosed?: boolean | null; arquivadoEm?: string | Date | null } | null | undefined,
+): MotivoBloqueioDoEvento | null {
+  // ARQUIVADO vem antes de tudo e barra até o que "arruma a casa": o evento
+  // sumiu das telas, e mexer nele às cegas é pior do que restaurar primeiro.
+  if (event?.arquivadoEm) return "arquivado";
   // Fonte ÚNICA: o mesmo predicado que a Gestão de Prazos e as cinco filas
   // usam. Antes daqui só o encerramento manual barrava, então dava para
   // cadastrar peça num evento do mês passado — e ela nascia invisível
@@ -102,14 +113,15 @@ export function motivoEventoFechado(
 }
 
 /** Cada motivo tem a sua frase: encerrado tem volta, realizado não tem. */
-export function erroEventoFechado(motivo: EventoFinalizadoMotivo): string {
+export function erroEventoFechado(motivo: MotivoBloqueioDoEvento): string {
+  if (motivo === "arquivado") return EVENTO_ARQUIVADO_ERRO;
   return motivo === "encerrado" ? EVENTO_ENCERRADO_ERRO : EVENTO_REALIZADO_ERRO;
 }
 
 /** Motivo da finalização do evento DONO da peça. `null` = evento ainda em jogo. */
 export async function motivoEventoDaPeca(
   item: { eventId?: string | null } | null | undefined,
-): Promise<EventoFinalizadoMotivo | null> {
+): Promise<MotivoBloqueioDoEvento | null> {
   if (!item?.eventId) return null;
   return motivoEventoFechado(await storage.getEvent(item.eventId));
 }
@@ -144,10 +156,10 @@ export async function barraEventoFinalizado(
  */
 export function contadorDeBloqueio() {
   let bloqueados = 0;
-  let motivo: EventoFinalizadoMotivo | null = null;
+  let motivo: MotivoBloqueioDoEvento | null = null;
   return {
     /** Registra um item barrado e devolve a frase para a lista de erros. */
-    registra(m: EventoFinalizadoMotivo): string {
+    registra(m: MotivoBloqueioDoEvento): string {
       bloqueados += 1;
       motivo ??= m;
       return erroEventoFechado(m);
@@ -159,4 +171,21 @@ export function contadorDeBloqueio() {
       return true;
     },
   };
+}
+
+/**
+ * Só o ARQUIVADO, para as rotas que "arrumam a casa" (excluir/restaurar peça,
+ * conferir, entregar, cancelar complemento) e por isso não passam pela guarda
+ * de finalizado. Evento arquivado sumiu das telas: nem a arrumação vale antes
+ * de restaurá-lo.
+ */
+export async function barraEventoArquivado(
+  item: { eventId?: string | null } | null | undefined,
+  res: { status: (c: number) => any },
+): Promise<boolean> {
+  if (!item?.eventId) return false;
+  const evento = await storage.getEvent(item.eventId);
+  if (!evento?.arquivadoEm) return false;
+  res.status(409).json({ error: EVENTO_ARQUIVADO_ERRO, code: "EVENT_FINALIZED", reason: "arquivado" });
+  return true;
 }

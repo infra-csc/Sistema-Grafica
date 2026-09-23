@@ -5,6 +5,7 @@ import { excluirPecaTirandoDosVolumes, ehRecusaDeTubo } from "../tubos";
 import { liberarReservasDasPecas } from "../estoque-reservas";
 import { requireAuth, broadcast, createAuditLog, updateEventStatus } from "../shared";
 import { responderFalha } from "../../erros";
+import { barraEventoArquivado } from "../eventoFinalizado";
 
 /** POST /api/items/:id/restore. */
 export function registrarRestauracao(app: Express): void {
@@ -22,6 +23,7 @@ export function registrarRestauracao(app: Express): void {
       if (req.userRole !== "admin") {
         return res.status(403).json({ error: "Apenas administradores podem restaurar peças" });
       }
+      if (await barraEventoArquivado(await storage.getItem(req.params.id), res)) return;
       const restored = await storage.restoreItem(req.params.id);
       if (!restored) {
         return res.status(404).json({ error: "Peça não encontrada ou não está excluída" });
@@ -67,6 +69,7 @@ export function registrarExclusao(app: Express): void {
       if (!item) {
         return res.status(404).json({ error: "Peça não encontrada" });
       }
+      if (await barraEventoArquivado(item, res)) return;
 
       // ── Alcance da exclusão: solicitação = admin (decisão do dono) ────────
       // Havia uma lista de status bloqueados só para a solicitação, e ela

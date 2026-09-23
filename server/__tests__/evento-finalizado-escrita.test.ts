@@ -561,7 +561,8 @@ const SEM_GUARDA_POR_DESENHO: Record<string, string> = {
   // peça. Ficaram de fora do recorte desta guarda de propósito.
   "POST /api/sponsors": "cadastro global de patrocinador, não é peça",
   "PATCH /api/sponsors/:id": "cadastro global de patrocinador, não é peça",
-  "DELETE /api/sponsors/:id": "cadastro global de patrocinador, não é peça",
+  "DELETE /api/sponsors/:id": "cadastro global de patrocinador (arquiva, não apaga), não é peça",
+  "POST /api/sponsors/:id/restaurar": "desfaz o arquivamento do cadastro de patrocinador, não é peça",
   "PUT /api/events/:id/quota-rules": "regra de cota do evento, não estado de peça",
   "DELETE /api/events/:id/quota-rules/:quota": "regra de cota do evento, não estado de peça",
   "PUT /api/quota-rules/global": "regra de cota global, não estado de peça",
@@ -577,7 +578,8 @@ const SEM_GUARDA_POR_DESENHO: Record<string, string> = {
   "POST /api/events": "cria evento NOVO — não existe evento anterior para checar finalização",
   "PATCH /api/events/:id": "edita dados do evento (datas, nome, prazos) e explicitamente NÃO grava `status` (ver _statusIgnorado); é também o único caminho para corrigir um cadastro ruim (ex.: ano digitado errado) que tornou o evento 'realizado' por engano — barrar aqui fecharia a única saída de correção, já que 'realizado' não tem reabrir",
   "PATCH /api/events/:id/priority": "só reordena a fila de prioridade; evento finalizado já saiu das filas de trabalho por outro caminho (lifecycle), então não faz nenhum trabalho andar",
-  "DELETE /api/events/:id": "exclusão do evento é limpeza (mesma categoria de excluir peça, que esta guarda já libera de propósito) — admin only",
+  "DELETE /api/events/:id": "exclusão do evento ARQUIVA (limpeza reversível, mesma categoria de excluir peça, que esta guarda já libera de propósito) — admin only",
+  "POST /api/events/:id/restaurar": "desfaz o arquivamento — é a válvula do arquivado, como o reopen é a do encerrado; admin only",
   "POST /api/events/:id/close": "é a própria trava manual — precisa funcionar mesmo num evento já 'realizado' pela data, para alguém poder fechá-lo formalmente",
   "POST /api/events/:id/reopen": "é a válvula que desfaz o bloqueio; por definição nunca é barrada",
 };

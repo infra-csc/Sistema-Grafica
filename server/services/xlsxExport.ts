@@ -288,7 +288,8 @@ async function writeWorkbook(
 export async function handleExportItemsXlsx(req: Request, res: Response) {
   try {
     const event = await storage.getEvent(req.params.id);
-    if (!event) return res.status(404).json({ error: "Evento não encontrado" });
+    // Arquivado responde como inexistente: sumiu de todas as listas.
+    if (!event || event.arquivadoEm) return res.status(404).json({ error: "Evento não encontrado" });
 
     // Usuário do Kit (14/09): exporta só as peças do Kit que ele criou.
     const doKit = (req as any).userKit === true;
@@ -351,7 +352,9 @@ export async function handleExportSelectedItemsXlsx(req: Request, res: Response)
       else sponsorsByItem.set(link.itemId, [name]);
     });
 
+    // Peça de evento arquivado não sai na planilha (getAllEvents não o traz).
     const items = raw
+      .filter(i => eventNames.has(i.eventId))
       .map(i => ({
         ...i,
         eventName: eventNames.get(i.eventId) ?? "",

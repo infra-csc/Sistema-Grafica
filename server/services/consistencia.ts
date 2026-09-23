@@ -179,7 +179,11 @@ export async function verificarConsistencia(): Promise<RetratoDaConsistencia> {
   const achados: Achado[] = [];
   for (const v of VERIFICACOES) {
     try {
-      const resultado: any = await db.execute(v.sql);
+      // Peça de evento ARQUIVADO fica fora do retrato: o admin não a acha em
+      // tela nenhuma para resolver (restaurar o evento a traz de volta).
+      const resultado: any = await db.execute(sql`select c.display_id from (${v.sql}) c
+        where not exists (select 1 from items ia join events ea on ea.id = ia.event_id
+          where ia.display_id = c.display_id and ea.arquivado_em is not null)`);
       const linhas = (resultado?.rows ?? resultado ?? []) as Array<{ display_id: string | null }>;
       if (linhas.length === 0) continue;
       achados.push({

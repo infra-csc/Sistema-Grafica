@@ -1,6 +1,7 @@
 import { db } from "../db";
 import { items, itemSponsors, eventSponsors, sponsors, events, auditLogs } from "@shared/schema";
-import { isNull } from "drizzle-orm";
+import { and, isNull } from "drizzle-orm";
+import { doEventoNaoArquivado } from "./arquivamento";
 
 type DatabaseLike = {
   select: typeof db.select;
@@ -23,15 +24,18 @@ async function encontrarPendencias(database: DatabaseLike): Promise<VinculoEvent
   const [vinculosDePeca, vinculosDeEvento, pecas, cadastro, eventosTodos] = await Promise.all([
     database.select().from(itemSponsors),
     database.select().from(eventSponsors),
+    // Evento arquivado não recebe reparo (não aceita escrita).
     database.select({ id: items.id, eventId: items.eventId, displayId: items.displayId })
       .from(items)
-      .where(isNull(items.deletedAt)),
-    database.select({ id: sponsors.id, name: sponsors.name }).from(sponsors),
+      .where(and(isNull(items.deletedAt), doEventoNaoArquivado(items.eventId))),
+    database.select({ id: sponsors.id, name: sponsors.name, arquivadoEm: sponsors.arquivadoEm }).from(sponsors),
     database.select({ id: events.id, name: events.name }).from(events),
   ]);
 
   const pecaPorId = new Map(pecas.map((p) => [p.id, p]));
   const nomeDoSponsor = new Map(cadastro.map((s) => [s.id, s.name]));
+  // Patrocinador arquivado não volta ao elenco de evento nenhum por reparo.
+  const arquivados = new Set(cadastro.filter((s) => s.arquivadoEm).map((s) => s.id));
   const nomeDoEvento = new Map(eventosTodos.map((e) => [e.id, e.name]));
   const jaNoEvento = new Set(vinculosDeEvento.map((v) => `${v.eventId}|${v.sponsorId}`));
   const faltando = new Map<string, string[]>();
@@ -39,6 +43,7 @@ async function encontrarPendencias(database: DatabaseLike): Promise<VinculoEvent
   for (const v of vinculosDePeca) {
     const peca = pecaPorId.get(v.itemId);
     if (!peca?.eventId) continue;
+    if (arquivados.has(v.sponsorId)) continue;
     const chave = `${peca.eventId}|${v.sponsorId}`;
     if (jaNoEvento.has(chave)) continue;
     const provas = faltando.get(chave) ?? [];

@@ -9,7 +9,8 @@ import { pecaTravada, fraseDaTrava, CODIGO_PECA_TRAVADA } from "@shared/trava-da
 import { EM_REVISAO } from "@shared/fluxo-peca";
 import { ehMolde } from "@shared/molde";
 import { planejarConferencia } from "@shared/embalagem";
-import { items as itemsTable } from "@shared/schema";
+import { items as itemsTable, events } from "@shared/schema";
+import { EVENTO_ARQUIVADO_ERRO } from "../../services/arquivamento";
 import { requireAuth, broadcast, translateStatus, sendSensitiveError, createAuditLog } from "../shared";
 // Régua do thumb (só objeto do nosso storage): ./thumb-url.ts.
 import { urlDeThumbValida } from "../thumb-url";
@@ -62,6 +63,9 @@ export function registrarConferencia(app: Express): void {
       const [current] = await tx.select().from(itemsTable).where(eq(itemsTable.id, req.params.id)).for("update");
       const recusa = (http: number, corpo: any): Resultado => ({ erro: { http, corpo } });
       if (!current || current.deletedAt) return recusa(404, { error: "Peça não encontrada." });
+      // Evento ARQUIVADO: nem a conferência (que é arrumar a casa) vale antes de restaurar.
+      const [doEvento] = await tx.select({ arquivadoEm: events.arquivadoEm }).from(events).where(eq(events.id, current.eventId));
+      if (doEvento?.arquivadoEm) return recusa(409, { error: EVENTO_ARQUIVADO_ERRO, code: "EVENT_FINALIZED", reason: "arquivado" });
       // Travada pela Solicitação: não se confere.
       if (pecaTravada(current as any)) return recusa(409, { error: fraseDaTrava(current as any), code: CODIGO_PECA_TRAVADA });
       if (!foto && !current.conferencePhotoUrl) {

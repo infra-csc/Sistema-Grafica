@@ -110,6 +110,21 @@ export const events = pgTable("events", {
   // gravado ao meio-dia UTC (a convenção das datas do Kit). Vale SÓ no fluxo
   // do molde — NÃO entra na Gestão de Prazos (ver shared/prazo-molde.ts).
   prazoMolde: timestamp("prazo_molde"),
+  /**
+   * ARQUIVAMENTO no lugar da exclusão física. Apagar a linha levava junto, por
+   * ON DELETE CASCADE, peças, aprovações, impressões e tubos — sem volta.
+   * Arquivado some de toda listagem e contagem e não aceita escrita; restaurar
+   * devolve tudo como estava (ver server/services/arquivamento.ts).
+   * NULL = vivo. Sem default: nenhum evento existente muda.
+   */
+  arquivadoEm: timestamp("arquivado_em"),
+  arquivadoPor: text("arquivado_por"),
+  /**
+   * Última restauração. As peças não mudam ao restaurar, então o delta de
+   * /api/items (que olha o updated_at da peça) não as devolveria às abas
+   * abertas — é por esta marca que ele as reenvia.
+   */
+  restauradoEm: timestamp("restaurado_em"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 }, (table) => [
@@ -137,6 +152,13 @@ export const sponsors = pgTable("sponsors", {
   // Executivo responsável pela conta (usuário do sistema). Se o usuário for
   // removido, o vínculo é apenas limpo — o patrocinador continua existindo.
   accountExecutiveId: varchar("account_executive_id").references(() => users.id, { onDelete: "set null" }),
+  /**
+   * ARQUIVAMENTO no lugar da exclusão física (que apagava, em cascata, o
+   * histórico de aprovações). Arquivado sai das listas de escolha, mas o nome
+   * continua nas peças e aprovações antigas. NULL = vivo.
+   */
+  arquivadoEm: timestamp("arquivado_em"),
+  arquivadoPor: text("arquivado_por"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });
@@ -1126,6 +1148,10 @@ export const insertEventSchema = createInsertSchema(events).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+  // Arquivar/restaurar têm rota própria (admin); criar ou editar não mexe nisso.
+  arquivadoEm: true,
+  arquivadoPor: true,
+  restauradoEm: true,
 }).extend({
   startDate: z.string().or(z.date()),
   truckDepartureDate: z.string().or(z.date()),
@@ -1273,6 +1299,9 @@ export const insertSponsorSchema = createInsertSchema(sponsors).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+  // Arquivar/restaurar têm rota própria (admin).
+  arquivadoEm: true,
+  arquivadoPor: true,
 }).extend({
   // "Nenhum executivo" chega do formulário como string vazia, e o Postgres a
   // trata como um id de verdade: tenta casar '' com users.id e derruba o insert

@@ -20,7 +20,8 @@
 // peças criadas nos últimos 60 dias vieram da Solicitação. Ler é de todos.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Express } from "express";
-import { and, eq, inArray, ne, or } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, or } from "drizzle-orm";
+import { EVENTO_ARQUIVADO_ERRO } from "../services/arquivamento";
 import { db } from "../db";
 import {
   inventoryAssets,
@@ -118,6 +119,8 @@ export type Peca = {
   id: string; displayId: string | null; type: string; quantity: number; status: string; deletedAt: Date | null;
   largura: string | null; altura: string | null; eventId: string; eventName: string | null;
   inicio: Date | null; saida: Date | null; sponsorIds: string[];
+  /** Do evento: arquivado não recebe reserva. */
+  eventoArquivadoEm?: Date | null;
 };
 
 export async function carregarAtivos(exec: Exec, ids?: string[]): Promise<Ativo[]> {
@@ -153,21 +156,24 @@ export async function carregarReservasAtivas(
     pecaId: itemsTable.id,
     pecaStatus: itemsTable.status,
     pecaExcluidaEm: itemsTable.deletedAt,
+    eventoArquivadoEm: events.arquivadoEm,
   })
     .from(eventInventoryAllocations)
     .innerJoin(events, eq(events.id, eventInventoryAllocations.eventId))
     .innerJoin(inventoryAssets, eq(inventoryAssets.id, eventInventoryAllocations.assetId))
     .leftJoin(itemsTable, eq(itemsTable.id, eventInventoryAllocations.itemId));
-  const linhas: Array<Reserva & { pecaId?: string | null; pecaStatus?: string | null; pecaExcluidaEm?: Date | null }> =
+  const linhas: Array<Reserva & { pecaId?: string | null; pecaStatus?: string | null; pecaExcluidaEm?: Date | null; eventoArquivadoEm?: Date | null }> =
     condicoes.length ? await consulta.where(and(...condicoes)) : await consulta;
   // Reserva de peça cancelada/excluída não segura mais nada: sem este filtro
   // a peça do estoque aparecia "reservada" para uma peça que não existe.
   // Alocação sem peça de destino (cadastro à mão do evento) continua valendo.
   return linhas
     .filter((r) => reservaEstaAtiva(r.inicio, agora))
+    // Reserva de evento ARQUIVADO não segura a peça do estoque de ninguém.
+    .filter((r) => !r.eventoArquivadoEm)
     // (Peça apagada de vez some sozinha: a FK zera item_id.)
     .filter((r) => !r.itemId || (!r.pecaExcluidaEm && !ehForaDoFunil(r.pecaStatus) && r.pecaStatus !== "cancelado"))
-    .map(({ pecaId: _p, pecaStatus: _s, pecaExcluidaEm: _e, ...r }) => r);
+    .map(({ pecaId: _p, pecaStatus: _s, pecaExcluidaEm: _e, eventoArquivadoEm: _a, ...r }) => r);
 }
 
 export async function carregarPecas(exec: Exec, filtro: { itemId: string } | { eventId: string }): Promise<Peca[]> {
@@ -184,6 +190,7 @@ export async function carregarPecas(exec: Exec, filtro: { itemId: string } | { e
     eventName: events.name,
     inicio: events.startDate,
     saida: events.truckDepartureDate,
+    eventoArquivadoEm: events.arquivadoEm,
   })
     .from(itemsTable)
     .leftJoin(events, eq(events.id, itemsTable.eventId))
@@ -263,6 +270,7 @@ export async function reservarAtivosParaPeca(
   await tx.select({ id: itemsTable.id }).from(itemsTable).where(eq(itemsTable.id, e.itemId)).for("update");
   const [peca] = await carregarPecas(tx, { itemId: e.itemId });
   if (!peca || peca.deletedAt) throw erro(404, "Peça não encontrada");
+  if (peca.eventoArquivadoEm) throw erro(409, EVENTO_ARQUIVADO_ERRO);
   if (STATUS_SEM_ESTOQUE.has(peca.status)) throw erro(409, motivoSemReserva(peca.status));
   if (caminhaoJaSaiu(peca, agora)) {
     throw erro(409, "O caminhão deste evento já saiu — não dá mais para reservar peça do estoque para ele.");
@@ -543,12 +551,14 @@ export function registerEstoqueReservasRoutes(app: Express): void {
         saida: events.truckDepartureDate,
         displayId: inventoryAssets.displayId,
         situacao: inventoryAssets.trackingStatus,
+        eventoArquivadoEm: events.arquivadoEm,
       })
         .from(eventInventoryAllocations)
         .innerJoin(events, eq(events.id, eventInventoryAllocations.eventId))
         .innerJoin(inventoryAssets, eq(inventoryAssets.id, eventInventoryAllocations.assetId))
         .where(eq(eventInventoryAllocations.id, req.params.reservaId));
       if (!reserva || reserva.itemId !== req.params.id) return res.status(404).json({ error: "Reserva não encontrada" });
+      if (reserva.eventoArquivadoEm) return res.status(409).json({ error: EVENTO_ARQUIVADO_ERRO });
       if (reserva.situacao === "EM_USO" && caminhaoJaSaiu(reserva, new Date())) {
         return res.status(409).json({ error: "Esta peça já saiu no caminhão deste evento — a reserva virou uso e não pode ser desfeita." });
       }
@@ -604,7 +614,8 @@ export function registerEstoqueReservasRoutes(app: Express): void {
           em: eventInventoryAllocations.allocatedAt,
         })
         .from(eventInventoryAllocations)
-        .innerJoin(events, eq(events.id, eventInventoryAllocations.eventId))
+        // Uso em evento arquivado sai da lista, como o evento (filtro no JOIN).
+        .innerJoin(events, and(eq(events.id, eventInventoryAllocations.eventId), isNull(events.arquivadoEm)))
         .innerJoin(inventoryAssets, eq(inventoryAssets.id, eventInventoryAllocations.assetId))
         .leftJoin(itemsTable, eq(itemsTable.id, eventInventoryAllocations.itemId))
         .where(recorte.length === 1 ? recorte[0] : or(...recorte));

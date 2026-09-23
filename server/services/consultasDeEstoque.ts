@@ -12,6 +12,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { and, desc, eq, inArray, isNull, ne, notInArray, or, sql } from "drizzle-orm";
 import { db } from "../db";
+import { doEventoNaoArquivado } from "./arquivamento";
 import { consultasDeEstoque, items as itemsTable, events, itemSponsors, sponsors, auditLogs } from "@shared/schema";
 import { efeitoDoAtendimento, pecaJaLiberada, trilhaDoAtendimento, type StatusDaConsulta } from "@shared/consultas-de-estoque";
 import { colunasDaReserva, reescalarReservaEPartes } from "@shared/reserva-de-impressora";
@@ -100,6 +101,8 @@ export async function listarConsultas(filtro: { status?: string[]; pedidoPorId?:
   // caixa (e do número do menu) e volta sozinha se a peça for descancelada.
   const condicoes: any[] = [
     isNull(itemsTable.deletedAt),
+    // Peça de evento arquivado some da caixa (e do número do menu) também.
+    doEventoNaoArquivado(itemsTable.eventId),
     or(ne(consultasDeEstoque.status, "aberta"), notInArray(itemsTable.status, PECA_CANCELADA)),
   ];
   if (filtro.status?.length) condicoes.push(inArray(consultasDeEstoque.status, filtro.status));

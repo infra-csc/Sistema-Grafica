@@ -13,8 +13,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { z } from "zod";
 import type { Response } from "express";
-import { erroEventoFechado } from "./routes/eventoFinalizado";
-import type { EventoFinalizadoMotivo } from "@shared/prazo-dates";
+import { erroEventoFechado, type MotivoBloqueioDoEvento } from "./routes/eventoFinalizado";
 
 /** Frases que não passam de uma rota para a tela em inglês. */
 export const PECA_NAO_ENCONTRADA = "Peça não encontrada";
@@ -141,7 +140,7 @@ export function erroPublico(httpStatus: number, publico: string, corpo?: Record<
 }
 
 /** O 409 de evento fechado com `code`/`reason`, igual ao de barraEventoFinalizado. */
-export function corpoEventoFechado(motivo: EventoFinalizadoMotivo) {
+export function corpoEventoFechado(motivo: MotivoBloqueioDoEvento) {
   return { error: erroEventoFechado(motivo), code: "EVENT_FINALIZED", reason: motivo };
 }
 

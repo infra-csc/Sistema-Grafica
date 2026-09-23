@@ -55,11 +55,12 @@ export type RelatorioInferenciaExecutivos = {
 type DecisaoPorPessoa = { aprovou: number; reprovou: number };
 
 async function analisar(database: DatabaseLike): Promise<RelatorioInferenciaExecutivos> {
-  const [todosSponsors, decisoes, usuarios] = await Promise.all([
+  const [cadastroInteiro, decisoes, usuarios] = await Promise.all([
     database.select({
       id: sponsors.id,
       name: sponsors.name,
       accountExecutiveId: sponsors.accountExecutiveId,
+      arquivadoEm: sponsors.arquivadoEm,
     }).from(sponsors),
     database.select({
       sponsorId: itemSponsorApprovals.sponsorId,
@@ -96,6 +97,8 @@ async function analisar(database: DatabaseLike): Promise<RelatorioInferenciaExec
     registrar(decisao.sponsorId, decisao.rejectedBy, "reprovou");
   }
 
+  // Patrocinador arquivado não entra na proposta (não aceita escrita).
+  const todosSponsors = cadastroInteiro.filter((sponsor) => !sponsor.arquivadoEm);
   const semExecutivo = todosSponsors.filter((sponsor) => !sponsor.accountExecutiveId);
   const claras: PropostaExecutivo[] = [];
   const duvidosas: CasoDuvidosoExecutivo[] = [];

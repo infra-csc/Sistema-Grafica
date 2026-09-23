@@ -39,6 +39,7 @@ import { ehMolde, ehTipoMolde } from "@shared/molde";
 import { items as itemsTable, registrosDeImpressao } from "@shared/schema";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { erroImpressoraOcupada } from "../services/ocupacaoDasImpressoras";
+import { doEventoNaoArquivado } from "../services/arquivamento";
 import { pecaVisivelPara } from "@shared/kit";
 import { agoraNoFuso } from "../services/revisaoDigest";
 import { agregarRelatorioDeMaquinas, periodoValido, quemEntrouNoLugar, type RegistroDoPeriodo } from "../services/relatorioDeMaquinas";
@@ -102,7 +103,7 @@ async function registrosDoPeriodo(req: any, de: string, ate: string): Promise<Re
     from registros_de_impressao r
     join items i on i.id = r.item_id
     left join events e on e.id = i.event_id
-    where ${entreOsDias(de, ate)}
+    where ${entreOsDias(de, ate)} and e.arquivado_em is null
     order by r.created_at asc
   `)).filter(filtroDoKit(req));
   const deuLugarA = quemEntrouNoLugar(brutos.map((l) => ({ id: l.id, itemId: l.item_id, maquina: l.maquina, tipo: l.tipo, displayId: l.display_id, em: Number(l.em) })));
@@ -355,7 +356,8 @@ export function registerMaquinasRoutes(app: Express): void {
           // A que ENTRA não pode estar travada; a que SAI pode (recuar nunca é barrado).
           if (pecaTravada(entra as any)) throw Object.assign(falha(409, fraseDaTrava(entra as any)), { code: CODIGO_PECA_TRAVADA });
           // Depois da pausa a impressora tem de estar LIVRE (outra peça com parte nela barra a troca).
-          const emImpressao = await tx.select().from(itemsTable).where(and(inArray(itemsTable.status, ["inProduction", "em_producao"]), isNull(itemsTable.deletedAt)));
+          // Mesma régua de quemOcupaAImpressora: peça de evento arquivado não ocupa.
+          const emImpressao = await tx.select().from(itemsTable).where(and(inArray(itemsTable.status, ["inProduction", "em_producao"]), isNull(itemsTable.deletedAt), doEventoNaoArquivado(itemsTable.eventId)));
           const ocupante = ocupanteDaImpressora(emImpressao as any[], maquina, entra.id);
           if (ocupante) throw falha(409, erroImpressoraOcupada(maquina, ocupante));
           // "Imprimir esta no lugar" com a reserva de OUTRA impressora (o
@@ -484,7 +486,7 @@ export function registerMaquinasRoutes(app: Express): void {
                to_char(e.reopened_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as evento_reaberto
         from items i
         left join events e on e.id = i.event_id
-        where i.deleted_at is null and i.status in ('inProduction', 'em_producao')
+        where i.deleted_at is null and e.arquivado_em is null and i.status in ('inProduction', 'em_producao')
         order by coalesce(i.production_started_at, i.status_changed_at) asc nulls last
       `)).filter(visivel);
 
@@ -523,7 +525,7 @@ export function registerMaquinasRoutes(app: Express): void {
                to_char(e.reopened_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as evento_reaberto
         from items i
         left join events e on e.id = i.event_id
-        where i.deleted_at is null and (
+        where i.deleted_at is null and e.arquivado_em is null and (
           i.status in ('ready_for_production', 'pronto_para_producao', 'approved', 'liberado')
           -- A peça que iniciou SÓ UMA PARTE segue na fila com o resto dela.
           or (i.status in ('inProduction', 'em_producao') and i.impressao_por_maquina is not null)
@@ -557,7 +559,7 @@ export function registerMaquinasRoutes(app: Express): void {
         from registros_de_impressao r
         join items i on i.id = r.item_id
         left join events e on e.id = i.event_id
-        where ${entreOsDias(dia, dia)}
+        where ${entreOsDias(dia, dia)} and e.arquivado_em is null
         order by r.created_at desc
       `)).filter(visivel);
 

@@ -11,6 +11,7 @@ import {
 import { requireAuth, requireRole, broadcast, createAuditLog } from "./shared";
 import { recusaDeTriagem, recusaPorReserva, reservaEstaAtiva } from "@shared/estoque";
 import { ehForaDoFunil } from "@shared/fluxo-peca";
+import { barraSeArquivado } from "../services/arquivamento";
 
 // TRIAGEM SÓ DE QUEM ESTÁ AGUARDANDO (dono, 21/09). Antes as duas rotas
 // aceitavam qualquer ativo: uma peça EM USO num evento podia ser "triada" de
@@ -95,11 +96,12 @@ const unicos = (xs: (string | null | undefined)[]) => Array.from(new Set(xs.filt
 export async function reservaVigenteDoAtivo(exec: any, assetId: string, agora = new Date()) {
   const linhas: {
     eventName: string; inicio: Date | null; itemDisplayId: string | null;
-    itemId?: string | null; pecaStatus?: string | null; pecaExcluidaEm?: Date | null;
+    itemId?: string | null; pecaStatus?: string | null; pecaExcluidaEm?: Date | null; eventoArquivadoEm?: Date | null;
   }[] = await exec
     .select({
       eventName: events.name, inicio: events.startDate, itemDisplayId: itemsTable.displayId,
       itemId: eventInventoryAllocations.itemId, pecaStatus: itemsTable.status, pecaExcluidaEm: itemsTable.deletedAt,
+      eventoArquivadoEm: events.arquivadoEm,
     })
     .from(eventInventoryAllocations)
     .innerJoin(events, eq(events.id, eventInventoryAllocations.eventId))
@@ -107,7 +109,8 @@ export async function reservaVigenteDoAtivo(exec: any, assetId: string, agora = 
     .where(eq(eventInventoryAllocations.assetId, assetId));
   // Reserva de peça cancelada/excluída não segura nada (a mesma régua de
   // carregarReservasAtivas).
-  const r = linhas.find((l) => reservaEstaAtiva(l.inicio, agora)
+  // Evento arquivado também não segura.
+  const r = linhas.find((l) => reservaEstaAtiva(l.inicio, agora) && !l.eventoArquivadoEm
     && (!l.itemId || (!l.pecaExcluidaEm && !ehForaDoFunil(l.pecaStatus))));
   return r ? { eventName: r.eventName, inicio: r.inicio, itemDisplayId: r.itemDisplayId } : null;
 }
@@ -483,6 +486,7 @@ export function registerInventoryRoutes(app: Express): void {
     try {
       const event = await storage.getEvent(req.params.id);
       if (!event) return res.status(404).json({ error: "Evento não encontrado" });
+      if (barraSeArquivado(event, res)) return;
       const departure = event.truckDepartureDate ? new Date(event.truckDepartureDate) : new Date();
       const count = await storage.markAssetsInUseForEvent(req.params.id, departure);
       if (count > 0) broadcast({ type: "inventory_in_use", eventId: req.params.id, count });
@@ -496,6 +500,7 @@ export function registerInventoryRoutes(app: Express): void {
   // Manual trigger: mark event assets AGUARDANDO_TRIAGEM
   app.post("/api/events/:id/return-inventory", requireInventoryAdmin, async (req, res) => {
     try {
+      if (barraSeArquivado(await storage.getEvent(req.params.id), res)) return;
       const count = await storage.markAssetsAwaitingTriageForEvent(req.params.id);
       if (count > 0) {
         const event = await storage.getEvent(req.params.id);
@@ -529,6 +534,7 @@ export function registerInventoryRoutes(app: Express): void {
     try {
       const { assetId } = req.body;
       if (!assetId || typeof assetId !== "string") return res.status(400).json({ error: "assetId é obrigatório" });
+      if (barraSeArquivado(await storage.getEvent(req.params.id), res)) return;
       const alloc = await storage.allocateAssetToEvent(req.params.id, assetId);
       broadcast({ type: "estoque_reservas", eventId: req.params.id });
       res.status(201).json(alloc);

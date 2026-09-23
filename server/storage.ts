@@ -58,6 +58,7 @@ import path from "path";
 import { db } from "./db";
 import { eq, and, desc, asc, sql, or, lt, gte, ne, inArray, notInArray, like, ilike, isNull } from "drizzle-orm";
 import { reservaEstaAtiva } from "@shared/estoque";
+import { doEventoNaoArquivado, daPecaDeEventoNaoArquivado } from "./services/arquivamento";
 import { ehForaDoFunil } from "@shared/fluxo-peca";
 import { moldeConcluido } from "@shared/molde";
 
@@ -366,12 +367,16 @@ export function cabeNaJanelaDeEntregues(
 
 export interface IStorage {
   // Events
+  /** Inclusive arquivado — quem precisa barrar escrita ou restaurar lê por aqui. */
   getEvent(id: string): Promise<Event | undefined>;
+  /** Só os NÃO arquivados: é a lista de toda tela, contagem e agendador. */
   getAllEvents(): Promise<Event[]>;
   createEvent(event: InsertEvent): Promise<Event>;
   updateEvent(id: string, data: Partial<InsertEvent>): Promise<Event | undefined>;
-  deleteEvent(id: string): Promise<boolean>;
-  
+  // Não existe deleteEvent: excluir ARQUIVA (ver services/arquivamento.ts).
+  arquivarEvento(id: string, por: string | null): Promise<Event | undefined>;
+  restaurarEvento(id: string): Promise<Event | undefined>;
+
   // Items
   getItem(id: string): Promise<Item | undefined>;
   getAllItems(): Promise<Item[]>;
@@ -470,10 +475,17 @@ export interface IStorage {
   
   // Sponsors
   getSponsor(id: string): Promise<Sponsor | undefined>;
+  /**
+   * TODOS, inclusive os arquivados: é o dicionário de nomes das peças e das
+   * aprovações antigas. Lista de ESCOLHA usa getSponsorsAtivos.
+   */
   getAllSponsors(): Promise<Sponsor[]>;
+  getSponsorsAtivos(): Promise<Sponsor[]>;
   createSponsor(sponsor: InsertSponsor): Promise<Sponsor>;
   updateSponsor(id: string, data: Partial<InsertSponsor>): Promise<Sponsor | undefined>;
-  deleteSponsor(id: string): Promise<boolean>;
+  // Não existe deleteSponsor: excluir ARQUIVA (ver services/arquivamento.ts).
+  arquivarPatrocinador(id: string, por: string | null): Promise<Sponsor | undefined>;
+  restaurarPatrocinador(id: string): Promise<Sponsor | undefined>;
   
   // Event Sponsors (many-to-many relationship)
   getEventSponsors(eventId: string): Promise<EventSponsor[]>;
@@ -608,7 +620,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllEvents(): Promise<Event[]> {
-    return await db.select().from(events).orderBy(desc(events.createdAt));
+    // Arquivado fica fora: é por esta lista que as telas, as contagens e os
+    // agendadores enxergam os eventos (e o delta derruba as peças do sumido).
+    return await db.select().from(events).where(isNull(events.arquivadoEm)).orderBy(desc(events.createdAt));
   }
 
   async createEvent(insertEvent: InsertEvent): Promise<Event> {
@@ -646,9 +660,29 @@ export class DatabaseStorage implements IStorage {
     return event || undefined;
   }
 
-  async deleteEvent(id: string): Promise<boolean> {
-    const result = await db.delete(events).where(eq(events.id, id)).returning();
-    return result.length > 0;
+  // ARQUIVAR no lugar do DELETE: o DELETE da linha levava as peças e o resto
+  // em cascata. Condicional no WHERE para o segundo clique não regravar
+  // quem/quando (devolve undefined — a rota responde com o estado atual).
+  async arquivarEvento(id: string, por: string | null): Promise<Event | undefined> {
+    const agora = new Date();
+    const [event] = await db
+      .update(events)
+      .set({ arquivadoEm: agora, arquivadoPor: por, updatedAt: agora })
+      .where(and(eq(events.id, id), isNull(events.arquivadoEm)))
+      .returning();
+    return event || undefined;
+  }
+
+  // `restauradoEm` é o que faz o delta de /api/items reenviar as peças do
+  // evento às abas abertas (elas não mudaram, então updated_at não as traria).
+  async restaurarEvento(id: string): Promise<Event | undefined> {
+    const agora = new Date();
+    const [event] = await db
+      .update(events)
+      .set({ arquivadoEm: null, arquivadoPor: null, restauradoEm: agora, updatedAt: agora })
+      .where(and(eq(events.id, id), sql`${events.arquivadoEm} IS NOT NULL`))
+      .returning();
+    return event || undefined;
   }
 
   // Items
@@ -658,7 +692,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllItems(): Promise<Item[]> {
-    return await db.select().from(items).where(sql`${items.deletedAt} IS NULL`).orderBy(desc(items.createdAt));
+    return await db.select().from(items).where(and(sql`${items.deletedAt} IS NULL`, doEventoNaoArquivado(items.eventId))).orderBy(desc(items.createdAt));
   }
 
   // RECORTE POR STATUS (perf, 17/09): a Revisão Final pedia o acervo inteiro
@@ -670,7 +704,7 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(items)
-      .where(and(inArray(items.status, statuses), sql`${items.deletedAt} IS NULL`))
+      .where(and(inArray(items.status, statuses), sql`${items.deletedAt} IS NULL`, doEventoNaoArquivado(items.eventId)))
       .orderBy(desc(items.createdAt));
   }
 
@@ -683,7 +717,7 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(items)
-      .where(and(inArray(items.status, statuses), inArray(items.eventId, eventIds), sql`${items.deletedAt} IS NULL`))
+      .where(and(inArray(items.status, statuses), inArray(items.eventId, eventIds), sql`${items.deletedAt} IS NULL`, doEventoNaoArquivado(items.eventId)))
       .orderBy(desc(items.createdAt));
   }
 
@@ -691,7 +725,7 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(items)
-      .where(and(eq(items.eventId, eventId), sql`${items.deletedAt} IS NULL`))
+      .where(and(eq(items.eventId, eventId), sql`${items.deletedAt} IS NULL`, doEventoNaoArquivado(items.eventId)))
       .orderBy(desc(items.createdAt));
   }
 
@@ -708,7 +742,7 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(items)
-      .where(and(inArray(items.eventId, eventIds), sql`${items.deletedAt} IS NULL`))
+      .where(and(inArray(items.eventId, eventIds), sql`${items.deletedAt} IS NULL`, doEventoNaoArquivado(items.eventId)))
       .orderBy(desc(items.createdAt));
   }
 
@@ -718,7 +752,8 @@ export class DatabaseStorage implements IStorage {
       .from(items)
       .where(and(
         sql`${items.status} IN ('requested', 'awaiting_linking', 'awaiting_sponsor_approval', 'sponsor_approved', 'awaiting_creator_review')`,
-        sql`${items.deletedAt} IS NULL`
+        sql`${items.deletedAt} IS NULL`,
+        doEventoNaoArquivado(items.eventId),
       ))
       .orderBy(desc(items.createdAt));
   }
@@ -737,6 +772,7 @@ export class DatabaseStorage implements IStorage {
       .where(and(
         sql`${items.status} IN ('awaiting_final_review', 'awaiting_review', 'in_review', 'ready_for_production', 'pronto_para_producao', 'approved', 'inProduction', 'produced', 'conferred', 'packed', 'delivered')`,
         sql`${items.deletedAt} IS NULL`,
+        doEventoNaoArquivado(items.eventId),
         sql`(${items.status} <> 'delivered' OR coalesce(${items.deliveredAt}, ${items.statusChangedAt}, ${items.updatedAt}) >= timezone(${"UTC"}, now()) - make_interval(days => ${DIAS_DE_ENTREGUES_NA_FILA}))`,
       ))
       .orderBy(desc(items.createdAt));
@@ -1026,7 +1062,9 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(items)
-      .where(sql`${items.deletedAt} IS NOT NULL`)
+      // A lixeira de peças não mostra as do evento arquivado: restaurar uma
+      // delas a devolveria a um evento que ninguém vê.
+      .where(and(sql`${items.deletedAt} IS NOT NULL`, doEventoNaoArquivado(items.eventId)))
       .orderBy(desc(items.deletedAt));
   }
 
@@ -1405,15 +1443,22 @@ export class DatabaseStorage implements IStorage {
     return notification || undefined;
   }
 
+  // Aviso de evento ARQUIVADO (pelo evento ou pela peça) sai do sino: levaria
+  // a uma tela que não mostra mais nada.
+  private readonly avisoDeEventoAtivo = () => and(
+    doEventoNaoArquivado(notifications.eventId),
+    sql`not exists (select 1 from items i_av join events e_av on e_av.id = i_av.event_id where i_av.id = ${notifications.itemId} and e_av.arquivado_em is not null)`,
+  );
+
   async getAllNotifications(): Promise<Notification[]> {
-    return await db.select().from(notifications).orderBy(desc(notifications.createdAt)).limit(50);
+    return await db.select().from(notifications).where(this.avisoDeEventoAtivo()).orderBy(desc(notifications.createdAt)).limit(50);
   }
 
   async getUnreadNotifications(): Promise<Notification[]> {
     return await db
       .select()
       .from(notifications)
-      .where(eq(notifications.isRead, false))
+      .where(and(eq(notifications.isRead, false), this.avisoDeEventoAtivo()))
       .orderBy(desc(notifications.createdAt));
   }
 
@@ -1537,9 +1582,12 @@ export class DatabaseStorage implements IStorage {
       })
       .from(items)
       .leftJoin(events, eq(items.eventId, events.id))
-      .where(or(
-        sql`${items.conferencePhotoUrl} is not null`,
-        sql`${items.deliveryPhotoUrl} is not null`,
+      .where(and(
+        or(
+          sql`${items.conferencePhotoUrl} is not null`,
+          sql`${items.deliveryPhotoUrl} is not null`,
+        ),
+        doEventoNaoArquivado(items.eventId),
       ));
 
     const known = new Set(fromTable.map(p => `${p.itemId}|${p.photoUrl}`));
@@ -1586,6 +1634,7 @@ export class DatabaseStorage implements IStorage {
       .from(deliveryPhotos)
       .leftJoin(items, eq(deliveryPhotos.itemId, items.id))
       .leftJoin(events, eq(items.eventId, events.id))
+      .where(doEventoNaoArquivado(items.eventId))
       .orderBy(desc(deliveryPhotos.createdAt));
   }
 
@@ -1699,7 +1748,7 @@ export class DatabaseStorage implements IStorage {
         type: items.type,
       })
       .from(items)
-      .where(isNull(items.deletedAt))
+      .where(and(isNull(items.deletedAt), doEventoNaoArquivado(items.eventId)))
       // MOLDE (22/09): o produzido é o fim do fluxo dele — a lista de eventos
       // só CONTA por status, então ele chega como entregue (shared/molde). O
       // tipo só serve para isso e não vai na resposta.
@@ -1718,6 +1767,7 @@ export class DatabaseStorage implements IStorage {
   private filtroKitDoCriador(userId: string | null) {
     return and(
       isNull(items.deletedAt),
+      doEventoNaoArquivado(items.eventId),
       sql`${items.kitRemessaId} IS NOT NULL AND ${items.kitRemessaId} <> ''`,
       userId === null ? isNull(items.criadoPorId) : eq(items.criadoPorId, userId),
     );
@@ -1755,7 +1805,7 @@ export class DatabaseStorage implements IStorage {
         fileHeight: items.fileHeight,
       })
       .from(items)
-      .where(isNull(items.deletedAt));
+      .where(and(isNull(items.deletedAt), doEventoNaoArquivado(items.eventId)));
   }
 
   // GET /api/prazos e o fecho diário (perf 17/09): o mesmo recorte de
@@ -1780,7 +1830,7 @@ export class DatabaseStorage implements IStorage {
         criadoPorId: items.criadoPorId,
       })
       .from(items)
-      .where(and(inArray(items.eventId, eventIds), isNull(items.deletedAt)))
+      .where(and(inArray(items.eventId, eventIds), isNull(items.deletedAt), doEventoNaoArquivado(items.eventId)))
       .orderBy(desc(items.createdAt));
   }
 
@@ -1788,8 +1838,20 @@ export class DatabaseStorage implements IStorage {
   // (deleted_at preenchido), porque o cliente precisa removê-las do cache
   // local. É a única leitura de items que NÃO filtra o soft delete, de
   // propósito.
+  //
+  // EVENTO ARQUIVADO: as peças dele não vão (o cliente as derruba porque o
+  // evento sumiu de `eventos`). EVENTO RESTAURADO desde `since`: as peças dele
+  // vão todas, mesmo sem ter mudado — sem isto só voltariam no F5.
   async getItemsChangedSince(since: Date): Promise<Item[]> {
-    return await db.select().from(items).where(gte(items.updatedAt, since));
+    return await db.select().from(items).where(and(
+      doEventoNaoArquivado(items.eventId),
+      or(
+        gte(items.updatedAt, since),
+        // ISO em UTC, como o drizzle grava a coluna timestamp (sem fuso) — um
+        // Date cru iria no fuso do processo.
+        sql`${items.eventId} in (select ev_rest.id from events ev_rest where ev_rest.restaurado_em >= ${since.toISOString()}::timestamp)`,
+      ),
+    ));
   }
 
   /**
@@ -1823,6 +1885,8 @@ export class DatabaseStorage implements IStorage {
   // continua vindo inteira.
   async getEventsByIds(ids: string[]): Promise<Event[]> {
     if (ids.length === 0) return [];
+    // Sem filtro de arquivado de propósito: só enriquece peças que JÁ vieram
+    // filtradas, e a ficha aberta por link direto precisa do evento embutido.
     return await db.select().from(events).where(inArray(events.id, ids));
   }
 
@@ -1848,6 +1912,7 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(items)
       .where(and(
         isNull(items.deletedAt),
+        doEventoNaoArquivado(items.eventId),
         or(
           eq(items.status, "awaiting_sponsor_approval"),
           and(eq(items.status, "awaiting_submission"), eq(items.rejectedBySponsor, true)),
@@ -1860,8 +1925,9 @@ export class DatabaseStorage implements IStorage {
   // VIVAS (a tela cruza por id com a lista de peças, que não traz excluídas).
   // Mesma ordem das leituras "getAll" que substituem.
   async getVinculosEAprovacoesDasPecasVivas(): Promise<{ vinculos: ItemSponsor[]; aprovacoes: ItemSponsorApproval[] }> {
-    const vivas = sql`exists (select 1 from items i where i.id = ${itemSponsors.itemId} and i.deleted_at is null)`;
-    const vivasAprov = sql`exists (select 1 from items i where i.id = ${itemSponsorApprovals.itemId} and i.deleted_at is null)`;
+    // Peça de evento arquivado não é viva para a tela: fica fora como a excluída.
+    const vivas = sql`exists (select 1 from items i where i.id = ${itemSponsors.itemId} and i.deleted_at is null and ${doEventoNaoArquivado(sql.raw("i.event_id"))})`;
+    const vivasAprov = sql`exists (select 1 from items i where i.id = ${itemSponsorApprovals.itemId} and i.deleted_at is null and ${doEventoNaoArquivado(sql.raw("i.event_id"))})`;
     const [vinculos, aprovacoes] = await Promise.all([
       db.select().from(itemSponsors).where(vivas).orderBy(desc(itemSponsors.createdAt)),
       db.select().from(itemSponsorApprovals).where(vivasAprov).orderBy(desc(itemSponsorApprovals.createdAt)),
@@ -1929,6 +1995,11 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(sponsors).orderBy(desc(sponsors.createdAt));
   }
 
+  // Lista de ESCOLHA (cadastro, vincular, importar): sem os arquivados.
+  async getSponsorsAtivos(): Promise<Sponsor[]> {
+    return await db.select().from(sponsors).where(isNull(sponsors.arquivadoEm)).orderBy(desc(sponsors.createdAt));
+  }
+
   async createSponsor(insertSponsor: InsertSponsor): Promise<Sponsor> {
     const [sponsor] = await db
       .insert(sponsors)
@@ -1947,19 +2018,38 @@ export class DatabaseStorage implements IStorage {
     return sponsor || undefined;
   }
 
-  async deleteSponsor(id: string): Promise<boolean> {
-    const result = await db
-      .delete(sponsors)
-      .where(eq(sponsors.id, id));
-    return result.rowCount !== null && result.rowCount > 0;
+  // ARQUIVAR no lugar do DELETE, que apagava em cascata o histórico de
+  // aprovações do patrocinador. Vínculos e aprovações ficam intactos.
+  async arquivarPatrocinador(id: string, por: string | null): Promise<Sponsor | undefined> {
+    const agora = new Date();
+    const [sponsor] = await db
+      .update(sponsors)
+      .set({ arquivadoEm: agora, arquivadoPor: por, updatedAt: agora })
+      .where(and(eq(sponsors.id, id), isNull(sponsors.arquivadoEm)))
+      .returning();
+    return sponsor || undefined;
+  }
+
+  async restaurarPatrocinador(id: string): Promise<Sponsor | undefined> {
+    const [sponsor] = await db
+      .update(sponsors)
+      .set({ arquivadoEm: null, arquivadoPor: null, updatedAt: new Date() })
+      .where(and(eq(sponsors.id, id), sql`${sponsors.arquivadoEm} IS NOT NULL`))
+      .returning();
+    return sponsor || undefined;
   }
 
   // Event Sponsors
+  // O ELENCO do evento é lista de escolha (vincular, importar, cotas): o
+  // patrocinador arquivado sai dele. A linha do vínculo fica — restaurar o
+  // patrocinador o devolve ao elenco como estava.
+  private readonly patrocinadorDoElencoAtivo = sql`not exists (select 1 from sponsors sp_arq where sp_arq.id = ${eventSponsors.sponsorId} and sp_arq.arquivado_em is not null)`;
+
   async getEventSponsors(eventId: string): Promise<EventSponsor[]> {
     return await db
       .select()
       .from(eventSponsors)
-      .where(eq(eventSponsors.eventId, eventId))
+      .where(and(eq(eventSponsors.eventId, eventId), this.patrocinadorDoElencoAtivo))
       .orderBy(desc(eventSponsors.createdAt));
   }
 
@@ -1970,6 +2060,7 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(eventSponsors)
+      .where(this.patrocinadorDoElencoAtivo)
       .orderBy(desc(eventSponsors.createdAt));
   }
 
@@ -2014,7 +2105,8 @@ export class DatabaseStorage implements IStorage {
 
   /**
    * Quantos eventos e peças cada patrocinador tem. Duas queries agregadas —
-   * evita carregar os vínculos todos só para contar.
+   * evita carregar os vínculos todos só para contar. Evento arquivado (e as
+   * peças dele) fica fora das contagens.
    */
   async getSponsorUsage(): Promise<Record<string, { events: number; items: number; pendencias: number; mediaDias: number | null }>> {
     // A RESPOSTA DO PATROCINADOR, no mesmo agregado — não em N requisições.
@@ -2025,12 +2117,15 @@ export class DatabaseStorage implements IStorage {
     //                como "responde na hora", que é o oposto.
     const [evRows, itRows, pendRows, respRows] = await Promise.all([
       db.select({ sponsorId: eventSponsors.sponsorId, n: sql<number>`count(*)::int` })
-        .from(eventSponsors).groupBy(eventSponsors.sponsorId),
+        .from(eventSponsors).where(doEventoNaoArquivado(eventSponsors.eventId)).groupBy(eventSponsors.sponsorId),
       db.select({ sponsorId: itemSponsors.sponsorId, n: sql<number>`count(*)::int` })
-        .from(itemSponsors).groupBy(itemSponsors.sponsorId),
+        .from(itemSponsors).where(daPecaDeEventoNaoArquivado(itemSponsors.itemId)).groupBy(itemSponsors.sponsorId),
       db.select({ sponsorId: itemSponsorApprovals.sponsorId, n: sql<number>`count(*)::int` })
         .from(itemSponsorApprovals)
-        .where(sql`${itemSponsorApprovals.status} in ('pending', 'new_version_pending')`)
+        .where(and(
+          sql`${itemSponsorApprovals.status} in ('pending', 'new_version_pending')`,
+          daPecaDeEventoNaoArquivado(itemSponsorApprovals.itemId),
+        ))
         .groupBy(itemSponsorApprovals.sponsorId),
       db.select({
         sponsorId: itemSponsorApprovals.sponsorId,
@@ -2090,6 +2185,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async bulkSyncItemSponsors(itemId: string, sponsorIds: string[]): Promise<void> {
+    // Patrocinador ARQUIVADO só continua se já estava na peça: o vínculo antigo
+    // é histórico e fica, mas não nasce vínculo novo com ele.
+    const jaVinculados = new Set((await this.getItemSponsors(itemId)).map((v) => v.sponsorId));
     // Remove all existing sponsors for this item
     await db.delete(itemSponsors).where(eq(itemSponsors.itemId, itemId));
 
@@ -2102,10 +2200,10 @@ export class DatabaseStorage implements IStorage {
     // simplesmente ignorados em vez de derrubar toda a operação.
     const uniqueIds = Array.from(new Set(sponsorIds));
     const existing = await db
-      .select({ id: sponsors.id })
+      .select({ id: sponsors.id, arquivadoEm: sponsors.arquivadoEm })
       .from(sponsors)
       .where(inArray(sponsors.id, uniqueIds));
-    const validIds = existing.map(s => s.id);
+    const validIds = existing.filter(s => !s.arquivadoEm || jaVinculados.has(s.id)).map(s => s.id);
 
     if (validIds.length > 0) {
       await db.insert(itemSponsors).values(
@@ -2371,7 +2469,8 @@ export class DatabaseStorage implements IStorage {
     const linhas = await db.select({ assetId: eventInventoryAllocations.assetId, inicio: events.startDate })
       .from(eventInventoryAllocations)
       .innerJoin(events, eq(events.id, eventInventoryAllocations.eventId))
-      .where(ne(eventInventoryAllocations.eventId, eventId));
+      // Reserva de evento ARQUIVADO não segura a peça de ninguém.
+      .where(and(ne(eventInventoryAllocations.eventId, eventId), isNull(events.arquivadoEm)));
     const ids = Array.from(new Set(linhas.filter(l => reservaEstaAtiva(l.inicio, agora)).map(l => l.assetId)));
     return ids.length > 0 ? [notInArray(inventoryAssets.id, ids)] : [];
   }
@@ -2506,7 +2605,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(eventInventoryAllocations)
       .innerJoin(events, eq(events.id, eventInventoryAllocations.eventId))
-      .where(eq(eventInventoryAllocations.assetId, assetId))
+      .where(and(eq(eventInventoryAllocations.assetId, assetId), isNull(events.arquivadoEm)))
       .orderBy(eventInventoryAllocations.allocatedAt);
     return rows as Array<EventInventoryAllocation & { event: Event }>;
   }
@@ -2615,7 +2714,8 @@ export class DatabaseStorage implements IStorage {
     })
       .from(eventSponsors)
       .innerJoin(sponsors, eq(sponsors.id, eventSponsors.sponsorId))
-      .where(eq(eventSponsors.eventId, eventId));
+      // Patrocinador arquivado não ganha vínculo novo, nem automático.
+      .where(and(eq(eventSponsors.eventId, eventId), isNull(sponsors.arquivadoEm)));
 
     // Get all items for this event
     const eventItems = await db.select({

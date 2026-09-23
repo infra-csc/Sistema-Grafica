@@ -19,13 +19,16 @@
 // As duas bibliotecas entram por import dinâmico: são pesadas e só fazem
 // sentido quando este modal abre, então não pesam no bundle das telas.
 import { useState, useEffect, useRef, useCallback } from "react";
-import { X, Download, BookOpen, Loader2, AlertCircle, FileText, Scissors, Hash, Check, RefreshCw } from "lucide-react";
+import { X, Download, Loader2, FileText, Scissors, Hash, Check } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { FilterSelect } from "@/components/filter-select";
 import { HIDE_NATIVE_CLOSE, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { toast } from "@/hooks/use-toast";
-import { TOM, T, N } from "@/lib/theme";
+import { usePonteiroGrosso, alvo } from "@/hooks/use-mobile";
+import { Botao } from "@/components/ui/botao";
+import { EstadoErro } from "@/components/ui/estados";
+import { TOM, T, N, FS, FW, R, FONT } from "@/lib/theme";
 
 /**
  * Lê "1-4, 9, 12" e devolve os números de página que aquilo significa.
@@ -82,6 +85,8 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
   // Sem filtro a seleção cobre dezenas de eventos, cada um com seu book. Manter
   // a escolha aqui — e não como um botão por book no modal de exportação —
   // evita um rodapé de oito botões empurrando o painel de opções para fora.
+  // Alvo de 44px pelo ponteiro: o recorte do book também se faz no tablet.
+  const dedo = usePonteiroGrosso();
   const [bookUrl, setBookUrl] = useState(books[0]?.url ?? "");
   const activeBook = books.find(b => b.url === bookUrl) ?? books[0];
 
@@ -231,7 +236,7 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
 
       // Diz o NOME do arquivo: é por ele que a pessoa procura na pasta de
       // downloads, e "N página(s) baixadas" não dizia onde nem como.
-      toast({ title: indexes.length === 1 ? "Página extraída" : `${indexes.length} páginas extraídas`, description: `Salvo como "${safeName} — ${indexes.length} pág.pdf".` });
+      toast({ variant: "success", title: indexes.length === 1 ? "Página extraída" : `${indexes.length} páginas extraídas`, description: `Salvo como "${safeName} — ${indexes.length} pág.pdf".` });
       onOpenChange(false);
     } catch (e: any) {
       toast({ title: "Não foi possível extrair", description: e?.message || "Erro ao recortar o book.", variant: "destructive" });
@@ -319,11 +324,11 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
               options={books.map(b => ({ value: b.url, label: b.label, count: b.count, pinned: true }))}
               panelWidth={280}
               testId="select-book"
-              triggerStyle={{ height: 34, maxWidth: 300, borderRadius: 8, border: `1px solid ${T.border}`, padding: "0 8px 0 10px", fontSize: 12, fontWeight: 600, color: T.text, backgroundColor: "#fff" }}
+              triggerStyle={{ height: alvo(34, dedo), maxWidth: 300, borderRadius: R.md, border: `1px solid ${T.border}`, padding: "0 8px 0 10px", fontSize: FS.meta, fontWeight: FW.medio, color: T.text, backgroundColor: T.surface }}
             />
           )}
 
-          <span style={{ fontSize: 13, fontWeight: 700, color: T.text }} data-testid="text-book-page-count">
+          <span style={{ fontSize: FS.body, fontWeight: FW.forte, color: T.text }} data-testid="text-book-page-count">
             {picked.size} <span style={{ fontWeight: 400, color: T.second }}>de {numPages} {numPages === 1 ? "página" : "páginas"}</span>
           </span>
 
@@ -343,24 +348,25 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
                 title="Enter marca as páginas digitadas"
                 data-testid="input-book-intervalo"
                 disabled={numPages === 0}
-                style={{ width: 116, height: 36, boxSizing: "border-box", padding: "0 8px 0 24px", borderRadius: 8, border: `1px solid ${T.bdark}`, backgroundColor: "#fff", fontSize: 13, fontFamily: "monospace", color: T.text, outlineOffset: 2 }}
+                style={{ width: 116, height: alvo(36, dedo), boxSizing: "border-box", padding: "0 8px 0 24px", borderRadius: R.md, border: `1px solid ${T.bdark}`, backgroundColor: T.surface, fontSize: dedo ? FS.lead : FS.body, fontFamily: FONT.mono, color: T.text, outlineOffset: 2 }}
               />
             </div>
-            {/* 36px, a altura do campo ao lado — eram 24, um botão menor que
-                a caixa de texto que ele confirma. */}
-            <button
+            {/* A altura do campo ao lado — um botão menor que a caixa de texto
+                que ele confirma parecia outro controle. */}
+            <Botao
+              variante="secundario"
+              tamanho={dedo ? "toque" : "md"}
               onClick={marcarPorNumero}
               disabled={numPages === 0 || !intervalo.trim()}
               data-testid="button-book-marcar-intervalo"
-              style={{ height: 36, padding: "0 12px", borderRadius: 8, backgroundColor: TOM.roxo.bg, border: `1px solid ${TOM.roxo.border}`, color: TOM.roxo.text, opacity: numPages === 0 || !intervalo.trim() ? 0.5 : 1, fontSize: 12, fontWeight: 700, cursor: numPages === 0 || !intervalo.trim() ? "not-allowed" : "pointer" }}>
+            >
               Marcar
-            </button>
+            </Botao>
           </div>
 
           {/* Os três atalhos tinham padding 0 — alvo do tamanho do texto
-              (~16px de altura) — e, desabilitados, letra #c4c0ba. Agora 36px
-              de alvo e desabilitado por opacidade sobre a cor real, como o
-              resto da casa. */}
+              (~16px de altura). Agora são botões fantasma de 36px (44 no
+              toque), como o resto da casa. */}
           <div role="group" aria-label="Seleção rápida" style={{ display: "flex", alignItems: "center", gap: 2 }}>
             {([
               { rotulo: "Todas", acao: () => setPicked(new Set(pages)), off: numPages === 0 || picked.size === numPages, testId: undefined },
@@ -369,20 +375,21 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
               { rotulo: "Inverter", acao: () => setPicked(new Set(pages.filter((n: number) => !picked.has(n)))), off: numPages === 0, testId: "button-book-inverter" },
               { rotulo: "Limpar", acao: () => setPicked(new Set()), off: picked.size === 0, testId: undefined },
             ]).map(b => (
-              <button
+              <Botao
                 key={b.rotulo}
-                type="button"
+                variante="fantasma"
+                tamanho={dedo ? "toque" : "md"}
                 onClick={b.acao}
                 disabled={b.off}
                 data-testid={b.testId}
-                style={{ height: 36, padding: "0 8px", borderRadius: 8, background: "none", border: "none", fontSize: 12, fontWeight: 700, color: TOM.roxo.text, opacity: b.off ? 0.45 : 1, cursor: b.off ? "not-allowed" : "pointer" }}>
+              >
                 {b.rotulo}
-              </button>
+              </Botao>
             ))}
           </div>
 
           {numPages > 0 && renderedCount < numPages && (
-            <span style={{ marginLeft: "auto", fontSize: 11, color: T.second, display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ marginLeft: "auto", fontSize: FS.small, color: T.second, display: "inline-flex", alignItems: "center", gap: 6 }}>
               <Loader2 style={{ width: 11, height: 11 }} className="animate-spin" />
               {renderedCount} de {numPages} pré-visualizadas
             </span>
@@ -396,29 +403,22 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
             porque quem limita agora é o teto do Content. `flex: 0 1 auto` +
             `minHeight: 0` derruba o piso automático do item flex e deixa a
             grade encolher abaixo dos 520 numa janela baixa. */}
-        <div style={{ maxHeight: 520, overflowY: "auto", padding: "clamp(16px, 4vw, 32px)", backgroundColor: "#fff", flex: "0 1 auto", minHeight: 0 }}>
+        <div style={{ maxHeight: 520, overflowY: "auto", padding: "clamp(16px, 4vw, 32px)", backgroundColor: T.surface, flex: "0 1 auto", minHeight: 0 }}>
+          {/* A saída ao lado do problema: sem o "Tentar de novo", a única forma
+              era fechar o modal e reabrir pela exportação. */}
           {error && (
-            <div role="alert" style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: 16, borderRadius: 10, backgroundColor: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}` }}>
-              <AlertCircle aria-hidden="true" style={{ width: 16, height: 16, color: TOM.perigo.text, flexShrink: 0, marginTop: 1 }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 13, fontWeight: 700, color: TOM.perigo.text, margin: "0 0 4px" }}>Não foi possível abrir o book</p>
-                <p style={{ fontSize: 12, color: TOM.perigo.text, margin: 0, lineHeight: 1.5 }}>{error}</p>
-                {/* A saída ao lado do problema. Sem ela, a única forma de tentar
-                    de novo era fechar o modal e reabrir pela exportação. */}
-                <button
-                  type="button"
-                  onClick={() => setTentativa(t => t + 1)}
-                  style={{ marginTop: 10, display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 14px", borderRadius: 8, border: `1px solid ${TOM.perigo.border}`, backgroundColor: "#fff", color: TOM.perigo.text, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                  <RefreshCw aria-hidden="true" style={{ width: 13, height: 13 }} /> Tentar de novo
-                </button>
-              </div>
-            </div>
+            <EstadoErro
+              compacto
+              titulo="Não foi possível abrir o book"
+              detalhe={error}
+              aoTentarDeNovo={() => setTentativa(t => t + 1)}
+            />
           )}
 
           {opening && !error && (
             <div role="status" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: "80px 0" }}>
               <Loader2 aria-hidden="true" style={{ width: 26, height: 26, color: TOM.roxo.text }} className="animate-spin" />
-              <p style={{ fontSize: 13, color: T.apoio, margin: 0 }}>Abrindo o book…</p>
+              <p style={{ fontSize: FS.body, color: T.apoio, margin: 0 }}>Abrindo o book…</p>
             </div>
           )}
 
@@ -446,28 +446,28 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
             volta procurando as bordas roxas. Com as páginas escritas aqui, a
             seleção fica verificável sem sair do lugar — e cada pílula desmarca
             no × para corrigir um engano sem caçar a miniatura. */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px clamp(16px, 4vw, 32px)", borderTop: `1px solid ${T.border}`, backgroundColor: "#fff", flexShrink: 0, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px clamp(16px, 4vw, 32px)", borderTop: `1px solid ${T.border}`, backgroundColor: T.surface, flexShrink: 0, flexWrap: "wrap" }}>
           <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             {marcadas.length === 0 ? (
-              <span style={{ fontSize: 12, color: T.second }}>Marque as páginas que precisa, ou digite os números acima.</span>
+              <span style={{ fontSize: FS.meta, color: T.second }}>Marque as páginas que precisa, ou digite os números acima.</span>
             ) : (
               <>
-                <span style={{ fontSize: 12, color: T.apoio, flexShrink: 0 }}>Sai um PDF com</span>
+                <span style={{ fontSize: FS.meta, color: T.apoio, flexShrink: 0 }}>Sai um PDF com</span>
                 {marcadas.slice(0, 8).map(n => (
-                  <span key={n} style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: TOM.roxo.bg, border: `1px solid ${TOM.roxo.border}`, borderRadius: 999, padding: "2px 4px 2px 9px", fontSize: 11, fontWeight: 700, fontFamily: "monospace", color: TOM.roxo.text }}>
+                  <span key={n} style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: TOM.roxo.bg, border: `1px solid ${TOM.roxo.border}`, borderRadius: R.pill, padding: "2px 4px 2px 9px", fontSize: FS.small, fontWeight: FW.forte, fontFamily: FONT.mono, color: TOM.roxo.text }}>
                     {n}
                     {/* 22px de alvo dentro da pílula (eram 16): o × é o jeito
                         de corrigir um engano sem caçar a miniatura. */}
                     <button
                       onClick={() => setPicked(prev => { const x = new Set(prev); x.delete(n); return x; })}
                       aria-label={`Desmarcar a página ${n}`}
-                      style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: 999, border: "none", background: "none", color: TOM.roxo.text, cursor: "pointer", fontSize: 13, lineHeight: 1, padding: 0 }}>
+                      style={{ display: "flex", alignItems: "center", justifyContent: "center", width: alvo(22, dedo), height: alvo(22, dedo), borderRadius: R.pill, border: "none", background: "none", color: TOM.roxo.text, cursor: "pointer", fontSize: FS.body, lineHeight: 1, padding: 0 }}>
                       <X aria-hidden="true" style={{ width: 11, height: 11 }} />
                     </button>
                   </span>
                 ))}
                 {marcadas.length > 8 && (
-                  <span style={{ fontSize: 11, fontWeight: 700, fontFamily: "monospace", color: TOM.roxo.text }}>+{marcadas.length - 8}</span>
+                  <span style={{ fontSize: FS.small, fontWeight: FW.forte, fontFamily: FONT.mono, color: TOM.roxo.text }}>+{marcadas.length - 8}</span>
                 )}
               </>
             )}
@@ -475,28 +475,28 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
             {/* Cancelar com contorno e os dois botões na MESMA altura (eram 40 e
                 46): a gramática dos rodapés da Arte e do Atendimento. */}
-            <button
+            <Botao
+              variante="fantasma"
+              tamanho={dedo ? "toque" : "md"}
               onClick={() => onOpenChange(false)}
-              style={{ height: 40, padding: "0 14px", borderRadius: 8, background: "#fff", border: `1px solid ${T.border}`, color: T.apoio, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+            >
               Cancelar
-            </button>
-            <button
+            </Botao>
+            <Botao
+              variante="primario"
+              tamanho={dedo ? "toque" : "md"}
+              icone={Download}
               onClick={extract}
-              disabled={picked.size === 0 || extracting}
+              disabled={picked.size === 0}
+              carregando={extracting}
+              motivo="Marque ao menos uma página"
+              alinharMotivo="end"
               data-testid="button-extract-book-pages"
-              style={{
-                height: 40, padding: "0 18px", borderRadius: 8, border: "none",
-                backgroundColor: picked.size === 0 || extracting ? T.border : TOM.roxo.text,
-                color: picked.size === 0 || extracting ? T.apoio : "#fff",
-                cursor: picked.size === 0 || extracting ? "not-allowed" : "pointer",
-                fontSize: 13, fontWeight: 800, letterSpacing: "-0.01em",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                whiteSpace: "nowrap",
-              }}>
+            >
               {extracting
-                ? <><Loader2 style={{ width: 15, height: 15 }} className="animate-spin" /> Recortando…</>
-                : <><Download style={{ width: 15, height: 15 }} /> {picked.size > 0 ? `Baixar ${picked.size} ${picked.size === 1 ? "página" : "páginas"}` : "Baixar páginas"}</>}
-            </button>
+                ? "Recortando…"
+                : picked.size > 0 ? `Baixar ${picked.size} ${picked.size === 1 ? "página" : "páginas"}` : "Baixar páginas"}
+            </Botao>
           </div>
         </div>
       </DialogContent>
@@ -537,26 +537,26 @@ function PageTile({ index, src, picked, onToggle, onVisible }: {
       aria-label={`Página ${index + 1}`}
       style={{
         display: "block", width: "100%", textAlign: "left", padding: 6, cursor: "pointer",
-        borderRadius: 12,
+        borderRadius: R.lg,
         border: `1px solid ${picked ? TOM.roxo.text : T.border}`,
         boxShadow: picked ? `0 0 0 1px ${TOM.roxo.text} inset` : "none",
-        backgroundColor: picked ? TOM.roxo.bg : "#fff",
+        backgroundColor: picked ? TOM.roxo.bg : T.surface,
         transition: "border-color 0.12s, background-color 0.12s",
       }}>
-      <div style={{ position: "relative", borderRadius: 8, overflow: "hidden", border: "1px solid rgba(0,0,0,0.07)", backgroundColor: N.n2, aspectRatio: src ? undefined : String(1 / PLACEHOLDER_RATIO) }}>
+      <div style={{ position: "relative", borderRadius: R.md, overflow: "hidden", border: "1px solid rgba(0,0,0,0.07)", backgroundColor: N.n2, aspectRatio: src ? undefined : String(1 / PLACEHOLDER_RATIO) }}>
         {src
-          ? <img src={src} alt="" style={{ display: "block", width: "100%" }} />
+          ? <img src={src} alt="" decoding="async" style={{ display: "block", width: "100%" }} />
           : (
             <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <FileText style={{ width: 18, height: 18, color: T.bdark }} />
             </div>
           )}
         <div style={{
-          position: "absolute", top: 8, left: 8, width: 22, height: 22, borderRadius: 6,
+          position: "absolute", top: 8, left: 8, width: 22, height: 22, borderRadius: R.sm,
           display: "flex", alignItems: "center", justifyContent: "center",
           border: `2px solid ${picked ? TOM.roxo.text : T.bdark}`,
           backgroundColor: picked ? TOM.roxo.text : "rgba(255,255,255,0.92)",
-          color: "#fff", fontSize: 12, fontWeight: 800, lineHeight: 1,
+          color: T.surface, fontSize: FS.meta, fontWeight: FW.rotulo, lineHeight: 1,
         }}>
           {picked && <Check style={{ width: 13, height: 13 }} />}
         </div>
@@ -568,10 +568,11 @@ function PageTile({ index, src, picked, onToggle, onVisible }: {
             Sobre a imagem, o olho varre só os números. */}
         <div style={{
           position: "absolute", bottom: 6, right: 6,
-          borderRadius: 6, padding: "3px 6px",
-          fontFamily: "monospace", fontSize: 11, fontWeight: 700, lineHeight: 1,
+          borderRadius: R.sm, padding: "3px 6px",
+          fontFamily: FONT.mono, fontSize: FS.small, fontWeight: FW.forte, lineHeight: 1,
+          // Translúcidos de propósito: o número senta SOBRE a miniatura.
           backgroundColor: picked ? "rgba(109,40,217,0.92)" : "rgba(255,255,255,0.92)",
-          color: picked ? "#fff" : T.apoio,
+          color: picked ? T.surface : T.apoio,
         }}>
           {index + 1}
         </div>

@@ -240,7 +240,8 @@ describe("cor de marca em texto de 12px", () => {
     // A cor da marca é o que faz a tabela legível de longe — uniformizar tudo
     // para laranja resolveria o contraste e destruiria a leitura. Escurecer só
     // o necessário mantém as duas coisas.
-    expect(tela).toContain("darkenToContrast(marca, '#ffffff', 4.5)");
+    // O fundo é o token da superfície (T.surface = #ffffff) desde a troca hex→token.
+    expect(tela).toContain("darkenToContrast(marca, T.surface, 4.5)");
   });
 
   it("e o caso que motivou a regra de fato reprovava", () => {
@@ -268,13 +269,20 @@ describe("nenhum texto pequeno abaixo de 4,5:1", () => {
     // (#2d2926), que é o pior caso para uma cor clara. #a8a29e é decorativo
     // sobre branco (2,5) e passa aqui — cor só se julga junto do que está
     // atrás dela.
-    ["#a8a29e", "#2d2926", "meta do cabeçalho de grupo"],
-    ["#4ade80", "#2d2926", "grupo 100% vinculado"],
-    ["#fdba74", "#2d2926", "ladrilho e barra do cabeçalho de grupo"],
+    // O cabeçalho de grupo ficou CLARO (T.low) na migração ao design system;
+    // os pares sobre o gradiente escuro (#2d2926) saíram junto com ele.
+    ["#57534e", "#f3f4f3", "meta do cabeçalho de grupo (T.apoio sobre T.low)"],
+    ["#15803d", "#f3f4f3", "grupo 100% vinculado (TOM.sucesso.text sobre T.low)"],
+    ["#1c1917", "#f3f4f3", "nome do grupo (T.text sobre T.low)"],
+    ["#c2410c", "#ffffff", "ícone do ladrilho do evento (T.accentText sobre T.surface)"],
   ];
 
   it.each(pares)("%s sobre %s — %s", (frente, fundo) => {
     expect(contraste(frente, fundo)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("os tons de fundo escuro (verde/âmbar/pêssego) não voltaram ao código", () => {
+    for (const hex of ["#4ade80", "#fbbf24", "#fdba74", "#2d2926"]) expect(codigo).not.toContain(hex);
   });
 
   it("as cores que de fato reprovam continuam fora", () => {

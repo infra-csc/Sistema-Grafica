@@ -43,7 +43,11 @@ describe("o chip 'Sem patrocinador' na linha", () => {
 
   it("tem a casca dos chips de marca e borda tracejada quando desligado", () => {
     expect(VP).toContain("border: semPatrocinador ? `1px solid ${TOM.alerta.border}` : `1px dashed ${T.bdark}`,");
-    expect(VP).toContain("height: isMobile ? 44 : 26, padding: '0 10px', borderRadius: 999,");
+    // Alvo de 44 no TOQUE (ponteiro grosso, em qualquer largura) e 26 no mouse:
+    // alvo(26, dedo) devolve max(26, 44) quando dedo — a proteção é a mesma
+    // que antes valia só abaixo de 768px de janela.
+    expect(VP).toContain("height: alvo(26, dedo), padding: '0 10px', borderRadius: 999,");
+    expect(VP).toContain("const dedo = usePonteiroGrosso();");
   });
 
   it("segue o mesmo gate do 'Todos': só em peça editável e não enviada", () => {

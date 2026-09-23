@@ -1,7 +1,7 @@
 // Envio para aprovação, aprovação do patrocinador, dispensa e as aprovações por patrocinador.
 import type { Express } from "express";
 import { storage } from "../../storage";
-import { POS_APROVACAO, DISPENSAVEIS, DESTINO_DA_DISPENSA } from "@shared/fluxo-peca";
+import { POS_APROVACAO, DESTINO_DA_DISPENSA } from "@shared/fluxo-peca";
 import { ehMolde } from "@shared/molde";
 import { enviarMoldeParaRevisao } from "../molde";
 import { requireAuth, broadcast, translateStatus, sendSensitiveError, createAuditLog } from "../shared";
@@ -15,6 +15,7 @@ import { urlDeThumbValida, ERRO_THUMB_FORA_DO_STORAGE } from "../thumb-url";
 import { barraEventoFinalizado } from "../eventoFinalizado";
 import { MOTIVO_MIN, lerMotivoDevolucao, lerDestinoDevolucao, revogarAprovacoesEstritas } from "./comum";
 import { responderFalha } from "../../erros";
+import { vemDeOrigemValida, podeTransicionar } from "@shared/maquina-de-estados";
 
 /** envio para aprovação, aprovação, dispensa e aprovações por patrocinador. */
 export function registrarAprovacao(app: Express): void {
@@ -37,8 +38,9 @@ export function registrarAprovacao(app: Express): void {
       // ANDA: empurra a peça para a fila do Atendimento (ou da Revisão).
       if (await barraEventoFinalizado(currentItem, res)) return;
 
-      // Only items that passed through vincular-patrocinadores (awaiting_submission) can be worked on
-      if (currentItem.status !== "awaiting_submission") {
+      // Só a peça que passou pela Vinculação (Aguardando Envio) vai para a
+      // aprovação — shared/maquina-de-estados.ts.
+      if (!vemDeOrigemValida(currentItem.status, "enviar-para-aprovacao")) {
         return res.status(409).json({ 
           error: `A peça não pode ser enviada para aprovação na etapa atual (${translateStatus(currentItem.status)}). Ela precisa passar pela Vinculação de patrocinadores antes.`
         });
@@ -190,7 +192,8 @@ export function registrarAprovacao(app: Express): void {
       // a peça; a ficha do Painel Geral, não.
       if (await barraEventoFinalizado(currentItem, res)) return;
 
-      if (currentItem.status !== "awaiting_sponsor_approval") {
+      // De onde a ação pode partir: shared/maquina-de-estados.ts.
+      if (!vemDeOrigemValida(currentItem.status, "aprovar-peca-inteira")) {
         return res.status(409).json({
           error: `A peça não pode ser aprovada pelo patrocinador: está em "${translateStatus(currentItem.status)}", e a aprovação é em "Aguardando Aprovação".`
         });
@@ -267,7 +270,8 @@ export function registrarAprovacao(app: Express): void {
       // ANDA: a peça pula a aprovação do Atendimento e vai para a
       // finalização da Arte.
       if (await barraEventoFinalizado(currentItem, res)) return;
-      if (!DISPENSAVEIS.includes(currentItem.status)) {
+      // De onde a ação pode partir: shared/maquina-de-estados.ts.
+      if (!vemDeOrigemValida(currentItem.status, "dispensar-aprovacao")) {
         return res.status(409).json({ error: `A peça não pode pular a aprovação na etapa atual (${translateStatus(currentItem.status)}).` });
       }
       // MOLDE (22/09) não tem aprovação nem finalização: o envio dele já vai
@@ -395,7 +399,8 @@ export function registrarAprovacao(app: Express): void {
       // por outra porta (é esta que a tela de Atendimento usa hoje).
       if (await barraEventoFinalizado(currentItem, res)) return;
 
-      if (currentItem.status !== "awaiting_sponsor_approval") {
+      // De onde a ação pode partir: shared/maquina-de-estados.ts.
+      if (!vemDeOrigemValida(currentItem.status, "aprovar-um-patrocinador")) {
         return res.status(409).json({
           error: `A peça não está aguardando aprovação do patrocinador: está em "${translateStatus(currentItem.status)}".`
         });
@@ -529,7 +534,8 @@ export function registrarAprovacao(app: Express): void {
       // ANDA: reprovar por patrocinador manda a Arte fazer uma versão nova.
       if (await barraEventoFinalizado(currentItem, res)) return;
 
-      if (currentItem.status !== "awaiting_sponsor_approval") {
+      // De onde a ação pode partir: shared/maquina-de-estados.ts.
+      if (!vemDeOrigemValida(currentItem.status, "reprovar-por-patrocinador")) {
         return res.status(409).json({
           error: `A peça não está aguardando aprovação do patrocinador: está em "${translateStatus(currentItem.status)}".`
         });
@@ -618,7 +624,7 @@ export function registrarAprovacao(app: Express): void {
   // em aprovação ou na finalização da Arte (sponsor_approved). Depois disso
   // (arquivo final, produção) continua sendo coisa de admin: revogar uma
   // aprovação com a peça já na gráfica é desfazer trabalho, não decisão.
-  const STATUS_REVOGAVEL = ["awaiting_sponsor_approval", "sponsor_approved"];
+  // A janela de cada papel mora em shared/maquina-de-estados.ts ("revogar-aprovacao").
   app.post("/api/items/:id/sponsor-approvals/:sponsorId/revert", requireAuth, async (req, res) => {
     try {
       if (req.userRole !== "admin" && req.userRole !== "atendimento") {
@@ -641,7 +647,8 @@ export function registrarAprovacao(app: Express): void {
       // precisar mesmo corrigir reabre o evento, que é barato.
       if (await barraEventoFinalizado(currentItem, res)) return;
 
-      if (req.userRole !== "admin" && !STATUS_REVOGAVEL.includes(currentItem.status)) {
+      // Atendimento: só em aprovação ou finalização; admin: em qualquer status.
+      if (!podeTransicionar(currentItem.status, "revogar-aprovacao", req.userRole)) {
         return res.status(409).json({
           error: `Só dá para revogar enquanto a peça está em aprovação ou na finalização da Arte. Status atual: ${translateStatus(currentItem.status)}`,
         });
@@ -751,7 +758,8 @@ export function registrarAprovacao(app: Express): void {
       // ANDA: nova versão de arte volta a cobrar revisão do Atendimento.
       if (await barraEventoFinalizado(currentItem, res)) return;
 
-      if (currentItem.status !== "awaiting_sponsor_approval") {
+      // De onde a ação pode partir: shared/maquina-de-estados.ts.
+      if (!vemDeOrigemValida(currentItem.status, "reenviar-nova-versao")) {
         return res.status(409).json({ error: "Item não está aguardando aprovação do patrocinador" });
       }
       // Só objeto do nosso storage (ver urlDeThumbValida), depois das guardas

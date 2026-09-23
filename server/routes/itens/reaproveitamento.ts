@@ -16,6 +16,7 @@ import { requireAuth, broadcast, translateStatus, createAuditLog } from "../shar
 import { barraEventoFinalizado } from "../eventoFinalizado";
 import { registrarSaidaDaImpressora } from "./comum";
 import { responderFalha } from "../../erros";
+import { vemDeOrigemValida, podeTransicionar } from "@shared/maquina-de-estados";
 
 /** mark-reuse, correct-reuse. */
 export function registrarReaproveitamento(app: Express): void {
@@ -45,11 +46,8 @@ export function registrarReaproveitamento(app: Express): void {
       if (EM_REVISAO.has(current.status)) {
         return res.status(409).json({ error: "Esta peça está em revisão — a Gráfica só age depois que a revisão liberar." });
       }
-      // Permite marcar como reaproveitamento enquanto a peça ainda está no fluxo de produção
-      const allowedStatuses = [
-        "ready_for_production", "pronto_para_producao", "approved",
-        "inProduction", "em_producao",
-      ];
+      // Permite marcar como reaproveitamento enquanto a peça ainda está no
+      // fluxo de produção (REAPROVEITAVEL, em shared/maquina-de-estados.ts).
       // APÓS PRODUZIDO (dono, 27/08): Solicitação e admin ainda podem mudar a
       // quantidade reaproveitada — CONVERTENDO unidades produzidas em
       // reaproveitadas. A peça continua "Produzido" (o total segue coberto);
@@ -57,8 +55,8 @@ export function registrarReaproveitamento(app: Express): void {
       // fica de fora: ela produz o que pedem, não reescreve o pedido.
       const ehProduzida = current.status === "produced" || current.status === "produzido";
       const viaProduzida = ehProduzida
-        && ((req as any).userRole === "admin" || (req as any).userRole === "solicitacao");
-      if (!allowedStatuses.includes(current.status) && !viaProduzida) {
+        && podeTransicionar(current.status, "ajustar-reaproveitamento-da-produzida", (req as any).userRole);
+      if (!vemDeOrigemValida(current.status, "reaproveitar-parte") && !viaProduzida) {
         return res.status(409).json({
           error: ehProduzida
             ? "Peça já produzida: mudar o reaproveitamento agora é da Solicitação e do admin."
@@ -191,7 +189,8 @@ export function registrarReaproveitamento(app: Express): void {
       // anterior à conferência; Gráfica e Solicitação seguem restritas a
       // "Produzido", que é o momento em que elas encostam na peça.
       const isAdmin = (req as any).userRole === "admin";
-      if (!isAdmin && current.status !== "produced" && current.status !== "produzido") {
+      // (a janela de cada papel: shared/maquina-de-estados.ts, "corrigir-reaproveitamento-para-a-fila")
+      if (!podeTransicionar(current.status, "corrigir-reaproveitamento-para-a-fila", (req as any).userRole)) {
         return res.status(409).json({ error: "Correção disponível apenas para peças com status Produzido" });
       }
       if ((current.conferredQty || 0) > 0) {

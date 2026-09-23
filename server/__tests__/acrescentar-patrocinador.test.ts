@@ -18,6 +18,7 @@
 // até em correção; caso seja aprovada, não pode mais".
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { origemDaAcao } from "@shared/maquina-de-estados";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
@@ -94,7 +95,8 @@ describe("até a aprovação fechar — inclusive em correção", () => {
     // LINHA dele vai para awaiting_arte (ver a rota de reject em items.ts).
     const ITEMS = fonteDasRotasDeItens();
     expect(ITEMS).toContain("status: 'awaiting_arte',");
-    expect(ITEMS).toContain('if (currentItem.status !== "awaiting_sponsor_approval") {');
+    expect(ITEMS).toContain('if (!vemDeOrigemValida(currentItem.status, "reprovar-por-patrocinador")) {');
+    expect(origemDaAcao("reprovar-por-patrocinador")).toEqual(["awaiting_sponsor_approval"]);
     // Revisor devolveu à Arte: a peça volta para awaiting_submission.
     expect(ITEMS).toContain('status: "awaiting_submission",');
     // E o comentário da rota explica isso para quem vier depois.

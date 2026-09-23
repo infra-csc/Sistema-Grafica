@@ -32,6 +32,7 @@ import { lancarImpressas, cadastrarAtivosDaPecaProduzida } from "../../services/
 import { erroEventoFechado, motivoEventoDaPeca, barraEventoFinalizado } from "../eventoFinalizado";
 import { registrarImpressao } from "./comum";
 import { responderFalha } from "../../erros";
+import { vemDeOrigemValida } from "@shared/maquina-de-estados";
 
 /** approve (410), start-printing, start-production. */
 export function registrarRotasDeImpressao(app: Express): void {
@@ -84,7 +85,6 @@ export function registrarRotasDeImpressao(app: Express): void {
       // MOLDE (22/09) não passa por impressora: é marcado como produzido direto.
       if (ehMolde(antes)) return res.status(409).json({ error: "Molde não vai para a impressora — use \"Marcar como produzido\"." });
       const falha = (status: number, corpo: Record<string, unknown>) => Object.assign(new Error(String(corpo.error)), { httpStatus: status, corpo });
-      const PODE_IR_PARA_A_MAQUINA = ["ready_for_production", "pronto_para_producao", "approved", "liberado", "inProduction", "em_producao"];
       const pedido = { printMachine, quantidade: quantidade == null ? null : Number(quantidade), deMaquina: ehMaquinaValida(deMaquina) ? deMaquina : null, iniciarParte: pedeParte === true, daReserva: daReserva === true };
       // UMA PEÇA POR VEZ POR IMPRESSORA (dono, 21/09): iniciar (inteira ou
       // parte) e trocar de máquina recusam a impressora que já tem OUTRA peça
@@ -119,7 +119,8 @@ export function registrarRotasDeImpressao(app: Express): void {
           // As guardas sobre a linha TRAVADA (a leitura de fora pode estar velha).
           if (pecaTravada(current as any)) throw falha(409, { error: fraseDaTrava(current as any), code: CODIGO_PECA_TRAVADA });
           if (EM_REVISAO.has(current.status)) throw falha(409, { error: "Esta peça está em revisão — a Gráfica só age depois que a revisão liberar." });
-          if (!PODE_IR_PARA_A_MAQUINA.includes(current.status)) throw falha(409, { error: `A peça não pode ir para a máquina no status atual: ${translateStatus(current.status)}` });
+          // De onde pode ir para a máquina: shared/maquina-de-estados.ts ("iniciar-impressao").
+          if (!vemDeOrigemValida(current.status, "iniciar-impressao")) throw falha(409, { error: `A peça não pode ir para a máquina no status atual: ${translateStatus(current.status)}` });
           // aImprimirDaPeca: quantidade − reaproveitadas, e ZERO na peça de reuso
           // legado (isReuse) — a mesma conta das telas.
           if (aImprimirDaPeca(current as any) - (current.quantityProduced || 0) <= 0) {

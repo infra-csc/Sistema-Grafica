@@ -19,6 +19,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
+import { podeTransicionar } from "@shared/maquina-de-estados";
+import { STATUS_CONHECIDOS } from "@shared/fluxo-peca";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
@@ -42,15 +44,19 @@ describe("1 · quem pode, e quando", () => {
   });
 
   it("Atendimento só em aprovação ou finalização da Arte; admin sem limite", () => {
-    expect(ITEMS).toContain('const STATUS_REVOGAVEL = ["awaiting_sponsor_approval", "sponsor_approved"];');
-    expect(rota()).toContain('if (req.userRole !== "admin" && !STATUS_REVOGAVEL.includes(currentItem.status)) {');
+    // A janela mora em shared/maquina-de-estados.ts; a rota a consulta com o papel.
+    expect(rota()).toContain('if (!podeTransicionar(currentItem.status, "revogar-aprovacao", req.userRole)) {');
+    for (const s of STATUS_CONHECIDOS) {
+      expect(podeTransicionar(s, "revogar-aprovacao", "atendimento"), s).toBe(["awaiting_sponsor_approval", "sponsor_approved"].includes(s));
+      expect(podeTransicionar(s, "revogar-aprovacao", "admin"), s).toBe(true);
+    }
     expect(rota()).toContain("Só dá para revogar enquanto a peça está em aprovação ou na finalização da Arte. Status atual:");
   });
 
   it("o limite de status vem DEPOIS do evento finalizado e ANTES de mexer na aprovação", () => {
     const r = rota();
     const evento = r.indexOf("if (await barraEventoFinalizado(currentItem, res)) return;");
-    const limite = r.indexOf("!STATUS_REVOGAVEL.includes(currentItem.status)");
+    const limite = r.indexOf('!podeTransicionar(currentItem.status, "revogar-aprovacao", req.userRole)');
     const mexe = r.indexOf("await storage.updateItemSponsorApproval(approval.id, {");
     expect(evento).toBeGreaterThan(-1);
     expect(limite).toBeGreaterThan(evento);

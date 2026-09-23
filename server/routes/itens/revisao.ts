@@ -25,6 +25,7 @@ import {
 import { motivoEventoFechado, barraEventoFinalizado, contadorDeBloqueio } from "../eventoFinalizado";
 import { lerMotivoDevolucao, type DestinoDevolucao, lerDestinoDevolucao } from "./comum";
 import { responderFalha } from "../../erros";
+import { vemDeOrigemValida } from "@shared/maquina-de-estados";
 
 /**
  * Os campos que cada destino grava.
@@ -135,14 +136,11 @@ export function registrarRevisao(app: Express): void {
       // Idempotente: se a peça JÁ foi liberada (ou já avançou na produção), não
       // é erro clicar "Liberar" de novo (lista desatualizada / clique duplo) —
       // só devolve a peça como sucesso, sem reprocessar.
-      const alreadyReleased = [
-        "ready_for_production", "approved", "pronto_para_producao", "liberado",
-        "inProduction", "em_producao", "produced", "produzido", "conferred", "packed", "delivered", "entregue",
-      ].includes(currentItem.status);
+      const alreadyReleased = vemDeOrigemValida(currentItem.status, "liberar-o-que-ja-foi-liberado");
       if (alreadyReleased) {
         return res.json(currentItem);
       }
-      if (currentItem.status !== "awaiting_final_review") {
+      if (!vemDeOrigemValida(currentItem.status, "liberar-para-producao")) {
         return res.status(409).json({
           error: `A peça não está na Revisão Final (etapa atual: ${translateStatus(currentItem.status)}) — atualize a tela.`
         });
@@ -341,7 +339,8 @@ export function registrarRevisao(app: Express): void {
       //
       // O único estado recusado é o próprio rascunho: devolver o que já está na
       // criação não muda nada e ainda zeraria os campos de aprovação abaixo.
-      if (currentItem.status === "draft") {
+      // (shared/maquina-de-estados.ts: "devolver-ao-solicitante" parte de todo status menos o rascunho)
+      if (!vemDeOrigemValida(currentItem.status, "devolver-ao-solicitante")) {
         return res.status(409).json({
           error: "Esta peça já está na criação (Rascunho) — não há para onde devolver.",
         });
@@ -415,7 +414,8 @@ export function registrarRevisao(app: Express): void {
       // ANDA: devolver para a Arte com observações é pedir retrabalho.
       if (await barraEventoFinalizado(currentItem, res)) return;
 
-      if (currentItem.status !== "awaiting_final_review") {
+      // De onde a ação pode partir: shared/maquina-de-estados.ts.
+      if (!vemDeOrigemValida(currentItem.status, "devolver-para-a-arte")) {
         return res.status(409).json({ error: `A peça não está mais na Revisão Final (etapa atual: ${translateStatus(currentItem.status)}) — atualize a tela.` });
       }
 
@@ -474,7 +474,7 @@ export function registrarRevisao(app: Express): void {
    * O motivo é obrigatório pela mesma régua das outras devoluções: quem
    * recebe a peça de volta precisa saber o que refazer.
    */
-  const STATUS_ANTES_DE_PRODUZIR = ["ready_for_production", "pronto_para_producao", "approved", "liberado"];
+  // Os status de antes de produzir: LIBERADA, em shared/maquina-de-estados.ts ("devolver-para-a-revisao").
 
   app.patch("/api/items/:id/return-to-review", requireAuth, async (req, res) => {
     try {
@@ -494,7 +494,7 @@ export function registrarRevisao(app: Express): void {
 
       if (await barraEventoFinalizado(currentItem, res)) return;
 
-      if (!STATUS_ANTES_DE_PRODUZIR.includes(currentItem.status)) {
+      if (!vemDeOrigemValida(currentItem.status, "devolver-para-a-revisao")) {
         return res.status(409).json({
           error: `A peça já saiu da fila de produção (${translateStatus(currentItem.status)}) e não pode voltar para a Revisão — há material produzido para desfazer.`,
         });
@@ -596,7 +596,7 @@ export function registrarRevisao(app: Express): void {
           return;
         }
 
-        if (currentItem.status !== "awaiting_final_review") {
+        if (!vemDeOrigemValida(currentItem.status, "devolver-para-a-arte")) {
           errors.push({ itemId, error: `Não está mais na Revisão Final (etapa atual: ${translateStatus(currentItem.status)}).` });
           return;
         }

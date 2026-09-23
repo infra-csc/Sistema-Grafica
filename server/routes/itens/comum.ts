@@ -12,6 +12,7 @@ import { createAuditLog, resolveActor } from "../shared";
 // revoga uma aprovação e continua vendo o quadro velho numa tela cujo trabalho
 // é justamente conferir o que está valendo agora.
 import { invalidarCacheDeVersoes } from "../versoes";
+import { COMPLEMENTAVEL } from "@shared/maquina-de-estados";
 
 // ─── REGISTRO DE IMPRESSÃO POR MÁQUINA (dono, 14/09) ─────────────────────────
 //
@@ -136,16 +137,12 @@ export function lerDestinoDevolucao(req: any): DestinoDevolucao {
 // A assimetria é deliberada: aumentar cria trabalho novo (ordem de serviço,
 // metragem, alerta para a Gráfica); reduzir só corta a meta.
 //
-// Espelho literal de COMPLEMENT_ALLOWED_STATUSES em client/src/lib/status.ts —
-// o servidor não importa código do client (mesma disciplina dos dois mapas de
-// status que já convivem). Se um mudar, o outro muda junto.
+// A lista mora em shared/maquina-de-estados.ts (COMPLEMENTAVEL, a origem de
+// "criar-complemento"); o cliente tem o espelho em client/src/lib/status.ts.
 // Inclui as grafias legadas em português porque elas circulam no banco: gate
 // que compara só com a grafia canônica simplesmente nunca dispara.
 // ─────────────────────────────────────────────────────────────────────────────
-export const COMPLEMENT_ALLOWED_STATUSES: readonly string[] = [
-  "inProduction", "em_producao", "produced", "produzido",
-  "conferred", "packed", "delivered", "entregue",
-];
+export const COMPLEMENT_ALLOWED_STATUSES: readonly string[] = COMPLEMENTAVEL;
 
 // m² é grandeza de produção/custo e não pode ser fonte-de-verdade do cliente.
 // Quando as dimensões do arquivo estão presentes, o servidor RECALCULA

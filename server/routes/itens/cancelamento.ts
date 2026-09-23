@@ -15,6 +15,7 @@ import {
 import { responderErro, PECA_NAO_ENCONTRADA } from "../../erros";
 import { motivoEventoFechado, barraEventoFinalizado, contadorDeBloqueio } from "../eventoFinalizado";
 import { registrarSaidaDaImpressora } from "./comum";
+import { vemDeOrigemValida } from "@shared/maquina-de-estados";
 
 // ─── CANCELAR A PEÇA ────────────────────────────────────────────────────────
 //
@@ -171,7 +172,8 @@ export function registrarCancelamento(app: Express): void {
       }
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) return res.status(404).json({ error: "Peça não encontrada" });
-      if (currentItem.status !== "canceled") {
+      // De onde a ação pode partir: shared/maquina-de-estados.ts.
+      if (!vemDeOrigemValida(currentItem.status, "descancelar")) {
         return res.status(409).json({ error: "A peça não está cancelada — nada a descancelar" });
       }
       // Mesma guarda do cancelamento: mexer em peça de evento finalizado

@@ -24,6 +24,7 @@ import { invalidarCacheDeVersoes } from "./versoes";
 import { DEPOIS_DA_ARTE, POS_APROVACAO } from "@shared/fluxo-peca";
 import { ehMolde } from "@shared/molde";
 import { responderFalha } from "../erros";
+import { vemDeOrigemValida } from "@shared/maquina-de-estados";
 
 /** Molde não tem patrocinador (revisão 22/09): não passa por Vincular nem por aprovação. */
 const ERRO_PATROCINADOR_EM_MOLDE = "Molde não recebe patrocinador — ele não passa por Vincular Patrocinadores nem por aprovação";
@@ -640,8 +641,8 @@ export function registerSponsorRoutes(app: Express): void {
       // Vínculo só faz sentido enquanto a peça está na fase de vinculação —
       // sem isto dava para reescrever patrocinadores de peça já em produção
       // ou entregue (a tela esconde, mas era gate só de UI).
-      const linkableStatuses = ['requested', 'awaiting_linking'];
-      if (!linkableStatuses.includes(currentItem.status)) {
+      // (a fase de vinculação: shared/maquina-de-estados.ts, "vincular-patrocinadores")
+      if (!vemDeOrigemValida(currentItem.status, "vincular-patrocinadores")) {
         return res.status(409).json({ error: `Peça não está em fase de vinculação (status atual: ${translateStatus(currentItem.status)})` });
       }
 
@@ -935,8 +936,8 @@ export function registerSponsorRoutes(app: Express): void {
       // fila que já não mostra esta peça.
       if (await barraEventoFinalizado(item, res)) return;
 
-      const allowedStatuses = ['draft', 'requested', 'awaiting_linking', 'awaiting_submission'];
-      if (!allowedStatuses.includes(item.status)) {
+      // (de onde volta: shared/maquina-de-estados.ts, "voltar-para-a-criacao")
+      if (!vemDeOrigemValida(item.status, "voltar-para-a-criacao")) {
         return res.status(409).json({ error: `Esta peça já passou da vinculação e não pode voltar para a Criação (está em ${translateStatus(item.status)}).` });
       }
 
@@ -1022,7 +1023,7 @@ export function registerSponsorRoutes(app: Express): void {
           // "já foi enviada" (por outro envio ou outra pessoa — é o caso
           // do clique repetido) não tem o que fazer; "ainda não chegou"
           // pede voltar à Solicitação. "Status incorreto" não dizia nenhum.
-          if (item.status !== 'awaiting_linking') {
+          if (!vemDeOrigemValida(item.status, "enviar-para-a-arte")) {
             const aindaNaoChegou = ['draft', 'requested'].includes(item.status);
             const onde = translateStatus(item.status);
             falhou(itemId, aindaNaoChegou

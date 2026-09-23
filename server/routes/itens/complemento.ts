@@ -7,6 +7,7 @@ import { corpoEventoFechado, fraseDoZod } from "../../erros";
 import { motivoEventoFechado } from "../eventoFinalizado";
 import { COMPLEMENT_ALLOWED_STATUSES } from "./comum";
 import { criarComplemento, desfazerComplemento } from "../../services/complemento-da-peca";
+import { vemDeOrigemValida } from "@shared/maquina-de-estados";
 
 /**
  * Quem pode MUDAR A QUANTIDADE de uma peça que já entrou em produção —
@@ -67,7 +68,8 @@ export function registrarComplemento(app: Express): void {
           parentItemId: parent.parentItemId,
         });
       }
-      if (!COMPLEMENT_ALLOWED_STATUSES.includes(parent.status)) {
+      // De onde a ação pode partir: shared/maquina-de-estados.ts.
+      if (!vemDeOrigemValida(parent.status, "criar-complemento")) {
         return res.status(409).json({
           error: `A peça ${parent.displayId} ainda não entrou em produção — edite a quantidade normalmente.`,
           code: "NOT_IN_PRODUCTION",

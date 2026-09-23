@@ -22,6 +22,7 @@ import { invalidarCacheDeVersoes } from "../versoes";
 import { urlDeThumbValida, ERRO_THUMB_FORA_DO_STORAGE } from "../thumb-url";
 import { barraEventoFinalizado } from "../eventoFinalizado";
 import { registrarSaidaDaImpressora, revogarAprovacoesEstritas } from "./comum";
+import { vemDeOrigemValida } from "@shared/maquina-de-estados";
 
 /** arquivo final e troca de thumb. */
 export function registrarArte(app: Express): void {
@@ -54,7 +55,8 @@ export function registrarArte(app: Express): void {
 
       // sponsor_approved: normal flow after sponsor approval
       // awaiting_creator_review: skipApproval / no-sponsor flow (sponsor approval skipped)
-      if (currentItem.status !== "sponsor_approved" && currentItem.status !== "awaiting_creator_review") {
+      // (a lista mora em shared/maquina-de-estados.ts, "enviar-arquivo-final")
+      if (!vemDeOrigemValida(currentItem.status, "enviar-arquivo-final")) {
         return res.status(409).json({ 
           error: `A peça não pode receber o arquivo final na etapa atual (${translateStatus(currentItem.status)}) — só depois da aprovação do patrocinador, na Finalização.`
         });

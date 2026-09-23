@@ -31,10 +31,14 @@
 // `/d+/`, `/w+/` e as maiúsculas), não só do caso que aconteceu.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync, readdirSync, statSync } from "fs";
 import path from "path";
+
+// A varredura lê todo arquivo do projeto: com o app maior (e o CI mais lento),
+// passa dos 5s padrão sem que nada esteja errado.
+vi.setConfig({ testTimeout: 60_000 });
 
 const RAIZ = path.resolve(__dirname, "../../");
 const PASTAS = ["server", "client/src", "shared"];

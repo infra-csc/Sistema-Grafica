@@ -3,6 +3,8 @@
 // server/routes.ts during the routes.ts → routes/* split — no behavior
 // changes, just centralizing what multiple modules depend on.
 import { z } from "zod";
+import { createHash } from "crypto";
+import { pool } from "../db";
 import { storage } from "../storage";
 import { statusParaContagem } from "@shared/molde";
 import { publicarMensagem } from "../tempo-real";
@@ -311,10 +313,9 @@ export function chaveDoUsuarioOuIp(req: any): string {
   return userId ? `u:${userId}` : `ip:${chaveDoIp(req)}`;
 }
 
-// Simple in-memory rate limiter (no new dependency needed) — protects
-// credential-related endpoints from brute-force attempts. Keyed by IP.
-// Not distributed-safe (per-process only), which is an acceptable
-// trade-off for this single-instance deployment.
+// Limitador em memória, POR CÓPIA do servidor (no Autoscale cada cópia conta
+// sozinha). Serve de freio onde isso basta (escrita, troca de senha) e de
+// reserva do limitador de login, que conta no Postgres (abaixo).
 // `chave` troca o critério (ex.: por conta, no login); devolver null deixa passar.
 export function createRateLimiter(opts: { windowMs: number; max: number; message: string; chave?: (req: any) => string | null }) {
   const hits = new Map<string, { count: number; resetAt: number }>();
@@ -343,7 +344,67 @@ export function createRateLimiter(opts: { windowMs: number; max: number; message
   };
 }
 
-export const loginRateLimiter = createRateLimiter({
+// ── LIMITE DE LOGIN ENTRE AS CÓPIAS ─────────────────────────────────────────
+// No Autoscale cada cópia contava sozinha: com N cópias, 10 tentativas viravam
+// 10×N. O de login conta no Postgres (tabela limite_de_tentativas, criada por
+// scripts/migracao-aditiva-producao.sql): uma linha por chave, contagem e fim
+// da janela, num UPSERT atômico. A chave gravada é o hash (sem e-mail nem IP
+// em claro). Sem a tabela (SQL não rodado) ou com o banco fora, cai no
+// limitador em memória da cópia e avisa no log — o login não para por isso.
+export const SQL_CONTAR_TENTATIVA = `
+INSERT INTO limite_de_tentativas AS l (chave, contagem, reinicia_em)
+VALUES ($1, 1, now() + $2::int * interval '1 millisecond')
+ON CONFLICT (chave) DO UPDATE SET
+  contagem = CASE WHEN l.reinicia_em <= now() THEN 1 ELSE l.contagem + 1 END,
+  reinicia_em = CASE WHEN l.reinicia_em <= now() THEN EXCLUDED.reinicia_em ELSE l.reinicia_em END
+RETURNING contagem`;
+export const SQL_LIMPAR_TENTATIVAS = "DELETE FROM limite_de_tentativas WHERE reinicia_em < now() - interval '1 hour'";
+
+type ConsultaSql = (sql: string, params: unknown[]) => Promise<{ rows: any[] }>;
+const consultarNoPool: ConsultaSql = (texto, params) => pool.query(texto, params as any[]);
+
+export function createRateLimiterCompartilhado(opts: {
+  nome: string; windowMs: number; max: number; message: string;
+  chave?: (req: any) => string | null;
+  consultar?: ConsultaSql;
+  agora?: () => number;
+}) {
+  const naMemoria = createRateLimiter(opts);
+  const agora = opts.agora ?? Date.now;
+  let avisou = false;
+  let ultimaLimpeza = 0;
+  return async (req: any, res: any, next: any) => {
+    const key = opts.chave ? opts.chave(req) : chaveDoIp(req);
+    if (key === null) return next();
+    const consultar = opts.consultar ?? consultarNoPool;
+    let contagem: number;
+    try {
+      const hash = createHash("sha256").update(`${opts.nome}:${key}`).digest("hex");
+      const { rows } = await consultar(SQL_CONTAR_TENTATIVA, [hash, opts.windowMs]);
+      contagem = Number(rows?.[0]?.contagem);
+      if (!Number.isFinite(contagem)) throw new Error("contagem ausente na resposta do banco");
+    } catch (erro: any) {
+      if (!avisou) {
+        avisou = true;
+        const motivo = erro?.code === "42P01"
+          ? "a tabela limite_de_tentativas não existe (rode scripts/migracao-aditiva-producao.sql)"
+          : `o banco falhou (${erro?.message ?? erro})`;
+        console.warn(`[limite:${opts.nome}] ${motivo} — contando na memória desta cópia.`);
+      }
+      return naMemoria(req, res, next);
+    }
+    // Faxina das janelas vencidas, no máximo a cada 10 min por cópia, fora do caminho da resposta.
+    if (agora() - ultimaLimpeza > 10 * 60_000) {
+      ultimaLimpeza = agora();
+      consultar(SQL_LIMPAR_TENTATIVAS, []).catch(() => {});
+    }
+    if (contagem > opts.max) return res.status(429).json({ error: opts.message });
+    next();
+  };
+}
+
+export const loginRateLimiter = createRateLimiterCompartilhado({
+  nome: "login-ip",
   windowMs: 15 * 60 * 1000,
   max: 10,
   message: "Muitas tentativas de login. Tente novamente em alguns minutos.",
@@ -351,7 +412,8 @@ export const loginRateLimiter = createRateLimiter({
 
 // Por CONTA, além do por IP: quem troca de IP (botnet, 4G) não ganha tentativas
 // novas contra o mesmo e-mail. Bloqueia 15 min depois de 10 tentativas.
-export const loginPorContaRateLimiter = createRateLimiter({
+export const loginPorContaRateLimiter = createRateLimiterCompartilhado({
+  nome: "login-conta",
   windowMs: 15 * 60 * 1000,
   max: 10,
   message: "Muitas tentativas de login nesta conta. Tente novamente em alguns minutos.",

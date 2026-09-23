@@ -345,3 +345,18 @@ CREATE INDEX IF NOT EXISTS "IDX_audit_logs_entity_id_trgm" ON audit_logs USING g
 CREATE UNIQUE INDEX IF NOT EXISTS "UQ_event_sponsors_evento_patrocinador" ON event_sponsors (event_id, sponsor_id);
 CREATE UNIQUE INDEX IF NOT EXISTS "UQ_item_sponsors_peca_patrocinador" ON item_sponsors (item_id, sponsor_id);
 CREATE UNIQUE INDEX IF NOT EXISTS "UQ_item_sponsor_approvals_peca_patrocinador" ON item_sponsor_approvals (item_id, sponsor_id);
+
+-- ── Limite de tentativas de login entre as cópias ───────────────────────
+-- No Autoscale cada cópia contava as tentativas sozinha (10 viravam 10×N).
+-- O servidor conta aqui (server/routes/shared.ts): uma linha por chave
+-- (hash de IP ou de e-mail, nunca o texto), contagem e fim da janela; o
+-- próprio servidor apaga as janelas vencidas. Fica FORA de shared/schema.ts:
+-- um `db:push` a DERRUBA — rode esta migração de novo depois de qualquer
+-- push. Sem a tabela, o login segue contando na memória de cada cópia, com
+-- aviso no log.
+CREATE TABLE IF NOT EXISTS limite_de_tentativas (
+  chave text PRIMARY KEY,
+  contagem integer NOT NULL,
+  reinicia_em timestamptz NOT NULL
+);
+CREATE INDEX IF NOT EXISTS "IDX_limite_de_tentativas_reinicia_em" ON limite_de_tentativas (reinicia_em);

@@ -155,13 +155,20 @@ function writePdfDoc(win: Window, title: string, pages: string) {
       <link rel="preconnect" href="https://fonts.googleapis.com"/>
       <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@500;700&display=swap" rel="stylesheet"/>
       <style>${PDF_STYLES}</style>
-    </head><body>${pages}<script>
-      window.addEventListener("load", function () {
-        var fontsReady = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
-        fontsReady.then(function () { setTimeout(function () { window.print(); }, 100); });
-      });
-    </scr` + `ipt></body></html>`);
+    </head><body>${pages}</body></html>`);
   win.document.close();
+  imprimirQuandoPronto(win);
+}
+
+// A impressão sai DAQUI, não de script inline dentro do popup: o popup herda a
+// CSP do app, que não executa script inline.
+function imprimirQuandoPronto(win: Window) {
+  const imprimir = () => {
+    const fontes = win.document.fonts?.ready ?? Promise.resolve();
+    fontes.then(() => setTimeout(() => { if (!win.closed) win.print(); }, 100));
+  };
+  if (win.document.readyState === "complete") imprimir();
+  else win.addEventListener("load", imprimir, { once: true });
 }
 
 /**

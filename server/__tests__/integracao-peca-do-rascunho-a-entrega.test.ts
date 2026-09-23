@@ -185,8 +185,9 @@ describe.skipIf(!PGLITE_DISPONIVEL)("integração: a peça do rascunho à entreg
     expect(await statusNoBanco("arq-1")).toBe("produced");
   });
 
-  it("delta por updated_at: ?since traz só o que mudou depois, e a peça excluída vem em removidas", async () => {
+  it("delta por updated_at: ?since traz só o que mudou depois (inclusive por VÍNCULO de patrocinador), e a excluída vem em removidas", async () => {
     await semearPeca(banco, { id: "delta-velha", eventId: EV, displayId: "#0906", status: "draft", quantity: 1 });
+    await semearPeca(banco, { id: "delta-vinculo", eventId: EV, displayId: "#0909", status: "awaiting_linking", quantity: 1 });
     await semearPeca(banco, { id: "delta-mexida", eventId: EV, displayId: "#0907", status: "draft", quantity: 1 });
     await semearPeca(banco, { id: "delta-apagada", eventId: EV, displayId: "#0908", status: "draft", quantity: 1 });
     // Tudo "antigo": duas horas atrás.
@@ -196,11 +197,15 @@ describe.skipIf(!PGLITE_DISPONIVEL)("integração: a peça do rascunho à entreg
     const editada = await app.chamar(USUARIOS.solicitacao, "PATCH", "/api/items/delta-mexida", { description: "Descrição nova" });
     expect(editada.status, JSON.stringify(editada.corpo)).toBe(200);
     expect((await app.chamar(USUARIOS.admin, "DELETE", "/api/items/delta-apagada")).status).toBeLessThan(300);
+    // Vincular patrocinador não mexe na linha de items — o storage carimba
+    // updated_at da peça (touchItem); sem isso o delta não a veria.
+    const vinculo = await app.chamar(USUARIOS.atendimento, "POST", "/api/items/delta-vinculo/sponsors/sync", { sponsorIds: [SP] });
+    expect(vinculo.status, JSON.stringify(vinculo.corpo)).toBe(200);
     const r = await app.chamar<{ delta: boolean; itens: Array<{ id: string }>; removidas: string[] }>(
       USUARIOS.admin, "GET", `/api/items?since=${encodeURIComponent(since)}`);
     expect(r.status, JSON.stringify(r.corpo)).toBe(200);
     expect(r.corpo.delta).toBe(true);
-    expect(r.corpo.itens.map((i) => i.id)).toEqual(["delta-mexida"]);
+    expect(r.corpo.itens.map((i) => i.id).sort()).toEqual(["delta-mexida", "delta-vinculo"]);
     expect(r.corpo.removidas).toContain("delta-apagada");
     expect(r.corpo.removidas).not.toContain("delta-velha");
   });

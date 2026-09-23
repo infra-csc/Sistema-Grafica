@@ -19,120 +19,189 @@
 // patrocinador já ter aprovado, então a peça volta para `sponsor_approved`
 // (a aba "Finalizar arte"), e não para o começo do fluxo.
 //
-// Os testes abaixo são estruturais de propósito: eles leem o CÓDIGO das rotas.
-// Um teste de comportamento passaria a mentir no dia em que alguém
-// reintroduzisse a rota antiga com outro nome.
+// Até 23/09 tudo aqui lia o texto das rotas. Agora as rotas RODAM (banco de
+// mentira) e só a invariante "quem escreve awaiting_submission" segue como
+// varredura — é uma regra sobre TODO o código, não sobre uma rota.
 // ─────────────────────────────────────────────────────────────────────────────
-import { describe, it, expect } from "vitest";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
-import { readFileSync } from "fs";
-import { join } from "path";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readdirSync, readFileSync, statSync } from "fs";
+import path from "path";
+import ts from "typescript";
 
-const ITEMS = fonteDasRotasDeItens();
+const H = vi.hoisted(() => ({
+  storage: {} as Record<string, unknown>,
+  atualizacoes: [] as Array<{ id: string; campos: Record<string, unknown> }>,
+}));
 
-/** Tira comentários de linha e de bloco — só o código executável importa. */
-function semComentarios(src: string): string {
-  return src
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .split("\n")
-    .map((l) => l.replace(/\/\/.*$/, ""))
-    .join("\n");
-}
+vi.mock("../db", () => ({ db: {}, pool: {} }));
+vi.mock("../storage", async () => {
+  const real = await vi.importActual<typeof import("../storage")>("../storage");
+  return { ...real, storage: H.storage };
+});
+vi.mock("../routes/shared", async () => {
+  const real = await vi.importActual<typeof import("../routes/shared")>("../routes/shared");
+  return { ...real, broadcast: vi.fn(), createAuditLog: vi.fn(async () => {}), createAuditLogsEmLote: vi.fn(async () => {}), updateEventStatus: vi.fn(async () => {}) };
+});
+// O exceljs não carrega aqui (sem o jszip); a planilha não entra neste assunto.
+vi.mock("../services/xlsxImport", () => ({ handlePreviewXlsx: vi.fn(), handleConfirmImport: vi.fn() }));
+vi.mock("../services/xlsxExport", () => ({ handleExportItemsXlsx: vi.fn(), handleExportSelectedItemsXlsx: vi.fn(), responderRelatorioMaquinasXlsx: vi.fn() }));
 
-const CODIGO = semComentarios(ITEMS);
+import { registerItemRoutes } from "../routes/items";
+import { lerDestinoDevolucao } from "../routes/itens/comum";
+import { capturarRotas } from "./rotas-de-mentira";
 
-describe("nenhuma rota devolve peça para o começo do fluxo", () => {
-  it('"awaiting_submission" só é escrito por uma ESCOLHA explícita de destino', () => {
-    // A invariante mudou de forma em 17/08, e é importante entender por quê.
-    //
-    // Antes: nenhuma rota podia mandar peça para "Aguardando envio" — a fila de
-    // quem NUNCA foi enviado. Era simples e pegava o defeito original.
-    //
-    // Depois o dono pediu que QUEM DEVOLVE decida: se a arte inteira está
-    // errada, a peça volta mesmo para o começo; se só o arquivo final falhou,
-    // volta para a Finalização. Os dois destinos são legítimos.
-    //
-    // O que continua proibido é o SISTEMA escolher em silêncio. Por isso a
-    // única escrita permitida vive em `camposDoDestino`, alimentada por uma
-    // opção que a pessoa marcou na tela. Qualquer outra rota que volte a
-    // gravar esse status direto derruba este teste. São DUAS escritas, ambas
-    // dentro do helper: a do destino "arte" e a do molde (que volta ao começo
-    // da Arte mantendo o thumb, o único material dele).
-    const escritas = CODIGO.match(/status:\s*"awaiting_submission"/g) ?? [];
-    expect(
-      escritas.length,
-      "só `camposDoDestino` pode escrever awaiting_submission — apareceu escrita nova",
-    ).toBe(2);
+const { rotas, chamar } = capturarRotas(registerItemRoutes);
+const SOLICITACAO = { userId: "u-sol", userRole: "solicitacao", userName: "Sofia" };
+const MOTIVO = "O arquivo final saiu com a cor errada";
 
-    const helper = CODIGO.slice(
-      CODIGO.indexOf("function camposDoDestino"),
-      CODIGO.indexOf("function textoDoDestino"),
-    );
-    expect(helper, "a escrita saiu de camposDoDestino").toContain('"awaiting_submission"');
+type Peca = Record<string, unknown> & { id: string };
+let pecas: Record<string, Peca>;
+let aprovacoes: Record<string, Array<{ status: string }>>;
+
+beforeEach(() => {
+  H.atualizacoes = [];
+  pecas = {};
+  aprovacoes = {};
+  Object.assign(H.storage, {
+    getItem: async (id: string) => pecas[id],
+    getEvent: async () => ({ id: "ev-1", name: "COPA", status: "created", startDate: new Date("2099-01-10"), truckDepartureDate: new Date("2099-01-01") }),
+    getItemSponsorApprovals: async (id: string) => aprovacoes[id] ?? [],
+    updateItem: async (id: string, campos: Record<string, unknown>) => {
+      H.atualizacoes.push({ id, campos });
+      pecas[id] = { ...pecas[id], ...campos };
+      return pecas[id];
+    },
+    createNotification: async () => ({ id: "n1" }),
   });
+});
 
-  it("o destino padrão é o menos destrutivo", () => {
-    // Sem escolha explícita a peça vai para a Finalização: preservar a
-    // aprovação do patrocinador não custa nada se a arte for refeita depois,
-    // mas jogar fora uma aprovação que valia obriga a pedir tudo de novo.
-    const leitor = CODIGO.slice(
-      CODIGO.indexOf("function lerDestinoDevolucao"),
-      CODIGO.indexOf("function camposDoDestino"),
-    );
-    expect(leitor).toContain('=== "arte" ? "arte" : "finalizacao"');
-  });
+const naRevisao = (id: string, extra: Record<string, unknown> = {}): Peca => ({
+  id, displayId: `#${id}`, eventId: "ev-1", type: "Pórtico", status: "awaiting_final_review",
+  approvalThumbUrl: "/objects/thumb.png", finalFileUrl: "/objects/final.pdf", skipApproval: false, hasModifiedData: false, ...extra,
+});
 
-  it("a devolução do criador manda para a finalização, com a aprovação preservada", () => {
-    // Duas rotas devolvem por decisão do criador: return-to-arte e
-    // bulk-return-to-arte (creator-reject e o lote dele eram portas mortas e
-    // foram removidas).
-    for (const rota of ["return-to-arte", "bulk-return-to-arte"]) {
-      expect(CODIGO, `rota ${rota} sumiu`).toContain(rota);
+describe("quem escreve \"Aguardando envio\" (varredura sobre todo o servidor)", () => {
+  // VARREDURA, de propósito: a regra é "nenhum código NOVO grava esse status
+  // em silêncio", e código novo não tem teste de rota ainda. A AST acha cada
+  // `status: "awaiting_submission"` (objeto literal) e a função que o contém.
+  const RAIZ = path.resolve(__dirname, "..");
+  const arquivos: string[] = [];
+  (function andar(d: string) {
+    for (const n of readdirSync(d)) {
+      const p = path.join(d, n);
+      if (statSync(p).isDirectory()) { if (n !== "__tests__") andar(p); } else if (n.endsWith(".ts")) arquivos.push(p);
     }
-    // O thumb só é apagado no destino "arte" — lá a arte inteira será refeita,
-    // então manter o "aprovado" de uma versão que não existe mais seria
-    // carimbar um sim que ninguém deu. No destino "finalizacao" ele fica.
-    const helper = CODIGO.slice(
-      CODIGO.indexOf("function camposDoDestino"),
-      CODIGO.indexOf("function textoDoDestino"),
-    );
-    const antesDoReturnFinal = helper.slice(0, helper.lastIndexOf("return {"));
-    expect(antesDoReturnFinal, "o ramo `arte` deve limpar o thumb").toContain("approvalThumbUrl: null");
-    // O ramo do molde (o primeiro) NÃO apaga o thumb: é o único material dele.
-    const ramoDoMolde = helper.slice(helper.indexOf("ehMolde(peca)"), helper.indexOf('if (destino === "arte")'));
-    expect(ramoDoMolde).toContain('status: "awaiting_submission"');
-    expect(ramoDoMolde).not.toContain("approvalThumbUrl");
-    expect(
-      helper.slice(helper.lastIndexOf("return {")),
-      "o ramo `finalizacao` NÃO pode apagar o thumb aprovado",
-    ).not.toContain("approvalThumbUrl");
+  })(RAIZ);
+
+  /** Onde cada escrita aparece: arquivo + nome da função ou rota que a contém. */
+  function escritas(): string[] {
+    const saida: string[] = [];
+    for (const arq of arquivos) {
+      const texto = readFileSync(arq, "utf8");
+      if (!texto.includes("awaiting_submission")) continue;
+      const sf = ts.createSourceFile(arq, texto, ts.ScriptTarget.Latest, true);
+      const visitar = (no: ts.Node) => {
+        if (ts.isPropertyAssignment(no) && no.name.getText(sf) === "status" && ts.isStringLiteral(no.initializer) && no.initializer.text === "awaiting_submission") {
+          let dono = "?";
+          for (let p: ts.Node | undefined = no.parent; p; p = p.parent) {
+            if (ts.isFunctionDeclaration(p) && p.name) { dono = p.name.text; break; }
+            if (ts.isCallExpression(p) && /^app\.(post|patch|put|delete)$/.test(p.expression.getText(sf)) && p.arguments[0] && ts.isStringLiteral(p.arguments[0])) { dono = p.arguments[0].text; break; }
+          }
+          saida.push(`${path.relative(RAIZ, arq).split(path.sep).join("/")} :: ${dono}`);
+        }
+        ts.forEachChild(no, visitar);
+      };
+      visitar(sf);
+    }
+    return Array.from(new Set(saida)).sort();
+  }
+
+  it("só camposDoDestino (a ESCOLHA de quem devolve) e o avanço normal da vinculação escrevem", () => {
+    // A invariante mudou de forma em 17/08: o dono pediu que QUEM DEVOLVE
+    // decida — se a arte inteira está errada, a peça volta para o começo. O
+    // que continua proibido é o SISTEMA escolher em silêncio. As escritas
+    // legítimas:
+    //   · camposDoDestino — destino "arte" e o molde (que volta ao começo da
+    //     Arte mantendo o thumb, o único material dele);
+    //   · send-to-arte — o AVANÇO de "Aguardando vinculação" para a Arte, que
+    //     é o caminho de ida, não devolução.
+    expect(escritas()).toEqual([
+      "routes/itens/revisao.ts :: camposDoDestino",
+      "routes/sponsors.ts :: /api/items/send-to-arte",
+    ].sort());
+  });
+});
+
+describe("devolver da Revisão Final respeita o destino escolhido", () => {
+  it("sem escolha explícita, o destino é o menos destrutivo (finalização)", () => {
+    expect(lerDestinoDevolucao({ body: {} })).toBe("finalizacao");
+    expect(lerDestinoDevolucao({ body: { destino: "qualquer" } })).toBe("finalizacao");
+    expect(lerDestinoDevolucao({ body: { destino: "arte" } })).toBe("arte");
+  });
+
+  it("destino \"finalizacao\" com a rodada aprovada: volta para Finalizar arte e o thumb aprovado FICA", async () => {
+    pecas.p1 = naRevisao("p1");
+    aprovacoes.p1 = [{ status: "approved" }];
+    const r = await chamar("PATCH /api/items/:id/return-to-arte", { sessao: SOLICITACAO, params: { id: "p1" }, body: { notes: MOTIVO } });
+    expect(r.status).toBe(200);
+    const campos = H.atualizacoes[0].campos;
+    expect(campos.status).toBe("sponsor_approved");
+    expect(campos).not.toHaveProperty("approvalThumbUrl");
+    expect(campos.finalFileUrl).toBeNull();
+  });
+
+  it("destino \"arte\": volta ao começo e o thumb aprovado é apagado (arte nova pede aprovação nova)", async () => {
+    pecas.p2 = naRevisao("p2");
+    const r = await chamar("PATCH /api/items/:id/return-to-arte", { sessao: SOLICITACAO, params: { id: "p2" }, body: { notes: MOTIVO, destino: "arte" } });
+    expect(r.status).toBe(200);
+    expect(H.atualizacoes[0].campos).toMatchObject({ status: "awaiting_submission", approvalThumbUrl: null, finalFileUrl: null });
+  });
+
+  it("molde volta ao começo da Arte SEM perder o thumb (é o único material dele)", async () => {
+    pecas.m1 = naRevisao("m1", { type: "Molde" });
+    const r = await chamar("PATCH /api/items/:id/return-to-arte", { sessao: SOLICITACAO, params: { id: "m1" }, body: { notes: MOTIVO } });
+    expect(r.status).toBe(200);
+    expect(H.atualizacoes[0].campos.status).toBe("awaiting_submission");
+    expect(H.atualizacoes[0].campos).not.toHaveProperty("approvalThumbUrl");
+  });
+
+  it("o lote grava os MESMOS campos que a devolução individual", async () => {
+    pecas.p3 = naRevisao("p3");
+    aprovacoes.p3 = [{ status: "approved" }];
+    const r = await chamar("PATCH /api/items/bulk-return-to-arte", { sessao: SOLICITACAO, body: { itemIds: ["p3"], notes: MOTIVO } });
+    expect(r.status).toBe(200);
+    const campos = H.atualizacoes[0].campos;
+    expect(campos.status).toBe("sponsor_approved");
+    expect(campos).not.toHaveProperty("approvalThumbUrl");
+    expect(campos).toMatchObject({ hasModifiedData: true, rejectedByCreator: true, observations: MOTIVO });
   });
 });
 
 describe("a aba Correção pesca toda peça devolvida por patrocinador", () => {
-  it("a consulta olha o rejectedBySponsor, e não só a linha do patrocinador", () => {
-    // A fila responde "o que voltou e precisa ser refeito?". Exigir uma linha
-    // em `awaiting_arte` era exigir saber QUAL patrocinador reprovou — dado que
-    // o caminho antigo nunca gravou, e que não faz parte da pergunta.
-    const rota = CODIGO.slice(
-      CODIGO.indexOf('"/api/items/resubmission-needed"'),
-      CODIGO.indexOf('"/api/items/approved"'),
-    );
-    expect(rota, "a rota da Correção não foi encontrada").not.toBe("");
-    expect(rota).toContain("rejectedBySponsor");
-    expect(rota).toContain('"awaiting_submission"');
+  it("peça em Aguardando envio COM rejectedBySponsor entra; a nunca enviada, não", async () => {
+    Object.assign(H.storage, {
+      getItemsParaCorrecao: async () => [
+        { id: "devolvida", eventId: "ev-1", status: "awaiting_submission", rejectedBySponsor: true },
+        { id: "nova", eventId: "ev-1", status: "awaiting_submission", rejectedBySponsor: false },
+      ],
+      getAllEvents: async () => [],
+      getAllSponsors: async () => [],
+      getItemSponsorApprovalsByItemIds: async () => [],
+    });
+    const r = await chamar("GET /api/items/resubmission-needed", { sessao: { userId: "u-arte", userRole: "arte", userName: "Artur" } });
+    expect(r.status).toBe(200);
+    const ids = (r.body as Array<{ id: string }>).map((i) => i.id);
+    expect(ids).toContain("devolvida");
+    expect(ids).not.toContain("nova");
   });
 });
 
 describe("reprovar é UMA porta só", () => {
-  it("a rota que reprovava a peça inteira não voltou", () => {
-    // Se ela voltar com este nome, o teste acusa. Se voltar com outro, o
-    // primeiro teste deste arquivo (nenhuma escrita para awaiting_submission)
-    // pega o efeito, que é o que realmente importa.
-    expect(CODIGO).not.toContain('"/api/items/:id/sponsor-reject"');
+  it("a rota que reprovava a peça inteira não voltou (com nenhum verbo)", () => {
+    expect(Array.from(rotas.keys()).filter((k) => k.includes("sponsor-reject"))).toEqual([]);
   });
 
-  it("a reprovação por patrocinador continua existindo", () => {
-    expect(CODIGO).toContain("sponsor-approvals/:sponsorId/reject");
+  it("a reprovação por patrocinador continua registrada", () => {
+    expect(rotas.has("POST /api/items/:id/sponsor-approvals/:sponsorId/reject")).toBe(true);
   });
 });

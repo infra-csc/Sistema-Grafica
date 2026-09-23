@@ -29,11 +29,13 @@ import fs from "fs";
 import path from "path";
 
 // shared.ts arrasta storage → db, que exige DATABASE_URL. Nada aqui toca banco:
-// `resolveActor` é função pura e o resto lê arquivo-fonte.
+// `resolveActor` é função pura, o storage é de mentira (o que o helper manda
+// gravar fica em H.gravados) e as varreduras leem arquivo-fonte.
+const H = vi.hoisted(() => ({ gravados: [] as Array<Record<string, unknown>>, storage: {} as Record<string, unknown> }));
 vi.mock("../db", () => ({ db: {}, pool: {} }));
-vi.mock("../storage", () => ({ storage: {} }));
+vi.mock("../storage", () => ({ storage: H.storage }));
 
-import { resolveActor, SYSTEM_ACTOR } from "../routes/shared";
+import { resolveActor, SYSTEM_ACTOR, createAuditLog, updateEventStatus } from "../routes/shared";
 
 const raiz = path.resolve(__dirname, "..", "..");
 // server/routes/items.ts virou índice: o texto das rotas da peça vem de fonteDasRotasDeItens().
@@ -184,16 +186,27 @@ describe("nenhuma chamada de auditoria monta o autor à mão", () => {
     });
   }
 
-  it("o helper devolve as duas colunas para o storage, não só o nome", () => {
-    const shared = ler("server/routes/shared.ts");
-    expect(shared).toContain("...resolveActor(actor)");
+  it("o helper grava as DUAS colunas no storage, não só o nome", async () => {
+    H.gravados = [];
+    H.storage.createAuditLog = async (linha: Record<string, unknown>) => { H.gravados.push(linha); return linha; };
+    await createAuditLog({ userName: "Maria", userId: "u-maria" }, "updated", "item", "p1", "x");
+    expect(H.gravados).toEqual([{ userName: "Maria", userId: "u-maria", action: "updated", entityType: "item", entityId: "p1", details: "x" }]);
   });
 
-  it("o caminho automático de status de evento grava autor explícito", () => {
+  it("o caminho automático de status de evento grava autor explícito (\"Sistema\", sem id)", async () => {
     // updateEventStatus reescreve events.status sem nenhuma pessoa por trás.
     // A regra da casa: caminho sem usuário grava "Sistema", nunca vazio.
-    const shared = ler("server/routes/shared.ts");
-    const bloco = shared.slice(shared.indexOf("export async function updateEventStatus"));
-    expect(bloco).toMatch(/createAuditLog\(\s*SYSTEM_ACTOR/);
+    H.gravados = [];
+    const evento = { id: "ev-1", status: "created" };
+    Object.assign(H.storage, {
+      getEvent: async () => evento,
+      getItemsByEvent: async () => [{ id: "p1", status: "delivered" }],
+      updateEvent: async (_id: string, dados: Record<string, unknown>) => Object.assign(evento, dados),
+      createAuditLog: async (linha: Record<string, unknown>) => { H.gravados.push(linha); return linha; },
+    });
+    await updateEventStatus("ev-1");
+    expect(evento.status).toBe("completed");
+    expect(H.gravados).toHaveLength(1);
+    expect(H.gravados[0]).toMatchObject({ userName: SYSTEM_ACTOR, userId: null, entityType: "event", entityId: "ev-1" });
   });
 });

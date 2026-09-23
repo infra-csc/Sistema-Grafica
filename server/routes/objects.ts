@@ -6,8 +6,8 @@ import { insertDeliveryPhotoSchema } from "@shared/schema";
 import { requireAuth, sendSensitiveError } from "./shared";
 import { avaliarUpload, avaliarPedidoDeUrlAssinada, cabecalhosDoObjeto, MAX_UPLOAD_BYTES } from "../upload-seguro";
 import {
-  miniaturasDisponiveis, tipoMiniaturavel, gerarMiniatura, TETO_ORIGINAL_BYTES,
-  gravarMiniaturaDoUpload, lerMiniaturaGravada, type ArquivoDoBucket,
+  miniaturasDisponiveis, tipoMiniaturavel, gravarMiniaturaDoUpload, obterMiniatura,
+  type ArquivoDoBucket, type ArquivoComMetadados,
 } from "../services/miniaturas";
 
 export async function registerObjectRoutes(app: Express): Promise<void> {
@@ -130,28 +130,13 @@ export async function registerObjectRoutes(app: Express): Promise<void> {
         // compartilhado não pode cachear.
         "Cache-Control": "private, max-age=86400",
       };
+      // As tentativas 1 e 2 moram em `obterMiniatura` (services/miniaturas.ts),
+      // que a integração com o Checklist de Arena também usa.
       if (req.query.thumb === "1") {
-        const gravada = await lerMiniaturaGravada(objectFile as unknown as ArquivoDoBucket);
-        if (gravada) {
+        const mini = await obterMiniatura(objectFile as unknown as ArquivoComMetadados, req.path);
+        if (mini) {
           res.set(cabecalhosDaMiniatura);
-          return res.end(gravada);
-        }
-      }
-      if (req.query.thumb === "1" && miniaturasDisponiveis()) {
-        try {
-          const [metadata] = await objectFile.getMetadata();
-          const contentType = String(metadata.contentType ?? "");
-          const tamanho = Number(metadata.size ?? 0);
-          if (tipoMiniaturavel(contentType) && tamanho > 0 && tamanho <= TETO_ORIGINAL_BYTES) {
-            const [original] = await objectFile.download();
-            const mini = await gerarMiniatura(req.path, original);
-            if (mini) {
-              res.set(cabecalhosDaMiniatura);
-              return res.end(mini);
-            }
-          }
-        } catch (e) {
-          console.error("[miniaturas] falha ao gerar — servindo original", e);
+          return res.end(mini);
         }
       }
 

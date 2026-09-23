@@ -142,3 +142,46 @@ export async function gerarMiniatura(chave: string, original: Buffer): Promise<B
   }
   return saida;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A MINIATURA DE UM OBJETO JÁ NO BUCKET — o `?thumb=1` de /objects/*, num lugar
+// só. Nasceu para a integração com o Checklist de Arena, que serve a arte da
+// peça por outra rota (com token, não sessão) e não podia ter uma CÓPIA desta
+// lógica: cópia é o que fica para trás na próxima mudança.
+//
+// Ordem das tentativas (a mesma de sempre):
+//   1. a miniatura GRAVADA no upload (`<caminho>/thumb.webp`) — sem sharp e
+//      sem tocar no original;
+//   2. a geração a pedido, com o LRU — só com o sharp, só imagem raster e só
+//      original até TETO_ORIGINAL_BYTES.
+// `null` = não há miniatura (sem sharp, não é raster, grande demais,
+// corrompida, ou o bucket falhou na geração): quem chama decide o plano C.
+// Nunca lança por falha da GERAÇÃO — ela é logada e vira `null`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** O File do bucket com o que a geração a pedido precisa ler. */
+export interface ArquivoComMetadados extends ArquivoDoBucket {
+  getMetadata(): Promise<[{ contentType?: unknown; size?: unknown }, ...unknown[]]>;
+}
+
+/**
+ * O webp de até 320px do objeto (`chave` é a chave do LRU — o caminho
+ * `/objects/...`), ou `null` quando não há como obtê-lo.
+ */
+export async function obterMiniatura(arquivo: ArquivoComMetadados, chave: string): Promise<Buffer | null> {
+  const gravada = await lerMiniaturaGravada(arquivo);
+  if (gravada) return gravada;
+  if (!sharp) return null;
+  try {
+    const [metadata] = await arquivo.getMetadata();
+    const contentType = String(metadata.contentType ?? "");
+    const tamanho = Number(metadata.size ?? 0);
+    if (tipoMiniaturavel(contentType) && tamanho > 0 && tamanho <= TETO_ORIGINAL_BYTES) {
+      const [original] = await arquivo.download();
+      return await gerarMiniatura(chave, original);
+    }
+  } catch (e) {
+    console.error("[miniaturas] falha ao gerar — servindo original", e);
+  }
+  return null;
+}

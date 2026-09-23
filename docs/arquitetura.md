@@ -119,13 +119,15 @@ vê e escreve. Ganha um token que abre só `/api/integracao/checklist/*`
   sha256 + `timingSafeEqual` (tempo constante, sem revelar o tamanho).
 * Variável ausente ou com menos de 32 caracteres → **503**, integração
   desligada (falha fechada). Token errado ou ausente → **401**, com log de quem
-  bateu — nunca do token. Toda resposta sai com `Cache-Control: no-store`.
+  bateu — nunca do token. Toda resposta sai com `Cache-Control: no-store`,
+  menos a imagem da rota da arte (abaixo).
 * Fora do GET → 405; caminho desconhecido do prefixo → 404 em JSON.
 
 | Rota | Devolve |
 | --- | --- |
 | `GET /api/integracao/checklist/eventos` | `{ eventos: [{ id, nome, inicio, saidaCaminhao, status, pecasEntregues }] }` — eventos com início nos últimos 120 dias e ao menos uma peça da Arena entregue, do mais recente para o mais antigo; `pecasEntregues` conta peças (linhas), não unidades |
-| `GET /api/integracao/checklist/eventos/:id/entregues` | `{ evento, geradoEm, itens: [{ id, codigo, grupo, tipo, descricao, material, acabamento, medida, quantidade, quantidadeEntregue, status, entregueEm, recebidoPor, volumes }] }` — na ordem da Revisão Final; `volumes` são os números dos volumes já entregues com a peça (avulso é negativo). 404 se o evento não existe |
+| `GET /api/integracao/checklist/eventos/:id/entregues` | `{ evento, geradoEm, itens: [{ id, codigo, grupo, tipo, descricao, material, acabamento, medida, quantidade, quantidadeEntregue, status, entregueEm, recebidoPor, volumes, temImagem }] }` — na ordem da Revisão Final; `volumes` são os números dos volumes já entregues com a peça (avulso é negativo); `temImagem` diz se a peça tem arte (thumb `/objects/…` no nosso storage) para pedir na rota abaixo. 404 se o evento não existe |
+| `GET /api/integracao/checklist/itens/:itemId/thumb` | A **miniatura da arte** (webp de até 320px) da peça — a mesma de `/objects/…?thumb=1` (`obterMiniatura` em `server/services/miniaturas.ts`: a gravada no upload, senão gerada a pedido). Sem miniatura possível, o original só sai se for `image/png`/`jpeg`/`gif`/`webp` de até 1 MB. **200**: os bytes, com `Content-Type` real (`image/webp`, `image/png`, `image/jpeg` ou `image/gif`), `Cache-Control: private, max-age=86400`, `X-Content-Type-Options: nosniff`. **400** `{ erro }` se o id não é UUID; **404** `{ erro }` se a peça não existe, não seria listada em `/entregues` (mesma regra), não tem arte no nosso storage, o objeto sumiu ou não é imagem da lista. Só se chega à arte pelo id da peça — o caminho no storage vem do banco, nunca da URL |
 
 "Peça da Arena entregue" é `shared/integracao-checklist.ts`: não excluída, sem
 remessa do Kit, não é book completo, não cancelada, e com **unidade entregue**

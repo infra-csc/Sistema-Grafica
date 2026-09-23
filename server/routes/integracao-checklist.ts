@@ -6,6 +6,8 @@
 //   1. quais eventos recentes têm peça da Arena entregue;
 //   2. dentro de um evento, quais peças foram entregues, quantas, e em quais
 //      volumes (tubos) elas saíram.
+// E, para o montador reconhecer a peça no chão, a ARTE dela (a miniatura),
+// pedida peça a peça pelo id.
 // A regra do que conta como "entregue" mora em shared/integracao-checklist.ts.
 //
 // POR QUE UM TOKEN E NÃO A SESSÃO: quem chama é um SERVIDOR, não uma pessoa.
@@ -31,6 +33,9 @@ import {
   grupoPorTipo,
   quantidadeEntregueParaChecklist,
 } from "@shared/integracao-checklist";
+import { urlDeThumbValida } from "./thumb-url";
+import { cabecalhosDoObjeto } from "../upload-seguro";
+import { obterMiniatura, type ArquivoComMetadados } from "../services/miniaturas";
 
 /** Menos que isto não é segredo, é senha de post-it. */
 export const TOKEN_MINIMO = 32;
@@ -93,6 +98,27 @@ const quantidadeEntregueSql = sql`(case
 end)`;
 
 const iso = (d: Date | string | null | undefined): string | null => (d ? new Date(d).toISOString() : null);
+
+// ── A arte da peça (thumb) ──────────────────────────────────────────────────
+/** O id da peça é UUID (gen_random_uuid). Fora disso nem vai ao banco. */
+export const ID_DE_PECA = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** O que a rota da arte aceita devolver. Qualquer outro tipo é 404. */
+export const TIPOS_DA_ARTE = ["image/webp", "image/png", "image/jpeg", "image/gif"] as const;
+/**
+ * Sem miniatura (sharp ausente, geração falhou), o ORIGINAL só sai se for
+ * imagem pequena: o Checklist pinta a arte numa caixa de celular, muitas vezes
+ * no 4G do pavilhão — um original de 20 MB por peça não é "miniatura".
+ */
+export const TETO_DO_ORIGINAL_NA_INTEGRACAO = 1024 * 1024;
+/** Mesmo cache da miniatura de /objects: privado (nada de proxy), um dia. */
+export const CACHE_DA_ARTE = "private, max-age=86400";
+
+/** Tem arte que a rota da thumb consegue servir (um objeto do nosso storage). */
+export const temImagemDaPeca = (approvalThumbUrl: string | null | undefined): boolean =>
+  urlDeThumbValida(approvalThumbUrl) !== null;
+
+const tipoLimpo = (ct: unknown): string => String(ct ?? "").split(";")[0].trim().toLowerCase();
+const tipoDaArteAceito = (ct: string): boolean => (TIPOS_DA_ARTE as readonly string[]).includes(ct);
 
 export function registerIntegracaoChecklistRoutes(app: Express): void {
   // Um `use` no prefixo, e não o middleware rota a rota: uma rota nova aqui
@@ -179,6 +205,7 @@ export function registerIntegracaoChecklistRoutes(app: Express): void {
           receivedBy: items.receivedBy,
           deletedAt: items.deletedAt,
           kitRemessaId: items.kitRemessaId,
+          approvalThumbUrl: items.approvalThumbUrl,
         })
         .from(items)
         .where(and(
@@ -231,6 +258,8 @@ export function registerIntegracaoChecklistRoutes(app: Express): void {
         recebidoPor: p.receivedBy ?? null,
         // Número do volume; avulso tem número NEGATIVO (−1, −2: ver tubos).
         volumes: Array.from(volumesDaPeca.get(p.id) ?? []).sort((a, b) => a - b),
+        // A arte vem por GET /api/integracao/checklist/itens/:itemId/thumb.
+        temImagem: temImagemDaPeca(p.approvalThumbUrl),
       }));
       itens.sort(compararComoARevisaoFinal);
 
@@ -248,6 +277,80 @@ export function registerIntegracaoChecklistRoutes(app: Express): void {
     } catch (error) {
       console.error("[integracao-checklist] falha ao listar peças entregues:", error);
       res.status(500).json({ error: "Falha ao listar as peças entregues." });
+    }
+  });
+
+  // ── 3. A arte (miniatura) de uma peça entregue ───────────────────────────
+  // Endereçada SÓ pelo id da peça: o caminho no storage sai do banco, nunca da
+  // URL — quem tem o token não navega pelo bucket. E só peça que a rota 2
+  // listaria (a mesma regra), para o token não virar leitor da arte de
+  // qualquer peça de qualquer evento.
+  // Sem sessão, não há ACL de usuário a conferir: quem autoriza é o token.
+  app.get("/api/integracao/checklist/itens/:itemId/thumb", async (req, res) => {
+    const itemId = String(req.params.itemId ?? "");
+    if (!ID_DE_PECA.test(itemId)) return res.status(400).json({ erro: "Id de peça inválido." });
+    try {
+      const [p] = await db
+        .select({
+          id: items.id,
+          type: items.type,
+          quantity: items.quantity,
+          deliveredQty: items.deliveredQty,
+          status: items.status,
+          deletedAt: items.deletedAt,
+          kitRemessaId: items.kitRemessaId,
+          approvalThumbUrl: items.approvalThumbUrl,
+        })
+        .from(items)
+        // Como na rota 2: a peça pertence a um evento que existe.
+        .innerJoin(events, eq(events.id, items.eventId))
+        .where(eq(items.id, itemId))
+        .limit(1);
+      if (!p || quantidadeEntregueParaChecklist(p) <= 0) {
+        return res.status(404).json({ erro: "Peça entregue não encontrada." });
+      }
+      const caminho = urlDeThumbValida(p.approvalThumbUrl);
+      if (!caminho) return res.status(404).json({ erro: "A peça não tem arte." });
+
+      const { ObjectStorageService, ObjectNotFoundError } = await import("../objectStorage");
+      const servico = new ObjectStorageService();
+      let arquivo: Awaited<ReturnType<typeof servico.getObjectEntityFile>>;
+      try {
+        arquivo = await servico.getObjectEntityFile(caminho);
+      } catch (e) {
+        if (e instanceof ObjectNotFoundError) return res.status(404).json({ erro: "A arte da peça não está no storage." });
+        throw e;
+      }
+
+      const enviar = (bytes: Buffer, tipo: string) => {
+        res.set({
+          ...cabecalhosDoObjeto(tipo),
+          "Content-Type": tipo,
+          "Content-Length": String(bytes.length),
+          // Sobrepõe o no-store do middleware SÓ nesta rota: é a arte, não a
+          // lista de peças, e o celular no pavilhão agradece o cache.
+          "Cache-Control": CACHE_DA_ARTE,
+          "X-Content-Type-Options": "nosniff",
+        });
+        return res.status(200).end(bytes);
+      };
+
+      // A mesma miniatura do /objects/...?thumb=1 (gravada, ou gerada a pedido).
+      const mini = await obterMiniatura(arquivo as unknown as ArquivoComMetadados, caminho);
+      if (mini) return enviar(mini, "image/webp");
+
+      // Plano C: o original — só imagem da lista, e pequeno.
+      const [metadata] = await arquivo.getMetadata();
+      const tipo = tipoLimpo(metadata.contentType);
+      const tamanho = Number(metadata.size ?? 0);
+      if (!tipoDaArteAceito(tipo) || !(tamanho > 0) || tamanho > TETO_DO_ORIGINAL_NA_INTEGRACAO) {
+        return res.status(404).json({ erro: "A peça não tem miniatura de imagem." });
+      }
+      const [original] = await arquivo.download();
+      return enviar(original, tipo);
+    } catch (error) {
+      console.error("[integracao-checklist] falha ao servir a arte da peça:", error);
+      res.status(500).json({ erro: "Falha ao carregar a arte da peça." });
     }
   });
 

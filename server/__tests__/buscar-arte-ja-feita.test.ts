@@ -14,9 +14,11 @@
 //     lista e o teto de resultados;
 //   · o botão e o modal na tela da Arte, e que reaproveitar passa pelo
 //     caminho de gravação DE SEMPRE (nenhuma rota nova de escrita).
+// O recorte do banco (SQL de cada consulta, papéis, registro) roda em
+// regras-avisos-busca-arte.test.ts; a régua do thumb nas rotas que gravam,
+// em regras-avisos-busca-thumb.test.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 import {
@@ -203,15 +205,6 @@ const linha = (id: string, mudanca: any = {}) => ({
 describe("GET /api/artes/busca", () => {
   beforeEach(() => { H.filas = []; });
 
-  it("é da Arte e do admin — a mesma régua de quem troca a arte da peça", async () => {
-    const ROTA = ler("server/routes/artes-busca.ts");
-    expect(ROTA).toContain('const requireArte = requireRole("admin", "arte");');
-    expect(ROTA).toContain('app.get("/api/artes/busca", requireArte');
-
-    H.filas = [[linha("alvo")], [], [], []];
-    expect((await chamar({ item: "alvo" }, { ...ARTE, userRole: "grafica" })).statusCode).toBe(403);
-  });
-
   it("sem a peça de destino não há o que ranquear", async () => {
     const r = await chamar({}, ARTE);
     expect(r.statusCode).toBe(400);
@@ -262,57 +255,6 @@ describe("GET /api/artes/busca", () => {
     const fora = await chamar({ item: "alvo" }, { userRole: "arte", userId: "u1", userKit: true });
     expect(fora.statusCode).toBe(404);
   });
-
-  it("só peças COM arte, e o teto de 60 é do servidor", async () => {
-    const ROTA = ler("server/routes/artes-busca.ts");
-    expect(ROTA).toContain("const TETO_DE_RESULTADOS = 60;");
-    expect(ROTA).toContain("isNotNull(itemsTable.approvalThumbUrl)");
-    expect(ROTA).toContain("isNotNull(itemsTable.finalPreviewUrl)");
-    expect(ROTA).toContain("pecaVisivelPara(usuario, c)");
-  });
-
-  it("o recorte é do banco: `q` vira LIKE sem acento no SQL e sem `q` há teto de candidatas", async () => {
-    const ROTA = ler("server/routes/artes-busca.ts");
-    expect(ROTA).toContain("const TETO_DE_CANDIDATAS = 600;");
-    expect(ROTA).toContain("translate(lower(coalesce(");
-    expect(ROTA).toContain("like ${padrao}");
-    expect(ROTA).toContain(".limit(TETO_DE_CANDIDATAS)");
-    expect(ROTA).toContain("desc nulls last");
-    // Sem `q`, quem divide patrocinador com o alvo entra sempre — o teto de
-    // recentes não pode esconder a arte do mesmo patrocinador de dois anos atrás.
-    expect(ROTA).toContain("b.item_id = ${alvo.id}");
-
-    // Com `q` a rota faz UMA consulta de candidatas e o refino em memória
-    // segue a mesma régua (todas as palavras).
-    H.filas = [[linha("alvo")], [linha("a", { descricao: "Pórtico Bradesco" }), linha("b", { descricao: "Pórtico" })], []];
-    const r = await chamar({ item: "alvo", q: "portico bradesco" }, ARTE);
-    expect(r.corpo.artes.map((x: any) => x.id)).toEqual(["a"]);
-  });
-
-  it("aberta pelo arquivo final, o SQL só traz arte que TEM arquivo final", async () => {
-    const ROTA = ler("server/routes/artes-busca.ts");
-    expect(ROTA).toContain("isNotNull(itemsTable.finalFileUrl)");
-    H.filas = [
-      [linha("alvo")],
-      [],
-      [linha("b", { arquivoFinalUrl: "\\\\rede\\arte\\rolo.tif", arquivoFinalNome: "rolo.tif" })],
-      [],
-    ];
-    const r = await chamar({ item: "alvo", comArquivoFinal: "1" }, ARTE);
-    expect(r.corpo.artes.map((x: any) => x.id)).toEqual(["b"]);
-    expect(r.corpo.artes[0].temArquivoFinal).toBe(true);
-  });
-
-  it("está registrada onde as outras estão", () => {
-    expect(ler("server/routes.ts")).toContain("registerArtesBuscaRoutes(app);");
-  });
-
-  it("não cria rota de escrita nenhuma — reaproveitar grava pelo caminho de sempre", () => {
-    const ROTA = ler("server/routes/artes-busca.ts");
-    for (const metodo of ["app.post(", "app.patch(", "app.put(", "app.delete("]) {
-      expect(ROTA).not.toContain(metodo);
-    }
-  });
 });
 
 // ─── a sugestão do arquivo final ─────────────────────────────────────────────
@@ -325,13 +267,6 @@ describe("GET /api/artes/sugestao-final — o arquivo final da peça de onde a a
     quando: new Date("2026-09-01T00:00:00Z"), ...mudanca,
   });
 
-  it("é da Arte e do admin, e exige a peça", async () => {
-    const ROTA = ler("server/routes/artes-busca.ts");
-    expect(ROTA).toContain('app.get("/api/artes/sugestao-final", requireArte');
-    expect((await chamar({ item: "alvo" }, { ...ARTE, userRole: "grafica" }, SUG)).statusCode).toBe(403);
-    expect((await chamar({}, ARTE, SUG)).statusCode).toBe(400);
-  });
-
   it("casa pela MESMA URL de thumb e devolve a mais recente, ignorando a própria peça", async () => {
     H.filas = [[linha("alvo", { thumbUrl: "/objects/mesma" })], [comFinal("alvo"), comFinal("origem"), comFinal("velha")]];
     const r = await chamar({ item: "alvo" }, ARTE, SUG);
@@ -339,16 +274,11 @@ describe("GET /api/artes/sugestao-final — o arquivo final da peça de onde a a
     expect(r.corpo.displayId).toBe("#origem");
     expect(r.corpo.finalFileUrl).toContain("origem.tif");
     expect(r.corpo.evento).toBe("Circuito das Estações 2026 São Paulo");
-    const ROTA = ler("server/routes/artes-busca.ts");
-    expect(ROTA).toContain("or(inArray(itemsTable.approvalThumbUrl, urls), inArray(itemsTable.finalPreviewUrl, urls))");
-    expect(ROTA).toContain("ne(itemsTable.id, alvo.id)");
-    expect(ROTA).toContain("desc nulls last");
   });
 
   it("exige o caminho do arquivo final preenchido", async () => {
     H.filas = [[linha("alvo", { thumbUrl: "/objects/mesma" })], [comFinal("a", { arquivoFinalUrl: "  " }), comFinal("b", { arquivoFinalUrl: null })]];
     expect((await chamar({ item: "alvo" }, ARTE, SUG)).corpo).toBeNull();
-    expect(ler("server/routes/artes-busca.ts")).toContain("isNotNull(itemsTable.finalFileUrl),");
   });
 
   it("nada casa pela URL → null, sem plano B por patrocinador", async () => {
@@ -359,7 +289,6 @@ describe("GET /api/artes/sugestao-final — o arquivo final da peça de onde a a
     // peça sem thumb nem prévia nem chega a consultar
     H.filas = [[linha("alvo", { thumbUrl: null })]];
     expect((await chamar({ item: "alvo" }, ARTE, SUG)).corpo).toBeNull();
-    expect(ler("server/routes/artes-busca.ts")).toContain("NÃO HÁ PLANO B de propósito");
   });
 
   it("o usuário do Kit só recebe sugestão de peça que ele vê", async () => {
@@ -400,27 +329,6 @@ describe("as rotas que gravam thumb só aceitam objeto do storage", () => {
     expect(urlDeThumbValida("/objects/")).toBeNull();
     expect(urlDeThumbValida("")).toBeNull();
     expect(urlDeThumbValida(null)).toBeNull();
-  });
-
-  it("submit-for-approval, update-thumb e resubmit validam e gravam a forma normalizada", () => {
-    const ITEMS = fonteDasRotasDeItens();
-    expect(ITEMS).toContain('import { urlDeThumbValida, ERRO_THUMB_FORA_DO_STORAGE } from "../thumb-url";');
-    expect(ITEMS.split("const thumbNormalizado = urlDeThumbValida(").length - 1).toBe(3);
-    // 3 rotas de envio + o PATCH genérico (revisão 22/09: a mesma régua lá).
-    expect(ITEMS.split("return res.status(400).json({ error: ERRO_THUMB_FORA_DO_STORAGE });").length - 1).toBe(4);
-    expect(ITEMS).toContain("itemUpdates.approvalThumbUrl = thumbNormalizado;");
-    expect(ITEMS).toContain("approvalThumbUrl: thumbNormalizado,\n        rejectedBySponsor: false,");
-    expect(ITEMS).toContain("approvalThumbUrl: thumbNormalizado,\n        previousApprovalThumbUrl: prevUrl,");
-    expect(ITEMS).toContain("if (currentItem.approvalThumbUrl === thumbNormalizado) {");
-    for (const origem of ['origem: "envio"', 'origem: "reenvio"', 'origem: "troca"']) {
-      expect(ITEMS).toContain(`thumbUrl: thumbNormalizado, ${origem}`);
-    }
-  });
-
-  it("o caminho do arquivo final fica fora da régua — é caminho de rede por regra da casa", () => {
-    const ITEMS = fonteDasRotasDeItens();
-    expect(ITEMS).not.toContain("urlDeThumbValida(validatedData.finalFileUrl");
-    expect(ler("server/routes/thumb-url.ts")).toContain("O CAMINHO DO ARQUIVO FINAL NÃO ENTRA nesta régua");
   });
 });
 

@@ -17,7 +17,6 @@
 //     o servidor às 10h05 não pode remandar o aviso das 10h.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi } from "vitest";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 
 vi.mock("../db", () => ({ db: {} }));
@@ -175,70 +174,10 @@ describe("a mensagem", () => {
   });
 });
 
+// As regras do disparo (fila vazia, trilha, fuso, só produção, ligado por
+// padrão, manual, subida do relógio) e a rota do disparo à mão agora RODAM em
+// regras-avisos-digest-disparo.test.ts e regras-avisos-digest-rotas.test.ts.
 describe("as regras do disparo, escritas no código", () => {
-  const CODIGO = readFileSync(
-    new URL("../services/revisaoDigest.ts", import.meta.url),
-    "utf8",
-  );
-
-  it("fila vazia não vira e-mail", () => {
-    expect(CODIGO).toContain('if (resumo.total === 0) {');
-    expect(CODIGO).toContain('if (!opcoes.manual) await registrar("fila vazia — nada a enviar; a edição desta hora fica registrada");');
-  });
-
-  it("quem impede a repetição é a TRILHA, não a memória do processo", () => {
-    expect(CODIGO).toContain("async function jaAvisou(dia: string, hora: number): Promise<boolean> {");
-    expect(CODIGO).toContain('if (!opcoes.manual && await jaAvisou(dia, hora)) return { status: "ja-enviado" };');
-    expect(CODIGO).toContain("entityType: \"revisao\",");
-  });
-
-  it("o relógio lê a hora no fuso do negócio, não no do servidor", () => {
-    expect(CODIGO).toContain('const FUSO = "America/Sao_Paulo";');
-    expect(CODIGO).toContain("timeZone: FUSO");
-  });
-
-  it("SÓ PRODUÇÃO ENVIA — o workspace de dev compartilha segredos e conector", () => {
-    // Caso real (24/08): dois avisos às 18h — "1 peça" (banco de dev) e "48
-    // peças" (produção). O interruptor não separa os ambientes porque o
-    // segredo é compartilhado; o que separa é o carimbo que só o deploy tem.
-    expect(CODIGO).toContain('return env.REPLIT_DEPLOYMENT === "1" || env.NODE_ENV === "production";');
-    expect(CODIGO).toContain("if (!ehProducao(env)) {");
-    // e vale para o MANUAL também: botão apertado em dev mandaria dados de
-    // dev para gente de verdade.
-    const iGuarda = CODIGO.indexOf("if (!ehProducao(env)) {");
-    const iManual = CODIGO.indexOf("opcoes.manual ||");
-    expect(iGuarda).toBeGreaterThan(-1);
-    expect(iGuarda).toBeLessThan(iManual);
-    // o relógio nem sobe fora de produção
-    expect(CODIGO).toContain("fora de produção — o aviso não roda aqui");
-  });
-
-  it("LIGADO por padrão em produção (28/08) — desligar exige =false e fica na trilha", () => {
-    // A chave opt-in nunca era criada no deploy e o aviso morria em silêncio
-    // ("desligado" sem rastro lia como "não rodou" na tela Notificações).
-    expect(CODIGO).toContain('env.REVISAO_DIGEST_ENABLED?.trim().toLowerCase() !== "false"');
-    expect(CODIGO).toContain('await registrar("desligado (REVISAO_DIGEST_ENABLED=false) — nada enviado");');
-    expect(CODIGO).toContain('return { status: "desligado" };');
-  });
-
-  it("o disparo MANUAL pula o interruptor e a trilha — mas não a fila vazia", () => {
-    // O conector de e-mail só autentica dentro do ambiente publicado: sem uma
-    // porta para pedir o envio agora, a única forma de saber se o canal está de
-    // pé é esperar as 10h. Por isso o manual ignora o interruptor e a memória
-    // da trilha (senão o segundo teste do dia responderia "já enviado" sem
-    // mandar nada) — e por isso mesmo ele NÃO ignora a regra da fila vazia.
-    expect(CODIGO).toContain("opcoes: { manual?: boolean } = {},");
-    expect(CODIGO).toContain("const ligado = opcoes.manual || env.REVISAO_DIGEST_ENABLED");
-    expect(CODIGO).toContain('const marcaManual = opcoes.manual ? " [manual]" : "";');
-
-    // a fila vazia é checada DEPOIS, sem exceção para o manual
-    const iVazia = CODIGO.indexOf('if (resumo.total === 0) {');
-    expect(iVazia).toBeGreaterThan(CODIGO.indexOf("const ligado ="));
-    // o RETORNO sem-fila vale para o manual também (só o registro na trilha é
-    // exclusivo do automático)
-    expect(CODIGO.slice(iVazia, iVazia + 320)).toContain('return { status: "sem-fila", resumo };');
-  });
-
   it("o botão do disparo à mão também é só de admin, e não promete envio", () => {
     // O servidor já barra, mas desenhar o botão para quem leva 403 é prometer
     // o que a rota nega. E o aviso pode legitimamente NÃO sair (fila vazia):
@@ -248,18 +187,5 @@ describe("as regras do disparo, escritas no código", () => {
     expect(i).toBeGreaterThan(-1);
     expect(TELA.slice(i - 600, i)).toContain('user?.role === "admin"');
     expect(TELA).toContain('r?.status === "enviado" ? "Aviso enviado" : "Aviso não enviado"');
-  });
-
-  it("só admin pode disparar à mão — um clique manda e-mail de verdade", () => {
-    const ITEMS = fonteDasRotasDeItens();
-    const i = ITEMS.indexOf('app.post("/api/revisao/digest/enviar"');
-    expect(i).toBeGreaterThan(-1);
-    expect(ITEMS.slice(i, i + 400)).toContain('req.userRole !== "admin"');
-    expect(ITEMS.slice(i, i + 400)).toContain("{ manual: true }");
-  });
-
-  it("e sobe junto com os outros trabalhos de fundo", () => {
-    const ROUTES = readFileSync(new URL("../routes.ts", import.meta.url), "utf8");
-    expect(ROUTES).toContain("startRevisaoDigest();");
   });
 });

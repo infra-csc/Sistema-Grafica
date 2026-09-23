@@ -8,6 +8,8 @@
 //   7. na Arte do celular, as datas da faixa do evento abrem num "i" (e não
 //      só no `title`), os segmentados têm alvo de 44px e o cartão do modal de
 //      busca não colide com o cartão do celular.
+// O filtro do Kit e o recorte de tipo/medida no SQL rodam em
+// regras-avisos-busca-arte.test.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "fs";
@@ -38,7 +40,7 @@ vi.mock("../routes/shared", () => ({
     papeis.includes(req.userRole) ? next() : res.status(403).json({ error: "Acesso negado" }),
 }));
 
-import { recorteDoKitSql, mesmaPecaFisica } from "../routes/artes-busca";
+import { mesmaPecaFisica } from "../routes/artes-busca";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
 const textoDoSql = (q: any): string =>
@@ -93,15 +95,6 @@ describe("6 · a busca ordena antes de cortar", () => {
     expect(H.ordens[0].map(textoDoSql)[1]).toContain("desc nulls last");
   });
 
-  it("o filtro do Kit vai para o SQL (antes do LIMIT) — e continua em memória", () => {
-    expect(recorteDoKitSql({ kit: false, userId: "u1" })).toEqual([]);
-    expect(recorteDoKitSql({ kit: true, userId: "u1" })).toHaveLength(3);
-    expect(textoDoSql(recorteDoKitSql({ kit: true, userId: null })[0])).toBe("false");
-    const rota = ler("server/routes/artes-busca.ts");
-    expect(rota).toContain("...recorteDoKitSql(usuario),");
-    expect(rota).toContain("pecaVisivelPara(usuario, c)");
-  });
-
   it("só imagem do nosso storage: URL de fora não vira cartão; a crua do bucket sai normalizada", async () => {
     H.filas = [
       [linha("alvo")],
@@ -144,13 +137,6 @@ describe("6 · a sugestão do arquivo final exige a mesma peça física", () => 
 
     H.filas = [[linha("alvo", { thumbUrl: "/objects/mesma" })], [comFinal("rolo", { tipo: "Rolo" })]];
     expect((await chamar({ item: "alvo" }, ARTE, SUG)).corpo).toBeNull();
-  });
-
-  it("o recorte também está no SQL (tipo e medida iguais)", () => {
-    const rota = ler("server/routes/artes-busca.ts");
-    expect(rota).toContain("sql`lower(${itemsTable.type}) = lower(${alvo.tipo})`");
-    expect(rota).toContain("is not distinct from ${alvo.fileWidth ?? null}");
-    expect(rota).toContain("is not distinct from ${alvo.fileHeight ?? null}");
   });
 });
 

@@ -26,13 +26,16 @@
 
 import { describe, it, expect } from "vitest";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
+import { fonteDaArte } from "./fonte-das-telas-da-arte";
 import { readFileSync } from "fs";
 import { diasNaFase } from "../../client/src/lib/idade-na-fase";
 import path from "path";
 import { fonteDaTela } from "./fonte-da-tela";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
-const ARTE = ler("client/src/pages/arte.tsx");
+// A tela da Arte foi dividida (página + components/arte/): os trechos valem
+// para a tela inteira, onde quer que morem agora.
+const ARTE = fonteDaArte();
 // UX 27/08: diasNaFase/tomDaIdade viraram fonte única em lib/idade-na-fase —
 // os asserts da régua valem sobre a LIB; a Arte (e agora Gráfica/Atendimento)
 // a importam.
@@ -86,10 +89,10 @@ describe("1 · idade na fase", () => {
     expect(ARTE).toContain("ligado: paradasFilter");
     expect(ARTE).toContain("aria-pressed={ligado}");
     // Invariante das facetas: o número do chip é o de linhas que o clique entrega.
-    expect(ARTE).toContain("() => (itemsByTabSemParadas[activeTab] ?? []).filter((i: any) => estaParada(i, hoje)).length,");
+    expect(ARTE).toContain("() => (itemsByTabSemParadas[activeTab] ?? []).filter((i) => estaParada(i, hoje)).length,");
     expect(ARTE).toContain("const paradas = tabId === activeTab ? paradasNaAba : items.filter(i => estaParada(i, hoje)).length;");
     // E a lista obedece, em cima do recorte de atrasadas.
-    expect(ARTE).toContain("for (const tab in itemsByTabSemParadas) out[tab] = itemsByTabSemParadas[tab].filter((i: any) => estaParada(i, hoje));");
+    expect(ARTE).toContain("for (const tab in itemsByTabSemParadas) out[tab] = itemsByTabSemParadas[tab].filter((i) => estaParada(i, hoje));");
   });
 
   it("os TRÊS atalhos da faixa filtram — nenhum é texto morto (dono, 09/09)", () => {
@@ -174,7 +177,7 @@ describe("4 · o reenvio da correção é derivado, não escolhido", () => {
     // para o 409 'não aceita outro conjunto' travar a peça sem saída. O
     // painel continua mostrando a conta — como LEITURA — e a requisição vai
     // sem conjunto.
-    expect(ARTE).toContain("const correcaoDestinatarios: string[] = correcaoAprovacoes.filter((a: any) => a.status !== 'approved').map((a: any) => a.sponsorId);");
+    expect(ARTE).toContain("const correcaoDestinatarios: string[] = correcaoAprovacoes.filter((a) => a.status !== 'approved').map((a) => a.sponsorId);");
     expect(ARTE).toContain("resubmitMutation.mutate({ itemId: correcaoItem.id, newThumbUrl: correcaoThumbUrl });");
     expect(ARTE).not.toContain("sponsorIds: correcaoDestinatarios");
     expect(ARTE).not.toContain("sponsorIds: (emCorrecao.awaitingArteApprovals");

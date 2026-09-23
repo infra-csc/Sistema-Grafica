@@ -26,15 +26,15 @@ import { toUTCDisplayDate } from "./utils";
 // opcionais. Serve a peça da lista (`PecaEnriquecida` em @shared/api), o evento
 // embutido nela e o evento da lista de eventos, sem exigir a forma inteira.
 
+/** Campos do evento que guardam o deslocamento (em dias) de cada marco. */
+export type CampoDoMarco = "deadlineEntregaLayouts" | "deadlineAprovacaoLayout" | "deadlineFinalizacao";
+
 /** O evento como os prazos e filtros da Arte o leem. */
-export interface EventoDaArte {
+export type EventoDaArte = {
   truckDepartureDate?: string | Date | null;
   name?: string | null;
   priority?: string | null;
-  deadlineEntregaLayouts?: number | null;
-  deadlineAprovacaoLayout?: number | null;
-  deadlineFinalizacao?: number | null;
-}
+} & { [K in CampoDoMarco]?: number | null };
 
 /** A peça como o filtro e os recortes da Arte a leem. */
 export interface PecaDaArte {
@@ -471,7 +471,7 @@ export function matchFileToItem<T extends { id: string; displayId?: string | nul
  */
 export const PHASE_DEADLINE: Record<
   string,
-  { label: string; field: string; fallback: number; allDays: boolean }
+  { label: string; field: CampoDoMarco | ""; fallback: number; allDays: boolean }
 > = {
   "criar-aprovacoes": { label: "Entrega de Layouts", field: "deadlineEntregaLayouts", fallback: -20, allDays: false },
   correcao: { label: "Entrega de Layouts", field: "deadlineEntregaLayouts", fallback: -20, allDays: false },
@@ -539,7 +539,7 @@ export function phaseDeadline(
   if (!event || !raw) return null;
   const cfg = PHASE_DEADLINE[tab] ?? PHASE_DEADLINE["criar-aprovacoes"];
   // `field` é um dos três prazos do evento (PHASE_DEADLINE); "" = a própria saída.
-  const offset = cfg.field ? ((event as Record<string, unknown>)[cfg.field] as number | null | undefined ?? cfg.fallback) : 0;
+  const offset = cfg.field ? (event[cfg.field] ?? cfg.fallback) : 0;
   const d = toUTCDisplayDate(raw);
   d.setHours(0, 0, 0, 0);
   d.setDate(d.getDate() + offset);

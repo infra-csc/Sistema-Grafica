@@ -31,6 +31,7 @@ import { describe, it, expect } from "vitest";
 import { fonteDaTela } from "./fonte-da-tela";
 import { readFileSync } from "fs";
 import { resolve } from "path";
+import { lerTelaOuArquivo } from "./fonte-das-telas-da-arte";
 import {
   FILTROS_VAZIOS, itemCasaFiltros, itemPercursos, itemMes, itemImpressoras, normKey, escondeEntregues,
   type FacetaGrafica, type GraficaFiltros, type ItemGrafica, type CtxFiltros,
@@ -40,7 +41,8 @@ import { seloPecaEventoFinalizado } from "@/lib/status";
 import { EVENT_CLOSED_STATUS } from "@shared/prazo-dates";
 import { fonteDaGrafica } from "./fonte-da-grafica";
 
-const ler = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
+// Arte, Revisão e Vinculação são lidas como a área inteira (página + pasta).
+const ler = (p: string) => lerTelaOuArquivo(p);
 
 const HOJE_UTC = Date.UTC(2026, 7, 17); // 17/08/2026 — o dia do relato
 const DIA = 86_400_000;

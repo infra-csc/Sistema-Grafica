@@ -13,6 +13,7 @@
 // disparar tudo junto prendia o usuário num spinner de minutos.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useRef, useState } from "react";
+import type { PDFDocumentProxy } from "pdfjs-dist";
 import { BookOpen, Check, Loader2 } from "lucide-react";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { TOM, T, N, FS, FW, R } from "@/lib/theme";
@@ -32,7 +33,7 @@ export function BookHeranca({ bookUrl, capa, onCapaChange, paginas, onTogglePagi
   const [numPages, setNumPages] = useState(0);
   const [erro, setErro] = useState<string | null>(null);
   const [thumbs, setThumbs] = useState<Record<number, string>>({});
-  const docRef = useRef<any>(null);
+  const docRef = useRef<PDFDocumentProxy | null>(null);
   const queueRef = useRef<number[]>([]);
   const busyRef = useRef(false);
   const genRef = useRef(0);
@@ -51,9 +52,9 @@ export function BookHeranca({ bookUrl, capa, onCapaChange, paginas, onTogglePagi
         if (genRef.current !== gen) { void doc.loadingTask?.destroy(); return; }
         docRef.current = doc;
         setNumPages(doc.numPages);
-      } catch (e: any) {
+      } catch (e) {
         if (genRef.current !== gen) return;
-        setErro(e?.message || "Não foi possível abrir o book atual.");
+        setErro((e instanceof Error && e.message) || "Não foi possível abrir o book atual.");
       }
     })();
     return () => {
@@ -88,7 +89,7 @@ export function BookHeranca({ bookUrl, capa, onCapaChange, paginas, onTogglePagi
       const canvas = document.createElement("canvas");
       canvas.width = Math.ceil(vp.width);
       canvas.height = Math.ceil(vp.height);
-      await page.render({ canvasContext: canvas.getContext("2d")!, viewport: vp }).promise;
+      await page.render({ canvas, canvasContext: canvas.getContext("2d")!, viewport: vp }).promise;
       if (genRef.current === gen) setThumbs((prev) => ({ ...prev, [n]: canvas.toDataURL("image/jpeg", 0.7) }));
     } catch {
       // miniatura que falhou fica cinza — a página ainda é selecionável pelo número

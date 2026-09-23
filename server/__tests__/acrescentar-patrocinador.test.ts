@@ -25,10 +25,12 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
+import { fonteDaVinculacao } from "./fonte-das-telas-da-arte";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
 const ROTA = ler("server/routes/sponsors.ts");
-const TELA = ler("client/src/pages/vincular-patrocinadores.tsx");
+// A tela inteira: a página e as peças dela em components/vinculacao/.
+const TELA = fonteDaVinculacao();
 const PERMISSOES = ler("shared/permissoes.ts");
 
 describe("a tela", () => {

@@ -25,8 +25,10 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
 import { fonteDaTela } from "./fonte-da-tela";
+import { lerTelaOuArquivo } from "./fonte-das-telas-da-arte";
 
-const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
+// Arte, Revisão e Vinculação são lidas como a área inteira (página + pasta).
+const ler = (rel: string) => lerTelaOuArquivo(rel);
 const VP = ler("client/src/pages/vincular-patrocinadores.tsx");
 const semCom = (s: string) => s.replace(/\r\n/g, "\n").replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").map(l => l.replace(/^\s*\/\/.*$/, "")).join("\n");

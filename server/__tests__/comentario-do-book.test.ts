@@ -15,13 +15,16 @@
 // regras-avisos-book.test.ts.
 import { describe, it, expect } from "vitest";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
+import { fonteDaArte } from "./fonte-das-telas-da-arte";
 import { readFileSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
 const CAIXA = ler("client/src/components/comentario-do-book.tsx");
 const GERADOR = ler("client/src/pages/book-gerador.tsx");
-const ARTE = ler("client/src/pages/arte.tsx");
+// A Arte foi dividida: o modal do book mora em components/arte/dialogo-book.tsx
+// e o estado dele em use-book-da-arte.ts. Os trechos valem para a tela inteira.
+const ARTE = fonteDaArte();
 const ITEMS = fonteDasRotasDeItens();
 
 describe("a régua é uma só", () => {

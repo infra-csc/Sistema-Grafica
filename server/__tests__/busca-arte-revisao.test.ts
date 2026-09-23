@@ -12,6 +12,7 @@
 // regras-avisos-busca-arte.test.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { fonteDaArte } from "./fonte-das-telas-da-arte";
 import { readFileSync } from "fs";
 import path from "path";
 
@@ -147,13 +148,15 @@ describe("6 · o modal aplica a MESMA imagem que mostra", () => {
     expect(dialogo).toContain("const url = imagemDaArte(arte);");
     expect(dialogo).toContain("const previa = escolhida ? imagemDaArte(escolhida) : null;");
     expect(dialogo).not.toContain("escolhida.previewUrl ?? escolhida.thumbUrl");
-    const arte = ler("client/src/pages/arte.tsx");
+    const arte = fonteDaArte();
     expect(arte).toContain("const imagem = imagemDaArte(arte);");
   });
 });
 
 describe("7 · a Arte no celular", () => {
-  const arte = ler("client/src/pages/arte.tsx");
+  // A Arte foi dividida (página + components/arte/): a faixa do evento e a
+  // barra de filtros moram cada uma no seu arquivo.
+  const arte = fonteDaArte();
 
   it("as datas da faixa do evento abrem num botão 'i' com popover (44px no toque)", () => {
     expect(arte).toContain('data-testid="button-datas-da-faixa"');

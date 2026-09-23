@@ -28,6 +28,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "fs";
 import path from "path";
+import { fonteDaVinculacao } from "./fonte-das-telas-da-arte";
 
 const RAIZ = path.resolve(__dirname, "../../client/src");
 
@@ -77,7 +78,8 @@ describe("key de lista é identidade, não conteúdo", () => {
     // tabela so; a regra que este teste guarda e outra e continua de pe — a
     // key sai do ID da primeira peca do tipo, nunca do `item.type`, que e o
     // campo que o usuario RENOMEIA.
-    const fonte = readFileSync(path.join(RAIZ, "pages/vincular-patrocinadores.tsx"), "utf8");
+    // A tela inteira: o cabeçalho de tipo mora na fila (components/vinculacao/).
+    const fonte = fonteDaVinculacao();
     expect(fonte).toContain("key={`tipo-${item.id}`}");
     expect(fonte).not.toContain("key={`type-${item.type}-${itemIndex}`}");
   });

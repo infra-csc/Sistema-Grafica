@@ -17,6 +17,7 @@ import { fonteDoComponente } from "./fonte-dos-componentes";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { fonteDaGrafica } from "./fonte-da-grafica";
+import { fonteDaRevisao } from "./fonte-das-telas-da-arte";
 
 const raiz = join(import.meta.dirname, "..", "..");
 const ler = (p: string) => readFileSync(join(raiz, p), "utf8");
@@ -29,7 +30,8 @@ describe("o recado escrito na Revisão Final não se perde", () => {
   });
 
   it("ao liberar, o aviso leva à peça na fila da Gráfica", () => {
-    const revisao = ler("client/src/pages/solicitacao.tsx");
+    // O aviso de liberar mora em components/revisao/use-acoes-da-revisao.tsx.
+    const revisao = fonteDaRevisao();
     const trecho = revisao.slice(revisao.indexOf('title: "Liberada para a Gráfica"'));
     expect(trecho.slice(0, 600)).toContain("Ver na Gráfica");
     expect(trecho.slice(0, 600)).toContain("/grafica?item=");

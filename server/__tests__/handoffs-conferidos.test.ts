@@ -26,10 +26,12 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "fs";
 import path from "path";
 import { fonteDaTela } from "./fonte-da-tela";
+import { fonteDaRevisao } from "./fonte-das-telas-da-arte";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
 
-const REV = ler("client/src/pages/solicitacao.tsx");
+// A Revisão foi dividida em components/revisao/: a página + a pasta.
+const REV = fonteDaRevisao();
 const PG = fonteDaTela("painel");
 const CAL = ler("client/src/pages/calendario.tsx");
 // Registros: a página + os pedaços que saíram dela (components/grafica/registros/).

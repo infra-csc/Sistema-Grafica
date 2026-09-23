@@ -17,6 +17,7 @@ import { readFileSync } from "fs";
 import path from "path";
 import { fonteDaGrafica } from "./fonte-da-grafica";
 import { gatesDaGrafica } from "../../client/src/components/grafica/fila/regras";
+import { lerTelaOuArquivo } from "./fonte-das-telas-da-arte";
 import {
   pecaVisivelPara,
   remessaUtilizavelPor,
@@ -27,7 +28,8 @@ import {
 } from "@shared/kit";
 
 const RAIZ = path.resolve(__dirname, "../..");
-const ler = (rel: string) => readFileSync(path.resolve(RAIZ, rel), "utf8");
+// Arte, Revisão e Vinculação são lidas como a área inteira (página + pasta).
+const ler = (rel: string) => lerTelaOuArquivo(rel);
 const ITEMS = fonteDasRotasDeItens();
 const AUTH = ler("server/routes/auth.ts");
 const ROUTES = ler("server/routes.ts");
@@ -108,19 +110,25 @@ describe("planilha do Kit e filtros (fase 2)", () => {
 describe("selo KIT nas etapas (fase 3)", () => {
   it("Arte, Atendimento, Revisão, Painel Geral, Gráfica e Vincular mostram o selo", () => {
     for (const arquivo of [
-      "client/src/pages/arte.tsx",
+      // Arte (dividida em components/arte): a célula da fila e o cartão da Correção.
+      "client/src/components/arte/celulas-da-peca.tsx",
+      "client/src/components/arte/cartao-da-correcao.tsx",
       // Atendimento: o card da fila, a linha do lote, a linha do histórico e o cabeçalho da revisão.
       "client/src/components/atendimento/cartao-da-peca.tsx",
       "client/src/components/atendimento/linha-do-lote.tsx",
       "client/src/components/atendimento/linha-do-historico.tsx",
       "client/src/components/atendimento/cabecalho-da-revisao.tsx",
-      "client/src/pages/solicitacao.tsx",
+      // Revisão Final (dividida em components/revisao): a linha, o cartão e o modal de decisão.
+      "client/src/components/revisao/linha-da-peca.tsx",
+      "client/src/components/revisao/cartao-da-peca.tsx",
+      "client/src/components/revisao/modal-de-decisao.tsx",
       // Painel Geral: a linha (tabela) e o cartão (celular) da peça.
       "client/src/components/painel/linha-da-peca.tsx",
       "client/src/components/painel/cartao-da-peca.tsx",
       // A Gráfica desenha o selo na linha da tabela (components/grafica/fila).
       "client/src/components/grafica/fila/linha-da-tabela.tsx",
-      "client/src/pages/vincular-patrocinadores.tsx",
+      // Vinculação (dividida em components/vinculacao): o modal de confirmar o envio.
+      "client/src/components/vinculacao/modal-confirmar-envio.tsx",
     ]) {
       const fonte = ler(arquivo);
       expect(fonte, arquivo).toContain('import { SeloKit } from "@/components/kit/selo-kit";');

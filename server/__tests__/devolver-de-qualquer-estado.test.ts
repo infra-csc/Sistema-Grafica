@@ -25,10 +25,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
+import { fonteDaArte } from "./fonte-das-telas-da-arte";
 import { readFileSync } from "fs";
 
 const ITEMS = fonteDasRotasDeItens();
-const ARTE = readFileSync(new URL("../../client/src/pages/arte.tsx", import.meta.url), "utf8");
+// A tela da Arte foi dividida: o menu "⋯" mora em components/arte/celulas-da-peca.tsx
+// e o diálogo em dialogo-devolver.tsx. Os trechos valem para a tela inteira.
+const ARTE = fonteDaArte();
 
 describe("a tela da Arte oferece o mesmo que a rota aceita", () => {
   it("o botão aparece em tudo menos no rascunho", () => {
@@ -54,7 +57,10 @@ describe("a tela da Arte oferece o mesmo que a rota aceita", () => {
     // O import pode crescer (EM_REVISAO entrou em 24/08) — o que importa é a
     // lista vir de shared, não a forma exata da linha.
     expect(ITEMS).toMatch(/import \{ DEPOIS_DA_ARTE[^}]*\} from "@shared\/fluxo-peca";/);
-    expect(ARTE).toContain('import { DEPOIS_DA_ARTE, naoDevolvivel } from "@shared/fluxo-peca";');
+    // Na Arte dividida, cada pedaço importa o que usa: o menu, a regra de quem
+    // pode ser devolvida; o diálogo, a lista de "depois da Arte".
+    expect(ARTE).toContain('import { naoDevolvivel } from "@shared/fluxo-peca";');
+    expect(ARTE).toContain('import { DEPOIS_DA_ARTE } from "@shared/fluxo-peca";');
     expect(ITEMS).not.toContain("const DEPOIS_DA_ARTE = new Set");
     expect(ARTE).not.toContain("const DEPOIS_DA_ARTE = new Set");
     for (const st of ["inProduction", "delivered", "canceled"]) {

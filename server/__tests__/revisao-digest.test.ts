@@ -182,10 +182,18 @@ describe("as regras do disparo, escritas no código", () => {
     // O servidor já barra, mas desenhar o botão para quem leva 403 é prometer
     // o que a rota nega. E o aviso pode legitimamente NÃO sair (fila vazia):
     // um toast fixo de "Enviado" mentiria justamente no caso que interessa.
-    const TELA = readFileSync(new URL("../../client/src/pages/solicitacao.tsx", import.meta.url), "utf8");
-    const i = TELA.indexOf('data-testid="button-avisar-revisao"');
+    // A Revisão foi dividida: o botão mora no cabeçalho (components/revisao/
+    // cabecalho-da-revisao.tsx), que o desenha só com `admin`; a página passa
+    // `admin` = papel de admin. O toast mora no hook das ações.
+    const ler = (rel: string) => readFileSync(new URL(`../../${rel}`, import.meta.url), "utf8");
+    const PAGINA = ler("client/src/pages/solicitacao.tsx");
+    const CABECALHO = ler("client/src/components/revisao/cabecalho-da-revisao.tsx");
+    const ACOES = ler("client/src/components/revisao/use-acoes-da-revisao.tsx");
+    const i = CABECALHO.indexOf('data-testid="button-avisar-revisao"');
     expect(i).toBeGreaterThan(-1);
-    expect(TELA.slice(i - 600, i)).toContain('user?.role === "admin"');
-    expect(TELA).toContain('r?.status === "enviado" ? "Aviso enviado" : "Aviso não enviado"');
+    expect(CABECALHO.slice(i - 600, i)).toContain("{admin && (");
+    expect(PAGINA).toContain('const admin = user?.role === "admin";');
+    expect(PAGINA).toContain("admin={admin}");
+    expect(ACOES).toContain('r?.status === "enviado" ? "Aviso enviado" : "Aviso não enviado"');
   });
 });

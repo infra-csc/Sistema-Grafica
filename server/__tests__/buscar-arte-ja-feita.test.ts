@@ -19,6 +19,7 @@
 // em regras-avisos-busca-thumb.test.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { fonteDaArte } from "./fonte-das-telas-da-arte";
 import { readFileSync } from "fs";
 import path from "path";
 import {
@@ -301,7 +302,8 @@ describe("GET /api/artes/sugestao-final — o arquivo final da peça de onde a a
   });
 
   it("na tela: o bloco aparece com o campo vazio, Usar preenche SEM enviar, Ignorar some", () => {
-    const T = ler("client/src/pages/arte.tsx");
+    // A sugestão mora em components/arte/painel-finalizacao.tsx.
+    const T = fonteDaArte();
     expect(T).toContain('data-testid="sugestao-arquivo-final"');
     expect(T).toContain('data-testid="sugestao-arquivo-final-linha"');
     expect(T).toContain("Usar este caminho");
@@ -335,7 +337,8 @@ describe("as rotas que gravam thumb só aceitam objeto do storage", () => {
 // ─── a tela ──────────────────────────────────────────────────────────────────
 
 describe("o botão e o modal na Arte", () => {
-  const ARTE_TSX = ler("client/src/pages/arte.tsx");
+  // A Arte foi dividida (página + components/arte/): o texto da tela inteira.
+  const ARTE_TSX = fonteDaArte();
   const MODAL = ler("client/src/components/buscar-arte-dialog.tsx");
 
   it("o botão fica onde hoje se sobe a thumb e o arquivo — nos quatro pontos", () => {

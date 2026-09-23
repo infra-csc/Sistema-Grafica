@@ -21,6 +21,7 @@ import { fonteDaTela } from "./fonte-da-tela";
 import { fonteDoComponente } from "./fonte-dos-componentes";
 import { readFileSync } from "fs";
 import path from "path";
+import { lerTelaOuArquivo } from "./fonte-das-telas-da-arte";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { detalheDaProducao, subTrilhaDaProducao, rotuloDoTubo } from "@/lib/detalhe-producao";
@@ -37,7 +38,8 @@ import { comTubo, type ResumoDoTubo } from "../services/tubosDaPeca";
 vi.mock("../db", () => ({ db: {} }));
 
 const RAIZ = path.resolve(__dirname, "../..");
-const ler = (rel: string) => readFileSync(path.resolve(RAIZ, rel), "utf8");
+// Arte, Revisão e Vinculação são lidas como a área inteira (página + pasta).
+const ler = (rel: string) => lerTelaOuArquivo(rel);
 const M1 = rotuloDaMaquina("1");
 const M2 = rotuloDaMaquina("2");
 

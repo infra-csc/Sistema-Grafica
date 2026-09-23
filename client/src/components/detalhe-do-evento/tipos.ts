@@ -5,6 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Item, Event as EventRecord, StandardItem, AuditLog, EventSponsor } from "@shared/schema";
 import type { RemessaDoKit } from "@shared/kit";
+import type { MaeDoComplemento } from "@shared/api";
 import type { useAuth } from "@/contexts/auth-context";
 
 /**
@@ -19,8 +20,8 @@ export type PatrocinadorDaPeca = { id: string; name: string; color?: string | nu
 /** A peça como GET /api/items/:eventId devolve (server/routes/itens/leitura.ts). */
 export type PecaDoEvento = ComoJson<Item> & {
   sponsors?: PatrocinadorDaPeca[];
-  /** No complemento: a mãe, para a linha dizer "Compl. de #0062". */
-  parent?: { id: string; displayId: string; quantity: number; status: string } | null;
+  /** No complemento: a mãe, para a linha dizer "Compl. de #0062" (attachParents; displayId pode faltar). */
+  parent?: MaeDoComplemento | null;
   /** Na mãe: os complementos vivos. */
   complements?: Array<{ id: string; displayId: string; quantity: number | string; status?: string }>;
   contractedTotal?: number;

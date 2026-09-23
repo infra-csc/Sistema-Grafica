@@ -1185,6 +1185,9 @@ export function registerSponsorRoutes(app: Express): void {
             sponsorId: validatedData.sponsorId,
             status: "pending",
           });
+          // Pendência nova é decisão que a tela de Versões mostra: derruba o
+          // cache dela agora, senão o quadro fica ~30 s sem o recém-chegado.
+          invalidarCacheDeVersoes();
         }
       }
 

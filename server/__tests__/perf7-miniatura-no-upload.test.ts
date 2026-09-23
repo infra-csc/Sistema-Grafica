@@ -60,7 +60,7 @@ function bucketFalso(inicial: Record<string, Buffer> = {}) {
 
 /** Um PNG de verdade (o sharp precisa de bytes que ele saiba ler). */
 async function pngDeVerdade(lado = 900): Promise<Buffer> {
-  const { createRequire } = await import("module");
+  const { createRequire } = (await import("node:module")) as unknown as { createRequire: (url: string) => NodeRequire };
   const require = createRequire(import.meta.url);
   const sharp = require("sharp");
   return await sharp({

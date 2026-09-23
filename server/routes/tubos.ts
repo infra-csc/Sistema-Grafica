@@ -61,6 +61,7 @@ import { aEmbalar, planejarEmbalar, planejarEntrega, planejarRetirada, problemaN
 import { pecaTravada, fraseDaTrava } from "@shared/trava-da-peca";
 import { pecaVisivelPara } from "@shared/kit";
 import { urlDeThumbValida } from "./thumb-url";
+import { entregarEmLote, idsDoLote, MAXIMO_DO_LOTE } from "../services/entrega-em-lote";
 import {
   requireAuth,
   broadcast,
@@ -1046,6 +1047,94 @@ export function registerTubosRoutes(app: Express): void {
   // do mesmo volume ao mesmo tempo espera (e depois encontra o volume entregue).
   // Peça cancelada, arquivada, excluída ou devolvida à revisão dentro do volume
   // RECUSA a entrega (409, com a lista e o que fazer) — não é entregue às cegas.
+  // ENTREGAR UM VOLUME — a regra inteira, numa transação com o volume e as
+  // peças travados. Usada pela entrega de um volume e pela ENTREGA EM LOTE
+  // (dono, 23/09): o lote é esta mesma função chamada volume a volume, então
+  // as recusas (trava, Kit, peça com problema) são as mesmas.
+  type DadosDaEntrega = { quem: ReturnType<typeof resolveActor>; agora: Date; hora: string; recebedor: string; foto: string | null; obs: string };
+  const entregarVolume = (req: any, tuboId: string, { quem, agora, hora, recebedor, foto, obs }: DadosDaEntrega) =>
+    db.transaction(async (tx: Ex) => {
+      const tubo = await travarTubo(tx, tuboId);
+      const dentro = await conteudoDoTubo(tubo.id, tx);
+      if (dentro.length === 0) throw new Recusa(409, `${oVolume(tubo)} está vazio`);
+      // Entregar o volume é entregar TUDO que está nele — inclusive o que é do Kit.
+      if (soVisualizaKit(req) && dentro.some(({ p }) => !!p.kitRemessaId)) throw new Recusa(403, RECADO_SO_VISUALIZA);
+      if (visiveis(req, dentro.map(({ p }) => p)).length !== dentro.length) {
+        throw new Recusa(403, `${oVolume(tubo)} tem peças fora do seu Kit`);
+      }
+      const aEntregar = dentro.filter(({ l }) => !l.entregueEm);
+      if (aEntregar.length === 0) throw new Recusa(409, `Tudo que está ${noVolume(tubo)} já foi entregue`);
+      // Uma peça travada pela Solicitação segura o volume inteiro (entregar é tudo que está nele).
+      const travada = aEntregar.find(({ p }) => pecaTravada(p));
+      if (travada) throw new Recusa(409, `${travada.p.displayId ?? "Uma peça"} ${noVolume(tubo)}: ${fraseDaTrava(travada.p)}`);
+      const comProblema = aEntregar.filter(({ p }) => problemaNoVolume(p));
+      if (comProblema.length) {
+        const lista = comProblema.map(({ p }) => `${p.displayId ?? "peça"} ${problemaNoVolume(p)}`).join("; ");
+        const codigos = comProblema.map(({ p }) => p.displayId ?? "peça").join(", ");
+        const comoResolver = tubo.avulso ? `desfaça a embalagem de ${codigos}` : `tire ${codigos} do Tubo ${tubo.numero}`;
+        throw new Recusa(409, `Não dá para entregar ${tubo.avulso ? "a embalagem" : `o Tubo ${tubo.numero}`} — ${lista}. Para entregar, ${comoResolver} e tente de novo.`);
+      }
+
+      for (const { p, l } of aEntregar) {
+        const plano = planejarEntrega(p, l.quantidade);
+        await tx.update(tuboItens).set({ entregueEm: agora } as any).where(eq(tuboItens.id, l.id));
+        await tx.update(itemsTable).set({
+          // RELATIVO e com teto: nunca grava um total lido fora da trava.
+          deliveredQty: sql`least(${itemsTable.quantity}, coalesce(${itemsTable.deliveredQty}, 0) + ${l.quantidade})`,
+          ...(foto ? { deliveryPhotoUrl: foto } : {}),
+          updatedAt: agora,
+          receivedBy: recebedor,
+          ...(obs ? { deliveryNotes: obs } : {}),
+          ...(plano.viraEntregue ? { status: "delivered", deliveredAt: agora, statusChangedAt: agora } : {}),
+        } as any).where(eq(itemsTable.id, p.id));
+        await tx.insert(auditLogs).values({
+          ...quem,
+          action: "delivered",
+          entityType: "item",
+          entityId: p.id,
+          // "Entrega concluída (" é a frase que a medição de tempo por etapa lê.
+          details: `${plano.viraEntregue ? "Entrega concluída (" : "Entrega parcial ("}${plano.deliveredQty}/${p.quantity}, recebido por: ${recebedor}) — ${l.quantidade} un. ${tubo.avulso ? "entregues" : `no Tubo ${tubo.numero}, entregue`} a ${recebedor} em ${hora}`,
+        } as any);
+      }
+      await tx.update(tubos).set({
+        entregueEm: agora,
+        recebidoPor: recebedor,
+        fotoEntregaUrl: foto,
+        entregueObs: obs || null,
+        entreguePor: quem.userName,
+      } as any).where(eq(tubos.id, tubo.id));
+      await tx.insert(auditLogs).values({
+        ...quem,
+        action: "delivered",
+        entityType: "tubo",
+        entityId: tubo.id,
+        details: `${tubo.avulso ? "Embalagem avulsa entregue" : `Tubo ${tubo.numero} entregue`} a ${recebedor} em ${hora}${foto ? " (com foto)" : ""} — ${aEntregar.map(({ p, l }) => `${p.displayId ?? "peça"} (${l.quantidade})`).join(", ")}`,
+      } as any);
+      // O ATALHO `items.tubo_id`: a peça dividida que ainda tem outro volume
+      // aberto passa a apontar para ELE, não para o que acabou de sair.
+      await acertarAtalho(aEntregar.map(({ p }) => p.id), agora, tx);
+      return { tubo, aEntregar };
+    });
+
+  // Depois do commit: o evento pode ter FECHADO com a entrega — e o aviso de
+  // "evento concluído" é da Solicitação. As telas recebem o sinal uma vez.
+  const depoisDaEntrega = async (eventId: string, itemIds: string[]) => {
+    const antes = await storage.getEvent(eventId);
+    await updateEventStatus(eventId);
+    const depois = await storage.getEvent(eventId);
+    if (antes?.status !== "completed" && depois?.status === "completed") {
+      const notification = await storage.createNotification({
+        type: "eventCompleted",
+        message: `Evento concluído: ${depois?.name} - Todos os itens foram entregues`,
+        eventId,
+        targetRoles: ["solicitacao"],
+      });
+      broadcast({ type: "notification_created", notification });
+    }
+    broadcast({ type: "items_bulk_updated", itemIds, eventId });
+    broadcast({ type: "tubos_atualizados", eventId });
+  };
+
   app.post("/api/tubos/:id/entregar", requireAuth, async (req, res) => {
     if (!podeMexerEmTubo(req)) return res.status(403).json({ error: "Sem permissão para registrar entrega" });
     const { photoUrl, receivedBy, notes } = req.body ?? {};
@@ -1063,91 +1152,54 @@ export function registerTubosRoutes(app: Express): void {
       const quem = resolveActor(req);
       const agora = new Date();
       const hora = quandoBR(agora);
-      const feito = await db.transaction(async (tx: Ex) => {
-        const tubo = await travarTubo(tx, req.params.id);
-        const dentro = await conteudoDoTubo(tubo.id, tx);
-        if (dentro.length === 0) throw new Recusa(409, `${oVolume(tubo)} está vazio`);
-        // Entregar o volume é entregar TUDO que está nele — inclusive o que é do Kit.
-        if (soVisualizaKit(req) && dentro.some(({ p }) => !!p.kitRemessaId)) throw new Recusa(403, RECADO_SO_VISUALIZA);
-        if (visiveis(req, dentro.map(({ p }) => p)).length !== dentro.length) {
-          throw new Recusa(403, `${oVolume(tubo)} tem peças fora do seu Kit`);
-        }
-        const aEntregar = dentro.filter(({ l }) => !l.entregueEm);
-        if (aEntregar.length === 0) throw new Recusa(409, `Tudo que está ${noVolume(tubo)} já foi entregue`);
-        // Uma peça travada pela Solicitação segura o volume inteiro (entregar é tudo que está nele).
-        const travada = aEntregar.find(({ p }) => pecaTravada(p));
-        if (travada) throw new Recusa(409, `${travada.p.displayId ?? "Uma peça"} ${noVolume(tubo)}: ${fraseDaTrava(travada.p)}`);
-        const comProblema = aEntregar.filter(({ p }) => problemaNoVolume(p));
-        if (comProblema.length) {
-          const lista = comProblema.map(({ p }) => `${p.displayId ?? "peça"} ${problemaNoVolume(p)}`).join("; ");
-          const codigos = comProblema.map(({ p }) => p.displayId ?? "peça").join(", ");
-          const comoResolver = tubo.avulso ? `desfaça a embalagem de ${codigos}` : `tire ${codigos} do Tubo ${tubo.numero}`;
-          throw new Recusa(409, `Não dá para entregar ${tubo.avulso ? "a embalagem" : `o Tubo ${tubo.numero}`} — ${lista}. Para entregar, ${comoResolver} e tente de novo.`);
-        }
-
-        for (const { p, l } of aEntregar) {
-          const plano = planejarEntrega(p, l.quantidade);
-          await tx.update(tuboItens).set({ entregueEm: agora } as any).where(eq(tuboItens.id, l.id));
-          await tx.update(itemsTable).set({
-            // RELATIVO e com teto: nunca grava um total lido fora da trava.
-            deliveredQty: sql`least(${itemsTable.quantity}, coalesce(${itemsTable.deliveredQty}, 0) + ${l.quantidade})`,
-            ...(foto ? { deliveryPhotoUrl: foto } : {}),
-            updatedAt: agora,
-            receivedBy: recebedor,
-            ...(obs ? { deliveryNotes: obs } : {}),
-            ...(plano.viraEntregue ? { status: "delivered", deliveredAt: agora, statusChangedAt: agora } : {}),
-          } as any).where(eq(itemsTable.id, p.id));
-          await tx.insert(auditLogs).values({
-            ...quem,
-            action: "delivered",
-            entityType: "item",
-            entityId: p.id,
-            // "Entrega concluída (" é a frase que a medição de tempo por etapa lê.
-            details: `${plano.viraEntregue ? "Entrega concluída (" : "Entrega parcial ("}${plano.deliveredQty}/${p.quantity}, recebido por: ${recebedor}) — ${l.quantidade} un. ${tubo.avulso ? "entregues" : `no Tubo ${tubo.numero}, entregue`} a ${recebedor} em ${hora}`,
-          } as any);
-        }
-        await tx.update(tubos).set({
-          entregueEm: agora,
-          recebidoPor: recebedor,
-          fotoEntregaUrl: foto,
-          entregueObs: obs || null,
-          entreguePor: quem.userName,
-        } as any).where(eq(tubos.id, tubo.id));
-        await tx.insert(auditLogs).values({
-          ...quem,
-          action: "delivered",
-          entityType: "tubo",
-          entityId: tubo.id,
-          details: `${tubo.avulso ? "Embalagem avulsa entregue" : `Tubo ${tubo.numero} entregue`} a ${recebedor} em ${hora}${foto ? " (com foto)" : ""} — ${aEntregar.map(({ p, l }) => `${p.displayId ?? "peça"} (${l.quantidade})`).join(", ")}`,
-        } as any);
-        // O ATALHO `items.tubo_id`: a peça dividida que ainda tem outro volume
-        // aberto passa a apontar para ELE, não para o que acabou de sair.
-        await acertarAtalho(aEntregar.map(({ p }) => p.id), agora, tx);
-        return { tubo, aEntregar };
-      });
+      const feito = await entregarVolume(req, req.params.id, { quem, agora, hora, recebedor, foto, obs });
       const { tubo, aEntregar } = feito;
 
-      // O evento pode ter FECHADO com esta entrega — e o aviso de "evento
-      // concluído" é da Solicitação.
-      const antes = await storage.getEvent(tubo.eventId);
-      await updateEventStatus(tubo.eventId);
-      const depois = await storage.getEvent(tubo.eventId);
-      if (antes?.status !== "completed" && depois?.status === "completed") {
-        const notification = await storage.createNotification({
-          type: "eventCompleted",
-          message: `Evento concluído: ${depois?.name} - Todos os itens foram entregues`,
-          eventId: tubo.eventId,
-          targetRoles: ["solicitacao"],
-        });
-        broadcast({ type: "notification_created", notification });
-      }
-      broadcast({ type: "items_bulk_updated", itemIds: aEntregar.map(({ p }) => p.id), eventId: tubo.eventId });
-      broadcast({ type: "tubos_atualizados", eventId: tubo.eventId });
+      await depoisDaEntrega(tubo.eventId, aEntregar.map(({ p }) => p.id));
       res.json({ ok: true, numero: tubo.numero, avulso: !!tubo.avulso, entregues: aEntregar.length, unidades: aEntregar.reduce((s, { l }) => s + l.quantidade, 0) });
     } catch (error: any) {
       if (responderRecusa(res, error)) return;
       console.error("[tubos] falha ao entregar o tubo:", error);
       res.status(500).json({ error: "Não foi possível registrar a entrega do tubo." });
     }
+  });
+
+  // ENTREGAR EM LOTE (dono, 23/09): o caminhão leva vários volumes e quem
+  // recebe é uma pessoa só — um "quem recebeu" (e foto/observação opcionais)
+  // para todos. Cada volume passa pela MESMA regra da entrega individual, na
+  // sua própria transação: um volume recusado (peça travada, cancelada, fora do
+  // Kit…) volta com o motivo e NÃO segura os outros.
+  app.post("/api/tubos/entregar-em-lote", requireAuth, async (req, res) => {
+    if (!podeMexerEmTubo(req)) return res.status(403).json({ error: "Sem permissão para registrar entrega" });
+    const { tuboIds, photoUrl, receivedBy, notes } = req.body ?? {};
+    const ids = idsDoLote(tuboIds);
+    if (ids.length === 0) return res.status(400).json({ error: "Escolha ao menos um volume para entregar" });
+    if (ids.length > MAXIMO_DO_LOTE) return res.status(400).json({ error: `No máximo ${MAXIMO_DO_LOTE} volumes por vez` });
+    const recebedor = typeof receivedBy === "string" ? receivedBy.trim() : "";
+    if (!recebedor) return res.status(400).json({ error: "Informe quem recebeu — é o que registra a entrega" });
+    const foto = typeof photoUrl === "string" && photoUrl.trim() ? urlDeThumbValida(photoUrl) : null;
+    if (typeof photoUrl === "string" && photoUrl.trim() && !foto) {
+      return res.status(400).json({ error: "A foto precisa ser enviada pelo app (endereço /objects/…)" });
+    }
+    const obs = typeof notes === "string" ? notes.trim() : "";
+    const dados = { quem: resolveActor(req), agora: new Date(), hora: "", recebedor, foto, obs };
+    dados.hora = quandoBR(dados.agora);
+    const r = await entregarEmLote(ids, {
+      entregarUm: async (tuboId) => {
+        const { tubo, aEntregar } = await entregarVolume(req, tuboId, dados);
+        return {
+          tuboId, numero: tubo.numero, avulso: !!tubo.avulso, eventId: tubo.eventId, pecas: aEntregar.length,
+          unidades: aEntregar.reduce((s, { l }) => s + l.quantidade, 0), itemIds: aEntregar.map(({ p }) => p.id),
+        };
+      },
+      depoisDoEvento: depoisDaEntrega,
+      ehRecusa: (e): e is Error => e instanceof Recusa,
+      aoFalhar: (id, e) => console.error("[tubos] falha no lote de entrega:", id, e),
+    });
+    // Nenhum saiu: é recusa do lote inteiro (409) — com os motivos, volume a volume.
+    if (r.entregues.length === 0) {
+      return res.status(409).json({ error: r.recusados.length === 1 ? r.recusados[0].motivo : "Nenhum volume pôde ser entregue — veja o motivo de cada um.", ...r });
+    }
+    res.json(r);
   });
 }

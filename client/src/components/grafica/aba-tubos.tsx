@@ -15,6 +15,11 @@
 // Filtro por evento e busca (código, descrição, tipo, evento, nº do tubo,
 // recebedor) moram na URL — recarregar ou mandar o link mantém o recorte.
 //
+// ENTREGAR EM LOTE (dono, 23/09): nos abertos e nas sozinhas, cada volume que
+// pode sair tem uma caixa; marcados, a barra "Entregar N em lote" pede UM
+// "quem recebeu" para todos. O que o servidor recusar fica marcado, com o
+// motivo no próprio cartão.
+//
 // AS AÇÕES não são reimplementadas aqui: cada cartão abre os MESMOS modais da
 // fila (o do tubo, o de entrega), pelo TubosDialog. Um lugar só para a regra.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -22,7 +27,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { CheckCircle2, Package, Search, Tag, Truck, X } from "lucide-react";
-import { TubosDialog } from "@/components/tubos-dialog";
+import { TubosDialog, EntregarEmLoteDialog, type VolumeDoLote, type ResultadoDoLote } from "@/components/tubos-dialog";
 import { linhaDaLista, semAcento as tirarAcento } from "@/lib/etiqueta-lista";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { intervaloDePolling } from "@/hooks/use-websocket";
@@ -98,6 +103,12 @@ export function AbaTubos({ sugestaoRecebedor, onEntregou, onAbrirPeca }: {
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
   const [modal, setModal] = useState<{ evento: { id: string; name: string }; verTubo?: string; entregarTubo?: string } | null>(null);
   const segmento: Segmento = (SEGMENTOS.find((x) => x.id === seg)?.id ?? "abertos");
+  // O LOTE: ids marcados (só volumes que ainda vão sair e que a pessoa pode entregar).
+  const [marcados, setMarcados] = useState<Set<string>>(new Set());
+  const [recusas, setRecusas] = useState<Record<string, string>>({});
+  const [loteAberto, setLoteAberto] = useState(false);
+  const podeEntrar = (t: TuboDaAba) => t.podeAgir && !t.entregueEm && t.pecas.length > 0;
+  const alternar = (id: string) => setMarcados((m) => { const n = new Set(m); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   const doSegmento = (t: TuboDaAba, qual: Segmento) =>
     qual === "entregues" ? !!t.entregueEm : !t.entregueEm && t.pecas.length > 0 && (qual === "sozinhas" ? t.avulso : !t.avulso);
@@ -127,6 +138,17 @@ export function AbaTubos({ sugestaoRecebedor, onEntregou, onAbrirPeca }: {
   }, [data]);
 
   const irPara = (s: Segmento) => { setSeg(s); setMostrando(LOTE); };
+  const nomeDo = (t: TuboDaAba) => (t.avulso ? `Embalagem de ${t.pecas[0]?.displayId ?? "peça"}` : `Tubo ${t.numero}`);
+  const noLote = useMemo(() => data.filter((t) => marcados.has(t.id) && podeEntrar(t)), [data, marcados]);
+  const doFiltro = lista.filter(podeEntrar);
+  const todosDoFiltroMarcados = doFiltro.length > 0 && doFiltro.every((t) => marcados.has(t.id));
+  const volumesDoLote: VolumeDoLote[] = noLote.map((t) => ({ id: t.id, nome: nomeDo(t), evento: { id: t.evento.id, name: t.evento.name }, pecas: t.pecas.length, unidades: t.unidades }));
+  const terminouLote = (r: ResultadoDoLote, recebedor: string) => {
+    // Entregues saem do lote; recusados FICAM marcados, com o motivo no cartão.
+    setMarcados((m) => { const n = new Set(m); for (const e of r.entregues) n.delete(e.tuboId); return n; });
+    setRecusas(Object.fromEntries(r.recusados.map((x) => [x.tuboId, x.motivo])));
+    if (r.entregues.length) onEntregou?.(recebedor);
+  };
   const botao = (cor: string, solido = false): React.CSSProperties => ({
     display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: alvo, padding: "0 12px", borderRadius: 8, fontSize: isMobile ? 14 : 12.5, fontWeight: 700, cursor: "pointer", textDecoration: "none",
     border: solido ? "none" : `1px solid ${COR.borda}`, background: solido ? cor : "#fff", color: solido ? "#fff" : cor,
@@ -190,6 +212,17 @@ export function AbaTubos({ sugestaoRecebedor, onEntregou, onAbrirPeca }: {
         )}
       </div>
 
+      {segmento !== "entregues" && doFiltro.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <button type="button" data-testid="tubos-marcar-todos"
+            onClick={() => setMarcados((m) => { const n = new Set(m); for (const t of doFiltro) { if (todosDoFiltroMarcados) n.delete(t.id); else n.add(t.id); } return n; })}
+            style={botao(COR.texto)}>
+            {todosDoFiltroMarcados ? "Desmarcar os deste filtro" : `Marcar todos deste filtro (${doFiltro.length})`}
+          </button>
+          <span style={{ fontSize: 12.5, color: COR.sec }}>Marque os volumes que saem juntos para entregar de uma vez.</span>
+        </div>
+      )}
+
       {isError && (
         <div role="alert" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "12px 14px", borderRadius: 10, background: "#fef2f2", border: "1px solid #fecaca", color: COR.vermelho, fontSize: 13 }}>
           Não foi possível carregar os tubos.
@@ -215,9 +248,20 @@ export function AbaTubos({ sugestaoRecebedor, onEntregou, onAbrirPeca }: {
           return (
             <article key={t.id} data-testid={`cartao-tubo-${t.id}`} aria-label={`${nome} · ${t.evento.name}`}
               style={{ display: "flex", flexDirection: "column", minWidth: 0, border: `1px solid ${COR.borda}`, borderRadius: 12, background: "#fff", overflow: "hidden" }}>
-              <header style={{ padding: "10px 12px", background: COR.fundo, borderBottom: `1px solid ${COR.borda}`, display: "flex", flexDirection: "column", gap: 2 }}>
+              <header style={{ padding: "10px 12px", background: marcados.has(t.id) ? "#f0fdf4" : COR.fundo, borderBottom: `1px solid ${COR.borda}`, display: "flex", flexDirection: "column", gap: 2 }}>
                 <span style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-                  <strong style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, color: COR.texto }}>{nome}</strong>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                    {podeEntrar(t) && (
+                      <label style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: alvo, minHeight: alvo, margin: isMobile ? "-10px 0 -10px -10px" : "-6px 0 -6px -6px", cursor: "pointer" }}>
+                        <input type="checkbox" checked={marcados.has(t.id)} onChange={() => alternar(t.id)} data-testid={`marcar-lote-${t.id}`}
+                          aria-label={`Marcar ${nome} para entregar em lote`}
+                          // A caixa desenha pelo lado menor (22px); a altura inteira do alvo
+                          // é a área de toque — 44px no celular, como todo controle da aba.
+                          style={{ width: 22, height: alvo, margin: 0, fontSize: isMobile ? 16 : 14, accentColor: COR.verde, cursor: "pointer" }} />
+                      </label>
+                    )}
+                    <strong style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, color: COR.texto }}>{nome}</strong>
+                  </span>
                   <span style={{ fontSize: 12.5, color: COR.sec }}>{plural(t.pecas.length, "peça", "peças")} · {t.unidades} un. · {t.fotosFechamento.length ? plural(t.fotosFechamento.length, "foto", "fotos") : "sem foto"}</span>
                 </span>
                 <span style={{ fontSize: 13, color: COR.sec, overflowWrap: "anywhere" }}>
@@ -227,6 +271,12 @@ export function AbaTubos({ sugestaoRecebedor, onEntregou, onAbrirPeca }: {
                     : d !== null ? <strong style={{ color: d <= 2 ? COR.ambar : COR.sec }}> · caminhão {dia(t.evento.truckDepartureDate)}{d < 0 ? " (já saiu)" : d === 0 ? " (hoje)" : d === 1 ? " (amanhã)" : ` (em ${d} dias)`}</strong> : null}
                 </span>
               </header>
+
+              {recusas[t.id] && !t.entregueEm && (
+                <p role="status" data-testid={`recusa-lote-${t.id}`} style={{ margin: "8px 12px 0", padding: "8px 10px", borderRadius: 8, background: "#fef2f2", border: "1px solid #fecaca", color: COR.vermelho, fontSize: 12.5, lineHeight: 1.4 }}>
+                  Não saiu no lote: {recusas[t.id]}
+                </p>
+              )}
 
               {t.fotosFechamento.length > 0 && (
                 <div style={{ display: "flex", gap: 6, padding: "8px 12px 0", flexWrap: "wrap" }}>
@@ -282,6 +332,25 @@ export function AbaTubos({ sugestaoRecebedor, onEntregou, onAbrirPeca }: {
           Mostrar mais ({lista.length - mostrando} de {lista.length})
         </button>
       )}
+
+      {noLote.length > 0 && (
+        <div role="region" aria-label="Entrega em lote" data-testid="barra-entregar-em-lote"
+          style={{ position: "sticky", bottom: 0, zIndex: 3, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap",
+            padding: isMobile ? "10px 12px calc(10px + env(safe-area-inset-bottom))" : "10px 14px", borderRadius: isMobile ? 0 : 12, background: "#fff", border: `1px solid ${COR.borda}`, boxShadow: "0 -4px 16px rgba(28,25,23,0.08)" }}>
+          <span aria-live="polite" style={{ fontSize: isMobile ? 14 : 13, color: COR.texto }}>
+            <strong>{plural(noLote.length, "volume marcado", "volumes marcados")}</strong> · {noLote.reduce((s, t) => s + t.unidades, 0)} un.
+          </span>
+          <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button type="button" onClick={() => { setMarcados(new Set()); setRecusas({}); }} data-testid="limpar-lote" style={botao(COR.sec)}>Limpar</button>
+            <button type="button" onClick={() => setLoteAberto(true)} data-testid="abrir-entregar-em-lote" style={botao(COR.verde, true)}>
+              <Truck aria-hidden="true" style={{ width: 13, height: 13 }} /> Entregar {noLote.length} em lote
+            </button>
+          </span>
+        </div>
+      )}
+
+      <EntregarEmLoteDialog volumes={loteAberto ? volumesDoLote : null} sugestaoRecebedor={sugestaoRecebedor}
+        onClose={() => setLoteAberto(false)} onTerminou={terminouLote} />
 
       <TubosDialog evento={modal ? { id: modal.evento.id, name: modal.evento.name } : null} onClose={() => setModal(null)}
         verTubo={modal?.verTubo} tuboInicial={modal?.entregarTubo}

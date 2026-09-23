@@ -748,6 +748,123 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
+// 2b · ENTREGAR EM LOTE (dono, 23/09) — vários volumes para UMA pessoa. O
+//      servidor aplica a regra da entrega individual a cada volume; o que ele
+//      recusar volta com o motivo e fica marcado na aba, sem segurar os outros.
+// ═════════════════════════════════════════════════════════════════════════════
+export type VolumeDoLote = { id: string; nome: string; evento: { id: string; name: string }; pecas: number; unidades: number };
+export type ResultadoDoLote = { entregues: Array<{ tuboId: string }>; recusados: Array<{ tuboId: string; motivo: string }>; unidades: number };
+
+export function EntregarEmLoteDialog({ volumes, sugestaoRecebedor = "", onClose, onTerminou }: {
+  /** Os volumes marcados na aba (null/vazio = fechado). */
+  volumes: VolumeDoLote[] | null;
+  sugestaoRecebedor?: string;
+  onClose: () => void;
+  /** Resultado volume a volume — a aba desmarca os entregues e mostra o motivo dos recusados. */
+  onTerminou: (r: ResultadoDoLote, recebedor: string) => void;
+}) {
+  const { toast } = useToast();
+  const { isMobile } = useMedidas();
+  const aberto = !!volumes && volumes.length > 0;
+  const [recebidoPor, setRecebidoPor] = useState("");
+  const [obs, setObs] = useState("");
+  const [fotos, setFotos] = useState<string[]>([]);
+  const enviandoRef = useRef(false);
+  const campoRef = useRef<HTMLInputElement>(null);
+  const chave = aberto ? volumes!.map((v) => v.id).join(",") : null;
+  const [vista, setVista] = useState<string | null>(null);
+  if (chave !== vista) { setVista(chave); setRecebidoPor(""); setObs(""); setFotos([]); }
+
+  const lista = volumes ?? [];
+  const unidades = lista.reduce((s, v) => s + v.unidades, 0);
+  const eventos = Array.from(new Set(lista.map((v) => v.evento.name)));
+  const entregar = useMutation({
+    mutationFn: async (): Promise<ResultadoDoLote> => {
+      const r = await apiRequest("POST", "/api/tubos/entregar-em-lote", {
+        tuboIds: lista.map((v) => v.id), receivedBy: recebidoPor.trim(), photoUrl: fotos[0] ?? null, notes: obs,
+      });
+      return r.json();
+    },
+    onSuccess: (r) => {
+      const quem = recebidoPor.trim();
+      const entregues = r.entregues.length;
+      toast({
+        variant: r.recusados.length ? "warning" : "success",
+        title: `${plural(entregues, "volume entregue", "volumes entregues")} a ${quem}`,
+        description: r.recusados.length
+          ? `${plural(r.recusados.length, "volume ficou", "volumes ficaram")} de fora — o motivo está no cartão.`
+          : `${r.unidades} un. no total.`,
+      });
+      for (const id of Array.from(new Set(lista.map((v) => v.evento.id)))) atualizarTudo(id);
+      onTerminou(r, quem);
+      onClose();
+    },
+    onError: (e: any) => {
+      // 409 do lote inteiro ainda traz os motivos volume a volume (no corpo
+      // que o apiRequest põe na mensagem: "409: {…}").
+      const bruto = String(e?.message ?? "");
+      const i = bruto.indexOf("{");
+      try {
+        const corpo = i >= 0 ? JSON.parse(bruto.slice(i)) : null;
+        if (Array.isArray(corpo?.recusados)) onTerminou({ entregues: [], recusados: corpo.recusados, unidades: 0 }, recebidoPor.trim());
+      } catch { /* sem corpo legível: só o aviso */ }
+      toast({ title: "Não foi possível entregar o lote", description: mensagemDeErro(e), variant: "destructive" });
+    },
+    onSettled: () => { enviandoRef.current = false; },
+  });
+  const pronto = aberto && !!recebidoPor.trim();
+  const confirmar = () => {
+    if (enviandoRef.current || entregar.isPending || !pronto) return;
+    enviandoRef.current = true;
+    entregar.mutate();
+  };
+  const campo: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: isMobile ? 44 : 40, borderRadius: 8, border: `1px solid ${COR.borda}`, padding: "0 12px", fontSize: isMobile ? 16 : 14, background: "#fff", color: COR.texto };
+  const rotulo = entregar.isPending ? "Entregando…"
+    : !recebidoPor.trim() ? "Informe quem recebeu"
+    : `Entregar ${plural(lista.length, "volume", "volumes")} a ${recebidoPor.trim()}`;
+
+  return (
+    <Casca aberto={aberto} onClose={onClose} icone={Truck} tint={COR.verde} largura={560} testId="modal-entregar-em-lote" focoInicial={campoRef}
+      titulo={`Entregar em lote · ${plural(lista.length, "volume", "volumes")}`}
+      subtitulo={`${unidades} un.${eventos.length === 1 ? ` · ${eventos[0]}` : ` · ${eventos.length} eventos`} — confira e registre quem recebeu`}
+      rodape={(
+        <Rodape testId="rodape-entregar-em-lote">
+          <BotaoCancelar onClick={onClose} />
+          <BotaoPrimario onClick={confirmar} disabled={entregar.isPending || !pronto} cor={COR.verde} testId="confirmar-entrega-em-lote">{rotulo}</BotaoPrimario>
+        </Rodape>
+      )}>
+      <section data-testid="lista-entrega-em-lote" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <span style={ROTULO}>Vão sair · {plural(lista.length, "volume", "volumes")}</span>
+        <ul style={{ margin: 0, padding: 0, listStyle: "none", border: `1px solid ${COR.borda}`, borderRadius: 10, overflow: "hidden", maxHeight: 240, overflowY: "auto" }}>
+          {lista.map((v) => (
+            <li key={v.id} style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, padding: "8px 12px", borderTop: "1px solid #f5f5f4", flexWrap: "wrap", fontSize: 13, color: COR.texto }}>
+              <strong>{v.nome}</strong>
+              <span style={{ color: COR.sec }}>{v.evento.name} · {plural(v.pecas, "peça", "peças")} / {v.unidades} un.</span>
+            </li>
+          ))}
+        </ul>
+        <span style={{ fontSize: 12.5, color: COR.sec }}>Cada volume passa pelas mesmas conferências da entrega individual. Se algum não puder sair, ele fica marcado com o motivo e os outros seguem.</span>
+      </section>
+      <section>
+        <label htmlFor="campo-quem-recebeu-lote" style={ROTULO}>Quem recebeu <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· obrigatório, vale para todos</span></label>
+        <input id="campo-quem-recebeu-lote" ref={campoRef} value={recebidoPor} onChange={(e) => setRecebidoPor(e.target.value)} placeholder="Nome de quem recebeu" autoComplete="off"
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.repeat) confirmar(); }}
+          data-testid="recebedor-em-lote" style={{ ...campo, marginTop: 6 }} />
+        <SugestaoRecebedor nome={sugestaoRecebedor} atual={recebidoPor} onUsar={setRecebidoPor} />
+      </section>
+      <section>
+        <span style={ROTULO}>Foto do comprovante <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· opcional</span></span>
+        <Fotos lista={fotos} onMudar={(mudar) => setFotos((atual) => mudar(atual).slice(-1))} alt="Foto do comprovante" />
+      </section>
+      <section>
+        <label htmlFor="campo-obs-entrega-lote" style={ROTULO}>Observação <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· opcional</span></label>
+        <input id="campo-obs-entrega-lote" value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Ex.: entregue na portaria" style={{ ...campo, marginTop: 6 }} />
+      </section>
+    </Casca>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
 // 3 · TUBOS DO EVENTO — gestão. As portas para embalar e entregar; nunca o
 //     formulário deles embutido.
 // ═════════════════════════════════════════════════════════════════════════════

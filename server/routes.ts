@@ -17,7 +17,6 @@ import { registerEventRoutes } from "./routes/events";
 import { registerItemRoutes } from "./routes/items";
 import { registerStandardItemRoutes } from "./routes/standard-items";
 import { registerNotificationRoutes } from "./routes/notifications";
-import { registerCommentRoutes } from "./routes/comments";
 import { registerPhotoRoutes } from "./routes/photos";
 import { registerAuditLogRoutes } from "./routes/audit-logs";
 import { registerPrazoRoutes } from "./routes/prazos";
@@ -163,7 +162,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerArtesBuscaRoutes(app);
   registerMoldeRoutes(app);
   registerNotificationRoutes(app);
-  registerCommentRoutes(app);
   registerPhotoRoutes(app);
   registerAuditLogRoutes(app);
   registerPrazoRoutes(app);

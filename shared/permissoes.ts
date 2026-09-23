@@ -44,7 +44,6 @@ export const REGUA_DE_PAPEIS: RegraDeRota[] = [
   { metodo: "DELETE", rota: "/api/allocations/:id", papeis: ["admin"] },
   { metodo: "POST", rota: "/api/auth/register", papeis: ["admin"] },
   { metodo: "DELETE", rota: "/api/catalog-options", papeis: ["admin", "solicitacao"] },
-  { metodo: "DELETE", rota: "/api/comments/:id", papeis: ["admin"] },
   // Consulta de estoque a partir da Revisão Final (dono, 21/09): quem revisa
   // pergunta e cancela; a Gráfica — que faz estoque e triagem — responde.
   { metodo: "POST", rota: "/api/consultas-de-estoque/:id/cancelar", papeis: ["admin", "solicitacao"] },

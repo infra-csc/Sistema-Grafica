@@ -1,14 +1,12 @@
 // Complemento: aumento de quantidade depois que a peça entrou em produção.
 import type { Express } from "express";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
-import { db } from "../../db";
-import { storage, isDisplayIdConflictError } from "../../storage";
-import { type Item, items as itemsTable, auditLogs, notifications } from "@shared/schema";
-import { requireAuth, broadcast, translateStatus, resolveActor, updateEventStatus } from "../shared";
+import { storage } from "../../storage";
+import { requireAuth, broadcast, updateEventStatus } from "../shared";
 import { corpoEventoFechado, fraseDoZod } from "../../erros";
 import { motivoEventoFechado } from "../eventoFinalizado";
-import { COMPLEMENT_ALLOWED_STATUSES, deriveCalculatedM2 } from "./comum";
+import { COMPLEMENT_ALLOWED_STATUSES } from "./comum";
+import { criarComplemento, desfazerComplemento } from "../../services/complemento-da-peca";
 
 /**
  * Quem pode MUDAR A QUANTIDADE de uma peça que já entrou em produção —
@@ -94,101 +92,9 @@ export function registrarComplemento(app: Express): void {
         return res.status(200).set("X-Complement-Deduped", "1").json(dup);
       }
 
-      // m² do filho SEMPRE derivado no servidor, nesta ordem:
-      // 1) fórmula normal (quantidade × largura × altura do arquivo);
-      // 2) rateio do m² da mãe (acervo antigo não tem dimensões de arquivo);
-      // 3) "0.00" — a coluna é NOT NULL — com a ressalva no audit log.
-      // Ganho não óbvio: o m² do EVENTO fica correto sozinho, porque as duas
-      // linhas somam. Nenhuma agregação precisa saber o que é complemento.
-      const derivado = deriveCalculatedM2({
-        quantity: body.quantity, fileWidth: parent.fileWidth, fileHeight: parent.fileHeight,
-      });
-      const rateado = Number(parent.calculatedM2) > 0 && parent.quantity > 0
-        ? ((Number(parent.calculatedM2) / parent.quantity) * body.quantity).toFixed(2)
-        : null;
-      const m2 = derivado ?? rateado ?? "0.00";
-      const m2NaoDerivavel = derivado === undefined && rateado === null;
-
-      const autor = resolveActor(req);
-      const userName = autor.userName;
-      const posSaida = !!event.truckDepartureDate && new Date(event.truckDepartureDate) < new Date();
-      const marcaSaida = posSaida ? " [pós-saída do caminhão]" : "";
-      const marcaM2 = m2NaoDerivavel ? " (m² não derivável)" : "";
-
-      // Uma transação: peça-filha + os DOIS audit logs + a notificação. Se
-      // qualquer passo falhar, nada fica meio criado — e o pior meio-caminho
-      // possível aqui é um complemento na fila da Gráfica sem o motivo
-      // registrado em lugar nenhum.
-      //
-      // A retentativa é da transação INTEIRA (não do INSERT): no Postgres, uma
-      // transação que tomou erro está abortada e não aceita mais comandos. O
-      // 23505 acontece quando duas pessoas pedem o aumento da mesma peça no
-      // mesmo instante e ambas calculam o mesmo -C1; na segunda volta o MAX já
-      // enxerga o -C1 e sai o -C2.
-      const criar = () => db.transaction(async (tx) => {
-        const child = await storage.createComplementItemTx(tx, parent, {
-          quantity: body.quantity,
-          calculatedM2: m2,
-          status: "ready_for_production",
-          complementReason: body.reason,
-          complementRequestedBy: userName,
-          complementRequestedAt: new Date(),
-        });
-
-        // LOG NA FILHA — a história do lote novo.
-        await tx.insert(auditLogs).values({
-          ...autor, action: "complement_created", entityType: "item", entityId: child.id,
-          details: `Complemento de ${parent.displayId}: +${body.quantity} un. (${m2} m²)${marcaM2}. `
-                 + `Peça original permanece ${translateStatus(parent.status)} com ${parent.quantity} un. `
-                 + `Motivo: ${body.reason}${marcaSaida}`,
-        });
-        // LOG NA MÃE — OBRIGATÓRIO. A ficha da peça filtra o audit log por
-        // entityId === item.id; sem esta linha, abrir #0062 não mostraria
-        // absolutamente nada sobre o aumento, e é justamente em #0062 que quem
-        // presta contas vai procurar.
-        await tx.insert(auditLogs).values({
-          ...autor, action: "complement_created", entityType: "item", entityId: parent.id,
-          details: `Complemento ${child.displayId} criado: +${body.quantity} un. `
-                 + `(contratado ${parent.quantity} → ${parent.quantity + body.quantity}). `
-                 + `Motivo: ${body.reason}${marcaSaida}`,
-        });
-
-        const [notification] = await tx.insert(notifications).values({
-          type: "complementCreated",
-          message: `+${body.quantity} un. em ${parent.displayId} (${parent.type}) — ${event.name}. Motivo: ${body.reason}`,
-          eventId: parent.eventId,
-          itemId: child.id,
-          targetRoles: ["grafica"],
-        }).returning();
-
-        return { child, notification };
-      });
-
-      let child: Item;
-      let notification: any;
-      try {
-        ({ child, notification } = await criar());
-      } catch (e: any) {
-        if (!isDisplayIdConflictError(e)) throw e;
-        ({ child, notification } = await criar());
-      }
-
-      // ── Pós-commit ────────────────────────────────────────────────────────
-      // Patrocinadores e aprovações são copiados FORA da transação de
-      // propósito: são dados de apresentação e uma falha aqui não pode
-      // desfazer o complemento (que é o trabalho de verdade). Se falhar, a
-      // peça existe e os chips podem ser recolocados pela tela de vinculação.
-      try {
-        const sponsorIds = (await storage.getItemSponsors(parent.id)).map(s => s.sponsorId);
-        if (sponsorIds.length) await storage.bulkSyncItemSponsors(child.id, sponsorIds);
-        // Copia PRESERVANDO status/aprovador/data. Nunca
-        // initializeItemSponsorApprovals: ela criaria linhas 'pending' que
-        // viram cobrança falsa na Gestão de Prazos, numa peça que já está
-        // aprovada e liberada.
-        await storage.copyItemSponsorApprovals(parent.id, child.id);
-      } catch (e: any) {
-        console.error("[COMPLEMENTOS] falha ao copiar patrocinadores/aprovações:", e?.message ?? e);
-      }
+      // O que criar grava (peça-filha, trilha, aviso, patrocinadores):
+      // services/complemento-da-peca.ts.
+      const { child, notification } = await criarComplemento(parent, event, body, req);
 
       // SÓ updateEventStatus. O POST /api/items normal, quando o evento está
       // "completed", RESETA a prioridade do evento e notifica o admin — aqui
@@ -291,45 +197,10 @@ export function registrarComplemento(app: Express): void {
 
       const parent = await storage.getItem(item.parentItemId);
       const event = await storage.getEvent(item.eventId);
-      const autor = resolveActor(req);
-      const userName = autor.userName;
       const parentLabel = parent?.displayId ?? "peça original";
 
-      const { notification } = await db.transaction(async (tx) => {
-        // Soft delete, igual a toda exclusão do sistema: o complemento some das
-        // listagens e continua no histórico. O número -C1 NÃO é reciclado — o
-        // próximo aumento vira -C2, e quem ler o log entende a sequência.
-        const [removido] = await tx
-          .update(itemsTable)
-          .set({ deletedAt: new Date(), updatedAt: new Date() })
-          .where(eq(itemsTable.id, item.id))
-          .returning();
-        if (!removido) throw Object.assign(new Error("Complemento não encontrado"), { httpStatus: 404 });
-
-        await tx.insert(auditLogs).values({
-          ...autor, action: "complement_canceled", entityType: "item", entityId: item.id,
-          details: `Complemento ${item.displayId} cancelado (nenhuma unidade produzida). `
-                 + `Contratado volta a ${parent?.quantity ?? "—"} un.`,
-        });
-        // Também na mãe: é lá que se pergunta "afinal, aumentou ou não?".
-        if (parent) {
-          await tx.insert(auditLogs).values({
-            ...autor, action: "complement_canceled", entityType: "item", entityId: parent.id,
-            details: `Complemento ${item.displayId} cancelado (+${item.quantity} un. desfeitas, nada produzido). `
-                   + `Contratado volta a ${parent.quantity} un.`,
-          });
-        }
-
-        const [notif] = await tx.insert(notifications).values({
-          type: "complementCanceled",
-          message: `Complemento ${item.displayId} cancelado — não produzir.${event ? ` (${event.name})` : ""}`,
-          eventId: item.eventId,
-          itemId: parent?.id ?? null,
-          targetRoles: ["grafica"],
-        }).returning();
-
-        return { notification: notif };
-      });
+      // Soft delete + trilha + aviso, numa transação: services/complemento-da-peca.ts.
+      const { notification } = await desfazerComplemento(item, parent, event, req);
 
       await updateEventStatus(item.eventId);
 

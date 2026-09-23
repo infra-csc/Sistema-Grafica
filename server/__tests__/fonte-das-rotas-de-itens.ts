@@ -18,7 +18,11 @@ const RAIZ = path.resolve(__dirname, "../..");
 const ler = (rel: string) => readFileSync(path.join(RAIZ, rel), "utf8");
 
 /** Serviços que receberam a regra dos handlers grandes das rotas da peça. */
-export const SERVICOS_DAS_ROTAS_DE_ITENS: readonly string[] = [];
+export const SERVICOS_DAS_ROTAS_DE_ITENS: readonly string[] = [
+  "server/services/edicao-da-peca.ts",
+  "server/services/impressas-da-peca.ts",
+  "server/services/complemento-da-peca.ts",
+];
 
 /** Corpo de cada `export function registrarX(app: Express): void { … }` de um arquivo. */
 function funcoesDeRegistro(texto: string): Map<string, string> {

@@ -112,7 +112,10 @@ describe("toda rota de escrita de peça/evento deixa rastro", () => {
         .filter(r => r.verbo !== "GET")
         // createAuditLogsEmLote: as rotas de lote gravam a trilha num INSERT
         // único (auditoria de performance, 27/08) — auditoria igual, uma ida.
-        .filter(r => !/createAuditLog(sEmLote)?\(|insert\(auditLogs\)/.test(r.corpo))
+        // Os serviços que gravam a trilha na MESMA transação da escrita
+        // (services/impressas-da-peca.ts e complemento-da-peca.ts) contam como
+        // auditoria da rota que os chama — é lá que o insert(auditLogs) mora.
+        .filter(r => !/createAuditLog(sEmLote)?\(|insert\(auditLogs\)|lancarImpressas\(|criarComplemento\(|desfazerComplemento\(/.test(r.corpo))
         .map(r => `${r.verbo} ${r.caminho}`)
         .filter(chave => !(chave in SEM_AUDITORIA_POR_DESENHO));
       expect(semRastro).toEqual([]);

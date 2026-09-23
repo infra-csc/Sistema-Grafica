@@ -15,6 +15,8 @@
 //      etapa, a guarda do reaproveitamento total, a volta para a Revisão sem
 //      reserva, a "pausa" no diário quando a peça sai da impressora por outro
 //      caminho, o resumo "ainda na máquina" com a peça dividida e o limbo.
+// A ORDEM trava → conta → gravação e as rotas vizinhas (reserva, troca,
+// correct-reuse, return-to-review, cancelar) RODAM em regras-producao-itens.test.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
@@ -35,9 +37,6 @@ const PRINTING = trecho(ITEMS, 'app.patch("/api/items/:id/start-printing"', 'app
 // (services/impressas-da-peca.ts) — o mesmo trecho de antes da extração.
 const PRODUCTION = trecho(ITEMS, 'app.patch("/api/items/:id/start-production"', 'app.post("/api/items/:id/mark-reuse"')
   + trecho(ITEMS, "export async function lancarImpressas(", "export async function cadastrarAtivosDaPecaProduzida(");
-const TIRAR = trecho(MAQ, "const tirarEColocar = async", 'app.post("/api/grafica/maquinas/:maquina/trocar"');
-const RESERVA_ROTA = trecho(MAQ, 'app.patch("/api/items/:id/maquina-prevista"', "// ── TIRAR da impressora");
-const semComentario = (s: string) => s.replace(/\/\/.*$/gm, "");
 
 // ─── O banco de mentira: uma linha, e a TRAVA da linha ────────────────────────
 type Linha = Record<string, any>;
@@ -125,20 +124,6 @@ describe("1 · [GRAVE] start-production: dois lançamentos na mesma peça dividi
     expect((r2 as any).erro.corpo).toMatchObject({ code: "PRODUCTION_CONFLICT", actualProduced: 4 });
     expect(banco.linha.quantityProduced).toBe(4);
   });
-
-  it("FONTE: .for('update') → conta pura → tx.update, na MESMA transação; nada de storage.updateItem nem de conta sobre a leitura de fora", () => {
-    const iTx = PRODUCTION.indexOf("await db.transaction(async (tx) => {");
-    const iLe = PRODUCTION.indexOf('await tx.select().from(itemsTable).where(eq(itemsTable.id, itemId)).for("update");');
-    const iPlano = PRODUCTION.indexOf("planejarLancamentoDeImpressas(before as any, corpo, new Date())");
-    const iGrava = PRODUCTION.indexOf(".set(plano.set as any)");
-    expect([iTx > 0, iTx < iLe, iLe < iPlano, iPlano < iGrava]).toEqual([true, true, true, true]);
-    expect(semComentario(PRODUCTION)).not.toContain("storage.updateItem(");
-    // A leitura de fora (`antes`) só guarda existência, evento, molde e a resposta rápida da trava.
-    // …e a resposta rápida do evento finalizado (IMPRESSAS_EM_EVENTO_REALIZADO), repetida sobre a linha travada.
-    expect(semComentario(PRODUCTION)).toContain("if (motivoFechado && eventoBarraImpressas(motivoFechado, before.status)) {");
-    expect(semComentario(PRODUCTION).replace("eventoBarraImpressas(motivoFechado, antes.status)", "")).not.toMatch(/antes\.(quantityProduced|impressaoPorMaquina|status|reuseQty)/);
-    expect(ITEMS).toContain("if (erro.httpStatus) return res.status(erro.httpStatus).json(erro.corpo ?? { error: erro.message });");
-  });
 });
 
 describe("2 · [GRAVE] start-printing e tirar/trocar: dois gestos na mesma peça", () => {
@@ -191,34 +176,6 @@ describe("2 · [GRAVE] start-printing e tirar/trocar: dois gestos na mesma peça
       const reservado = Object.values((final.reservaPorMaquina ?? {}) as Record<string, any>).reduce((s: number, v: any) => s + (typeof v === "number" ? v : v.qtd), 0);
       expect(final.quantityProduced + naImpressora + reservado).toBe(20);
     }
-  });
-
-  it("FONTE start-printing: locks das impressoras (ordenados) → linha FOR UPDATE → guardas → conta pura → tx.update, na mesma transação", () => {
-    const iLock = PRINTING.indexOf("pg_advisory_xact_lock");
-    const iLe = PRINTING.indexOf('await tx.select().from(itemsTable).where(eq(itemsTable.id, req.params.id)).for("update");');
-    const iTrava = PRINTING.indexOf("if (pecaTravada(current as any)) throw falha(409");
-    const iPlano = PRINTING.indexOf("planejarInicioDaImpressao(current as any, pedido)");
-    const iGrava = PRINTING.indexOf("await tx.update(itemsTable).set({");
-    expect([iLock > 0, iLock < iLe, iLe < iTrava, iTrava < iPlano, iPlano < iGrava]).toEqual([true, true, true, true, true]);
-    expect(semComentario(PRINTING)).not.toContain("storage.updateItem(");
-    // A linha pede uma impressora que a leitura de fora não travou: recomeça (nunca trava fora de ordem).
-    expect(PRINTING).toContain("if (precisa.some((m) => !travas.includes(m))) return { recomecar: precisa };");
-    expect(travasDoInicio({ printMachine: "3" }, { printMachine: "1", deMaquina: "3" })).toEqual(["1", "3"]);
-  });
-
-  it("FONTE tirar/trocar: lock da impressora → as DUAS linhas FOR UPDATE em ordem de id (troca cruzada não trava) → gravação", () => {
-    const iLock = TIRAR.indexOf("pg_advisory_xact_lock");
-    const iLe = TIRAR.indexOf(".orderBy(itemsTable.id)\n          .for(\"update\");");
-    const iGrava = TIRAR.indexOf("await tx.update(itemsTable).set({");
-    expect([iLock > 0, iLock < iLe, iLe < iGrava]).toEqual([true, true, true]);
-    expect(TIRAR).toContain(".where(inArray(itemsTable.id, comTroca ? [tirarId, colocarId] : [tirarId]))");
-    expect(semComentario(TIRAR)).not.toContain("storage.updateItem(");
-  });
-
-  it("FONTE reservar: a reserva é lida e gravada sob a linha travada (senão reservava por cima do que o start-printing acabou de iniciar)", () => {
-    expect((RESERVA_ROTA.match(/\.for\("update"\)/g) ?? []).length).toBe(2);
-    expect(semComentario(RESERVA_ROTA)).not.toContain("storage.updateItem(");
-    expect(semComentario(RESERVA_ROTA)).not.toContain("storage.getItem");
   });
 });
 
@@ -286,47 +243,7 @@ describe("3 · números iguais nas duas telas", () => {
   });
 });
 
-describe("4 · recuar é sempre possível", () => {
-  it("devolver à fila geral passa por cima da trava e do evento finalizado", () => {
-    const fn = trecho(MAQ, "async function motivoDeNaoReservar(", "function aplicarPedidoDeReserva(");
-    expect(fn).toContain("async function motivoDeNaoReservar(item: any, maquina?: string | null)");
-    expect(fn.indexOf("if (maquina === null) return null;")).toBeLessThan(fn.indexOf("if (pecaTravada(item))"));
-    expect(fn.indexOf("if (maquina === null) return null;")).toBeLessThan(fn.indexOf("await motivoEventoDaPeca(item)"));
-    expect((MAQ.match(/motivoDeNaoReservar\(atual, pedido\.maquina\)/g) ?? []).length).toBe(2);
-  });
-
-  it("'Imprimir esta no lugar' com a reserva de OUTRA impressora: o corpo leva `reservaDe`, e a troca a repassa ao iniciarParte", () => {
-    expect(TIRAR).toContain("const inicio = iniciarParte(entra, maquina, { daReserva: temReserva, quantidade, reservaDe });");
-    expect(TIRAR).toContain("const reservaDe = ehMaquinaValida(req.body?.reservaDe) && (reservaDaPeca(entra)[req.body.reservaDe] ?? 0) > 0 ? req.body.reservaDe as string : maquina;");
-  });
-});
-
 describe("5 · rotas vizinhas", () => {
-  it("correct-reuse: reaproveitamento TOTAL (vira Produzido) respeita a trava, com a frase e o código do mark-reuse", () => {
-    const rota = trecho(ITEMS, 'app.post("/api/items/:id/correct-reuse"', "// Gráfica confere a peça produzida");
-    expect(rota).toContain("if (reaproveitaTudo && pecaTravada(current as any)) {");
-    expect(rota).toContain("return res.status(409).json({ error: fraseDaTrava(current as any), code: CODIGO_PECA_TRAVADA });");
-    expect(rota.indexOf("pecaTravada(current as any)")).toBeLessThan(rota.indexOf("await storage.updateItem(req.params.id, {"));
-    // E a peça em impressão que sai por aqui deixa a "pausa" no diário e a impressora livre.
-    expect(rota).toContain("await registrarSaidaDaImpressora(req, current);");
-    expect(rota).toContain('...(!reaproveitaTudo && (current.status === "inProduction" || current.status === "em_producao") ? { printMachine: null } : {}),');
-  });
-
-  it("return-to-review limpa a reserva e o atalho (a peça não volta 'Pausada · no topo')", () => {
-    const rota = trecho(ITEMS, 'app.patch("/api/items/:id/return-to-review"', "broadcast({ type: \"item_updated\", item })");
-    expect(rota).toContain("reservaPorMaquina: null, maquinaPrevista: null,");
-  });
-
-  it("cancelar (unitário e em lote) a peça em impressão grava a 'pausa' de cada impressora com parte ativa", () => {
-    const ajudante = trecho(ITEMS, "async function registrarSaidaDaImpressora(", "// ─── MOTIVO das devoluções");
-    expect(ajudante).toContain('if (peca.status !== "inProduction" && peca.status !== "em_producao") return;');
-    expect(ajudante).toContain("for (const maquina of Object.keys(partesAtivas(partesDaPeca(peca as any)))) {");
-    expect(ajudante).toContain('tipo: "pausa", quantidade: 0,');
-    // Uma gravação só para os dois (e para os complementos que caem junto).
-    expect(trecho(ITEMS, "async function gravarCancelamento(", "async function cancelarComplementosDaMae(")).toContain("await registrarSaidaDaImpressora(req, atual);");
-    expect(trecho(ITEMS, 'app.patch("/api/items/:id/cancel"', 'app.patch("/api/items/:id/uncancel"')).toContain("await gravarCancelamento(req, currentItem, motivo);");
-    expect(trecho(ITEMS, 'app.patch("/api/items/bulk-cancel"', "res.json({")).toContain("await gravarCancelamento(req, currentItem, motivo);");
-  });
 
   it("o aviso de 'Impressão iniciada' não pipoca mais para todo mundo (só invalida)", () => {
     const ws = ler("client/src/hooks/use-websocket.ts");

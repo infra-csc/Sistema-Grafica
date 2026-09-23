@@ -9,9 +9,10 @@
 // O risco que este arquivo prende: o caminho do REUSO na conferência não
 // olha status (decisão antiga, correta para o acervo). Enquanto a revisão
 // não aparecia na Gráfica, isso era inalcançável; agora precisa de gate.
+// As trancas do SERVIDOR (feed, conferir, reaproveitar, corrigir, iniciar) rodam
+// nas rotas reais em regras-producao-itens.test.ts; aqui ficam as telas.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi } from "vitest";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 
 vi.mock("../db", () => ({ db: {} }));
@@ -19,8 +20,6 @@ vi.mock("../storage", () => ({ storage: {} }));
 
 const { EM_REVISAO } = await import("@shared/fluxo-peca");
 
-const STORAGE = readFileSync(new URL("../storage.ts", import.meta.url), "utf8");
-const ITEMS = fonteDasRotasDeItens();
 const GRAFICA = readFileSync(new URL("../../client/src/pages/grafica.tsx", import.meta.url), "utf8");
 const FILTROS = readFileSync(new URL("../../client/src/lib/grafica-filtros.ts", import.meta.url), "utf8");
 
@@ -36,13 +35,6 @@ describe("a lista tem um dono e os três status certos", () => {
 });
 
 describe("aparece", () => {
-  it("o feed da Gráfica inclui os três status de revisão", () => {
-    const i = STORAGE.indexOf("async getApprovedItems");
-    const corpo = STORAGE.slice(i, i + 900);
-    for (const st of ["awaiting_final_review", "awaiting_review", "in_review"]) {
-      expect(corpo).toContain(`'${st}'`);
-    }
-  });
 
   it("com KPI 'Em Revisão · Chegando' clicável, antes de Liberados", () => {
     // UX rodada 4: o "sub" da aba virou frase visível no desktop ("Chegando da Revisão").
@@ -76,17 +68,6 @@ describe("mas não age", () => {
   it("as filas do galpão e do lote nunca a incluem", () => {
     expect(GRAFICA).toContain("canConfer(i) && !EM_REVISAO.has(i.status)");
   });
-
-  it("e o SERVIDOR recusa a conferência — o buraco do reuso está fechado", () => {
-    // canConfer aceita reuseQty>0 sem olhar status; com a revisão agora
-    // visível na fila, sem este gate uma peça em revisão com reaproveitamento
-    // marcado seria conferível de verdade.
-    const i = ITEMS.indexOf('app.post("/api/items/:id/confer"');
-    const corpo = ITEMS.slice(i, i + 5000);
-    expect(corpo).toContain("if (EM_REVISAO.has(current.status)) {");
-    expect(corpo).toContain("a Gráfica confere depois que a Revisão liberar");
-    expect(corpo.indexOf("EM_REVISAO.has")).toBeLessThan(corpo.indexOf("planejarConferencia("));
-  });
 });
 describe("segunda rodada (25/08): os quatro furos que sobraram", () => {
   // O dono repetiu a regra com todas as letras: 'em revisão a Gráfica não
@@ -95,7 +76,6 @@ describe("segunda rodada (25/08): os quatro furos que sobraram", () => {
   // Produzir e Reaproveitar, e o + de aumentar quantidade aparecia nos dois
   // layouts. E reaproveitar era ação REAL: o servidor não olhava o status.
   const G = readFileSync(new URL("../../client/src/pages/grafica.tsx", import.meta.url), "utf8");
-  const ITEMS = fonteDasRotasDeItens();
 
   it("produzir e reaproveitar da tabela exigem !emRevisao", () => {
     expect(G).toContain("{!bulkOn && !emRevisao && canProduce && !isDelivered(item)");
@@ -106,14 +86,6 @@ describe("segunda rodada (25/08): os quatro furos que sobraram", () => {
 
   it("aumentar quantidade some nos DOIS layouts", () => {
     expect(G.split("const mostraAumentar = !bulkOn && !emRevisao && !soVisualizaKit(item) && podeAumentarQuantidade(item, podeMexerQtd);").length - 1).toBe(2);
-  });
-
-  it("o servidor tranca reaproveitar e corrigir reaproveitamento em revisão", () => {
-    // O botão sumir é cortesia; a tranca é do servidor — script e tela velha
-    // também batem nela.
-    // 3 = reaproveitar, corrigir reaproveitamento e INICIAR IMPRESSÃO (14/09):
-    // levar a peça para a máquina também é agir, e a revisão também tranca.
-    expect(ITEMS.match(/Esta peça está em revisão — a Gráfica só age depois que a revisão liberar./g)?.length).toBe(3);
   });
 });
 

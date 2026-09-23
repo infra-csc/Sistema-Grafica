@@ -6,6 +6,8 @@
 // registerMaquinasRoutes) num "app" que só guarda handlers; a borda (storage,
 // db, broadcast, audit) é de mentira. Tubos e a troca por prioridade, que
 // rodam em transação, são conferidos na fonte.
+// A trava em embalar/entregar o volume roda em regras-producao-tubos.test.ts;
+// no lote de reserva e na troca, em regras-producao-itens.test.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { txDeMentira } from "./tx-de-mentira";
@@ -193,19 +195,6 @@ describe("a peça travada não ANDA — 409 'Peça travada pela Solicitação: �
   it("a peça livre segue normal (a guarda não pega peça sem trava)", async () => {
     const r = await chamar("PATCH /api/items/:id/maquina-prevista", { id: "p1", papel: "grafica", body: { maquina: "1" } });
     expect(r.status).toBe(200);
-  });
-  it("embalar, entregar o volume, lote de reserva e a peça que ENTRA na troca — conferidos na fonte; TIRAR da impressora não", () => {
-    const TUBOS = ler("server/routes/tubos.ts");
-    expect(TUBOS).toContain("if (pecaTravada(p)) { recusas.push(`${nome}: ${fraseDaTrava(p)}`); continue; }");
-    expect(TUBOS).toContain("const travada = aEntregar.find(({ p }) => pecaTravada(p));");
-    expect(TUBOS).toContain("travadaEm: itemsTable.travadaEm,");
-    const MAQ = ler("server/routes/maquinas.ts");
-    // motivoDeNaoReservar vale para o unitário E para o lote.
-    expect(MAQ).toContain("if (pecaTravada(item)) return fraseDaTrava(item);");
-    const tirar = MAQ.slice(MAQ.indexOf("const tirarEColocar"), MAQ.indexOf('app.post("/api/grafica/maquinas/:maquina/trocar"'));
-    expect((tirar.match(/pecaTravada\(/g) ?? []).length).toBe(1);
-    expect(tirar).toContain("if (pecaTravada(entra as any))");
-    expect(tirar.indexOf("pecaTravada(")).toBeGreaterThan(tirar.indexOf("const pausa = pausarParte("));
   });
 });
 

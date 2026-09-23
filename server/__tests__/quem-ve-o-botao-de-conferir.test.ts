@@ -23,30 +23,15 @@
 // então dar uma sem a outra deixa a peça num beco — foi o que aconteceu com a
 // peça vinda do acervo, que não passa pela Gráfica porque não há o que
 // imprimir. Se um dia alguém restringir só uma das duas, este arquivo cai.
+// O gate do SERVIDOR (1) e a fila aberta a toda sessão (3) rodam nas rotas
+// reais em regras-producao-itens.test.ts; aqui fica o espelho da tela (2).
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
-const rotas = fonteDasRotasDeItens();
 const tela = ler("client/src/pages/grafica.tsx");
-
-describe("o servidor: conferir e entregar têm os MESMOS donos", () => {
-  it("conferir aceita gráfica, solicitação e admin", () => {
-    expect(rotas).toContain('if (!["grafica", "solicitacao", "admin"].includes(req.userRole ?? "")) {');
-  });
-
-  it("entregar aceita os mesmos três", () => {
-    expect(rotas).toContain('if (!["grafica", "solicitacao", "admin"].includes(req.userRole ?? "")) {');
-  });
-
-  it("mas produzir continua só de quem tem a impressora", () => {
-    expect(rotas).toContain('if (req.userRole !== "grafica" && req.userRole !== "admin") {');
-    expect(rotas).toContain("Apenas usuários com perfil Gráfica podem iniciar produção");
-  });
-});
 
 describe("o cliente espelha os DOIS gates, e não confunde um com o outro", () => {
   it("produzir: grafica|admin", () => {
@@ -85,14 +70,5 @@ describe("a entrega por peça saiu da fila", () => {
   it("nenhum Entregar por peça — quem entrega é o volume (21/09: \"todas são embaladas\")", () => {
     expect(tela).not.toContain("canDeliver(");
     expect(tela).toContain("entregarTubo: item.tuboId");
-  });
-});
-
-describe("a fila da Gráfica não é recortada por papel", () => {
-  it("/api/items/approved pede só sessão", () => {
-    // Um recorte por papel aqui deixaria os gates acima corretos e a peça mesmo
-    // assim invisível — o modo mais caro de errar, porque nada no código do
-    // botão explicaria a ausência dela.
-    expect(rotas).toContain('app.get("/api/items/approved", requireAuth, async (req, res) => {');
   });
 });

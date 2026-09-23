@@ -34,79 +34,12 @@
 // formulário, que é justamente o antigo.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Os casos que liam o texto das rotas, do schema e do script foram trocados por
+// testes que RODAM o código em medida-acompanha-dimensoes.test.ts (as três
+// duplas, o PATCH, a criação, a trilha e o script do passivo).
 import { describe, it, expect } from "vitest";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
-import { readFileSync, existsSync } from "fs";
+import { existsSync } from "fs";
 import path from "path";
-
-const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
-
-const rotas = fonteDasRotasDeItens();
-const schema = ler("shared/schema.ts");
-
-/**
- * AS DUPLAS CONHECIDAS.
- *
- * Cada entrada é um fato guardado em dois lugares, com a função do servidor que
- * as mantém juntas. Uma dupla sem função de derivação é uma divergência
- * esperando acontecer.
- */
-const DUPLAS = [
-  {
-    fato: "a medida do arquivo, como texto",
-    colunas: ["measurement", "file_width", "file_height"],
-    derivador: "deriveMeasurement",
-    lidoPor: "a coluna Medida da planilha da gráfica, a ficha da peça, a triagem e o estoque",
-  },
-  {
-    fato: "a medida visual, no par antigo",
-    colunas: ["area", "visual", "visual_width", "visual_height"],
-    derivador: "derivarAreaVisual",
-    lidoPor: "a linha do tempo da peça",
-  },
-  {
-    fato: "o metro quadrado",
-    colunas: ["calculated_m2", "quantity", "file_width", "file_height"],
-    derivador: "deriveCalculatedM2",
-    lidoPor: "o custo, o fechamento com patrocinador e a fila da gráfica",
-  },
-];
-
-describe("cada dupla tem quem a mantenha junta", () => {
-  it.each(DUPLAS)("$fato → $derivador", ({ colunas, derivador }) => {
-    expect(
-      rotas.includes(`function ${derivador}(`),
-      `Não existe \`${derivador}\` em server/routes/items.ts.\n\n` +
-      `As colunas ${colunas.join(", ")} guardam o mesmo fato. Sem uma função ` +
-      `que as derive no servidor, editar uma delas deixa as outras para trás — ` +
-      `e quem produz lê a que ficou.`,
-    ).toBe(true);
-    for (const c of colunas) {
-      expect(schema, `a coluna ${c} sumiu do schema`).toContain(`"${c}"`);
-    }
-  });
-});
-
-describe("as duas derivações que faltavam", () => {
-  it("a medida em texto é reescrita quando a dimensão de arquivo muda", () => {
-    expect(rotas).toContain("if (medida !== undefined) updatePayload.measurement = medida;");
-    // A rota-irmã (/edit), que aceitava o texto do cliente sem olhar as
-    // dimensões, saiu: o PATCH genérico é o único caminho.
-    expect(rotas).not.toContain('app.patch("/api/items/:id/edit"');
-  });
-
-  it("o par velho anda com o par novo da medida visual", () => {
-    expect(rotas).toContain("if (par) { updatePayload.area = par.area; updatePayload.visual = par.visual; }");
-  });
-
-  it("e as duas só disparam quando a dimensão MUDA", () => {
-    // Derivar sempre apagaria um texto escrito à mão — "conforme croqui" — que
-    // ninguém pediu para apagar. `measurement` é editável de propósito: a
-    // própria coluna do schema diz "Can be edited".
-    expect(rotas).toContain("function medidaMudou(");
-    expect(schema).toContain("Can be edited");
-  });
-});
 
 describe("o que o usuário lê vem do par vivo", () => {
   it("a linha do tempo antiga (item-timeline-dialog) saiu: era código morto", () => {
@@ -115,30 +48,5 @@ describe("o que o usuário lê vem do par vivo", () => {
     // agora prende que ele não volta sem alguém usá-lo.
     expect(existsSync(path.resolve(__dirname, "../../client/src/components/item-timeline-dialog.tsx"))).toBe(false);
   });
-
-  it("e a trilha de auditoria diz quando cada uma mudou", () => {
-    // Antes as duas ficavam para trás EM SILÊNCIO: nada na trilha, nada na
-    // tela. A divergência só aparecia semanas depois, na gráfica.
-    expect(rotas).toContain("Medida: ${currentItem.measurement || '—'} → ${item.measurement || '—'}");
-    expect(rotas).toContain("Medida visual: ${currentItem.visualWidth ?? '?'}×${currentItem.visualHeight ?? '?'}");
-  });
 });
 
-describe("o passivo tem por onde ser corrigido", () => {
-  const s = ler("scripts/conferir-medida-vs-dimensoes.ts");
-
-  it("o script cobre as DUAS duplas", () => {
-    expect(s).toContain("MEDIDA (texto) diferente das dimensões de arquivo");
-    expect(s).toContain("AREA/VISUAL congelados fora do par visual_width/height");
-  });
-
-  it("e não escreve nada sem --aplicar", () => {
-    expect(s).toContain('const APLICAR = process.argv.includes("--aplicar");');
-    expect(s).toContain("Nada foi escrito.");
-  });
-
-  it("nem reescreve texto que não parece medida", () => {
-    expect(s).toContain("function pareceMedida(");
-    expect(s).toContain("aDecidir");
-  });
-});

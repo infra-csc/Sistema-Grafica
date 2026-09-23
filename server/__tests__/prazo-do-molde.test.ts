@@ -13,6 +13,7 @@
 //   · o dado viaja: enrichEvent e o formato compacto das peças o carregam;
 //   · NÃO ENTRA NA GESTÃO DE PRAZOS: com o prazo do molde vencido, o funil do
 //     evento é idêntico, e nenhum módulo de prazos/alertas/digest/Análises o lê.
+// O schema e o SQL aditivo do prazo do molde: regras-producao-schema.test.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync, readdirSync } from "fs";
@@ -187,12 +188,6 @@ describe("o dado viaja com o evento", () => {
     const pecas = [{ id: "m1", displayId: "#1", type: "Molde", status: "ready_for_production", event: evento, sponsors: [] }];
     const volta: any[] = expandirPecas(compactarPecas(pecas as any) as any) as any;
     expect(volta[0].event.prazoMolde).toBe("2099-02-20T12:00:00.000Z");
-  });
-
-  it("schema, SQL aditivo e a conferência do .mjs", () => {
-    expect(ler("shared/schema.ts")).toContain('prazoMolde: timestamp("prazo_molde"),');
-    expect(ler("scripts/migracao-aditiva-producao.sql")).toContain("ALTER TABLE events ADD COLUMN IF NOT EXISTS prazo_molde timestamp;");
-    expect(ler("scripts/migracao-aditiva-producao.mjs")).toContain("(table_name='events' AND column_name='prazo_molde')");
   });
 });
 

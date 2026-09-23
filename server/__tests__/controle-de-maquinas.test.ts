@@ -13,6 +13,8 @@
 //   3. O DIÁRIO NUNCA DERRUBA O GESTO: falha ao gravar vai para o log.
 //   4. A LEITURA responde as duas perguntas da tela, no fuso da operação.
 //   5. A TELA existe, está no app e a Gráfica chega nela pelo cabeçalho.
+// Os gestos que gravam no diário, o diário que não derruba o gesto, a divisão
+// reescalada e a volta à Revisão RODAM em regras-producao-itens.test.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi } from "vitest";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
@@ -47,41 +49,11 @@ describe("1 · o diário das máquinas", () => {
 });
 
 describe("2 · os gestos gravam no diário", () => {
-  it("iniciar e trocar de máquina", () => {
-    const rota = ITEMS.slice(
-      ITEMS.indexOf('app.patch("/api/items/:id/start-printing"'),
-      ITEMS.indexOf('app.patch("/api/items/:id/start-production"'),
-    );
-    expect(rota).toContain("await registrarImpressao(req, {");
-    expect(rota).toContain(`tipo: movimento ? "troca" : "inicio",`);
-  });
-
-  it("lançar parcial e concluir — com o que saiu NESTE lançamento, não o total", () => {
-    expect(ITEMS).toContain('tipo: item.status === "produced" ? "conclusao" : "parcial",');
-    expect(ITEMS).toContain("quantidade: quantityProduced - jaProduzido,");
-    expect(ITEMS).toContain("totalDepois: quantityProduced,");
-  });
 
   it("usa a máquina da parte; na peça não dividida, a da peça (a enviada só vale para a peça sem impressora)", () => {
     expect(ITEMS).toContain("maquina: plano.maquinaDoRegistro,");
     expect(DIVIDIDA).toContain("maquinaDoRegistro: partesDepois ? maquina : maquinaNaoDividida,");
     expect(DIVIDIDA).toContain("const maquinaNaoDividida = maquinaAtual ?? (printMachine && MAQUINAS_DE_IMPRESSAO.includes(printMachine) ? printMachine : null);");
-  });
-});
-
-describe("3 · o diário nunca derruba o gesto", () => {
-  const ajudante = ITEMS.slice(
-    ITEMS.indexOf("async function registrarImpressao("),
-    ITEMS.indexOf("// ─── MOTIVO das devoluções"),
-  );
-
-  it("falha ao gravar vai para o log e o gesto segue", () => {
-    expect(ajudante).toContain("try {");
-    expect(ajudante).toContain('console.error("[maquinas] falha ao gravar o registro de impressão"');
-  });
-
-  it("sem máquina não há o que anotar", () => {
-    expect(ajudante).toContain("if (!dado.maquina) return;");
   });
 });
 
@@ -542,19 +514,6 @@ describe("9 · peça dividida — os cantos que a revisão achou", async () => {
     expect(ler("client/src/pages/grafica-maquinas.tsx")).toContain("{podeAgir && !parteEsgotada && (");
   });
 
-  it("[3] editar quantidade, reaproveitar e corrigir reaproveitamento reescalam (ou apagam) a divisão", () => {
-    const patch = ITEMS.slice(ITEMS.indexOf("export function planejarEdicao("), ITEMS.indexOf("export function descreverEdicao("));
-    expect(patch).toContain("const r = reescalarReservaEPartes(currentItem, nova - reusoNovo);");
-    expect(patch).toContain("if (lerPartes(currentItem.impressaoPorMaquina)) updatePayload.impressaoPorMaquina = promoveuParaProduzido ? null : r.partes;");
-    expect(patch).toContain("Object.assign(updatePayload, colunasDaReserva(promoveuParaProduzido ? null : r.reserva, currentItem.reservaPorMaquina));");
-    const reuso = ITEMS.slice(ITEMS.indexOf('app.post("/api/items/:id/mark-reuse"'), ITEMS.indexOf('app.post("/api/items/:id/correct-reuse"'));
-    expect(reuso).toContain("const r = reescalarReservaEPartes(current, current.quantity - newReuse);");
-    expect(reuso).toContain("...colunasDaReserva(isReady ? null : r.reserva, current.reservaPorMaquina),");
-    expect((reuso.match(/impressaoPorMaquina: null,/g) ?? []).length).toBe(1); // reaproveitar tudo → produzida
-    const correcao = ITEMS.slice(ITEMS.indexOf('app.post("/api/items/:id/correct-reuse"'));
-    expect(correcao.slice(0, 6000)).toContain("impressaoPorMaquina: null,");
-  });
-
   it("[4] a troca com quantidade não conta como peça impressa; no Excel a Quantidade da troca fica vazia", async () => {
     expect(ler("server/routes/maquinas.ts")).toContain('const pecasNoDia = new Set(registros.filter((r) => (r.tipo === "parcial" || r.tipo === "conclusao") && r.quantidade > 0).map((r) => r.itemId)).size;');
     expect(ler("server/services/xlsxExport.ts")).toContain('quantidade: r.tipo === "troca" || r.tipo === "inicio" || r.tipo === "pausa" ? "" : r.quantidade,');
@@ -908,12 +867,6 @@ describe("14 · revisão adversarial: impressora nunca trava, corrida, limbo e r
     const bloco = ROTA.slice(ROTA.indexOf("const resultado = await db.transaction(async (tx) => {"));
     expect(bloco.indexOf("pg_advisory_xact_lock")).toBeLessThan(bloco.indexOf("await tx.select().from(itemsTable)"));
     expect(r.chaveDoLockDaImpressora("2")).toBe("impressora:2");
-  });
-
-  it("[4] return-to-review recusa peça com impressas (a pausada volta a 'liberada' COM material produzido)", () => {
-    const rota = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/return-to-review"'));
-    expect(rota.slice(0, 8000)).toContain("if ((currentItem.quantityProduced ?? 0) > 0) {");
-    expect(rota.slice(0, 8000)).toContain("un. impressas e não pode voltar para a Revisão — há material produzido para desfazer.");
   });
 
   it("[5] descancelar peça que estava em impressão: SEMPRE liberada, sem impressora, o que faltava no topo da fila dela, impressas preservadas", () => {

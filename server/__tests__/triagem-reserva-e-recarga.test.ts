@@ -12,6 +12,8 @@
 //      não fecha não bloqueia mais um plano possível.
 //   7. CONTAGENS em unidades; a origem não se repete.
 //   8. GET /api/estoque/usos: só admin, com recorte obrigatório.
+// A ordem trava → reserva, as colunas mínimas da fila e o lote sem local são
+// EXECUTADOS em regras-estoque-reservas-rotas.test.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "fs";
@@ -251,14 +253,6 @@ describe("rota · reserva não sobrevive à triagem", () => {
     expect((await chamar("PATCH /api/inventory/:id/triage", { id: "a1" }, { trackingStatus: "DESCARTADO" })).status).toBe(200);
   });
 
-  it("a trava vem ANTES da consulta: SELECT … FOR UPDATE no ativo, depois a reserva", () => {
-    const fonte = ler("server/routes/inventory.ts");
-    const patch = fonte.slice(fonte.indexOf('app.patch("/api/inventory/:id/triage"'), fonte.indexOf('app.post("/api/inventory/:id/triage-split"'));
-    expect(patch.indexOf("travarAtivo(tx")).toBeGreaterThan(0);
-    expect(patch.indexOf("travarAtivo(tx")).toBeLessThan(patch.indexOf("reservaVigenteDoAtivo(tx"));
-    expect(fonte).toContain('.for("update")');
-  });
-
   it("dividir peça reservada → 409 (a divisão encolheria a reserva); nenhum lote nasce", async () => {
     linhas.a24._alvo = true;
     alocacoes = [{ assetId: "a24", eventName: "Meia do Rio", inicio: "2099-01-10T00:00:00Z", itemDisplayId: "#0123" }];
@@ -290,14 +284,6 @@ describe("rota · awaiting-triage lê só o que a fila cita", () => {
     expect((await chamar("GET /api/inventory/awaiting-triage", {})).body).toEqual([]);
     expect(H.consultas).toEqual([]);
   });
-
-  it("as colunas lidas são as mínimas (id/eventId da peça; id/nome/início do evento) e em inArray", () => {
-    const fonte = ler("server/routes/inventory.ts");
-    const rota = fonte.slice(fonte.indexOf('app.get("/api/inventory/awaiting-triage"'), fonte.indexOf('app.get("/api/inventory/:id/allocations"'));
-    expect(rota).toContain("db.select({ id: itemsTable.id, eventId: itemsTable.eventId })");
-    expect(rota).toContain("inArray(itemsTable.id, ids)");
-    expect(rota).not.toMatch(/getAll(Items|Events|Sponsors)\(/);
-  });
 });
 
 describe("tempo real · inventory_triaged passa pelo coalescer", () => {
@@ -320,10 +306,5 @@ describe("rota · GET /api/estoque/usos", () => {
     expect(rota).toContain(".where(recorte.length === 1 ? recorte[0] : or(...recorte))");
     // Quem chama é só o Estoque (só do admin).
     expect(ler("client/src/pages/estoque.tsx")).toContain('queryKey: ["/api/estoque/usos", qs]');
-  });
-
-  it("lote da busca no estoque não separa peças iguais por local antigo", () => {
-    const fonte = ler("server/routes/estoque-reservas.ts");
-    expect(fonte).not.toMatch(/a\.local|local: a\?\.local|inventoryAssets\.location/);
   });
 });

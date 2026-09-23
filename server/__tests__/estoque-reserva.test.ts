@@ -137,81 +137,18 @@ describe("dá para usar? — onde a peça está e se chega a tempo", () => {
   });
 });
 
-describe("o servidor da reserva", () => {
-  const ROTAS = ler("server/routes/estoque-reservas.ts");
-  const SERVIDOR = ler("server/routes.ts");
-  const SCHEMA = ler("shared/schema.ts");
-
-  it("as rotas existem e estão registradas", () => {
-    for (const rota of [
-      'app.get("/api/events/:eventId/estoque-resumo", requireAuth',
-      'app.get("/api/items/:id/estoque-semelhantes", requireAuth',
-      'app.post("/api/items/:id/reservas", requireReservaDeEstoque',
-      'app.delete("/api/items/:id/reservas/:reservaId", requireReservaDeEstoque',
-      'app.get("/api/estoque/reservas-ativas", requireAuth',
-    ]) expect(ROTAS).toContain(rota);
-    expect(SERVIDOR).toContain("registerEstoqueReservasRoutes(app);");
-  });
-
-  it("reservar e liberar são só do admin (15/09: Estoque é só do admin)", () => {
-    expect(ROTAS).toContain('const requireReservaDeEstoque = requireRole("admin");');
-  });
-
-  it("trava as peças e confere tudo de novo no servidor — nunca confia na tela", () => {
-    expect(ROTAS).toContain('.for("update");');
-    expect(ROTAS).toContain("dá para reservar mais");
-    expect(ROTAS).toContain("Não deu para reservar —");
-    expect(ROTAS).toContain("if (!podeReservar(s.disponibilidade))");
-  });
-
-  it("não reserva depois que o caminhão saiu, nem desfaz a reserva que já virou uso", () => {
-    expect(ROTAS).toContain("O caminhão deste evento já saiu");
-    expect(ROTAS).toContain("a reserva virou uso e não pode ser desfeita");
-  });
-
-  it("a reserva guarda a peça de destino e quem reservou", () => {
-    expect(SCHEMA).toContain('itemId: varchar("item_id").references(() => items.id, { onDelete: "set null" }),');
-    expect(SCHEMA).toContain('reservadoPor: text("reservado_por"),');
-    expect(SCHEMA).toContain('index("IDX_event_inventory_allocations_item_id").on(table.itemId),');
-  });
-});
-
-describe("o ciclo do evento respeita a reserva", () => {
-  const STORAGE = ler("server/storage.ts");
-
-  it("peça reservada para outro evento não é despachada nem mandada à triagem pelo evento de origem", () => {
-    expect(STORAGE).toContain("private async foraDeReservaDeOutroEvento(eventId: string) {");
-    expect(STORAGE.split("...foraDeOutraReserva,").length - 1).toBe(2);
-  });
-});
-
+// O servidor da reserva (rotas, papéis, travas, caminhão que saiu, reserva que
+// virou uso), o ciclo do evento, a escrita do acervo só do admin, o local
+// opcional e o lote dividido são EXECUTADOS em regras-estoque-reservas-rotas.test.ts;
+// o schema da reserva, em regras-estoque-schema.test.ts.
 describe("a triagem é da Gráfica e exige o local", () => {
   const INVENTARIO = ler("server/routes/inventory.ts");
   const TELA = ler("client/src/pages/triagem-retorno.tsx");
   const MODAL = ler("client/src/components/triagem-modal.tsx");
 
-  it("só o admin escreve (15/09); excluir e saída/retorno à mão seguem do admin", () => {
-    expect(INVENTARIO).toContain('const requireInventoryWrite = requireRole("admin");');
-    expect(INVENTARIO).toContain('const requireInventoryAdmin = requireRole("admin");');
-    expect(INVENTARIO).toContain('app.delete("/api/inventory/:id", requireInventoryAdmin');
-    expect(INVENTARIO).toContain('app.post("/api/events/:id/dispatch-inventory", requireInventoryAdmin');
-  });
-
-  // 21/09 — o dono decidiu que o sistema NÃO guarda onde a peça fica no galpão:
-  // a exigência de 14/09 caiu (a tela não pede mais o campo; exigir travaria
-  // toda triagem para o Galpão). O campo segue aceito, só não é obrigatório.
-  it("voltar ao galpão NÃO exige mais o local — nas duas rotas de triagem", () => {
-    expect(INVENTARIO).not.toContain("SEM_LOCAL");
-    expect(INVENTARIO).toContain("location: z.string().max(120).nullish(),");
-  });
-
   it("manutenção é situação própria, fora do estoque disponível", () => {
     expect(INVENTARIO).toContain('s === "EM_MANUTENCAO" ? "EM_MANUTENCAO"');
     expect(TELA).toContain('r === "MANUTENCAO" ? "EM_MANUTENCAO"');
-  });
-
-  it("lote dividido continua dizendo de que peça saiu", () => {
-    expect(INVENTARIO).toContain("displayId: `${asset.displayId}-L${ultimoLote}`,");
   });
 
   it("a tela NÃO pede local (linha, lote, modal, mapa) e sobe as reservadas", () => {

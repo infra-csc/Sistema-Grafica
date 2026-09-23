@@ -12,9 +12,10 @@
 //      papéis compara tabela × código), mas escrita → 404 "Recurso
 //      desativado" e leitura → vazio, sem tocar no repositório.
 // Os testes da feature (consulta-de-estoque*.test.ts) rodam com a chave ligada.
+// "Nada da feature entra na transação sem a chave" é provado executando: cada
+// liberação abaixo confere nadaDoEstoque() (nem lê, nem marca, nem grava).
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 import { SOLICITACAO_AO_ESTOQUE_ATIVA } from "@shared/consultas-de-estoque";
@@ -202,14 +203,5 @@ describe("PATCH /api/items/:id/creator-review — a liberação de ANTES", () =>
     expect(r.status, JSON.stringify(r.body)).toBe(200);
     expect(r.body).toMatchObject({ status: "ready_for_production", reuseQty: 2, isReuse: false });
     nadaDoEstoque();
-  });
-
-  it("na fonte: a leitura da tabela só acontece com a chave ligada, e nada da feature entra na transação sem ela", () => {
-    const fonte = fonteDasRotasDeItens();
-    expect(fonte).toContain("const doEstoque = SOLICITACAO_AO_ESTOQUE_ATIVA && !currentItem.isReuse ? await respostaDoEstoqueParaLiberar(currentItem.id) : null;");
-    expect(fonte).toContain("if (SOLICITACAO_AO_ESTOQUE_ATIVA && req.body?.peloEstoque === true && !doEstoque) {");
-    // o único ponto dentro da transação depende de `doEstoque`, que é null
-    expect((fonte.match(/marcarRespostaAplicada\(tx/g) ?? []).length).toBe(1);
-    expect(fonte).toContain("        if (doEstoque) {\n          await marcarRespostaAplicada(tx, doEstoque.id);");
   });
 });

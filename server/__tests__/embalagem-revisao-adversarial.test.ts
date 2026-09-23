@@ -14,9 +14,10 @@
 //   5–7. transferir, corrigir reaproveitamento, reduzir e excluir respeitam a embalagem;
 //   8–9. textos da peça sozinha e a foto única do comprovante;
 //   10. a migração aditiva roda em banco limpo.
+// Os itens 3–7 e a etiqueta (fechadoEm) são EXECUTADOS em
+// regras-estoque-tubos-rotas.test.ts e regras-estoque-peca-embalada.test.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 import {
@@ -27,11 +28,9 @@ import {
 const RAIZ = path.resolve(__dirname, "../..");
 const ler = (rel: string) => readFileSync(path.resolve(RAIZ, rel), "utf8");
 const ROTAS = ler("server/routes/tubos.ts");
-const ITEMS = fonteDasRotasDeItens();
 const DIALOGO = ler("client/src/components/tubos-dialog.tsx");
 const FICHA = ler("client/src/components/item-details-dialog.tsx");
 const SQL = ler("scripts/migracao-aditiva-producao.sql");
-const trecho = (fonte: string, de: string, ate: string) => fonte.slice(fonte.indexOf(de), fonte.indexOf(ate, fonte.indexOf(de) + 1));
 
 const peca = (extra: Record<string, unknown> = {}) => ({ quantity: 10, quantityProduced: 10, reuseQty: 0, isReuse: false, conferredQty: 10, embaladaQty: 0, deliveredQty: 0, status: "conferred", ...extra });
 
@@ -120,71 +119,6 @@ describe("2 · a entrega parcial antiga conta como já saída", () => {
   });
 });
 
-describe("3 · concorrência: volume e peças TRAVADOS, contas refeitas lá dentro", () => {
-  it("há trava do volume e das peças (SELECT … FOR UPDATE)", () => {
-    expect(ROTAS).toContain('const [tubo] = await tx.select().from(tubos).where(eq(tubos.id, tuboId)).for("update");');
-    expect(ROTAS).toContain('(await tx.select(COLUNAS_PECA).from(itemsTable).where(inArray(itemsTable.id, Array.from(new Set(ids)))).orderBy(asc(itemsTable.id)).for("update"))');
-  });
-  it("embalar, tirar, apagar, fotografar e entregar rodam cada um numa transação que trava o volume", () => {
-    const criar = trecho(ROTAS, 'app.post("/api/events/:eventId/tubos"', 'app.patch("/api/tubos/:id/itens"');
-    const patch = trecho(ROTAS, 'app.patch("/api/tubos/:id/itens"', 'app.delete("/api/tubos/:id"');
-    const apagar = trecho(ROTAS, 'app.delete("/api/tubos/:id"', 'app.post("/api/tubos/:id/fechar"');
-    const fechar = trecho(ROTAS, 'app.post("/api/tubos/:id/fechar"', "const entregarVolume =");
-    const entregar = ROTAS.slice(ROTAS.indexOf("const entregarVolume ="));
-    for (const r of [criar, patch, apagar, fechar, entregar]) {
-      expect(r).toContain("db.transaction(async (tx: Ex) => {");
-      expect(r).toContain("await travarTubo(tx, ");
-    }
-    // dentro da transação as contas são refeitas com as peças travadas
-    expect(criar).toContain("const r = await planosParaEmbalar(req, eventId, pedidos, tx);");
-    expect(patch).toContain("const r = await planosParaEmbalar(req, travado.eventId, pedidos, tx);");
-    // o volume entregue no meio do caminho é recusado lá dentro
-    expect(ROTAS).toContain("if (tubo.entregueEm) throw new Recusa(409,");
-  });
-  it("escritas relativas: soma na linha e entrega com teto — nunca um total lido fora da trava", () => {
-    expect(ROTAS).toContain("quantidade: sql`${tuboItens.quantidade} + ${pl.quantidade}`");
-    expect(ROTAS).toContain("deliveredQty: sql`least(${itemsTable.quantity}, coalesce(${itemsTable.deliveredQty}, 0) + ${l.quantidade})`");
-    expect(ROTAS).not.toContain("quantidade: existente.quantidade + pl.quantidade");
-  });
-  it("a recusa de dentro da transação vira a resposta HTTP e não deixa tubo novo vazio", () => {
-    expect(ROTAS).toContain("if (criado) await db.delete(tubos).where(eq(tubos.id, criado.id)).catch(() => {});");
-    expect((ROTAS.match(/if \(responderRecusa\(res, error\)\) return;/g) ?? []).length).toBeGreaterThanOrEqual(5);
-  });
-});
-
-describe("4 · o atalho `items.tubo_id` depois da entrega", () => {
-  it("a entrega acerta o atalho das peças entregues (a dividida passa a apontar para o volume ainda aberto)", () => {
-    const entregar = ROTAS.slice(ROTAS.indexOf("const entregarVolume ="));
-    expect(entregar).toContain("await acertarAtalho(aEntregar.map(({ p }) => p.id), agora, tx);");
-  });
-});
-
-describe("5–7 · as outras portas respeitam a embalagem", () => {
-  it("transferir de evento: 409 com linha aberta em tubo_itens", () => {
-    const rota = trecho(ITEMS, 'app.post("/api/items/:id/transfer-event"', "const atualizado = await storage.updateItem(item.id, { eventId: destinoId });");
-    expect(rota).toContain("from tubo_itens where item_id = ${item.id} and entregue_em is null");
-    expect(rota).toContain("Tire a peça do tubo antes de transferir.");
-  });
-  it("corrigir reaproveitamento recusa peça com unidade embalada; o piso da redução inclui as embaladas", () => {
-    const rota = trecho(ITEMS, 'app.post("/api/items/:id/correct-reuse"', "const maximo = isAdmin");
-    expect(rota).toContain("if (((current as any).embaladaQty || 0) > 0) {");
-    expect(ITEMS).toContain("const piso = Math.max(impressas, currentItem.conferredQty ?? 0, (currentItem as any).embaladaQty ?? 0, currentItem.deliveredQty ?? 0);");
-  });
-  it("excluir a peça tira ela dos volumes abertos E faz o soft delete NUMA transação só, com a peça travada (22/09)", () => {
-    const rota = trecho(ITEMS, 'app.delete("/api/items/:id"', "res.json({ success: true });");
-    expect(rota).toContain("excluida = await excluirPecaTirandoDosVolumes(req, req.params.id);");
-    expect(rota).not.toContain("storage.deleteItem(");
-    expect(rota).not.toContain(".catch((e) => console.error(\"[items] falha ao tirar");
-    const funcao = trecho(ROTAS, "export async function excluirPecaTirandoDosVolumes(", "export const ehRecusaDeTubo");
-    expect(funcao).toContain("const feito = await db.transaction(async (tx: Ex) => {");
-    // a ordem das travas do arquivo: volumes (por id), depois a peça
-    expect(funcao.indexOf('.orderBy(asc(tubos.id)).for("update")')).toBeLessThan(funcao.indexOf("const [peca] = await pecasTravadas(tx, [itemId]);"));
-    // o soft delete é DENTRO da transação, depois de tirar dos volumes
-    expect(funcao.indexOf("await tirarDoTubo(tubo, [itemId], tx);")).toBeLessThan(funcao.indexOf("const apagada = await tx.update(itemsTable).set({ deletedAt: agora"));
-    expect(funcao.indexOf("const apagada = await tx.update(itemsTable)")).toBeLessThan(funcao.indexOf("if (!feito) return null;"));
-  });
-});
-
 describe("8–9 · a peça sozinha nunca vira 'Tubo -1'; o comprovante é uma foto", () => {
   it("textos do volume avulso", () => {
     expect(DIALOGO).toContain('{jaEmTubo.map((t) => (t.avulso ? "embalada sozinha" : `no Tubo ${t.numero}`)).join(", ")}');
@@ -201,20 +135,16 @@ describe("8–9 · a peça sozinha nunca vira 'Tubo -1'; o comprovante é uma fo
   });
 });
 
-describe("extra · a etiqueta do tubo", () => {
-  it("GET /api/tubos/:id devolve fechadoEm no tubo (rodapé \"embalado dd/mm\")", () => {
-    expect(ROTAS).toContain("tubo: { id: tubo.id, numero: tubo.numero, avulso: !!tubo.avulso, entregueEm: tubo.entregueEm, recebidoPor: tubo.recebidoPor, fechadoEm: tubo.fechadoEm },");
-  });
-});
-
 describe("10 · a migração aditiva roda em banco limpo", () => {
   it("cria tubos e items.tubo_id ANTES dos ALTERs, sem mexer em banco que já os tem", () => {
-    const cria = SQL.indexOf("CREATE TABLE IF NOT EXISTS tubos (");
-    const coluna = SQL.indexOf("ALTER TABLE items ADD COLUMN IF NOT EXISTS tubo_id varchar REFERENCES tubos(id) ON DELETE SET NULL;");
+    // Varredura: a ORDEM dos comandos do .sql só existe no texto (o arquivo não roda nos testes de unidade).
+    const onde = (re: RegExp) => { const m = re.exec(SQL); return m ? m.index : -1; };
+    const cria = onde(/CREATE TABLE IF NOT EXISTS tubos\s*\(/i);
+    const coluna = onde(/ALTER TABLE items ADD COLUMN IF NOT EXISTS tubo_id\b[^;]*REFERENCES tubos\s*\(\s*id\s*\)/i);
     expect(cria).toBeGreaterThan(-1);
     expect(coluna).toBeGreaterThan(cria);
-    expect(cria).toBeLessThan(SQL.indexOf("ALTER TABLE tubos"));
-    expect(coluna).toBeLessThan(SQL.indexOf("CREATE TABLE IF NOT EXISTS tubo_itens"));
-    expect(SQL).toContain('CREATE UNIQUE INDEX IF NOT EXISTS "UQ_tubos_evento_numero" ON tubos (event_id, numero);');
+    expect(cria).toBeLessThan(onde(/ALTER TABLE tubos\b/i));
+    expect(coluna).toBeLessThan(onde(/CREATE TABLE IF NOT EXISTS tubo_itens\b/i));
+    expect(SQL).toMatch(/CREATE UNIQUE INDEX IF NOT EXISTS "UQ_tubos_evento_numero" ON tubos\s*\(\s*event_id\s*,\s*numero\s*\)/i);
   });
 });

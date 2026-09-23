@@ -15,9 +15,11 @@
 //   3. a LIBERAÇÃO (PATCH creator-review): aplica a sugestão do estoque na
 //      mesma transação; "usar menos" nunca passa do atendido; sem resposta não
 //      aplica nada; a resposta nunca libera a peça;
-//   4. o que só se prende pela FONTE: reserva + efeito na peça já liberada na
-//      mesma transação da resposta, índice único parcial, migração só aditiva,
-//      sem coluna de local.
+//   4. a migração só aditiva (varredura por comando).
+// O repositório (23505 → 409, sugestões só do que está livre, a resposta numa
+// transação só, a leitura da liberação) é EXECUTADO em
+// regras-estoque-consultas.test.ts; o índice único parcial e as colunas sem
+// local, em regras-estoque-schema.test.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "fs";
@@ -38,6 +40,7 @@ import {
   ehFotoValida,
 } from "@shared/consultas-de-estoque";
 import { REGUA_DE_PAPEIS } from "@shared/permissoes";
+import { comandosQueCitam, colunasConferidasPeloMjs, DESTRUTIVO } from "./regras-estoque-migracao";
 
 const RAIZ = path.resolve(__dirname, "../..");
 const ler = (rel: string) => readFileSync(path.resolve(RAIZ, rel), "utf8");
@@ -295,8 +298,7 @@ describe("POST /api/items/:id/consulta-de-estoque — a Revisão Final pede N un
     expect(r.status).toBe(409);
     expect(r.body.error).toContain("Já existe uma solicitação ao estoque aberta");
     expect(avisos).toHaveLength(0);
-    expect(ler("shared/schema.ts")).toContain('uniqueIndex("UQ_consultas_de_estoque_aberta_por_peca").on(table.itemId).where(sql`status = \'aberta\'`)');
-    expect(ler("server/services/consultasDeEstoque.ts")).toContain('if (error?.code === "23505") throw erro(409,');
+    // o índice único e o 23505 → 409 do repositório: regras-estoque-schema e regras-estoque-consultas (executados)
   });
 
   it("peça excluída ou inexistente: 404; recado gigante: 400", async () => {
@@ -334,8 +336,11 @@ describe("GET — a caixa, o número do menu, a lista da Revisão Final e as sug
     expect((await chamar("GET /api/consultas-de-estoque/da-revisao", { role: "solicitacao", id: "u-kit", kit: true })).body).toEqual([{ id: "c-2", itemId: "i-2", status: "atendida" }]);
     expect((await chamar("GET /api/consultas-de-estoque/da-revisao", ADMIN)).body).toHaveLength(2);
     // rotas fixas registradas ANTES da rota com :id — senão "abertas" viraria um id
-    const fonte = ler("server/routes/consultas-de-estoque.ts");
-    expect(fonte.indexOf('"/api/consultas-de-estoque/da-revisao"')).toBeLessThan(fonte.indexOf('"/api/consultas-de-estoque/:id/sugestoes"'));
+    const ordem = Array.from(rotas.keys());
+    for (const fixa of ["GET /api/consultas-de-estoque/abertas", "GET /api/consultas-de-estoque/abertas-por-peca", "GET /api/consultas-de-estoque/da-revisao"]) {
+      expect(ordem.indexOf(fixa), fixa).toBeGreaterThan(-1);
+      expect(ordem.indexOf(fixa), fixa).toBeLessThan(ordem.indexOf("GET /api/consultas-de-estoque/:id/sugestoes"));
+    }
   });
 
   it("sugestões: usa a busca do acervo com a peça da solicitação; a Solicitação não lê a de outra pessoa", async () => {
@@ -345,15 +350,6 @@ describe("GET — a caixa, o número do menu, a lista da Revisão Final e as sug
     expect(r.status).toBe(404);
   });
 
-  it("“o sistema sugere” é a busca de 14/09, só com o que está LIVRE — e sem local", () => {
-    const repo = ler("server/services/consultasDeEstoque.ts");
-    expect(repo).toContain('} from "../routes/estoque-reservas";');
-    expect(repo).toContain("const s = avaliar(peca, a, reservaPorAtivo.get(a.id) ?? null, agora, !manual);");
-    expect(repo).toContain('if (!s || s.disponibilidade !== "disponivel") continue;');
-    // dono, 21/09: o sistema não guarda onde a peça fica no galpão
-    const sugestao = repo.slice(repo.indexOf("export type SugestaoDoAcervo"), repo.indexOf("const ACENTOS"));
-    expect(sugestao).not.toMatch(/\blocal\b/);
-  });
 });
 
 describe("POST /api/consultas-de-estoque/:id/responder — atender, atender parcial, não conseguir", () => {
@@ -434,33 +430,6 @@ describe("POST /api/consultas-de-estoque/:id/responder — atender, atender parc
     expect((await responder(GRAFICA, { resposta: "nao_atender" })).status).toBe(409);
   });
 
-  it("RESERVA + efeito na peça + fechamento da solicitação numa transação só, pelo mecanismo do Estoque e a regra do mark-reuse", () => {
-    const repo = ler("server/services/consultasDeEstoque.ts");
-    const responderFonte = repo.slice(repo.indexOf("export async function responderConsulta"), repo.indexOf("export async function cancelarConsulta"));
-    expect(responderFonte).toContain("return db.transaction(async (tx) => {");
-    expect(responderFonte).toContain("await reservarAtivosParaPeca(tx, {");
-    // a peça é travada, e o teto vem da MESMA função pura que a tela e os testes usam
-    expect(responderFonte).toContain('.where(eq(itemsTable.id, atual.itemId)).for("update");');
-    expect(responderFonte).toContain("const efeito = efeitoDoAtendimento(peca, e.atendida);");
-    expect(responderFonte).toContain("if (!efeito.ok) throw erro(409, efeito.erro);");
-    // SÓ a peça já liberada é tocada; em revisão a resposta fica registrada
-    expect(responderFonte).toContain("if (pecaJaLiberada(peca.status)) {");
-    expect(responderFonte).toContain("reescalarReservaEPartes(peca as any, peca.quantity - efeito.reuseQty)");
-    expect(responderFonte).toContain("details: trilhaDoAtendimento(e.atendida, atual.pedida, e.quem.userName),");
-    expect(responderFonte).toContain("aplicadoEm: aplicado ? new Date() : null,");
-    // fecha por último, condicional em 'aberta': a segunda pessoa recebe 409 e tudo dela desfaz
-    expect(responderFonte).toContain('.where(and(eq(consultasDeEstoque.id, e.id), eq(consultasDeEstoque.status, "aberta")))');
-    expect(responderFonte.indexOf("reservarAtivosParaPeca(tx")).toBeLessThan(responderFonte.indexOf("tx.update(consultasDeEstoque)"));
-    expect(responderFonte).toContain('if (!respondida) throw erro(409,');
-    // a resposta NUNCA manda a peça em revisão para a frente
-    expect(responderFonte).not.toContain('"ready_for_production"');
-
-    // e a rota de reservar do Estoque passa pela MESMA função (nada duplicado)
-    const estoque = ler("server/routes/estoque-reservas.ts");
-    expect(estoque).toContain("export async function reservarAtivosParaPeca(");
-    expect(estoque).toContain("reservarAtivosParaPeca(tx, { itemId: req.params.id, assetIds: pedidos, quem, agora }));");
-    expect(estoque.match(/tx\.insert\(eventInventoryAllocations\)/g)).toHaveLength(1);
-  });
 });
 
 describe("POST /api/consultas-de-estoque/:id/cancelar", () => {
@@ -537,10 +506,7 @@ describe("PATCH /api/items/:id/creator-review — é a Revisão Final que segue 
     expect(r.body.reuseQty ?? 0).toBe(0);
     expect(H.liberacao.marcarRespostaAplicada).not.toHaveBeenCalled();
     expect(trilhas().some((t) => t.includes("pelo estoque"))).toBe(false);
-    // "não atendida" não é resposta a aplicar: a leitura só traz atendida / atendida em parte
-    const fonte = ler("server/services/consultaDeEstoqueNaLiberacao.ts");
-    expect(fonte).toContain('inArray(consultasDeEstoque.status, ["atendida", "atendida_parcial"]),');
-    expect(fonte).toContain("isNull(consultasDeEstoque.aplicadoEm),");
+    // "não atendida" não é resposta a aplicar: a leitura é executada em regras-estoque-consultas.test.ts
   });
 
   it("USAR MENOS do que o estoque atendeu: 2 de 3 vale, e a trilha diz; MAIS do que o atendido é recusado", async () => {
@@ -588,42 +554,24 @@ describe("PATCH /api/items/:id/creator-review — é a Revisão Final que segue 
     expect(H.db.transaction).not.toHaveBeenCalled();
   });
 
-  it("ler a resposta nunca derruba a liberação (tabela ainda não criada em produção) — e o módulo não importa rota nenhuma", () => {
-    const fonte = ler("server/services/consultaDeEstoqueNaLiberacao.ts");
-    const leitura = fonte.slice(fonte.indexOf("export async function respostaDoEstoqueParaLiberar"), fonte.indexOf("export async function marcarRespostaAplicada"));
-    expect(leitura).toContain("} catch (error) {");
-    expect(leitura).toContain("return null;");
-    expect(fonte).not.toMatch(/from "\.\.\/routes\//);
-  });
 });
 
 // ─── 4 · BANCO ───────────────────────────────────────────────────────────────
 describe("a migração é só aditiva — e sem local", () => {
-  const SQL = ler("scripts/migracao-aditiva-producao.sql");
-  const bloco = SQL.slice(SQL.indexOf("Solicitação ao estoque a partir da Revisão Final"), SQL.indexOf('21/09 · Etapa "Embalado"'));
-
+  // Varredura: o .sql e o .mjs não rodam nos testes de unidade; confere-se cada COMANDO que cita a tabela.
+  // As colunas (iguais às do schema, sem local) são conferidas pelo drizzle em regras-estoque-schema.test.ts.
   it("CREATE TABLE / INDEX IF NOT EXISTS, índice único parcial e FKs só se faltarem", () => {
-    expect(bloco).toContain("CREATE TABLE IF NOT EXISTS consultas_de_estoque (");
-    expect(bloco).toContain('CREATE INDEX IF NOT EXISTS "IDX_consultas_de_estoque_item" ON consultas_de_estoque (item_id);');
-    expect(bloco).toContain('CREATE INDEX IF NOT EXISTS "IDX_consultas_de_estoque_status" ON consultas_de_estoque (status);');
-    expect(bloco).toContain(`CREATE UNIQUE INDEX IF NOT EXISTS "UQ_consultas_de_estoque_aberta_por_peca" ON consultas_de_estoque (item_id) WHERE status = 'aberta';`);
-    expect(bloco).toContain("IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = fk.nome)");
-    // "ON DELETE CASCADE" da chave estrangeira não é um DELETE de dado.
-    expect(bloco).not.toMatch(/\b(DROP|TRUNCATE|DELETE FROM|UPDATE \w+ SET)\b/);
-    expect(bloco).not.toMatch(/ALTER TABLE \w+ (DROP|ALTER COLUMN)/);
-    expect(ler("scripts/migracao-aditiva-producao.mjs")).toContain("(table_name='consultas_de_estoque' AND column_name IN ('status','quantidade_pedida','quantidade_atendida','ativos_ids','aplicado_em'))");
-  });
-
-  it("as colunas do SQL são as do schema — e nenhuma guarda o local da peça (dono, 21/09)", () => {
-    const schema = ler("shared/schema.ts");
-    const tabela = schema.slice(schema.indexOf('pgTable("consultas_de_estoque"'), schema.indexOf("UQ_consultas_de_estoque_aberta_por_peca"));
-    const colunas = Array.from(tabela.matchAll(/(?:varchar|text|timestamp|integer)\("([a-z_]+)"\)/g), (m) => m[1]);
-    expect(colunas).toEqual([
-      "id", "item_id", "event_id", "pedido_por", "pedido_por_id", "pedido_em", "observacao", "status", "quantidade_pedida", "quantidade_atendida",
-      "ativos_ids", "observacao_resposta", "foto_url", "respondido_por", "respondido_por_id", "respondido_em", "aplicado_em",
-    ]);
-    for (const c of colunas) expect(bloco, c).toMatch(new RegExp(`^\\s+${c} `, "m"));
-    expect(colunas.some((c) => /local|location/.test(c))).toBe(false);
+    const daTabela = comandosQueCitam("consultas_de_estoque");
+    expect(daTabela.length).toBeGreaterThan(0);
+    for (const c of daTabela) expect(c).not.toMatch(DESTRUTIVO);
+    expect(daTabela).toContainEqual(expect.stringMatching(/^CREATE TABLE IF NOT EXISTS consultas_de_estoque\s*\(/i));
+    expect(daTabela).toContainEqual(expect.stringMatching(/^CREATE INDEX IF NOT EXISTS "IDX_consultas_de_estoque_item" ON consultas_de_estoque\s*\(\s*item_id\s*\)/i));
+    expect(daTabela).toContainEqual(expect.stringMatching(/^CREATE INDEX IF NOT EXISTS "IDX_consultas_de_estoque_status" ON consultas_de_estoque\s*\(\s*status\s*\)/i));
+    expect(daTabela).toContainEqual(expect.stringMatching(/^CREATE UNIQUE INDEX IF NOT EXISTS "UQ_consultas_de_estoque_aberta_por_peca" ON consultas_de_estoque\s*\(\s*item_id\s*\)\s*WHERE status = 'aberta'/i));
+    // as FKs: só se a constraint ainda não existe
+    const fks = daTabela.find((c) => /^DO\s+\$\$/i.test(c))!;
+    expect(fks).toMatch(/IF NOT EXISTS \(SELECT 1 FROM pg_constraint WHERE conname = fk\.nome\)/i);
+    expect(Array.from(colunasConferidasPeloMjs().get("consultas_de_estoque") ?? [])).toEqual(expect.arrayContaining(["status", "quantidade_pedida", "quantidade_atendida", "ativos_ids", "aplicado_em"]));
   });
 
   it("as rotas estão registradas e o WebSocket atualiza a caixa, o número, a lista e a ficha", async () => {
@@ -641,7 +589,8 @@ describe("a migração é só aditiva — e sem local", () => {
 });
 
 describe("o SQL da migração é executável", () => {
-  it("todo bloco DO usa $$ … $$ (um cifrão só é erro de sintaxe no Postgres)", () => {
+  it("todo bloco DO usa $ … $ (um cifrão só é erro de sintaxe no Postgres)", () => {
+    // Varredura do arquivo INTEIRO: o .sql não roda nos testes de unidade.
     const sql = require("fs").readFileSync(require("path").resolve(__dirname, "../../scripts/migracao-aditiva-producao.sql"), "utf8");
     expect(sql).not.toMatch(/^DO \$\r?$/m);
     expect(sql).not.toMatch(/^END \$;\r?$/m);

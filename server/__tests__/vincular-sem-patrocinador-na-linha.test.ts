@@ -42,7 +42,7 @@ describe("o chip 'Sem patrocinador' na linha", () => {
   });
 
   it("tem a casca dos chips de marca e borda tracejada quando desligado", () => {
-    expect(VP).toContain("border: semPatrocinador ? '1px solid #fde68a' : '1px dashed #d6d3d1',");
+    expect(VP).toContain("border: semPatrocinador ? `1px solid ${TOM.alerta.border}` : `1px dashed ${T.bdark}`,");
     expect(VP).toContain("height: isMobile ? 44 : 26, padding: '0 10px', borderRadius: 999,");
   });
 

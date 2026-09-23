@@ -366,14 +366,15 @@ describe("GRÁFICA a 390px", () => {
     const entregarTubo = $('[data-testid="button-entregar-tubo-card-g1"]')!;
     const tirar = $('[data-testid="button-tirar-do-tubo-card-g1"]')!;
     expect(entregarTubo.compareDocumentPosition(tirar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(entregarTubo.style.background).toBe("rgb(29, 78, 216)");
+    expect(entregarTubo.style.backgroundColor).toBe("rgb(29, 78, 216)");
     expect(px(entregarTubo.style.minHeight)).toBe(48);
     expect(px(tirar.style.minHeight)).toBe(48);
     // A embalada NÃO tem "Entregar" individual (dono, 21/09): só sai com o tubo.
     expect($('[data-testid="button-entregar-card-g1"]')).toBeNull();
     // O selo diz quantas peças o tubo tem, lista o conteúdo no title e é alvo de 44px.
     const seloTubo = $('[data-testid="chip-tubo-card-g1"]')!;
-    expect(seloTubo.textContent).toContain("TUBO 1 (10)");
+    // Caixa normal (a caixa-alta era ruído): o número e a contagem continuam.
+    expect(seloTubo.textContent).toContain("Tubo 1 (10)");
     expect(seloTubo.getAttribute("title")).toContain("#0381");
     expect(px(seloTubo.style.minHeight)).toBe(44);
     // Conferida: Embalar é a principal, a 48px.

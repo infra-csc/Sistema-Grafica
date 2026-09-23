@@ -297,6 +297,9 @@ describe("Registros", () => {
   });
 
   it("12 · alvos de 44px no celular", () => {
-    expect(REG).toContain("isMobile ? 44");
+    // Migração ao design system: o alvo vem de `alvo()` (44px com o dedo) e o
+    // "dedo" é celular OU ponteiro grosso (tablet do galpão).
+    expect(REG).toContain("const toque = usePonteiroGrosso() || isMobile;");
+    expect(REG).toContain("const controlHeight = alvo(36, toque);");
   });
 });

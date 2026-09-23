@@ -68,7 +68,9 @@ describe("a fila não engana", () => {
 describe("a costura na tela da Gráfica", () => {
   it("entra pelo botão de fila, só no celular, com o MESMO gate do lote — e não há mais fila de ENTREGA por peça", () => {
     expect(GRAFICA).toContain('data-testid="button-fila-conferir"');
-    expect(GRAFICA).toContain('{isMobile && podeConferir && conferableInFilter.length > 0 && !bulkOn && (');
+    // Só no celular, com o mesmo gate do lote; o cabeçalho inteiro some no modo lote (acoes={bulkOn ? undefined : …}).
+    expect(GRAFICA).toContain('{isMobile && podeConferir && conferableInFilter.length > 0 && (');
+    expect(GRAFICA).toContain('acoes={bulkOn ? undefined : (');
     expect(GRAFICA).not.toContain('data-testid="button-fila-entregar"');
     expect(GRAFICA).not.toContain('setGalpao("deliver")');
   });

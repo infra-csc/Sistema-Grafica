@@ -209,7 +209,9 @@ describe("5 · a tela", () => {
     expect(PAGINA).toContain("aria-pressed={ativo}");
     expect(PAGINA).toContain('aria-label="Escolher o dia"');
     expect(PAGINA).toContain("const LinhaDoDiario = memo(function LinhaDoDiario(");
-    expect(PAGINA).toContain('import { T, FS, R } from "@/lib/theme";');
+    expect(PAGINA).toContain('import { T, TOM, FS, FW, FONT, R } from "@/lib/theme";');
+    // Migração ao design system: só o vinho da trava (sem token) sobra como hex de cor.
+    expect((PAGINA.replace(/\/\/.*$|\/\*[\s\S]*?\*\//gm, "").match(/"#[0-9a-fA-F]{3,6}"/g) ?? [])).toEqual(['"#7f1d1d"']);
     // Cores proibidas como texto (régua da casa) e o cinza aposentado.
     expect(PAGINA).not.toContain("#78716c");
     expect(PAGINA).not.toMatch(/color: "#f97316"|color: "#a8a29e"/);

@@ -764,7 +764,11 @@ describe("etiquetas do evento: todos os estados", () => {
     queryClient.clear();
     await act(async () => { render(h(QueryClientProvider, { client: queryClient } as any, h(Pagina as any, null))); });
     await tick(80);
-    expect($('[data-testid="etiquetas-erro"]')!.getAttribute("role")).toBe("alert");
+    // O aviso é o <EstadoErro> do design system (role="alert" nele), embrulhado
+    // no testid da tela — e diz o que falhou, não "sem peças".
+    const erro = $('[data-testid="etiquetas-erro"]')!;
+    expect(erro.querySelector('[role="alert"]')).toBeTruthy();
+    expect(erro.textContent).toContain("Não foi possível carregar as peças do evento.");
     expect($('[data-testid="etiquetas-vazio"]')).toBeNull();
   });
 });

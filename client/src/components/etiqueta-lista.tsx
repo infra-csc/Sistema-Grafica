@@ -10,16 +10,19 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { TAMANHOS, fonteDaCidadeMm, linhaDaLista, type LinhaDaEtiqueta, type PecaDaLista, type TamanhoEtiqueta } from "@/lib/etiqueta-lista";
+import { FONT, FS, FW, R, SHADOW, T, TOM } from "@/lib/theme";
 
-const GROTESK = "'Space Grotesk', sans-serif";
+// As cores da ETIQUETA (o que vai para o papel) usam só tokens de hex IDÊNTICO
+// ao que já saía: a impressora recebe exatamente o mesmo preto e o mesmo cinza.
+const GROTESK = FONT.display;
 
 /** CSS das caixas. A altura é FIXA (a da área útil): o que não couber é
  *  cortado em vez de empurrar uma segunda página quase vazia para o adesivo —
  *  quem garante que cabe é a paginação conservadora de `paginarLinhas`. */
 export const CSS_DA_ETIQUETA_EM_LISTA = `
-  .etl-caixa { box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; background: #fff; color: #1c1917; break-inside: avoid; page-break-inside: avoid; }
+  .etl-caixa { box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; background: ${T.surface}; color: ${T.text}; break-inside: avoid; page-break-inside: avoid; }
   .etl-vertical { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; }
-  @media screen { .etl-caixa { border: 1px solid #d6d3d1; border-radius: 6px; margin: 0 auto 16px; box-shadow: 0 6px 18px rgba(0,0,0,0.07); } }
+  @media screen { .etl-caixa { border: 1px solid ${T.bdark}; border-radius: ${R.sm}px; margin: 0 auto 16px; box-shadow: ${SHADOW.md}; } }
   @media print {
     .etl-caixa { break-after: page; page-break-after: always; }
     .etl-caixa.etl-ultima { break-after: auto; page-break-after: auto; }
@@ -55,11 +58,14 @@ export function EtiquetaEmLista<T extends PecaDaLista>(props: Props<T>) {
   return (
     <div className={`etl-caixa${props.ultima ? " etl-ultima" : ""}`} data-testid={props.testid} data-tamanho={props.tamanho}
       style={{ width: `${m.larguraMm}mm`, height: `${m.alturaMm}mm`, padding: `${m.margemMm / 2}mm`, maxWidth: "none" }}>
-      <div style={{ flexShrink: 0, textAlign: "center", borderBottom: "0.8mm solid #1c1917", paddingBottom: "1.5mm" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: "2mm", fontSize: miudo, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#57534e", lineHeight: 1.2 }}>
+      <div style={{ flexShrink: 0, textAlign: "center", borderBottom: `0.8mm solid ${T.text}`, paddingBottom: "1.5mm" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: "2mm", fontSize: miudo, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: T.apoio, lineHeight: 1.2 }}>
           <span>{props.saida ? `Saída ${props.saida}` : " "}</span>
           <span data-testid={props.testid ? `${props.testid}-contador` : undefined}>{props.contador ?? " "}</span>
         </div>
+        {/* SEM loading="lazy": a etiqueta sai por window.print(), e imagem
+            preguiçosa fora da vista (ou no portal escondido do tubo) pode ir
+            em branco para o papel. O logo é data URL local — nada a poupar. */}
         {props.logo && (
           <img decoding="async" src={props.logo} alt="Logo do evento" data-testid="logo-etiqueta"
             style={{ maxHeight: `${m.logoMm}mm`, maxWidth: "70%", objectFit: "contain", display: "block", margin: "1mm auto 0.5mm" }} />
@@ -75,7 +81,7 @@ export function EtiquetaEmLista<T extends PecaDaLista>(props: Props<T>) {
       </div>
 
       {props.tubo != null && (
-        <div style={{ flexShrink: 0, textAlign: "center", borderBottom: "0.8mm solid #1c1917", padding: "1mm 0 1.5mm" }}>
+        <div style={{ flexShrink: 0, textAlign: "center", borderBottom: `0.8mm solid ${T.text}`, padding: "1mm 0 1.5mm" }}>
           <span data-testid="numero-do-tubo" style={{ fontFamily: GROTESK, fontSize: `${m.tuboMm}mm`, fontWeight: 900, lineHeight: 1, whiteSpace: "nowrap" }}>
             TUBO {props.tubo}
           </span>
@@ -85,7 +91,7 @@ export function EtiquetaEmLista<T extends PecaDaLista>(props: Props<T>) {
       {/* Só as peças, uma por linha — sem subtítulo de grupo (dono, 21/09:
           "tirar grupo, apenas nome do item"). */}
       {props.linhas.length === 0 ? (
-        <p style={{ fontSize: `${m.linhaMm}mm`, color: "#57534e", textAlign: "center" }}>{props.vazio ?? "Sem peças."}</p>
+        <p style={{ fontSize: `${m.linhaMm}mm`, color: T.apoio, textAlign: "center" }}>{props.vazio ?? "Sem peças."}</p>
       ) : (
         <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", paddingTop: "1.5mm" }}>
           {props.linhas.map((l, i) => (
@@ -100,7 +106,7 @@ export function EtiquetaEmLista<T extends PecaDaLista>(props: Props<T>) {
       {/* RODAPÉ discreto do tubo: "3 peças · 26 un. · embalado 21/09". */}
       {props.rodape && (
         <p data-testid={props.testid ? `${props.testid}-rodape` : undefined}
-          style={{ flexShrink: 0, margin: "auto 0 0", paddingTop: "1mm", borderTop: "0.3mm solid #a8a29e", fontSize: miudo, fontWeight: 700, letterSpacing: "0.04em", color: "#57534e", textAlign: "center", lineHeight: 1.3 }}>
+          style={{ flexShrink: 0, margin: "auto 0 0", paddingTop: "1mm", borderTop: `0.3mm solid ${T.muted}`, fontSize: miudo, fontWeight: 700, letterSpacing: "0.04em", color: T.apoio, textAlign: "center", lineHeight: 1.3 }}>
           {props.rodape}
         </p>
       )}
@@ -122,7 +128,7 @@ export function EtiquetaReaproveitar(props: { tamanho: TamanhoEtiqueta; rodape?:
   const fonte = Math.min(m.larguraMm * 0.5, (m.alturaMm - m.margemMm * 3 - rodapeMm) / (LETRAS_REAPROVEITAR * 0.74));
   return (
     <div className={`etl-caixa${props.ultima ? " etl-ultima" : ""}`} data-testid={props.testid ?? "etiqueta-reaproveitar"} data-tamanho={props.tamanho}
-      style={{ width: `${m.larguraMm}mm`, height: `${m.alturaMm}mm`, padding: `${m.margemMm / 2}mm`, maxWidth: "none", alignItems: "center", justifyContent: "center", outline: "1.5mm solid #1c1917", outlineOffset: "-2.5mm" }}>
+      style={{ width: `${m.larguraMm}mm`, height: `${m.alturaMm}mm`, padding: `${m.margemMm / 2}mm`, maxWidth: "none", alignItems: "center", justifyContent: "center", outline: `1.5mm solid ${T.text}`, outlineOffset: "-2.5mm" }}>
       <span className="etl-vertical" style={{ fontFamily: GROTESK, fontWeight: 900, fontSize: `${Math.round(fonte * 10) / 10}mm`, lineHeight: 1, letterSpacing: "0.02em" }}>
         REAPROVEITAR
       </span>
@@ -147,26 +153,38 @@ export function EtiquetaReaproveitar(props: { tamanho: TamanhoEtiqueta; rodape?:
  *  o grupo ("Formato, grupo") antes de cada controle. */
 export function SecaoDeOpcoes(props: { titulo: string; ajuda?: string; testid?: string; children: ReactNode }) {
   return (
-    <fieldset data-testid={props.testid} style={{ border: "1px solid #e7e5e4", borderRadius: 10, margin: 0, padding: "10px 12px 12px", minWidth: 0, backgroundColor: "#fff" }}>
-      <legend style={{ padding: "0 6px", fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#44403c" }}>{props.titulo}</legend>
-      {props.ajuda && <p style={{ margin: "0 0 8px", fontSize: 12.5, lineHeight: 1.4, color: "#57534e" }}>{props.ajuda}</p>}
+    <fieldset data-testid={props.testid} style={{ border: `1px solid ${T.border}`, borderRadius: R.lg, margin: 0, padding: "10px 12px 12px", minWidth: 0, backgroundColor: T.surface }}>
+      {/* Caixa normal, não CAIXA-ALTA: o número ("1 ·") já dá a ordem, e
+          quatro rótulos gritando competiam com o conteúdo da seção. */}
+      <legend style={{ padding: "0 6px", fontFamily: FONT.display, fontSize: FS.body, fontWeight: FW.forte, color: T.strong }}>{props.titulo}</legend>
+      {props.ajuda && <p style={{ margin: "0 0 8px", fontSize: FS.meta, lineHeight: 1.45, color: T.apoio }}>{props.ajuda}</p>}
       <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>{props.children}</div>
     </fieldset>
   );
 }
 
 /** Um entre poucos (Individual | Lista, Deitada | Em pé, Tudo | Só…). Botões
- *  com aria-pressed dentro de um grupo rotulado; `alvo` é a altura (44 no toque). */
+ *  com aria-pressed dentro de um grupo rotulado; `alvo` é a altura (44 no toque).
+ *
+ *  Tem o DESENHO do <Segmentado> do design system (trilho rebaixado, o ativo
+ *  ganha superfície), mas continua local: o de ui/abas não tem altura de toque
+ *  (fica em 28px), não estica na largura do rodapé do celular e fala `tab` —
+ *  aqui é escolha de opção (aria-pressed), não troca de conteúdo. */
 export function Segmento<V extends string>(props: {
   rotulo: string; valor: V; opcoes: ReadonlyArray<readonly [V, string]>; aoMudar: (v: V) => void; alvo: number; testid: string; fonte?: number; esticar?: boolean;
 }) {
   return (
-    <div role="group" aria-label={props.rotulo} style={{ display: props.esticar ? "flex" : "inline-flex", borderRadius: 8, border: "1px solid #d6d3d1", overflow: "hidden", flexShrink: 0, backgroundColor: "#fff" }}>
-      {props.opcoes.map(([v, texto], i) => {
+    <div role="group" aria-label={props.rotulo} style={{ display: props.esticar ? "flex" : "inline-flex", gap: 2, padding: 3, borderRadius: R.md, border: `1px solid ${T.border}`, flexShrink: 0, backgroundColor: T.low }}>
+      {props.opcoes.map(([v, texto]) => {
         const ativo = props.valor === v;
         return (
-          <button key={v} type="button" className="etq-foco" aria-pressed={ativo} onClick={() => props.aoMudar(v)} data-testid={`${props.testid}-${v}`}
-            style={{ flex: props.esticar ? 1 : undefined, minHeight: props.alvo, padding: "0 12px", border: "none", borderLeft: i > 0 ? "1px solid #d6d3d1" : "none", fontFamily: "inherit", fontSize: props.fonte ?? 12.5, fontWeight: 700, cursor: "pointer", backgroundColor: ativo ? "#1c1917" : "#fff", color: ativo ? "#fff" : "#44403c" }}>
+          <button key={v} type="button" className="etq-foco ds-botao" aria-pressed={ativo} onClick={() => props.aoMudar(v)} data-testid={`${props.testid}-${v}`}
+            style={{
+              flex: props.esticar ? 1 : undefined, minHeight: props.alvo, padding: "0 12px", borderRadius: R.sm,
+              border: ativo ? `1px solid ${T.border}` : "1px solid transparent", boxShadow: ativo ? SHADOW.sm : "none",
+              fontFamily: FONT.corpo, fontSize: props.fonte ?? FS.meta, fontWeight: ativo ? FW.forte : FW.medio, cursor: "pointer",
+              backgroundColor: ativo ? T.surface : "transparent", color: ativo ? T.text : T.second,
+            }}>
             {texto}
           </button>
         );
@@ -179,7 +197,7 @@ export function Segmento<V extends string>(props: {
  *  lista 1 de 2"). Classe etq-acao: aparece só na tela. */
 export function LegendaDaFolha(props: { children: ReactNode; testid?: string }) {
   return (
-    <p className="etq-acao" data-testid={props.testid} style={{ margin: "0 auto 6px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", color: "#57534e", textAlign: "center" }}>
+    <p className="etq-acao" data-testid={props.testid} style={{ margin: "0 auto 6px", fontSize: FS.meta, fontWeight: FW.forte, letterSpacing: "0.04em", color: T.apoio, textAlign: "center" }}>
       {props.children}
     </p>
   );
@@ -233,7 +251,7 @@ export function CampoNaEtiqueta(props: {
       onChange={(e) => { const v = e.target.value.replace(/[^\d]/g, "").slice(0, 6); props.aoMudar(v === String(props.original) ? undefined : v); }}
       style={{
         ...estiloDoCampo(props.mobile), width: props.largura ?? (props.mobile ? 64 : 56), padding: "0 6px", textAlign: "center", fontVariantNumeric: "tabular-nums",
-        ...(props.editado ? { border: "1px solid #c2410c", backgroundColor: "#fff7ed", color: "#9a3412", fontWeight: 800 } : {}),
+        ...(props.editado ? { border: `1px solid ${TOM.laranja.text}`, backgroundColor: TOM.laranja.bg, color: TOM.laranja.text, fontWeight: FW.rotulo } : {}),
       }} />
   );
 }
@@ -241,6 +259,6 @@ export function CampoNaEtiqueta(props: {
 /** Estilos comuns dos campos do painel — 16px no celular (o iOS dá zoom em
  *  campo menor que isso) e alvo de 44. */
 export const estiloDoCampo = (mobile: boolean): CSSProperties => ({
-  minHeight: mobile ? 44 : 34, borderRadius: 8, border: "1px solid #d6d3d1", padding: "0 10px", fontSize: mobile ? 16 : 13,
-  fontFamily: "inherit", fontWeight: 600, color: "#1c1917", backgroundColor: "#fff", minWidth: 0, boxSizing: "border-box",
+  minHeight: mobile ? 44 : 34, borderRadius: R.md, border: `1px solid ${T.bdark}`, padding: "0 10px", fontSize: mobile ? FS.lead : FS.body,
+  fontFamily: "inherit", fontWeight: FW.medio, color: T.text, backgroundColor: T.surface, minWidth: 0, boxSizing: "border-box",
 });

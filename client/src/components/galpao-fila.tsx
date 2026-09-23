@@ -26,11 +26,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useRef, useState } from "react";
 import { miniatura } from "@/lib/miniatura";
-import { Camera, Check, ChevronRight, ImagePlus, Loader2, Truck, X } from "lucide-react";
+import { Camera, Check, ChevronRight, ImagePlus, Truck, X } from "lucide-react";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { SugestaoRecebedor } from "@/components/sugestao-recebedor";
 import { remainingConfer } from "@/lib/saldo";
 import { useAcompanharAreaVisivel } from "@/components/grafica/area-visivel";
+import { T, N, TOM, FS, FW, FONT, R } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
 // Só LEITURA do saldo, para dizer quantas unidades a entrega leva: a rota
 // entrega o que resta conferido quando não recebe `qty` — o número mostrado é
 // essa mesma conta, da mesma fonte da lista.
@@ -54,7 +56,7 @@ const dataCurta = (iso?: string | null) =>
 
 export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedor = "" }: Props) {
   const isConfer = mode === "confer";
-  const tinta = isConfer ? "#0e7490" : "#15803d";
+  const tinta = isConfer ? TOM.ciano.text : TOM.sucesso.text;
 
   const [idx, setIdx] = useState(0);
   const [foto, setFoto] = useState<string | null>(null);
@@ -180,6 +182,10 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
   const saldo = saldoVivo;
   const arte = item.approvalThumbUrl || item.finalPreviewUrl || null;
 
+  // Enquanto não dá para confirmar, o botão fica CINZA e legível (não só
+  // apagado a 50%): "Falta a foto" é a instrução, e precisa ser lida.
+  const confirmarPronto = !!foto && !enviando && !jaRegistradaPorOutro;
+
   return (
     <div
       ref={caixaRef}
@@ -189,7 +195,7 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
       aria-label={isConfer ? "Conferência em fila" : "Entrega em fila"}
       data-testid="galpao-fila"
       style={{
-        position: "fixed", inset: 0, zIndex: 180, backgroundColor: "#fafaf9",
+        position: "fixed", inset: 0, zIndex: 180, backgroundColor: T.bg,
         display: "flex", flexDirection: "column", outline: "none",
       }}
     >
@@ -197,21 +203,21 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
           Recorte seguro em cima (notch/ilha no iPhone deitado ou com o app na
           tela inicial) e dos lados (paisagem), nos LONGOS: o atalho `padding`
           com env() some no parser do jsdom e o teste deixaria de enxergá-lo. */}
-      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 10, rowGap: 0, paddingTop: "calc(4px + env(safe-area-inset-top))", paddingBottom: 4, paddingLeft: "calc(12px + env(safe-area-inset-left))", paddingRight: "calc(4px + env(safe-area-inset-right))", borderBottom: "1px solid #e7e5e4", backgroundColor: "#ffffff", flexShrink: 0 }}>
-        <span style={{ fontSize: 12, fontWeight: 800, color: tinta, textTransform: "uppercase", letterSpacing: "0.06em", display: "inline-flex", alignItems: "center", gap: 6 }}>
+      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 10, rowGap: 0, paddingTop: "calc(4px + env(safe-area-inset-top))", paddingBottom: 4, paddingLeft: "calc(12px + env(safe-area-inset-left))", paddingRight: "calc(4px + env(safe-area-inset-right))", borderBottom: `1px solid ${T.border}`, backgroundColor: T.surface, flexShrink: 0 }}>
+        <span style={{ fontSize: FS.meta, fontWeight: FW.forte, color: tinta, display: "inline-flex", alignItems: "center", gap: 6 }}>
           {isConfer ? <Check style={{ width: 15, height: 15 }} /> : <Truck style={{ width: 15, height: 15 }} />}
           {isConfer ? "Conferindo" : "Entregando"}
         </span>
-        <span data-testid="galpao-progresso" style={{ fontSize: 15, fontWeight: 800, color: "#1c1917", fontVariantNumeric: "tabular-nums" }}>
+        <span data-testid="galpao-progresso" style={{ fontSize: FS.strong, fontWeight: FW.rotulo, color: T.text, fontVariantNumeric: "tabular-nums" }}>
           {idx + 1} de {fila.length}
         </span>
         {feitas > 0 && (
-          <span style={{ fontSize: 12, fontWeight: 600, color: "#57534e", fontVariantNumeric: "tabular-nums" }}>
+          <span style={{ fontSize: FS.meta, fontWeight: FW.medio, color: T.apoio, fontVariantNumeric: "tabular-nums" }}>
             · {feitas} registrada{feitas !== 1 ? "s" : ""}
           </span>
         )}
         {puladas > 0 && (
-          <span data-testid="galpao-puladas" title="As peças puladas continuam na lista da Gráfica" style={{ fontSize: 12, fontWeight: 600, color: "#57534e", fontVariantNumeric: "tabular-nums" }}>
+          <span data-testid="galpao-puladas" title="As peças puladas continuam na lista da Gráfica" style={{ fontSize: FS.meta, fontWeight: FW.medio, color: T.apoio, fontVariantNumeric: "tabular-nums" }}>
             · {puladas} pulada{puladas !== 1 ? "s" : ""}
           </span>
         )}
@@ -222,7 +228,8 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
           aria-label={feitas > 0 ? `Sair da fila — as ${feitas} registradas ficam salvas` : "Sair da fila"}
           title={feitas > 0 ? "Sair — o que já foi registrado fica salvo" : "Sair da fila"}
           data-testid="galpao-sair"
-          style={{ width: 48, height: 48, display: "flex", alignItems: "center", justifyContent: "center", border: "none", background: "transparent", cursor: "pointer", color: "#57534e" }}>
+          className="ds-botao ds-botao-fantasma"
+          style={{ width: 48, height: 48, display: "flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: R.md, background: "transparent", cursor: "pointer", color: T.apoio }}>
           <X aria-hidden="true" style={{ width: 22, height: 22 }} />
         </button>
       </div>
@@ -237,7 +244,7 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
         aria-valuemin={1}
         aria-valuemax={fila.length}
         aria-valuenow={idx + 1}
-        style={{ height: 4, backgroundColor: "#e7e5e4", flexShrink: 0 }}
+        style={{ height: 4, backgroundColor: T.border, flexShrink: 0 }}
       >
         <div style={{ height: "100%", width: `${((idx + 1) / fila.length) * 100}%`, backgroundColor: tinta, transition: "width 0.25s ease-out" }} />
       </div>
@@ -251,7 +258,7 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
           toque errado garantido. Agora flutua sobre o topo da peça e some. */}
       <div aria-live="polite" data-testid="galpao-registrou" style={{ position: "relative", height: 0, zIndex: 2 }}>
         {registrouAgora && (
-          <div className="galpao-registrou" style={{ position: "absolute", top: 0, left: 0, right: 0, display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", backgroundColor: "#f0fdf4", borderBottom: "1px solid #bbf7d0", color: "#15803d", fontSize: 14, fontWeight: 700, boxShadow: "0 4px 12px -6px rgba(21,128,61,0.35)" }}>
+          <div className="galpao-registrou" style={{ position: "absolute", top: 0, left: 0, right: 0, display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", backgroundColor: TOM.sucesso.bg, borderBottom: `1px solid ${TOM.sucesso.border}`, color: TOM.sucesso.text, fontSize: FS.read, fontWeight: FW.forte, boxShadow: "0 4px 12px -6px rgba(21,128,61,0.35)" }}>
             <Check aria-hidden="true" style={{ width: 16, height: 16 }} />
             {registrouAgora}{fila[idx] ? " — próxima peça" : ""}
           </div>
@@ -265,28 +272,27 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
             seria mentira nesses casos. E some durante o PRÓPRIO envio: o eco
             do WebSocket pode chegar antes da resposta HTTP. */}
         {jaRegistradaPorOutro && !enviando && (
-          <div role="status" data-testid="galpao-ja-registrada" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, backgroundColor: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", fontSize: 13, fontWeight: 600, lineHeight: 1.4 }}>
+          <div role="status" data-testid="galpao-ja-registrada" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: R.lg, backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, color: TOM.alerta.text, fontSize: FS.body, fontWeight: FW.medio, lineHeight: 1.4 }}>
             <span style={{ flex: 1 }}>
               Esta peça saiu da fila depois que ela abriu — já foi {isConfer ? "conferida" : "entregue"} ou mudou de etapa. Nada a fazer aqui.
             </span>
-            <button type="button" onClick={pular}
-              style={{ minHeight: 44, padding: "0 14px", borderRadius: 10, border: "none", backgroundColor: "#92400e", color: "#ffffff", fontSize: 14, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }}>
+            <Botao variante="primario" tamanho="toque" onClick={pular}>
               Pular
-            </button>
+            </Botao>
           </div>
         )}
         <div>
           {/* 30px: é o número que se confere contra a etiqueta do material, de
               braço esticado. Quebra antes do tipo, nunca no meio do código. */}
-          <p style={{ margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontSize: 30, fontWeight: 900, letterSpacing: "-0.02em", color: "#1c1917", lineHeight: 1.15 }} data-testid="galpao-codigo">
-            <span style={{ whiteSpace: "nowrap" }}>{item.displayId}</span> <span style={{ fontWeight: 700, fontSize: 18, color: "#44403c" }}>· {item.type}</span>
+          <p style={{ margin: 0, fontFamily: FONT.display, fontSize: 30, fontWeight: 900, letterSpacing: "-0.02em", color: T.text, lineHeight: 1.15 }} data-testid="galpao-codigo">
+            <span style={{ whiteSpace: "nowrap" }}>{item.displayId}</span> <span style={{ fontWeight: FW.forte, fontSize: FS.title, color: T.strong }}>· {item.type}</span>
           </p>
           {item.description && (
-            <p style={{ margin: "2px 0 0", fontSize: 15, color: "#44403c", lineHeight: 1.4 }}>{item.description}</p>
+            <p style={{ margin: "2px 0 0", fontSize: FS.strong, color: T.strong, lineHeight: 1.4 }}>{item.description}</p>
           )}
-          <p style={{ margin: "4px 0 0", fontSize: 13, color: "#57534e" }}>
+          <p style={{ margin: "4px 0 0", fontSize: FS.body, color: T.apoio }}>
             {item.event?.name ?? "Sem evento"}
-            {item.event?.truckDepartureDate && <> · saída <strong style={{ color: "#92400e" }}>{dataCurta(item.event.truckDepartureDate)}</strong></>}
+            {item.event?.truckDepartureDate && <> · saída <strong style={{ color: TOM.alerta.text }}>{dataCurta(item.event.truckDepartureDate)}</strong></>}
           </p>
         </div>
 
@@ -297,9 +303,9 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
           // e em paisagem (≈360px de altura) não toma a tela inteira. Sem
           // `loading="lazy"`: está na primeira dobra por definição.
           <img decoding="async" src={miniatura(arte)} alt={`Arte da peça ${item.displayId}`}
-            style={{ width: "100%", height: "clamp(120px, 32dvh, 320px)", flexShrink: 0, objectFit: "contain", borderRadius: 10, border: "1px solid #e7e5e4", backgroundColor: "#ffffff" }} />
+            style={{ width: "100%", height: "clamp(120px, 32dvh, 320px)", flexShrink: 0, objectFit: "contain", borderRadius: R.lg, border: `1px solid ${T.border}`, backgroundColor: T.surface }} />
         ) : (
-          <p style={{ margin: 0, padding: "14px 12px", fontSize: 13, color: "#78716c", backgroundColor: "#f5f5f4", borderRadius: 10 }}>
+          <p style={{ margin: 0, padding: "14px 12px", fontSize: FS.body, color: T.second, backgroundColor: N.n2, borderRadius: R.lg }}>
             Esta peça não tem arte anexada — confira pela descrição.
           </p>
         )}
@@ -307,42 +313,42 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
         {/* Quantidade (só conferência; entrega é sempre o total conferido) */}
         {isConfer && (
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#57534e", flex: 1 }}>
+            <span style={{ fontSize: FS.body, fontWeight: FW.forte, color: T.strong, flex: 1 }}>
               Conferidas agora
-              <span style={{ display: "block", fontWeight: 500, textTransform: "none", letterSpacing: 0, fontSize: 13, color: "#57534e" }}>
+              <span style={{ display: "block", fontWeight: FW.corpo, fontSize: FS.body, color: T.apoio }}>
                 faltam {saldo} de {item.quantity}
               </span>
             </span>
-            <button type="button" aria-label="Uma a menos" data-testid="galpao-qty-menos"
+            <button type="button" aria-label="Uma a menos" data-testid="galpao-qty-menos" className="ds-botao"
               onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1}
-              style={{ width: 52, height: 52, borderRadius: 10, border: "1px solid #d6d3d1", backgroundColor: "#fff", fontSize: 22, fontWeight: 700, color: qty <= 1 ? "#d6d3d1" : "#1c1917", cursor: qty <= 1 ? "not-allowed" : "pointer" }}>−</button>
-            <span data-testid="galpao-qty" style={{ minWidth: 44, textAlign: "center", fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 900, color: "#1c1917", fontVariantNumeric: "tabular-nums" }}>{qty}</span>
-            <button type="button" aria-label="Uma a mais" data-testid="galpao-qty-mais"
+              style={{ width: 52, height: 52, borderRadius: R.lg, border: `1px solid ${T.bdark}`, backgroundColor: T.surface, fontSize: FS.h2, fontWeight: FW.forte, color: qty <= 1 ? T.bdark : T.text, cursor: qty <= 1 ? "not-allowed" : "pointer" }}>−</button>
+            <span data-testid="galpao-qty" style={{ minWidth: 44, textAlign: "center", fontFamily: FONT.display, fontSize: FS.h1, fontWeight: 900, color: T.text, fontVariantNumeric: "tabular-nums" }}>{qty}</span>
+            <button type="button" aria-label="Uma a mais" data-testid="galpao-qty-mais" className="ds-botao"
               onClick={() => setQty((q) => Math.min(saldo ?? q, q + 1))} disabled={saldo != null && qty >= saldo}
-              style={{ width: 52, height: 52, borderRadius: 10, border: "1px solid #d6d3d1", backgroundColor: "#fff", fontSize: 22, fontWeight: 700, color: saldo != null && qty >= saldo ? "#d6d3d1" : "#1c1917", cursor: saldo != null && qty >= saldo ? "not-allowed" : "pointer" }}>+</button>
+              style={{ width: 52, height: 52, borderRadius: R.lg, border: `1px solid ${T.bdark}`, backgroundColor: T.surface, fontSize: FS.h2, fontWeight: FW.forte, color: saldo != null && qty >= saldo ? T.bdark : T.text, cursor: saldo != null && qty >= saldo ? "not-allowed" : "pointer" }}>+</button>
           </div>
         )}
 
         {/* Quantas unidades esta entrega leva — antes a fila não dizia, e quem
             estava com a pilha na mão não sabia se era a peça inteira. */}
         {!isConfer && (
-          <p data-testid="galpao-qtd-entrega" style={{ margin: 0, fontSize: 13, color: "#44403c" }}>
-            Entrega de <strong style={{ fontSize: 18, color: "#1c1917", fontVariantNumeric: "tabular-nums" }}>{saldoAEntregar(vivo ?? item)} un.</strong>
-            <span style={{ color: "#78716c" }}> — tudo o que já foi conferido desta peça</span>
+          <p data-testid="galpao-qtd-entrega" style={{ margin: 0, fontSize: FS.body, color: T.strong }}>
+            Entrega de <strong style={{ fontSize: FS.title, color: T.text, fontVariantNumeric: "tabular-nums" }}>{saldoAEntregar(vivo ?? item)} un.</strong>
+            <span style={{ color: T.second }}> — tudo o que já foi conferido desta peça</span>
           </p>
         )}
 
         {/* Quem recebeu (só entrega) */}
         {!isConfer && (
           <label style={{ display: "block" }}>
-            <span style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#57534e" }}>
-              Quem recebeu <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "#78716c" }}>(opcional — fica para as próximas)</span>
+            <span style={{ fontSize: FS.body, fontWeight: FW.forte, color: T.strong }}>
+              Quem recebeu <span style={{ fontWeight: FW.corpo, color: T.second }}>(opcional — fica para as próximas)</span>
             </span>
             {/* 16px: com 15 o iOS dava zoom na página inteira ao tocar. */}
             <input value={receivedBy} onChange={(e) => setReceivedBy(e.target.value)} data-testid="galpao-recebido-por"
               placeholder="Nome de quem assinou"
               autoComplete="off" autoCapitalize="words" enterKeyHint="done"
-              style={{ width: "100%", marginTop: 6, height: 48, borderRadius: 10, border: "1px solid #d6d3d1", padding: "0 12px", fontSize: 16, fontFamily: "inherit", color: "#1c1917", backgroundColor: "#ffffff", boxSizing: "border-box" }} />
+              style={{ width: "100%", marginTop: 6, height: 48, borderRadius: R.md, border: `1px solid ${T.bdark}`, padding: "0 12px", fontSize: FS.lead, fontFamily: "inherit", color: T.text, backgroundColor: T.surface, boxSizing: "border-box" }} />
           </label>
         )}
         {!isConfer && (
@@ -352,13 +358,13 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
         {/* A foto — o primeiro dos dois toques */}
         {foto ? (
           <div style={{ position: "relative", alignSelf: "flex-start" }}>
-            <img loading="lazy" decoding="async" src={miniatura(foto)} alt="Foto registrada" style={{ height: 96, borderRadius: 10, border: `2px solid ${tinta}` }} />
+            <img loading="lazy" decoding="async" src={miniatura(foto)} alt="Foto registrada" style={{ height: 96, borderRadius: R.lg, border: `2px solid ${tinta}` }} />
             {/* Alvo de 44px (área invisível) em volta do X visível de 32 — o
                 botão colado na miniatura era menor que a ponta do dedo. */}
             <button type="button" aria-label="Tirar outra foto" data-testid="galpao-refazer-foto"
               onClick={() => setFoto(null)}
               style={{ position: "absolute", top: -14, right: -14, width: 44, height: 44, borderRadius: "50%", border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
-              <span style={{ width: 32, height: 32, borderRadius: "50%", backgroundColor: "#1c1917", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ width: 32, height: 32, borderRadius: "50%", backgroundColor: T.dark, color: T.surface, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <X style={{ width: 14, height: 14 }} />
               </span>
             </button>
@@ -371,9 +377,9 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
               <ObjectUploader capture maxFileSize={10485760} buttonVariant="ghost" buttonClassName="w-full h-full min-h-[88px] p-0 border-0 hover:bg-transparent"
                 onComplete={(r) => { setFoto(r.url); setErro(null); }}
                 onError={(e) => setErro(e.message)}>
-                <div data-testid="galpao-camera" style={{ width: "100%", padding: "22px 0", backgroundColor: tinta, borderRadius: 12, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                  <Camera aria-hidden="true" style={{ width: 28, height: 28, color: "#ffffff" }} />
-                  <span style={{ fontSize: 16, fontWeight: 800, color: "#ffffff" }}>Tirar foto</span>
+                <div data-testid="galpao-camera" style={{ width: "100%", padding: "22px 0", backgroundColor: tinta, borderRadius: R.lg, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                  <Camera aria-hidden="true" style={{ width: 28, height: 28, color: T.surface }} />
+                  <span style={{ fontSize: FS.lead, fontWeight: FW.rotulo, color: T.surface }}>Tirar foto</span>
                 </div>
               </ObjectUploader>
             </div>
@@ -381,9 +387,9 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
               <ObjectUploader maxFileSize={10485760} buttonVariant="ghost" buttonClassName="w-full h-full min-h-[88px] p-0 border-0 hover:bg-transparent"
                 onComplete={(r) => { setFoto(r.url); setErro(null); }}
                 onError={(e) => setErro(e.message)}>
-                <div style={{ width: "100%", padding: "22px 0", backgroundColor: "#f4f3f0", borderRadius: 12, border: "2px dashed #d6d3d1", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                  <ImagePlus aria-hidden="true" style={{ width: 22, height: 22, color: "#57534e" }} />
-                  <span style={{ fontSize: 14, fontWeight: 700, color: "#44403c" }}>Galeria</span>
+                <div style={{ width: "100%", padding: "22px 0", backgroundColor: N.n2, borderRadius: R.lg, border: `2px dashed ${T.bdark}`, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                  <ImagePlus aria-hidden="true" style={{ width: 22, height: 22, color: T.apoio }} />
+                  <span style={{ fontSize: FS.read, fontWeight: FW.forte, color: T.strong }}>Galeria</span>
                 </div>
               </ObjectUploader>
             </div>
@@ -393,7 +399,7 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
             Confirmar cinza, que no celular ninguém lê. Enquanto a foto sobe, o
             próprio botão da câmera mostra "Enviando…" com o percentual. */}
         {!foto && (
-          <p style={{ margin: "-4px 0 0", fontSize: 13, color: "#57534e", lineHeight: 1.4 }}>
+          <p style={{ margin: "-4px 0 0", fontSize: FS.body, color: T.apoio, lineHeight: 1.4 }}>
             {isConfer
               ? "Foto obrigatória: é o registro de que a peça foi conferida."
               : "Foto obrigatória: é o comprovante de que o material foi entregue."}
@@ -401,11 +407,11 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
         )}
 
         {erro && (
-          <p data-testid="galpao-erro" role="alert" style={{ margin: 0, padding: "10px 12px", fontSize: 14, fontWeight: 600, color: "#b91c1c", backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10 }}>
+          <p data-testid="galpao-erro" role="alert" style={{ margin: 0, padding: "10px 12px", fontSize: FS.read, fontWeight: FW.medio, color: TOM.perigo.text, backgroundColor: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}`, borderRadius: R.lg }}>
             {erro}
             {/* O Confirmar continua habilitado com a foto: tocar nele de novo
                 É o "tentar de novo". A frase diz isso em vez de deixar a dúvida. */}
-            {foto && !jaRegistradaPorOutro && <span style={{ display: "block", marginTop: 2, fontWeight: 500, color: "#7f1d1d" }}>A foto continua anexada — toque no botão abaixo para tentar de novo.</span>}
+            {foto && !jaRegistradaPorOutro && <span style={{ display: "block", marginTop: 2, fontWeight: FW.corpo, color: TOM.perigo.text }}>A foto continua anexada — toque no botão abaixo para tentar de novo.</span>}
           </p>
         )}
       </div>
@@ -413,30 +419,33 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
       {/* ── rodapé: o segundo toque ── */}
       {/* Zona do polegar: Pular e Confirmar embaixo, com o recorte seguro do
           home indicator e dos lados (paisagem) nos LONGOS. */}
-      <div style={{ flexShrink: 0, paddingTop: 10, paddingBottom: "calc(12px + env(safe-area-inset-bottom))", paddingLeft: "calc(14px + env(safe-area-inset-left))", paddingRight: "calc(14px + env(safe-area-inset-right))", borderTop: "1px solid #e7e5e4", backgroundColor: "#ffffff", display: "flex", gap: 12 }}>
-        <button type="button" onClick={pular} data-testid="galpao-pular"
+      <div style={{ flexShrink: 0, paddingTop: 10, paddingBottom: "calc(12px + env(safe-area-inset-bottom))", paddingLeft: "calc(14px + env(safe-area-inset-left))", paddingRight: "calc(14px + env(safe-area-inset-right))", borderTop: `1px solid ${T.border}`, backgroundColor: T.surface, display: "flex", gap: 12 }}>
+        <Botao variante="secundario" tamanho="toque" onClick={pular} data-testid="galpao-pular"
           title="Deixar para depois — a peça continua na lista"
-          style={{ height: 56, padding: "0 16px", borderRadius: 12, border: "1px solid #d6d3d1", backgroundColor: "#ffffff", color: "#44403c", fontSize: 15, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
+          style={{ height: 56, padding: "0 16px", borderRadius: R.lg, border: `1px solid ${T.bdark}`, color: T.strong, gap: 6 }}>
           Pular <ChevronRight aria-hidden="true" style={{ width: 16, height: 16 }} />
-        </button>
-        <button type="button" onClick={confirmar} disabled={!foto || enviando} data-testid="galpao-confirmar"
-          aria-busy={enviando || undefined}
+        </Botao>
+        {/* A cor do modo (ciano conferir, verde entregar) fica: é o que diz de
+            relance em qual fila a pessoa está. */}
+        <Botao variante="primario" tamanho="toque" onClick={confirmar} disabled={!foto || enviando} carregando={enviando} data-testid="galpao-confirmar"
           title={!foto ? "A foto é obrigatória — é o registro da conferência/entrega." : undefined}
           style={{
-            flex: 1, height: 56, borderRadius: 12, border: "none",
-            backgroundColor: !foto || enviando || jaRegistradaPorOutro ? "#e7e5e4" : tinta,
-            color: !foto || enviando || jaRegistradaPorOutro ? "#57534e" : "#ffffff",
-            fontSize: 16, fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif",
-            letterSpacing: "-0.01em", cursor: !foto || enviando || jaRegistradaPorOutro ? "not-allowed" : "pointer",
-            display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+            flex: 1, height: 56, borderRadius: R.lg,
+            backgroundColor: confirmarPronto ? tinta : T.border,
+            border: `1px solid ${confirmarPronto ? tinta : T.border}`,
+            color: confirmarPronto ? T.surface : T.apoio,
+            // Cinza já diz "não dá"; a opacidade de desabilitado do Botao
+            // deixaria "Falta a foto" ilegível.
+            opacity: 1,
+            fontSize: FS.lead, fontWeight: FW.rotulo, fontFamily: FONT.display,
+            letterSpacing: "-0.01em", gap: 8,
           }}>
-          {enviando && <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 18, height: 18 }} />}
           {enviando ? "Registrando…"
             : jaRegistradaPorOutro ? "Já registrada"
             : !foto ? "Falta a foto"
             : isConfer ? `Conferir ${qty} un.`
             : `Entregar ${saldoAEntregar(vivo ?? item)} un.`}
-        </button>
+        </Botao>
       </div>
     </div>
   );

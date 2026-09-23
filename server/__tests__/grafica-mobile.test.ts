@@ -96,7 +96,8 @@ describe("as armadilhas de viewport", () => {
   });
 
   it("o X de cancelar o lote vira dedo no celular", () => {
-    expect(G).toContain("width: isMobile ? 44 : 36, height: isMobile ? 44 : 36");
+    // 44 no celular; no tablet com o dedo, o alvo sobe pelo ponteiro (usePonteiroGrosso).
+    expect(G).toContain("width: isMobile ? 44 : alvoDeToque(36, ponteiroGrosso), height: isMobile ? 44 : alvoDeToque(36, ponteiroGrosso)");
   });
 
   it("modalSurface usa dvh com fallback, e nunca passa da largura da tela", () => {
@@ -126,6 +127,7 @@ describe("o que o pedido mandou preservar", () => {
   });
 
   it("os cards mobile continuam com alvos de 44", () => {
-    expect(G).toContain("width: '100%', minHeight: 44");
+    // "Mostrar todas" do cartão: <Botao tamanho="toque" larguraCheia> (44px, largura cheia).
+    expect(G).toMatch(/<Botao\s+tamanho="toque"\s+larguraCheia\s+onClick=\{\(\) => expandirGrupo\(corte\.chave\)\}/);
   });
 });

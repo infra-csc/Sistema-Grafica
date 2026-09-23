@@ -80,7 +80,7 @@ for (const largura of [1280, 390]) {
   describe(`aba Tubos (${largura === 390 ? "390px" : "desktop"})`, () => {
     it("segmentos com contagem; ABERTOS pela saída do caminhão; o resumo fala do que ainda vai sair", async () => {
       await montar(largura);
-      expect($$('[data-testid="tubos-segmentos"] [role="tab"]').map((t) => t.textContent)).toEqual(["Abertos (2)", "Embaladas sozinhas (1)", "Entregues (1)"]);
+      expect($$('[data-testid="tubos-segmentos"] [role="tab"]').map((t) => t.textContent)).toEqual(["Abertos2", "Embaladas sozinhas1", "Entregues1"]); // <Abas>: rótulo + contador (sem parênteses)
       expect($('[data-testid="tubos-seg-abertos"]')!.getAttribute("aria-selected")).toBe("true");
       // o caminhão que sai amanhã vem antes do que sai em 9 dias
       expect($$('[data-testid^="cartao-tubo-"]').map((c) => c.getAttribute("data-testid"))).toEqual(["cartao-tubo-t2", "cartao-tubo-t1"]);
@@ -117,7 +117,7 @@ for (const largura of [1280, 390]) {
       expect(s.textContent).toContain("Embalagem de #0020");
       expect(s.textContent).not.toMatch(/Tubo -?\d/);
       expect($('[data-testid="aba-etiqueta-av"]')).toBeNull();
-      expect($('[data-testid="aba-entregar-av"]')!.textContent).toBe(" Entregar");
+      expect($('[data-testid="aba-entregar-av"]')!.textContent).toBe("Entregar");
       expect(new URLSearchParams(window.location.search).get("seg")).toBe("sozinhas");
       await act(async () => { fireEvent.click($('[data-testid="tubos-seg-entregues"]')!); });
       const e = $('[data-testid="cartao-tubo-t9"]')!;
@@ -149,10 +149,10 @@ for (const largura of [1280, 390]) {
 
     it("setas trocam de segmento (roving tabindex)", async () => {
       await montar(largura);
-      await act(async () => { fireEvent.keyDown($('[data-testid="tubos-segmentos"]')!, { key: "ArrowRight" }); });
+      await act(async () => { fireEvent.keyDown($('[data-testid="tubos-segmentos"] [role="tablist"]')!, { key: "ArrowRight" }); });
       expect($('[data-testid="tubos-seg-sozinhas"]')!.getAttribute("aria-selected")).toBe("true");
       expect($('[data-testid="tubos-seg-abertos"]')!.getAttribute("tabindex")).toBe("-1");
-      await act(async () => { fireEvent.keyDown($('[data-testid="tubos-segmentos"]')!, { key: "ArrowLeft" }); });
+      await act(async () => { fireEvent.keyDown($('[data-testid="tubos-segmentos"] [role="tablist"]')!, { key: "ArrowLeft" }); });
       expect($('[data-testid="tubos-seg-abertos"]')!.getAttribute("aria-selected")).toBe("true");
     }, 30_000);
 
@@ -211,13 +211,17 @@ describe("na Gráfica e no servidor (fonte)", () => {
   const GRAFICA = ler("client/src/pages/grafica.tsx");
 
   it("Fila | Tubos em tablist, com `?aba=tubos`; cada aba monta SÓ o próprio painel", () => {
-    expect(GRAFICA).toContain('<div role="tablist" aria-label="Seções da Gráfica" data-testid="abas-grafica"');
+    // O <Abas> do design system: tablist, setas, roving tabindex e alvo de 44px
+    // moram no componente (ui/abas.tsx); a tela só declara as abas.
+    expect(GRAFICA).toContain('<div data-testid="abas-grafica">');
+    expect(GRAFICA).toContain('rotuloDaLista="Seções da Gráfica"');
+    expect(GRAFICA).toContain('prefixoDeTestId="aba-grafica"');
     expect(GRAFICA).toContain('if (aba === "fila") u.searchParams.delete("aba"); else u.searchParams.set("aba", aba);');
     expect(GRAFICA).toContain('{abaDaTela === "tubos" && (\n        <AbaTubos');
-    expect(GRAFICA).toContain('{abaDaTela === "fila" && (\n      <div id="painel-fila" role="tabpanel" aria-labelledby="aba-grafica-fila" style={{ display: "contents" }}>');
-    expect(GRAFICA).toContain("tabIndex={ativa ? 0 : -1}");
-    // celular: trilho com rolagem, alvos de 44 e folga entre eles
-    expect(GRAFICA).toContain('gap: isMobile ? 8 : 0, overflowX: "auto"');
+    expect(GRAFICA).toContain('{abaDaTela === "fila" && (\n      <div id="painel-fila" role="tabpanel" aria-label="Fila" style={{ display: "contents" }}>');
+    const ABAS = ler("client/src/components/ui/abas.tsx");
+    expect(ABAS).toContain("tabIndex={sel ? 0 : -1}");
+    expect(ABAS).toContain("minHeight: H.toque");
   });
 
   it("não é página nem item de menu", () => {

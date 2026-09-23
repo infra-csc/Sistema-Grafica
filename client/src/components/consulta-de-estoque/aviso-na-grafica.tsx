@@ -15,6 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Boxes } from "lucide-react";
 import { SOLICITACAO_AO_ESTOQUE_ATIVA } from "@shared/consultas-de-estoque";
+import { TOM, FS, FW, R } from "@/lib/theme";
 
 type AbertaPorPeca = { id: string; itemId: string; quantidadePedida: number; pedidoPor: string | null };
 
@@ -43,9 +44,9 @@ export function AvisoDoEstoqueNaPeca({ peca, style }: {
       aria-label={frase}
       style={{
         display: "inline-flex", alignItems: "center", gap: 4, width: "fit-content", textDecoration: "none",
-        fontSize: 11, fontWeight: 800, lineHeight: 1.3, padding: "2px 8px", borderRadius: 999,
-        /* #92400e sobre #fef3c7 = 6,4:1 */
-        color: "#92400e", backgroundColor: "#fef3c7", border: "1px solid #fcd34d", whiteSpace: "nowrap",
+        fontSize: FS.small, fontWeight: FW.forte, lineHeight: 1.3, padding: "2px 8px", borderRadius: R.pill,
+        // Tom de alerta do design system: o `text` já é AA sobre o próprio `bg`.
+        color: TOM.alerta.text, backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, whiteSpace: "nowrap",
         ...style,
       }}
     >

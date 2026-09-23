@@ -15,9 +15,14 @@
 import { describe, it, expect } from "vitest";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
+import { lerTelaOuArquivo } from "./fonte-das-telas-da-arte";
 import { ehBookCompleto } from "../../shared/fluxo-peca";
 
-const ler = (rel: string) => readFileSync(new URL(rel, import.meta.url), "utf8");
+// Arte, Revisão e Vinculação são lidas como a área inteira (página + pasta).
+const ler = (rel: string) => {
+  const daRaiz = rel.replace(/^\.\.\/\.\.\//, "");
+  return daRaiz !== rel ? lerTelaOuArquivo(daRaiz) : readFileSync(new URL(rel, import.meta.url), "utf8");
+};
 
 describe("o predicado", () => {
   it("casa o tipo com e sem espaço, em qualquer caixa — e nada além", () => {

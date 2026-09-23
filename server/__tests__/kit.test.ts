@@ -6,6 +6,7 @@ import { describe, it, expect } from "vitest";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
+import { lerTelaOuArquivo } from "./fonte-das-telas-da-arte";
 import {
   pecaVisivelPara,
   remessaUtilizavelPor,
@@ -16,7 +17,8 @@ import {
 } from "@shared/kit";
 
 const RAIZ = path.resolve(__dirname, "../..");
-const ler = (rel: string) => readFileSync(path.resolve(RAIZ, rel), "utf8");
+// Arte, Revisão e Vinculação são lidas como a área inteira (página + pasta).
+const ler = (rel: string) => lerTelaOuArquivo(rel);
 const SCHEMA = ler("shared/schema.ts");
 const ITEMS = fonteDasRotasDeItens();
 const EVENTS = ler("server/routes/events.ts");

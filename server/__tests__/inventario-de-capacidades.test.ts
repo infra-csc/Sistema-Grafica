@@ -40,8 +40,10 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
+import { lerTelaOuArquivo } from "./fonte-das-telas-da-arte";
 
-const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
+// Arte, Revisão e Vinculação são lidas como a área inteira (página + pasta).
+const ler = (rel: string) => lerTelaOuArquivo(rel);
 
 /**
  * Os testids que um arquivo declara — literais e prefixos de template.

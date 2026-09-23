@@ -15,6 +15,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { resolve } from "path";
+import { lerTelaOuArquivo } from "./fonte-das-telas-da-arte";
 import {
   EMPTY_ARTE_FILTERS,
   serializeArteFilters,
@@ -27,8 +28,8 @@ import {
 // LEITURA é o que permite escrever as âncoras multi-linha deste arquivo com
 // "\n" — senão cada asserção passaria a depender do fim de linha do checkout,
 // que é a última coisa que estas regras querem travar.
-const ler = (p: string) =>
-  readFileSync(resolve(process.cwd(), p), "utf8").replace(/\r\n/g, "\n");
+// Arte, Revisão e Vinculação são lidas como a área inteira (página + pasta).
+const ler = (p: string) => lerTelaOuArquivo(p).replace(/\r\n/g, "\n");
 
 const ARTE = ler("client/src/pages/arte.tsx");
 const GRAFICA = ler("client/src/pages/grafica.tsx");

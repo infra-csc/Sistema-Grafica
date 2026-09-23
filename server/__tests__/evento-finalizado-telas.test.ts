@@ -35,10 +35,12 @@ import { describe, it, expect } from "vitest";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import { resolve } from "path";
+import { lerTelaOuArquivo } from "./fonte-das-telas-da-arte";
 import { seloPecaEventoFinalizado, motivoAcaoBloqueada } from "@/lib/status";
 import { EVENT_CLOSED_STATUS } from "@shared/prazo-dates";
 
-const ler = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
+// Arte, Revisão e Vinculação são lidas como a área inteira (página + pasta).
+const ler = (p: string) => lerTelaOuArquivo(p);
 
 const GRAFICA = ler("client/src/pages/grafica.tsx");
 const REVISAO = ler("client/src/pages/solicitacao.tsx");

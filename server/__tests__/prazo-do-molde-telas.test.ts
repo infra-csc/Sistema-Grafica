@@ -13,11 +13,13 @@ import * as React from "react";
 import { render, cleanup } from "@testing-library/react";
 import { readFileSync } from "fs";
 import path from "path";
+import { lerTelaOuArquivo } from "./fonte-das-telas-da-arte";
 
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: () => {} }), toast: () => {} }));
 
 const h = React.createElement;
-const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
+// Arte, Revisão e Vinculação são lidas como a área inteira (página + pasta).
+const ler = (rel: string) => lerTelaOuArquivo(rel);
 afterEach(() => cleanup());
 
 const HOJE = new Date(2026, 9, 1);

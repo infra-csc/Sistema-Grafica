@@ -40,6 +40,7 @@ import { describe, it, expect, beforeAll, beforeEach, vi } from "vitest";
 import * as React from "react";
 import { render, act, cleanup } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { lerTelaOuArquivo } from "./fonte-das-telas-da-arte";
 
 const h = React.createElement;
 
@@ -346,9 +347,8 @@ describe("os descontos fixos de altura não voltam", () => {
       .join("\n");
 
   it.each(CONVERTIDOS)("%s não recuperou o desconto fixo", async (arquivo, proibidos) => {
-    const { readFileSync } = await import("node:fs");
-    const { resolve } = await import("node:path");
-    const fonte = semComentarios(readFileSync(resolve(process.cwd(), arquivo), "utf8"));
+    // Arte, Revisão e Vinculação são lidas como a área inteira (página + pasta).
+    const fonte = semComentarios(lerTelaOuArquivo(arquivo));
     for (const p of proibidos) {
       expect(
         fonte.includes(p),

@@ -195,6 +195,46 @@ impressora" contra duas requisições simultâneas.
 
 ---
 
+## Excluir evento ou patrocinador = arquivar
+
+O botão "Excluir" das telas continua chamando `DELETE /api/events/:id` e
+`DELETE /api/sponsors/:id` — mas nenhuma das duas apaga a linha. Elas gravam
+`arquivado_em`/`arquivado_por`, e `POST …/:id/restaurar` (admin) desfaz.
+
+**Por quê.** As FKs de `items`, `item_sponsor_approvals`, `registros_de_impressao`,
+`tubo_itens`, `consultas_de_estoque`, `event_sponsors`… são `ON DELETE CASCADE`.
+Apagar um evento levava junto, sem volta, as peças, as aprovações, o diário das
+impressoras e os volumes; `inventory_assets.original_item_id` ficava órfão; e as
+abas abertas seguiam mostrando peças-fantasma. Apagar um patrocinador levava o
+histórico de aprovações dele.
+
+**O que o arquivado faz** (a regra mora em `server/services/arquivamento.ts`):
+
+* **Evento** some de toda listagem e contagem — o filtro está no `storage`
+  (`getAllEvents` e as leituras de peças, via `doEventoNaoArquivado`) e nas
+  consultas cruas (busca, busca de arte, Máquinas, tubos, estoque, pedidos de
+  peça, consultas de estoque, Kit, notificações, consistência). Não aceita
+  escrita: a guarda de evento finalizado (`routes/eventoFinalizado.ts`) ganhou o
+  motivo `"arquivado"`, que barra até o que "arruma a casa", e as rotas do
+  próprio evento usam `barraSeArquivado` — 409 "Evento arquivado — restaure
+  antes de mexer.". `getEvent(id)` continua enxergando o arquivado: é por ele
+  que as guardas e a restauração leem.
+* **Patrocinador** sai das listas de ESCOLHA (`GET /api/sponsors`, elenco do
+  evento, vinculação automática, importação), mas `getAllSponsors` continua
+  sendo o dicionário completo: o nome dele segue nas peças e aprovações antigas.
+  Vínculo novo com arquivado é recusado; o vínculo antigo fica.
+* **Restaurar evento** grava `restaurado_em`: as peças não mudaram, então o
+  delta de `/api/items?since=` (que olha `updated_at` da peça) não as traria de
+  volta às abas abertas — é por essa marca que ele as reenvia.
+
+**Remoção física virou manutenção.** Se um dia for preciso apagar de verdade
+(LGPD, lixo de teste), é um script de manutenção rodado à mão, com backup e
+conferência — nunca um caminho do app. As FKs em cascata continuam no banco
+(mudá-las não é migração aditiva); o que mudou é que o código não tem mais
+`deleteEvent` nem `deleteSponsor`.
+
+---
+
 ## Uploads
 
 O arquivo é servido pela **mesma origem do app** (`/objects/*`). Um HTML ou SVG

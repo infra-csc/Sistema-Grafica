@@ -11,7 +11,10 @@ import { describe, it, expect } from "vitest";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 
-const PAGINA = readFileSync(new URL("../../client/src/pages/etiquetas-evento.tsx", import.meta.url), "utf8");
+// A página + a etiqueta individual, que saiu dela para um componente próprio
+// (as regras da meia folha valem onde quer que o trecho more).
+const PAGINA = readFileSync(new URL("../../client/src/pages/etiquetas-evento.tsx", import.meta.url), "utf8")
+  + "\n" + readFileSync(new URL("../../client/src/components/etiqueta-da-peca.tsx", import.meta.url), "utf8");
 const APP = readFileSync(new URL("../../client/src/App.tsx", import.meta.url), "utf8");
 const DETALHE = readFileSync(new URL("../../client/src/pages/event-detail.tsx", import.meta.url), "utf8");
 

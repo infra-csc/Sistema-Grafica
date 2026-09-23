@@ -43,7 +43,7 @@ describe("os dois toques", () => {
 
 describe("a fila não engana", () => {
   it("é a foto do momento de abertura — confirmar não remove peça sob o dedo", () => {
-    expect(FILA).toContain("const filaRef = useRef<any[]>(itens);");
+    expect(FILA).toContain("const filaRef = useRef<PecaDaFila[]>(itens);");
   });
 
   it("cada peça nova zera foto e erro; o nome de quem recebe ATRAVESSA as peças", () => {
@@ -56,7 +56,7 @@ describe("a fila não engana", () => {
 
   it("o erro fica na tela, colado no botão — não em toast", () => {
     expect(FILA).toContain('data-testid="galpao-erro" role="alert"');
-    expect(FILA).toContain('setErro(e?.message ??');
+    expect(FILA).toContain("setErro((e as { message?: string } | null | undefined)?.message ??");
   });
 
   it("a ordem é a da lista da Gráfica — nenhuma segunda ordenação", () => {

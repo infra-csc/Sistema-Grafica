@@ -9,6 +9,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { txDeMentira } from "./tx-de-mentira";
+import { fonteDaTelaDeMaquinas } from "./fonte-da-tela-de-maquinas";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 
@@ -219,7 +220,7 @@ describe("as telas leem pecaTravada (fonte)", () => {
     expect(ler("client/src/lib/grafica-filtros.ts")).toContain('{ chave: "travadas",    url: "travadas",   rotulo: "Só travadas" },');
   });
   it("Máquinas: o mesmo selo e sem Iniciar/Imprimir agora/Reservar; ficha e Detalhe do evento mostram", () => {
-    const M = ler("client/src/pages/grafica-maquinas.tsx");
+    const M = fonteDaTelaDeMaquinas();
     expect(M).toContain("if (pecaTravada(p)) {");
     // Só o próprio helper chama o selo de evento finalizado; todas as linhas passam pelo helper.
     expect(M.split("seloPecaEventoFinalizado(p.eventoInfo, hojeMs)").length - 1).toBe(1);

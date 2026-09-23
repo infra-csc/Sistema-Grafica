@@ -20,6 +20,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
+import { fonteDaTelaDeMaquinas } from "./fonte-da-tela-de-maquinas";
 import * as React from "react";
 import { readFileSync } from "fs";
 import { resolve } from "path";
@@ -126,7 +127,7 @@ describe("1 · tempo real: toda mensagem de peça invalida as DUAS telas", () =>
   it("as mutações das duas telas usam a MESMA invalidação (fila + acervo + Máquinas + resumo)", () => {
     expect(CHAVES_DA_MUTACAO).toEqual(["/api/items/approved", "/api/items", "/api/grafica/maquinas", "/api/grafica/maquinas/relatorio"]);
     const GRAFICA = ler("client/src/pages/grafica.tsx");
-    const MAQUINAS = ler("client/src/pages/grafica-maquinas.tsx");
+    const MAQUINAS = fonteDaTelaDeMaquinas();
     const MODAL = ler("client/src/components/grafica/modal-impressao.tsx");
     const TUBOS = ler("client/src/components/tubos-dialog.tsx");
     // Nenhuma invalidação solta da fila (que esqueceria Máquinas).

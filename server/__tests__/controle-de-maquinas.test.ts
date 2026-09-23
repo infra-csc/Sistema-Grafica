@@ -16,6 +16,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi } from "vitest";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
+import { arquivosDaTelaDeMaquinas, fonteDaTelaDeMaquinas } from "./fonte-da-tela-de-maquinas";
 import { readFileSync, existsSync } from "fs";
 import path from "path";
 
@@ -120,7 +121,8 @@ describe("4 · a leitura", () => {
 
 describe("5 · a tela", () => {
   const PAGINA_REL = "client/src/pages/grafica-maquinas.tsx";
-  const PAGINA = ler(PAGINA_REL);
+  // A página + os blocos em components/grafica/maquinas/ (fonte-da-tela-de-maquinas.ts).
+  const PAGINA = fonteDaTelaDeMaquinas();
 
   it("existe e está no app, com os papéis da Gráfica", () => {
     expect(existsSync(path.resolve(RAIZ, PAGINA_REL))).toBe(true);
@@ -210,7 +212,11 @@ describe("5 · a tela", () => {
     expect(PAGINA).toContain("aria-pressed={ativo}");
     expect(PAGINA).toContain('aria-label="Escolher o dia"');
     expect(PAGINA).toContain("const LinhaDoDiario = memo(function LinhaDoDiario(");
-    expect(PAGINA).toContain('import { T, TOM, FS, FW, FONT, R } from "@/lib/theme";');
+    // Cores e medidas por token: todo arquivo da tela que usa `T.` o importa de lib/theme.
+    for (const rel of arquivosDaTelaDeMaquinas()) {
+      const fonte = ler(rel);
+      if (/\bT\.\w/.test(fonte)) expect(fonte, rel).toMatch(/import \{[^}]*\bT\b[^}]*\} from "@\/lib\/theme";/);
+    }
     // Migração ao design system: só o vinho da trava (sem token) sobra como hex de cor.
     expect((PAGINA.replace(/\/\/.*$|\/\*[\s\S]*?\*\//gm, "").match(/"#[0-9a-fA-F]{3,6}"/g) ?? [])).toEqual(['"#7f1d1d"']);
     // Cores proibidas como texto (régua da casa) e o cinza aposentado.
@@ -539,7 +545,7 @@ describe("9 · peça dividida — os cantos que a revisão achou", async () => {
   it("[2] parte esgotada não é 'imprimindo'; lançamento com delta 0 que não conclui → 409", () => {
     expect(ler("server/routes/maquinas.ts")).toContain("imprimeNaMaquina({ status: l.status, printMachine: l.print_machine, impressaoPorMaquina: l.impressao_por_maquina }, codigo)");
     expect(DIVIDIDA).toContain("if (quantityProduced === jaProduzido && !fecha) return erro(409, `Nada mudou: já constam ${jaProduzido} un. impressas.`);");
-    expect(ler("client/src/pages/grafica-maquinas.tsx")).toContain("{podeAgir && !parteEsgotada && (");
+    expect(fonteDaTelaDeMaquinas()).toContain("{podeAgir && !parteEsgotada && (");
   });
 
   it("[3] editar quantidade, reaproveitar e corrigir reaproveitamento reescalam (ou apagam) a divisão", () => {
@@ -876,7 +882,7 @@ describe("14 · revisão adversarial: impressora nunca trava, corrida, limbo e r
     expect(bloco).not.toContain("motivoEventoDaPeca(sai)");
     expect(bloco).toContain("if (await motivoEventoDaPeca(entra)) throw falha(409,");
     // Na tela, o "Tirar da impressora" não é desabilitado pelo selo de evento finalizado.
-    const PAGINA = ler("client/src/pages/grafica-maquinas.tsx");
+    const PAGINA = ler("client/src/components/grafica/maquinas/cartao-da-impressora.tsx");
     const botao = PAGINA.slice(PAGINA.indexOf("{podeAgir && onTirar && !parteEsgotada && ("), PAGINA.indexOf("Tirar da impressora\n"));
     expect(semComentario(botao)).not.toContain("selo");
     expect(botao).toContain("disabled={mexendo}");
@@ -955,7 +961,9 @@ describe("14 · revisão adversarial: impressora nunca trava, corrida, limbo e r
   it("[7][8][9] duplo disparo travado por ref + isPending; statusChangedAt da pausa é de propósito; o modal recebe as ocupadas", () => {
     const PAGINA = ler("client/src/pages/grafica-maquinas.tsx");
     expect(PAGINA).toContain("if (travaDaImpressoraRef.current || mexerNaImpressora.isPending) return;");
-    expect(PAGINA).toContain("mexendo={mexerNaImpressora.isPending} onTirar={(peca) => mexer({");
+    // O cartão recebe o "em voo" da página e o repassa ao "Tirar da impressora".
+    expect(PAGINA).toMatch(/<CartaoDaImpressora key=\{m\.codigo\}[^\n]* mexendo=\{mexerNaImpressora\.isPending\}/);
+    expect(ler("client/src/components/grafica/maquinas/cartao-da-impressora.tsx")).toContain("mexendo={mexendo} onTirar={(peca) => mexer({");
     expect(PAGINA).toContain("ocupado={reserva.isPending || mexerNaImpressora.isPending}");
     expect(PAGINA).toContain("ocupadas={ocupadasParaOModal}");
     expect(ROTA).toContain("De propósito: voltar a \"liberada\" é mudança REAL de etapa");
@@ -978,7 +986,7 @@ describe("13 · a descrição da peça no retrato, no diário e no Excel (dono, 
 
 describe("modal abre na etapa certa mesmo com servidor antigo (21/09)", () => {
   it("peça da lista 'em impressão' é tratada como inProduction e herda a máquina do cartão", () => {
-    const tela = readFileSync(new URL("../../client/src/pages/grafica-maquinas.tsx", import.meta.url), "utf8");
+    const tela = fonteDaTelaDeMaquinas();
     expect(tela).toContain('status: p.status ?? "inProduction"');
     expect(tela).toContain("p={p.maquina ? p : { ...p, maquina: m.codigo }}");
   });

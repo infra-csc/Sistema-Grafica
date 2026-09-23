@@ -24,14 +24,14 @@ import { StatusBadge } from "@/components/status-badge";
 import { statusDeExibicao } from "@shared/molde";
 import { DetalheProducao } from "@/components/detalhe-producao";
 import { miniatura } from "@/lib/miniatura";
-import { T, FS, R } from "@/lib/theme";
+import { T, FS, R, N, TOM, FONT } from "@/lib/theme";
 
 export const TOM_DO_PEDIDO: Record<StatusDaSolicitacao, { cor: string; fundo: string; borda: string }> = {
-  aberto:    { cor: "#92400e", fundo: "#fffbeb", borda: "#fde68a" },
-  parcial:   { cor: "#075985", fundo: "#f0f9ff", borda: "#bae6fd" },
-  atendido:  { cor: "#065f46", fundo: "#ecfdf5", borda: "#a7f3d0" },
-  recusado:  { cor: "#991b1b", fundo: "#fef2f2", borda: "#fecaca" },
-  cancelado: { cor: "#57534e", fundo: "#f5f5f4", borda: "#e7e5e4" },
+  aberto:    { cor: TOM.alerta.text, fundo: TOM.alerta.bg, borda: TOM.alerta.border },
+  parcial:   { cor: TOM.ceu.text, fundo: TOM.ceu.bg, borda: TOM.ceu.border },
+  atendido:  { cor: TOM.esmeralda.text, fundo: TOM.esmeralda.bg, borda: TOM.esmeralda.border },
+  recusado:  { cor: TOM.perigo.text, fundo: TOM.perigo.bg, borda: TOM.perigo.border },
+  cancelado: { cor: T.apoio, fundo: N.n2, borda: T.border },
 };
 
 export const invalidarPedidos = () =>
@@ -86,8 +86,8 @@ export function QuemAgeNaLinha({ linha }: { linha: LinhaDoPedido }) {
       : null;
   if (!texto) return null;
   return (
-    <p data-testid={`quem-age-linha-${linha.id}`} style={{ margin: 0, fontSize: FS.small, color: "#57534e", lineHeight: 1.45 }}>
-      <strong style={{ fontWeight: 700, color: "#44403c" }}>Esperando:</strong> {texto}
+    <p data-testid={`quem-age-linha-${linha.id}`} style={{ margin: 0, fontSize: FS.small, color: T.apoio, lineHeight: 1.45 }}>
+      <strong style={{ fontWeight: 700, color: T.strong }}>Esperando:</strong> {texto}
     </p>
   );
 }
@@ -113,7 +113,7 @@ export function ReferenciasDoPedido({ urls, tamanho = 44, onRemover, legenda = f
         {urls.map((url, i) => (
           <div key={`${url}-${i}`} style={{ position: "relative" }}>
             <a href={url} target="_blank" rel="noopener noreferrer" title="Referência do solicitante — não é arte final"
-              style={{ display: "block", width: tamanho, height: tamanho, borderRadius: R.md, overflow: "hidden", border: "1px solid #e7e5e4", background: "#f5f5f4" }}>
+              style={{ display: "block", width: tamanho, height: tamanho, borderRadius: R.md, overflow: "hidden", border: `1px solid ${T.border}`, background: N.n2 }}>
               <img src={miniatura(url)} alt={`Referência ${i + 1}`} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             </a>
             {onRemover && (
@@ -123,13 +123,13 @@ export function ReferenciasDoPedido({ urls, tamanho = 44, onRemover, legenda = f
               // escuro visível continua do mesmo tamanho.
               <button type="button" onClick={() => onRemover(i)} aria-label={`Remover referência ${i + 1}`}
                 style={{ position: "absolute", top: -14, right: -14, zIndex: 1, width: 36, height: 36, borderRadius: R.pill, border: "none", background: "transparent", padding: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span aria-hidden="true" style={{ width: 22, height: 22, borderRadius: R.pill, border: "2px solid #fff", background: "#1c1917", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, lineHeight: 1, boxSizing: "border-box" }}>×</span>
+                <span aria-hidden="true" style={{ width: 22, height: 22, borderRadius: R.pill, border: `2px solid ${T.surface}`, background: T.text, color: T.surface, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, lineHeight: 1, boxSizing: "border-box" }}>×</span>
               </button>
             )}
           </div>
         ))}
       </div>
-      {legenda && <span style={{ fontSize: FS.small, color: "#57534e" }}>Referência do solicitante — não é arte final</span>}
+      {legenda && <span style={{ fontSize: FS.small, color: T.apoio }}>Referência do solicitante — não é arte final</span>}
     </div>
   );
 }
@@ -138,14 +138,14 @@ export function ReferenciasDoPedido({ urls, tamanho = 44, onRemover, legenda = f
 export function IdadeDoPedido({ pedido, agora }: { pedido: { id: string; status: string; createdAt: string }; agora: Date }) {
   if (!pedidoEspera(pedido.status)) return null;
   const idade = idadeDoPedido(pedido.createdAt, agora);
-  const cor = idade.nivel === "parado" ? "#b91c1c" : idade.nivel === "atencao" ? "#b45309" : "#57534e";
+  const cor = idade.nivel === "parado" ? TOM.perigo.text : idade.nivel === "atencao" ? TOM.alerta.text : T.apoio;
   return (
     <span data-testid={`cell-idade-pedido-${pedido.id}`} title={`Entrou em ${quandoFoi(pedido.createdAt)}`}
       style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-end", lineHeight: 1.25, flexShrink: 0, textAlign: "right" }}>
       <span style={{ fontSize: FS.body, fontWeight: idade.nivel === "normal" ? 600 : 700, color: cor, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
         {idade.texto}
       </span>
-      {idade.nivel === "parado" && <span style={{ fontSize: FS.micro, fontWeight: 700, color: "#b91c1c", whiteSpace: "nowrap" }}>solicitação parada</span>}
+      {idade.nivel === "parado" && <span style={{ fontSize: FS.micro, fontWeight: 700, color: TOM.perigo.text, whiteSpace: "nowrap" }}>solicitação parada</span>}
     </span>
   );
 }
@@ -156,10 +156,10 @@ export function PrazoDaLinha({ linha, agora }: { linha: LinhaDoPedido; agora: Da
   const prazo = prazoDoPedido(linha.precisaAte, agora);
   if (!prazo) return null;
   const tom = prazo.nivel === "vencido"
-    ? { cor: "#991b1b", fundo: "#fef2f2", borda: "#fecaca" }
+    ? { cor: TOM.perigo.text, fundo: TOM.perigo.bg, borda: TOM.perigo.border }
     : prazo.nivel === "perto"
-      ? { cor: "#92400e", fundo: "#fffbeb", borda: "#fde68a" }
-      : { cor: "#44403c", fundo: "#f5f5f4", borda: "#e7e5e4" };
+      ? { cor: TOM.alerta.text, fundo: TOM.alerta.bg, borda: TOM.alerta.border }
+      : { cor: T.strong, fundo: N.n2, borda: T.border };
   return (
     <span data-testid={`prazo-linha-${linha.id}`}
       style={{ display: "inline-flex", alignItems: "center", fontSize: FS.small, fontWeight: 700, whiteSpace: "nowrap", borderRadius: R.pill, padding: "1px 8px", color: tom.cor, background: tom.fundo, border: `1px solid ${tom.borda}` }}>
@@ -174,7 +174,7 @@ export function SeloDoEventoChip({ selo, pedidoId }: { selo: SeloDoEvento | null
   return (
     <span data-testid={`selo-evento-${pedidoId}`} title={selo.explicacao}
       style={{ display: "inline-flex", alignItems: "center", fontSize: FS.small, fontWeight: 700, whiteSpace: "nowrap", borderRadius: R.pill, padding: "1px 8px",
-        color: caminhao ? "#92400e" : "#57534e", background: caminhao ? "#fffbeb" : "#f5f5f4", border: `1px solid ${caminhao ? "#fde68a" : "#e7e5e4"}` }}>
+        color: caminhao ? TOM.alerta.text : T.apoio, background: caminhao ? TOM.alerta.bg : N.n2, border: `1px solid ${caminhao ? TOM.alerta.border : T.border}` }}>
       {selo.texto}
     </span>
   );
@@ -184,7 +184,7 @@ export function ObservacaoDoPedido({ valor }: { valor: unknown }) {
   const texto = textoDaObservacao(valor);
   if (!texto) return null;
   return (
-    <p style={{ margin: 0, fontSize: FS.body, color: "#44403c", lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+    <p style={{ margin: 0, fontSize: FS.body, color: T.strong, lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
       “{texto}”
     </p>
   );
@@ -201,11 +201,11 @@ export function AndamentoDaLinha({ linha }: { linha: LinhaDoPedido }) {
   const criadas = unidadesCriadas(pecas);
   return (
     <div data-testid={`andamento-linha-${linha.id}`} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <p style={{ margin: 0, fontSize: FS.body, color: "#065f46", lineHeight: 1.5 }}>
+      <p style={{ margin: 0, fontSize: FS.body, color: TOM.esmeralda.text, lineHeight: 1.5 }}>
         Atendida em {diaEMes(linha.resolvidoEm)}{linha.resolvidoPor ? ` por ${linha.resolvidoPor}` : ""}
         {pecas.length > 0 && ` · ${pecas.length} ${pecas.length === 1 ? "peça" : "peças"}`}
         {pecas.length > 0 && criadas !== linha.quantidade && (
-          <strong data-testid={`divergencia-linha-${linha.id}`} style={{ color: "#92400e", fontWeight: 700 }}>
+          <strong data-testid={`divergencia-linha-${linha.id}`} style={{ color: TOM.alerta.text, fontWeight: 700 }}>
             {" "}· pediu {linha.quantidade} un., {criadas < linha.quantidade ? "criadas só" : "criadas"} {criadas} un.
           </strong>
         )}
@@ -216,20 +216,20 @@ export function AndamentoDaLinha({ linha }: { linha: LinhaDoPedido }) {
         return (
           <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", minWidth: 0 }}>
             <Link href={`/eventos/${linha.eventId}?item=${p.id}`} data-testid={`link-peca-gerada-${p.id}`}
-              style={{ fontFamily: "'DM Mono', monospace", fontSize: FS.body, fontWeight: 800, color: "#065f46", textDecoration: "underline", textUnderlineOffset: 2 }}>
+              style={{ fontFamily: FONT.mono, fontSize: FS.body, fontWeight: 800, color: TOM.esmeralda.text, textDecoration: "underline", textUnderlineOffset: 2 }}>
               {p.displayId ?? "abrir"}
             </Link>
-            <span style={{ fontSize: FS.body, color: "#44403c", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }}>
+            <span style={{ fontSize: FS.body, color: T.strong, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }}>
               {p.type} · {p.quantity} un.
             </span>
             {etapa === null ? (
-              <span style={{ fontSize: FS.small, fontWeight: 700, color: "#991b1b" }}>peça cancelada</span>
+              <span style={{ fontSize: FS.small, fontWeight: 700, color: TOM.perigo.text }}>peça cancelada</span>
             ) : (
               <ol aria-label={`Andamento da peça: ${ETAPAS_DA_PECA[etapa]}`} style={{ display: "flex", alignItems: "center", gap: 4, listStyle: "none", margin: 0, padding: 0 }}>
                 {ETAPAS_DA_PECA.map((nome, i) => (
                   <li key={nome} title={nome} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <span aria-hidden="true" style={{ width: i === etapa ? 10 : 8, height: i === etapa ? 10 : 8, borderRadius: R.pill, background: i <= etapa ? "#047857" : "#d6d3d1" }} />
-                    {i === etapa && <span style={{ fontSize: FS.small, fontWeight: 700, color: "#065f46" }}>{nome}</span>}
+                    <span aria-hidden="true" style={{ width: i === etapa ? 10 : 8, height: i === etapa ? 10 : 8, borderRadius: R.pill, background: i <= etapa ? TOM.esmeralda.text : T.bdark }} />
+                    {i === etapa && <span style={{ fontSize: FS.small, fontWeight: 700, color: TOM.esmeralda.text }}>{nome}</span>}
                   </li>
                 ))}
               </ol>
@@ -251,16 +251,16 @@ export function AndamentoDaLinha({ linha }: { linha: LinhaDoPedido }) {
 export function AjusteDaLinha({ linha }: { linha: LinhaDoPedido }) {
   if (!linha.ajusteStatus || !linha.ajusteTexto) return null;
   const tom = linha.ajusteStatus === "pendente"
-    ? { cor: "#92400e", fundo: "#fffbeb", borda: "#fde68a", titulo: "Ajuste esperando resposta" }
+    ? { cor: TOM.alerta.text, fundo: TOM.alerta.bg, borda: TOM.alerta.border, titulo: "Ajuste esperando resposta" }
     : linha.ajusteStatus === "aceito"
-      ? { cor: "#065f46", fundo: "#ecfdf5", borda: "#a7f3d0", titulo: "Ajuste aceito" }
-      : { cor: "#991b1b", fundo: "#fef2f2", borda: "#fecaca", titulo: "Ajuste recusado" };
+      ? { cor: TOM.esmeralda.text, fundo: TOM.esmeralda.bg, borda: TOM.esmeralda.border, titulo: "Ajuste aceito" }
+      : { cor: TOM.perigo.text, fundo: TOM.perigo.bg, borda: TOM.perigo.border, titulo: "Ajuste recusado" };
   return (
     <div data-testid={`ajuste-linha-${linha.id}`} style={{ padding: "8px 12px", borderRadius: R.md, background: tom.fundo, border: `1px solid ${tom.borda}`, display: "flex", flexDirection: "column", gap: 3 }}>
       <span style={{ fontSize: FS.small, fontWeight: 800, color: tom.cor }}>
         {tom.titulo} · pedido por {linha.ajustePedidoPor ?? "—"} em {quandoFoi(linha.ajustePedidoEm)}
       </span>
-      <span style={{ fontSize: FS.body, color: "#44403c", lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>“{linha.ajusteTexto}”</span>
+      <span style={{ fontSize: FS.body, color: T.strong, lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>“{linha.ajusteTexto}”</span>
       {linha.ajusteStatus !== "pendente" && (
         <span style={{ fontSize: FS.small, color: tom.cor, fontWeight: 600, overflowWrap: "anywhere" }}>
           {linha.ajusteStatus === "aceito" ? "Aceito" : "Recusado"}{linha.ajusteRespondidoPor ? ` por ${linha.ajusteRespondidoPor}` : ""} em {quandoFoi(linha.ajusteRespondidoEm)}{linha.ajusteResposta ? `: ${linha.ajusteResposta}` : ""}
@@ -277,10 +277,10 @@ export function ListaCarregando({ linhas = 3 }: { linhas?: number }) {
           frase, "carregando" e "vazio" soavam iguais. */}
       <span role="status" className="sr-only">Carregando as solicitações…</span>
       {Array.from({ length: linhas }, (_, i) => (
-        <div key={i} className="animate-pulse" style={{ display: "flex", flexDirection: "column", gap: 8, padding: "14px 0", borderBottom: i < linhas - 1 ? "1px solid #f1f0ef" : "none" }}>
-          <div style={{ width: "45%", height: 12, borderRadius: 6, background: "#e7e5e4" }} />
-          <div style={{ width: "80%", height: 10, borderRadius: 6, background: "#f0efee" }} />
-          <div style={{ width: "30%", height: 10, borderRadius: 6, background: "#f0efee" }} />
+        <div key={i} className="animate-pulse" style={{ display: "flex", flexDirection: "column", gap: 8, padding: "14px 0", borderBottom: i < linhas - 1 ? `1px solid ${N.n3}` : "none" }}>
+          <div style={{ width: "45%", height: 12, borderRadius: 6, background: T.border }} />
+          <div style={{ width: "80%", height: 10, borderRadius: 6, background: N.n3 }} />
+          <div style={{ width: "30%", height: 10, borderRadius: 6, background: N.n3 }} />
         </div>
       ))}
     </div>

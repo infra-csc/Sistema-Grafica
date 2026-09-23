@@ -10,6 +10,7 @@
 import { detalheDaRemessa, diaMesDoKit, type RemessaDoKit } from "@shared/kit";
 import { ehMolde } from "@shared/molde";
 
+import { T, N, TOM } from "@/lib/theme";
 /**
  * SELO DO MOLDE (dono, 22/09) — o molde tem fluxo curto (Arte → Revisão →
  * Produzido) e precisa se declarar em toda linha, como o Kit. Mora AQUI porque
@@ -26,7 +27,7 @@ export function SeloMolde({ peca, style }: { peca: { id: string; type?: string |
       style={{
         display: "inline-flex", alignItems: "center", whiteSpace: "nowrap",
         fontSize: 10, fontWeight: 800, lineHeight: 1.3, letterSpacing: "0.04em",
-        color: "#44403c", backgroundColor: "#f5f5f4", border: "1px solid #d6d3d1",
+        color: T.strong, backgroundColor: N.n2, border: `1px solid ${T.bdark}`,
         borderRadius: 999, padding: "1px 7px", verticalAlign: "middle", flexShrink: 0,
         ...style,
       }}
@@ -60,13 +61,13 @@ function SeloKitSo({ peca, style }: {
       style={{
         display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap",
         fontSize: 10, fontWeight: 800, lineHeight: 1.3, letterSpacing: "0.04em",
-        color: "#6d28d9", backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe",
+        color: TOM.roxo.text, backgroundColor: TOM.roxo.bg, border: `1px solid ${TOM.roxo.border}`,
         borderRadius: 999, padding: "1px 7px", verticalAlign: "middle", flexShrink: 0,
         fontVariantNumeric: "tabular-nums",
         ...style,
       }}
     >
-      KIT{entrega ? <span style={{ fontWeight: 700, color: "#7c3aed" }}>· {entrega}</span> : null}
+      KIT{entrega ? <span style={{ fontWeight: 700, color: TOM.roxo.text }}>· {entrega}</span> : null}
     </span>
   );
 }

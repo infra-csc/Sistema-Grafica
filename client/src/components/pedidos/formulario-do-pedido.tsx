@@ -31,11 +31,11 @@ import { useFileUpload } from "@/hooks/use-file-upload";
 import { ProgressoDoEnvio, rotuloDoEnvio } from "@/components/FileUploader";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { motivoEventoFinalizado, todayBusinessMs } from "@/lib/status";
-import { T, FS, R } from "@/lib/theme";
+import { T, FS, R, N, TOM } from "@/lib/theme";
 import { ReferenciasDoPedido, diaDoEvento, invalidarPedidos, mensagemDaApi } from "@/components/pedidos/ui";
 
-const ROTULO: React.CSSProperties = { display: "block", fontSize: FS.small, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "#57534e", marginBottom: 6 };
-const CAMPO: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: 40, padding: "0 12px", borderRadius: R.md, border: "1px solid #d6d3d1", background: "#ffffff", fontSize: 14, color: T.text, fontFamily: "inherit" };
+const ROTULO: React.CSSProperties = { display: "block", fontSize: FS.small, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: T.apoio, marginBottom: 6 };
+const CAMPO: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: 40, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, fontSize: 14, color: T.text, fontFamily: "inherit" };
 // Sem `outline: "none"` de propósito: o estilo inline vencia o :focus-visible
 // global e os campos do formulário não mostravam onde estava o foco — quem
 // navega por Tab via só o cursor piscando, e nos gatilhos de seleção nem isso.
@@ -77,7 +77,7 @@ export function faltaNaPeca(p: PecaDoFormulario): string | null {
 
 function Aviso({ children, testId }: { children: React.ReactNode; testId?: string }) {
   return (
-    <p role="status" data-testid={testId} style={{ margin: "6px 0 0", display: "flex", gap: 6, fontSize: FS.body, color: "#92400e", lineHeight: 1.4 }}>
+    <p role="status" data-testid={testId} style={{ margin: "6px 0 0", display: "flex", gap: 6, fontSize: FS.body, color: TOM.alerta.text, lineHeight: 1.4 }}>
       <AlertTriangle size={14} aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} /> {children}
     </p>
   );
@@ -158,7 +158,7 @@ function BlocoDaPeca({ peca, numero, total, eventos, eventosCarregando, opcoesDe
 
   // 36/44: a régua da casa (ponteiro/toque). Eram 32/40 — no celular o
   // "Remover" ficava a 4px do mínimo, ao lado do "Duplicar".
-  const botaoPequeno: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, height: isMobile ? 44 : 36, padding: "0 10px", borderRadius: R.md, border: "1px solid #e7e5e4", background: "#fff", color: "#44403c", fontSize: 12.5, fontWeight: 700, cursor: "pointer" };
+  const botaoPequeno: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, height: isMobile ? 44 : 36, padding: "0 10px", borderRadius: R.md, border: `1px solid ${T.border}`, background: T.surface, color: T.strong, fontSize: 12.5, fontWeight: 700, cursor: "pointer" };
 
   return (
     <fieldset
@@ -167,7 +167,7 @@ function BlocoDaPeca({ peca, numero, total, eventos, eventosCarregando, opcoesDe
         const arquivos = Array.from(e.clipboardData?.files ?? []);
         if (arquivos.some((a) => a.type.startsWith("image/"))) { e.preventDefault(); enviarImagens(arquivos); }
       }}
-      style={{ margin: 0, border: "1px solid #e7e5e4", borderRadius: R.lg, padding: isMobile ? 12 : "14px 16px 16px", background: "#ffffff", minWidth: 0 }}
+      style={{ margin: 0, border: `1px solid ${T.border}`, borderRadius: R.lg, padding: isMobile ? 12 : "14px 16px 16px", background: T.surface, minWidth: 0 }}
     >
       <legend style={{ display: "contents" }}>
         <span className="sr-only">Peça {numero}</span>
@@ -181,7 +181,7 @@ function BlocoDaPeca({ peca, numero, total, eventos, eventosCarregando, opcoesDe
             </button>
           )}
           {total > 1 && (
-            <button type="button" onClick={onRemover} data-testid={`button-remover-peca-${numero}`} aria-label={`Remover a peça ${numero}`} style={{ ...botaoPequeno, color: "#b91c1c", borderColor: "#fecaca" }}>
+            <button type="button" onClick={onRemover} data-testid={`button-remover-peca-${numero}`} aria-label={`Remover a peça ${numero}`} style={{ ...botaoPequeno, color: TOM.perigo.text, borderColor: TOM.perigo.border }}>
               <Trash2 size={13} aria-hidden="true" /> Remover
             </button>
           )}
@@ -212,16 +212,16 @@ function BlocoDaPeca({ peca, numero, total, eventos, eventosCarregando, opcoesDe
                 testId={`select-pedido-patrocinador-${numero}`} triggerProps={{ id: id("patrocinador") }}
                 triggerStyle={GATILHO} />
             ) : (
-              <div id={id("patrocinador")} style={{ ...CAMPO, display: "flex", alignItems: "center", color: "#78716c", background: "#fafaf9" }}>Escolha o evento primeiro</div>
+              <div id={id("patrocinador")} style={{ ...CAMPO, display: "flex", alignItems: "center", color: T.second, background: T.bg }}>Escolha o evento primeiro</div>
             )}
             {peca.sponsorIds.length > 0 && (
               <div data-testid={`patrocinadores-escolhidos-${numero}`} style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
                 {peca.sponsorIds.map((sid) => (
-                  <span key={sid} style={{ display: "inline-flex", alignItems: "center", gap: 2, height: 32, padding: "0 2px 0 10px", borderRadius: R.pill, background: "#f5f5f4", border: "1px solid #e7e5e4", fontSize: 12.5, fontWeight: 700, color: "#44403c" }}>
+                  <span key={sid} style={{ display: "inline-flex", alignItems: "center", gap: 2, height: 32, padding: "0 2px 0 10px", borderRadius: R.pill, background: N.n2, border: `1px solid ${T.border}`, fontSize: 12.5, fontWeight: 700, color: T.strong }}>
                     {nomePorId.get(sid) ?? "Patrocinador"}
                     <button type="button" aria-label={`Tirar ${nomePorId.get(sid) ?? "patrocinador"}`}
                       onClick={() => onMudar((p) => ({ sponsorIds: p.sponsorIds.filter((x) => x !== sid) }))}
-                      style={{ width: 28, height: 28, borderRadius: R.pill, border: "none", background: "transparent", color: "#57534e", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      style={{ width: 28, height: 28, borderRadius: R.pill, border: "none", background: "transparent", color: T.apoio, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <X size={13} aria-hidden="true" />
                     </button>
                   </span>
@@ -262,7 +262,7 @@ function BlocoDaPeca({ peca, numero, total, eventos, eventosCarregando, opcoesDe
               <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto minmax(0, 1fr)", gap: 6, alignItems: "center" }}>
                 <input aria-label={`Largura em metros da peça ${numero}`} data-testid={`input-pedido-largura-${numero}`} inputMode="decimal" value={peca.largura}
                   onChange={(e) => onMudar({ largura: e.target.value })} placeholder="Larg." style={CAMPO} />
-                <span aria-hidden="true" style={{ color: "#57534e" }}>×</span>
+                <span aria-hidden="true" style={{ color: T.apoio }}>×</span>
                 <input aria-label={`Altura em metros da peça ${numero}`} data-testid={`input-pedido-altura-${numero}`} inputMode="decimal" value={peca.altura}
                   onChange={(e) => onMudar({ altura: e.target.value })} placeholder="Alt." style={CAMPO} />
               </div>
@@ -285,7 +285,7 @@ function BlocoDaPeca({ peca, numero, total, eventos, eventosCarregando, opcoesDe
               onDragOver={(e) => { e.preventDefault(); setArrastando(true); }}
               onDragLeave={() => setArrastando(false)}
               onDrop={(e) => { e.preventDefault(); setArrastando(false); enviarImagens(Array.from(e.dataTransfer.files)); }}
-              style={{ display: "flex", flexDirection: "column", gap: 8, padding: 10, borderRadius: R.md, border: `1.5px dashed ${arrastando ? "#b45309" : "#d6d3d1"}`, background: arrastando ? "#fffbeb" : "#fafaf9" }}>
+              style={{ display: "flex", flexDirection: "column", gap: 8, padding: 10, borderRadius: R.md, border: `1.5px dashed ${arrastando ? TOM.alerta.text : T.bdark}`, background: arrastando ? TOM.alerta.bg : T.bg }}>
               <ReferenciasDoPedido urls={peca.referencias} tamanho={48}
                 onRemover={(i) => onMudar((p) => ({ referencias: p.referencias.filter((_, j) => j !== i) }))} />
               <input ref={envio.fileInputRef} type="file" accept="image/*" multiple hidden data-testid={`input-referencias-pedido-${numero}`}
@@ -293,12 +293,12 @@ function BlocoDaPeca({ peca, numero, total, eventos, eventosCarregando, opcoesDe
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                 {peca.referencias.length < MAX_REFERENCIAS_DO_PEDIDO && (
                   <button type="button" onClick={() => envio.fileInputRef.current?.click()} disabled={envio.isUploading} aria-busy={envio.isUploading || undefined}
-                    style={{ display: "inline-flex", alignItems: "center", gap: 6, height: isMobile ? 44 : 36, padding: "0 12px", borderRadius: R.md, border: "1px solid #d6d3d1", background: "#fff", color: T.text, fontSize: FS.body, fontWeight: 700, cursor: envio.isUploading ? "wait" : "pointer", fontVariantNumeric: "tabular-nums" }}>
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6, height: isMobile ? 44 : 36, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: T.text, fontSize: FS.body, fontWeight: 700, cursor: envio.isUploading ? "wait" : "pointer", fontVariantNumeric: "tabular-nums" }}>
                     <ImagePlus size={15} aria-hidden="true" />
                     {envio.isUploading ? rotuloDoEnvio(envio.envio) : peca.referencias.length === 0 ? "Adicionar" : "Adicionar mais"}
                   </button>
                 )}
-                <span style={{ fontSize: FS.small, color: "#57534e", lineHeight: 1.45 }}>
+                <span style={{ fontSize: FS.small, color: T.apoio, lineHeight: 1.45 }}>
                   {peca.referencias.length} de {MAX_REFERENCIAS_DO_PEDIDO} · arraste ou cole (Ctrl+V). Não é arte final.
                 </span>
               </div>
@@ -439,7 +439,7 @@ export function FormularioDoPedido({ aberto, onFechar }: { aberto: boolean; onFe
         <DialogDescription className="sr-only">Uma solicitação pode ter várias peças, cada uma com evento e patrocinadores próprios.</DialogDescription>
         <ModalHeader
           icon={Inbox}
-          tint="#b45309"
+          tint={TOM.alerta.text}
           title="Solicitar peças para a lista"
           subtitle="Várias peças numa solicitação só, cada uma com evento, patrocinadores e status próprios. Quem monta a lista recebe e cria cada peça no evento."
           onClose={fechar}
@@ -448,7 +448,7 @@ export function FormularioDoPedido({ aberto, onFechar }: { aberto: boolean; onFe
         <form
           id="form-pedido"
           onSubmit={(e) => { e.preventDefault(); if (!travado) salvar.mutate(); }}
-          style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", padding: isMobile ? 12 : "16px 24px", display: "flex", flexDirection: "column", gap: 12, background: "#fafaf9" }}
+          style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", padding: isMobile ? 12 : "16px 24px", display: "flex", flexDirection: "column", gap: 12, background: T.bg }}
         >
           {pecas.map((p, i) => (
             <BlocoDaPeca key={p.chave} peca={p} numero={i + 1} total={pecas.length}
@@ -458,26 +458,26 @@ export function FormularioDoPedido({ aberto, onFechar }: { aberto: boolean; onFe
           ))}
           {pecas.length < MAX_PECAS_POR_SOLICITACAO && (
             <button type="button" onClick={adicionar} data-testid="button-adicionar-peca"
-              style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6, height: 42, padding: "0 16px", borderRadius: R.md, border: "1.5px dashed #b45309", background: "#fffbeb", color: "#92400e", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
+              style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6, height: 42, padding: "0 16px", borderRadius: R.md, border: `1.5px dashed ${TOM.alerta.text}`, background: TOM.alerta.bg, color: TOM.alerta.text, fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
               <Plus size={16} aria-hidden="true" /> Adicionar outra peça
             </button>
           )}
         </form>
 
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, flexWrap: "wrap", padding: isMobile ? "12px 16px" : "14px 24px", borderTop: "1px solid #ebe8e4", background: "#fff", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, flexWrap: "wrap", padding: isMobile ? "12px 16px" : "14px 24px", borderTop: `1px solid ${T.border}`, background: T.surface, flexShrink: 0 }}>
           {/* Pronto para enviar, a frase diz também PARA QUEM vai — o rodapé
               era o único lugar sem destino, justo antes do clique. */}
-          <span aria-live="polite" style={{ fontSize: FS.body, color: faltando ? "#92400e" : "#57534e", marginRight: "auto" }}>
+          <span aria-live="polite" style={{ fontSize: FS.body, color: faltando ? TOM.alerta.text : T.apoio, marginRight: "auto" }}>
             {faltando
               ? `${faltando}.`
               : `${pecas.length} ${pecas.length === 1 ? "peça" : "peças"}${eventosDistintos > 1 ? ` · ${eventosDistintos} eventos` : ""} · vai para quem monta a lista`}
           </span>
           <button type="button" onClick={fechar} disabled={salvar.isPending}
-            style={{ height: 44, padding: "0 18px", borderRadius: R.md, border: "1px solid #e7e5e4", background: "#fff", color: "#44403c", fontSize: 14, fontWeight: 700, cursor: salvar.isPending ? "not-allowed" : "pointer" }}>
+            style={{ height: 44, padding: "0 18px", borderRadius: R.md, border: `1px solid ${T.border}`, background: T.surface, color: T.strong, fontSize: 14, fontWeight: 700, cursor: salvar.isPending ? "not-allowed" : "pointer" }}>
             Cancelar
           </button>
           <button type="submit" form="form-pedido" data-testid="button-enviar-pedido" disabled={travado}
-            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, height: 44, padding: "0 22px", borderRadius: R.md, border: "none", background: travado ? "#e7e5e4" : "#1c1917", color: travado ? "#78716c" : "#fff", fontSize: 14, fontWeight: 800, cursor: travado ? "not-allowed" : "pointer" }}>
+            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, height: 44, padding: "0 22px", borderRadius: R.md, border: "none", background: travado ? T.border : T.text, color: travado ? T.second : T.surface, fontSize: 14, fontWeight: 800, cursor: travado ? "not-allowed" : "pointer" }}>
             <Send size={15} aria-hidden="true" /> {salvar.isPending ? "Enviando…" : "Enviar solicitação"}
           </button>
         </div>

@@ -25,6 +25,7 @@ import { useToast, toast as toastGlobal } from "@/hooks/use-toast";
 import { useLogout } from "@/hooks/use-logout";
 import { useWebSocket, onConexaoTempoReal } from "@/hooks/use-websocket";
 import { useEffect, useState, Component, lazy, Suspense, type ReactNode, type ComponentType } from "react";
+import { T, N, R, FS, FW, FONT } from "@/lib/theme";
 
 /**
  * lazy() com rede: se o chunk falhar ao baixar (deploy trocou os arquivos no
@@ -66,15 +67,15 @@ function ehChunkPerdido(erro: Error) {
 function PaginaCarregando() {
   return (
     <div aria-busy="true" style={{ padding: "18px" }}>
-      <div className="animate-pulse" style={{ width: 220, height: 22, borderRadius: 6, backgroundColor: "#e7e5e4", marginBottom: 8 }} />
-      <div className="animate-pulse" style={{ width: 340, height: 13, borderRadius: 4, backgroundColor: "#f0efee", marginBottom: 20 }} />
-      <div style={{ backgroundColor: "#ffffff", border: "1px solid #e7e5e4", borderRadius: 10, overflow: "hidden" }}>
-        <div style={{ height: 44, backgroundColor: "#fafaf9", borderBottom: "1px solid #e7e5e4" }} />
+      <div className="animate-pulse" style={{ width: 220, height: 22, borderRadius: R.sm, backgroundColor: T.border, marginBottom: 8 }} />
+      <div className="animate-pulse" style={{ width: 340, height: 13, borderRadius: 4, backgroundColor: N.n3, marginBottom: 20 }} />
+      <div style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, overflow: "hidden" }}>
+        <div style={{ height: 44, backgroundColor: T.bg, borderBottom: `1px solid ${T.border}` }} />
         {[0, 1, 2, 3, 4].map((i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 18, height: 58, padding: "0 16px", borderBottom: "1px solid #f5f4f2" }}>
-            <div className="animate-pulse" style={{ width: 52, height: 12, borderRadius: 4, backgroundColor: "#e7e5e4" }} />
-            <div className="animate-pulse" style={{ width: `${34 - i * 4}%`, height: 12, borderRadius: 4, backgroundColor: "#e7e5e4" }} />
-            <div className="animate-pulse" style={{ width: 88, height: 22, borderRadius: 999, backgroundColor: "#f0efee", marginLeft: "auto" }} />
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 18, height: 58, padding: "0 16px", borderBottom: `1px solid ${N.n3}` }}>
+            <div className="animate-pulse" style={{ width: 52, height: 12, borderRadius: 4, backgroundColor: T.border }} />
+            <div className="animate-pulse" style={{ width: `${34 - i * 4}%`, height: 12, borderRadius: 4, backgroundColor: T.border }} />
+            <div className="animate-pulse" style={{ width: 88, height: 22, borderRadius: R.pill, backgroundColor: N.n3, marginLeft: "auto" }} />
           </div>
         ))}
       </div>
@@ -210,12 +211,12 @@ class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: string }
 // cada F5, e texto cinza no meio do vazio tinha cara de página quebrada.
 function FullPageLoader() {
   return (
-    <div role="status" aria-live="polite" className="flex items-center justify-center h-dvh" style={{ backgroundColor: "#fafaf9" }}>
+    <div role="status" aria-live="polite" className="flex items-center justify-center h-dvh" style={{ backgroundColor: T.bg }}>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-        <span aria-hidden="true" className="animate-pulse" style={{ fontFamily: "'Outfit', sans-serif", fontSize: 18, fontWeight: 800, letterSpacing: "-0.05em", color: "#1c1917" }}>
+        <span aria-hidden="true" className="animate-pulse" style={{ fontFamily: FONT.display, fontSize: FS.title, fontWeight: FW.rotulo, letterSpacing: "-0.05em", color: T.text }}>
           NORTE
         </span>
-        <span style={{ fontSize: 12, color: "#746e69" }}>Carregando…</span>
+        <span style={{ fontSize: FS.meta, color: T.second }}>Carregando…</span>
       </div>
     </div>
   );

@@ -19,10 +19,10 @@ import { HIDE_NATIVE_CLOSE, ModalHeader, modalSurface } from "@/components/modal
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { alvo, useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
-import { T, FS, R } from "@/lib/theme";
+import { T, FS, R, N, TOM, FONT } from "@/lib/theme";
 
-const ROTULO: React.CSSProperties = { display: "block", fontSize: FS.small, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "#57534e", marginBottom: 5 };
-const CAMPO: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: 38, padding: "0 10px", borderRadius: R.md, border: "1px solid #d6d3d1", background: "#fff", fontSize: 14, color: T.text, fontFamily: "inherit" };
+const ROTULO: React.CSSProperties = { display: "block", fontSize: FS.small, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: T.apoio, marginBottom: 5 };
+const CAMPO: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: 38, padding: "0 10px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, fontSize: 14, color: T.text, fontFamily: "inherit" };
 
 const dataDoCampo = (d: string | Date | null | undefined) => (d ? new Date(d).toISOString().slice(0, 10) : "");
 const proximaVersao = (remessas: RemessaDoKit[]) => {
@@ -214,14 +214,14 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
 
   return (
     <section data-testid="painel-do-kit" aria-labelledby="titulo-painel-do-kit"
-      style={{ backgroundColor: "#fff", border: "1px solid #e7e5e4", borderLeft: "3px solid #7c3aed", borderRadius: R.lg, padding: "14px 20px", marginBottom: 24, display: "flex", flexDirection: "column", gap: 10 }}>
+      style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderLeft: `3px solid ${TOM.roxo.text}`, borderRadius: R.lg, padding: "14px 20px", marginBottom: 24, display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <Package style={{ width: 16, height: 16, color: "#6d28d9" }} aria-hidden="true" />
+        <Package style={{ width: 16, height: 16, color: TOM.roxo.text }} aria-hidden="true" />
         <h2 id="titulo-painel-do-kit" style={{ margin: 0, fontSize: 13, fontWeight: 800, color: T.text, textTransform: "uppercase", letterSpacing: "0.04em" }}>Kit</h2>
         {/* Sem remessa, o painel aparece em TODO evento para quem pode criar:
             a frase diz para que ele serve, e que ignorá-lo é normal quando o
             evento não tem Kit. */}
-        <span style={{ fontSize: FS.body, color: "#57534e" }}>
+        <span style={{ fontSize: FS.body, color: T.apoio }}>
           {remessas.length === 0
             ? (usuarioDoKit ? "Nenhuma remessa do Kit neste evento." : "Nenhuma remessa. Só é usado se o evento tiver Kit, com datas próprias de entrega e caminhão.")
             : `${remessas.length} ${remessas.length === 1 ? "remessa" : "remessas"} — datas próprias do Kit`}
@@ -231,31 +231,31 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
             title={eventoFinalizado ? "Evento finalizado — não recebe peças" : undefined}
             // Desabilitado em #78716c, não #a8a29e: o rótulo continua sendo
             // TEXTO lido (2,5:1 reprovava), só perde a cor de ação.
-            style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, height: alvo(34, dedo), padding: "0 14px", borderRadius: R.md, border: "1px solid #ddd6fe", background: eventoFinalizado ? "#f5f5f4" : "#f5f3ff", color: eventoFinalizado ? T.second : "#5b21b6", fontSize: 12.5, fontWeight: 800, cursor: eventoFinalizado ? "not-allowed" : "pointer" }}>
+            style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, height: alvo(34, dedo), padding: "0 14px", borderRadius: R.md, border: `1px solid ${TOM.roxo.border}`, background: eventoFinalizado ? N.n2 : TOM.roxo.bg, color: eventoFinalizado ? T.second : TOM.roxo.text, fontSize: 12.5, fontWeight: 800, cursor: eventoFinalizado ? "not-allowed" : "pointer" }}>
             <Plus size={14} aria-hidden="true" /> Nova remessa do Kit
           </button>
         )}
       </div>
       {usuarioDoKit && remessas.length === 0 && (
-        <p style={{ margin: 0, fontSize: FS.body, color: "#92400e" }}>Crie a remessa do Kit — com a planilha, as datas e as peças entram juntas.</p>
+        <p style={{ margin: 0, fontSize: FS.body, color: TOM.alerta.text }}>Crie a remessa do Kit — com a planilha, as datas e as peças entram juntas.</p>
       )}
       {remessas.length > 0 && (
         <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexWrap: "wrap", gap: 8 }}>
           {remessas.map((r) => (
             <li key={r.id} data-testid={`remessa-kit-${r.id}`}
-              style={{ display: "flex", flexDirection: "column", gap: 2, padding: "8px 12px", borderRadius: R.md, border: "1px solid #ddd6fe", background: "#faf5ff", minWidth: 200 }}>
+              style={{ display: "flex", flexDirection: "column", gap: 2, padding: "8px 12px", borderRadius: R.md, border: `1px solid ${TOM.roxo.border}`, background: TOM.roxo.bg, minWidth: 200 }}>
               <button type="button" aria-expanded={remessaAberta === r.id} data-testid={`button-abrir-remessa-${r.id}`}
                 onClick={() => { setRemessaAberta((a) => (a === r.id ? null : r.id)); setConfirmandoExclusao(null); }}
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: 0, border: "none", background: "none", cursor: "pointer", textAlign: "left", fontSize: 13, fontWeight: 800, color: "#4c1d95", minHeight: isMobile ? 44 : undefined }}>
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: 0, border: "none", background: "none", cursor: "pointer", textAlign: "left", fontSize: 13, fontWeight: 800, color: TOM.roxo.text, minHeight: isMobile ? 44 : undefined }}>
                 KIT {r.versao} · {pecasDe(r.id)} {pecasDe(r.id) === 1 ? "peça" : "peças"}
                 <ChevronDown size={14} aria-hidden="true" style={{ transform: remessaAberta === r.id ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
               </button>
-              <span style={{ fontSize: FS.small, color: "#44403c" }}>
+              <span style={{ fontSize: FS.small, color: T.strong }}>
                 Entrega do material <strong>{diaMesDoKit(r.entregaMaterial) ?? "—"}</strong>
                 {r.saidaCaminhao ? <> · saída do caminhão <strong>{diaMesDoKit(r.saidaCaminhao)}</strong></> : null}
                 {r.saidaCaminhao && saidaDoEvento && diaMesDoKit(r.saidaCaminhao) !== diaMesDoKit(saidaDoEvento) ? ` (Arena: ${diaMesDoKit(saidaDoEvento)})` : ""}
               </span>
-              <span style={{ fontSize: FS.small, color: "#57534e" }}>{r.solicitante ?? r.criadoPor ?? "—"}{r.arquivo ? ` · ${r.arquivo}` : ""}</span>
+              <span style={{ fontSize: FS.small, color: T.apoio }}>{r.solicitante ?? r.criadoPor ?? "—"}{r.arquivo ? ` · ${r.arquivo}` : ""}</span>
             </li>
           ))}
         </ul>
@@ -270,16 +270,16 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
           .filter((p) => p.kitRemessaId === r.id && !p.deletedAt)
           .sort((a, b) => String(a.displayId ?? "").localeCompare(String(b.displayId ?? ""), "pt-BR", { numeric: true }));
         return (
-          <div data-testid={`pecas-remessa-${r.id}`} style={{ border: "1px solid #ddd6fe", borderRadius: R.lg, overflow: "hidden" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "8px 12px", background: "#faf5ff", borderBottom: "1px solid #ede9fe" }}>
-              <span style={{ fontSize: FS.small, fontWeight: 800, color: "#4c1d95", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+          <div data-testid={`pecas-remessa-${r.id}`} style={{ border: `1px solid ${TOM.roxo.border}`, borderRadius: R.lg, overflow: "hidden" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "8px 12px", background: TOM.roxo.bg, borderBottom: `1px solid ${TOM.roxo.bg}` }}>
+              <span style={{ fontSize: FS.small, fontWeight: 800, color: TOM.roxo.text, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                 Peças do KIT {r.versao} · entrega {diaMesDoKit(r.entregaMaterial) ?? "—"}
               </span>
               {podeCriar && onAdicionarPeca && confirmandoExclusao !== r.id && (
                 <button type="button" data-testid={`button-adicionar-peca-remessa-${r.id}`} disabled={eventoFinalizado}
                   onClick={() => onAdicionarPeca(r.id)}
                   title={eventoFinalizado ? "Evento finalizado — não recebe peças" : `Adicionar uma peça à KIT ${r.versao}`}
-                  style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, height: alvo(32, dedo), padding: "0 12px", borderRadius: R.md, border: "none", background: eventoFinalizado ? "#e7e5e4" : "#6d28d9", color: eventoFinalizado ? T.second : "#fff", fontSize: 12.5, fontWeight: 800, cursor: eventoFinalizado ? "not-allowed" : "pointer" }}>
+                  style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, height: alvo(32, dedo), padding: "0 12px", borderRadius: R.md, border: "none", background: eventoFinalizado ? T.border : TOM.roxo.text, color: eventoFinalizado ? T.second : T.surface, fontSize: 12.5, fontWeight: 800, cursor: eventoFinalizado ? "not-allowed" : "pointer" }}>
                   <Plus size={13} aria-hidden="true" /> Adicionar peça ao KIT {r.versao}
                 </button>
               )}
@@ -288,7 +288,7 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
                   {/* A frase diz o tamanho real do estrago — "e as 1 peças" e
                       "e as 0 peças" liam como erro de digitação justo na hora
                       de confirmar uma exclusão. */}
-                  <span role="alert" style={{ fontSize: FS.body, color: "#991b1b", fontWeight: 700 }}>
+                  <span role="alert" style={{ fontSize: FS.body, color: TOM.perigo.text, fontWeight: 700 }}>
                     {daRemessa.length === 0
                       ? `Excluir a KIT ${r.versao}? Ela não tem peças.`
                       : `Excluir a KIT ${r.versao} e ${daRemessa.length === 1 ? "a peça dela" : `as ${daRemessa.length} peças dela`}?`}
@@ -296,54 +296,54 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
                   {/* A REGRA À VISTA antes do clique — ela morava só no `title`
                       do botão, e a recusa do servidor chegava como surpresa. */}
                   {daRemessa.length > 0 && (
-                    <span style={{ fontSize: FS.small, color: "#57534e", flexBasis: "100%" }}>
+                    <span style={{ fontSize: FS.small, color: T.apoio, flexBasis: "100%" }}>
                       Vão para Peças Excluídas. Só é possível enquanto nenhuma peça saiu do rascunho.
                     </span>
                   )}
                   <button type="button" data-testid={`button-confirmar-excluir-remessa-${r.id}`} disabled={excluir.isPending} onClick={() => excluir.mutate(r.id)}
-                    style={{ height: alvo(32, dedo), padding: "0 12px", borderRadius: R.md, border: "none", background: "#b91c1c", color: "#fff", fontSize: 12.5, fontWeight: 800, cursor: excluir.isPending ? "wait" : "pointer" }}>
+                    style={{ height: alvo(32, dedo), padding: "0 12px", borderRadius: R.md, border: "none", background: TOM.perigo.text, color: T.surface, fontSize: 12.5, fontWeight: 800, cursor: excluir.isPending ? "wait" : "pointer" }}>
                     {excluir.isPending ? "Excluindo…" : "Excluir"}
                   </button>
                   <button type="button" onClick={() => setConfirmandoExclusao(null)} disabled={excluir.isPending}
-                    style={{ height: alvo(32, dedo), padding: "0 8px", border: "none", background: "none", color: "#57534e", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                    style={{ height: alvo(32, dedo), padding: "0 8px", border: "none", background: "none", color: T.apoio, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
                     Voltar
                   </button>
                 </span>
               ) : (
                 <button type="button" data-testid={`button-excluir-remessa-${r.id}`} onClick={() => setConfirmandoExclusao(r.id)}
                   title="Excluir a remessa e as peças dela — só enquanto nenhuma peça foi enviada"
-                  style={{ marginLeft: onAdicionarPeca ? 0 : "auto", display: "inline-flex", alignItems: "center", gap: 5, height: alvo(32, dedo), padding: "0 10px", borderRadius: R.md, border: "1px solid #fecaca", background: "#fff", color: "#b91c1c", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
+                  style={{ marginLeft: onAdicionarPeca ? 0 : "auto", display: "inline-flex", alignItems: "center", gap: 5, height: alvo(32, dedo), padding: "0 10px", borderRadius: R.md, border: `1px solid ${TOM.perigo.border}`, background: T.surface, color: TOM.perigo.text, fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
                   <Trash2 size={13} aria-hidden="true" /> Excluir remessa
                 </button>
               ))}
             </div>
             {daRemessa.length === 0 ? (
-              <p style={{ margin: 0, padding: "14px 12px", fontSize: FS.body, color: "#57534e" }}>Nenhuma peça nesta remessa ainda — use “Adicionar peça ao KIT {r.versao}”.</p>
+              <p style={{ margin: 0, padding: "14px 12px", fontSize: FS.body, color: T.apoio }}>Nenhuma peça nesta remessa ainda — use “Adicionar peça ao KIT {r.versao}”.</p>
             ) : (
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", minWidth: 560, borderCollapse: "collapse", fontSize: 13 }}>
                   <thead>
                     <tr>
                       {["ID", "Peça", "Qtd", "Material · Acab.", "Status"].map((h) => (
-                        <th key={h} style={{ textAlign: "left", padding: "8px 12px", fontSize: 10.5, color: "#57534e", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #f0efed" }}>{h}</th>
+                        <th key={h} style={{ textAlign: "left", padding: "8px 12px", fontSize: 10.5, color: T.apoio, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: `1px solid ${N.n3}` }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {daRemessa.map((p) => (
                       <tr key={p.id} data-testid={`peca-remessa-${p.id}`} onClick={() => onAbrirPeca?.(p)}
-                        style={{ borderBottom: "1px solid #f5f4f2", cursor: onAbrirPeca ? "pointer" : "default" }}>
+                        style={{ borderBottom: `1px solid ${N.n3}`, cursor: onAbrirPeca ? "pointer" : "default" }}>
                         <td style={{ padding: "8px 12px", whiteSpace: "nowrap" }}>
                           <button type="button" onClick={(e) => { e.stopPropagation(); onAbrirPeca?.(p); }} aria-label={`Ver detalhes da peça ${p.displayId}`}
-                            style={{ padding: 0, border: "none", background: "none", fontFamily: "monospace", fontWeight: 700, color: "#c2410c", fontSize: 13, cursor: "pointer" }}>
+                            style={{ padding: 0, border: "none", background: "none", fontFamily: FONT.mono, fontWeight: 700, color: T.accentText, fontSize: 13, cursor: "pointer" }}>
                             {p.displayId}
                           </button>
                         </td>
                         <td style={{ padding: "8px 12px", color: T.text, fontWeight: 600 }}>
-                          {p.type}{p.description ? <span style={{ display: "block", fontWeight: 400, color: "#57534e", fontSize: 12 }}>{p.description}</span> : null}
+                          {p.type}{p.description ? <span style={{ display: "block", fontWeight: 400, color: T.apoio, fontSize: 12 }}>{p.description}</span> : null}
                         </td>
                         <td style={{ padding: "8px 12px", fontVariantNumeric: "tabular-nums" }}>{p.quantity}</td>
-                        <td style={{ padding: "8px 12px", color: "#44403c" }}>{[p.material, p.finish].filter(Boolean).join(" · ")}</td>
+                        <td style={{ padding: "8px 12px", color: T.strong }}>{[p.material, p.finish].filter(Boolean).join(" · ")}</td>
                         <td style={{ padding: "8px 12px" }}><StatusBadge status={p.status} /></td>
                       </tr>
                     ))}
@@ -359,7 +359,7 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
         <DialogContent data-testid="dialog-nova-remessa-kit" className={HIDE_NATIVE_CLOSE} style={modalSurface(nPecas > 0 ? 1100 : 600)}>
           <DialogTitle className="sr-only">Nova remessa do Kit</DialogTitle>
           <DialogDescription className="sr-only">Planilha do Kit, datas da remessa e peças numa tela só.</DialogDescription>
-          <ModalHeader icon={Package} tint="#6d28d9" title="Nova remessa do Kit"
+          <ModalHeader icon={Package} tint={TOM.roxo.text} title="Nova remessa do Kit"
             subtitle={remessas.length > 0 ? `Começa com os dados da ${remessas[0].versao} — a planilha, se tiver, substitui.` : "Envie a planilha do Kit: as datas e as peças entram juntas."}
             onClose={criar.isPending ? undefined : pedirParaFechar} />
 
@@ -371,12 +371,12 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
                   campo focável, e o anel no rótulo mostra onde o foco está. */}
               <label data-testid="button-planilha-remessa-kit"
                 className="focus-within:ring-2 focus-within:ring-violet-600 focus-within:ring-offset-2"
-                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "12px 10px", borderRadius: R.md, border: `1.5px dashed ${planilha ? "#16a34a" : "#a78bfa"}`, background: planilha ? "#f0fdf4" : "#faf5ff", color: planilha ? "#166534" : "#5b21b6", cursor: lendoPlanilha ? "wait" : "pointer", textAlign: "center" }}>
+                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "12px 10px", borderRadius: R.md, border: `1.5px dashed ${planilha ? TOM.sucesso.text : TOM.roxo.dot}`, background: planilha ? TOM.sucesso.bg : TOM.roxo.bg, color: planilha ? TOM.sucesso.text : TOM.roxo.text, cursor: lendoPlanilha ? "wait" : "pointer", textAlign: "center" }}>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13.5, fontWeight: 800 }}>
                   <FileSpreadsheet size={16} aria-hidden="true" />
                   {lendoPlanilha ? "Lendo a planilha…" : planilha ? planilha.nome : "Enviar a planilha do Kit (.xlsx)"}
                 </span>
-                <span style={{ fontSize: FS.small, color: "#57534e" }}>
+                <span style={{ fontSize: FS.small, color: T.apoio }}>
                   {planilha ? `${nPecas} ${nPecas === 1 ? "peça" : "peças"} · clique para trocar` : "Preenche as datas e traz as peças. Opcional."}
                 </span>
                 <input type="file" accept=".xlsx" className="sr-only" disabled={lendoPlanilha}
@@ -394,30 +394,30 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
             </div>
 
             {nPecas > 0 && planilha && (
-              <div style={{ minWidth: 0, border: "1px solid #e7e5e4", borderRadius: R.lg, overflow: "hidden" }}>
-                <div style={{ padding: "8px 12px", background: "#fafaf9", borderBottom: "1px solid #e7e5e4", fontSize: FS.small, fontWeight: 800, color: "#57534e", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              <div style={{ minWidth: 0, border: `1px solid ${T.border}`, borderRadius: R.lg, overflow: "hidden" }}>
+                <div style={{ padding: "8px 12px", background: T.bg, borderBottom: `1px solid ${T.border}`, fontSize: FS.small, fontWeight: 800, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                   Peças da planilha · {nPecas}
                 </div>
                 <div style={{ overflowX: "auto", maxHeight: isMobile ? 320 : "52vh" }}>
                   <table data-testid="tabela-pecas-remessa-kit" style={{ width: "100%", minWidth: 560, borderCollapse: "collapse", fontSize: 13 }}>
                     <thead>
-                      <tr style={{ background: "#fff", position: "sticky", top: 0 }}>
+                      <tr style={{ background: T.surface, position: "sticky", top: 0 }}>
                         {["Peça", "Qtd", "Material · Acab.", "Arquivo (m)", "m²", ""].map((h) => (
-                          <th key={h} style={{ textAlign: "left", padding: "8px 10px", fontSize: 10.5, color: "#57534e", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #f0efed" }}>{h}</th>
+                          <th key={h} style={{ textAlign: "left", padding: "8px 10px", fontSize: 10.5, color: T.apoio, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: `1px solid ${N.n3}` }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {planilha.pecas.map((p, i) => (
-                        <tr key={p._chave} style={{ borderBottom: "1px solid #f5f4f2" }}>
+                        <tr key={p._chave} style={{ borderBottom: `1px solid ${N.n3}` }}>
                           <td style={{ padding: "7px 10px", color: T.text, fontWeight: 600 }}>{p.description || p.type}</td>
                           <td style={{ padding: "7px 10px", fontVariantNumeric: "tabular-nums" }}>{p.quantity}</td>
-                          <td style={{ padding: "7px 10px", color: "#44403c" }}>{[p.material, p.finish].filter(Boolean).join(" · ")}</td>
-                          <td style={{ padding: "7px 10px", fontVariantNumeric: "tabular-nums", color: "#44403c" }}>{p.fileWidth && p.fileHeight ? `${p.fileWidth} × ${p.fileHeight}` : "—"}</td>
+                          <td style={{ padding: "7px 10px", color: T.strong }}>{[p.material, p.finish].filter(Boolean).join(" · ")}</td>
+                          <td style={{ padding: "7px 10px", fontVariantNumeric: "tabular-nums", color: T.strong }}>{p.fileWidth && p.fileHeight ? `${p.fileWidth} × ${p.fileHeight}` : "—"}</td>
                           <td style={{ padding: "7px 10px", fontVariantNumeric: "tabular-nums", fontWeight: 700 }}>{Number(p.calculatedM2 || 0).toFixed(2)}</td>
                           <td style={{ padding: "4px 6px" }}>
                             <button type="button" aria-label={`Tirar ${p.description || p.type} da remessa`} title="Tirar esta peça da remessa" onClick={() => tirarPeca(i)}
-                              style={{ width: isMobile ? 44 : 28, height: isMobile ? 44 : 28, borderRadius: R.md, border: "none", background: "transparent", color: "#78716c", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              style={{ width: isMobile ? 44 : 28, height: isMobile ? 44 : 28, borderRadius: R.md, border: "none", background: "transparent", color: T.second, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                               <X size={14} aria-hidden="true" />
                             </button>
                           </td>
@@ -434,30 +434,30 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
             // A pergunta mora NO rodapé, no lugar dos botões — o mesmo padrão
             // da exclusão de remessa neste painel. Um segundo modal por cima
             // deste esconderia justamente o que a pessoa está decidindo perder.
-            <div data-testid="confirmar-descarte-remessa-kit" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, flexWrap: "wrap", padding: isMobile ? "12px 16px" : "14px 24px", borderTop: "1px solid #fecaca", background: "#fef2f2", flexShrink: 0 }}>
-              <span role="alert" style={{ fontSize: FS.body, color: "#991b1b", fontWeight: 700, marginRight: "auto" }}>
+            <div data-testid="confirmar-descarte-remessa-kit" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, flexWrap: "wrap", padding: isMobile ? "12px 16px" : "14px 24px", borderTop: `1px solid ${TOM.perigo.border}`, background: TOM.perigo.bg, flexShrink: 0 }}>
+              <span role="alert" style={{ fontSize: FS.body, color: TOM.perigo.text, fontWeight: 700, marginRight: "auto" }}>
                 {planilha
                   ? `Descartar a planilha lida${nPecas > 0 ? ` (${nPecas} ${nPecas === 1 ? "peça" : "peças"})` : ""} e os dados da remessa?`
                   : "Descartar os dados da remessa que você preencheu?"}
               </span>
               <button type="button" ref={continuarRef} onClick={() => setConfirmandoDescarte(false)}
-                style={{ height: 44, padding: "0 18px", borderRadius: R.md, border: "1px solid #e7e5e4", background: "#fff", color: "#44403c", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+                style={{ height: 44, padding: "0 18px", borderRadius: R.md, border: `1px solid ${T.border}`, background: T.surface, color: T.strong, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
                 Continuar editando
               </button>
               <button type="button" data-testid="button-descartar-remessa-kit" onClick={() => { setConfirmandoDescarte(false); setAberto(false); }}
-                style={{ height: 44, padding: "0 18px", borderRadius: R.md, border: "none", background: "#b91c1c", color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
+                style={{ height: 44, padding: "0 18px", borderRadius: R.md, border: "none", background: TOM.perigo.text, color: T.surface, fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
                 Descartar
               </button>
             </div>
           ) : (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, flexWrap: "wrap", padding: isMobile ? "12px 16px" : "14px 24px", borderTop: "1px solid #ebe8e4", flexShrink: 0 }}>
-            {faltando && <span aria-live="polite" style={{ fontSize: FS.body, color: "#92400e", marginRight: "auto" }}>{faltando}.</span>}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, flexWrap: "wrap", padding: isMobile ? "12px 16px" : "14px 24px", borderTop: `1px solid ${T.border}`, flexShrink: 0 }}>
+            {faltando && <span aria-live="polite" style={{ fontSize: FS.body, color: TOM.alerta.text, marginRight: "auto" }}>{faltando}.</span>}
             <button type="button" onClick={pedirParaFechar} disabled={criar.isPending}
-              style={{ height: 44, padding: "0 18px", borderRadius: R.md, border: "1px solid #e7e5e4", background: "#fff", color: "#44403c", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+              style={{ height: 44, padding: "0 18px", borderRadius: R.md, border: `1px solid ${T.border}`, background: T.surface, color: T.strong, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
               Cancelar
             </button>
             <button type="button" data-testid="button-criar-remessa-kit" disabled={!!faltando || criar.isPending} onClick={() => criar.mutate()}
-              style={{ height: 44, padding: "0 22px", borderRadius: R.md, border: "none", background: faltando || criar.isPending ? "#e7e5e4" : "#6d28d9", color: faltando || criar.isPending ? "#78716c" : "#fff", fontSize: 14, fontWeight: 800, cursor: criar.isPending ? "wait" : faltando ? "not-allowed" : "pointer" }}>
+              style={{ height: 44, padding: "0 22px", borderRadius: R.md, border: "none", background: faltando || criar.isPending ? T.border : TOM.roxo.text, color: faltando || criar.isPending ? T.second : T.surface, fontSize: 14, fontWeight: 800, cursor: criar.isPending ? "wait" : faltando ? "not-allowed" : "pointer" }}>
               {criar.isPending ? "Criando…" : nPecas > 0 ? `Criar remessa e importar ${nPecas} ${nPecas === 1 ? "peça" : "peças"}` : "Criar remessa"}
             </button>
           </div>

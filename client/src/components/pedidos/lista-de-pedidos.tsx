@@ -33,7 +33,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { motivoEventoFinalizado, todayBusinessMs } from "@/lib/status";
-import { T, FS, R } from "@/lib/theme";
+import { T, FS, R, N, TOM } from "@/lib/theme";
 import { MotivoDoPedidoDialog, descricaoDoAviso, enviarAcaoComMotivo, tituloDoAviso, type AlvoDaAcao } from "@/components/motivo-do-pedido-dialog";
 import { CartaoDoPedido, type AcaoDoCartao } from "@/components/pedidos/cartao-do-pedido";
 import { DetalheDoPedido } from "@/components/pedidos/detalhe-do-pedido";
@@ -310,8 +310,8 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
 
   const CHIP = (ativo: boolean, zerado: boolean): React.CSSProperties => ({
     height: toque, padding: "0 11px", borderRadius: R.pill, cursor: "pointer",
-    border: `1px solid ${ativo ? "#1c1917" : "#e7e5e4"}`, background: ativo ? "#1c1917" : "#ffffff",
-    color: ativo ? "#ffffff" : zerado ? "#78716c" : "#44403c",
+    border: `1px solid ${ativo ? T.text : T.border}`, background: ativo ? T.text : T.surface,
+    color: ativo ? T.surface : zerado ? T.second : T.strong,
     fontSize: 12, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 5, whiteSpace: "nowrap",
     transition: "background-color 0.12s, border-color 0.12s",
   });
@@ -324,22 +324,22 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
     : filtro === "ajuste" ? "Nenhum ajuste esperando resposta"
     : `Nenhuma solicitação ${FILTROS.find((f) => f.k === filtro)?.rotulo.toLowerCase() ?? ""}`;
 
-  const BOTAO_LEVE: React.CSSProperties = { height: toque, padding: "0 14px", marginTop: 12, borderRadius: R.md, border: "1px solid #e7e5e4", background: "#fff", color: T.text, fontSize: FS.body, fontWeight: 700, cursor: "pointer" };
+  const BOTAO_LEVE: React.CSSProperties = { height: toque, padding: "0 14px", marginTop: 12, borderRadius: R.md, border: `1px solid ${T.border}`, background: T.surface, color: T.text, fontSize: FS.body, fontWeight: 700, cursor: "pointer" };
 
   return (
-    <section data-testid="lista-pedidos" style={{ background: "#ffffff", border: "1px solid #e7e5e4", borderRadius: R.lg, boxShadow: "0 1px 2px rgba(28,25,23,0.06)", overflow: "hidden", minWidth: 0 }}>
-      <div style={{ padding: "14px 16px", borderBottom: "1px solid #f1f0ef", display: "flex", flexDirection: "column", gap: 10 }}>
+    <section data-testid="lista-pedidos" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, boxShadow: "0 1px 2px rgba(28,25,23,0.06)", overflow: "hidden", minWidth: 0 }}>
+      <div style={{ padding: "14px 16px", borderBottom: `1px solid ${N.n3}`, display: "flex", flexDirection: "column", gap: 10 }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <div style={{ position: "relative", flex: isMobile ? "1 1 100%" : "1 1 240px", minWidth: 0 }}>
-            <Search size={14} aria-hidden="true" style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "#57534e" }} />
+            <Search size={14} aria-hidden="true" style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: T.apoio }} />
             <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} data-testid="input-busca-pedidos"
               onKeyDown={(e) => { if (e.key === "Escape" && busca) { e.preventDefault(); setBusca(""); } }}
               aria-label="Buscar solicitações por evento, patrocinador, observação, quem solicitou ou peça"
               placeholder="Evento, patrocinador, observação, quem solicitou…"
-              style={{ width: "100%", boxSizing: "border-box", height: toque, padding: "0 34px 0 32px", borderRadius: R.md, border: "1px solid #e7e5e4", fontSize: FS.body, color: T.text }} />
+              style={{ width: "100%", boxSizing: "border-box", height: toque, padding: "0 34px 0 32px", borderRadius: R.md, border: `1px solid ${T.border}`, fontSize: FS.body, color: T.text }} />
             {busca && (
               <button type="button" onClick={() => setBusca("")} aria-label="Limpar a busca" data-testid="button-limpar-busca-pedidos"
-                style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)", width: toque - 8, height: toque - 8, borderRadius: R.pill, border: "none", background: "none", color: "#57534e", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)", width: toque - 8, height: toque - 8, borderRadius: R.pill, border: "none", background: "none", color: T.apoio, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <X size={14} aria-hidden="true" />
               </button>
             )}
@@ -348,7 +348,7 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
             <FilterSelect label="Evento" allLabel="Todos os eventos" showAllLabelWhenEmpty hideWhenEmpty={false}
               value={eventoFiltro} onChange={setEventoFiltro} options={opcoesDeEvento}
               searchPlaceholder="Buscar evento..." emptyText="Nenhum evento." testId="select-evento-pedidos"
-              triggerStyle={{ height: toque, borderRadius: R.md, border: "1px solid #e7e5e4", padding: "0 12px", fontSize: FS.body, background: "#fff" }} />
+              triggerStyle={{ height: toque, borderRadius: R.md, border: `1px solid ${T.border}`, padding: "0 12px", fontSize: FS.body, background: T.surface }} />
           )}
           {/* Ordenação veste o controle da casa (kind="sort"), não o <select>
               nativo — que desenhava o menu do Windows no meio da faixa. */}
@@ -358,7 +358,7 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
             triggerStyle={{ height: toque }} />
           {podePedir && (
             <button type="button" data-testid="button-novo-pedido" onClick={() => setNovaAberta(true)}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, height: toque, padding: "0 16px", borderRadius: R.md, border: "none", background: "#1c1917", color: "#fff", fontSize: FS.body, fontWeight: 800, cursor: "pointer", marginLeft: isMobile ? 0 : "auto" }}>
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, height: toque, padding: "0 16px", borderRadius: R.md, border: "none", background: T.text, color: T.surface, fontSize: FS.body, fontWeight: 800, cursor: "pointer", marginLeft: isMobile ? 0 : "auto" }}>
               <Plus size={15} aria-hidden="true" /> Nova solicitação
             </button>
           )}
@@ -378,18 +378,18 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
       </div>
 
       {parados.length > 0 && (
-        <div data-testid="faixa-pedidos-parados" role="status" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "12px 16px", background: "#fffbeb", borderBottom: "1px solid #fde68a" }}>
-          <AlertTriangle size={18} color="#b45309" aria-hidden="true" style={{ flexShrink: 0 }} />
+        <div data-testid="faixa-pedidos-parados" role="status" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "12px 16px", background: TOM.alerta.bg, borderBottom: `1px solid ${TOM.alerta.border}` }}>
+          <AlertTriangle size={18} color={TOM.alerta.text} aria-hidden="true" style={{ flexShrink: 0 }} />
           <div style={{ flex: "1 1 260px", minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#78350f" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: TOM.alerta.text }}>
               {parados.length} {parados.length === 1 ? "solicitação esperando" : "solicitações esperando"} há mais de {IDADE_DE_ATENCAO} dias
             </div>
-            <div style={{ fontSize: 11, color: "#78350f", marginTop: 2, lineHeight: 1.45 }}>
+            <div style={{ fontSize: 11, color: TOM.alerta.text, marginTop: 2, lineHeight: 1.45 }}>
               {parados.slice(0, 3).map((p) => `${p.pedidoPor ?? "—"} · ${p.linhas[0]?.eventName ?? "evento"} · ${idadeDoPedido(p.createdAt, agora).texto}`).join("; ")}
             </div>
           </div>
           <button type="button" data-testid="button-ver-mais-antigos" onClick={() => { setFiltro("aberto"); setOrdem("antigos"); limparRecorte(); }}
-            style={{ height: toque, padding: "0 12px", borderRadius: R.md, border: "1px solid #fcd34d", background: "#ffffff", color: "#78350f", fontSize: 12.5, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }}>
+            style={{ height: toque, padding: "0 12px", borderRadius: R.md, border: `1px solid ${TOM.alerta.border}`, background: T.surface, color: TOM.alerta.text, fontSize: 12.5, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }}>
             Ver as {parados.length} mais antigas
           </button>
         </div>
@@ -399,7 +399,7 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
           uma peça atendida sem o botão. Uma vez, no recorte onde ela surge,
           em vez de um botão travado repetido em cada linha. */}
       {podePedir && !podeResolver && (filtro === "atendido" || filtro === "ajuste") && visiveis.length > 0 && (
-        <p data-testid="aviso-atendida-nao-cancela" style={{ margin: 0, padding: "8px 16px", fontSize: FS.body, color: "#44403c", background: "#fafaf9", borderBottom: "1px solid #f1f0ef", lineHeight: 1.45 }}>
+        <p data-testid="aviso-atendida-nao-cancela" style={{ margin: 0, padding: "8px 16px", fontSize: FS.body, color: T.strong, background: T.bg, borderBottom: `1px solid ${N.n3}`, lineHeight: 1.45 }}>
           Peça atendida já existe no evento, por isso não tem “Cancelar”. Para mudar algo, use <strong>Pedir ajuste</strong> — quem monta a lista aceita ou recusa, e você é avisado.
         </p>
       )}
@@ -408,7 +408,7 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
           última lista, e trocá-la inteira por uma frase de erro (como era)
           escondia justamente o que a pessoa estava lendo. */}
       {isError && pedidos.length > 0 && (
-        <p role="alert" data-testid="aviso-pedidos-desatualizados" style={{ margin: 0, padding: "8px 16px", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: FS.body, color: "#991b1b", background: "#fef2f2", borderBottom: "1px solid #fecaca" }}>
+        <p role="alert" data-testid="aviso-pedidos-desatualizados" style={{ margin: 0, padding: "8px 16px", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: FS.body, color: TOM.perigo.text, background: TOM.perigo.bg, borderBottom: `1px solid ${TOM.perigo.border}` }}>
           Não foi possível atualizar — a lista abaixo pode estar desatualizada.
           <button type="button" onClick={() => refetch()} style={{ border: "none", background: "none", padding: "0 4px", fontSize: FS.body, fontWeight: 800, textDecoration: "underline", cursor: "pointer", color: T.text, minHeight: toque }}>Tentar de novo</button>
         </p>
@@ -417,13 +417,13 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
       {isLoading ? (
         <ListaCarregando />
       ) : isError && pedidos.length === 0 ? (
-        <p role="alert" style={{ margin: 0, padding: 20, fontSize: FS.body, color: "#b91c1c" }}>
+        <p role="alert" style={{ margin: 0, padding: 20, fontSize: FS.body, color: TOM.perigo.text }}>
           Não foi possível carregar as solicitações. Verifique a conexão.{" "}
           <button type="button" onClick={() => refetch()} style={{ border: "none", background: "none", fontWeight: 800, textDecoration: "underline", cursor: "pointer", color: T.text, minHeight: toque }}>Tentar de novo</button>
         </p>
       ) : visiveis.length === 0 ? (
-        <div data-testid="pedidos-vazio" style={{ padding: "36px 16px", textAlign: "center", color: "#57534e" }}>
-          <Inbox size={26} color="#78716c" aria-hidden="true" />
+        <div data-testid="pedidos-vazio" style={{ padding: "36px 16px", textAlign: "center", color: T.apoio }}>
+          <Inbox size={26} color={T.second} aria-hidden="true" />
           <p style={{ margin: "8px 0 2px", fontSize: 14, fontWeight: 700, color: T.text }}>{vazio}</p>
           {pedidos.length === 0 && podePedir && (
             <p style={{ margin: 0, fontSize: FS.body }}>Use “Nova solicitação” para pedir peças a quem monta a lista.</p>
@@ -452,10 +452,10 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
       )}
 
       {(pedidos.length >= limite || isPlaceholderData) && (
-        <div style={{ padding: 12, borderTop: "1px solid #f1f0ef", textAlign: "center" }}>
+        <div style={{ padding: 12, borderTop: `1px solid ${N.n3}`, textAlign: "center" }}>
           <button type="button" data-testid="button-mais-pedidos" onClick={() => setLimite((l) => l + PASSO)}
             disabled={isPlaceholderData} aria-busy={isPlaceholderData || undefined}
-            style={{ height: toque, padding: "0 16px", borderRadius: R.md, border: "1px solid #e7e5e4", background: "#fff", color: T.text, fontSize: FS.body, fontWeight: 700, cursor: isPlaceholderData ? "wait" : "pointer" }}>
+            style={{ height: toque, padding: "0 16px", borderRadius: R.md, border: `1px solid ${T.border}`, background: T.surface, color: T.text, fontSize: FS.body, fontWeight: 700, cursor: isPlaceholderData ? "wait" : "pointer" }}>
             {isPlaceholderData ? "Carregando as mais antigas…" : "Carregar solicitações mais antigas"}
           </button>
         </div>

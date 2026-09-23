@@ -56,7 +56,7 @@ import {
 } from "@/lib/painel-encerrados";
 import { formatFrescor } from "@/lib/painel-frescor";
 import { proximaTelaDoStatus } from "@/lib/painel-rotas";
-import { FS } from "@/lib/theme";
+import { FS, T, N, TOM, FONT } from "@/lib/theme";
 import {
   visoesParaPapel, visaoEstaAtiva, chaveVisaoPadrao, type Visao,
 } from "@/lib/painel-visoes";
@@ -123,10 +123,10 @@ const GROUP_CAP = 5;
 // inteira gritar no mesmo volume. Quem cadastrou em maiúsculas continua vendo
 // em maiúsculas — a tela só parou de impor.
 const EVENT_TITLE_STYLE: React.CSSProperties = {
-  fontFamily: "'Space Grotesk', sans-serif",
+  fontFamily: FONT.display,
   fontWeight: 700, fontSize: 15,
   letterSpacing: "-0.01em",
-  color: "#1c1917", margin: 0, lineHeight: 1,
+  color: T.text, margin: 0, lineHeight: 1,
   whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
 };
 
@@ -160,14 +160,14 @@ const ZONA_PRODUCAO: GroupKey[] = ["ready_for_production", "approved", "inProduc
 // degraus da escala stone, os mesmos tokens do resto da tela. A identidade de
 // cada etapa continua onde ela é lida — no nome do card, no title e no
 // aria-label do segmento, e na pílula de status de cada linha.
-const TOM_ZONA_ENTRADA = "#d6d3d1";
-const TOM_ZONA_APROVACAO = "#a8a29e";
-const TOM_ZONA_PRODUCAO = "#57534e";
+const TOM_ZONA_ENTRADA = T.bdark;
+const TOM_ZONA_APROVACAO = T.muted;
+const TOM_ZONA_PRODUCAO = T.apoio;
 function tomDaZona(k: GroupKey): string {
   if (ZONA_ENTRADA.includes(k)) return TOM_ZONA_ENTRADA;
   if (ZONA_APROVACAO.includes(k)) return TOM_ZONA_APROVACAO;
   if (ZONA_PRODUCAO.includes(k)) return TOM_ZONA_PRODUCAO;
-  return "#e7e5e4"; // canceladas: fora do avanço
+  return T.border; // canceladas: fora do avanço
 }
 
 /** Número com separador de milhar pt-BR: "2.099", não "2099". */
@@ -185,7 +185,7 @@ const fmtN = (n: number) => n.toLocaleString("pt-BR");
 const SELO_CALMO: React.CSSProperties = {
   display: "inline-flex", alignItems: "center", width: "fit-content",
   fontSize: 11, fontWeight: 600, lineHeight: 1.35, whiteSpace: "nowrap",
-  color: "#57534e", backgroundColor: "#f5f5f4", border: "1px solid #e7e5e4",
+  color: T.apoio, backgroundColor: N.n2, border: `1px solid ${T.border}`,
   borderRadius: 6, padding: "1px 6px",
 };
 
@@ -196,17 +196,17 @@ const SELO_CALMO: React.CSSProperties = {
 // porque as linhas de peça não são contíguas: sub-headers de grupo e de tipo
 // se intercalam, então `:nth-child` contaria errado.
 const PG_CSS = `
-.pg-row { border-left: 3px solid transparent; border-bottom: 1px solid #f0f0ef; transition: background-color .15s, transform .15s, border-color .15s; }
-.pg-row[data-zebra="0"] { background-color: #ffffff; }
-.pg-row[data-zebra="1"] { background-color: #f6f4f1; }
+.pg-row { border-left: 3px solid transparent; border-bottom: 1px solid ${N.n3}; transition: background-color .15s, transform .15s, border-color .15s; }
+.pg-row[data-zebra="0"] { background-color: ${T.surface}; }
+.pg-row[data-zebra="1"] { background-color: ${N.n2}; }
 .pg-row[data-deleted="0"] { cursor: pointer; }
-.pg-row[data-deleted="1"] { background-color: #fff5f5; border-left-color: #fecaca; opacity: .85; }
-.pg-row[data-deleted="0"]:hover { background-color: #fff7ed; border-left-color: #f97316; transform: translateY(-1px); }
-.pg-row[data-selected="1"] { background-color: #fff7ed; border-left-color: #c2410c; }
+.pg-row[data-deleted="1"] { background-color: ${TOM.perigo.bg}; border-left-color: ${TOM.perigo.border}; opacity: .85; }
+.pg-row[data-deleted="0"]:hover { background-color: ${TOM.laranja.bg}; border-left-color: ${T.accent}; transform: translateY(-1px); }
+.pg-row[data-selected="1"] { background-color: ${TOM.laranja.bg}; border-left-color: ${T.accentText}; }
 .pg-event-link { text-decoration: none; display: block; min-width: 0; border-radius: 4px; }
 .pg-event-link h3 { transition: color .15s; }
-.pg-event-link:hover h3 { color: #c2410c; text-decoration: underline; }
-.pg-event-link:focus-visible { outline: 2px solid #c2410c; outline-offset: 2px; }
+.pg-event-link:hover h3 { color: ${T.accentText}; text-decoration: underline; }
+.pg-event-link:focus-visible { outline: 2px solid ${T.accentText}; outline-offset: 2px; }
 .pg-goto { opacity: 0; transition: opacity .15s; flex-shrink: 0; }
 .pg-event-link:hover .pg-goto, .pg-event-link:focus-visible .pg-goto { opacity: 1; }
 /* CARD DE RESUMO — hover, foco e esmaecido em CSS.
@@ -219,14 +219,14 @@ const PG_CSS = `
 .pg-card { transition: border-color .15s, box-shadow .15s, transform .15s, opacity .15s, background-color .15s; }
 .pg-card[data-zero="1"] { opacity: .72; }
 .pg-card:hover, .pg-card:focus-visible { opacity: 1; }
-.pg-card[aria-pressed="false"]:hover { transform: translateY(-1px); border-color: #d6d3d1; box-shadow: 0 3px 10px rgba(28,25,23,.07); }
+.pg-card[aria-pressed="false"]:hover { transform: translateY(-1px); border-color: ${T.bdark}; box-shadow: 0 3px 10px rgba(28,25,23,.07); }
 /* Segmento da barra: o pai tem overflow hidden (raio da pílula), então o anel
    global de foco, que fica 2px PARA FORA, seria cortado. Anel para dentro. */
-.pg-seg:focus-visible { outline: 2px solid #1c1917; outline-offset: -2px; border-radius: 0; }
+.pg-seg:focus-visible { outline: 2px solid ${T.text}; outline-offset: -2px; border-radius: 0; }
 .pg-seg:hover { filter: brightness(.92); }
 .pg-chip { transition: background-color .15s, border-color .15s, box-shadow .15s; }
 .pg-chip[aria-pressed="false"]:hover { box-shadow: 0 2px 8px rgba(28,25,23,.08); }
-.pg-anexo:hover { color: #c2410c !important; border-color: #fed7aa !important; background-color: #fff7ed !important; }
+.pg-anexo:hover { color: ${T.accentText} !important; border-color: ${TOM.laranja.border} !important; background-color: ${TOM.laranja.bg} !important; }
 .pg-sortable { cursor: pointer; user-select: none; }
 /* ALVO DA CAIXA DE SELEÇÃO.
 
@@ -241,10 +241,10 @@ const PG_CSS = `
    é aceito. Envolver no label também dispensa o for/id — clicar no
    rótulo alterna o input por definição do HTML. */
 .pg-check { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; margin: -10px; cursor: pointer; }
-/* #c2410c sobre o #fafaf9 do cabecalho = 4,96:1 AA. Era #fdba74, escolhido
+/* ${T.accentText} sobre o ${T.bg} do cabecalho = 4,96:1 AA. Era ${TOM.laranja.border}, escolhido
    quando o thead era ESCURO; ao clarear o cabecalho eu nao revisei esta cor e
    ela virou 1,61:1 — o hover de ordenacao ficou praticamente invisivel. */
-.pg-sortable:hover { color: #c2410c; }
+.pg-sortable:hover { color: ${T.accentText}; }
 `;
 
 // ─── Status card ────────────────────────────────────────────────────────────
@@ -319,13 +319,13 @@ function StatusCard({
       style={{
         position: "relative", overflow: "hidden",
         // #f5f5f4 no Total: separa "a conta inteira" das parcelas sem cor nova.
-        background: isActive && !dark ? "#fff7ed" : dark ? "#f5f5f4" : "#ffffff",
-        border: `1px solid ${isActive && !dark ? "#c2410c" : "#e7e5e4"}`,
+        background: isActive && !dark ? TOM.laranja.bg : dark ? N.n2 : T.surface,
+        border: `1px solid ${isActive && !dark ? T.accentText : T.border}`,
         borderRadius: 10,
         padding: "11px 12px 10px 13px", minHeight: 84,
         display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 6,
         cursor: "pointer",
-        boxShadow: isActive && !dark ? "0 0 0 1px #c2410c" : "0 1px 2px rgba(28,25,23,.04)",
+        boxShadow: isActive && !dark ? `0 0 0 1px ${T.accentText}` : "0 1px 2px rgba(28,25,23,.04)",
       }}
     >
       {/* COR DA ETAPA (dono, 17/09: "aqui tem que ter cor"). Faixa à esquerda
@@ -338,13 +338,13 @@ function StatusCard({
             se precisar ("Aguardando Revisão Final" no celular) em vez de
             abreviar para "Ag. Revisão" — abreviação é mais um código a
             decorar. #57534e sobre #ffffff = 7,63:1; sobre #f5f5f4 = 6,99:1. */}
-        <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: "#57534e", lineHeight: 1.3, minWidth: 0, display: "flex", alignItems: "baseline", gap: 6 }}>
+        <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: T.apoio, lineHeight: 1.3, minWidth: 0, display: "flex", alignItems: "baseline", gap: 6 }}>
           {cor && <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: cor, flexShrink: 0, transform: "translateY(-1px)" }} />}
           {label}
         </p>
         {badgeTexto && (
           /* #c2410c sobre #fff7ed = 4,88:1 AA nos 11px peso 700. */
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flexShrink: 0, fontSize: 11, fontWeight: 700, color: "#c2410c", lineHeight: 1.3, whiteSpace: "nowrap" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flexShrink: 0, fontSize: 11, fontWeight: 700, color: T.accentText, lineHeight: 1.3, whiteSpace: "nowrap" }}>
             {!dark && <Check aria-hidden="true" style={{ width: 11, height: 11 }} />}
             {badgeTexto}
           </span>
@@ -357,7 +357,7 @@ function StatusCard({
               TOTAL anunciava "0 TOTAL" com selo BASELINE enquanto o skeleton
               rodava logo abaixo — a manchete da tela dizia que não havia nada.
               Um travessão diz a verdade: ainda não sei. */}
-          <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 24, fontWeight: 700, color: "#1c1917", lineHeight: 1, margin: 0, letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums" }}>{carregando ? "—" : valorTexto}</p>
+          <p style={{ fontFamily: FONT.display, fontSize: 24, fontWeight: 700, color: T.text, lineHeight: 1, margin: 0, letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums" }}>{carregando ? "—" : valorTexto}</p>
           {/* A HIERARQUIA VEM DO PESO, NÃO DO CONTRASTE.
               A primeira tentativa usou um cinza mais claro (#8c8580) para o
               percentual ficar subordinado — e ele dá 3,63:1 em 10px, reprova
@@ -367,7 +367,7 @@ function StatusCard({
               "do total" saiu da frase: repetido em treze cards era a mesma
               ressalva dita treze vezes ao lado de um número que já a implica. */}
           {!carregando && pct !== undefined && value > 0 && (
-            <span style={{ fontSize: 11, fontWeight: 600, color: "#746e69", lineHeight: 1 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: T.second, lineHeight: 1 }}>
               {pct < 1 ? "<1" : Math.round(pct)}%
             </span>
           )}
@@ -387,14 +387,14 @@ function StatusCard({
                    ~20px sem deslocar nada, porque o fundo é transparente. */
                 background: "none", border: "none", padding: "3px 0", marginTop: 2,
                 fontSize: 11, fontWeight: 600, lineHeight: 1.2, cursor: "pointer",
-                color: "#746e69",
+                color: T.second,
                 textDecoration: "underline", textUnderlineOffset: 2, textAlign: "left",
               }}
             >
               {sub}
             </button>
           ) : (
-            <p style={{ fontSize: 11, fontWeight: 600, color: "#746e69", margin: "4px 0 0", lineHeight: 1.2 }}>{sub}</p>
+            <p style={{ fontSize: 11, fontWeight: 600, color: T.second, margin: "4px 0 0", lineHeight: 1.2 }}>{sub}</p>
           )
         )}
       </div>
@@ -412,8 +412,8 @@ function FilterChip({ label, onRemove, isMobile }: { label: string; onRemove: ()
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 4,
-      backgroundColor: "#f5f5f4", border: "1px solid #e7e5e4", borderRadius: 999,
-      padding: "3px 6px 3px 10px", fontSize: 11, fontWeight: 600, color: "#44403c",
+      backgroundColor: N.n2, border: `1px solid ${T.border}`, borderRadius: 999,
+      padding: "3px 6px 3px 10px", fontSize: 11, fontWeight: 600, color: T.strong,
       whiteSpace: "nowrap", maxWidth: 280, overflow: "hidden",
     }}>
       <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>
@@ -422,7 +422,7 @@ function FilterChip({ label, onRemove, isMobile }: { label: string; onRemove: ()
         onClick={onRemove}
         aria-label={`Remover filtro ${label}`}
         style={{
-          background: "none", border: "none", cursor: "pointer", color: "#746e69",
+          background: "none", border: "none", cursor: "pointer", color: T.second,
           fontSize: 13, fontWeight: 800, padding: 0, lineHeight: 1,
           display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
           minWidth: hit, minHeight: hit,
@@ -486,9 +486,9 @@ function diasNoEstado(item: any, agoraMs: number): number | null {
  * com a cor: cor sozinha não é sinal para quem não a distingue.
  */
 function tomDaIdade(dias: number): { cor: string; peso: number } {
-  if (dias > 14) return { cor: "#b91c1c", peso: 700 };
-  if (dias > LIMITE_PARADA) return { cor: "#b45309", peso: 700 };
-  return { cor: "#746e69", peso: 500 };
+  if (dias > 14) return { cor: TOM.perigo.text, peso: 700 };
+  if (dias > LIMITE_PARADA) return { cor: TOM.alerta.text, peso: 700 };
+  return { cor: T.second, peso: 500 };
 }
 
 /** "há 1 dia" / "há 12 dias" / "hoje". */
@@ -515,10 +515,10 @@ function EventStatusBar({ items, width }: { items: Array<{ status?: string | nul
       title={resumo}
       aria-label={`Distribuição por etapa — ${resumo}`}
       role="img"
-      style={{ display: "flex", width, height: 6, borderRadius: 999, overflow: "hidden", backgroundColor: "#f0efee", flexShrink: 0 }}
+      style={{ display: "flex", width, height: 6, borderRadius: 999, overflow: "hidden", backgroundColor: N.n3, flexShrink: 0 }}
     >
       {segments.map((s, i) => (
-        <div key={s.key} style={{ width: `${(s.n / total) * 100}%`, backgroundColor: s.tom, borderRight: i < segments.length - 1 ? "1px solid #ffffff" : "none" }} />
+        <div key={s.key} style={{ width: `${(s.n / total) * 100}%`, backgroundColor: s.tom, borderRight: i < segments.length - 1 ? `1px solid ${T.surface}` : "none" }} />
       ))}
     </div>
   );
@@ -588,11 +588,11 @@ function CarimboDeFrescor() {
          servidor, e a revalidação de segurança roda a cada 5 min. */
       title={`${frescor.srLabel}. Esta tela se atualiza sozinha: na hora em que alguém muda uma peça, ao voltar para a aba e, por segurança, a cada 5 minutos. Ponto verde = atualizada há menos de 3 minutos.`}
       data-testid="painel-frescor"
-      style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "#746e69", whiteSpace: "nowrap" }}
+      style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: T.second, whiteSpace: "nowrap" }}
     >
       {isFetching
-        ? <Loader2 className="animate-spin" style={{ width: 11, height: 11, color: "#746e69" }} aria-hidden="true" />
-        : <span style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: frescor.tone === "fresco" ? "#15803d" : "#b45309", flexShrink: 0 }} />}
+        ? <Loader2 className="animate-spin" style={{ width: 11, height: 11, color: T.second }} aria-hidden="true" />
+        : <span style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: frescor.tone === "fresco" ? TOM.sucesso.text : TOM.alerta.text, flexShrink: 0 }} />}
       {/* Sem aria-live aqui de propósito: quem anuncia mudança é o
           contador de resultados. Duas regiões vivas competindo fazem o
           leitor de tela falar por cima de si mesmo a cada minuto. */}
@@ -750,7 +750,7 @@ const LinhaDaPeca = memo(function LinhaDaPeca({
               onChange={() => acoes.alternarSelecao(item.id)}
               aria-label={`Selecionar a peça ${item.displayId}`}
               data-testid={`checkbox-${item.id}`}
-              style={{ width: 15, height: 15, cursor: "pointer", accentColor: "#c2410c" }}
+              style={{ width: 15, height: 15, cursor: "pointer", accentColor: T.accentText }}
             />
           </label>
         )}
@@ -759,7 +759,7 @@ const LinhaDaPeca = memo(function LinhaDaPeca({
       {/* ID (+ tipo; + medidas no modo reduzido) */}
       <td style={{ padding: "10px 18px 10px 20px", overflow: "hidden" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
-          <button onClick={e => { e.stopPropagation(); if (!isDeleted) acoes.abrir(item); }} disabled={isDeleted} aria-label={`Ver detalhes da peça ${item.displayId}`} data-testid={`text-display-id-${item.id}`} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "monospace", fontWeight: 700, color: isDeleted ? "#b91c1c" : "#c2410c", fontSize: 13, textDecoration: isDeleted ? "line-through" : "none", textAlign: "left" }}>
+          <button onClick={e => { e.stopPropagation(); if (!isDeleted) acoes.abrir(item); }} disabled={isDeleted} aria-label={`Ver detalhes da peça ${item.displayId}`} data-testid={`text-display-id-${item.id}`} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: FONT.mono, fontWeight: 700, color: isDeleted ? TOM.perigo.text : T.accentText, fontSize: 13, textDecoration: isDeleted ? "line-through" : "none", textAlign: "left" }}>
             {item.displayId}
           </button>
           <SeloKit peca={item} style={{ alignSelf: "flex-start" }} />
@@ -769,7 +769,7 @@ const LinhaDaPeca = memo(function LinhaDaPeca({
               linha órfã do próprio tipo. */}
           {/* DUAS LINHAS em vez de reticências + `title`: no tablet não há
               hover, então o texto cortado não tinha onde aparecer inteiro. */}
-          <span style={{ fontSize: 10, fontWeight: 600, color: "#746e69", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere", lineHeight: 1.3 }}>
+          <span style={{ fontSize: 10, fontWeight: 600, color: T.second, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere", lineHeight: 1.3 }}>
             {item.type}
           </span>
           {/* O selo se repete na LINHA, e não só
@@ -815,12 +815,12 @@ const LinhaDaPeca = memo(function LinhaDaPeca({
             </span>
           )}
           {isDeleted && item.deletedAt && (
-            <span style={{ fontSize: 10, color: "#746e69" }}>
+            <span style={{ fontSize: 10, color: T.second }}>
               Excluído {format(new Date(item.deletedAt), "dd/MM/yy", { locale: ptBR })}
             </span>
           )}
           {isCompact && !isDeleted && ((item.visualWidth && item.visualHeight) || (item.fileWidth && item.fileHeight)) && (
-            <span style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "#57534e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <span style={{ fontFamily: FONT.mono, fontSize: 11, fontWeight: 700, color: T.apoio, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {item.fileWidth && item.fileHeight
                 ? `ARQ ${item.fileWidth} × ${item.fileHeight}`
                 : `VIS ${item.visualWidth} × ${item.visualHeight}`}
@@ -855,11 +855,11 @@ const LinhaDaPeca = memo(function LinhaDaPeca({
                reticências, duas peças do mesmo evento viravam o mesmo texto e
                o completo só existia no `title` — que no tablet não existe.
                Duas linhas resolvem sem alargar a coluna. */
-            <span style={{ fontSize: 13, color: isDeleted ? "#746e69" : "#44403c", fontWeight: 500, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere", lineHeight: 1.3, flexShrink: 1, minWidth: 0, textDecoration: isDeleted ? "line-through" : "none" }}>
+            <span style={{ fontSize: 13, color: isDeleted ? T.second : T.strong, fontWeight: 500, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere", lineHeight: 1.3, flexShrink: 1, minWidth: 0, textDecoration: isDeleted ? "line-through" : "none" }}>
               {item.description}
             </span>
           ) : (
-            <span style={{ color: "#746e69", fontSize: 13 }}>—</span>
+            <span style={{ color: T.second, fontSize: 13 }}>—</span>
           )}
           {!isDeleted && item.observations && (
             /* maxWidth + ellipsis + title: o selo
@@ -910,23 +910,23 @@ const LinhaDaPeca = memo(function LinhaDaPeca({
                   contarem a mesma história. */}
               {item.fileWidth && item.fileHeight && (
                 <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#b45309", width: 30, flexShrink: 0 }}>ARQ</span>
-                  <span style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: "#44403c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: TOM.alerta.text, width: 30, flexShrink: 0 }}>ARQ</span>
+                  <span style={{ fontFamily: FONT.mono, fontSize: 13, fontWeight: 700, color: T.strong, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {item.fileWidth} × {item.fileHeight}
                   </span>
                 </div>
               )}
               {item.visualWidth && item.visualHeight && (
                 <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#746e69", width: 30, flexShrink: 0 }}>VIS</span>
-                  <span style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: "#746e69", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: T.second, width: 30, flexShrink: 0 }}>VIS</span>
+                  <span style={{ fontFamily: FONT.mono, fontSize: 13, fontWeight: 700, color: T.second, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {item.visualWidth} × {item.visualHeight}
                   </span>
                 </div>
               )}
             </div>
           ) : (
-            <span style={{ color: "#746e69", fontSize: 13 }}>—</span>
+            <span style={{ color: T.second, fontSize: 13 }}>—</span>
           )}
         </td>
       )}
@@ -936,7 +936,7 @@ const LinhaDaPeca = memo(function LinhaDaPeca({
       {!isCompact && (
         <td style={{ padding: "10px 18px", overflow: "hidden" }}>
           {isDeleted
-            ? <span style={{ color: "#746e69", fontSize: 13 }}>—</span>
+            ? <span style={{ color: T.second, fontSize: 13 }}>—</span>
             : <SponsorChips sponsors={item.sponsors ?? []} variant="colored" size="sm" max={4} />}
         </td>
       )}
@@ -990,7 +990,7 @@ const LinhaDaPeca = memo(function LinhaDaPeca({
               disabled={restorePending}
               title="Restaurar peça" aria-label="Restaurar peça"
               data-testid={`button-restore-${item.id}`}
-              style={{ background: "#d1fae5", border: "1px solid #6ee7b7", cursor: restorePending ? "not-allowed" : "pointer", borderRadius: 6, color: "#065f46", display: "flex", alignItems: "center", justifyContent: "center", padding: 6, opacity: restorePending ? 0.6 : 1 }}
+              style={{ background: TOM.esmeralda.bg, border: `1px solid ${TOM.esmeralda.border}`, cursor: restorePending ? "not-allowed" : "pointer", borderRadius: 6, color: TOM.esmeralda.text, display: "flex", alignItems: "center", justifyContent: "center", padding: 6, opacity: restorePending ? 0.6 : 1 }}
             >
               {restaurando
                 ? <Loader2 className="animate-spin" style={{ width: 14, height: 14 }} />
@@ -1001,7 +1001,7 @@ const LinhaDaPeca = memo(function LinhaDaPeca({
               type="button" disabled aria-disabled="true"
               title="Só um administrador pode restaurar peças excluídas"
               aria-label="Só um administrador pode restaurar peças excluídas"
-              style={{ background: "none", border: "none", padding: 4, color: "#a8a29e", display: "flex", alignItems: "center", justifyContent: "center", cursor: "not-allowed" }}
+              style={{ background: "none", border: "none", padding: 4, color: T.second, display: "flex", alignItems: "center", justifyContent: "center", cursor: "not-allowed" }}
             >
               <RotateCcw style={{ width: 15, height: 15 }} />
             </button>
@@ -1012,12 +1012,12 @@ const LinhaDaPeca = memo(function LinhaDaPeca({
               aria-label="Ver detalhes da peça" title="Ver detalhes" data-testid={`button-view-${item.id}`}
               style={{
                 background: "none", border: "none", cursor: "pointer",
-                padding: 4, borderRadius: 6, color: "#746e69",
+                padding: 4, borderRadius: 6, color: T.second,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 transition: "color 0.15s",
               }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#c2410c")}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#746e69")}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = T.accentText)}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = T.second)}
             >
               <Eye style={{ width: 16, height: 16 }} />
             </button>
@@ -1029,12 +1029,12 @@ const LinhaDaPeca = memo(function LinhaDaPeca({
               title="Excluir peça" aria-label="Excluir peça"
               style={{
                 background: "none", border: "none", cursor: "pointer",
-                padding: 4, borderRadius: 6, color: "#746e69",
+                padding: 4, borderRadius: 6, color: T.second,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 transition: "color 0.15s",
               }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#dc2626")}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#746e69")}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = TOM.perigo.text)}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = T.second)}
             >
               <Trash2 style={{ width: 15, height: 15 }} />
             </button>
@@ -1054,11 +1054,11 @@ const CartaoDaPeca = memo(function CartaoDaPeca({
       data-testid={`item-row-${item.id}`}
       onClick={() => !isDeleted && acoes.abrir(item)}
       style={{
-        border: `1px solid ${isDeleted ? "#fecaca" : "#e7e5e4"}`,
+        border: `1px solid ${isDeleted ? TOM.perigo.border : T.border}`,
         borderRadius: 8,
         padding: "10px 12px",
         marginBottom: 8,
-        backgroundColor: isDeleted ? "#fff5f5" : (ci % 2 === 1 ? "#f6f4f1" : "#ffffff"),
+        backgroundColor: isDeleted ? TOM.perigo.bg : (ci % 2 === 1 ? N.n2 : T.surface),
         display: "flex",
         alignItems: "flex-start",
         gap: 8,
@@ -1071,11 +1071,11 @@ const CartaoDaPeca = memo(function CartaoDaPeca({
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 5 }}>
         {/* Row 1: ID + type */}
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-          <button onClick={e => { e.stopPropagation(); if (!isDeleted) acoes.abrir(item); }} disabled={isDeleted} aria-label={`Ver detalhes da peça ${item.displayId}`} data-testid={`text-display-id-${item.id}`} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "monospace", fontWeight: 700, color: isDeleted ? "#b91c1c" : "#c2410c", fontSize: 13, flexShrink: 0, textDecoration: isDeleted ? "line-through" : "none" }}>
+          <button onClick={e => { e.stopPropagation(); if (!isDeleted) acoes.abrir(item); }} disabled={isDeleted} aria-label={`Ver detalhes da peça ${item.displayId}`} data-testid={`text-display-id-${item.id}`} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: FONT.mono, fontWeight: 700, color: isDeleted ? TOM.perigo.text : T.accentText, fontSize: 13, flexShrink: 0, textDecoration: isDeleted ? "line-through" : "none" }}>
             {item.displayId}
           </button>
           <SeloKit peca={item} style={{ flexShrink: 0 }} />
-          <span style={{ fontSize: 11, fontWeight: 700, color: isDeleted ? "#746e69" : "#44403c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, textDecoration: isDeleted ? "line-through" : "none" }}>{item.type}</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: isDeleted ? T.second : T.strong, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, textDecoration: isDeleted ? "line-through" : "none" }}>{item.type}</span>
           {item.isReuse && !isDeleted && (
             <span style={{ ...SELO_CALMO, flexShrink: 0 }}>
               Reaproveitada
@@ -1084,7 +1084,7 @@ const CartaoDaPeca = memo(function CartaoDaPeca({
         </div>
         {/* Row 2: description — allow up to 2 lines on mobile */}
         {item.description && (
-          <span style={{ fontSize: 13, color: isDeleted ? "#746e69" : "#44403c", fontWeight: 500, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" } as React.CSSProperties}>
+          <span style={{ fontSize: 13, color: isDeleted ? T.second : T.strong, fontWeight: 500, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" } as React.CSSProperties}>
             {item.description}
           </span>
         )}
@@ -1107,7 +1107,7 @@ const CartaoDaPeca = memo(function CartaoDaPeca({
             </span>
           )}
           {isDeleted && item.deletedAt && (
-            <span style={{ fontSize: 10, color: "#746e69" }}>
+            <span style={{ fontSize: 10, color: T.second }}>
               {format(new Date(item.deletedAt), "dd/MM/yyyy", { locale: ptBR })}
             </span>
           )}
@@ -1128,7 +1128,7 @@ const CartaoDaPeca = memo(function CartaoDaPeca({
             disabled={restorePending}
             title="Restaurar peça" aria-label="Restaurar peça"
             data-testid={`button-restore-${item.id}`}
-            style={{ background: "#d1fae5", border: "1px solid #6ee7b7", cursor: restorePending ? "not-allowed" : "pointer", borderRadius: 6, color: "#065f46", display: "flex", alignItems: "center", justifyContent: "center", height: 44, width: 44, opacity: restorePending ? 0.6 : 1 }}
+            style={{ background: TOM.esmeralda.bg, border: `1px solid ${TOM.esmeralda.border}`, cursor: restorePending ? "not-allowed" : "pointer", borderRadius: 6, color: TOM.esmeralda.text, display: "flex", alignItems: "center", justifyContent: "center", height: 44, width: 44, opacity: restorePending ? 0.6 : 1 }}
           >
             {restaurando
               ? <Loader2 className="animate-spin" style={{ width: 15, height: 15 }} />
@@ -1143,7 +1143,7 @@ const CartaoDaPeca = memo(function CartaoDaPeca({
             type="button" disabled aria-disabled="true"
             title="Só um administrador pode restaurar peças excluídas"
             aria-label="Só um administrador pode restaurar peças excluídas"
-            style={{ background: "none", border: "1px solid #e7e5e4", borderRadius: 6, color: "#a8a29e", display: "flex", alignItems: "center", justifyContent: "center", height: 44, width: 44, cursor: "not-allowed" }}
+            style={{ background: "none", border: `1px solid ${T.border}`, borderRadius: 6, color: T.second, display: "flex", alignItems: "center", justifyContent: "center", height: 44, width: 44, cursor: "not-allowed" }}
           >
             <RotateCcw style={{ width: 15, height: 15 }} />
           </button>
@@ -1153,8 +1153,8 @@ const CartaoDaPeca = memo(function CartaoDaPeca({
             onClick={(e) => { e.stopPropagation(); acoes.abrir(item); }}
             aria-label="Ver detalhes da peça" title="Ver detalhes" data-testid={`button-view-${item.id}`}
             style={{
-              background: "none", border: "1px solid #e7e5e4", cursor: "pointer",
-              borderRadius: 6, color: "#746e69",
+              background: "none", border: `1px solid ${T.border}`, cursor: "pointer",
+              borderRadius: 6, color: T.second,
               display: "flex", alignItems: "center", justifyContent: "center",
               height: 44, width: 44,
             }}
@@ -1168,8 +1168,8 @@ const CartaoDaPeca = memo(function CartaoDaPeca({
             data-testid={`button-delete-${item.id}`}
             title="Excluir peça" aria-label="Excluir peça"
             style={{
-              background: "none", border: "1px solid #fecaca", cursor: "pointer",
-              borderRadius: 6, color: "#746e69",
+              background: "none", border: `1px solid ${TOM.perigo.border}`, cursor: "pointer",
+              borderRadius: 6, color: T.second,
               display: "flex", alignItems: "center", justifyContent: "center",
               height: 44, width: 44,
             }}
@@ -1251,7 +1251,7 @@ const GrupoDoEvento = memo(function GrupoDoEvento({
   // scroll-container — pré-requisito para o thead sticky funcionar
   // contra o scroll da página.
   return (
-    <div style={{ border: "1px solid #e2e2e2", borderRadius: 12, backgroundColor: "#ffffff", overflow: "clip", boxShadow: "0 2px 8px rgba(28,25,23,0.07)" }}>
+    <div style={{ border: `1px solid ${T.border}`, borderRadius: 12, backgroundColor: T.surface, overflow: "clip", boxShadow: "0 2px 8px rgba(28,25,23,0.07)" }}>
 
       {/* Group header — sticky logo abaixo da toolbar (topOffset):
           mantém o contexto do evento visível ao rolar listas longas.
@@ -1262,8 +1262,8 @@ const GrupoDoEvento = memo(function GrupoDoEvento({
           scroll-container (ver comentário na tabela). */}
       <div style={{
         position: "sticky", top: topOffset, zIndex: 6,
-        backgroundColor: "#ffffff",
-        borderBottom: "1px solid #e7e5e4",
+        backgroundColor: T.surface,
+        borderBottom: `1px solid ${T.border}`,
         // Altura fixa SÓ no desktop (onde o thead precisa dela p/
         // calcular o próprio top). Mobile usa cards, sem thead —
         // altura automática deixa os metadados quebrarem linha.
@@ -1276,7 +1276,7 @@ const GrupoDoEvento = memo(function GrupoDoEvento({
         // certo", âmbar diria "corre atrás", e encerrado não é
         // nenhum dos dois) e âmbar no realizado. O laranja da marca
         // fica para os eventos que ainda estão em jogo.
-        borderLeft: `3px solid ${selo ? selo.dot : "#f97316"}`,
+        borderLeft: `3px solid ${selo ? selo.dot : T.accent}`,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
           <div style={{ minWidth: 0 }}>
@@ -1293,7 +1293,7 @@ const GrupoDoEvento = memo(function GrupoDoEvento({
               >
                 <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
                   <h3 style={EVENT_TITLE_STYLE}>{gd.eventName}</h3>
-                  <ArrowUpRight className="pg-goto" style={{ width: 12, height: 12, color: "#c2410c" }} aria-hidden="true" />
+                  <ArrowUpRight className="pg-goto" style={{ width: 12, height: 12, color: T.accentText }} aria-hidden="true" />
                 </span>
               </Link>
             ) : (
@@ -1355,7 +1355,7 @@ const GrupoDoEvento = memo(function GrupoDoEvento({
                 );
               })()}
               {firstItem?.event?.truckDepartureDate && (
-                <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 500, color: "#746e69", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 500, color: T.second, whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
                   <Truck style={{ width: 11, height: 11, flexShrink: 0 }} />
                   Saída: {format(toUTCDisplayDate(firstItem.event.truckDepartureDate), "dd MMM yyyy 'às' HH:mm", { locale: ptBR })}
                 </span>
@@ -1363,7 +1363,7 @@ const GrupoDoEvento = memo(function GrupoDoEvento({
               {/* "Início" é o metadado menos acionável; some primeiro
                   em container estreito (continua na ficha do evento). */}
               {firstItem?.event?.startDate && !isCompact && (
-                <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 500, color: "#746e69", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 500, color: T.second, whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
                   <Calendar style={{ width: 11, height: 11, flexShrink: 0 }} />
                   Início: {format(parseDateLocal(firstItem.event.startDate), "dd MMM yyyy", { locale: ptBR })}
                 </span>
@@ -1377,7 +1377,7 @@ const GrupoDoEvento = memo(function GrupoDoEvento({
               pílula nem caixa-alta: ao lado do chip de prazo e do
               selo, uma terceira cápsula só disputava o olho com os
               dois que pedem ação. #57534e sobre #ffffff = 7,63:1. */}
-          <span style={{ fontSize: 12, fontWeight: 600, color: "#57534e", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: T.apoio, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
             {fmtN(gd.items.length)} {gd.items.length === 1 ? "peça" : "peças"}
           </span>
         </div>
@@ -1387,7 +1387,7 @@ const GrupoDoEvento = memo(function GrupoDoEvento({
         <button
           onClick={() => acoes.abrirGrupo(eventKey, Math.min(gd.items.length, ROW_CAP))}
           data-testid={`button-open-group-${eventKey}`}
-          style={{ width: "100%", padding: "13px", background: "#fafaf9", border: "none", color: "#1c1917", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+          style={{ width: "100%", padding: "13px", background: T.bg, border: "none", color: T.text, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
         >
           Mostrar as {gd.items.length} {gd.items.length === 1 ? "peça" : "peças"} deste evento
         </button>
@@ -1411,11 +1411,11 @@ const GrupoDoEvento = memo(function GrupoDoEvento({
                     <Fragment key={type}>
                       {/* Type sub-header */}
                       <div style={{ display: "flex", alignItems: "baseline", gap: 6, padding: "10px 4px 6px", marginTop: 4, overflow: "hidden" }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "#44403c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, flex: 1 }}>
-                          {group && <span style={{ fontWeight: 500, color: "#746e69" }}>{group} / </span>}
+                        <span style={{ fontSize: 13, fontWeight: 700, color: T.strong, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, flex: 1 }}>
+                          {group && <span style={{ fontWeight: 500, color: T.second }}>{group} / </span>}
                           {type}
                         </span>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: "#746e69", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: T.second, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
                           {typeItems.length}
                         </span>
                       </div>
@@ -1442,7 +1442,7 @@ const GrupoDoEvento = memo(function GrupoDoEvento({
             <button
               onClick={() => acoes.expandir(eventKey, hiddenCount)}
               data-testid={`button-show-all-${eventKey}`}
-              style={{ width: "100%", padding: "13px", marginTop: 4, background: "#fafaf9", border: "1px solid #e7e5e4", borderRadius: 8, color: "#1c1917", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+              style={{ width: "100%", padding: "13px", marginTop: 4, background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
             >
               Mostrar todas as {gd.items.length} peças (+{hiddenCount})
             </button>
@@ -1498,11 +1498,11 @@ const GrupoDoEvento = memo(function GrupoDoEvento({
                   // não é conteúdo: é régua. A Arte e o Detalhe do
                   // Evento já usam este tratamento claro.
                   // #57534e sobre #fafaf9 = 7,30:1 ✓ nos 11px.
-                  backgroundColor: "#fafaf9",
-                  borderBottom: "1px solid #e7e5e4",
+                  backgroundColor: T.bg,
+                  borderBottom: `1px solid ${T.border}`,
                   padding: "11px 20px",
                   fontSize: 11, fontWeight: 800, textTransform: "uppercase",
-                  letterSpacing: "0.08em", color: "#57534e",
+                  letterSpacing: "0.08em", color: T.apoio,
                   textAlign: "left",
                   whiteSpace: "nowrap",
                 };
@@ -1516,7 +1516,7 @@ const GrupoDoEvento = memo(function GrupoDoEvento({
                         onChange={(e) => acoes.alternarSelecaoDoEvento(visibleItems, e.target.checked)}
                         aria-label={`Selecionar as peças visíveis do evento ${gd.eventName}`}
                         data-testid={`checkbox-all-${eventKey}`}
-                        style={{ width: 15, height: 15, cursor: "pointer", accentColor: "#c2410c" }}
+                        style={{ width: 15, height: 15, cursor: "pointer", accentColor: T.accentText }}
                       />
                     </label>
                   </th>,
@@ -1576,9 +1576,9 @@ const GrupoDoEvento = memo(function GrupoDoEvento({
                       // #f5f5f4 e não #fafaf9: o cabeçalho da tabela
                       // passou a ser claro nesta rodada, e os dois no
                       // mesmo tom viravam a mesma faixa repetida.
-                      backgroundColor: "#f5f5f4",
-                      borderTop: "1px solid #e7e5e4",
-                      borderBottom: "1px solid #e7e5e4",
+                      backgroundColor: N.n2,
+                      borderTop: `1px solid ${T.border}`,
+                      borderBottom: `1px solid ${T.border}`,
                     }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         {group && (
@@ -1592,19 +1592,19 @@ const GrupoDoEvento = memo(function GrupoDoEvento({
                                 custo visual nenhum.
                                 O pai vem em peso e cor MENORES que o
                                 tipo: ele é contexto, o tipo é o rótulo. */}
-                            <span style={{ fontSize: 12, fontWeight: 500, color: "#746e69" }}>
+                            <span style={{ fontSize: 12, fontWeight: 500, color: T.second }}>
                               {group}
                             </span>
                             {/* #746e69: é glifo de texto, e a casa proíbe #a8a29e como cor de texto (2,52:1). */}
-                            <span aria-hidden="true" style={{ color: "#746e69", fontSize: 12 }}>/</span>
+                            <span aria-hidden="true" style={{ color: T.second, fontSize: 12 }}>/</span>
                           </>
                         )}
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "#44403c" }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: T.strong }}>
                           {type}
                         </span>
                         {/* A contagem deixou de ser pílula: número
                             simples, #746e69 sobre #f5f5f4 = 4,61:1. */}
-                        <span style={{ fontSize: 12, fontWeight: 600, color: "#746e69", fontVariantNumeric: "tabular-nums" }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: T.second, fontVariantNumeric: "tabular-nums" }}>
                           {typeItems.length}
                         </span>
                       </div>
@@ -1640,7 +1640,7 @@ const GrupoDoEvento = memo(function GrupoDoEvento({
                   <button
                     onClick={() => acoes.expandir(eventKey, hiddenCount)}
                     data-testid={`button-show-all-${eventKey}`}
-                    style={{ width: "100%", padding: "13px", background: "#fafaf9", border: "none", borderTop: "1px solid #e7e5e4", color: "#1c1917", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+                    style={{ width: "100%", padding: "13px", background: T.bg, border: "none", borderTop: `1px solid ${T.border}`, color: T.text, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
                   >
                     Mostrar todas as {gd.items.length} peças (+{hiddenCount})
                   </button>
@@ -2231,7 +2231,7 @@ export default function PainelGeral() {
   };
 
   const PRIO_ORDEM: Record<string, number> = { urgente: 0, alta: 1, media: 2, baixa: 3 };
-  const PRIO_COR: Record<string, string> = { urgente: "#ef4444", alta: "#f97316", media: "#eab308", baixa: "#3b82f6" };
+  const PRIO_COR: Record<string, string> = { urgente: TOM.perigo.dot, alta: T.accent, media: TOM.alerta.dot, baixa: TOM.info.dot };
   // Nome e prioridade do evento saem do evento EMBUTIDO nas peças (ver
   // `eventoDasPecas`): todo id deste menu veio de uma peça, então ele sempre
   // responde — e a tela não precisa da lista inteira de /api/events.
@@ -2436,11 +2436,11 @@ export default function PainelGeral() {
 
   const inputStyle: React.CSSProperties = {
     width: "100%", height: 36,
-    backgroundColor: "#ffffff",
-    border: "1px solid #e7e5e4",
+    backgroundColor: T.surface,
+    border: `1px solid ${T.border}`,
     borderRadius: 6,
     padding: "0 12px",
-    fontSize: 13, color: "#1c1917",
+    fontSize: 13, color: T.text,
     fontFamily: "inherit",
     boxSizing: "border-box",
   };
@@ -2820,13 +2820,13 @@ export default function PainelGeral() {
          governa o eixo CRUZADO, que ali e a largura. Estava mexendo no eixo
          errado. Com flexShrink 0 a raiz vai a 1262px e a barra fica em y 68 —
          os dois numeros medidos no navegador antes deste commit. */
-      style={{ position: "relative", display: "flex", flexDirection: "column", flexShrink: 0, gap: 22, padding: useCards ? "0 12px 20px" : "0 28px 34px", minHeight: "100%", background: "#fafaf9" }}
+      style={{ position: "relative", display: "flex", flexDirection: "column", flexShrink: 0, gap: 22, padding: useCards ? "0 12px 20px" : "0 28px 34px", minHeight: "100%", background: T.bg }}
     >
       {/* SEM overflowY no wrapper: quem rola é o <main> do layout. Um
           overflow:auto aqui criava um scroll-container que NÃO rola
           (min-height 100%) e prendia todo position:sticky descendente. */}
       <style>{PG_CSS}</style>
-      <div style={{ position: "sticky", top: 0, zIndex: 4, height: 4, margin: useCards ? "0 -12px" : "0 -28px", background: "linear-gradient(90deg, #1c1917 0%, #1c1917 72%, #f97316 72%, #f97316 100%)" }} />
+      <div style={{ position: "sticky", top: 0, zIndex: 4, height: 4, margin: useCards ? "0 -12px" : "0 -28px", background: `linear-gradient(90deg, ${T.text} 0%, ${T.text} 72%, ${T.accent} 72%, ${T.accent} 100%)` }} />
 
       {/* ── Header ── */}
       <header style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16, paddingTop: 22, paddingBottom: 2 }}>
@@ -2834,9 +2834,9 @@ export default function PainelGeral() {
           <h1
             data-testid="title-painel-geral"
             style={{
-              fontFamily: "'Space Grotesk', sans-serif",
+              fontFamily: FONT.display,
               fontSize: useCards ? 20 : FS.h1, fontWeight: 700, letterSpacing: "-0.03em",
-              lineHeight: 1.1, color: "#1c1917", margin: 0,
+              lineHeight: 1.1, color: T.text, margin: 0,
             }}
           >
             Painel Geral
@@ -2844,7 +2844,7 @@ export default function PainelGeral() {
           {/* Subtítulo honesto: a tela mostra peças em TODOS os status (não só
               "em produção") e o "tempo real" dependia de um socket que cai. O
               que ela garante mesmo é o escopo e a ordem. */}
-          <p style={{ fontSize: 13, color: "#746e69", fontWeight: 500, margin: "4px 0 0 0", display: useCards ? "none" : "block" }}>
+          <p style={{ fontSize: 13, color: T.second, fontWeight: 500, margin: "4px 0 0 0", display: useCards ? "none" : "block" }}>
             Todas as peças de todos os eventos, ordenadas pela saída do caminhão
           </p>
           {/* ── POR ONDE COMEÇAR (rodada 4) ──────────────────────────────────
@@ -2864,14 +2864,14 @@ export default function PainelGeral() {
             const minha = visoes.find(v => v.id === "meu_papel") ?? null;
             const linkStyle: React.CSSProperties = {
               display: "inline-flex", alignItems: "center", gap: 4, minHeight: 36,
-              fontSize: 13, fontWeight: 700, color: "#c2410c",
+              fontSize: 13, fontWeight: 700, color: T.accentText,
               textDecoration: "underline", textUnderlineOffset: 2, whiteSpace: "nowrap",
             };
             if (!minha) {
               // Admin não tem fila própria: vê o fluxo inteiro. O próximo
               // passo dele é cobrar, e a tela de cobrança é outra.
               return (
-                <p data-testid="texto-por-onde-comecar" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 8, margin: "2px 0 0", fontSize: 13, color: "#57534e", lineHeight: 1.4 }}>
+                <p data-testid="texto-por-onde-comecar" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 8, margin: "2px 0 0", fontSize: 13, color: T.apoio, lineHeight: 1.4 }}>
                   <span>Você vê o fluxo inteiro. Atraso por etapa e quem precisa agir ficam em</span>
                   <Link href="/prazos" style={linkStyle}>Gestão de Prazos <ArrowUpRight aria-hidden="true" style={{ width: 13, height: 13 }} /></Link>
                 </p>
@@ -2891,9 +2891,9 @@ export default function PainelGeral() {
             // pelo número de peças.
             const oQue = minha.hint.replace(/^Peças\s+/i, "");
             return (
-              <p data-testid="texto-por-onde-comecar" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 10, margin: "2px 0 0", fontSize: 13, color: "#57534e", lineHeight: 1.4 }}>
+              <p data-testid="texto-por-onde-comecar" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 10, margin: "2px 0 0", fontSize: 13, color: T.apoio, lineHeight: 1.4 }}>
                 <span>
-                  Sua fila: <strong style={{ color: "#1c1917", fontWeight: 700 }}>{fmtN(n)} {n === 1 ? "peça" : "peças"}</strong> {oQue}
+                  Sua fila: <strong style={{ color: T.text, fontWeight: 700 }}>{fmtN(n)} {n === 1 ? "peça" : "peças"}</strong> {oQue}
                   {recorteAlheio ? " neste recorte" : ""}.
                 </span>
                 <button
@@ -2931,24 +2931,24 @@ export default function PainelGeral() {
               aria-haspopup="menu"
               aria-expanded={exportMenuOpen}
               title="Exportar o recorte que está na tela"
-              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, height: useCards ? 44 : 40, minWidth: useCards ? 44 : undefined, padding: useCards ? "0 12px" : "0 14px", borderRadius: 8, backgroundColor: "#ffffff", border: "1px solid #d6d3d1", color: "#1c1917", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, height: useCards ? 44 : 40, minWidth: useCards ? 44 : undefined, padding: useCards ? "0 12px" : "0 14px", borderRadius: 8, backgroundColor: T.surface, border: `1px solid ${T.bdark}`, color: T.text, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
             >
               {isExportingXlsx
                 ? <Loader2 className="animate-spin" style={{ width: 14, height: 14 }} />
                 : <Printer style={{ width: 14, height: 14 }} />}
               {!useCards && "Exportar"}
-              <ChevronDown style={{ width: 13, height: 13, color: "#746e69" }} />
+              <ChevronDown style={{ width: 13, height: 13, color: T.second }} />
             </button>
             {exportMenuOpen && (
-              <div role="menu" style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 20, minWidth: 232, backgroundColor: "#fff", border: "1px solid #e7e5e4", borderRadius: 10, boxShadow: "0 8px 24px rgba(28,25,23,.12)", padding: 6 }}>
-                <p style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#746e69", margin: "6px 8px 6px" }}>
+              <div role="menu" style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 20, minWidth: 232, backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, boxShadow: "0 8px 24px rgba(28,25,23,.12)", padding: 6 }}>
+                <p style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: T.second, margin: "6px 8px 6px" }}>
                   {selecionadas.length > 0 ? `${selecionadas.length} selecionada${selecionadas.length > 1 ? "s" : ""}` : `${itensParaExportar.length} ${itensParaExportar.length === 1 ? "peça na tela" : "peças na tela"}`}
                 </p>
-                <button role="menuitem" onClick={() => { setExportMenuOpen(false); setShowExportPDFModal(true); }} data-testid="button-export-pdf-painel" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 8px", background: "none", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#1c1917", textAlign: "left" }}>
-                  <Printer style={{ width: 14, height: 14, color: "#746e69" }} /> Exportar PDF
+                <button role="menuitem" onClick={() => { setExportMenuOpen(false); setShowExportPDFModal(true); }} data-testid="button-export-pdf-painel" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 8px", background: "none", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 600, color: T.text, textAlign: "left" }}>
+                  <Printer style={{ width: 14, height: 14, color: T.second }} /> Exportar PDF
                 </button>
-                <button role="menuitem" onClick={exportarXlsx} disabled={isExportingXlsx || itensParaExportar.length === 0} data-testid="button-export-xlsx-painel" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 8px", background: "none", border: "none", borderRadius: 6, cursor: itensParaExportar.length === 0 ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600, color: itensParaExportar.length === 0 ? "#746e69" : "#1c1917", textAlign: "left" }}>
-                  <FileSpreadsheet style={{ width: 14, height: 14, color: "#746e69" }} /> Exportar Excel
+                <button role="menuitem" onClick={exportarXlsx} disabled={isExportingXlsx || itensParaExportar.length === 0} data-testid="button-export-xlsx-painel" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 8px", background: "none", border: "none", borderRadius: 6, cursor: itensParaExportar.length === 0 ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600, color: itensParaExportar.length === 0 ? T.second : T.text, textAlign: "left" }}>
+                  <FileSpreadsheet style={{ width: 14, height: 14, color: T.second }} /> Exportar Excel
                 </button>
               </div>
             )}
@@ -2971,16 +2971,16 @@ export default function PainelGeral() {
             · sem alerta → uma frase calma com o recorte a que ela se refere;
             · com alerta → os chips, num cartão, antes de qualquer número. */}
       {isLoading ? (
-        <div aria-hidden="true" className="animate-pulse" style={{ width: useCards ? "100%" : 320, height: 38, borderRadius: 999, backgroundColor: "#f0efee" }} />
+        <div aria-hidden="true" className="animate-pulse" style={{ width: useCards ? "100%" : 320, height: 38, borderRadius: 999, backgroundColor: N.n3 }} />
       ) : (!isError || atencao.reprovadas > 0 || atencao.atrasadas > 0 || chipOcultasDados) && (
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       {!isError && atencao.reprovadas === 0 && atencao.atrasadas === 0 && (
-        <p data-testid="texto-atencao-em-dia" style={{ display: "flex", alignItems: "flex-start", gap: 8, margin: 0, fontSize: 13, lineHeight: 1.45, color: "#57534e" }}>
+        <p data-testid="texto-atencao-em-dia" style={{ display: "flex", alignItems: "flex-start", gap: 8, margin: 0, fontSize: 13, lineHeight: 1.45, color: T.apoio }}>
           {/* Verde só aqui, e só no ícone: é o único "está tudo certo" da
               tela. #15803d sobre #fafaf9 = 4,80:1. */}
-          <CheckCircle2 aria-hidden="true" style={{ width: 16, height: 16, color: "#15803d", flexShrink: 0, marginTop: 1 }} />
+          <CheckCircle2 aria-hidden="true" style={{ width: 16, height: 16, color: TOM.sucesso.text, flexShrink: 0, marginTop: 1 }} />
           <span>
-            <strong style={{ color: "#1c1917", fontWeight: 700 }}>Nada pede atenção agora.</strong>
+            <strong style={{ color: T.text, fontWeight: 700 }}>Nada pede atenção agora.</strong>
             {" "}Nenhuma peça reprovada pelo patrocinador nem em evento com caminhão atrasado
             {/* Os números desta faixa seguem o recorte; com filtro ligado, a
                 frase não pode soar como verdade do sistema inteiro. */}
@@ -3017,11 +3017,11 @@ export default function PainelGeral() {
             // O cartão só existe quando há ALERTA: é o que faz a faixa ser a
             // primeira coisa lida sem precisar de cor extra. "Fora da lista"
             // sozinho continua sendo uma nota de rodapé, sem moldura.
-            ...(temAlerta ? { backgroundColor: "#ffffff", border: "1px solid #e7e5e4", borderRadius: 12, padding: useCards ? 12 : "10px 12px 10px 16px", boxShadow: "0 1px 3px rgba(28,25,23,0.05)" } : null),
+            ...(temAlerta ? { backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: useCards ? 12 : "10px 12px 10px 16px", boxShadow: "0 1px 3px rgba(28,25,23,0.05)" } : null),
           }}
         >
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, marginRight: 6, fontSize: 13, fontWeight: 700, color: temAlerta ? "#1c1917" : "#57534e", width: useCards ? "100%" : undefined }}>
-            {temAlerta && <AlertTriangle aria-hidden="true" style={{ width: 15, height: 15, color: "#b91c1c", flexShrink: 0 }} />}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, marginRight: 6, fontSize: 13, fontWeight: 700, color: temAlerta ? T.text : T.apoio, width: useCards ? "100%" : undefined }}>
+            {temAlerta && <AlertTriangle aria-hidden="true" style={{ width: 15, height: 15, color: TOM.perigo.text, flexShrink: 0 }} />}
             {rotulo}</span>
           {atencao.reprovadas > 0 && (
             <button
@@ -3030,11 +3030,11 @@ export default function PainelGeral() {
               data-testid="chip-atencao-reprovadas"
               className="pg-chip"
               /* #b91c1c sobre #fef2f2 = 5,91:1 AA; marcado, branco sobre o vermelho = 6,47:1. */
-              style={{ ...chipBase, backgroundColor: focoFilter.includes("reprovadas") ? "#b91c1c" : "#fef2f2", color: focoFilter.includes("reprovadas") ? "#fff" : "#b91c1c", border: `1px solid ${focoFilter.includes("reprovadas") ? "#b91c1c" : "#fecaca"}` }}
+              style={{ ...chipBase, backgroundColor: focoFilter.includes("reprovadas") ? TOM.perigo.text : TOM.perigo.bg, color: focoFilter.includes("reprovadas") ? T.surface : TOM.perigo.text, border: `1px solid ${focoFilter.includes("reprovadas") ? TOM.perigo.text : TOM.perigo.border}` }}
             >
               <XCircle aria-hidden="true" style={{ width: 15, height: 15, flexShrink: 0 }} />
               <span>
-                <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800 }}>{fmtN(atencao.reprovadas)}</span>
+                <span style={{ fontFamily: FONT.display, fontWeight: 800 }}>{fmtN(atencao.reprovadas)}</span>
                 {" "}{atencao.reprovadas === 1 ? "peça reprovada pelo patrocinador" : "peças reprovadas pelo patrocinador"}
               </span>
             </button>
@@ -3046,11 +3046,11 @@ export default function PainelGeral() {
               data-testid="chip-atencao-atrasadas"
               className="pg-chip"
               /* #b45309 sobre #fffbeb = 4,84:1 AA nos 13px. */
-              style={{ ...chipBase, backgroundColor: focoFilter.includes("atrasadas") ? "#b45309" : "#fffbeb", color: focoFilter.includes("atrasadas") ? "#fff" : "#b45309", border: `1px solid ${focoFilter.includes("atrasadas") ? "#b45309" : "#fde68a"}` }}
+              style={{ ...chipBase, backgroundColor: focoFilter.includes("atrasadas") ? TOM.alerta.text : TOM.alerta.bg, color: focoFilter.includes("atrasadas") ? T.surface : TOM.alerta.text, border: `1px solid ${focoFilter.includes("atrasadas") ? TOM.alerta.text : TOM.alerta.border}` }}
             >
               <Truck aria-hidden="true" style={{ width: 15, height: 15, flexShrink: 0 }} />
               <span>
-                <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800 }}>{fmtN(atencao.atrasadas)}</span>
+                <span style={{ fontFamily: FONT.display, fontWeight: 800 }}>{fmtN(atencao.atrasadas)}</span>
                 {" "}{atencao.atrasadas === 1 ? "peça em evento com caminhão atrasado" : "peças em evento com caminhão atrasado"}
               </span>
             </button>
@@ -3064,7 +3064,7 @@ export default function PainelGeral() {
             <Link
               href="/prazos?atrasados=1"
               data-testid="link-atrasados-quem-age"
-              style={{ display: "inline-flex", alignItems: "center", gap: 4, minHeight: 38, fontSize: 13, fontWeight: 700, color: "#c2410c", textDecoration: "underline", textUnderlineOffset: 2, whiteSpace: "nowrap" }}
+              style={{ display: "inline-flex", alignItems: "center", gap: 4, minHeight: 38, fontSize: 13, fontWeight: 700, color: T.accentText, textDecoration: "underline", textUnderlineOffset: 2, whiteSpace: "nowrap" }}
             >
               Quem precisa agir <ArrowUpRight aria-hidden="true" style={{ width: 13, height: 13 }} />
             </Link>
@@ -3099,10 +3099,10 @@ export default function PainelGeral() {
               className="pg-chip"
               /* Contrastes: #44403c sobre #f5f5f4 = 9,42:1; no estado marcado,
                  #ffffff sobre #57534e = 7,63:1. Ambos AA com folga em 13px. */
-              style={{ ...chipBase, backgroundColor: mostrarFinalizados ? "#57534e" : "#f5f5f4", color: mostrarFinalizados ? "#fff" : "#44403c", border: `1px solid ${mostrarFinalizados ? "#57534e" : "#e7e5e4"}` }}
+              style={{ ...chipBase, backgroundColor: mostrarFinalizados ? T.apoio : N.n2, color: mostrarFinalizados ? T.surface : T.strong, border: `1px solid ${mostrarFinalizados ? T.apoio : T.border}` }}
             >
               <span>
-                <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800 }}>{fmtN(chipOcultasDados.total)}</span>
+                <span style={{ fontFamily: FONT.display, fontWeight: 800 }}>{fmtN(chipOcultasDados.total)}</span>
                 {" "}{chipOcultasDados.texto}
                 {/* Separador só de ritmo — o nome acessível do botão vem inteiro
                     do aria-label, então esta pontuação não é lida duas vezes. */}
@@ -3177,14 +3177,14 @@ export default function PainelGeral() {
             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
               {/* A única legenda em caixa-alta que sobrou no topo: ela nomeia a
                   SEÇÃO, não um dado — e é curta o bastante para ler de relance. */}
-              <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#746e69" }}>
+              <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: T.second }}>
                 Onde estão as {fmtN(stats.total)} peças
               </span>
               {/* O maior segmento dito por extenso: a barra mostra a forma, a
                   frase nomeia o gargalo para quem chega sem contexto — e para
                   quem lê por leitor de tela, que não enxerga proporção. */}
-              <span style={{ fontSize: 12, fontWeight: 500, color: "#57534e", lineHeight: 1.4 }}>
-                Maior fila: <strong style={{ color: "#1c1917", fontWeight: 700 }}>{maior.meta.label}</strong>
+              <span style={{ fontSize: 12, fontWeight: 500, color: T.apoio, lineHeight: 1.4 }}>
+                Maior fila: <strong style={{ color: T.text, fontWeight: 700 }}>{maior.meta.label}</strong>
                 {" "}· {Math.round((maior.n / soma) * 100)}% ({fmtN(maior.n)})
                 {/* A frase dizia o quanto a fila PESA; passa a dizer tambem se
                     ela esta andando. E a diferenca entre vazao normal e
@@ -3199,7 +3199,7 @@ export default function PainelGeral() {
                 })()}
               </span>
             </div>
-            <div style={{ display: "flex", height: 12, borderRadius: 999, overflow: "hidden", background: "#f5f5f4", border: "1px solid #e7e5e4" }}>
+            <div style={{ display: "flex", height: 12, borderRadius: 999, overflow: "hidden", background: N.n2, border: `1px solid ${T.border}` }}>
               {segmentos.map((seg, i) => {
                 const pct = (seg.n / soma) * 100;
                 // O VAO ENTRE ZONAS. A barra tem ate 13 segmentos sem rotulo e
@@ -3228,7 +3228,7 @@ export default function PainelGeral() {
                       // O vao entre zonas: 2px na cor do fundo, via borda, para
                       // nao mexer nas larguras proporcionais — a soma continua
                       // 100%.
-                      borderRight: fechaZona ? "2px solid #fafaf9" : "none",
+                      borderRight: fechaZona ? `2px solid ${T.bg}` : "none",
                       borderLeft: mesmaZonaAntes ? "1px solid rgba(255,255,255,0.75)" : "none",
                       // Filtrado = o laranja de "recorte ligado" da tela inteira
                       // (visões salvas, cards). O anel escuro é o segundo canal,
@@ -3239,7 +3239,7 @@ export default function PainelGeral() {
                       // Filtrado: a própria cor com o anel escuro (o laranja
                       // de "recorte ligado" se confundiria com uma etapa).
                       background: seg.meta.dot,
-                      boxShadow: ativo ? "inset 0 0 0 2px #1c1917" : "none",
+                      boxShadow: ativo ? `inset 0 0 0 2px ${T.text}` : "none",
                       transition: "background-color .15s, box-shadow .15s, filter .15s",
                     }}
                   />
@@ -3267,13 +3267,13 @@ export default function PainelGeral() {
                     <div
                       key={z.nome}
                       data-testid={`zona-tick-${z.nome}`}
-                      style={{ width: `${pct}%`, borderLeft: "1px solid #ddd8d1", paddingLeft: 7, overflow: "hidden" }}
+                      style={{ width: `${pct}%`, borderLeft: `1px solid ${T.border}`, paddingLeft: 7, overflow: "hidden" }}
                     >
-                      <p style={{ margin: 0, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#746e69", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      <p style={{ margin: 0, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: T.second, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, backgroundColor: tomDaZona(z.chaves[0]), marginRight: 6, verticalAlign: "0" }} />
                         {z.nome}
                       </p>
-                      <p style={{ margin: 0, fontSize: 11, color: "#57534e", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      <p style={{ margin: 0, fontSize: 11, color: T.apoio, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         {Math.round(pct)}% · {fmtN(n)}
                       </p>
                     </div>
@@ -3286,7 +3286,7 @@ export default function PainelGeral() {
                 quer dizer avanço, nem que cada pedaço é um filtro. A cor
                 continua sem significar risco (risco mora na faixa de atenção
                 acima); a frase só ensina a ler a forma e o clique. */}
-            <p data-testid="texto-como-ler-fluxo" style={{ margin: 0, fontSize: 12, color: "#746e69", lineHeight: 1.45 }}>
+            <p data-testid="texto-como-ler-fluxo" style={{ margin: 0, fontSize: 12, color: T.second, lineHeight: 1.45 }}>
               Cada pedaço é uma etapa, do pedido à entrega, na mesma cor do cartão e do selo da etapa.
               {" "}Clique numa etapa (aqui ou nos cartões abaixo) para filtrar a lista; clique de novo para desfazer.
             </p>
@@ -3326,7 +3326,7 @@ export default function PainelGeral() {
             </div>
             <button
               onClick={() => setShowAllKpis(v => !v)}
-              style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", minHeight: 36, background: "none", border: "none", padding: "0 2px", fontSize: 11, fontWeight: 700, color: "#c2410c", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2 }}
+              style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", minHeight: 36, background: "none", border: "none", padding: "0 2px", fontSize: 11, fontWeight: 700, color: T.accentText, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2 }}
             >
               {showAllKpis ? "Mostrar só os status com peças" : "Mostrar todos os status"}
             </button>
@@ -3355,7 +3355,7 @@ export default function PainelGeral() {
               if (colunas === 0) return null;
               return (
                 <div key={z.nome} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: "#57534e", paddingLeft: 2 }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: T.apoio, paddingLeft: 2 }}>
                     <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: z.tom, flexShrink: 0 }} />
                     {z.nome}
                   </span>
@@ -3392,7 +3392,7 @@ export default function PainelGeral() {
                 /* Alinhado com a BASE dos cards, não solto embaixo de tudo:
                    `alignSelf: flex-end` o encosta na linha inferior da faixa,
                    onde ele se lê como a continuação dela. */
-                style={{ alignSelf: "flex-end", display: "inline-flex", alignItems: "center", minHeight: 36, background: "none", border: "none", padding: "0 2px", fontSize: 11, fontWeight: 700, color: "#c2410c", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2, whiteSpace: "nowrap" }}
+                style={{ alignSelf: "flex-end", display: "inline-flex", alignItems: "center", minHeight: 36, background: "none", border: "none", padding: "0 2px", fontSize: 11, fontWeight: 700, color: T.accentText, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2, whiteSpace: "nowrap" }}
               >
                 {showAllKpis
                   ? "Mostrar só os status com peças"
@@ -3420,9 +3420,9 @@ export default function PainelGeral() {
           // ultimo select ao meio. Agora e uma grade de duas faixas: as visoes
           // em cima (o recorte pronto), os filtros embaixo (o recorte a mao).
           display: "grid", gridTemplateColumns: "1fr", gap: 8,
-          backgroundColor: "#ffffff",
+          backgroundColor: T.surface,
           borderRadius: 10,
-          border: "1px solid #e7e5e4",
+          border: `1px solid ${T.border}`,
           padding: "10px 12px",
           boxShadow: "0 1px 3px rgba(28,25,23,0.05)",
         }}
@@ -3446,13 +3446,13 @@ export default function PainelGeral() {
                   const ativa = visaoEstaAtiva(v, filtrosAtuais);
                   const ehPadrao = visaoPadrao === v.id;
                   return (
-                    <span key={v.id} style={{ display: "inline-flex", alignItems: "center", borderRadius: 999, border: `1px solid ${ativa ? "#c2410c" : "#e7e5e4"}`, backgroundColor: ativa ? "#fff7ed" : "#ffffff", overflow: "hidden" }}>
+                    <span key={v.id} style={{ display: "inline-flex", alignItems: "center", borderRadius: 999, border: `1px solid ${ativa ? T.accentText : T.border}`, backgroundColor: ativa ? TOM.laranja.bg : T.surface, overflow: "hidden" }}>
                       <button
                         onClick={() => aplicarVisao(v)}
                         aria-pressed={ativa}
                         title={v.hint}
                         data-testid={`visao-${v.id}`}
-                        style={{ background: "none", border: "none", cursor: "pointer", padding: "0 12px", height: alturaVisao, fontSize: 12, fontWeight: 700, color: ativa ? "#c2410c" : "#57534e", whiteSpace: "nowrap" }}
+                        style={{ background: "none", border: "none", cursor: "pointer", padding: "0 12px", height: alturaVisao, fontSize: 12, fontWeight: 700, color: ativa ? T.accentText : T.apoio, whiteSpace: "nowrap" }}
                       >
                         {v.label}
                       </button>
@@ -3461,7 +3461,7 @@ export default function PainelGeral() {
                         aria-pressed={ehPadrao}
                         title={ehPadrao ? "Deixar de abrir o Painel nesta visão" : "Abrir o Painel nesta visão por padrão"}
                         aria-label={ehPadrao ? `Deixar de usar "${v.label}" como visão padrão` : `Usar "${v.label}" como visão padrão`}
-                        style={{ background: "none", border: "none", borderLeft: `1px solid ${ativa ? "#fed7aa" : "#e7e5e4"}`, cursor: "pointer", padding: "0 9px", height: alturaVisao, display: "flex", alignItems: "center", color: ehPadrao ? "#c2410c" : "#a8a29e" }}
+                        style={{ background: "none", border: "none", borderLeft: `1px solid ${ativa ? TOM.laranja.border : T.border}`, cursor: "pointer", padding: "0 9px", height: alturaVisao, display: "flex", alignItems: "center", color: ehPadrao ? T.accentText : T.second }}
                       >
                         {/* PIN, não CHECK. O ✓ é o glifo que o app inteiro usa para
                             "este recorte está ligado" — nos FilterSelect e na pílula de
@@ -3485,7 +3485,7 @@ export default function PainelGeral() {
         <div style={{ position: "relative", flexShrink: 0, width: useCards ? "100%" : 180 }}>
           {/* #78716c (4,8:1), não #a8a29e (2,52:1): a lupa é a única marcação
               visual do campo e reprovava o mínimo de 3:1 da WCAG 1.4.11. */}
-          <Search style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: "#746e69", pointerEvents: "none" }} />
+          <Search style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: T.second, pointerEvents: "none" }} />
           <input
             ref={searchRef}
             type="text"
@@ -3505,15 +3505,15 @@ export default function PainelGeral() {
             onClick={() => setMobileFiltersOpen(o => !o)}
             aria-expanded={mobileFiltersOpen}
             data-testid="button-toggle-filtros-mobile"
-            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", height: 44, borderRadius: 6, border: "1px solid #e7e5e4", background: "#fafaf9", fontSize: 13, fontWeight: 700, color: "#1c1917", cursor: "pointer" }}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", height: 44, borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, fontSize: 13, fontWeight: 700, color: T.text, cursor: "pointer" }}
           >
-            <SlidersHorizontal style={{ width: 14, height: 14, color: "#746e69" }} />
+            <SlidersHorizontal style={{ width: 14, height: 14, color: T.second }} />
             Filtros{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
             {mobileFiltersOpen ? <ChevronUp style={{ width: 14, height: 14 }} /> : <ChevronDown style={{ width: 14, height: 14 }} />}
           </button>
         )}
 
-        {!useCards && <div style={{ width: 1, height: 20, backgroundColor: "#e7e5e4", flexShrink: 0 }} />}
+        {!useCards && <div style={{ width: 1, height: 20, backgroundColor: T.border, flexShrink: 0 }} />}
 
         {(!useCards || mobileFiltersOpen) && (
           <>
@@ -3597,7 +3597,7 @@ export default function PainelGeral() {
           </>
         )}
 
-        {!useCards && <div style={{ width: 1, height: 20, backgroundColor: "#e7e5e4", flexShrink: 0 }} />}
+        {!useCards && <div style={{ width: 1, height: 20, backgroundColor: T.border, flexShrink: 0 }} />}
 
         {/* Counter + clear.
             role="status": mudar o filtro trocava lista e número sem nada
@@ -3607,7 +3607,7 @@ export default function PainelGeral() {
           <span
             role="status" aria-live="polite" aria-atomic="true"
             data-testid="painel-contador"
-            style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 700, color: "#746e69", whiteSpace: "nowrap" }}
+            style={{ fontFamily: FONT.display, fontSize: 13, fontWeight: 700, color: T.second, whiteSpace: "nowrap" }}
           >
             {/* ENQUANTO CARREGA, O CONTADOR NÃO PODE DIZER ZERO.
                 Ele lia `filteredItems.length` sem guarda de isLoading, então
@@ -3618,10 +3618,10 @@ export default function PainelGeral() {
                 o zero. Quem não vê o skeleton recebia a informação errada, sem
                 nada que a contradissesse. */}
             {isLoading ? (
-              <span style={{ color: "#1c1917", fontWeight: 900 }}>Carregando peças…</span>
+              <span style={{ color: T.text, fontWeight: 900 }}>Carregando peças…</span>
             ) : (
               <>
-                <span style={{ color: "#1c1917", fontWeight: 900 }}>{filteredItems.length}</span>
+                <span style={{ color: T.text, fontWeight: 900 }}>{filteredItems.length}</span>
                 {" "}{filteredItems.length === 1 ? "peça encontrada" : "peças encontradas"}
                 {activeFilterCount > 0 && ` · ${activeFilterCount} ${activeFilterCount === 1 ? "filtro ativo" : "filtros ativos"}`}
               </>
@@ -3641,9 +3641,9 @@ export default function PainelGeral() {
           {hasActiveFilters && (
             <button
               onClick={clearAllFilters}
-              style={{ display: "flex", alignItems: "center", gap: 4, background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 700, color: "#c2410c", cursor: "pointer", transition: "all 0.15s", whiteSpace: "nowrap", height: alvo(32, dedo) }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#c2410c"; (e.currentTarget as HTMLButtonElement).style.color = "#fff"; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "#fff7ed"; (e.currentTarget as HTMLButtonElement).style.color = "#c2410c"; }}
+              style={{ display: "flex", alignItems: "center", gap: 4, background: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 700, color: T.accentText, cursor: "pointer", transition: "all 0.15s", whiteSpace: "nowrap", height: alvo(32, dedo) }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = T.accentText; (e.currentTarget as HTMLButtonElement).style.color = T.surface; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = TOM.laranja.bg; (e.currentTarget as HTMLButtonElement).style.color = T.accentText; }}
             >
               × Limpar
             </button>
@@ -3685,11 +3685,11 @@ export default function PainelGeral() {
           exige canDeleteAny): diz o porquê e oferece a saída, em vez de uma
           lista silenciosamente vazia. Acontece via URL compartilhada. */}
       {showDeleted && !canDeleteAny && (
-        <div style={{ backgroundColor: "#fff", border: "1px solid #fecaca", borderRadius: 10, padding: "10px 16px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: "#b91c1c" }}>Você não tem permissão para ver peças excluídas.</span>
+        <div style={{ backgroundColor: T.surface, border: `1px solid ${TOM.perigo.border}`, borderRadius: 10, padding: "10px 16px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: TOM.perigo.text }}>Você não tem permissão para ver peças excluídas.</span>
           <button
             onClick={() => setStatusFilter(prev => prev.filter(s => s !== "deleted"))}
-            style={{ fontSize: 12, fontWeight: 700, color: "#fff", background: "#1c1917", border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}
+            style={{ fontSize: 12, fontWeight: 700, color: T.surface, background: T.text, border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}
           >
             Remover filtro
           </button>
@@ -3699,14 +3699,14 @@ export default function PainelGeral() {
       {/* Estados da visão Excluídos — sem eles, carregamento parecia lista
           vazia e uma falha virava "Nenhum item encontrado" (mentira). */}
       {showDeleted && deletedLoading && (
-        <div style={{ backgroundColor: "#fafaf9", border: "1px solid #e7e5e4", borderRadius: 10, padding: "10px 16px", fontSize: 13, fontWeight: 600, color: "#746e69" }}>
+        <div style={{ backgroundColor: T.bg, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 16px", fontSize: 13, fontWeight: 600, color: T.second }}>
           Carregando peças excluídas...
         </div>
       )}
       {showDeleted && deletedError && (
-        <div style={{ backgroundColor: "#fff", border: "1px solid #fecaca", borderRadius: 10, padding: "10px 16px", display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: "#b91c1c" }}>Não foi possível carregar as peças excluídas.</span>
-          <button onClick={() => refetchDeleted()} style={{ fontSize: 12, fontWeight: 700, color: "#fff", background: "#1c1917", border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
+        <div style={{ backgroundColor: T.surface, border: `1px solid ${TOM.perigo.border}`, borderRadius: 10, padding: "10px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: TOM.perigo.text }}>Não foi possível carregar as peças excluídas.</span>
+          <button onClick={() => refetchDeleted()} style={{ fontSize: 12, fontWeight: 700, color: T.surface, background: T.text, border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
             Tentar novamente
           </button>
         </div>
@@ -3734,18 +3734,18 @@ export default function PainelGeral() {
 
              Os valores abaixo são os MEDIDOS da tabela real: thead 44px em
              #fafaf9 com filete #e7e5e4, linha 63px, zebra #ffffff/#f6f4f1. */
-          <div style={{ backgroundColor: "#ffffff", border: "1px solid #e7e5e4", borderRadius: 10, overflow: "hidden" }} aria-busy="true" aria-label="Carregando peças">
+          <div style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }} aria-busy="true" aria-label="Carregando peças">
             <div style={{ padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div className="animate-pulse" style={{ width: 180, height: 16, borderRadius: 4, backgroundColor: "#e7e5e4" }} />
-              <div className="animate-pulse" style={{ width: 70, height: 20, borderRadius: 999, backgroundColor: "#f5f5f4" }} />
+              <div className="animate-pulse" style={{ width: 180, height: 16, borderRadius: 4, backgroundColor: T.border }} />
+              <div className="animate-pulse" style={{ width: 70, height: 20, borderRadius: 999, backgroundColor: N.n2 }} />
             </div>
-            <div style={{ height: 44, backgroundColor: "#fafaf9", borderBottom: "1px solid #e7e5e4" }} />
+            <div style={{ height: 44, backgroundColor: T.bg, borderBottom: `1px solid ${T.border}` }} />
             {[0, 1, 2, 3, 4, 5].map((i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 24, height: 63, boxSizing: "border-box", padding: "0 16px", backgroundColor: i % 2 ? "#f6f4f1" : "#ffffff" }}>
-                <div className="animate-pulse" style={{ width: 48, height: 12, borderRadius: 4, backgroundColor: "#e7e5e4" }} />
-                <div className="animate-pulse" style={{ width: `${34 - i * 3}%`, height: 12, borderRadius: 4, backgroundColor: "#e7e5e4" }} />
-                <div className="animate-pulse" style={{ width: 60, height: 12, borderRadius: 4, backgroundColor: "#f0efee", marginLeft: "auto" }} />
-                <div className="animate-pulse" style={{ width: 90, height: 22, borderRadius: 999, backgroundColor: "#f0efee" }} />
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 24, height: 63, boxSizing: "border-box", padding: "0 16px", backgroundColor: i % 2 ? N.n2 : T.surface }}>
+                <div className="animate-pulse" style={{ width: 48, height: 12, borderRadius: 4, backgroundColor: T.border }} />
+                <div className="animate-pulse" style={{ width: `${34 - i * 3}%`, height: 12, borderRadius: 4, backgroundColor: T.border }} />
+                <div className="animate-pulse" style={{ width: 60, height: 12, borderRadius: 4, backgroundColor: N.n3, marginLeft: "auto" }} />
+                <div className="animate-pulse" style={{ width: 90, height: 22, borderRadius: 999, backgroundColor: N.n3 }} />
               </div>
             ))}
           </div>
@@ -3761,12 +3761,12 @@ export default function PainelGeral() {
              tela mais velha do mesmo produto. Agora os dois têm a mesma
              composição — só muda a cor da borda e do ícone, que é o que de
              fato distingue "deu errado" de "não tem nada". */
-          <div style={{ backgroundColor: "#ffffff", border: "1px solid #fecaca", borderRadius: 10, padding: "56px 24px", textAlign: "center" }}>
-            <AlertTriangle style={{ width: 28, height: 28, color: "#fca5a5", margin: "0 auto 12px" }} />
+          <div style={{ backgroundColor: T.surface, border: `1px solid ${TOM.perigo.border}`, borderRadius: 10, padding: "56px 24px", textAlign: "center" }}>
+            <AlertTriangle style={{ width: 28, height: 28, color: TOM.perigo.border, margin: "0 auto 12px" }} />
             {/* #b91c1c sobre #ffffff = 6,47:1 ✓ (calculado, nao estimado) */}
-            <p style={{ color: "#b91c1c", fontSize: 15, fontWeight: 700, margin: "0 0 4px" }}>Não foi possível carregar as peças</p>
-            <p style={{ color: "#746e69", fontSize: 13, margin: "0 0 16px" }}>Verifique sua conexão e tente novamente.</p>
-            <button onClick={() => refetch()} style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}>Tentar novamente</button>
+            <p style={{ color: TOM.perigo.text, fontSize: 15, fontWeight: 700, margin: "0 0 4px" }}>Não foi possível carregar as peças</p>
+            <p style={{ color: T.second, fontSize: 13, margin: "0 0 16px" }}>Verifique sua conexão e tente novamente.</p>
+            <button onClick={() => refetch()} style={{ fontSize: 13, fontWeight: 700, color: T.surface, background: T.text, border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}>Tentar novamente</button>
           </div>
         ) : filteredItems.length === 0 ? (
           /* Empty state com contexto e ação: diz POR QUE está vazio (filtros
@@ -3775,18 +3775,18 @@ export default function PainelGeral() {
              motivo — antes os dois apareciam empilhados, e o segundo (maior e
              com botão) contava uma história falsa. */
           !bannerExcluidosVisivel && (
-            <div style={{ backgroundColor: "#ffffff", border: "1px solid #e7e5e4", borderRadius: 10, padding: "56px 24px", textAlign: "center" }}>
-              <Search style={{ width: 28, height: 28, color: "#d6d3d1", margin: "0 auto 12px" }} />
+            <div style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, padding: "56px 24px", textAlign: "center" }}>
+              <Search style={{ width: 28, height: 28, color: T.bdark, margin: "0 auto 12px" }} />
               {/* Três motivos, três respostas. O terceiro é novo e é o que
                   evita a pior leitura desta feature: lista vazia com peças
                   ocultas por trás lida como "não existe" quando o certo é "não
                   está aqui, e está a um clique". */}
-              <p style={{ color: "#1c1917", fontSize: 15, fontWeight: 700, margin: "0 0 4px" }}>
+              <p style={{ color: T.text, fontSize: 15, fontWeight: 700, margin: "0 0 4px" }}>
                 {hasActiveFilters ? "Nenhuma peça encontrada"
                   : chipOcultasDados && !mostrarFinalizados ? "Só sobrou o que já acabou"
                   : "Nenhuma peça cadastrada ainda"}
               </p>
-              <p style={{ color: "#746e69", fontSize: 13, margin: "0 0 16px", maxWidth: 520, marginLeft: "auto", marginRight: "auto", lineHeight: 1.5 }}>
+              <p style={{ color: T.second, fontSize: 13, margin: "0 0 16px", maxWidth: 520, marginLeft: "auto", marginRight: "auto", lineHeight: 1.5 }}>
                 {/* "FILTREI — POR QUE SUMIU TUDO?" A frase antiga mandava
                     ajustar sem dizer O QUÊ: os filtros ativos são nomeados
                     aqui (os mesmos rótulos dos chips acima), a busca diz onde
@@ -3795,7 +3795,7 @@ export default function PainelGeral() {
                 {hasActiveFilters
                   ? <>
                       Nenhuma peça corresponde a {activeFilterCount === 1 ? "este filtro" : `estes ${activeFilterCount} filtros`}:{" "}
-                      <strong style={{ color: "#44403c", fontWeight: 600 }}>
+                      <strong style={{ color: T.strong, fontWeight: 600 }}>
                         {[
                           searchTerm && `busca "${searchTerm}"`,
                           ...eventFilter.map(id => `evento ${nomeDoEvento(id) ?? ""}`.trim()),
@@ -3817,7 +3817,7 @@ export default function PainelGeral() {
                 <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8 }}>
                   <button
                     onClick={clearAllFilters}
-                    style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}
+                    style={{ fontSize: 13, fontWeight: 700, color: T.surface, background: T.text, border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}
                   >
                     Limpar filtros
                   </button>
@@ -3827,7 +3827,7 @@ export default function PainelGeral() {
                     <button
                       onClick={() => setMostrarFinalizados(true)}
                       data-testid="button-incluir-ocultas-vazio"
-                      style={{ fontSize: 13, fontWeight: 700, color: "#1c1917", background: "#ffffff", border: "1px solid #d6d3d1", borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}
+                      style={{ fontSize: 13, fontWeight: 700, color: T.text, background: T.surface, border: `1px solid ${T.bdark}`, borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}
                     >
                       Procurar também nas {chipOcultasDados.total} ocultas
                     </button>
@@ -3837,7 +3837,7 @@ export default function PainelGeral() {
                 <button
                   onClick={() => setMostrarFinalizados(true)}
                   data-testid="button-mostrar-ocultas-vazio"
-                  style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}
+                  style={{ fontSize: 13, fontWeight: 700, color: T.surface, background: T.text, border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}
                 >
                   Mostrar as {chipOcultasDados.total} {chipOcultasDados.total === 1 ? "peça oculta" : "peças ocultas"}
                 </button>
@@ -3885,10 +3885,10 @@ export default function PainelGeral() {
       {selecionadas.length > 0 && (
         <div
           role="region" aria-label="Ações para as peças selecionadas"
-          style={{ position: "fixed", left: "50%", bottom: 20, transform: "translateX(-50%)", zIndex: 30, display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 999, backgroundColor: "#1c1917", boxShadow: "0 8px 24px rgba(28,25,23,.28)", flexWrap: "wrap", maxWidth: "94vw" }}
+          style={{ position: "fixed", left: "50%", bottom: 20, transform: "translateX(-50%)", zIndex: 30, display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 999, backgroundColor: T.text, boxShadow: "0 8px 24px rgba(28,25,23,.28)", flexWrap: "wrap", maxWidth: "94vw" }}
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
-            <span style={{ fontSize: 13, fontWeight: 800, color: "#fff", whiteSpace: "nowrap" }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: T.surface, whiteSpace: "nowrap" }}>
               {selecionadas.length} {selecionadas.length === 1 ? "peça selecionada" : "peças selecionadas"}
             </span>
             {/* DO QUE A SELECAO E FEITA. "12 selecionadas" nao diz se sao doze
@@ -3917,13 +3917,13 @@ export default function PainelGeral() {
               );
             })()}
           </div>
-          <button onClick={() => setShowExportPDFModal(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.22)", borderRadius: 999, color: "#fff", fontSize: 12, fontWeight: 700, padding: "6px 12px", cursor: "pointer" }}>
+          <button onClick={() => setShowExportPDFModal(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.22)", borderRadius: 999, color: T.surface, fontSize: 12, fontWeight: 700, padding: "6px 12px", cursor: "pointer" }}>
             <Printer style={{ width: 13, height: 13 }} /> PDF
           </button>
-          <button onClick={exportarXlsx} disabled={isExportingXlsx} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.22)", borderRadius: 999, color: "#fff", fontSize: 12, fontWeight: 700, padding: "6px 12px", cursor: "pointer" }}>
+          <button onClick={exportarXlsx} disabled={isExportingXlsx} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.22)", borderRadius: 999, color: T.surface, fontSize: 12, fontWeight: 700, padding: "6px 12px", cursor: "pointer" }}>
             <FileSpreadsheet style={{ width: 13, height: 13 }} /> Excel
           </button>
-          <button onClick={copiarIds} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.22)", borderRadius: 999, color: "#fff", fontSize: 12, fontWeight: 700, padding: "6px 12px", cursor: "pointer" }}>
+          <button onClick={copiarIds} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.22)", borderRadius: 999, color: T.surface, fontSize: 12, fontWeight: 700, padding: "6px 12px", cursor: "pointer" }}>
             <Copy style={{ width: 13, height: 13 }} /> Copiar IDs
           </button>
           <button onClick={() => setSelectedIds(new Set())} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.75)", fontSize: 12, fontWeight: 700, padding: "6px 8px", cursor: "pointer", textDecoration: "underline" }}>
@@ -3960,9 +3960,9 @@ export default function PainelGeral() {
             {selectedItem.eventId && (
               <Link
                 href={`/eventos/${selectedItem.eventId}`}
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", background: "#fff", color: "#1c1917", fontSize: 12, fontWeight: 700, textDecoration: "none" }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.surface, color: T.text, fontSize: 12, fontWeight: 700, textDecoration: "none" }}
               >
-                <Link2 style={{ width: 13, height: 13, color: "#746e69" }} />
+                <Link2 style={{ width: 13, height: 13, color: T.second }} />
                 Abrir evento
               </Link>
             )}
@@ -3981,9 +3981,9 @@ export default function PainelGeral() {
                 return (
                   <span
                     data-testid="aviso-evento-finalizado-ficha"
-                    style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 34, padding: "6px 12px", borderRadius: 8, border: "1px solid #e7e5e4", background: "#fafaf9", color: "#57534e", fontSize: 12, fontWeight: 600, maxWidth: 360, lineHeight: 1.4 }}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 34, padding: "6px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.bg, color: T.apoio, fontSize: 12, fontWeight: 600, maxWidth: 360, lineHeight: 1.4 }}
                   >
-                    <Lock style={{ width: 13, height: 13, flexShrink: 0, color: "#746e69" }} />
+                    <Lock style={{ width: 13, height: 13, flexShrink: 0, color: T.second }} />
                     {motivoFim === "encerrado"
                       ? "Evento encerrado — esta peça não avança no fluxo. Reabra o evento para voltar a trabalhar nela."
                       : "Evento já realizado — esta peça não avança no fluxo. Conferência e entrega seguem liberadas na Gráfica."}
@@ -3999,7 +3999,7 @@ export default function PainelGeral() {
               return (
                 <Link
                   href={tela.path}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 12px", borderRadius: 8, border: "1px solid #fed7aa", background: "#fff7ed", color: "#c2410c", fontSize: 12, fontWeight: 800, textDecoration: "none" }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 12px", borderRadius: 8, border: `1px solid ${TOM.laranja.border}`, background: TOM.laranja.bg, color: T.accentText, fontSize: 12, fontWeight: 800, textDecoration: "none" }}
                 >
                   <ArrowUpRight style={{ width: 13, height: 13 }} />
                   Continuar em {tela.label}
@@ -4008,9 +4008,9 @@ export default function PainelGeral() {
             })()}
             <button
               onClick={() => copiarLinkDaPeca(selectedItem)}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", background: "#fff", color: "#1c1917", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.surface, color: T.text, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
             >
-              <Copy style={{ width: 13, height: 13, color: "#746e69" }} />
+              <Copy style={{ width: 13, height: 13, color: T.second }} />
               Copiar link da peça
             </button>
           </div>
@@ -4051,12 +4051,12 @@ export default function PainelGeral() {
             o conteúdo — e some o título junto com o botão de confirmar. Aqui
             o texto é curto, mas ele carrega o nome e o tipo da peça, que numa
             janela baixa quebram em várias linhas. */}
-        <AlertDialogContent style={{ width: "96vw", maxWidth: 460, backgroundColor: "#ffffff", borderRadius: MODAL_RADIUS, padding: 32, border: "none", boxShadow: MODAL_SHADOW, maxHeight: "calc(100vh - 48px)", overflowY: "auto" }}>
+        <AlertDialogContent style={{ width: "96vw", maxWidth: 460, backgroundColor: T.surface, borderRadius: MODAL_RADIUS, padding: 32, border: "none", boxShadow: MODAL_SHADOW, maxHeight: "calc(100vh - 48px)", overflowY: "auto" }}>
           <AlertDialogHeader>
-            <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 19, fontWeight: 800, letterSpacing: "-0.02em", color: "#1c1917" }}>Excluir peça?</AlertDialogTitle>
+            <AlertDialogTitle style={{ fontFamily: FONT.display, fontSize: 19, fontWeight: 800, letterSpacing: "-0.02em", color: T.text }}>Excluir peça?</AlertDialogTitle>
             {/* #57534e sobre #ffffff = 7,63:1 ✓ — o mesmo cinza de leitura
                 que a tela usa em texto de apoio. */}
-            <AlertDialogDescription style={{ fontSize: 13, lineHeight: 1.55, color: "#57534e" }}>
+            <AlertDialogDescription style={{ fontSize: 13, lineHeight: 1.55, color: T.apoio }}>
               {/* O texto antigo ("permanece no histórico de auditoria")
                   descrevia o LOG, não a peça — e escondia que a ação é
                   reversível. O que acontece é soft delete, com rota de restore. */}
@@ -4084,7 +4084,7 @@ export default function PainelGeral() {
                  arquivo já usa em outros oito lugares, e ainda por cima o
                  mais legível dos dois. Um app não tem dois vermelhos de
                  "apagar". */
-              style={{ backgroundColor: "#b91c1c", color: "#fff", fontWeight: 700 }}
+              style={{ backgroundColor: TOM.perigo.text, color: T.surface, fontWeight: 700 }}
               data-testid="button-confirm-delete"
             >
               {deleteItemMutation.isPending ? "Excluindo..." : "Excluir Peça"}

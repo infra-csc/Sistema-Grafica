@@ -13,7 +13,7 @@ import { rotuloDaRemessa, type CabecalhoDoKit, type RemessaDoKit } from "@shared
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, ModalFooter, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { alvo, useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
-import { T, FS, R } from "@/lib/theme";
+import { T, FS, R, N, TOM } from "@/lib/theme";
 
 export type NovaRemessaDoKit = {
   versao: string;
@@ -32,8 +32,8 @@ export type DestinoDaImportacao =
   | { tipo: "remessa"; kitRemessaId: string }
   | { tipo: "nova"; kitNovaRemessa: NovaRemessaDoKit };
 
-const ROTULO: React.CSSProperties = { display: "block", fontSize: FS.small, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "#57534e", marginBottom: 5 };
-const CAMPO: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: 38, padding: "0 10px", borderRadius: R.md, border: "1px solid #d6d3d1", background: "#fff", fontSize: 14, color: T.text, fontFamily: "inherit" };
+const ROTULO: React.CSSProperties = { display: "block", fontSize: FS.small, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: T.apoio, marginBottom: 5 };
+const CAMPO: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: 38, padding: "0 10px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, fontSize: 14, color: T.text, fontFamily: "inherit" };
 
 export function DestinoDaImportacaoDialog({ aberto, quantidade, arquivo, remessas, cabecalho, somenteKit, pendente, onConfirmar, onFechar }: {
   aberto: boolean;
@@ -109,11 +109,11 @@ export function DestinoDaImportacaoDialog({ aberto, quantidade, arquivo, remessa
       <button key={valor} type="button" role="radio" aria-checked={ativo} disabled={!!bloqueio} onClick={() => setTipo(valor)}
         data-testid={`destino-importacao-${valor}`} title={bloqueio}
         style={{ flex: "1 1 220px", textAlign: "left", display: "flex", gap: 10, alignItems: "flex-start", padding: "14px 14px", borderRadius: R.lg, cursor: bloqueio ? "not-allowed" : "pointer",
-          border: `2px solid ${ativo ? cor : "#e7e5e4"}`, background: bloqueio ? "#f5f5f4" : ativo ? `${cor}0f` : "#fff", opacity: bloqueio ? 0.6 : 1 }}>
+          border: `2px solid ${ativo ? cor : T.border}`, background: bloqueio ? N.n2 : ativo ? `${cor}0f` : T.surface, opacity: bloqueio ? 0.6 : 1 }}>
         <Icone size={20} color={bloqueio ? T.second : cor} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />
         <span>
           <span style={{ display: "block", fontSize: 15, fontWeight: 800, color: T.text }}>{titulo}</span>
-          <span style={{ display: "block", fontSize: FS.body, color: "#57534e", marginTop: 2, lineHeight: 1.4 }}>{bloqueio ?? texto}</span>
+          <span style={{ display: "block", fontSize: FS.body, color: T.apoio, marginTop: 2, lineHeight: 1.4 }}>{bloqueio ?? texto}</span>
         </span>
       </button>
     );
@@ -124,28 +124,28 @@ export function DestinoDaImportacaoDialog({ aberto, quantidade, arquivo, remessa
       <DialogContent data-testid="dialog-destino-importacao" className={HIDE_NATIVE_CLOSE} style={modalSurface(620)}>
         <DialogTitle className="sr-only">Estas peças são da Arena ou do Kit?</DialogTitle>
         <DialogDescription className="sr-only">{quantidade} peças da planilha {arquivo}</DialogDescription>
-        <ModalHeader icon={FileSpreadsheet} tint="#1c1917" title="Estas peças são da Arena ou do Kit?" subtitle={`${quantidade} ${quantidade === 1 ? "peça" : "peças"}${arquivo ? ` · ${arquivo}` : ""}`} onClose={pendente ? undefined : onFechar} />
+        <ModalHeader icon={FileSpreadsheet} tint={T.text} title="Estas peças são da Arena ou do Kit?" subtitle={`${quantidade} ${quantidade === 1 ? "peça" : "peças"}${arquivo ? ` · ${arquivo}` : ""}`} onClose={pendente ? undefined : onFechar} />
 
         <div style={{ padding: isMobile ? 16 : "16px 24px", display: "flex", flexDirection: "column", gap: 14, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
           <div role="radiogroup" aria-label="Destino das peças" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            {cartao({ valor: "arena", titulo: "Arena", texto: "Lista do evento, com as datas da Arena.", icone: Warehouse, cor: "#c2410c",
+            {cartao({ valor: "arena", titulo: "Arena", texto: "Lista do evento, com as datas da Arena.", icone: Warehouse, cor: T.accentText,
               bloqueio: somenteKit ? "Usuário do Kit importa só peças do Kit." : undefined })}
-            {cartao({ valor: "kit", titulo: "Kit", texto: "Remessa do Kit, com as datas do Kit (entrega do material e caminhão).", icone: Package, cor: "#6d28d9" })}
+            {cartao({ valor: "kit", titulo: "Kit", texto: "Remessa do Kit, com as datas do Kit (entrega do material e caminhão).", icone: Package, cor: TOM.roxo.text })}
           </div>
 
           {cabecalho && (
-            <p data-testid="aviso-planilha-kit" style={{ margin: 0, fontSize: FS.body, color: "#5b21b6", background: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: R.md, padding: "8px 12px", lineHeight: 1.45 }}>
+            <p data-testid="aviso-planilha-kit" style={{ margin: 0, fontSize: FS.body, color: TOM.roxo.text, background: TOM.roxo.bg, border: `1px solid ${TOM.roxo.border}`, borderRadius: R.md, padding: "8px 12px", lineHeight: 1.45 }}>
               Planilha do Kit{cabecalho.evento ? ` (${cabecalho.evento})` : ""}: as datas e a versão abaixo vieram do cabeçalho — confira antes de importar.
             </p>
           )}
 
           {tipo === "kit" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: 14, border: "1px solid #ddd6fe", borderRadius: R.lg, background: "#faf5ff" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: 14, border: `1px solid ${TOM.roxo.border}`, borderRadius: R.lg, background: TOM.roxo.bg }}>
               {remessas.length > 0 && (
                 <div role="radiogroup" aria-label="Remessa do Kit" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   {([["nova", "Nova remessa"], ["remessa", "Remessa que já existe"]] as const).map(([valor, rotulo]) => (
                     <button key={valor} type="button" role="radio" aria-checked={modoKit === valor} onClick={() => setModoKit(valor)} data-testid={`modo-kit-${valor}`}
-                      style={{ height: alvo(34, dedo), padding: "0 12px", borderRadius: R.pill, border: `1px solid ${modoKit === valor ? "#6d28d9" : "#ddd6fe"}`, background: modoKit === valor ? "#6d28d9" : "#fff", color: modoKit === valor ? "#fff" : "#5b21b6", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
+                      style={{ height: alvo(34, dedo), padding: "0 12px", borderRadius: R.pill, border: `1px solid ${modoKit === valor ? TOM.roxo.text : TOM.roxo.border}`, background: modoKit === valor ? TOM.roxo.text : T.surface, color: modoKit === valor ? T.surface : TOM.roxo.text, fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
                       {rotulo}
                     </button>
                   ))}
@@ -193,11 +193,11 @@ export function DestinoDaImportacaoDialog({ aberto, quantidade, arquivo, remessa
         <ModalFooter>
           <button type="button" data-testid="button-confirmar-destino" disabled={!!falta || pendente} onClick={confirmar} title={falta ?? undefined}
             style={{ height: 46, borderRadius: R.md, border: "none", fontSize: 14, fontWeight: 800, cursor: falta ? "not-allowed" : "pointer",
-              background: falta || pendente ? "#e7e5e4" : tipo === "kit" ? "#6d28d9" : "#1c1917", color: falta || pendente ? T.second : "#fff" }}>
+              background: falta || pendente ? T.border : tipo === "kit" ? TOM.roxo.text : T.text, color: falta || pendente ? T.second : T.surface }}>
             {pendente ? "Importando…" : falta ? falta : `Importar ${quantidade} ${quantidade === 1 ? "peça" : "peças"} ${tipo === "kit" ? "do Kit" : "da Arena"}`}
           </button>
           <button type="button" onClick={onFechar} disabled={pendente}
-            style={{ height: 40, borderRadius: R.md, border: "none", background: "transparent", color: "#57534e", fontSize: FS.body, fontWeight: 700, cursor: "pointer" }}>
+            style={{ height: 40, borderRadius: R.md, border: "none", background: "transparent", color: T.apoio, fontSize: FS.body, fontWeight: 700, cursor: "pointer" }}>
             Voltar à revisão
           </button>
         </ModalFooter>

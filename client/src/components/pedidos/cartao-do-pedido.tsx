@@ -17,7 +17,7 @@ import {
   type PedidoDePeca,
   type SeloDoEvento,
 } from "@shared/pedidos-de-peca";
-import { T, FS, R } from "@/lib/theme";
+import { T, FS, R, N, TOM } from "@/lib/theme";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
   AjusteDaLinha,
@@ -50,9 +50,9 @@ export type AcaoDoCartao = {
 };
 
 const TONS: Record<AcaoDoCartao["tom"], { fundo: string; cor: string; borda: string }> = {
-  criar:      { fundo: "#b45309", cor: "#ffffff", borda: "#b45309" },
-  secundario: { fundo: "#ffffff", cor: "#1c1917", borda: "#e7e5e4" },
-  perigo:     { fundo: "#ffffff", cor: "#b91c1c", borda: "#fecaca" },
+  criar:      { fundo: TOM.alerta.text, cor: T.surface, borda: TOM.alerta.text },
+  secundario: { fundo: T.surface, cor: T.text, borda: T.border },
+  perigo:     { fundo: T.surface, cor: TOM.perigo.text, borda: TOM.perigo.border },
 };
 
 /**
@@ -68,9 +68,9 @@ export function BotaoDoCartao({ acao, altura, descritoPor }: { acao: AcaoDoCarta
   const estilo: React.CSSProperties = {
     display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, height: altura, padding: "0 12px",
     borderRadius: R.md, fontSize: 12.5, fontWeight: 800, whiteSpace: "nowrap", textDecoration: "none",
-    border: `1px solid ${bloqueado ? "#e7e5e4" : tom.borda}`,
-    background: bloqueado ? "#f5f5f4" : tom.fundo,
-    color: bloqueado ? "#78716c" : tom.cor,
+    border: `1px solid ${bloqueado ? T.border : tom.borda}`,
+    background: bloqueado ? N.n2 : tom.fundo,
+    color: bloqueado ? T.second : tom.cor,
     cursor: acao.ocupado ? "wait" : bloqueado ? "not-allowed" : "pointer",
     transition: "background-color 0.12s, border-color 0.12s",
   };
@@ -99,7 +99,7 @@ export function MotivosDoBloqueio({ acoes, id }: { acoes: AcaoDoCartao[]; id: st
   return (
     <div id={id} data-testid={id} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
       {motivos.map((m) => (
-        <p key={m} style={{ margin: 0, display: "flex", gap: 6, alignItems: "flex-start", fontSize: FS.small, color: "#57534e", lineHeight: 1.45 }}>
+        <p key={m} style={{ margin: 0, display: "flex", gap: 6, alignItems: "flex-start", fontSize: FS.small, color: T.apoio, lineHeight: 1.45 }}>
           <Lock size={12} aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} /> {m}
         </p>
       ))}
@@ -121,7 +121,7 @@ export function LinhaDoCartao({ linha, agora, selo, acoes = [], mostrarEvento = 
   const tom = TOM_DO_PEDIDO[linha.status] ?? TOM_DO_PEDIDO.cancelado;
   return (
     <li data-testid={`linha-pedido-${linha.id}`}
-      style={{ listStyle: "none", padding: "10px 12px", borderRadius: R.md, border: "1px solid #ece9e6", borderLeft: `3px solid ${tom.borda}`, background: "#ffffff", display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+      style={{ listStyle: "none", padding: "10px 12px", borderRadius: R.md, border: `1px solid ${T.border}`, borderLeft: `3px solid ${tom.borda}`, background: T.surface, display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 }}>
         <EstadoDoPedido status={linha.status} />
         <strong style={{ fontSize: 14, color: T.text }}>{quantidadeDoPedido(linha.quantidade)}</strong>
@@ -129,8 +129,8 @@ export function LinhaDoCartao({ linha, agora, selo, acoes = [], mostrarEvento = 
           {rotuloDaLinha(linha)}{medida ? ` · ${medida}` : ""}
         </span>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: FS.body, color: "#57534e" }}>
-        <span data-testid={`patrocinadores-linha-${linha.id}`} style={{ fontWeight: 600, color: linha.sponsors?.length ? "#44403c" : "#78716c" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: FS.body, color: T.apoio }}>
+        <span data-testid={`patrocinadores-linha-${linha.id}`} style={{ fontWeight: 600, color: linha.sponsors?.length ? T.strong : T.second }}>
           {patrocinadoresDaLinha(linha)}
         </span>
         {mostrarEvento && (
@@ -144,12 +144,12 @@ export function LinhaDoCartao({ linha, agora, selo, acoes = [], mostrarEvento = 
       <AndamentoDaLinha linha={linha} />
       <AjusteDaLinha linha={linha} />
       {linha.status === "recusado" && (
-        <p style={{ margin: 0, fontSize: FS.body, color: "#991b1b" }}>
+        <p style={{ margin: 0, fontSize: FS.body, color: TOM.perigo.text }}>
           Recusada em {diaEMes(linha.resolvidoEm)}{linha.resolvidoPor ? ` por ${linha.resolvidoPor}` : ""}: {linha.motivoRecusa}
         </p>
       )}
       {linha.status === "cancelado" && (
-        <p style={{ margin: 0, fontSize: FS.body, color: "#57534e" }}>
+        <p style={{ margin: 0, fontSize: FS.body, color: T.apoio }}>
           Cancelada em {diaEMes(linha.resolvidoEm)}{linha.resolvidoPor ? ` por ${linha.resolvidoPor}` : ""}{linha.motivoCancelamento ? `: ${linha.motivoCancelamento}` : ""}
         </p>
       )}
@@ -189,17 +189,17 @@ export function CartaoDoPedido({ pedido, linhas, agora, seloDe, acoesDaLinha, ac
   const titulo = (
     <>
       <EstadoDoPedido status={pedido.status} />
-      <strong style={{ flexShrink: 0, fontSize: 14, color: T.text, textDecoration: onAbrir ? "underline" : "none", textDecorationColor: "#d6d3d1", textUnderlineOffset: 3 }}>
+      <strong style={{ flexShrink: 0, fontSize: 14, color: T.text, textDecoration: onAbrir ? "underline" : "none", textDecorationColor: T.bdark, textUnderlineOffset: 3 }}>
         Solicitação · {n} {n === 1 ? "peça" : "peças"}
       </strong>
-      {n > 1 && <span style={{ fontSize: FS.body, color: "#57534e", minWidth: 0 }}>{resumoDasLinhas(pedido.linhas)}</span>}
+      {n > 1 && <span style={{ fontSize: FS.body, color: T.apoio, minWidth: 0 }}>{resumoDasLinhas(pedido.linhas)}</span>}
     </>
   );
   const todasAsAcoes: AcaoDoCartao[] = onAbrir
     ? [{ chave: "detalhes", rotulo: "Detalhes", tom: "secundario", onClick: onAbrir, testId: `button-detalhes-pedido-${pedido.id}` }, ...acoes]
     : acoes;
   return (
-    <li data-testid={`pedido-${pedido.id}`} style={{ listStyle: "none", padding: "14px 16px", borderBottom: "1px solid #f1f0ef", display: "flex", flexDirection: "column", gap: 10 }}>
+    <li data-testid={`pedido-${pedido.id}`} style={{ listStyle: "none", padding: "14px 16px", borderBottom: `1px solid ${N.n3}`, display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
         <div style={{ flex: "1 1 auto", minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
           {onAbrir ? (
@@ -210,7 +210,7 @@ export function CartaoDoPedido({ pedido, linhas, agora, seloDe, acoesDaLinha, ac
           ) : (
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 }}>{titulo}</div>
           )}
-          <span style={{ fontSize: FS.small, color: "#57534e" }}>
+          <span style={{ fontSize: FS.small, color: T.apoio }}>
             Solicitada por {pedido.pedidoPor ?? "—"} · entrou em {quandoFoi(pedido.createdAt)}
           </span>
         </div>

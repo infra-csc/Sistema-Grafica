@@ -5,7 +5,8 @@
 // (information_schema / pg_catalog) e lista:
 //   · FALTANDO no banco — tabela, coluna, índice ou sequência que o código usa
 //     e o banco não tem (erro "column does not exist" em produção). A cura é
-//     a migração aditiva: node scripts/migracao-aditiva-producao.mjs
+//     `npm run db:migrate -- --aplicar` (ou, num banco ainda não adotado, a
+//     migração aditiva: node scripts/migracao-aditiva-producao.mjs)
 //   · SOBRANDO no banco — o que existe lá e o schema não declara. CUIDADO: é
 //     exatamente o que um `db:push` DERRUBARIA. Os índices criados por script
 //     (busca trigram, performance) aparecem separados, como "criados por
@@ -49,15 +50,19 @@ for (const valor of Object.values(schema)) {
   }
 }
 
-// Índices criados por script (fora do schema, de propósito): lidos dos próprios
-// scripts, para não virar "sobrando" nem ser confundido com lixo.
+// Índices criados por script ou por migração escrita à mão (fora do schema, de
+// propósito): lidos dos próprios arquivos, para não virar "sobrando" nem ser
+// confundido com lixo.
 const porScript = new Set();
-for (const arq of readdirSync(new URL("./", import.meta.url))) {
-  if (!/\.(sql|ts|mjs)$/.test(arq) || arq === "checar-drift.mjs") continue;
-  const texto = readFileSync(new URL(`./${arq}`, import.meta.url), "utf8");
-  for (const m of texto.matchAll(/CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:CONCURRENTLY\s+)?IF\s+NOT\s+EXISTS\s+"?([A-Za-z0-9_]+)"?/gi)) porScript.add(m[1]);
+for (const pasta of ["./", "../migrations/"]) {
+  let nomes = [];
+  try { nomes = readdirSync(new URL(pasta, import.meta.url)); } catch { continue; }
+  for (const arq of nomes) {
+    if (!/\.(sql|ts|mjs)$/.test(arq) || arq === "checar-drift.mjs") continue;
+    const texto = readFileSync(new URL(`${pasta}${arq}`, import.meta.url), "utf8");
+    for (const m of texto.matchAll(/CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:CONCURRENTLY\s+)?IF\s+NOT\s+EXISTS\s+"?([A-Za-z0-9_]+)"?/gi)) porScript.add(m[1]);
+  }
 }
-
 // ── O que o banco tem ───────────────────────────────────────────────────────
 const client = new pg.Client({ connectionString: url, ssl: /sslmode=require|neon\.tech/.test(url) ? { rejectUnauthorized: false } : undefined });
 await client.connect();
@@ -115,7 +120,7 @@ const secao = (titulo, lista) => {
   console.log(`\n${titulo} (${lista.length})`);
   for (const l of lista.sort()) console.log(`  · ${l}`);
 };
-secao("FALTANDO no banco — rode a migração aditiva", faltando);
+secao("FALTANDO no banco — rode `npm run db:migrate -- --aplicar` (banco ainda não adotado: a migração aditiva)", faltando);
 secao("SOBRANDO no banco — o schema não declara (um db:push derrubaria)", sobrando);
 secao("Índices criados por script (fora do schema, de propósito — devem ficar)", deScript);
 if (invalidos.length) secao("Índices INVÁLIDOS (CONCURRENTLY interrompido) — refazer à mão", invalidos);

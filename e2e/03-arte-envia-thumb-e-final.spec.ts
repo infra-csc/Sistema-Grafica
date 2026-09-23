@@ -13,7 +13,7 @@
 //   · os dois passam pela validação de upload (o servidor olha os BYTES).
 // ─────────────────────────────────────────────────────────────────────────────
 import { test, expect } from "@playwright/test";
-import { entrar, exigirAlvoDeTeste, esperarStatus, lerPeca, PDF_MINIMO, PNG_MINIMO, subirArquivo } from "./apoio";
+import { comoGravado, entrar, exigirAlvoDeTeste, esperarStatus, lerPeca, PDF_MINIMO, PNG_MINIMO, subirArquivo } from "./apoio";
 import { atéAArte, criarEvento, criarPeca, limpar, type Evento, type Peca } from "./cenario";
 // A régua vem do shared, não de um número copiado: se o dono abrir a Revisão
 // Final para a Arte, é lá que a decisão muda — e este teste acompanha sozinho.
@@ -36,7 +36,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.afterEach(async ({ page }) => {
-  await limpar(page.request, evento);
+  await limpar(page, evento);
 });
 
 test("a peça aparece na fila da Arte com o código dela", async ({ page }) => {
@@ -55,10 +55,12 @@ test("com o thumb, a peça sai da mesa da Arte e vai para a finalização", asyn
 
   // A peça nasceu "sem aprovação": pula o Atendimento e cai na finalização.
   await esperarStatus(page, peca, ["awaiting_creator_review", "sponsor_approved", "awaiting_finalization"]);
-  expect((await lerPeca(page, peca)).approvalThumbUrl).toBe(thumb);
+  expect((await lerPeca(page, peca)).approvalThumbUrl).toBe(comoGravado(thumb));
 
-  await page.goto("/arte");
-  await expect(page.getByText(peca.displayId).first()).toBeVisible({ timeout: 20_000 });
+  // Na finalização ela sai da aba que abre primeiro; o link `?item=` (o do
+  // sino) abre a ficha na fase em que ela está.
+  await page.goto(`/arte?item=${peca.id}`);
+  await expect(page.getByText(peca.displayId).first()).toBeVisible({ timeout: 30_000 });
 });
 
 test("sem thumb, o envio é recusado — não há o que o patrocinador olhe", async ({ page }) => {
@@ -81,9 +83,9 @@ test("o arquivo final leva a peça para a Revisão Final", async ({ page }) => {
 
   await esperarStatus(page, peca, ["awaiting_final_review", "awaiting_review", "in_review"]);
   const gravada = await lerPeca(page, peca);
-  expect(gravada.finalFileUrl).toBe(final);
+  expect(comoGravado(gravada.finalFileUrl)).toBe(comoGravado(final));
   // O thumb aprovado NÃO é apagado pelo arquivo final: são dois materiais.
-  expect(gravada.approvalThumbUrl).toBe(thumb);
+  expect(gravada.approvalThumbUrl).toBe(comoGravado(thumb));
 });
 
 test("o upload recusa o que não é imagem nem PDF, mesmo com o tipo mentido", async ({ page }) => {

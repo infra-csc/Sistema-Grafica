@@ -9,7 +9,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { test, expect } from "@playwright/test";
 import { entrar, exigirAlvoDeTeste, esperarStatus, lerPeca } from "./apoio";
-import { criarEvento, criarPeca, limpar, type Evento, type Peca } from "./cenario";
+import { criarEvento, criarPeca, dadosDaPeca, garantirModelo, limpar, type Evento, type Peca } from "./cenario";
 
 test.skip(!process.env.E2E_BASE_URL, "E2E_BASE_URL não definida — veja e2e/README.md");
 test.beforeAll(() => exigirAlvoDeTeste());
@@ -24,20 +24,36 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.afterEach(async ({ page }) => {
-  await limpar(page.request, evento);
+  await limpar(page, evento);
 });
 
 test("digita a peça no lote do evento e ela nasce em rascunho", async ({ page }) => {
   await entrar(page, "solicitacao");
+  const modelo = await garantirModelo(page.request);
   await page.goto(`/eventos/${evento.id}`);
 
   await page.getByTestId("button-add-item").click();
   // A primeira linha do lote já vem aberta; os campos são indexados por linha.
+  // Tipo: a caixa de busca dos Modelos — digita e Enter escolhe o primeiro.
+  const tipo = page.getByLabel("Tipo da peça, linha 1");
+  await tipo.click();
+  await tipo.fill(modelo);
+  await tipo.press("Enter");
   await page.getByTestId("input-description-0").fill("Pórtico de largada (E2E)");
   await page.getByTestId("input-quantity-0").fill("2");
+  // Visual e arquivo são obrigatórios (o m² sai deles).
+  await page.getByTestId("input-visual-width-0").fill("3");
+  await page.getByTestId("input-visual-height-0").fill("1");
   await page.getByTestId("input-file-width-0").fill("3");
   await page.getByTestId("input-file-height-0").fill("1");
+  // Material e acabamento: seletores com lista (os padrões do app).
+  for (const [campo, opcao] of [["select-material-0", "Lona"], ["select-finish-0", "Ilhós"]] as const) {
+    await page.getByTestId(campo).click();
+    await page.getByRole("button", { name: opcao, exact: true }).click();
+  }
   await page.getByTestId("button-submit-bulk").click();
+  // "Revisar e salvar" abre a revisão do lote; é o "Confirmar lote" que grava.
+  await page.getByTestId("button-confirm-duplicates").click();
 
   await expect(async () => {
     const r = await page.request.get(`/api/items/${evento.id}`);
@@ -96,11 +112,13 @@ test("evento já realizado não aceita peça nova — a tela avisa antes do cliq
   await expect(page.getByTestId("banner-event-realizado")).toBeVisible();
 
   const r = await page.request.post("/api/items", {
-    data: { eventId: passado.id, type: "Pórtico", description: "não deveria entrar", quantity: 1 },
+    // A peça COMPLETA: um corpo incompleto cairia na validação (400) antes da
+    // guarda do evento realizado, que é o que se quer ver aqui.
+    data: dadosDaPeca(passado, { description: "não deveria entrar" }),
   });
   expect(r.status()).toBe(409);
 
-  await limpar(page.request, passado);
+  await limpar(page, passado);
 });
 
 test("a peça criada guarda o que foi digitado — quantidade, medida e observação", async ({ page }) => {
@@ -114,6 +132,11 @@ test("a peça criada guarda o que foi digitado — quantidade, medida e observa�
   expect(gravada).toMatchObject({ quantity: 7, observations: "Ilhós a cada 50 cm" });
 
   await page.goto(`/eventos/${evento.id}`);
-  await expect(page.getByText(peca.displayId)).toBeVisible();
-  await expect(page.getByText("7")).toBeVisible();
+  // A linha DA PEÇA (rascunho ou já enviada) — procurar "7" na página inteira
+  // achava o 7 do código (#0027) no tablet.
+  const linha = page.getByTestId(`draft-item-${peca.id}`).or(page.getByTestId(`row-item-${peca.id}`)).first();
+  await expect(linha).toBeVisible({ timeout: 30_000 });
+  await expect(linha).toContainText(peca.displayId);
+  const semOCodigo = (await linha.innerText()).replace(peca.displayId, "");
+  expect(semOCodigo).toMatch(/(^|\D)7(\D|$)/);
 });

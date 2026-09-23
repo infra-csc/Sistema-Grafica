@@ -6,8 +6,9 @@
 # precisa de credencial é um CI que ninguém consegue rodar num fork — e é um
 # lugar a mais de onde uma senha pode vazar.
 #
-# Os testes de ponta a ponta (e2e/) NÃO rodam aqui: precisam de um app de pé
-# com banco de teste. Ver e2e/README.md.
+# Três jobs: tipos/testes/build (sempre), migrações contra um Postgres em
+# memória (sempre) e ponta a ponta com o app inteiro local (só à mão). Os dois
+# últimos usam PGlite — Postgres em WebAssembly, sem serviço e sem segredo.
 # ─────────────────────────────────────────────────────────────────────────────
 name: CI
 
@@ -15,6 +16,8 @@ on:
   push:
     branches: ["**"]
   pull_request:
+  # Botão "Run workflow" na aba Actions — é o que liga o job de ponta a ponta.
+  workflow_dispatch:
 
 # Push seguido de push na mesma branch: a execução velha é cancelada.
 concurrency:
@@ -75,5 +78,69 @@ jobs:
           path: |
             dist/
             coverage/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # MIGRAÇÕES: as de migrations/ reproduzem shared/schema.ts?
+  # Sobe um Postgres VAZIO em memória (PGlite — WebAssembly, sem serviço, sem
+  # segredo), aplica todas as migrações do zero e compara com o schema
+  # (scripts/ci-migracoes.mjs). Falha quando alguém mudou o schema e não gerou
+  # a migração (`npm run db:generate`), quando uma migração não roda num banco
+  # vazio, ou quando a migração aditiva antiga ainda cria algo que as
+  # migrações não criam. Também exercita o modo de adoção do migrar.mjs.
+  # ───────────────────────────────────────────────────────────────────────────
+  migracoes:
+    name: migrações reproduzem o schema
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # O PGlite mora FORA do projeto (instalado dentro, duplicaria o
+      # drizzle-orm e quebraria os tipos) — ver scripts/local/ferramentas.mjs.
+      NORTE_FERRAMENTAS: ${{ runner.temp }}/ferramentas
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - name: Instalar dependências
+        run: npm ci
+      - name: PGlite (fora do projeto)
+        run: npm run ferramentas:instalar -- --sem-navegador
+      - name: Migrações do zero + drift contra o schema
+        run: npm run db:migrate:ci
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # PONTA A PONTA (e2e/) — só quando disparado à mão (aba Actions → CI → Run
+  # workflow): sobe o app inteiro com banco em memória (npm run e2e) e percorre
+  # os cinco fluxos nas três larguras. Leva ~20 min; por isso não roda a cada
+  # push.
+  # ───────────────────────────────────────────────────────────────────────────
+  e2e:
+    name: ponta a ponta (app local)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      NORTE_FERRAMENTAS: ${{ runner.temp }}/ferramentas
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - name: Instalar dependências
+        run: npm ci
+      - name: PGlite, Playwright e Chromium (fora do projeto)
+        run: npm run ferramentas:instalar -- --com-deps
+      - name: Os cinco fluxos, nas três larguras
+        run: npm run e2e
+      - name: Guardar traces, vídeos e screenshots das falhas
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-falhas
+          path: test-results/
           retention-days: 7
           if-no-files-found: ignore

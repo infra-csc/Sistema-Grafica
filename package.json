@@ -9,14 +9,18 @@
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc",
     "check:tests": "tsc -p tsconfig.test.json --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node scripts/migrar.mjs",
+    "db:migrate:ci": "node scripts/ci-migracoes.mjs",
     "db:push": "drizzle-kit push",
     "db:drift": "tsx scripts/checar-drift.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "e2e": "playwright test",
-    "e2e:ui": "playwright test --ui",
-    "e2e:install": "playwright install --with-deps chromium"
+    "dev:local": "node scripts/dev-local.mjs",
+    "e2e": "node scripts/e2e.mjs",
+    "e2e:ui": "node scripts/e2e.mjs --ui",
+    "ferramentas:instalar": "node scripts/local/instalar-ferramentas.mjs"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.17.2",

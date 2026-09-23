@@ -21,6 +21,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Express } from "express";
 import { and, eq, inArray, isNull, ne, or } from "drizzle-orm";
+import type { PgDatabase } from "drizzle-orm/pg-core";
+import type { NeonQueryResultHKT } from "drizzle-orm/neon-serverless";
+import type * as schema from "@shared/schema";
 import { EVENTO_ARQUIVADO_ERRO } from "../services/arquivamento";
 import { db } from "../db";
 import {
@@ -43,7 +46,7 @@ import {
   type RelacaoDePatrocinio,
 } from "@shared/estoque";
 import { etapaDaPeca, ehForaDoFunil, statusDasEtapas } from "@shared/fluxo-peca";
-import { requireAuth, requireRole, broadcast, createAuditLog, createAuditLogsEmLote } from "./shared";
+import { requireAuth, requireRole, broadcast, createAuditLog, createAuditLogsEmLote, type AuditActor } from "./shared";
 
 // 15/09: Estoque é só do admin.
 const requireReservaDeEstoque = requireRole("admin");
@@ -80,8 +83,12 @@ export function unicosDaQuery(v: unknown): string[] {
 }
 
 const erro = (httpStatus: number, message: string) => Object.assign(new Error(message), { httpStatus });
+/** O erro de `erro()` (ou qualquer um com `httpStatus` preenchido). */
+const ehErroHttp = (e: unknown): e is { httpStatus: number; message?: string } =>
+  typeof e === "object" && e !== null && !!(e as { httpStatus?: unknown }).httpStatus;
 
-type Exec = any;
+/** O `db` ou a transação em curso (a base comum dos dois). */
+type Exec = PgDatabase<NeonQueryResultHKT, typeof schema>;
 
 const COLUNAS_DO_ATIVO = {
   id: inventoryAssets.id,
@@ -199,13 +206,13 @@ export async function carregarPecas(exec: Exec, filtro: { itemId: string } | { e
   const vinculos: Array<{ itemId: string; sponsorId: string }> = await exec
     .select({ itemId: itemSponsors.itemId, sponsorId: itemSponsors.sponsorId })
     .from(itemSponsors)
-    .where(inArray(itemSponsors.itemId, linhas.map((l: any) => l.id)));
+    .where(inArray(itemSponsors.itemId, linhas.map((l) => l.id)));
   const porPeca = new Map<string, string[]>();
   for (const v of vinculos) {
     const lista = porPeca.get(v.itemId);
     if (lista) lista.push(v.sponsorId); else porPeca.set(v.itemId, [v.sponsorId]);
   }
-  return linhas.map((l: any) => ({ ...l, sponsorIds: porPeca.get(l.id) ?? [] }));
+  return linhas.map((l) => ({ ...l, sponsorIds: porPeca.get(l.id) ?? [] }));
 }
 
 /** A peça do estoque serve para esta peça? null = não é parecida. */
@@ -330,7 +337,7 @@ export async function liberarReservasDaPeca(
 ): Promise<Array<{ id: string; itemId: string; assetId: string; eventId: string; displayId: string }>> {
   const ids = Array.isArray(itemId) ? itemId : [itemId];
   if (ids.length === 0) return [];
-  const linhas: Array<{ id: string; itemId: string; assetId: string; eventId: string; displayId: string; situacao: string; saida: Date | null }> =
+  const linhas: Array<{ id: string; itemId: string | null; assetId: string; eventId: string; displayId: string; situacao: string; saida: Date | null }> =
     await exec.select({
       id: eventInventoryAllocations.id,
       itemId: eventInventoryAllocations.itemId,
@@ -347,7 +354,8 @@ export async function liberarReservasDaPeca(
   const soltas = linhas.filter((r) => !(r.situacao === "EM_USO" && caminhaoJaSaiu(r, agora)));
   if (soltas.length === 0) return [];
   await exec.delete(eventInventoryAllocations).where(inArray(eventInventoryAllocations.id, soltas.map((r) => r.id)));
-  return soltas.map(({ id, itemId: peca, assetId, eventId, displayId }) => ({ id, itemId: peca, assetId, eventId, displayId }));
+  // `item_id` nunca é nulo aqui: o WHERE filtra por ele (inArray).
+  return soltas.map(({ id, itemId: peca, assetId, eventId, displayId }) => ({ id, itemId: peca!, assetId, eventId, displayId }));
 }
 
 /**
@@ -355,7 +363,7 @@ export async function liberarReservasDaPeca(
  * ativo e avisa as telas. Nunca derruba a rota que chamou — a peça já foi
  * cancelada; uma falha aqui só deixa a reserva para ser liberada à mão.
  */
-export async function liberarReservasDasPecas(req: any, itemIds: string[], motivo: "cancelada" | "excluída"): Promise<void> {
+export async function liberarReservasDasPecas(req: AuditActor, itemIds: string[], motivo: "cancelada" | "excluída"): Promise<void> {
   try {
     // Uma consulta para o lote inteiro (o cancelamento em lote chega a 200 peças).
     const soltas = await liberarReservasDaPeca(db, itemIds);
@@ -519,7 +527,7 @@ export function registerEstoqueReservasRoutes(app: Express): void {
       if (pedidos.length > 500) return res.status(400).json({ error: "No máximo 500 peças por reserva." });
 
       const agora = new Date();
-      const quem = { userName: (req as any).userName, userId: (req as any).userId ?? null };
+      const quem = { userName: req.userName, userId: req.userId ?? null };
       const { peca, ativos } = await db.transaction((tx) =>
         reservarAtivosParaPeca(tx, { itemId: req.params.id, assetIds: pedidos, quem, agora }));
 
@@ -534,8 +542,8 @@ export function registerEstoqueReservasRoutes(app: Express): void {
       })));
       broadcast({ type: "estoque_reservas", itemId: peca.id, eventId: peca.eventId });
       res.status(201).json({ reservadas: unidades });
-    } catch (error: any) {
-      if (error?.httpStatus) return res.status(error.httpStatus).json({ error: error.message });
+    } catch (error) {
+      if (ehErroHttp(error)) return res.status(error.httpStatus).json({ error: error.message });
       console.error("[estoque] erro ao reservar:", error);
       res.status(500).json({ error: "Erro ao reservar peças do estoque" });
     }

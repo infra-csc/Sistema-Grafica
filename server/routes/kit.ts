@@ -11,7 +11,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Express } from "express";
 import { z } from "zod";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, type SQL } from "drizzle-orm";
 import { db } from "../db";
 import { kitRemessas } from "@shared/schema";
 import { requireAuth, requireRole } from "./shared";
@@ -24,7 +24,7 @@ export function registerKitRoutes(app: Express): void {
   app.get("/api/kit/remessas", requireAuth, async (req, res) => {
     try {
       // Remessa de evento arquivado sai da lista, como o evento.
-      const condicoes: any[] = [doEventoNaoArquivado(kitRemessas.eventId)];
+      const condicoes: SQL[] = [doEventoNaoArquivado(kitRemessas.eventId)];
       if (typeof req.query.eventId === "string" && req.query.eventId) condicoes.push(eq(kitRemessas.eventId, req.query.eventId));
       if ((req as any).userKit) condicoes.push(eq(kitRemessas.criadoPorId, (req as any).userId ?? ""));
       const lista = await db.select().from(kitRemessas)

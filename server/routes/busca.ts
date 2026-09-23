@@ -90,7 +90,7 @@ export function registerBuscaRoutes(app: Express): void {
       const visivel = (p: { kitRemessaId: string | null; criadoPorId: string | null }) =>
         !(req as any).userKit || (!!p.kitRemessaId && p.criadoPorId === (req as any).userId);
       res.json({ pecas: pecas.filter((p) => !ehBookCompleto(p) && visivel(p)), eventos });
-    } catch (error: any) {
+    } catch (error) {
       responderFalha(res, error, "GET /api/busca");
     }
   });

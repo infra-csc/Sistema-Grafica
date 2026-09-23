@@ -21,7 +21,7 @@
 // gravado em UTC, e converter no Node dependeria do fuso do processo — um
 // lançamento às 22h caía no dia seguinte.
 // ─────────────────────────────────────────────────────────────────────────────
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { sql } from "drizzle-orm";
 import { db } from "../db";
 import { requireAuth, requireRole, broadcast, createAuditLog, createAuditLogsEmLote, translateStatus, resolveActor } from "./shared";
@@ -42,7 +42,7 @@ import { erroImpressoraOcupada } from "../services/ocupacaoDasImpressoras";
 import { doEventoNaoArquivado } from "../services/arquivamento";
 import { pecaVisivelPara } from "@shared/kit";
 import { agoraNoFuso } from "../services/revisaoDigest";
-import { agregarRelatorioDeMaquinas, periodoValido, quemEntrouNoLugar, type RegistroDoPeriodo } from "../services/relatorioDeMaquinas";
+import { agregarRelatorioDeMaquinas, periodoValido, quemEntrouNoLugar, type RegistroDoPeriodo, type TipoDeRegistro } from "../services/relatorioDeMaquinas";
 import { responderRelatorioMaquinasXlsx } from "../services/xlsxExport";
 
 /** Os mesmos papéis que veem a fila da Gráfica (ROLES_GRAFICA no App). */
@@ -62,10 +62,44 @@ function entreOsDias(de: string, ate: string) {
       and r.created_at < timezone('UTC', (${ate}::date + 1)::timestamp at time zone ${FUSO})`;
 }
 
-const linhas = (r: any): any[] => (r?.rows ?? r ?? []) as any[];
+// Linhas cruas de um `execute` (SQL à mão): o formato das colunas é de quem escreveu o SQL.
+const linhas = <T>(r: { rows?: unknown } | unknown[] | null | undefined): T[] =>
+  (r && !Array.isArray(r) && r.rows != null ? r.rows : r ?? []) as T[];
+
+type Peca = typeof itemsTable.$inferSelect;
+
+/** Colunas cruas (snake_case) do diário — os SELECTs de registros_de_impressao abaixo. */
+type LinhaDoDiario = {
+  id: string; item_id: string; maquina: string; tipo: TipoDeRegistro; quantidade: number | string;
+  total_depois: number | string | null; user_name: string | null; dia: string; hora: string;
+  /** bigint: o driver devolve como texto. */
+  em: number | string;
+  display_id: string | null; type: string; description: string | null; quantity: number;
+  reuso: number | string; is_reuse: boolean | null; kit_remessa_id: string | null; criado_por_id: string | null;
+  evento: string | null;
+};
+
+/** Colunas cruas (snake_case) das peças em impressão e da fila. As opcionais só vêm na fila. */
+type LinhaDaPeca = {
+  id: string; display_id: string | null; type: string; description: string | null;
+  material: string | null; measurement: string | null; quantity: number; status: string;
+  produzido: number | string; reuso: number | string; is_reuse: boolean | null;
+  print_machine: string | null; impressao_por_maquina: unknown;
+  kit_remessa_id: string | null; criado_por_id: string | null; approval_thumb_url: string | null;
+  travada_em: Date | string | null; travada_por: string | null; travada_motivo: string | null;
+  desde: string | null; evento_id: string | null; evento: string | null; evento_status: string | null;
+  evento_inicio: string | null; evento_reaberto: string | null;
+  calculated_m2?: number | string | null; maquina_prevista?: string | null; reserva_por_maquina?: unknown;
+  deadline_producao_grafica?: number | string | null; saida_caminhao?: string | null;
+};
+
+/** O erro de `falha()` na troca/pausa: status HTTP e, às vezes, o código da trava. */
+type FalhaHttp = { httpStatus: number; message?: string; code?: unknown };
+const ehFalhaHttp = (e: unknown): e is FalhaHttp =>
+  typeof e === "object" && e !== null && !!(e as { httpStatus?: unknown }).httpStatus;
 
 /** 403 para quem não é da Gráfica, da Solicitação nem admin — as três rotas usam. */
-function podeVer(req: any, res: any): boolean {
+function podeVer(req: Request, res: Response): boolean {
   if (PAPEIS_QUE_VEEM.includes(req.userRole ?? "")) return true;
   res.status(403).json({ error: "O controle de máquinas é da Gráfica, da Solicitação e do admin" });
   return false;
@@ -76,9 +110,10 @@ function podeVer(req: any, res: any): boolean {
  * pecaVisivelPara): o usuário do Kit só enxerga as peças que ele mesmo criou
  * em remessa. Sem isto, a aba Máquinas vazaria o que a fila esconde.
  */
-function filtroDoKit(req: any): (l: any) => boolean {
+type ColunasDoKit = { kit_remessa_id: string | null; criado_por_id: string | null };
+function filtroDoKit(req: Request): (l: ColunasDoKit) => boolean {
   const quemVe = { kit: req.userKit === true, userId: req.userId ?? null };
-  return (l: any) => pecaVisivelPara(quemVe, { kitRemessaId: l.kit_remessa_id, criadoPorId: l.criado_por_id });
+  return (l: ColunasDoKit) => pecaVisivelPara(quemVe, { kitRemessaId: l.kit_remessa_id, criadoPorId: l.criado_por_id });
 }
 
 // A MESMA conta das telas (aImprimirDaPeca): quantidade − reaproveitadas, e
@@ -91,8 +126,8 @@ const aImprimir = (quantidade: unknown, reuso: unknown, isReuse?: unknown) =>
  * Os registros do diário de um período (de..ate, no fuso da operação), já no
  * formato que o resumo, a tela e o Excel leem. Do mais antigo ao mais novo.
  */
-async function registrosDoPeriodo(req: any, de: string, ate: string): Promise<RegistroDoPeriodo[]> {
-  const brutos = linhas(await db.execute(sql`
+async function registrosDoPeriodo(req: Request, de: string, ate: string): Promise<RegistroDoPeriodo[]> {
+  const brutos = linhas<LinhaDoDiario>(await db.execute(sql`
     select r.id, r.item_id, r.maquina, r.tipo, r.quantidade, r.total_depois, r.user_name,
            to_char((r.created_at at time zone 'UTC') at time zone ${FUSO}, 'YYYY-MM-DD') as dia,
            to_char((r.created_at at time zone 'UTC') at time zone ${FUSO}, 'HH24:MI') as hora,
@@ -140,7 +175,7 @@ async function registrosDoPeriodo(req: any, de: string, ate: string): Promise<Re
 const PODE_RESERVAR = ["ready_for_production", "pronto_para_producao", "approved", "liberado"];
 
 /** null = fila geral; "1".."4" = impressora. Qualquer outra coisa é inválida. */
-function maquinaDoCorpo(corpo: any): { ok: true; maquina: string | null } | { ok: false; erro: string } {
+function maquinaDoCorpo(corpo: { maquina?: unknown } | null | undefined): { ok: true; maquina: string | null } | { ok: false; erro: string } {
   const m = corpo?.maquina;
   if (m === null || m === undefined || m === "") return { ok: true, maquina: null };
   if (!ehMaquinaValida(m)) return { ok: false, erro: "Impressora inválida — escolha 1 a 4 ou devolva à fila geral" };
@@ -174,7 +209,7 @@ async function motivoDeNaoReservar(item: any, maquina?: string | null): Promise<
 }
 
 /** O que o corpo pede: reservar (com ou sem quantidade), mover ou devolver. Puro sobre a peça. */
-function aplicarPedidoDeReserva(item: any, corpo: any, maquina: string | null):
+function aplicarPedidoDeReserva(item: Peca, corpo: { quantidade?: unknown; deMaquina?: unknown } | null | undefined, maquina: string | null):
   { ok: true; reserva: Record<string, number> | null; frase: string } | { ok: false; erro: string } {
   const quantidade = corpo?.quantidade == null || corpo.quantidade === "" ? null : Number(corpo.quantidade);
   if (quantidade != null && (!Number.isInteger(quantidade) || quantidade <= 0)) {
@@ -213,7 +248,7 @@ export function registerMaquinasRoutes(app: Express): void {
       // start-printing simultâneo iniciava as unidades "sem impressora" e esta
       // rota as reservava de novo por cima — em impressão + reservado passava
       // do que há para imprimir.
-      const feito: { http: number; erro: string } | { item: any; frase: string } = await db.transaction(async (tx): Promise<{ http: number; erro: string } | { item: any; frase: string }> => {
+      const feito: { http: number; erro: string } | { item: Peca; frase: string } = await db.transaction(async (tx): Promise<{ http: number; erro: string } | { item: Peca; frase: string }> => {
         const [atual] = await tx.select().from(itemsTable).where(eq(itemsTable.id, req.params.id)).for("update");
         const motivo = await motivoDeNaoReservar(atual, pedido.maquina);
         if (motivo) return { http: atual ? 409 : 404, erro: motivo };
@@ -229,7 +264,7 @@ export function registerMaquinasRoutes(app: Express): void {
       await createAuditLog(req, "production", "item", item.id, feito.frase);
       broadcast({ type: "item_updated", item });
       res.json(item);
-    } catch (error: any) {
+    } catch (error) {
       console.error("[maquinas] falha ao reservar impressora:", error);
       res.status(500).json({ error: "Não foi possível reservar a impressora." });
     }
@@ -246,18 +281,18 @@ export function registerMaquinasRoutes(app: Express): void {
     const ids: string[] = Array.isArray(req.body?.itemIds) ? req.body.itemIds.filter((x: unknown): x is string => typeof x === "string") : [];
     if (ids.length === 0) return res.status(400).json({ error: "Nenhuma peça selecionada" });
     try {
-      const feitas: any[] = [];
+      const feitas: Peca[] = [];
       const erros: { itemId: string; displayId: string | null; erro: string }[] = [];
       // Uma transação curta POR PEÇA, com a linha travada (FOR UPDATE) — a
       // mesma razão da rota unitária; peça que falha não desfaz as outras.
       for (const id of Array.from(new Set(ids))) {
-        const r = await db.transaction(async (tx): Promise<{ erro: string; displayId: string | null } | { item: any }> => {
+        const r = await db.transaction(async (tx): Promise<{ erro: string; displayId: string | null } | { item: Peca }> => {
           const [atual] = await tx.select().from(itemsTable).where(eq(itemsTable.id, id)).for("update");
           const motivo = await motivoDeNaoReservar(atual, pedido.maquina);
           if (motivo) return { erro: motivo, displayId: atual?.displayId ?? null };
           // O lote é sempre "TUDO": tudo o que está livre vai para a impressora
           // (ou a reserva inteira volta à fila geral). Quantidade é gesto unitário.
-          const livre = livreParaReservar(atual as any);
+          const livre = livreParaReservar(atual);
           const reserva = pedido.maquina && livre > 0 ? { [pedido.maquina]: livre } : null;
           if (pedido.maquina && livre <= 0) return { erro: "Não há unidades fora de impressora para reservar", displayId: atual.displayId ?? null };
           const [item] = await tx.update(itemsTable).set({ ...colunasDaReserva(reserva, atual.reservaPorMaquina), updatedAt: new Date() } as any).where(eq(itemsTable.id, id)).returning();
@@ -270,7 +305,7 @@ export function registerMaquinasRoutes(app: Express): void {
       await createAuditLogsEmLote(req, feitas.map((i) => ({ action: "production", entityType: "item", entityId: i.id, details: fraseDoLote })));
       for (const item of feitas) broadcast({ type: "item_updated", item });
       res.json({ atualizadas: feitas.length, itens: feitas, erros });
-    } catch (error: any) {
+    } catch (error) {
       console.error("[maquinas] falha ao reservar impressora em lote:", error);
       res.status(500).json({ error: "Não foi possível reservar as impressoras." });
     }
@@ -282,7 +317,7 @@ export function registerMaquinasRoutes(app: Express): void {
   // tem ordem de prioridade." A conta é de pausarParte/iniciarParte (shared):
   // o que a peça tirada já imprimiu fica anotado, o que faltava vira reserva
   // no TOPO da fila daquela impressora, e a outra entra. Tudo numa transação.
-  const tirarEColocar = async (req: any, res: any, comTroca: boolean) => {
+  const tirarEColocar = async (req: Request, res: Response, comTroca: boolean) => {
     if (req.userRole !== "grafica" && req.userRole !== "admin") {
       return res.status(403).json({ error: "Só a Gráfica e o admin mexem no que está na impressora" });
     }
@@ -324,7 +359,7 @@ export function registerMaquinasRoutes(app: Express): void {
         // guarda continua valendo para quem ENTRA.
         const pausa = pausarParte(sai as any, maquina, new Date().toISOString());
         if (!pausa.ok) throw falha(409, pausa.erro);
-        const aImprimirSai = aImprimirDaPeca(sai as any);
+        const aImprimirSai = aImprimirDaPeca(sai);
         const [saiu] = await tx.update(itemsTable).set({
           // As impressas ficam em quantityProduced (não muda); sem outra parte
           // ativa a peça volta a LIBERADA, no topo da fila desta impressora.
@@ -338,10 +373,10 @@ export function registerMaquinasRoutes(app: Express): void {
           ...(pausa.voltaParaAFila ? { printMachine: null } : pausa.principal ? { printMachine: pausa.principal } : {}),
           ...colunasDaReserva(pausa.reserva, sai.reservaPorMaquina, pausa.pausas),
           updatedAt: new Date(),
-        } as any).where(eq(itemsTable.id, sai.id)).returning();
+        }).where(eq(itemsTable.id, sai.id)).returning();
 
-        let entrou: any = null;
-        let entra: any = null;
+        let entrou: Peca | null = null;
+        let entra: Peca | null = null;
         let parte: { quantidade: number } | null = null;
         let veioDe: string | null = null;
         if (comTroca) {
@@ -354,7 +389,7 @@ export function registerMaquinasRoutes(app: Express): void {
           if (!PODE.includes(entra.status)) throw falha(409, `A peça que entra não pode ir para a máquina no status atual: ${translateStatus(entra.status)}`);
           if (await motivoEventoDaPeca(entra)) throw falha(409, "O evento da peça que entra já foi finalizado");
           // A que ENTRA não pode estar travada; a que SAI pode (recuar nunca é barrado).
-          if (pecaTravada(entra as any)) throw Object.assign(falha(409, fraseDaTrava(entra as any)), { code: CODIGO_PECA_TRAVADA });
+          if (pecaTravada(entra as any)) throw Object.assign(falha(409, fraseDaTrava(entra)), { code: CODIGO_PECA_TRAVADA });
           // Depois da pausa a impressora tem de estar LIVRE (outra peça com parte nela barra a troca).
           // Mesma régua de quemOcupaAImpressora: peça de evento arquivado não ocupa.
           const emImpressao = await tx.select().from(itemsTable).where(and(inArray(itemsTable.status, ["inProduction", "em_producao"]), isNull(itemsTable.deletedAt), doEventoNaoArquivado(itemsTable.eventId)));
@@ -368,11 +403,11 @@ export function registerMaquinasRoutes(app: Express): void {
           // conta da troca de máquina do start-printing (planejarInicioDaImpressao).
           const deMaquina = ehMaquinaValida(req.body?.deMaquina) && req.body.deMaquina !== maquina ? req.body.deMaquina as string : null;
           if (deMaquina && (entra.status === "inProduction" || entra.status === "em_producao")) {
-            const plano = planejarInicioDaImpressao(entra as any, { printMachine: maquina, quantidade, deMaquina, iniciarParte: false, daReserva: false });
+            const plano = planejarInicioDaImpressao(entra, { printMachine: maquina, quantidade, deMaquina, iniciarParte: false, daReserva: false });
             if (!plano.ok) throw falha(409, plano.erro);
             parte = { quantidade: plano.movimento?.movidas ?? 0 };
             veioDe = plano.origem;
-            [entrou] = await tx.update(itemsTable).set({ ...plano.set, updatedAt: new Date() } as any).where(eq(itemsTable.id, entra.id)).returning();
+            [entrou] = await tx.update(itemsTable).set({ ...plano.set, updatedAt: new Date() }).where(eq(itemsTable.id, entra.id)).returning();
           } else {
           const reservaDe = ehMaquinaValida(req.body?.reservaDe) && (reservaDaPeca(entra)[req.body.reservaDe] ?? 0) > 0 ? req.body.reservaDe as string : maquina;
           const temReserva = (reservaDaPeca(entra)[reservaDe] ?? 0) > 0;
@@ -387,14 +422,14 @@ export function registerMaquinasRoutes(app: Express): void {
             ...colunasDaReserva(inicio.reserva, entra.reservaPorMaquina),
             ...(!entra.productionStartedAt ? { productionStartedAt: new Date() } : {}),
             updatedAt: new Date(),
-          } as any).where(eq(itemsTable.id, entra.id)).returning();
+          }).where(eq(itemsTable.id, entra.id)).returning();
           }
         }
         return { sai, saiu, pausa, entra, entrou, parte, veioDe };
       });
 
       const { sai, saiu, pausa, entra, entrou, parte, veioDe } = resultado;
-      const aImprimirSai = aImprimirDaPeca(sai as any);
+      const aImprimirSai = aImprimirDaPeca(sai);
       const jaImpressas = sai.quantityProduced ?? 0;
       await createAuditLog(req, "production", "item", sai.id, entra
         ? `Tirada da ${rotuloDaMaquina(maquina)} para dar lugar à ${entra.displayId ?? "outra peça"} (${jaImpressas} de ${aImprimirSai} impressas)`
@@ -407,16 +442,16 @@ export function registerMaquinasRoutes(app: Express): void {
         const ator = resolveActor(req);
         await db.insert(registrosDeImpressao).values([
           { itemId: sai.id, maquina, tipo: "pausa", quantidade: 0, totalDepois: jaImpressas, userName: ator.userName, userId: ator.userId ?? null },
-          ...(entrou ? [{ itemId: entrou.id, maquina, tipo: veioDe ? "troca" : "inicio", quantidade: veioDe ? parte!.quantidade : 0, totalDepois: entra.quantityProduced ?? 0, userName: ator.userName, userId: ator.userId ?? null }] : []),
-        ] as any);
+          ...(entrou ? [{ itemId: entrou.id, maquina, tipo: veioDe ? "troca" : "inicio", quantidade: veioDe ? parte!.quantidade : 0, totalDepois: entra!.quantityProduced ?? 0, userName: ator.userName, userId: ator.userId ?? null }] : []),
+        ]);
       } catch (error) {
         console.error("[maquinas] falha ao gravar o registro de impressão", error);
       }
       broadcast({ type: "item_updated", item: saiu });
       if (entrou) { broadcast({ type: "item_updated", item: entrou }); broadcast({ type: "production_started", item: entrou }); }
       res.json({ saiu, entrou });
-    } catch (error: any) {
-      if (error?.httpStatus) return res.status(error.httpStatus).json({ error: error.message, ...(error.code ? { code: error.code } : {}) });
+    } catch (error) {
+      if (ehFalhaHttp(error)) return res.status(error.httpStatus).json({ error: error.message, ...(error.code ? { code: error.code } : {}) });
       console.error("[maquinas] falha ao tirar/trocar a peça da impressora:", error);
       res.status(500).json({ error: "Não foi possível mexer na impressora." });
     }
@@ -442,7 +477,7 @@ export function registerMaquinasRoutes(app: Express): void {
     try {
       const registros = await registrosDoPeriodo(req, de, ate);
       res.json({ de, ate, hoje, dias: agregarRelatorioDeMaquinas(registros), registros });
-    } catch (error: any) {
+    } catch (error) {
       console.error("[maquinas] falha ao montar o relatório:", error);
       res.status(500).json({ error: "Não foi possível montar o relatório das máquinas." });
     }
@@ -455,7 +490,7 @@ export function registerMaquinasRoutes(app: Express): void {
     try {
       const registros = await registrosDoPeriodo(req, de, ate);
       await responderRelatorioMaquinasXlsx(res, { de, ate, resumo: agregarRelatorioDeMaquinas(registros), registros });
-    } catch (error: any) {
+    } catch (error) {
       console.error("[maquinas] falha ao exportar o relatório:", error);
       if (!res.headersSent) res.status(500).json({ error: "Não foi possível gerar o Excel das máquinas." });
     }
@@ -473,7 +508,7 @@ export function registerMaquinasRoutes(app: Express): void {
     const visivel = filtroDoKit(req);
 
     try {
-      const emImpressao = linhas(await db.execute(sql`
+      const emImpressao = linhas<LinhaDaPeca>(await db.execute(sql`
         select i.id, i.display_id, i.type, i.description, i.material, i.measurement, i.quantity, i.status,
                coalesce(i.quantity_produced, 0) as produzido,
                coalesce(i.reuse_qty, 0) as reuso, i.is_reuse,
@@ -496,7 +531,7 @@ export function registerMaquinasRoutes(app: Express): void {
       // registro "inicio"/"troca" mais recente daquela peça NAQUELA impressora;
       // sem registro (peça anterior ao diário), vale o de sempre.
       const desdeDaParte = new Map<string, string>();
-      for (const l of linhas(await db.execute(sql`
+      for (const l of linhas<{ item_id: string; maquina: string; em: string }>(await db.execute(sql`
         select distinct on (r.item_id, r.maquina) r.item_id, r.maquina,
                to_char(r.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as em
         from registros_de_impressao r
@@ -509,7 +544,7 @@ export function registerMaquinasRoutes(app: Express): void {
       // A FILA (dono, 21/09): peças liberadas que ainda vão para a máquina,
       // com a impressora reservada (ou nenhuma = fila geral), na ordem da fila
       // da Gráfica — saída do caminhão mais próxima primeiro.
-      const naFila = linhas(await db.execute(sql`
+      const naFila = linhas<LinhaDaPeca>(await db.execute(sql`
         select i.id, i.display_id, i.type, i.description, i.material, i.measurement, i.quantity, i.status,
                coalesce(i.quantity_produced, 0) as produzido,
                coalesce(i.reuse_qty, 0) as reuso, i.is_reuse,
@@ -531,12 +566,12 @@ export function registerMaquinasRoutes(app: Express): void {
           or (i.status in ('inProduction', 'em_producao') and i.impressao_por_maquina is not null)
         )
         order by e.truck_departure_date asc nulls last, i.display_id asc
-      `)).filter(visivel).filter((l: any) => !ehTipoMolde(l.type)); // MOLDE (22/09) não passa por impressora
+      `)).filter(visivel).filter((l) => !ehTipoMolde(l.type)); // MOLDE (22/09) não passa por impressora
 
       // Patrocinadores de todas as peças da tela (em impressão + fila) numa
       // consulta só — nada de uma busca por peça.
       const patrocinadoresPorItem = new Map<string, string[]>();
-      for (const l of linhas(await db.execute(sql`
+      for (const l of linhas<{ item_id: string; name: string }>(await db.execute(sql`
         select isp.item_id, s.name
         from item_sponsors isp
         join sponsors s on s.id = isp.sponsor_id
@@ -549,7 +584,7 @@ export function registerMaquinasRoutes(app: Express): void {
         if (lista) lista.push(l.name); else patrocinadoresPorItem.set(l.item_id, [l.name]);
       }
 
-      const doDia = linhas(await db.execute(sql`
+      const doDia = linhas<LinhaDoDiario>(await db.execute(sql`
         select r.id, r.item_id, r.maquina, r.tipo, r.quantidade, r.total_depois, r.user_name,
                to_char((r.created_at at time zone 'UTC') at time zone ${FUSO}, 'HH24:MI') as hora,
                (extract(epoch from r.created_at) * 1000)::bigint as em,
@@ -563,7 +598,7 @@ export function registerMaquinasRoutes(app: Express): void {
         order by r.created_at desc
       `)).filter(visivel);
 
-      const peca = (l: any) => ({
+      const peca = (l: LinhaDaPeca) => ({
         id: l.id,
         displayId: l.display_id,
         tipo: l.type,
@@ -660,14 +695,14 @@ export function registerMaquinasRoutes(app: Express): void {
       // A conta da fila (shared/reserva-de-impressora.ts): em impressão +
       // reservado + sem impressora = a imprimir. `reserva` é por impressora;
       // `semImpressora` é o que ainda aparece na fila geral.
-      const comoPeca = (l: any) => ({
+      const comoPeca = (l: LinhaDaPeca) => ({
         status: l.status, quantity: l.quantity, reuseQty: l.reuso, quantityProduced: l.produzido,
         isReuse: l.is_reuse === true, printMachine: l.print_machine, impressaoPorMaquina: l.impressao_por_maquina,
         maquinaPrevista: l.maquina_prevista, reservaPorMaquina: l.reserva_por_maquina,
       });
-      const pecaDaFila = (l: any) => ({
+      const pecaDaFila = (l: LinhaDaPeca) => ({
         ...peca(l),
-        maquinaPrevista: MAQUINAS_DE_IMPRESSAO.includes(l.maquina_prevista) ? l.maquina_prevista : null,
+        maquinaPrevista: ehMaquinaValida(l.maquina_prevista) ? l.maquina_prevista : null,
         reserva: reservaDaPeca(comoPeca(l)),
         pausas: lerPausas(l.reserva_por_maquina),
         semImpressora: semImpressora(comoPeca(l)),
@@ -692,7 +727,7 @@ export function registerMaquinasRoutes(app: Express): void {
       const filaGeral = fila.filter((p) => p.semImpressora > 0);
 
       res.json({ dia, hoje, maquinas: maquinasComFila, semMaquina, filaGeral });
-    } catch (error: any) {
+    } catch (error) {
       console.error("[maquinas] falha ao montar o controle de máquinas:", error);
       res.status(500).json({ error: "Não foi possível carregar o controle de máquinas." });
     }

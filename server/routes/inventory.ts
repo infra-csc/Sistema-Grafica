@@ -3,6 +3,9 @@
 import type { Express } from "express";
 import { z } from "zod";
 import { and, desc, eq, getTableColumns, inArray, like } from "drizzle-orm";
+import type { PgDatabase } from "drizzle-orm/pg-core";
+import type { NeonQueryResultHKT } from "drizzle-orm/neon-serverless";
+import type * as schema from "@shared/schema";
 import { db } from "../db";
 import { storage } from "../storage";
 import {
@@ -93,7 +96,10 @@ const unicos = (xs: (string | null | undefined)[]) => Array.from(new Set(xs.filt
  *  ativo (evento que ainda não acabou — a mesma régua de reservaEstaAtiva).
  *  Chamada com a linha do ativo JÁ travada (FOR UPDATE): a rota de reservar
  *  trava a mesma linha, então as duas não se cruzam. */
-export async function reservaVigenteDoAtivo(exec: any, assetId: string, agora = new Date()) {
+/** O `db` ou a transação em curso (a base comum dos dois). */
+type Exec = PgDatabase<NeonQueryResultHKT, typeof schema>;
+
+export async function reservaVigenteDoAtivo(exec: Exec, assetId: string, agora = new Date()) {
   const linhas: {
     eventName: string; inicio: Date | null; itemDisplayId: string | null;
     itemId?: string | null; pecaStatus?: string | null; pecaExcluidaEm?: Date | null; eventoArquivadoEm?: Date | null;
@@ -120,7 +126,7 @@ const avisarAcervo = (assetId: string, acao: "criado" | "atualizado" | "excluido
   broadcast({ type: "inventory_changed", assetId, acao });
 
 /** Trava a linha do ativo até o fim da transação e diz a situação atual. */
-async function travarAtivo(tx: any, id: string): Promise<string | null> {
+async function travarAtivo(tx: Exec, id: string): Promise<string | null> {
   const [linha] = await tx.select({ situacao: inventoryAssets.trackingStatus }).from(inventoryAssets)
     .where(eq(inventoryAssets.id, id)).for("update");
   return linha?.situacao ?? null;
@@ -251,7 +257,7 @@ export function registerInventoryRoutes(app: Express): void {
       if (data.trackingStatus && CYCLE_ONLY_STATUSES.includes(data.trackingStatus)) {
         return res.status(400).json({ error: cycleStatusError });
       }
-      const asset = await storage.createInventoryAsset(data as any);
+      const asset = await storage.createInventoryAsset(data);
       avisarAcervo(asset.id, "criado");
       res.status(201).json(asset);
     } catch (error) {
@@ -281,7 +287,7 @@ export function registerInventoryRoutes(app: Express): void {
           if (reserva) throw new Reservado(`${recusaPorReservaCurta(reserva)} Libere a reserva antes de mandar para manutenção ou descarte.`, reserva);
         }
         const [linha] = await tx.update(inventoryAssets)
-          .set({ ...data, updatedAt: new Date() } as any)
+          .set({ ...data, updatedAt: new Date() })
           .where(eq(inventoryAssets.id, req.params.id))
           .returning();
         return linha;
@@ -343,7 +349,7 @@ export function registerInventoryRoutes(app: Express): void {
             trackingStatus: newStatus,
             location: local,
             updatedAt: new Date(),
-          } as any)
+          })
           .where(and(eq(inventoryAssets.id, req.params.id), eq(inventoryAssets.trackingStatus, AGUARDANDO)))
           .returning();
         return linha;
@@ -352,7 +358,7 @@ export function registerInventoryRoutes(app: Express): void {
         const atual = await storage.getInventoryAsset(req.params.id);
         return res.status(409).json({ error: recusaDeTriagem(atual?.trackingStatus ?? asset.trackingStatus) });
       }
-      const triagedBy = (req as any).userName || 'Sistema';
+      const triagedBy = req.userName || 'Sistema';
       await createAuditLog(triagedBy, 'triagem', 'inventory_asset', req.params.id,
         JSON.stringify({ destino: newStatus, condicao: condition ?? asset.condition, local }));
       broadcast({ type: 'inventory_triaged', assetId: req.params.id, trackingStatus: newStatus });
@@ -382,7 +388,7 @@ export function registerInventoryRoutes(app: Express): void {
       const localDoLote = (sp: { location?: string | null }) =>
         (sp.location ?? "").trim() || (location ?? "").trim() || asset.location || null;
 
-      const triagedBy = (req as any).userName || 'Sistema';
+      const triagedBy = req.userName || 'Sistema';
       const firstStatus = destinoDaTriagem(splits[0].trackingStatus);
 
       // Atômico: redução do original + clones + auditoria na MESMA transação

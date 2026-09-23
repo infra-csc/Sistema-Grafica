@@ -19,10 +19,12 @@
 // tabela, dezenas de linhas abaixo: quem olhava via só o botão decepado.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
-import path from "path";
+import { fonteDaRevisao } from "./fonte-das-telas-da-arte";
 
-const TELA = readFileSync(path.resolve(__dirname, "../../client/src/pages/solicitacao.tsx"), "utf8");
+// A tela foi dividida: o <thead> mora em components/revisao/tabela-da-revisao.tsx,
+// as faixas com colSpan em cabecalho-do-evento e linha-da-peca, e a régua na página.
+// Lê-se a tela inteira (só existe um <thead> nela).
+const TELA = fonteDaRevisao();
 
 /** Colunas reais: o checkbox do cabeçalho + as colunas de dados declaradas. */
 function colunasReais(): number {

@@ -32,9 +32,11 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
+import { fonteDaRevisao } from "./fonte-das-telas-da-arte";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
-const REV = ler("client/src/pages/solicitacao.tsx");
+// A ficha mora em components/revisao/ (modal-de-decisao + ficha-*): a página + a pasta.
+const REV = fonteDaRevisao();
 const FP = ler("client/src/components/file-preview.tsx");
 
 /** Sem comentários — para as afirmações de ausência. */

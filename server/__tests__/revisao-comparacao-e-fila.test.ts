@@ -23,13 +23,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
-import path from "path";
+import { fonteDaRevisao } from "./fonte-das-telas-da-arte";
 
-const tela = readFileSync(
-  path.resolve(__dirname, "../../client/src/pages/solicitacao.tsx"),
-  "utf8",
-);
+// A tela foi dividida (página + components/revisao/): lê-se a tela inteira.
+const tela = fonteDaRevisao();
 
 /** Sem comentários — para asserções de ausência. */
 const codigo = tela
@@ -114,11 +111,13 @@ describe("o modal é uma fila", () => {
     expect(tela).toContain('data-testid="button-modal-prev"');
     expect(tela).toContain('data-testid="button-modal-next"');
     expect(tela).toContain('data-testid="text-queue-position"');
-    expect(tela).toContain("{filaIdx + 1} / {filteredItems.length}");
+    // O total é o da lista filtrada: a página passa `totalNaFila={filteredItems.length}` ao modal.
+    expect(tela).toContain("{filaIdx + 1} / {totalNaFila}");
+    expect(tela).toContain("totalNaFila={filteredItems.length}");
   });
 
   it("a posição é a da lista FILTRADA, na ordem que a tabela mostra", () => {
-    expect(tela).toContain("filteredItems.findIndex((i: any) => i.id === selectedItem.id)");
+    expect(tela).toContain("filteredItems.findIndex((i) => i.id === selectedItem.id)");
   });
 
   it("as setas do teclado andam na fila e D devolve", () => {
@@ -129,7 +128,8 @@ describe("o modal é uma fila", () => {
 
   it("dá para entrar na fila pela tela", () => {
     expect(tela).toContain('data-testid="button-queue-start"');
-    expect(tela).toContain("Revisar em fila ({filteredItems.length})");
+    expect(tela).toContain("Revisar em fila ({totalNaFila})");
+    expect(tela).toContain("aoComecarFila={() => openModal(filteredItems[0])}");
   });
 
   it("depois de decidir, avança em vez de fechar — e o congelamento fica", () => {
@@ -191,7 +191,9 @@ describe("dá para saber o que falta sem abrir nada", () => {
   });
 
   it("a linha inteira abre o modal, e checkbox e ações não propagam", () => {
-    expect(tela).toContain("onClick={() => openModal(item)}");
+    // A linha (components/revisao/linha-da-peca.tsx) recebe `openModal` como `aoAbrir`.
+    expect(tela).toContain("onClick={() => aoAbrir(item)}");
+    expect(tela).toContain("aoAbrir={openModal}");
     expect(tela).toContain('<td onClick={e => e.stopPropagation()} style={{ padding: "14px 24px", textAlign: "center" }}>');
     expect(tela).toContain('<td onClick={e => e.stopPropagation()} style={{ padding: "12px 16px", textAlign: "right" }}>');
   });
@@ -204,7 +206,8 @@ describe("os chips de faceta contam o que entregam", () => {
     // a de si mesmo.
     // + 'estoque' (21/09): "Aguardando estoque" e "Estoque respondeu" entraram
     // pela MESMA porta — dentro do casaRecorte, com a própria dimensão excluída.
-    expect(tela).toContain("const casaRecorte = (item: any, excluir?: 'evento' | 'tipo' | 'sem-arquivo' | 'evento-finalizado' | 'estoque')");
+    expect(tela).toContain("type DimensaoDoRecorte = 'evento' | 'tipo' | 'sem-arquivo' | 'evento-finalizado' | 'estoque';");
+    expect(tela).toContain("const casaRecorte = (item: PecaDaRevisao, excluir?: DimensaoDoRecorte)");
     expect(tela).toContain("const pool = pendingItems.filter(i => casaRecorte(i, 'estoque'));");
     // arquivoFinalOk (shared/molde, 22/09): tem o arquivo OU é molde, que não tem.
     expect(tela).toContain("if (excluir !== 'sem-arquivo' && soSemArquivo && arquivoFinalOk(item)) return false;");
@@ -285,7 +288,9 @@ describe("as guardas de evento finalizado", () => {
     // Reaproveitamento total também libera sem arquivo (prontaParaLiberar).
     expect(tela).toContain("const semArquivoParaLiberar = !!selectedItem && !prontaParaLiberar(selectedItem) && !(SOLICITACAO_AO_ESTOQUE_ATIVA && propostaDaFicha?.pulaProducao);");
     expect(tela).toContain("return arquivoFinalOk(item) || reaproveitamentoTotal(item);");
-    expect(tela).toContain("disabled={!!seloSelecionado || creatorReviewMutation.isPending || semArquivoParaLiberar}");
+    // Na ficha (components/revisao/ficha-decisao.tsx) o pending chega como `liberando`.
+    expect(tela).toContain("disabled={!!seloSelecionado || liberando || semArquivoParaLiberar}");
+    expect(tela).toContain("liberando={creatorReviewMutation.isPending}");
     expect(tela).toContain('motivoAcaoBloqueada(seloSelecionado.motivo, "liberar para produção")');
   });
 

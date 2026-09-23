@@ -25,6 +25,7 @@ import * as React from "react";
 import { render, act, cleanup, fireEvent } from "@testing-library/react";
 import { readFileSync } from "fs";
 import path from "path";
+import { fonteDaRevisao } from "./fonte-das-telas-da-arte";
 
 import { Botao } from "@/components/ui/botao";
 import { Selo } from "@/components/ui/selo";
@@ -527,7 +528,8 @@ describe("o contraste que a régua da casa cobra", () => {
     expect(css).not.toMatch(/^\.review-confirm-content\b/m);
     expect(css).not.toMatch(/^\.review-dialog-shell\b/m);
 
-    const rev = readFileSync(path.resolve(__dirname, "../../client/src/pages/solicitacao.tsx"), "utf8");
+    // A tela inteira: as confirmações moram em components/revisao/confirmar-*.
+    const rev = fonteDaRevisao();
     // Do `<Botao` mais próximo até o testid: o onClick tem `=>`, então um
     // regex de tag única pararia no primeiro `>`.
     const confirmacoes = Array.from(rev.matchAll(/data-testid="button-[a-z-]+-confirm"/g)).map((m) => {

@@ -82,7 +82,8 @@ describe("nenhuma classe de regex perdeu a barra invertida", () => {
     const CERTO = String.raw`replace(/\s+/g, " ")`;
     expect(fonteDasRotasDeItens()).toContain(CERTO);
     expect(ler("client/src/pages/atendimento.tsx")).toContain(CERTO);
-    expect(ler("client/src/pages/solicitacao.tsx")).toContain(CERTO);
+    // A Revisão Final foi dividida: a régua do motivo mora em components/revisao/regras.ts.
+    expect(ler("client/src/components/revisao/regras.ts")).toContain(CERTO);
   });
 });
 

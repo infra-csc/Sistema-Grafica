@@ -23,11 +23,12 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
+import { fonteDaTela, lerDoCliente } from "./fonte-da-tela";
+import { baldeDe as baldeDaTela } from "@/components/eventos/regras";
+import type { EventoDaLista } from "@/components/eventos/tipos";
 
-const tela = readFileSync(
-  path.resolve(__dirname, "../../client/src/pages/eventos.tsx"),
-  "utf8",
-);
+// A página e os pedaços dela (components/eventos/).
+const tela = fonteDaTela("eventos");
 
 /** Sem comentários — para asserções de ausência. */
 const codigo = tela
@@ -92,12 +93,13 @@ describe("os três baldes particionam", () => {
   });
 
   it("e a função da tela é a mesma", () => {
-    const i = tela.indexOf("const baldeDe = useCallback");
-    expect(i).toBeGreaterThan(-1);
-    const bloco = tela.slice(i, i + 400);
-    expect(bloco).toContain('if (ARCHIVED_LIFECYCLES.has(lifecycle)) return "arquivados";');
-    expect(bloco).toContain('if (lifecycle === "realizado") return "pendencias";');
-    expect(bloco).toContain('return "ativos";');
+    // A regra virou função pura (components/eventos/regras.ts): em vez de
+    // conferir o texto, roda a da tela contra a reimplementação acima.
+    for (const l of TODOS) {
+      const ev = { id: "e", name: "E", lifecycle: l, eventHasPassed: false, manuallyClosed: l === "manually_closed" } as EventoDaLista;
+      expect(baldeDaTela(ev), l).toBe(baldeDe(l));
+    }
+    expect(tela).toContain("return situacoes.has(baldeDe(event));");
   });
 });
 
@@ -288,7 +290,11 @@ describe("o modo lista", () => {
     // lib/fases.ts quando o Detalhe do Evento passou a desenhar a MESMA
     // barra — três telas, uma conta. Aqui ela entra por import, e o nome
     // local continua `contarPorFase` para o cartão e a linha lerem igual.
-    expect(tela).toContain('import { PHASES, contarPorFaseDoEvento as contarPorFase, FORA_DO_FUNIL } from "@/lib/fases";');
+    // O cartão e a linha importam a conta de lib/fases (cada um no seu arquivo).
+    for (const arq of ["components/eventos/cartao-do-evento.tsx", "components/eventos/linha-do-evento.tsx"]) {
+      expect(lerDoCliente(arq), arq).toContain('import { PHASES, contarPorFaseDoEvento as contarPorFase } from "@/lib/fases";');
+    }
+    expect(lerDoCliente("components/eventos/regras.ts")).toContain('import { FORA_DO_FUNIL } from "@/lib/fases";');
     expect(tela).not.toContain("function contarPorFase(event: any): number[]");
     const usos = tela.split("contarPorFase(event)").length - 1;
     expect(usos).toBe(2); // o cartão e a linha

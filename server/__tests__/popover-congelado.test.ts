@@ -24,6 +24,7 @@ import { describe, it, expect, beforeAll, vi } from "vitest";
 import * as React from "react";
 import { render, act } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { fonteDaTela } from "./fonte-da-tela";
 
 const h = React.createElement;
 
@@ -194,7 +195,7 @@ describe("os popovers controlados das outras telas também congelam", () => {
   });
 
   it("Eventos: os três do formulário de evento (a cura original)", () => {
-    const EV = ler("client/src/pages/eventos.tsx");
+    const EV = fonteDaTela("eventos");
     expect(EV).toContain("<FreezeWhileClosing open={openStartDate}>");
     expect(EV).toContain("<FreezeWhileClosing open={openTruckDate}>");
     expect(EV).toContain("<FreezeWhileClosing open={openPrazoKey === key}>");

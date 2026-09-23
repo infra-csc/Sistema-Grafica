@@ -9,6 +9,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
 import { prioridadePelaSaida, LIMITES_DA_PRIORIDADE } from "../../shared/prioridade-do-evento";
+import { fonteDaTela } from "./fonte-da-tela";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
 const DIA = 86_400_000;
@@ -48,7 +49,7 @@ describe("a amarração", () => {
   const SERVICO = ler("server/services/prioridadeAutomatica.ts");
   const EVENTS = ler("server/routes/events.ts");
   const ROUTES = ler("server/routes.ts");
-  const TELA = ler("client/src/pages/eventos.tsx");
+  const TELA = fonteDaTela("eventos");
 
   it("a trava manual existe na coluna e o job a respeita", () => {
     expect(SCHEMA).toContain('priorityManual: boolean("priority_manual").notNull().default(false)');

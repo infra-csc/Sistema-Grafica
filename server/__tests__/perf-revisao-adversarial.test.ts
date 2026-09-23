@@ -16,6 +16,7 @@ import { render, act, cleanup } from "@testing-library/react";
 import { readFileSync } from "fs";
 import path from "path";
 import { SentinelaDaLista } from "@/components/grafica/lista-incremental";
+import { fonteDaTela, lerDoCliente } from "./fonte-da-tela";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
 const h = React.createElement;
@@ -51,9 +52,14 @@ describe("Gráfica: o último \"Mostrar mais\" não joga o foco no <body>", () =
 
 describe("as demais correções (trechos que sustentam a regra)", () => {
   it("Eventos: cartão e linha memoizados leem o relógio de minuto da página, não Date.now()", () => {
-    const ev = ler("client/src/pages/eventos.tsx");
-    const cartao = ev.slice(ev.indexOf("function EventCard({"), ev.indexOf("const EventCardMemo"));
-    const linha = ev.slice(ev.indexOf("function EventRow({"), ev.indexOf("function EventCardActions("));
+    // A tela e os pedaços: o cartão e a linha moram em components/eventos/.
+    const ev = fonteDaTela("eventos");
+    const arqCartao = lerDoCliente("components/eventos/cartao-do-evento.tsx");
+    const arqLinha = lerDoCliente("components/eventos/linha-do-evento.tsx");
+    const cartao = arqCartao.slice(arqCartao.indexOf("function EventCard({"), arqCartao.indexOf("const EventCardMemo"));
+    const linha = arqLinha.slice(arqLinha.indexOf("function EventRow({"), arqLinha.indexOf("export const EventRowMemo"));
+    expect(cartao.length).toBeGreaterThan(1000);
+    expect(linha.length).toBeGreaterThan(1000);
     expect(cartao).toContain("(departure.getTime() - agoraMs) / 3600000");
     expect(cartao).not.toContain("getTime() - Date.now()");
     expect(linha).toContain("const hoje = new Date(agoraMs);");
@@ -64,11 +70,14 @@ describe("as demais correções (trechos que sustentam a regra)", () => {
   });
 
   it("Painel Geral: o retrato do evento (meta + selo) tem memo próprio, fora do memo dos filtros", () => {
+    // O memo do retrato fica na página e depende SÓ das peças e do dia do
+    // negócio; as funções puras moram em components/painel/recorte.ts.
     const pg = ler("client/src/pages/painel-geral.tsx");
-    expect(pg).toContain("const { eventMeta, seloDosEventosVivos } = useMemo(() => {");
-    expect(pg).toContain("}, [items, hojeNegocioMs]);");
+    expect(pg).toContain("const { eventMeta, seloDosEventosVivos } = useMemo(() => retratoDosEventos(items, hojeNegocioMs), [items, hojeNegocioMs]);");
     // o fallback das excluídas trabalha numa CÓPIA — não suja o memo do retrato
-    expect(pg).toContain("const seloPorEvento = new Map(seloDosEventosVivos);");
+    const recorte = ler("client/src/components/painel/recorte.ts");
+    expect(recorte).toContain("const seloPorEvento = new Map(seloDosEventosVivos);");
+    expect(recorte.slice(recorte.indexOf("export function calcularRecorte("))).not.toContain("seloDosEventosVivos.set(");
   });
 
   it("Gestão de Prazos: \"+N abaixo\" recalcula quando o card muda de altura (cobrança/realce)", () => {

@@ -130,7 +130,7 @@ export function registerAuditLogRoutes(app: Express): void {
       }
 
       res.json(logs);
-    } catch (error: any) {
+    } catch (error) {
       sendSensitiveError(res, error, "Get audit logs error", 500);
     }
   });

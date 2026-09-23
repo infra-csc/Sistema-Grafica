@@ -27,15 +27,17 @@ export function verificarJwtDoPortal(token: string, segredo: string): { email?: 
 
 const hashDoToken = (t: string) => createHash("sha256").update(t).digest("hex");
 
-type Consulta = (sql: string, params: unknown[]) => Promise<{ rows: any[] }>;
+/** Só o RETURNING do consumir lê as linhas (user_id, expira_em). */
+type Consulta = (sql: string, params: unknown[]) => Promise<{ rows: Array<{ user_id?: unknown; expira_em: string | number | Date }> }>;
 
 const TABELA_AUSENTE = "42P01";
 
 export function criarTrocaDeSso(consultar: Consulta, agora: () => number = Date.now) {
   const memoria = new Map<string, { userId: string; expira: number }>();
   let avisou = false;
-  const semTabela = (erro: any) => {
-    if (erro?.code !== TABELA_AUSENTE) return false;
+  const semTabela = (erro: unknown) => {
+    const codigo = typeof erro === "object" && erro !== null ? (erro as { code?: unknown }).code : undefined;
+    if (codigo !== TABELA_AUSENTE) return false;
     if (!avisou) {
       avisou = true;
       console.warn("[SSO] tabela sso_tokens_de_troca não existe — usando memória do processo. Rode o SQL da migração.");

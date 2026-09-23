@@ -4,6 +4,7 @@
 // A promessa: "#2993" citada no WhatsApp vira a peça aberta em dois segundos,
 // de qualquer tela. O que este arquivo prende são as decisões que fazem a
 // promessa valer — e as que impedem a paleta de virar outra coisa.
+// A rota roda de verdade em regras-avisos-busca-global.test.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "fs";
@@ -11,47 +12,17 @@ import { readFileSync } from "fs";
 vi.mock("../db", () => ({ db: {} }));
 vi.mock("../storage", () => ({ storage: {} }));
 
-const { termoLiteral, BUSCA_MAX_PECAS, BUSCA_MAX_EVENTOS } = await import("../routes/busca");
+const { termoLiteral } = await import("../routes/busca");
 
-const ROTA = readFileSync(new URL("../routes/busca.ts", import.meta.url), "utf8");
 const PALETA = readFileSync(new URL("../../client/src/components/busca-global.tsx", import.meta.url), "utf8");
 const APP = readFileSync(new URL("../../client/src/App.tsx", import.meta.url), "utf8");
 
 describe("a rota /api/busca", () => {
-  it("o recorte desce ao SQL — a paleta não baixa o banco para procurar", () => {
-    expect(ROTA).toContain("ilike(items.displayId, padraoCodigo)");
-    expect(ROTA).toContain("ilike(items.description, padraoTexto)");
-    expect(ROTA).toContain("ilike(events.name, padraoTexto)");
-    expect(ROTA).toContain(".limit(BUSCA_MAX_PECAS)");
-  });
-
-  it("código exato vem primeiro — quem digita #2993 quer A peça", () => {
-    expect(ROTA).toContain("CASE WHEN lower(${items.displayId}) IN");
-    // com e sem cerquilha: as duas grafias são a mesma intenção
-    expect(ROTA).toContain('const semCerquilha = bruto.replace(/^#/, "");');
-  });
-
   it("o termo é literal", () => {
     expect(termoLiteral("100%")).toBe("100\\%");
     expect(termoLiteral("a_b")).toBe("a\\_b");
     expect(termoLiteral("c\\d")).toBe("c\\\\d");
     expect(termoLiteral("2x1")).toBe("2x1");
-  });
-
-  it("menos de 2 caracteres devolve vazio sem tocar o banco", () => {
-    expect(ROTA).toContain('if (bruto.length < 2) return res.json({ pecas: [], eventos: [] });');
-  });
-
-  it("peça excluída não aparece, e os limites são pequenos — é paleta, não relatório", () => {
-    expect(ROTA).toContain("isNull(items.deletedAt)");
-    expect(BUSCA_MAX_PECAS).toBe(15);
-    expect(BUSCA_MAX_EVENTOS).toBe(5);
-  });
-
-  it("leitura para qualquer logado — o destino (Detalhe do Evento) todo papel já vê", () => {
-    expect(ROTA).toContain('app.get("/api/busca", requireAuth,');
-    expect(ROTA).not.toContain("requireRole");
-    expect(ROTA).not.toContain("userRole");
   });
 });
 

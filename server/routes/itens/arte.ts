@@ -125,7 +125,7 @@ export function registrarArte(app: Express): void {
       }
       // ANDA: trocar o thumb é refazer o material que os patrocinadores olham.
       if (await barraEventoFinalizado(currentItem, res)) return;
-      const regra = regraDaTrocaDeThumb(currentItem as any);
+      const regra = regraDaTrocaDeThumb(currentItem);
       if (!regra.pode) {
         return res.status(409).json({ error: regra.motivo });
       }
@@ -231,7 +231,7 @@ export function registrarArte(app: Express): void {
       // é do arquivo antigo — é caso de complemento/reimpressão); liberada ou
       // em impressão sem nenhuma impressa, a troca DEVOLVE a peça para a
       // Revisão Final, porque a liberação valia para o arquivo anterior.
-      const regra = regraDaTrocaDeArquivoFinal(currentItem as any);
+      const regra = regraDaTrocaDeArquivoFinal(currentItem);
       if (!regra.pode) {
         return res.status(409).json(regra.travada
           ? { error: regra.motivo, code: CODIGO_PECA_TRAVADA }
@@ -260,7 +260,7 @@ export function registrarArte(app: Express): void {
             ? { printMachine: null, impressaoPorMaquina: null }
             : {}),
         } : {}),
-      } as any);
+      });
       if (!item) {
         return res.status(404).json({ error: "Peça não encontrada." });
       }
@@ -281,7 +281,7 @@ export function registrarArte(app: Express): void {
           `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("awaiting_final_review")} (arquivo final trocado depois da liberação — volta para a Revisão Final)`,
         );
         // Estava na impressora sem nenhuma impressa: o diário registra a saída.
-        await registrarSaidaDaImpressora(req, currentItem as any);
+        await registrarSaidaDaImpressora(req, currentItem);
         // Quem AGE agora é a Revisão; a Gráfica é avisada de que a peça saiu
         // da fila dela.
         const paraRevisao = await storage.createNotification({

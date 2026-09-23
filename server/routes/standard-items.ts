@@ -37,11 +37,11 @@ export function registerStandardItemRoutes(app: Express): void {
       const compativel = new Map<string, number>();
       for (const p of pecas) {
         if ((p as any).deletedAt) continue;
-        const sid = (p as any).standardItemId as string | null | undefined;
+        const sid = p.standardItemId;
         if (sid) {
           const e = exato.get(sid) ?? { n: 0, ultima: null };
           e.n += 1;
-          const c = p.createdAt ? new Date(p.createdAt as any) : null;
+          const c = p.createdAt ? new Date(p.createdAt) : null;
           if (c && (!e.ultima || c > e.ultima)) e.ultima = c;
           exato.set(sid, e);
         } else {
@@ -55,7 +55,7 @@ export function registerStandardItemRoutes(app: Express): void {
         const k = chaveAssinatura(m.name, m.material, m.fileWidth, m.fileHeight);
         return { ...m, uso: { exato: e?.n ?? 0, compativel: compativel.get(k) ?? 0, ultimaEm: e?.ultima ?? null } };
       }));
-    } catch (error: any) {
+    } catch (error: unknown) {
       responderFalha(res, error, "GET /api/standard-items");
     }
   });
@@ -66,7 +66,7 @@ export function registerStandardItemRoutes(app: Express): void {
     try {
       const kind = typeof req.query.kind === "string" ? req.query.kind : undefined;
       res.json(await storage.getCatalogOptions(kind));
-    } catch (error: any) {
+    } catch (error: unknown) {
       responderFalha(res, error, "GET /api/catalog-options");
     }
   });
@@ -80,7 +80,7 @@ export function registerStandardItemRoutes(app: Express): void {
       const validated = insertCatalogOptionSchema.parse(req.body);
       const option = await storage.createCatalogOption(validated);
       await createAuditLog(
-        (req as any).userName,
+        req.userName,
         'created',
         'catalogOption',
         option.value,
@@ -88,7 +88,7 @@ export function registerStandardItemRoutes(app: Express): void {
       );
       broadcast({ type: "catalog_option_created", option });
       res.status(201).json(option);
-    } catch (error: any) {
+    } catch (error: unknown) {
       responderFalha(res, error, "POST /api/catalog-options", 400);
     }
   });
@@ -102,7 +102,7 @@ export function registerStandardItemRoutes(app: Express): void {
       // opções inexistentes poluiria a trilha com não-eventos.
       if (ok) {
         await createAuditLog(
-          (req as any).userName,
+          req.userName,
           'deleted',
           'catalogOption',
           value,
@@ -111,7 +111,7 @@ export function registerStandardItemRoutes(app: Express): void {
       }
       broadcast({ type: "catalog_option_deleted", kind, value });
       res.json({ deleted: ok });
-    } catch (error: any) {
+    } catch (error: unknown) {
       responderFalha(res, error, "DELETE /api/catalog-options", 400);
     }
   });
@@ -122,7 +122,7 @@ export function registerStandardItemRoutes(app: Express): void {
       const item = await storage.createStandardItem(validatedData);
 
       await createAuditLog(
-        (req as any).userName,
+        req.userName,
         'created',
         'standardItem',
         item.id,
@@ -132,7 +132,7 @@ export function registerStandardItemRoutes(app: Express): void {
       broadcast({ type: "standard_item_created", item });
 
       res.status(201).json(item);
-    } catch (error: any) {
+    } catch (error: unknown) {
       responderErro(res, error, "criar modelo");
     }
   });
@@ -147,7 +147,7 @@ export function registerStandardItemRoutes(app: Express): void {
       const count = await storage.renameStandardItemGroup(oldName, newName.trim());
       // Operação em massa: não há um id único — registra o nome como entityId.
       await createAuditLog(
-        (req as any).userName,
+        req.userName,
         'updated',
         'standardItem',
         newName.trim(),
@@ -155,7 +155,7 @@ export function registerStandardItemRoutes(app: Express): void {
       );
       broadcast({ type: "standard_item_group_renamed", oldName, newName: newName.trim() });
       res.json({ count });
-    } catch (error: any) {
+    } catch (error: unknown) {
       responderFalha(res, error, "PATCH /api/standard-items/rename-group");
     }
   });
@@ -167,7 +167,7 @@ export function registerStandardItemRoutes(app: Express): void {
       if (!name) return res.status(400).json({ error: "name é obrigatório" });
       const count = await storage.deleteStandardItemGroup(name);
       await createAuditLog(
-        (req as any).userName,
+        req.userName,
         'deleted',
         'standardItem',
         name,
@@ -175,7 +175,7 @@ export function registerStandardItemRoutes(app: Express): void {
       );
       broadcast({ type: "standard_item_group_deleted", name });
       res.json({ count });
-    } catch (error: any) {
+    } catch (error: unknown) {
       responderFalha(res, error, "DELETE /api/standard-items/clear-group");
     }
   });
@@ -189,7 +189,7 @@ export function registerStandardItemRoutes(app: Express): void {
       }
       const count = await storage.renameStandardItemFinish(oldName, newName.trim());
       await createAuditLog(
-        (req as any).userName,
+        req.userName,
         'updated',
         'standardItem',
         newName.trim(),
@@ -197,7 +197,7 @@ export function registerStandardItemRoutes(app: Express): void {
       );
       broadcast({ type: "standard_item_finish_renamed", oldName, newName: newName.trim() });
       res.json({ count });
-    } catch (error: any) {
+    } catch (error: unknown) {
       responderFalha(res, error, "PATCH /api/standard-items/rename-finish");
     }
   });
@@ -209,7 +209,7 @@ export function registerStandardItemRoutes(app: Express): void {
       if (!name) return res.status(400).json({ error: "name é obrigatório" });
       const count = await storage.deleteStandardItemFinish(name);
       await createAuditLog(
-        (req as any).userName,
+        req.userName,
         'deleted',
         'standardItem',
         name,
@@ -217,7 +217,7 @@ export function registerStandardItemRoutes(app: Express): void {
       );
       broadcast({ type: "standard_item_finish_deleted", name });
       res.json({ count });
-    } catch (error: any) {
+    } catch (error: unknown) {
       responderFalha(res, error, "DELETE /api/standard-items/clear-finish");
     }
   });
@@ -231,7 +231,7 @@ export function registerStandardItemRoutes(app: Express): void {
       }
       const count = await storage.renameStandardItemMaterial(oldName, newName.trim());
       await createAuditLog(
-        (req as any).userName,
+        req.userName,
         'updated',
         'standardItem',
         newName.trim(),
@@ -239,7 +239,7 @@ export function registerStandardItemRoutes(app: Express): void {
       );
       broadcast({ type: "standard_item_material_renamed", oldName, newName: newName.trim() });
       res.json({ count });
-    } catch (error: any) {
+    } catch (error: unknown) {
       responderFalha(res, error, "PATCH /api/standard-items/rename-material");
     }
   });
@@ -251,7 +251,7 @@ export function registerStandardItemRoutes(app: Express): void {
       if (!name) return res.status(400).json({ error: "name é obrigatório" });
       const count = await storage.deleteStandardItemMaterial(name);
       await createAuditLog(
-        (req as any).userName,
+        req.userName,
         'deleted',
         'standardItem',
         name,
@@ -259,7 +259,7 @@ export function registerStandardItemRoutes(app: Express): void {
       );
       broadcast({ type: "standard_item_material_deleted", name });
       res.json({ count });
-    } catch (error: any) {
+    } catch (error: unknown) {
       responderFalha(res, error, "DELETE /api/standard-items/clear-material");
     }
   });
@@ -276,7 +276,7 @@ export function registerStandardItemRoutes(app: Express): void {
       
       // Create audit log
       await createAuditLog(
-        (req as any).userName,
+        req.userName,
         'updated',
         'standardItem',
         req.params.id,
@@ -286,7 +286,7 @@ export function registerStandardItemRoutes(app: Express): void {
       broadcast({ type: "standard_item_updated", item });
       
       res.json(item);
-    } catch (error: any) {
+    } catch (error: unknown) {
       responderErro(res, error, "editar modelo");
     }
   });
@@ -303,7 +303,7 @@ export function registerStandardItemRoutes(app: Express): void {
       
       // Create audit log
       await createAuditLog(
-        (req as any).userName,
+        req.userName,
         'deleted',
         'standardItem',
         req.params.id,
@@ -313,7 +313,7 @@ export function registerStandardItemRoutes(app: Express): void {
       broadcast({ type: "standard_item_deleted", itemId: req.params.id });
       
       res.json({ success: true });
-    } catch (error: any) {
+    } catch (error: unknown) {
       responderFalha(res, error, "DELETE /api/standard-items/:id");
     }
   });

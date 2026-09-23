@@ -19,12 +19,12 @@
 // Toda transição é UPDATE condicional no status de origem: duas pessoas agindo
 // na mesma peça ao mesmo tempo — a segunda recebe 409, nunca um estado torto.
 // ─────────────────────────────────────────────────────────────────────────────
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import { z } from "zod";
-import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne, or, sql, type SQL } from "drizzle-orm";
 import { db } from "../db";
 import { storage } from "../storage";
-import { pedidosDePeca, linhasDoPedidoDePeca, events, sponsors, eventSponsors, items as itemsTable } from "@shared/schema";
+import { pedidosDePeca, linhasDoPedidoDePeca, events, sponsors, eventSponsors, items as itemsTable, type Event, type InsertNotification } from "@shared/schema";
 import {
   MAX_PECAS_POR_SOLICITACAO,
   MAX_REFERENCIAS_DO_PEDIDO,
@@ -80,8 +80,8 @@ const novaSolicitacaoSchema = z.object({
 const paraData = (d: string | null | undefined): Date | null => (d ? new Date(`${d}T12:00:00Z`) : null);
 const paraDecimal = (n: number | null | undefined): string | null => (n == null ? null : String(n));
 const semRepetir = (lista: string[]): string[] => lista.filter((v, i) => lista.indexOf(v) === i);
-const lerMotivo = (body: any): string => (typeof body?.motivo === "string" ? body.motivo.trim() : "");
-const quemAgiu = (req: any) => resolveActor({ userName: req.userName, userId: req.userId ?? null });
+const lerMotivo = (body: { motivo?: unknown } | null | undefined): string => (typeof body?.motivo === "string" ? body.motivo.trim() : "");
+const quemAgiu = (req: Pick<Request, "userName" | "userId">) => resolveActor({ userName: req.userName, userId: req.userId ?? null });
 const rotulo = (s: string) => ROTULO_DO_PEDIDO[s as StatusDaSolicitacao]?.toLowerCase() ?? s;
 const nomeDaLinha = (l: { tipoDePeca: string | null; ordem: number; quantidade: number }) =>
   `${rotuloDaLinha(l)} (${quantidadeDoPedido(l.quantidade)})`;
@@ -91,9 +91,9 @@ const AJUSTE_LIMPO = {
   ajusteRespondidoPor: null, ajusteRespondidoEm: null, ajusteResposta: null,
 };
 
-async function notificar(dados: { type: string; message: string; eventId: string; itemId?: string | null; targetRoles: string[]; targetUserId?: string | null }) {
+async function notificar(dados: { type: string; message: string; eventId: string; itemId?: string | null; targetRoles: InsertNotification["targetRoles"]; targetUserId?: string | null }) {
   try {
-    const notification = await storage.createNotification(dados as any);
+    const notification = await storage.createNotification(dados);
     broadcast({ type: "notification_created", notification });
   } catch (error) {
     console.error("[pedidos] falha ao notificar:", error);
@@ -101,14 +101,14 @@ async function notificar(dados: { type: string; message: string; eventId: string
 }
 
 /** Aviso para QUEM PEDIU (quando se sabe quem foi); senão, para o perfil. */
-const paraQuemPediu = (pedido: { pedidoPorId: string | null }) =>
+const paraQuemPediu = (pedido: { pedidoPorId: string | null }): Pick<InsertNotification, "targetRoles" | "targetUserId"> =>
   pedido.pedidoPorId
     ? { targetRoles: ["atendimento", "admin"], targetUserId: pedido.pedidoPorId }
     : { targetRoles: ["atendimento", "admin"] };
 
 // Atendimento só enxerga e mexe nas solicitações que ele mesmo criou (dono,
 // 14/09). Solicitação, Arte e admin veem todas.
-const ehDeOutraPessoa = (req: any, pedido: { pedidoPorId: string | null }) =>
+const ehDeOutraPessoa = (req: Pick<Request, "userRole" | "userId">, pedido: { pedidoPorId: string | null }) =>
   req.userRole === "atendimento" && pedido.pedidoPorId !== req.userId;
 
 // ─── Conversão do formato antigo (uma peça por solicitação) ──────────────────
@@ -148,7 +148,7 @@ function converterFormatoAntigo(): Promise<void> {
 
 async function listarSolicitacoes(filtro: { eventId?: string; pedidoPorId?: string; limite: number }) {
   await converterFormatoAntigo();
-  const condicoes: any[] = [];
+  const condicoes: SQL[] = [];
   if (filtro.pedidoPorId !== undefined) condicoes.push(eq(pedidosDePeca.pedidoPorId, filtro.pedidoPorId));
   if (filtro.eventId) {
     const doEvento = await db.selectDistinct({ id: linhasDoPedidoDePeca.pedidoId })
@@ -228,9 +228,7 @@ async function listarSolicitacoes(filtro: { eventId?: string; pedidoPorId?: stri
     if (lista) lista.push(p); else pecasPorLinha.set(linhaId, [p]);
   }
 
-  const linhasPorPedido = new Map<string, any[]>();
-  for (const l of linhas) {
-    const montada = {
+  const montarLinha = (l: (typeof linhas)[number]) => ({
       ...l.linha,
       eventName: l.eventName,
       eventStart: l.eventStart,
@@ -240,7 +238,10 @@ async function listarSolicitacoes(filtro: { eventId?: string; pedidoPorId?: stri
         .map((id) => ({ id, name: nomePorId.get(id)! })),
       pecas: (pecasPorLinha.get(l.linha.id) ?? [])
         .sort((a, b) => String(a.displayId ?? "").localeCompare(String(b.displayId ?? ""), "pt-BR", { numeric: true })),
-    };
+  });
+  const linhasPorPedido = new Map<string, Array<ReturnType<typeof montarLinha>>>();
+  for (const l of linhas) {
+    const montada = montarLinha(l);
     const lista = linhasPorPedido.get(l.linha.pedidoId);
     if (lista) lista.push(montada); else linhasPorPedido.set(l.linha.pedidoId, [montada]);
   }
@@ -273,7 +274,11 @@ const NAO_ENCONTRADA = "Peça da solicitação não encontrada";
  * pela criação de peça (POST /api/items com pedidoDePecaLinhaId) — que assim
  * liga NA MESMA requisição.
  */
-export async function vincularPecaALinha(req: any, linhaId: string, itemId: string): Promise<{ status: number; erro?: string; linha?: any }> {
+type LinhaDoPedido = typeof linhasDoPedidoDePeca.$inferSelect;
+
+export async function vincularPecaALinha(
+  req: Pick<Request, "userRole" | "userName" | "userId">, linhaId: string, itemId: string,
+): Promise<{ status: number; erro?: string; linha?: LinhaDoPedido }> {
   if (!["admin", "solicitacao"].includes(req.userRole ?? "")) {
     return { status: 403, erro: "Atender solicitação de peça é do perfil Solicitação e do admin." };
   }
@@ -284,24 +289,24 @@ export async function vincularPecaALinha(req: any, linhaId: string, itemId: stri
     return { status: 409, erro: `Esta peça solicitada está ${rotulo(linha.status)} — reabra antes de ligar uma peça.` };
   }
   const peca = await storage.getItem(itemId);
-  if (!peca || (peca as any).deletedAt) return { status: 404, erro: "Peça não encontrada" };
+  if (!peca || peca.deletedAt) return { status: 404, erro: "Peça não encontrada" };
   if (peca.eventId !== linha.eventId) return { status: 400, erro: "A peça escolhida é de outro evento." };
   const motivoFim = await motivoEventoDaPeca({ eventId: linha.eventId });
   if (motivoFim) return { status: 409, erro: erroEventoFechado(motivoFim) };
-  const jaLigada = ((peca as any).pedidoDePecaLinhaId ?? null) as string | null;
+  const jaLigada = peca.pedidoDePecaLinhaId ?? null;
   if (jaLigada === linha.id) return { status: 200, linha };
-  if (jaLigada || (peca as any).pedidoDePecaId) return { status: 409, erro: `A peça ${peca.displayId} já atende outra solicitação.` };
+  if (jaLigada || peca.pedidoDePecaId) return { status: 409, erro: `A peça ${peca.displayId} já atende outra solicitação.` };
 
   // A peça primeiro, só se ainda estiver livre (duas pessoas ligando a mesma).
   const marcadas = await db.update(itemsTable)
-    .set({ pedidoDePecaId: pedido.id, pedidoDePecaLinhaId: linha.id, updatedAt: new Date() } as any)
+    .set({ pedidoDePecaId: pedido.id, pedidoDePecaLinhaId: linha.id, updatedAt: new Date() })
     .where(and(eq(itemsTable.id, itemId), isNull(itemsTable.pedidoDePecaLinhaId), isNull(itemsTable.pedidoDePecaId)))
     .returning({ id: itemsTable.id });
   if (marcadas.length === 0) return { status: 409, erro: `A peça ${peca.displayId} acabou de ser ligada a outra solicitação.` };
 
   const quem = quemAgiu(req);
   const primeiraPeca = linha.status === "aberto";
-  let atualizada: any = linha;
+  let atualizada: LinhaDoPedido = linha;
   if (primeiraPeca) {
     const [a] = await db.update(linhasDoPedidoDePeca)
       .set({ status: "atendido", resolvidoPor: quem.userName, resolvidoPorId: quem.userId, resolvidoEm: new Date(), updatedAt: new Date() })
@@ -312,7 +317,7 @@ export async function vincularPecaALinha(req: any, linhaId: string, itemId: stri
     } else {
       const [agora] = await db.select().from(linhasDoPedidoDePeca).where(eq(linhasDoPedidoDePeca.id, linha.id));
       if (agora?.status !== "atendido") {
-        await db.update(itemsTable).set({ pedidoDePecaId: null, pedidoDePecaLinhaId: null, updatedAt: new Date() } as any).where(eq(itemsTable.id, itemId));
+        await db.update(itemsTable).set({ pedidoDePecaId: null, pedidoDePecaLinhaId: null, updatedAt: new Date() }).where(eq(itemsTable.id, itemId));
         return { status: 409, erro: "Esta peça solicitada acabou de mudar de estado — atualize a tela." };
       }
       atualizada = agora;
@@ -326,13 +331,13 @@ export async function vincularPecaALinha(req: any, linhaId: string, itemId: stri
     const jaTem = await storage.getItemSponsors(itemId);
     if (jaTem.length === 0) {
       for (const sponsorId of linha.sponsorIds) {
-        await storage.addSponsorToItem({ itemId, sponsorId } as any);
+        await storage.addSponsorToItem({ itemId, sponsorId });
         broadcast({ type: "item_sponsor_added", itemSponsor: { itemId, sponsorId } });
       }
     }
   }
-  if ((linha.referencias ?? []).length > 0 && ((peca as any).referenceUrls ?? []).length === 0) {
-    await storage.updateItem(itemId, { referenceUrls: linha.referencias } as any);
+  if ((linha.referencias ?? []).length > 0 && (peca.referenceUrls ?? []).length === 0) {
+    await storage.updateItem(itemId, { referenceUrls: linha.referencias });
   }
   const pecaAtual = await storage.getItem(itemId);
   if (pecaAtual) broadcast({ type: "item_updated", item: pecaAtual });
@@ -362,11 +367,11 @@ export async function vincularPecaALinha(req: any, linhaId: string, itemId: stri
  * Cancelar a peça e transferi-la de evento têm o mesmo efeito na solicitação
  * — `oQueHouve` só muda a frase do aviso.
  */
-export async function aoExcluirPeca(req: any, item: { id: string; displayId?: string | null; pedidoDePecaLinhaId?: string | null }, oQueHouve: "excluída" | "cancelada" | "transferida de evento" = "excluída") {
+export async function aoExcluirPeca(req: Pick<Request, "userName" | "userId">, item: { id: string; displayId?: string | null; pedidoDePecaLinhaId?: string | null }, oQueHouve: "excluída" | "cancelada" | "transferida de evento" = "excluída") {
   try {
     const linhaId = item.pedidoDePecaLinhaId;
     if (!linhaId) return;
-    await db.update(itemsTable).set({ pedidoDePecaId: null, pedidoDePecaLinhaId: null } as any).where(eq(itemsTable.id, item.id));
+    await db.update(itemsTable).set({ pedidoDePecaId: null, pedidoDePecaLinhaId: null }).where(eq(itemsTable.id, item.id));
     const vivas = await db.select({ id: itemsTable.id }).from(itemsTable)
       .where(and(eq(itemsTable.pedidoDePecaLinhaId, linhaId), isNull(itemsTable.deletedAt)));
     if (vivas.length > 0) return;
@@ -404,11 +409,11 @@ export async function aoExcluirPeca(req: any, item: { id: string; displayId?: st
 export function registerPedidosDePecaRoutes(app: Express): void {
   app.get("/api/pedidos-de-peca", requireLerPedidos, async (req, res) => {
     try {
-      const doAtendimento = (req as any).userRole === "atendimento";
+      const doAtendimento = req.userRole === "atendimento";
       const limite = Math.max(1, Math.min(1000, parseInt(String(req.query.limite ?? "300"), 10) || 300));
       let lista = await listarSolicitacoes({
         eventId: typeof req.query.eventId === "string" && req.query.eventId ? req.query.eventId : undefined,
-        pedidoPorId: doAtendimento ? ((req as any).userId ?? "") : undefined,
+        pedidoPorId: doAtendimento ? (req.userId ?? "") : undefined,
         limite,
       });
       if (typeof req.query.status === "string" && req.query.status) {
@@ -444,7 +449,7 @@ export function registerPedidosDePecaRoutes(app: Express): void {
   app.post("/api/pedidos-de-peca", requirePedirPeca, async (req, res) => {
     try {
       const dados = novaSolicitacaoSchema.parse(req.body);
-      const eventosPorId = new Map<string, any>();
+      const eventosPorId = new Map<string, Event>();
       for (let i = 0; i < dados.linhas.length; i++) {
         const l = dados.linhas[i];
         const n = i + 1;
@@ -661,7 +666,7 @@ export function registerPedidosDePecaRoutes(app: Express): void {
       if (papeis.length === 0) {
         return res.status(409).json({ error: linha.status === "aberto" ? "Esta peça já está aberta." : "Peça atendida não se reabre na mão — se a peça criada estiver errada, exclua-a e a solicitação volta a ficar aberta." });
       }
-      if (!papeis.includes((req as any).userRole)) {
+      if (!papeis.some((p) => p === req.userRole)) {
         return res.status(403).json({
           error: linha.status === "cancelado"
             ? "Reabrir peça cancelada é do Atendimento e do admin."

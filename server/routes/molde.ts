@@ -36,7 +36,7 @@ export async function enviarMoldeParaRevisao(req: Request, res: Response, curren
     status: DESTINO_DO_ENVIO_DO_MOLDE,
     approvalThumbUrl: thumbNormalizado,
     rejectedByCreator: false,
-  } as any);
+  });
   if (!item) return res.status(404).json({ error: PECA_NAO_ENCONTRADA });
 
   // A versão da arte — uma linha por envio, como nas outras peças.
@@ -57,7 +57,7 @@ export async function enviarMoldeParaRevisao(req: Request, res: Response, curren
     eventId: item.eventId,
     itemId: item.id,
     targetRoles: ["solicitacao"],
-  } as any);
+  });
 
   broadcast({ type: "item_updated", item });
   broadcast({ type: "notification_created", notification });
@@ -88,7 +88,7 @@ async function recalcularEventoEAvisar(eventId: string | null | undefined) {
       message: `Evento concluído: ${depois?.name} - Todos os itens foram entregues`,
       eventId,
       targetRoles: ["solicitacao"],
-    } as any);
+    });
     broadcast({ type: "notification_created", notification });
   }
 }
@@ -101,7 +101,7 @@ export function registerMoldeRoutes(app: Express): void {
         return res.status(403).json({ error: "Apenas usuários com perfil Gráfica podem marcar o molde como produzido" });
       }
       const atual = await storage.getItem(req.params.id);
-      if (!atual || (atual as any).deletedAt) return res.status(404).json({ error: PECA_NAO_ENCONTRADA });
+      if (!atual || atual.deletedAt) return res.status(404).json({ error: PECA_NAO_ENCONTRADA });
       if (!ehMolde(atual)) {
         return res.status(409).json({ error: "Esta peça não é um molde — a produção dela segue pela impressora (Imprimir)." });
       }
@@ -115,13 +115,13 @@ export function registerMoldeRoutes(app: Express): void {
         });
       }
       // TRAVA DA SOLICITAÇÃO: o mesmo predicado do start-printing — travada não anda.
-      if (pecaTravada(atual as any)) return res.status(409).json({ error: fraseDaTrava(atual as any), code: CODIGO_PECA_TRAVADA });
+      if (pecaTravada(atual)) return res.status(409).json({ error: fraseDaTrava(atual), code: CODIGO_PECA_TRAVADA });
 
       const item = await storage.updateItem(atual.id, {
         status: "produced",
         quantityProduced: quantidadeProduzidaDoMolde(atual),
-        ...(!(atual as any).producedAt ? { producedAt: new Date() } : {}),
-      } as any);
+        ...(!atual.producedAt ? { producedAt: new Date() } : {}),
+      });
       if (!item) return res.status(404).json({ error: PECA_NAO_ENCONTRADA });
 
       await createAuditLog(
@@ -144,7 +144,7 @@ export function registerMoldeRoutes(app: Express): void {
         return res.status(403).json({ error: "Apenas a Gráfica ou um administrador pode desfazer o produzido do molde" });
       }
       const atual = await storage.getItem(req.params.id);
-      if (!atual || (atual as any).deletedAt) return res.status(404).json({ error: PECA_NAO_ENCONTRADA });
+      if (!atual || atual.deletedAt) return res.status(404).json({ error: PECA_NAO_ENCONTRADA });
       if (!ehMolde(atual)) return res.status(409).json({ error: "Esta peça não é um molde" });
       // Já liberado: nada a desfazer (clique repetido).
       if (gestoDoMolde(atual) === "produzir") return res.json(atual);
@@ -152,7 +152,7 @@ export function registerMoldeRoutes(app: Express): void {
       // TRAVA DA SOLICITAÇÃO (revisão 22/09): travada não se mexe — nem para
       // trás. (Recuar da impressora é liberado porque a peça não pode prender
       // a máquina; aqui não há máquina a liberar, só o estado a reescrever.)
-      if (pecaTravada(atual as any)) return res.status(409).json({ error: fraseDaTrava(atual as any), code: CODIGO_PECA_TRAVADA });
+      if (pecaTravada(atual)) return res.status(409).json({ error: fraseDaTrava(atual), code: CODIGO_PECA_TRAVADA });
       if (gestoDoMolde(atual) !== "desfazer") {
         return res.status(409).json({ error: `Não dá para voltar este molde para liberado. Status atual: ${translateStatus(atual.status)}` });
       }
@@ -160,7 +160,7 @@ export function registerMoldeRoutes(app: Express): void {
         status: "ready_for_production",
         quantityProduced: 0,
         producedAt: null,
-      } as any);
+      });
       if (!item) return res.status(404).json({ error: PECA_NAO_ENCONTRADA });
       await createAuditLog(req, "updated", "item", item.id, `${TRILHA_MOLDE_DESFEITO} — Produzido → ${translateStatus("ready_for_production")}`);
       if (item.eventId) await updateEventStatus(item.eventId);

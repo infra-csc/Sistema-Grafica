@@ -3,6 +3,7 @@
 // server/routes.ts during the routes.ts → routes/* split — no behavior
 // changes, just centralizing what multiple modules depend on.
 import { z } from "zod";
+import type { Request, Response, NextFunction } from "express";
 import { createHash } from "crypto";
 import { pool } from "../db";
 import { storage } from "../storage";
@@ -168,7 +169,7 @@ export async function createAuditLog(
 // error (DB failures, unexpected exceptions, etc.) is logged in full on the
 // server and reported to the client with a generic message only — never
 // error.message, which could leak internal details.
-export function sendSensitiveError(res: any, error: any, context: string, status = 400) {
+export function sendSensitiveError(res: Response, error: unknown, context: string, status = 400) {
   console.error(`${context}:`, error);
   if (error instanceof z.ZodError) {
     const message = error.errors?.[0]?.message || "Dados inválidos";
@@ -224,7 +225,7 @@ export async function calculateEventStatus(eventId: string): Promise<"created" |
     if (OUT_OF_FUNNEL_STATUSES.has(item.status)) continue;
     active += 1;
     // Molde produzido é o fim do fluxo dele: conta como entregue (shared/molde).
-    if (DELIVERED_STATUSES.has(statusParaContagem(item as any))) delivered += 1;
+    if (DELIVERED_STATUSES.has(statusParaContagem(item))) delivered += 1;
   }
 
   // Evento sem peça alguma (ou só com peças canceladas) NÃO está concluído:
@@ -269,7 +270,7 @@ export async function updateEventStatus(eventId: string): Promise<void> {
 }
 
 // Auth middleware - protect routes that require authentication
-export const requireAuth = (req: any, res: any, next: any) => {
+export const requireAuth = (req: Request, res: Response, next: NextFunction) => {
   if (!req.session?.userId) {
     return res.status(401).json({ error: "Não autenticado" });
   }
@@ -277,7 +278,7 @@ export const requireAuth = (req: any, res: any, next: any) => {
 };
 
 // Admin middleware - protect routes that require admin role
-export const requireAdmin = (req: any, res: any, next: any) => {
+export const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
   if (!req.session?.userId) {
     return res.status(401).json({ error: "Não autenticado" });
   }
@@ -289,7 +290,7 @@ export const requireAdmin = (req: any, res: any, next: any) => {
 
 // Role middleware factory — protects routes that require one of the given roles.
 // Usage: requireRole("admin", "solicitacao")
-export const requireRole = (...roles: string[]) => (req: any, res: any, next: any) => {
+export const requireRole = (...roles: string[]) => (req: Request, res: Response, next: NextFunction) => {
   if (!req.session?.userId) {
     return res.status(401).json({ error: "Não autenticado" });
   }
@@ -299,7 +300,10 @@ export const requireRole = (...roles: string[]) => (req: any, res: any, next: an
   next();
 };
 
-function chaveDoIp(req: any): string {
+/** O que as chaves do limitador leem do pedido (o Request do express cabe aqui). */
+type PedidoParaChave = { ip?: string; socket?: { remoteAddress?: string }; session?: { userId?: string } };
+
+function chaveDoIp(req: PedidoParaChave): string {
   return req.ip || req.socket?.remoteAddress || "unknown";
 }
 
@@ -308,7 +312,7 @@ function chaveDoIp(req: any): string {
  * para a internet por um IP só — por IP, dez pessoas conferindo juntas
  * dividiam uma cota e a décima levava 429. Sem sessão (login, SSO), o IP.
  */
-export function chaveDoUsuarioOuIp(req: any): string {
+export function chaveDoUsuarioOuIp(req: PedidoParaChave): string {
   const userId = req.session?.userId;
   return userId ? `u:${userId}` : `ip:${chaveDoIp(req)}`;
 }
@@ -317,7 +321,7 @@ export function chaveDoUsuarioOuIp(req: any): string {
 // sozinha). Serve de freio onde isso basta (escrita, troca de senha) e de
 // reserva do limitador de login, que conta no Postgres (abaixo).
 // `chave` troca o critério (ex.: por conta, no login); devolver null deixa passar.
-export function createRateLimiter(opts: { windowMs: number; max: number; message: string; chave?: (req: any) => string | null }) {
+export function createRateLimiter(opts: { windowMs: number; max: number; message: string; chave?: (req: Request) => string | null }) {
   const hits = new Map<string, { count: number; resetAt: number }>();
   const limpeza = setInterval(() => {
     const now = Date.now();
@@ -325,7 +329,7 @@ export function createRateLimiter(opts: { windowMs: number; max: number; message
   }, 60_000);
   limpeza.unref?.();
 
-  return (req: any, res: any, next: any) => {
+  return (req: Request, res: Response, next: NextFunction) => {
     const key = opts.chave ? opts.chave(req) : chaveDoIp(req);
     if (key === null) return next();
     const now = Date.now();
@@ -360,12 +364,12 @@ ON CONFLICT (chave) DO UPDATE SET
 RETURNING contagem`;
 export const SQL_LIMPAR_TENTATIVAS = "DELETE FROM limite_de_tentativas WHERE reinicia_em < now() - interval '1 hour'";
 
-type ConsultaSql = (sql: string, params: unknown[]) => Promise<{ rows: any[] }>;
-const consultarNoPool: ConsultaSql = (texto, params) => pool.query(texto, params as any[]);
+type ConsultaSql = (sql: string, params: unknown[]) => Promise<{ rows: Array<Record<string, unknown>> }>;
+const consultarNoPool: ConsultaSql = (texto, params) => pool.query(texto, params);
 
 export function createRateLimiterCompartilhado(opts: {
   nome: string; windowMs: number; max: number; message: string;
-  chave?: (req: any) => string | null;
+  chave?: (req: Request) => string | null;
   consultar?: ConsultaSql;
   agora?: () => number;
 }) {
@@ -373,7 +377,7 @@ export function createRateLimiterCompartilhado(opts: {
   const agora = opts.agora ?? Date.now;
   let avisou = false;
   let ultimaLimpeza = 0;
-  return async (req: any, res: any, next: any) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
     const key = opts.chave ? opts.chave(req) : chaveDoIp(req);
     if (key === null) return next();
     const consultar = opts.consultar ?? consultarNoPool;
@@ -383,12 +387,13 @@ export function createRateLimiterCompartilhado(opts: {
       const { rows } = await consultar(SQL_CONTAR_TENTATIVA, [hash, opts.windowMs]);
       contagem = Number(rows?.[0]?.contagem);
       if (!Number.isFinite(contagem)) throw new Error("contagem ausente na resposta do banco");
-    } catch (erro: any) {
+    } catch (erro: unknown) {
       if (!avisou) {
         avisou = true;
-        const motivo = erro?.code === "42P01"
+        const campos = typeof erro === "object" && erro !== null ? (erro as { code?: unknown; message?: unknown }) : undefined;
+        const motivo = campos?.code === "42P01"
           ? "a tabela limite_de_tentativas não existe (rode scripts/migracao-aditiva-producao.sql)"
-          : `o banco falhou (${erro?.message ?? erro})`;
+          : `o banco falhou (${campos?.message ?? erro})`;
         console.warn(`[limite:${opts.nome}] ${motivo} — contando na memória desta cópia.`);
       }
       return naMemoria(req, res, next);

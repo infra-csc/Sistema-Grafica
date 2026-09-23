@@ -13,9 +13,9 @@
 //   3. as CONTAGENS — o molde produzido conta como a peça entregue conta.
 // E a autorrevisão: nenhum caminho leva molde a conferir/embalar/entregar, e a
 // peça comum segue idêntica.
+// O molde barrado na reserva e na troca roda em regras-producao-itens.test.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { fonteDaTela } from "./fonte-da-tela";
 import { txDeMentira } from "./tx-de-mentira";
 import { readFileSync } from "fs";
@@ -278,17 +278,6 @@ describe("Revisão Final — libera o molde sem arquivo final", () => {
     expect(r.status).toBe(409);
     expect(r.body.error).toMatch(/arquivo final/);
   });
-
-  it("a devolução do molde vai sempre para a Arte (não há finalização)", () => {
-    const rotasSrc = fonteDasRotasDeItens();
-    // As duas portas da Revisão (individual e lote) gravam pelo mesmo helper,
-    // que passa o destino por destinoDaDevolucao e a peça para camposDoDestino
-    // (o molde mantém o thumb — ver molde-devolucao-revisao em
-    // revisao-trava-lote-e-trocas.test.ts, que roda as rotas).
-    expect(rotasSrc.split("camposDaDevolucaoDaRevisao(currentItem, destino, notes)").length - 1).toBe(2);
-    expect(rotasSrc).toContain("const destinoEfetivo = destinoDaDevolucao(destino, peca);");
-    expect(rotasSrc).not.toContain("camposDoDestino(destino, await rodadaDeAprovacaoFechada(currentItem))");
-  });
 });
 
 describe("Gráfica — \"Marcar como produzido\" e o desfazer", () => {
@@ -412,12 +401,6 @@ describe("Máquinas — o molde não entra na fila das impressoras", () => {
     const r = await chamar("GET /api/grafica/maquinas", { userRole: "grafica" });
     expect(r.status).toBe(200);
     expect(r.body.filaGeral.map((p: any) => p.id)).toEqual(["p1"]);
-  });
-
-  it("reservar/trocar para a impressora recusam o molde no servidor", () => {
-    const src = ler("server/routes/maquinas.ts");
-    expect(src).toContain("if (ehMolde(item)) return \"Molde não entra na fila das impressoras");
-    expect(src).toContain("if (ehMolde(entra)) throw falha(409,");
   });
 });
 

@@ -13,6 +13,7 @@
 //  10. a régua de permissões declara as duas rotas do molde;
 //  11. os índices e o CHECK do SQL aditivo estão declarados no schema.
 // A busca de arte (6) mora em busca-arte-revisao.test.ts (outro mock de db).
+// Os índices do SQL de performance × schema: regras-producao-schema.test.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fonteDaTela } from "./fonte-da-tela";
@@ -475,13 +476,6 @@ describe("11 · o schema declara o que o SQL cria", () => {
       const idx = cfg.indexes.find((i: any) => i.config.name === nome);
       expect(idx, `${nome} declarado em shared/schema.ts`).toBeTruthy();
       expect(idx!.config.columns.map((c: any) => c.name), nome).toEqual(colunasSql);
-    }
-  });
-
-  it("todo índice do SQL de performance está declarado (nenhum some num db:push)", () => {
-    for (const [, nome, tabela] of Array.from(sqlPerf.matchAll(/CREATE INDEX CONCURRENTLY IF NOT EXISTS "(\w+)" ON "(\w+)"/g))) {
-      const src = ler("shared/schema.ts");
-      expect(src, `${nome} (${tabela})`).toContain(`index("${nome}")`);
     }
   });
 

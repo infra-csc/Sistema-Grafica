@@ -263,6 +263,8 @@ export interface PecaDoCache {
 }
 /** Evento ou patrocinador como vem no delta: só o `id` é garantido ao merge. */
 type ComId = { id: string };
+/** O evento embutido, com as datas que a peça do Kit re-escreve (eventoComDatasDoKit). */
+type EventoDoDelta = ComId & { startDate?: unknown; truckDepartureDate?: unknown };
 /** O delta depois de `expandirResposta` (formato compacto já decodificado). */
 export type DeltaDoCache = Omit<DeltaDePecas<PecaDoCache>, "eventos" | "patrocinadores"> & {
   eventos?: ComId[];
@@ -373,7 +375,7 @@ export function aplicarDelta(anterior: PecaDoCache[], delta: DeltaDoCache, assin
       // Peça do Kit (15/09): o evento re-costurado precisa manter as datas da
       // remessa — sem isto a Arte voltava a cobrar a peça do Kit pela Arena.
       event: !trocaEvento ? i.event : i.kitRemessaId && i.kitRemessa
-        ? eventoComDatasDoKit(evPorId.get(eventId) ?? (i.event as ComId | undefined), i.kitRemessa)
+        ? eventoComDatasDoKit((evPorId.get(eventId) ?? i.event) as EventoDoDelta | undefined, i.kitRemessa)
         : evPorId.get(eventId) ?? i.event,
       sponsors: trocaPatrocinadores && patrocinadores
         ? patrocinadores.map((s) => {

@@ -8,39 +8,20 @@
 // nos dois sentidos — senão uma troca pelo caminho antigo deixaria a lista
 // mostrando as imagens de antes.
 // ─────────────────────────────────────────────────────────────────────────────
+// A coluna e o PATCH (sincronia nos dois sentidos) rodam em regras-avisos-edicao-da-peca.test.ts.
 import { describe, it, expect } from "vitest";
 import { fonteDaTela } from "./fonte-da-tela";
 import { fonteDoComponente } from "./fonte-dos-componentes";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
 const raiz = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
-const SCHEMA = raiz("shared/schema.ts");
-const ROTAS = fonteDasRotasDeItens();
 const HELPER = raiz("client/src/lib/refs-da-peca.ts");
 const DETALHE = fonteDaTela("detalhe-do-evento");
 const FICHA = fonteDoComponente("client/src/components/item-details-dialog.tsx");
 const HOOK = raiz("client/src/hooks/use-event-reference.ts");
 
 describe("o desenho: lista na peça, primeira no campo antigo", () => {
-  it("a coluna existe e o PATCH aceita os dois campos", () => {
-    expect(SCHEMA).toContain('referenceUrls: text("reference_urls").array()');
-    expect(ROTAS).toContain("referenceUrl: true,");
-    expect(ROTAS).toContain("referenceUrls: true,");
-  });
-
-  it("o PATCH sincroniza NOS DOIS sentidos e normaliza cada URL da lista", () => {
-    // lista manda: referenceUrl vira a primeira (ou null com lista vazia)
-    expect(ROTAS).toContain('(validatedData as any).referenceUrl = normalizadas[0] ?? null;');
-    // só o campo antigo veio (chamador legado): a lista espelha ele
-    expect(ROTAS).toContain("(validatedData as any).referenceUrls = validatedData.referenceUrl ? [validatedData.referenceUrl] : null;");
-    // cada URL da lista passa pela mesma ACL/normalização do campo único
-    // (a normalização mora em services/edicao-da-peca.ts; o dono é quem enviou)
-    expect(ROTAS).toContain("normalizadas.push(await svc.trySetObjectEntityAclPolicy(url, { owner: donoId, visibility: \"public\" }));");
-    expect(ROTAS).toContain("await normalizarReferencias(validatedData, req.userId!);");
-  });
-
   it("a leitura tem UMA porta: refsDaPeca (lista, com o campo antigo de reserva)", () => {
     expect(HELPER).toContain("if (lista.length > 0) return lista;");
     expect(HELPER).toContain('return item.referenceUrl ? [item.referenceUrl] : [];');

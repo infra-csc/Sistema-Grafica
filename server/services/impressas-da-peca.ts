@@ -49,15 +49,15 @@ export async function lancarImpressas(
     if (motivoFechado && eventoBarraImpressas(motivoFechado, before.status)) {
       throw falha(409, { error: erroEventoFechado(motivoFechado), code: "EVENT_FINALIZED", reason: motivoFechado });
     }
-    const plano = planejarLancamentoDeImpressas(before as any, corpo, new Date());
+    const plano = planejarLancamentoDeImpressas(before, corpo, new Date());
     if (!plano.ok) {
       throw plano.corpo.error === ERRO_LANCAMENTO_TRAVADA
-        ? falha(409, { error: fraseDaTrava(before as any), code: CODIGO_PECA_TRAVADA })
+        ? falha(409, { error: fraseDaTrava(before), code: CODIGO_PECA_TRAVADA })
         : falha(plano.status, plano.corpo);
     }
     const [updated] = await tx
       .update(itemsTable)
-      .set(plano.set as any)
+      .set(plano.set)
       .where(eq(itemsTable.id, before.id))
       .returning();
     if (!updated) throw falha(404, { error: "Peça não encontrada." });

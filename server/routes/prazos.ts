@@ -143,9 +143,9 @@ export function registerPrazoRoutes(app: Express): void {
       // Usuário do Kit (14/09): só as peças do Kit que ele criou.
       // PERF (17/09): getItemsParaPrazos traz só as colunas que o domínio lê
       // (mesmas linhas e ordem de getItemsByEvents).
-      const doKit = (req as any).userKit === true;
+      const doKit = req.userKit === true;
       const candidateItems = (await storage.getItemsParaPrazos(candidates.map((ev) => ev.id)))
-        .filter((i) => !ehBookCompleto(i) && (!doKit || (!!i.kitRemessaId && i.criadoPorId === (req as any).userId)));
+        .filter((i) => !ehBookCompleto(i) && (!doKit || (!!i.kitRemessaId && i.criadoPorId === req.userId)));
 
       // KIT (14/09): as remessas das peças do Kit — cada uma vira linha própria,
       // com o funil pelas datas dela.
@@ -423,7 +423,7 @@ export function registerPrazoRoutes(app: Express): void {
         desdeOntem,
       };
       res.json(payload);
-    } catch (error: any) {
+    } catch (error) {
       console.error("GET /api/prazos:", error);
       res.status(500).json({
         error: "Não foi possível carregar os prazos agora. Tente novamente em alguns instantes — se continuar, avise o suporte técnico.",
@@ -498,7 +498,7 @@ export function registerPrazoRoutes(app: Express): void {
       broadcast({ type: "prazo_cobranca", targetType, targetId });
 
       res.json(reg);
-    } catch (error: any) {
+    } catch (error) {
       console.error("POST /api/prazos/cobrancas:", error);
       res.status(500).json({
         error: "Não foi possível registrar a cobrança agora. Tente de novo em instantes; se continuar, avise o suporte.",

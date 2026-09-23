@@ -126,6 +126,9 @@ export async function motivoEventoDaPeca(
   return motivoEventoFechado(await storage.getEvent(item.eventId));
 }
 
+/** O pedaço da resposta HTTP que as guardas usam (o Response do Express serve; os testes passam um falso). */
+type RespostaDaGuarda = { status: (c: number) => { json: (corpo: unknown) => unknown } };
+
 /**
  * A guarda das rotas que fazem o trabalho ANDAR. Responde 409 e devolve `true`
  * quando barrou, para o handler sair com `if (await barraEventoFinalizado(...)) return;`
@@ -135,7 +138,7 @@ export async function motivoEventoDaPeca(
  */
 export async function barraEventoFinalizado(
   item: { eventId?: string | null } | null | undefined,
-  res: { status: (c: number) => any },
+  res: RespostaDaGuarda,
 ): Promise<boolean> {
   const motivo = await motivoEventoDaPeca(item);
   if (!motivo) return false;
@@ -165,7 +168,7 @@ export function contadorDeBloqueio() {
       return erroEventoFechado(m);
     },
     /** `true` (já respondeu 409) quando o lote INTEIRO caiu por esta regra. */
-    respondeLoteInteiro(res: { status: (c: number) => any }, processados: number, pedidos: number): boolean {
+    respondeLoteInteiro(res: RespostaDaGuarda, processados: number, pedidos: number): boolean {
       if (!motivo || processados > 0 || bloqueados !== pedidos) return false;
       res.status(409).json({ error: erroEventoFechado(motivo), code: "EVENT_FINALIZED", reason: motivo });
       return true;
@@ -181,7 +184,7 @@ export function contadorDeBloqueio() {
  */
 export async function barraEventoArquivado(
   item: { eventId?: string | null } | null | undefined,
-  res: { status: (c: number) => any },
+  res: RespostaDaGuarda,
 ): Promise<boolean> {
   if (!item?.eventId) return false;
   const evento = await storage.getEvent(item.eventId);

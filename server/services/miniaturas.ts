@@ -13,7 +13,7 @@
 import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
-let sharp: any = null;
+let sharp: typeof import("sharp") | null = null;
 try {
   sharp = require("sharp");
 } catch {
@@ -114,6 +114,8 @@ export async function gravarMiniaturaDoUpload(
 /** O resize em si, sem cache — o único ponto que chama o sharp. */
 async function redimensionar(original: Buffer): Promise<Buffer | null> {
   try {
+    // Sem sharp o chamado lançava e caía no catch: mesmo null de antes.
+    if (!sharp) return null;
     return await sharp(original)
       .rotate() // respeita EXIF — foto de celular deitada não vira miniatura deitada
       .resize({ width: 320, height: 320, fit: "inside", withoutEnlargement: true })

@@ -6,7 +6,7 @@
 // da quantidade, o reaproveitamento, os campos derivados (m², medida, par
 // visual), a frase da trilha e os avisos depois de gravar.
 // ─────────────────────────────────────────────────────────────────────────────
-import { insertItemSchema, type Item } from "@shared/schema";
+import { insertItemSchema, type Item, type InsertItem } from "@shared/schema";
 import { pecaTravada, fraseDaTrava, CODIGO_PECA_TRAVADA } from "@shared/trava-da-peca";
 import { colunasDaReserva, lerReserva, reescalarReservaEPartes } from "@shared/reserva-de-impressora";
 import { lerPartes } from "@shared/impressao-dividida";
@@ -101,14 +101,14 @@ export async function normalizarReferencias(validatedData: DadosDaEdicao, donoId
       }
     }
     validatedData.referenceUrls = normalizadas;
-    (validatedData as any).referenceUrl = normalizadas[0] ?? null;
+    validatedData.referenceUrl = normalizadas[0] ?? null;
   } else if (validatedData.referenceUrl !== undefined) {
-    (validatedData as any).referenceUrls = validatedData.referenceUrl ? [validatedData.referenceUrl] : null;
+    validatedData.referenceUrls = validatedData.referenceUrl ? [validatedData.referenceUrl] : null;
   }
 }
 
 export type PlanoDaEdicao = {
-  updatePayload: Record<string, any>;
+  updatePayload: Partial<InsertItem>;
   mudouQtd: boolean;
   promoveuParaProduzido: boolean;
 };
@@ -124,7 +124,7 @@ export function planejarEdicao(
   corpo: { reuseQty?: unknown } | undefined,
   mudaReuso: boolean,
 ): PlanoDaEdicao | RecusaDaEdicao {
-  const updatePayload: Record<string, any> = { ...validatedData };
+  const updatePayload: Partial<InsertItem> = { ...validatedData };
 
   // ── QUANTIDADE: a bifurcação aumentar/reduzir mora aqui ────────────────
   // Este era o caminho silencioso do sistema: dava para digitar 15 numa
@@ -148,8 +148,8 @@ export function planejarEdicao(
     // promoção abaixo e deixaria de fora os efeitos laterais (reuso que
     // encolhe, reserva/divisão de impressora reescalada). Quem trava é a
     // Solicitação, que também gerencia a lista: destrava, ajusta, trava.
-    if (pecaTravada(currentItem as any)) {
-      return recusa(409, { error: fraseDaTrava(currentItem as any), code: CODIGO_PECA_TRAVADA });
+    if (pecaTravada(currentItem)) {
+      return recusa(409, { error: fraseDaTrava(currentItem), code: CODIGO_PECA_TRAVADA });
     }
 
     if (emProducao && nova > currentItem.quantity) {
@@ -176,7 +176,7 @@ export function planejarEdicao(
     const reusoAtual = currentItem.reuseQty ?? 0;
     // EMBALADAS também são material físico (a embalagem com quantidade,
     // 21/09): o reaproveitamento antigo embala sem conferir.
-    const piso = Math.max(impressas, currentItem.conferredQty ?? 0, (currentItem as any).embaladaQty ?? 0, currentItem.deliveredQty ?? 0);
+    const piso = Math.max(impressas, currentItem.conferredQty ?? 0, currentItem.embaladaQty ?? 0, currentItem.deliveredQty ?? 0);
     if (nova < piso) {
       return recusa(409, {
         error: `Não é possível reduzir para ${nova}: já há ${piso} un. impressas/conferidas/embaladas/entregues. Mínimo: ${piso}.`,

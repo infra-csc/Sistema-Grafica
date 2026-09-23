@@ -12,111 +12,13 @@
 // desencontro aparece antes de virar acesso concedido por engano.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
-import { readFileSync, readdirSync } from "fs";
+import { readFileSync } from "fs";
 
 const TELA = readFileSync(new URL("../../client/src/pages/usuarios.tsx", import.meta.url), "utf8");
 
-/** Todo o servidor num string só — as guardas moram em arquivos diferentes. */
-const SERVIDOR = (() => {
-  // As rotas da peça moram em routes/itens/ (items.ts virou índice): entram junto.
-  const dir = new URL("../routes/", import.meta.url);
-  const sub = new URL("../routes/itens/", import.meta.url);
-  return [
-    ...readdirSync(dir).filter((f) => f.endsWith(".ts")).map((f) => readFileSync(new URL(f, dir), "utf8")),
-    ...readdirSync(sub).filter((f) => f.endsWith(".ts")).map((f) => readFileSync(new URL(f, sub), "utf8")),
-  ].join("\n");
-})();
-
-/**
- * O corpo de uma rota de escrita, do `app.<verbo>("<rota>"` até a próxima.
- * Sem recortar, um `userRole !== "arte"` de 300 linhas abaixo passaria por
- * guarda desta rota e o teste aprovaria uma permissão que não existe.
- */
-function corpoDaRota(rotaComVerbo: string): string {
-  // "PATCH /api/items/:id" fixa o verbo — o mesmo caminho existe em PATCH e DELETE.
-  const [, verbo, rota] = /^(?:(POST|PATCH|PUT|DELETE) )?(.*)$/.exec(rotaComVerbo)!;
-  const verbos = verbo ? verbo.toLowerCase() : "post|patch|put|delete";
-  const i = SERVIDOR.search(new RegExp(`app\\.(${verbos})\\("${rota.replace(/[:/]/g, (c) => "\\" + c)}"`));
-  expect(i, `rota não encontrada no servidor: ${rota}`).toBeGreaterThan(-1);
-  const j = SERVIDOR.search(new RegExp(`app\\.(get|post|patch|put|delete)\\("`, "g"));
-  const resto = SERVIDOR.slice(i + 20);
-  const k = resto.search(/app\.(get|post|patch|put|delete)\("/);
-  void j;
-  return SERVIDOR.slice(i, k > 0 ? i + 20 + k : i + 4000);
-}
-
-/** O papel passa nessa rota? */
-function aceita(rota: string, papel: string): boolean {
-  const corpo = corpoDaRota(rota);
-  if (new RegExp(`requireRole\\([^)]*["']${papel}["']`).test(corpo)) return true;
-  if (/requireAdmin/.test(corpo)) return papel === "admin";
-  // A forma em lista: `if (!["admin", "solicitacao"].includes(role))`.
-  const lista = corpo.match(/if \(!\[([^\]]*)\]\.includes\((?:role|req\.userRole[^)]*)\)\)/);
-  if (lista) return [...lista[1].matchAll(/["'](\w+)["']/g)].map((m) => m[1]).includes(papel);
-  const negados = [...corpo.matchAll(/userRole !== ["'](\w+)["']/g)].map((m) => m[1]);
-  if (negados.length > 0) return negados.includes(papel);
-  const aceitos = [...corpo.matchAll(/userRole === ["'](\w+)["']/g)].map((m) => m[1]);
-  if (aceitos.length > 0) return aceitos.includes(papel);
-  return false;
-}
-
-describe("cada ✓ da tela existe no servidor", () => {
-  const PODE: [string, string, string][] = [
-    ["admin", "/api/users/:id", "gerenciar usuários"],
-    ["solicitacao", "/api/events", "criar eventos"],
-    ["solicitacao", "/api/items/:id/creator-review", "revisar peças"],
-    // O /edit saiu (era irmã sem validação do PATCH genérico): editar peça é
-    // só o PATCH /api/items/:id, cuja guarda é uma lista de papéis.
-    ["solicitacao", "PATCH /api/items/:id", "editar peças"],
-    ["solicitacao", "/api/items/:id/cancel", "cancelar peças"],
-    ["arte", "/api/items/:id/submit-for-approval", "enviar para aprovação"],
-    ["arte", "/api/items/:id/submit-final-file", "anexar arquivo final"],
-    ["arte", "/api/items/:id/update-thumb", "anexar a arte"],
-    ["arte", "/api/events/:eventId/book", "publicar o book"],
-    ["grafica", "/api/items/:id/start-production", "iniciar produção"],
-    ["grafica", "/api/items/:id/return-to-review", "devolver para revisão"],
-    ["grafica", "/api/items/:itemId/photos", "anexar fotos"],
-    ["atendimento", "/api/items/:id/sponsor-approvals/:sponsorId/approve", "aprovar pelo patrocinador"],
-    ["atendimento", "/api/items/:id/sponsor-approvals/:sponsorId/revert", "revogar decisão"],
-    ["atendimento", "/api/quota-rules/global", "ajustar cotas"],
-  ];
-
-  for (const [papel, rota, oQue] of PODE) {
-    it(`${papel} pode ${oQue} (${rota})`, () => {
-      expect(aceita(rota, papel)).toBe(true);
-    });
-  }
-});
-
-describe("cada × da tela também existe no servidor", () => {
-  const NAO_PODE: [string, string, string][] = [
-    // "Não decide aprovação de patrocinador" — dito para solicitação e arte
-    ["solicitacao", "/api/items/:id/sponsor-approvals/:sponsorId/approve", "decidir aprovação de patrocinador"],
-    ["arte", "/api/items/:id/sponsor-approvals/:sponsorId/approve", "decidir aprovação de patrocinador"],
-    ["grafica", "/api/items/:id/sponsor-approvals/:sponsorId/approve", "decidir aprovação de patrocinador"],
-    // "Não cria nem exclui eventos" — dito para arte e atendimento
-    ["arte", "/api/events", "criar eventos"],
-    ["atendimento", "/api/events", "criar eventos"],
-    ["grafica", "/api/events", "criar eventos"],
-    ["solicitacao", "DELETE /api/events/:id", "excluir eventos"],
-    // "Não anexa arte e arquivo final" — dito para solicitação, gráfica e atendimento
-    ["solicitacao", "/api/items/:id/submit-final-file", "anexar arquivo final"],
-    ["grafica", "/api/items/:id/submit-final-file", "anexar arquivo final"],
-    ["atendimento", "/api/items/:id/submit-final-file", "anexar arquivo final"],
-    ["grafica", "/api/items/:id/submit-for-approval", "enviar para aprovação"],
-    // "Não inicia produção" — dito para atendimento
-    ["atendimento", "/api/items/:id/start-production", "iniciar produção"],
-    // só admin mexe em usuário
-    ["solicitacao", "/api/users/:id", "gerenciar usuários"],
-    ["arte", "/api/users/:id", "gerenciar usuários"],
-  ];
-
-  for (const [papel, rota, oQue] of NAO_PODE) {
-    it(`${papel} NÃO pode ${oQue} (${rota})`, () => {
-      expect(aceita(rota, papel)).toBe(false);
-    });
-  }
-});
+// A amarração tela ↔ servidor (cada ✓ e cada × da tela) roda de verdade em
+// regras-infra2-permissoes-por-papel.test.ts: as rotas reais com a sessão de
+// cada papel. Aqui fica o bloco da tela.
 
 describe("o bloco na tela", () => {
   it("existe para os cinco perfis, com quatro linhas cada", () => {

@@ -30,12 +30,12 @@ export async function aplicarPrioridadeAutomatica(): Promise<{ ajustados: number
   let ajustados = 0;
 
   for (const ev of todos) {
-    if ((ev as any).priorityManual) continue; // trava manual: a regra não toca
+    if (ev.priorityManual) continue; // trava manual: a regra não toca
     // Evento finalizado (encerrado à mão ou já realizado) fica SEM prioridade:
     // ele saiu das filas de trabalho, e um "urgente" pendurado ali só
     // dessensibiliza o vermelho de quem ainda está em jogo.
-    const finalizado = motivoEventoFinalizado(ev as any, hojeBiz) !== null;
-    const saidaMs = ev.truckDepartureDate ? new Date(ev.truckDepartureDate as any).getTime() : null;
+    const finalizado = motivoEventoFinalizado(ev, hojeBiz) !== null;
+    const saidaMs = ev.truckDepartureDate ? new Date(ev.truckDepartureDate).getTime() : null;
     const alvo = finalizado ? null : prioridadePelaSaida(saidaMs, agora);
     if ((ev.priority ?? null) === alvo) continue;
     await db.update(events).set({ priority: alvo }).where(eq(events.id, ev.id));

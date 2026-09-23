@@ -8,7 +8,8 @@
 // arquivo pina as três:
 //
 //   1. SERVIDOR: index.html com no-store (nunca envelhece) e /assets com
-//      cache de 1 ano immutable (hash no nome = seguro).
+//      cache de 1 ano immutable (hash no nome = seguro). Esta camada RODA em
+//      regras-infra-cache-do-deploy.test.ts (serveStatic real, pedido HTTP).
 //   2. lazyPage: recarrega sozinho UMA vez por deploy — e devolve a recarga
 //      quando um chunk carrega, senão o 2º deploy da sessão cai no erro cru.
 //   3. ErrorBoundary: se ainda assim chegar lá, a tela fala português
@@ -20,19 +21,7 @@ import { readFileSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
-const VITE = ler("server/vite.ts");
 const APP = ler("client/src/App.tsx");
-
-describe("o servidor", () => {
-  it("nunca deixa o index.html envelhecer no cache — e o fall-through da SPA também é no-store", () => {
-    expect(VITE).toContain('res.setHeader("Cache-Control", "no-store")');
-    expect(VITE).toContain('filePath.endsWith("index.html")');
-  });
-
-  it("os chunks com hash vivem 1 ano, immutable", () => {
-    expect(VITE).toContain('maxAge: "365d", immutable: true');
-  });
-});
 
 describe("o cliente", () => {
   it("lazyPage recarrega uma vez por deploy — e DEVOLVE a recarga quando o chunk carrega", () => {

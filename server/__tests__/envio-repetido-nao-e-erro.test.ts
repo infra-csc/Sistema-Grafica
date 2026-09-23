@@ -24,6 +24,9 @@
 //   · a mensagem do servidor distingue "já foi enviado" (nada a fazer) de
 //     "ainda não chegou à vinculação" (volta à Solicitação). "Status
 //     incorreto" não dizia nenhum dos dois.
+//
+// A frase do servidor roda de verdade em regras-fluxo-correcao-e-envio.test.ts;
+// aqui fica a tela.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
@@ -32,7 +35,6 @@ import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
 const VP = ler("client/src/pages/vincular-patrocinadores.tsx");
-const SV = ler("server/routes/sponsors.ts");
 const semCom = (s: string) => s.replace(/\r\n/g, "\n").replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").map(l => l.replace(/^\s*\/\/.*$/, "")).join("\n");
 
@@ -77,13 +79,6 @@ describe("o Confirmar descarta o que já foi enviado", () => {
 });
 
 describe("a frase diz o que aconteceu", () => {
-  it("o servidor distingue 'já foi enviado' de 'ainda não chegou'", () => {
-    expect(SV).toContain("const aindaNaoChegou = ['draft', 'requested'].includes(item.status);");
-    expect(SV).toContain('já foi enviado (está em "${translateStatus(item.status)}")');
-    expect(SV).toContain('ainda não chegou à vinculação (está em "${translateStatus(item.status)}")');
-    expect(semCom(SV)).not.toContain("não está no status correto para envio");
-  });
-
   it("o cliente reconhece o lote inteiro de 'já enviadas' e não o chama de erro", () => {
     expect(VP).toContain("const jaEnviadas = (data.errors ?? []).filter((e: string) => e.includes('já foi enviado')).length;");
     expect(VP).toContain("if (data.sent === 0 && data.errors && data.errors.length > 0 && jaEnviadas === data.errors.length) {");

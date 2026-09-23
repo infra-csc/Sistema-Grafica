@@ -172,7 +172,7 @@ export function registrarAvisos(app: Express): void {
         }
       }
       const criado = await storage.addEmailDestinatario({ canal, email: limpo, addedBy: req.userName ?? null });
-      await createAuditLog(req, "added", "gestao" as any, canal,
+      await createAuditLog(req, "added", "gestao", canal,
         `Destinatário "${limpo}" adicionado ao aviso "${CANAL_META[canal as CanalDeAviso].titulo}"`);
       res.status(201).json(criado);
     } catch (error) {
@@ -187,7 +187,7 @@ export function registrarAvisos(app: Express): void {
       }
       const removido = await storage.removeEmailDestinatario(req.params.id);
       if (!removido) return res.status(404).json({ error: "Destinatário não encontrado" });
-      await createAuditLog(req, "deleted", "gestao" as any, removido.canal,
+      await createAuditLog(req, "deleted", "gestao", removido.canal,
         `Destinatário "${removido.email}" removido do aviso "${CANAL_META[removido.canal as CanalDeAviso]?.titulo ?? removido.canal}"`);
       res.json({ ok: true, removido });
     } catch (error) {

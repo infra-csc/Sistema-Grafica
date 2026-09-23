@@ -16,7 +16,7 @@ export async function registerObjectRoutes(app: Express): Promise<void> {
   
   const { ObjectStorageService, ObjectNotFoundError } = await import("../objectStorage");
   // Arquivo de peça só para quem enxerga a peça — na prática, recorta o usuário do Kit (ver objectAcl).
-  const aclDoKit = criarAclDoKit((texto, params) => pool.query(texto, params as any[]));
+  const aclDoKit = criarAclDoKit((texto, params) => pool.query(texto, params));
   
   // Pedido de URL assinada (caminho legado — as telas sobem por
   // /upload-direct). O bucket não amarra tipo/tamanho a esta URL: exigimos o
@@ -29,7 +29,7 @@ export async function registerObjectRoutes(app: Express): Promise<void> {
       const objectStorageService = new ObjectStorageService();
       const uploadURL = await objectStorageService.getObjectEntityUploadURL();
       res.json({ uploadURL });
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error getting upload URL:", error);
       res.status(500).json({ error: "Não foi possível gerar URL de upload" });
     }
@@ -77,7 +77,7 @@ export async function registerObjectRoutes(app: Express): Promise<void> {
           }
         }
         res.json({ url });
-      } catch (error: any) {
+      } catch (error) {
         console.error("Error in proxy upload:", error);
         res.status(500).json({ error: "Não foi possível enviar o arquivo" });
       }
@@ -164,7 +164,7 @@ export async function registerObjectRoutes(app: Express): Promise<void> {
       }
 
       await objectStorageService.downloadObject(objectFile, res);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error serving object:", error);
       if (error instanceof ObjectNotFoundError) {
         return res.sendStatus(404);
@@ -202,7 +202,7 @@ export async function registerObjectRoutes(app: Express): Promise<void> {
       });
       
       res.status(201).json(photo);
-    } catch (error: any) {
+    } catch (error) {
       sendSensitiveError(res, error, "Error saving delivery photo", 500);
     }
   });

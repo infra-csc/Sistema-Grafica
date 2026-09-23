@@ -13,11 +13,12 @@
 //   · Vincular: as duas listas usam PRODUCTION_STATUSES;
 //   · rótulos (fases, solicitacao, ficha), a visão da Gráfica, o Excel e o
 //     andamento dos pedidos.
+// O tubo na fila da Gráfica e a coluna Tubo do Excel rodam em
+// regras-producao-itens.test.ts e regras-producao-planilha.test.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi } from "vitest";
 import { fonteDaTela } from "./fonte-da-tela";
 import { fonteDoComponente } from "./fonte-dos-componentes";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 import { createElement } from "react";
@@ -164,21 +165,6 @@ describe("o tubo viaja na peça", () => {
     expect(comTubo({ id: "p3", tuboId: "t1" }, porId)).toEqual({ id: "p3", tuboId: "t1", ...resumo });
   });
 
-  it("o enrich das listas chama o select em lote (um por request) — e approved/delta passam por ele", () => {
-    const ROTAS = fonteDasRotasDeItens();
-    expect(ROTAS).toContain("resumosDeTuboPorIds(list.map((i) => i.tuboId)),");
-    expect(ROTAS).toContain("...comTubo(item, tuboPorId),");
-    const SERVICO = ler("server/services/tubosDaPeca.ts");
-    expect(SERVICO).toContain(".where(inArray(tubos.id, unicos));");
-    expect(SERVICO).toContain("if (unicos.length === 0) return new Map();");
-    // fotos e observação NÃO viajam
-    expect(SERVICO).not.toContain("fotosFechamento:");
-    // /api/items/approved (cheio e delta) usa o mesmo enrich
-    const iApproved = ROTAS.indexOf('"/api/items/approved"');
-    expect(iApproved).toBeGreaterThan(0);
-    expect(ROTAS.slice(iApproved, iApproved + 6000)).toContain("enrichItemsWithEventsAndSponsors(");
-  });
-
   it("formato compacto: a peça com as chaves novas faz a volta byte a byte", () => {
     const ev = { id: "e1", name: "A" };
     const pecas = [
@@ -260,16 +246,6 @@ describe("rótulos, visão, Excel e pedidos", () => {
     const st = visaoDoPapel("grafica")!.filtros.status;
     expect(st).toEqual(expect.arrayContaining(["ready_for_production", "approved", "inProduction", "produced", "conferred", "packed"]));
     expect(st).not.toContain("delivered");
-  });
-
-  it("Excel: coluna Tubo só no export de peças (produção), ao lado da Impressora", () => {
-    const X = ler("server/services/xlsxExport.ts");
-    const iProd = X.indexOf("const PRODUCTION_COLS");
-    const prod = X.slice(iProd, X.indexOf("];", iProd));
-    expect(prod).toContain('{ header: "Tubo",            key: "tuboNumero",   width: 22 },');
-    expect(prod.indexOf('"Tubo"')).toBeGreaterThan(prod.indexOf('"Impressora"'));
-    // o relatório de máquinas segue sem a coluna
-    expect(X.slice(X.indexOf("export function montarPlanilhaDeMaquinas"))).not.toContain("tuboNumero");
   });
 
   it("pedidos: 5 etapas grossas mantidas (índices intactos); packed NÃO conta como entregue", () => {

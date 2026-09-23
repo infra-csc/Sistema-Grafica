@@ -7,6 +7,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
+import ts from "typescript";
 import { calcularVersao, cabecalhoDeVersao, CABECALHO_DA_VERSAO } from "../versaoDoApp";
 import { observarVersao, haVersaoNova, onVersaoNova, _zerarVersao, CABECALHO_DA_VERSAO as NO_CLIENTE } from "@/lib/versao-do-app";
 
@@ -38,9 +39,21 @@ describe("servidor", () => {
   });
 
   it("está montado no index, antes das rotas", () => {
-    const I = ler("server/index.ts");
-    expect(I).toContain("app.use(cabecalhoDeVersao());");
-    expect(I.indexOf("app.use(cabecalhoDeVersao());")).toBeLessThan(I.indexOf("registerRoutes("));
+    // Varredura: server/index.ts sobe o servidor ao ser importado (listen,
+    // banco), então não dá para executar. Pela AST: a CHAMADA app.use(
+    // cabecalhoDeVersao(...)) existe e vem antes da chamada registerRoutes(...).
+    const fonte = ts.createSourceFile("index.ts", ler("server/index.ts"), ts.ScriptTarget.Latest, true);
+    const chamadas: { texto: string; pos: number }[] = [];
+    const visita = (n: ts.Node) => {
+      if (ts.isCallExpression(n)) chamadas.push({ texto: n.getText(fonte).replace(/\s+/g, ""), pos: n.getStart(fonte) });
+      ts.forEachChild(n, visita);
+    };
+    visita(fonte);
+    const monta = chamadas.find((c) => /^app\.use\(cabecalhoDeVersao\(/.test(c.texto));
+    const rotas = chamadas.find((c) => /^registerRoutes\(/.test(c.texto));
+    expect(monta, "app.use(cabecalhoDeVersao(...)) sumiu do index").toBeDefined();
+    expect(rotas).toBeDefined();
+    expect(monta!.pos).toBeLessThan(rotas!.pos);
   });
 });
 

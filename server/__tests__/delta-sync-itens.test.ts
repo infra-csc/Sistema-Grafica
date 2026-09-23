@@ -16,58 +16,25 @@
 //  · para os consumidores NADA muda: o queryFn devolve o mesmo array cheio.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
 const STORAGE = ler("server/storage.ts");
-const ITEMS = fonteDasRotasDeItens();
 const QC = ler("client/src/lib/queryClient.ts");
 
 describe("o carimbo que sustenta o delta", () => {
-  it("toda escrita de vínculo/aprovação bumpa updated_at da peça", () => {
-    expect(STORAGE).toContain("private async touchItem(itemId: string)");
-    // 1 definição + 8 chamadas: add/remove/bulkSync de vínculo, create/update/
-    // delete/deleteAll/initialize de aprovação
-    expect((STORAGE.match(/touchItem\(/g) ?? []).length).toBe(9);
-    // e a falha do carimbo nunca derruba a operação
-    const fn = STORAGE.slice(STORAGE.indexOf("private async touchItem"));
-    expect(fn.slice(0, 500)).toContain("} catch (e) {");
-  });
-
+  // O carimbo de cada escrita de vínculo/aprovação (e a falha que não derruba)
+  // RODA em regras-infra-carimbo-do-vinculo.test.ts; a rota do delta, em
+  // regras-infra-delta.test.ts; apagadas no delta, com Postgres de verdade, em
+  // integracao-peca-do-rascunho-a-entrega.test.ts. Fica aqui o que é lote fora
+  // do touchItem (varredura: o vínculo por cota e o script de correção).
   it("escritas em lote fora do touchItem também carimbam (vínculo automático por cota, script de correção)", () => {
     // Revisão adversarial 17/09: sem o carimbo o delta não via a peça.
     const auto = STORAGE.slice(STORAGE.indexOf("async autoLinkByQuota"));
     expect(auto.slice(0, 1600)).toContain('.set({ status: "awaiting_linking", updatedAt: new Date() })');
     expect(auto.slice(0, 1600)).toContain(".set({ updatedAt: new Date() }).where(inArray(items.id, ids))");
     expect(ler("server/scripts/corrige-reprovadas.ts")).toContain('.set({ status: "sponsor_approved", updatedAt: new Date() })');
-  });
-
-  it("getItemsChangedSince inclui as APAGADAS — o cliente precisa removê-las", () => {
-    const fn = STORAGE.slice(STORAGE.indexOf("async getItemsChangedSince"));
-    expect(fn.slice(0, 300)).toContain("gte(items.updatedAt, since)");
-    expect(fn.slice(0, 300)).not.toContain("deletedAt");
-  });
-});
-
-describe("a rota", () => {
-  const rota = ITEMS.slice(ITEMS.indexOf('app.get("/api/items", requireAuth'), ITEMS.indexOf('app.get("/api/items/deleted"'));
-
-  it("?since= responde delta com itens, removidas, eventos e patrocinadores", () => {
-    for (const campo of ["delta: true,", "removidas:", "eventos,", "patrocinadores,"]) {
-      expect(rota).toContain(campo);
-    }
-  });
-
-  it("sobreposição de 60s no `agora` e since velho (>24h) cai no full fetch", () => {
-    // Perf 17/09: as duas réguas viraram helpers (a fila da Gráfica usa o mesmo delta).
-    expect(rota).toContain("const agora = agoraDoDelta();");
-    expect(rota).toContain("const since = lerSince(req);");
-    // 17/09: 2s deixava escapar a transação que confirma depois do carimbo.
-    expect(ITEMS).toContain("const SOBREPOSICAO_DO_DELTA_MS = 60 * 1000;");
-    expect(ITEMS).toContain("new Date(Date.now() - SOBREPOSICAO_DO_DELTA_MS).toISOString()");
-    expect(ITEMS).toContain("24 * 60 * 60 * 1000");
   });
 });
 

@@ -86,7 +86,7 @@ export async function aplicarVinculosEventoPendentes(actor: Actor) {
         entityType: "event_sponsor",
         entityId: `${pendencia.eventId}_${pendencia.sponsorId}`,
         details: `Vínculo evento↔patrocinador criado pelo reparo: "${pendencia.sponsorName}" já estava em peças do evento "${pendencia.eventName}" sem constar no evento (sem cota — defina no Vincular se precisar).`,
-      } as any);
+      });
       aplicados += 1;
     }
 

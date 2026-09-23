@@ -11,6 +11,8 @@
 // recusa ANTES de qualquer escrita — recusar depois do clearEventBookUrl
 // deixaria o evento sem book nenhum.
 // ─────────────────────────────────────────────────────────────────────────────
+// A recusa no servidor, a régua da republicação e o reenvio rodam agora em
+// regras-avisos-book.test.ts.
 import { describe, it, expect } from "vitest";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
@@ -26,25 +28,6 @@ describe("a régua é uma só", () => {
   it("cliente e servidor cobram o MESMO mínimo (5)", () => {
     expect(CAIXA).toContain("export const COMENTARIO_MINIMO = 5;");
     expect(ITEMS).toContain("textoDoComentario.length < 5");
-  });
-
-  it("no servidor, a recusa vem DEPOIS da guarda de evento fechado e ANTES de qualquer escrita", () => {
-    const rota = ITEMS.slice(ITEMS.indexOf('app.post("/api/events/:eventId/book"'));
-    const guardaFechado = rota.indexOf("const fechadoBook = motivoEventoFechado(event);");
-    const obrigatorio = rota.indexOf('code: "COMENTARIO_OBRIGATORIO"');
-    const primeiraEscrita = rota.indexOf("await storage.clearEventBookUrl(req.params.eventId);");
-    expect(guardaFechado).toBeGreaterThan(-1);
-    // evento fechado responde 409 antes de a rota pensar em comentário — e a
-    // validação não pode chamar getAllEventBooks à frente da guarda (o teste
-    // de evento-finalizado não mocka esse método e via 500 em vez de 409)
-    expect(obrigatorio).toBeGreaterThan(guardaFechado);
-    expect(primeiraEscrita).toBeGreaterThan(obrigatorio);
-  });
-
-  it("só REPUBLICAÇÃO exige: a contagem olha os books anteriores do MESMO evento", () => {
-    expect(ITEMS).toContain("const publicacoesAnteriores = (await storage.getAllEventBooks())");
-    expect(ITEMS).toContain(".filter((b) => b.eventId === req.params.eventId).length;");
-    expect(ITEMS).toContain("if (publicacoesAnteriores > 0 && textoDoComentario.length < 5) {");
   });
 });
 
@@ -102,10 +85,5 @@ describe("o comentário chega a quem lê", () => {
     expect(VERSOES_ROTA).toContain("comentario: (b as any).comment ?? null,");
     const VERSOES_TELA = ler("client/src/pages/versoes.tsx");
     expect(VERSOES_TELA).toContain("b.comentario");
-  });
-
-  it("o reenvio manual repete o comentário do ÚLTIMO book — não inventa outro", () => {
-    const rota = ITEMS.slice(ITEMS.indexOf('app.post("/api/events/:eventId/book/notify"'));
-    expect(rota.slice(0, 2200)).toContain("comment");
   });
 });

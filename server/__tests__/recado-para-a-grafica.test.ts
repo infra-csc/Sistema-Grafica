@@ -11,9 +11,9 @@
  *   2. a ficha chama o campo pelo nome ("Recado para a Gráfica");
  *   3. ao liberar, o aviso oferece abrir a peça na fila da Gráfica.
  */
+// A trilha com o texto do recado roda em regras-avisos-edicao-da-peca.test.ts.
 import { describe, it, expect } from "vitest";
 import { fonteDoComponente } from "./fonte-dos-componentes";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { fonteDaGrafica } from "./fonte-da-grafica";
@@ -22,17 +22,6 @@ const raiz = join(import.meta.dirname, "..", "..");
 const ler = (p: string) => readFileSync(join(raiz, p), "utf8");
 
 describe("o recado escrito na Revisão Final não se perde", () => {
-  it("a trilha grava o texto, não só 'Observações atualizadas'", () => {
-    const rotas = fonteDasRotasDeItens();
-    const trecho = rotas.slice(rotas.indexOf("'observations' in validatedData"));
-    expect(trecho.slice(0, 900)).toContain("changedParts.push(recado ?");
-    expect(trecho.slice(0, 900)).toContain("Observações: \"${");
-    // Recado longo não estoura a linha da trilha.
-    expect(trecho.slice(0, 900)).toContain("recado.slice(0, 300)");
-    // E apagar o recado também fica registrado.
-    expect(trecho.slice(0, 900)).toContain("Observações apagadas");
-  });
-
   it("a ficha da peça chama o campo pelo nome", () => {
     const ficha = fonteDoComponente("client/src/components/item-details-dialog.tsx");
     expect(ficha).toContain(">Recado para a Gráfica</p>");

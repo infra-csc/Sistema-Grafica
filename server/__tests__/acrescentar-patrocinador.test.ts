@@ -17,9 +17,12 @@
 // A RÉGUA DE ATÉ ONDE (dono, 25/08): "pode vincular até a peça ser aprovada,
 // até em correção; caso seja aprovada, não pode mais".
 // ─────────────────────────────────────────────────────────────────────────────
+//
+// A ROTA (só soma, a isenção só cai, até onde aceita, reabertura, lote
+// honesto) roda de verdade em regras-patrocinio-vinculos; a lista única do
+// script de reparo, em regras-patrocinio-reparos. Aqui ficam a tela e a
+// régua de papéis (que cruza tela, rota e shared/permissoes).
 import { describe, it, expect } from "vitest";
-import { origemDaAcao } from "@shared/maquina-de-estados";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
@@ -27,149 +30,6 @@ const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel),
 const ROTA = ler("server/routes/sponsors.ts");
 const TELA = ler("client/src/pages/vincular-patrocinadores.tsx");
 const PERMISSOES = ler("shared/permissoes.ts");
-
-/** O corpo da rota nova, isolado, para os asserts não pegarem outra. */
-const bloco = (() => {
-  const i = ROTA.indexOf('app.post("/api/items/bulk-add-sponsor"');
-  expect(i).toBeGreaterThan(-1);
-  return ROTA.slice(i, ROTA.indexOf('app.post("/api/items/:id/return-to-creation"'));
-})();
-
-describe("a rota só SOMA — nunca reescreve", () => {
-  it("não apaga vínculo nem toca em quem já decidiu", () => {
-    expect(bloco).toContain("storage.addSponsorToItem(");
-    // o que NÃO pode estar aqui
-    expect(bloco).not.toContain("bulkSyncItemSponsors");
-    expect(bloco).not.toContain("removeSponsorFromItem");
-    expect(bloco).not.toContain("deleteItemSponsorApproval");
-  });
-
-  it("peça ISENTA deixa de ser isenta ao ganhar patrocinador — e a isenção só CAI, nunca sobe", () => {
-    // Caso Mandala (25/08): as peças eram "sem aprovação" (skipApproval). A
-    // primeira versão não tocava na flag — e peça isenta com patrocinador
-    // vinculado é estado impossível: rodadaDeAprovacaoFechada devolve true na
-    // primeira linha e a pendência do novo vira letra morta.
-    expect(bloco).toContain("const eraIsenta = !!item.skipApproval;");
-    expect(bloco).toContain("if (eraIsenta && !jaPassou) {");
-    expect(bloco).toContain("skipApproval: false");
-    // 2º round do caso Mandala (27/08): a limpeza roda TAMBÉM quando o vínculo
-    // já existia — a tentativa pré-conserto criou o vínculo e deixou a isenção,
-    // e "já tinha" saía cedo sem normalizar. A ordem fixa isso: o return de
-    // "nada mudou" vem DEPOIS da limpeza da isenção.
-    expect(bloco.indexOf("const eraIsenta")).toBeGreaterThan(bloco.indexOf("jaTinham.push(rotulo);"));
-    expect(bloco).toContain("if (jaNaPeca && !eraIsenta && !criouLinhaAgora) return;");
-    // na reabertura, a isenção cai no MESMO update do status
-    const reabre = bloco.slice(bloco.indexOf("if (jaPassou && (!jaNaPeca || criouLinhaAgora)) {"));
-    expect(reabre.slice(0, 700)).toContain("skipApproval: false,");
-    // nunca marca isenção — só limpa
-    expect(bloco).not.toContain("skipApproval: true");
-    // e a trilha explica
-    expect(bloco).toContain('a peça deixou de ser "sem aprovação"');
-  });
-
-  it("peça que já tem o patrocinador é contada, não duplicada — mas AINDA é normalizada", () => {
-    expect(bloco).toContain("if (jaNaPeca) {");
-    expect(bloco).toContain("jaTinham.push(rotulo);");
-    // o addSponsorToItem fica no ramo do vínculo NOVO
-    const ramo = bloco.slice(bloco.indexOf("if (jaNaPeca) {"), bloco.indexOf("const eraIsenta"));
-    expect(ramo).toContain("} else {");
-    expect(ramo).toContain("storage.addSponsorToItem({ itemId, sponsorId } as any);");
-  });
-
-  it("vincula ao EVENTO antes da peça — marca que o evento não conhece foi bug", () => {
-    // É o desencontro que o reparo de vínculos teve de limpar: peça com marca
-    // que o Vincular Patrocinadores não mostrava.
-    expect(bloco).toContain("storage.addSponsorToEvent(");
-    expect(bloco).toContain("eventosJaVinculados");
-  });
-});
-
-describe("até a aprovação fechar — inclusive em correção", () => {
-  it("aceita da criação até a peça estar em aprovação", () => {
-    expect(bloco).toContain('"draft", "requested", "awaiting_linking", "awaiting_submission",');
-    expect(bloco).toContain('"awaiting_approval", "awaiting_sponsor_approval",');
-  });
-
-  it("a CORREÇÃO já está coberta pelos mesmos dois estados", () => {
-    // Patrocinador reprovou: a PEÇA fica em awaiting_sponsor_approval e só a
-    // LINHA dele vai para awaiting_arte (ver a rota de reject em items.ts).
-    const ITEMS = fonteDasRotasDeItens();
-    expect(ITEMS).toContain("status: 'awaiting_arte',");
-    expect(ITEMS).toContain('if (!vemDeOrigemValida(currentItem.status, "reprovar-por-patrocinador")) {');
-    expect(origemDaAcao("reprovar-por-patrocinador")).toEqual(["awaiting_sponsor_approval"]);
-    // Revisor devolveu à Arte: a peça volta para awaiting_submission.
-    expect(ITEMS).toContain('status: "awaiting_submission",');
-    // E o comentário da rota explica isso para quem vier depois.
-    expect(bloco).toContain("A CORREÇÃO está aqui dentro");
-  });
-
-  it("peça que JÁ PASSOU (finalização/revisão) REABRE — e só o novo decide", () => {
-    // Segunda rodada da regra (dono, 25/08): "quando já passou para a revisão
-    // ou foi aprovada, volta só ela para aprovação — só um patrocinador".
-    expect(bloco).toContain("const jaPassou = POS_APROVACAO.includes(item.status);");
-    expect(bloco).toContain('status: "awaiting_sponsor_approval",');
-    // quem já aprovou NÃO decide de novo: as linhas deles não são tocadas
-    // (nenhum reset de aprovação existe neste bloco)
-    expect(bloco).not.toContain("initializeItemSponsorApprovals");
-    expect(bloco).not.toContain('status: "pending" } as any)); //');
-    // a arte que a Arte subiu FICA — reabrir é sobre a decisão
-    expect(bloco).not.toContain("finalFileUrl: null");
-    expect(bloco).not.toContain("approvalThumbUrl: null");
-    // e a Arte é avisada para segurar a finalização
-    expect(bloco).toContain("segure a finalização");
-    expect(bloco).toContain('targetRoles: ["arte"],');
-    // a trilha explica o que aconteceu
-    expect(bloco).toContain("voltou para a aprovação; só ele decide, os demais seguem aprovados");
-  });
-
-  it("a REGRA DA REABERTURA é a mesma da revogação — lista única em shared", () => {
-    // POS_APROVACAO saiu da rota de revogar e do script de reparo para
-    // @shared/fluxo-peca; três cópias divergiriam no primeiro status novo.
-    const FLUXO = ler("shared/fluxo-peca.ts");
-    expect(FLUXO).toContain("export const POS_APROVACAO: readonly string[] = [");
-    // o apelido legado da revisão TEM de estar na lista — a peça #3483 foi
-    // recusada como "já é da Gráfica" estando em plena revisão por causa dele
-    expect(FLUXO).toContain('"awaiting_creator_review",');
-    const ITEMS = fonteDasRotasDeItens();
-    expect(ITEMS).not.toContain('const POS_APROVACAO = ["sponsor_approved"');
-    expect(ler("scripts/reparar-aprovacao-incoerente.ts")).toContain('from "../shared/fluxo-peca"');
-  });
-
-  it("o corte é a LIBERAÇÃO para a produção — dali em diante recusa, com o porquê", () => {
-    expect(bloco).toContain("if (!ACEITA.includes(item.status) && !jaPassou) {");
-    expect(bloco).toContain("já foi liberada para a produção");
-    expect(bloco).toContain("a peça é da Gráfica");
-    // ready_for_production não está em nenhuma das duas listas de entrada
-    const listaAceita = bloco.slice(bloco.indexOf("const ACEITA"), bloco.indexOf("const EM_APROVACAO"));
-    expect(listaAceita).not.toContain("ready_for_production");
-    expect(ler("shared/fluxo-peca.ts").slice(0, 99999)).not.toMatch(/POS_APROVACAO[\s\S]{0,400}ready_for_production/);
-  });
-
-  it("a pendência de aprovação nasce quando há rodada — em curso ou reaberta", () => {
-    expect(bloco).toContain('const EM_APROVACAO = ["awaiting_approval", "awaiting_sponsor_approval"];');
-    expect(bloco).toContain("if (EM_APROVACAO.includes(item.status) || jaPassou) {");
-    expect(bloco).toContain("storage.createItemSponsorApproval({ itemId, sponsorId, status: \"pending\" }");
-  });
-});
-
-describe("o lote é honesto sobre o que não fez", () => {
-  it("recusa por peça, com motivo, e o resto do lote passa", () => {
-    expect(bloco).toContain("const recusadas: { displayId: string; motivo: string }[] = [];");
-    expect(bloco).toContain("recusadas.push({ displayId: rotulo, motivo:");
-    expect(bloco).toContain("recusadas,");
-  });
-
-  it("evento finalizado usa a guarda da casa, e o lote inteiro barrado vira 409", () => {
-    // o evento é lido UMA vez por evento (memo) — era uma leitura por peça
-    expect(bloco).toContain("motivoEventoFechado(await eventoDe(item.eventId))");
-    expect(bloco).toContain("bloqueio.respondeLoteInteiro(res,");
-  });
-
-  it("a trilha diz o que vai acontecer com a aprovação", () => {
-    expect(bloco).toContain("entra na rodada de aprovação em curso");
-    expect(bloco).toContain("entrará na aprovação quando a Arte enviar o layout");
-  });
-});
 
 describe("a tela", () => {
   it("peça já enviada passou a ser selecionável — para acrescentar, não para reescrever", () => {

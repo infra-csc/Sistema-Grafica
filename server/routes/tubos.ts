@@ -51,8 +51,11 @@
 //     embalada" (peça `packed` volta a `conferred`).
 // As contas moram em shared/embalagem.ts (puras, testadas à parte).
 // ─────────────────────────────────────────────────────────────────────────────
-import type { Express } from "express";
-import { and, asc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
+import type { Express, Request, Response } from "express";
+import { and, asc, eq, gte, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
+import type { PgDatabase } from "drizzle-orm/pg-core";
+import type { NeonQueryResultHKT } from "drizzle-orm/neon-serverless";
+import type * as schema from "@shared/schema";
 import { db } from "../db";
 import { storage } from "../storage";
 import { items as itemsTable, tubos, tuboItens, events, auditLogs } from "@shared/schema";
@@ -75,7 +78,7 @@ import {
 // Predicado PURO de papel (só comparações de userRole): é a forma que o
 // leitor da régua (server/permissoes-scan.ts) entende — assim as rotas de
 // escrita dos tubos aparecem em shared/permissoes.ts e no teste que confere.
-function podeMexerEmTubo(req: any): boolean {
+function podeMexerEmTubo(req: Request): boolean {
   return req.userRole === "grafica" || req.userRole === "solicitacao" || req.userRole === "admin";
 }
 const SEM_PAPEL = "Tubos são da Gráfica, da Solicitação e do admin";
@@ -134,28 +137,33 @@ type PecaCrua = {
 /** A linha de `tubo_itens`: quanto da peça está NAQUELE volume. */
 type Linha = { id: string; tuboId: string; itemId: string; quantidade: number; entregueEm: Date | null };
 type TuboCru = { id: string; numero: number; avulso?: boolean | null; eventId: string; fechadoEm: Date | null };
+/** A linha inteira de `tubos`, como o drizzle devolve. */
+type Tubo = typeof tubos.$inferSelect;
 
 // O MESMO recorte do Kit que as leituras de peças aplicam (routes/items.ts):
 // o usuário do Kit só enxerga — e só mexe em — peça do Kit que ele criou.
 // Peça fora do recorte é tratada como inexistente, em leitura e em escrita.
-const quemVe = (req: any) => ({ kit: req.userKit === true, userId: req.userId ?? null });
+const quemVe = (req: Request) => ({ kit: req.userKit === true, userId: req.userId ?? null });
 
 // "SOLICITAÇÃO SEM KIT SÓ VISUALIZA PEÇA DO KIT" — a trava global de
 // server/routes.ts. Ela só enxerga `/api/items/:id` e `itemIds`, e os tubos
 // mexem em peça por `adicionar`/`remover` e pela entrega do tubo inteiro, que
 // não cita id nenhum. Por isso a mesma regra é repetida aqui, com a MESMA
 // mensagem — senão a Solicitação da Arena agia na peça do Kit pelo tubo.
-const soVisualizaKit = (req: any): boolean => req.userRole === "solicitacao" && req.userKit !== true;
+const soVisualizaKit = (req: Request): boolean => req.userRole === "solicitacao" && req.userKit !== true;
 const RECADO_SO_VISUALIZA = "Peça do Kit: a Solicitação da Arena só visualiza. Quem age nela é o usuário do Kit.";
 /** Responde 403 quando quem só visualiza tenta agir sobre peça do Kit. */
-const barraPecaDoKit = (req: any, res: any, pecas: Array<{ kitRemessaId: string | null }>): boolean => {
+const barraPecaDoKit = (req: Request, res: Response, pecas: Array<{ kitRemessaId: string | null }>): boolean => {
   if (!soVisualizaKit(req) || !pecas.some((p) => !!p.kitRemessaId)) return false;
   res.status(403).json({ error: RECADO_SO_VISUALIZA });
   return true;
 };
-const visiveis = (req: any, pecas: PecaCrua[]): PecaCrua[] => pecas.filter((p) => pecaVisivelPara(quemVe(req), p));
+// Genérico para não perder colunas a mais (ex.: `bookUrl` da etiqueta).
+const visiveis = <P extends PecaCrua>(req: Request, pecas: P[]): P[] => pecas.filter((p) => pecaVisivelPara(quemVe(req), p));
 
-const linhas = (r: any): any[] => (r?.rows ?? r ?? []) as any[];
+// Linhas cruas de um `execute` (SQL à mão): o formato das colunas é de quem escreveu o SQL.
+const linhas = <T>(r: { rows?: unknown } | unknown[] | null | undefined): T[] =>
+  (r && !Array.isArray(r) && r.rows != null ? r.rows : r ?? []) as T[];
 
 const ehEntregue = (p: PecaCrua): boolean =>
   p.status === "delivered" || p.status === "entregue" || (p.deliveredQty ?? 0) >= p.quantity;
@@ -169,21 +177,21 @@ const quandoBR = (d: Date): string =>
 // peças, e RECALCULA as contas lá dentro. Embalar, tirar, apagar e entregar o
 // mesmo volume ficam em fila — entregar e mexer ao mesmo tempo não deixa linha
 // aberta dentro de volume entregue, e duas pessoas embalando a mesma peça não
-// passam do conferido. `Ex` é o `db` ou a transação em curso.
-type Ex = any;
+// passam do conferido. `Ex` é o `db` ou a transação em curso (a base comum dos dois).
+type Ex = PgDatabase<NeonQueryResultHKT, typeof schema>;
 
 /** Recusa de negócio lançada de dentro da transação (desfaz tudo) — vira a resposta HTTP. */
 class Recusa extends Error {
   constructor(public http: number, mensagem: string) { super(mensagem); }
 }
-const responderRecusa = (res: any, error: unknown): boolean => {
+const responderRecusa = (res: Response, error: unknown): boolean => {
   if (!(error instanceof Recusa)) return false;
   res.status(error.http).json({ error: error.message });
   return true;
 };
 
 /** Trava o volume até o fim da transação; recusa se sumiu ou já foi entregue. */
-async function travarTubo(tx: Ex, tuboId: string, recadoEntregue?: (t: Volume) => string): Promise<any> {
+async function travarTubo(tx: Ex, tuboId: string, recadoEntregue?: (t: Volume) => string): Promise<Tubo> {
   const [tubo] = await tx.select().from(tubos).where(eq(tubos.id, tuboId)).for("update");
   if (!tubo) throw new Recusa(404, "Tubo não encontrado");
   if (tubo.entregueEm) throw new Recusa(409, recadoEntregue ? recadoEntregue(tubo) : `${oVolume(tubo)} já foi entregue`);
@@ -221,7 +229,7 @@ const volumeNaJanela = () => and(
 /** Tubo já fotografado que teve o conteúdo mexido: a foto pode não bater mais. */
 async function marcarConteudoAlterado(tubo: { id: string; fechadoEm: Date | null }, agora: Date, ex: Ex = db) {
   if (!tubo.fechadoEm) return;
-  await ex.update(tubos).set({ conteudoAlteradoEm: agora } as any).where(eq(tubos.id, tubo.id));
+  await ex.update(tubos).set({ conteudoAlteradoEm: agora }).where(eq(tubos.id, tubo.id));
 }
 
 const COLUNAS_LINHA = { id: tuboItens.id, tuboId: tuboItens.tuboId, itemId: tuboItens.itemId, quantidade: tuboItens.quantidade, entregueEm: tuboItens.entregueEm };
@@ -239,7 +247,7 @@ async function acertarAtalho(itemIds: string[], agora: Date, ex: Ex = db) {
   const todas = await linhasDasPecas(itemIds, ex);
   for (const id of Array.from(new Set(itemIds))) {
     const principal = volumePrincipal(todas.filter((l) => l.itemId === id));
-    await ex.update(itemsTable).set({ tuboId: principal, updatedAt: agora } as any).where(eq(itemsTable.id, id));
+    await ex.update(itemsTable).set({ tuboId: principal, updatedAt: agora }).where(eq(itemsTable.id, id));
   }
 }
 
@@ -290,7 +298,7 @@ type Plano = { peca: PecaCrua; quantidade: number; embaladaQty: number; viraEmba
  * (inclusive o STATUS: cancelada, arquivada, em aprovação ou em revisão nunca é
  * embalada) são de shared/embalagem.ts. Com `tx`, lê as peças TRAVADAS.
  */
-async function planosParaEmbalar(req: any, eventId: string, pedidos: Pedido[], tx?: Ex): Promise<{ planos: Plano[]; recusas: string[] }> {
+async function planosParaEmbalar(req: Request, eventId: string, pedidos: Pedido[], tx?: Ex): Promise<{ planos: Plano[]; recusas: string[] }> {
   if (pedidos.length === 0) return { planos: [], recusas: [] };
   const ids = pedidos.map((x) => x.id);
   const cruas = tx ? await pecasTravadas(tx, ids) : ((await db.select(COLUNAS_PECA).from(itemsTable).where(inArray(itemsTable.id, ids))) as PecaCrua[]);
@@ -315,7 +323,7 @@ async function planosParaEmbalar(req: any, eventId: string, pedidos: Pedido[], t
 async function proximoNumero(eventId: string, avulso: boolean, ex: Ex = db): Promise<number> {
   // Tubos de verdade: 1, 2, 3… (os negativos dos avulsos não contam — sem
   // buraco). Avulsos: −1, −2, … — não consomem número de tubo.
-  const [{ proximo }] = linhas(await ex.execute(avulso
+  const [{ proximo }] = linhas<{ proximo: unknown }>(await ex.execute(avulso
     ? sql`select least(coalesce(min(numero), 0), 0) - 1 as proximo from tubos where event_id = ${eventId}`
     : sql`select greatest(coalesce(max(numero), 0), 0) + 1 as proximo from tubos where event_id = ${eventId}`));
   return Number(proximo);
@@ -330,11 +338,12 @@ async function criarTubo(eventId: string, criadoPor: string, avulso = false) {
   for (let tentativa = 0; tentativa < 3; tentativa++) {
     const proximo = await proximoNumero(eventId, avulso);
     try {
-      const [tubo] = await db.insert(tubos).values({ eventId, numero: proximo, avulso, criadoPor } as any).returning();
+      const [tubo] = await db.insert(tubos).values({ eventId, numero: proximo, avulso, criadoPor }).returning();
       return tubo;
-    } catch (error: any) {
+    } catch (erro: unknown) {
+      const error = typeof erro === "object" && erro !== null ? (erro as { code?: unknown; message?: unknown }) : null;
       const colidiu = error?.code === "23505" || /duplicate key/i.test(String(error?.message ?? ""));
-      if (!colidiu || tentativa === 2) throw error;
+      if (!colidiu || tentativa === 2) throw erro;
     }
   }
   throw new Error("Não foi possível numerar o tubo");
@@ -346,7 +355,7 @@ async function criarTubo(eventId: string, criadoPor: string, avulso = false) {
  * atalho. `statusChangedAt` vai à mão porque esta escrita não passa por
  * storage.updateItem — e o delta `?since=` da Gráfica depende de `updatedAt`.
  */
-async function colocarNoTubo(req: any, tubo: TuboCru, planos: Plano[], tx: Ex) {
+async function colocarNoTubo(req: Request, tubo: TuboCru, planos: Plano[], tx: Ex) {
   const agora = new Date();
   const quem = resolveActor(req).userName;
   const jaNoTubo = new Map((await linhasDosTubos([tubo.id], tx)).filter((l) => !l.entregueEm).map((l) => [l.itemId, l]));
@@ -354,26 +363,26 @@ async function colocarNoTubo(req: any, tubo: TuboCru, planos: Plano[], tx: Ex) {
     const existente = jaNoTubo.get(pl.peca.id);
     if (existente) {
       // SOMA RELATIVA: nunca grava um total lido antes.
-      await tx.update(tuboItens).set({ quantidade: sql`${tuboItens.quantidade} + ${pl.quantidade}` } as any).where(eq(tuboItens.id, existente.id));
+      await tx.update(tuboItens).set({ quantidade: sql`${tuboItens.quantidade} + ${pl.quantidade}` }).where(eq(tuboItens.id, existente.id));
     } else {
-      await tx.insert(tuboItens).values({ tuboId: tubo.id, itemId: pl.peca.id, quantidade: pl.quantidade, embaladoEm: agora, embaladoPor: quem } as any);
+      await tx.insert(tuboItens).values({ tuboId: tubo.id, itemId: pl.peca.id, quantidade: pl.quantidade, embaladoEm: agora, embaladoPor: quem });
     }
     // `embaladaQty` foi calculado com a peça TRAVADA nesta transação.
     await tx.update(itemsTable).set({
       embaladaQty: pl.embaladaQty,
       updatedAt: agora,
       ...(pl.viraEmbalada && pl.peca.status !== EMBALADO ? { status: EMBALADO, statusChangedAt: agora } : {}),
-    } as any).where(eq(itemsTable.id, pl.peca.id));
+    }).where(eq(itemsTable.id, pl.peca.id));
   }
   await acertarAtalho(planos.map((pl) => pl.peca.id), agora, tx);
   await marcarConteudoAlterado(tubo, agora, tx);
 }
 
 /** A trilha e o aviso de "embalada" — depois da transação confirmada; falha aqui só vai ao log. */
-async function avisarEmbalagem(req: any, tubo: TuboCru, planos: Plano[], nFotos = 0) {
+async function avisarEmbalagem(req: Request, tubo: TuboCru, planos: Plano[], nFotos = 0) {
   await depoisDoCommit("avisar a embalagem", () => avisarEmbalagemCru(req, tubo, planos, nFotos));
 }
-async function avisarEmbalagemCru(req: any, tubo: TuboCru, planos: Plano[], nFotos: number) {
+async function avisarEmbalagemCru(req: Request, tubo: TuboCru, planos: Plano[], nFotos: number) {
   const comFoto = nFotos > 0 ? ` · ${nFotos} ${nFotos === 1 ? "foto" : "fotos"}` : "";
   await createAuditLogsEmLote(req, planos.map((pl) => {
     const quanto = pl.quantidade < pl.peca.quantity ? ` — ${pl.quantidade} de ${pl.peca.quantity} un.` : "";
@@ -405,7 +414,7 @@ async function tirarDoTubo(tubo: TuboCru, ids: string[], tx: Ex): Promise<Retira
       embaladaQty: plano.embaladaQty,
       updatedAt: agora,
       ...(plano.voltaAConferida ? { status: "conferred", statusChangedAt: agora } : {}),
-    } as any).where(eq(itemsTable.id, p.id));
+    }).where(eq(itemsTable.id, p.id));
   }
   await acertarAtalho(doTubo.map((l) => l.itemId), agora, tx);
   await marcarConteudoAlterado(tubo, agora, tx);
@@ -413,11 +422,11 @@ async function tirarDoTubo(tubo: TuboCru, ids: string[], tx: Ex): Promise<Retira
 }
 
 /** A trilha e o aviso de "retirada" — depois da transação confirmada; falha aqui só vai ao log. */
-async function avisarRetirada(req: any, tubo: TuboCru, tiradas: Retirada[], motivo?: string) {
+async function avisarRetirada(req: Request, tubo: TuboCru, tiradas: Retirada[], motivo?: string) {
   if (!tiradas.length) return;
   await depoisDoCommit("avisar a retirada", () => avisarRetiradaCru(req, tubo, tiradas, motivo));
 }
-async function avisarRetiradaCru(req: any, tubo: TuboCru, tiradas: Retirada[], motivo?: string) {
+async function avisarRetiradaCru(req: Request, tubo: TuboCru, tiradas: Retirada[], motivo?: string) {
   await createAuditLogsEmLote(req, tiradas.map((l) => ({
     action: "updated", entityType: "item", entityId: l.itemId,
     details: tubo.avulso ? `Embalagem desfeita — ${l.quantidade} un. voltaram a Conferido${motivo ? ` (${motivo})` : ""}` : `Retirada do Tubo ${tubo.numero} — ${l.quantidade} un.${motivo ? ` (${motivo})` : ""}`,
@@ -433,14 +442,14 @@ async function avisarRetiradaCru(req: any, tubo: TuboCru, tiradas: Retirada[], m
  * o arquivo: os volumes (por id), depois a peça. Volume avulso que fica vazio
  * some, como no "desfazer". Devolve null quando a peça já não existia (404).
  */
-export async function excluirPecaTirandoDosVolumes(req: any, itemId: string): Promise<{ tiradas: number } | null> {
+export async function excluirPecaTirandoDosVolumes(req: Request, itemId: string): Promise<{ tiradas: number } | null> {
   const feito = await db.transaction(async (tx: Ex) => {
     const abertas = (await linhasDasPecas([itemId], tx)).filter((l) => !l.entregueEm).map((l) => l.tuboId);
     const ids = Array.from(new Set(abertas)).sort();
-    const volumes: any[] = ids.length ? await tx.select().from(tubos).where(inArray(tubos.id, ids)).orderBy(asc(tubos.id)).for("update") : [];
+    const volumes: Tubo[] = ids.length ? await tx.select().from(tubos).where(inArray(tubos.id, ids)).orderBy(asc(tubos.id)).for("update") : [];
     const [peca] = await pecasTravadas(tx, [itemId]);
     if (!peca || peca.deletedAt) return null;
-    const mexidos: Array<{ tubo: any; tiradas: Retirada[] }> = [];
+    const mexidos: Array<{ tubo: Tubo; tiradas: Retirada[] }> = [];
     for (const tubo of volumes) {
       if (tubo.entregueEm) continue;
       const tiradas = await tirarDoTubo(tubo, [itemId], tx);
@@ -450,7 +459,7 @@ export async function excluirPecaTirandoDosVolumes(req: any, itemId: string): Pr
       if (tiradas.length) mexidos.push({ tubo, tiradas });
     }
     const agora = new Date();
-    const apagada = await tx.update(itemsTable).set({ deletedAt: agora, updatedAt: agora } as any)
+    const apagada = await tx.update(itemsTable).set({ deletedAt: agora, updatedAt: agora })
       .where(and(eq(itemsTable.id, itemId), isNull(itemsTable.deletedAt))).returning({ id: itemsTable.id });
     if (!apagada.length) throw new Recusa(404, "Item not found");
     return mexidos;
@@ -496,7 +505,7 @@ function lerPedidos(itens: unknown, ids: unknown): Pedido[] | null {
  * As fotos de um embalar/fechar: no mínimo 0 aqui (quem exige é a rota), no
  * máximo 20 por vez, todas do nosso storage — a mesma régua dos thumbs.
  */
-function lerFotos(body: any): { fotos: string[]; erro?: string } {
+function lerFotos(body: { fotos?: unknown; fotoUrl?: unknown } | null | undefined): { fotos: string[]; erro?: string } {
   const cruas = Array.isArray(body?.fotos) ? body.fotos : (body?.fotoUrl ? [body.fotoUrl] : []);
   if (cruas.length > 20) return { fotos: [], erro: "No máximo 20 fotos por vez" };
   const fotos = Array.from(new Set(cruas.map(urlDeThumbValida))) as Array<string | null>;
@@ -521,7 +530,7 @@ const noVolume = (t: Volume) => (t.avulso ? "na embalagem" : `no Tubo ${t.numero
 async function acumularFotos(tubo: { id: string; fotosFechamento?: string[] | null }, novas: string[], quem: string, agora: Date, ex: Ex = db) {
   if (!novas.length) return (tubo.fotosFechamento ?? []).length;
   const todas = Array.from(new Set([...(tubo.fotosFechamento ?? []), ...novas]));
-  await ex.update(tubos).set({ fotosFechamento: todas, fechadoEm: agora, fechadoPor: quem, conteudoAlteradoEm: null } as any)
+  await ex.update(tubos).set({ fotosFechamento: todas, fechadoEm: agora, fechadoPor: quem, conteudoAlteradoEm: null })
     .where(eq(tubos.id, tubo.id));
   return todas.length;
 }
@@ -556,7 +565,7 @@ export function registerTubosRoutes(app: Express): void {
       const todasDoEvento = (await db.select(COLUNAS_PECA).from(itemsTable)
         .where(and(eq(itemsTable.eventId, eventId), isNull(itemsTable.deletedAt)))) as PecaCrua[];
       const pecas = visiveis(req, todasDoEvento);
-      const linhasCruas = await linhasDosTubos(lista.map((t: any) => t.id));
+      const linhasCruas = await linhasDosTubos(lista.map((t) => t.id));
       // A PEÇA EXCLUÍDA que ainda está num volume ABERTO (revisão de 22/09):
       // entra no retrato, com "foi excluída" como problema, para o operador
       // conseguir tirá-la — sem ela na tela, o volume ficava sem entrega e sem
@@ -586,7 +595,7 @@ export function registerTubosRoutes(app: Express): void {
       // Kit: só os tubos com alguma peça que ele vê (o tubo vazio de outro
       // usuário não é dele para mexer). Fora do Kit, todos — inclusive vazios.
       const doKit = quemVe(req).kit;
-      const tubosDaTela = lista.filter((t: any) => !doKit || dentroDe.has(t.id)).map((t: any) => {
+      const tubosDaTela = lista.filter((t) => !doKit || dentroDe.has(t.id)).map((t) => {
         const dentro = (dentroDe.get(t.id) ?? []).sort((a, b) => porCodigo(a.p, b.p));
         return {
           id: t.id,
@@ -621,7 +630,7 @@ export function registerTubosRoutes(app: Express): void {
       // arquivada, em aprovação ou em revisão nunca aparece aqui.
       const semTubo = pecas.filter((p) => !ehEntregue(p) && statusEmbalavel(p.status) && aEmbalar(p) > 0).sort(porCodigo).map((p) => pecaParaTela(p));
       res.json({ evento, tubos: tubosDaTela, semTubo });
-    } catch (error: any) {
+    } catch (error) {
       console.error("[tubos] falha ao listar os tubos do evento:", error);
       res.status(500).json({ error: "Não foi possível carregar os tubos." });
     }
@@ -641,7 +650,7 @@ export function registerTubosRoutes(app: Express): void {
       // 60 dias — é o que a fila e a aba usam. O histórico mora em Registros.
       if (req.query.detalhe) {
         const lista = await db.select().from(tubos).where(volumeNaJanela()).orderBy(asc(tubos.numero));
-        const idsDeEvento = Array.from(new Set(lista.map((t: any) => t.eventId)));
+        const idsDeEvento = Array.from(new Set(lista.map((t) => t.eventId)));
         const eventosDaLista = idsDeEvento.length
           ? await db.select({ id: events.id, name: events.name, truckDepartureDate: events.truckDepartureDate }).from(events).where(inArray(events.id, idsDeEvento))
           : [];
@@ -665,7 +674,7 @@ export function registerTubosRoutes(app: Express): void {
           if (p) dentroDe.set(l.tuboId, [...(dentroDe.get(l.tuboId) ?? []), { p, l }]);
         }
         const doKit = quemVe(req).kit;
-        return res.json(lista.filter((t: any) => !doKit || dentroDe.has(t.id)).map((t: any) => {
+        return res.json(lista.filter((t) => !doKit || dentroDe.has(t.id)).map((t) => {
           const dentro = (dentroDe.get(t.id) ?? []).sort((x, y) => porCodigo(x.p, y.p));
           const soVe = soVisualizaKit(req) && dentro.some(({ p }) => p.kitRemessaId);
           return {
@@ -698,7 +707,7 @@ export function registerTubosRoutes(app: Express): void {
       for (const l of permitidas) porTubo.set(l.tuboId, [...(porTubo.get(l.tuboId) ?? []), { itemId: l.itemId, quantidade: l.quantidade, entregue: !!l.entregueEm }]);
       const comLinhas = todos.map((t) => ({ ...t, linhas: porTubo.get(t.id) ?? [] }));
       res.json(quemVe(req).kit ? comLinhas.filter((t) => t.linhas.length > 0) : comLinhas);
-    } catch (error: any) {
+    } catch (error) {
       console.error("[tubos] falha ao listar tubos:", error);
       res.status(500).json({ error: "Não foi possível carregar os tubos." });
     }
@@ -735,7 +744,7 @@ export function registerTubosRoutes(app: Express): void {
       const doKit = quemVe(req).kit;
 
       const quando = sql`coalesce(${tubos.entregueEm}, ${tubos.fechadoEm}, ${tubos.createdAt})`;
-      const filtros: any[] = [
+      const filtros: SQL[] = [
         sql`(${tubos.entregueEm} is not null or coalesce(array_length(${tubos.fotosFechamento}, 1), 0) > 0)`,
         doEventoNaoArquivado(tubos.eventId),
       ];
@@ -747,17 +756,17 @@ export function registerTubosRoutes(app: Express): void {
       const consulta = db.select().from(tubos).where(and(...filtros)).orderBy(sql`${quando} desc`, asc(tubos.id));
       const lista = (cortaNoBanco ? await consulta.limit(limite) : await consulta) as any[];
       if (!lista.length) return res.json([]);
-      const idsDeEvento = Array.from(new Set(lista.map((t: any) => t.eventId)));
+      const idsDeEvento = Array.from(new Set(lista.map((t) => t.eventId)));
       const eventosDaLista = await db.select({ id: events.id, name: events.name }).from(events).where(inArray(events.id, idsDeEvento as string[]));
       const eventoPorId = new Map(eventosDaLista.map((e) => [e.id, e.name]));
-      const ls = await linhasDosTubos(lista.map((t: any) => t.id));
+      const ls = await linhasDosTubos(lista.map((t) => t.id));
       const idsDePeca = Array.from(new Set(ls.map((l) => l.itemId)));
       // A peça EXCLUÍDA continua no registro (é histórico) — sem filtro de deleted_at.
       const cruas = idsDePeca.length ? ((await db.select(COLUNAS_PECA).from(itemsTable).where(inArray(itemsTable.id, idsDePeca))) as PecaCrua[]) : [];
       const visivel = new Map(visiveis(req, cruas).map((p) => [p.id, p]));
       const semAcento = (v: string) => v.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
       const palavras = semAcento(busca).split(/ +/).filter(Boolean);
-      const saida = lista.map((t: any) => {
+      const saida = lista.map((t) => {
         const dentro = ls.filter((l) => l.tuboId === t.id && visivel.has(l.itemId)).map((l) => ({ p: visivel.get(l.itemId)!, l })).sort((x, y) => porCodigo(x.p, y.p));
         return {
           id: t.id, numero: t.numero, avulso: !!t.avulso, eventId: t.eventId, eventName: eventoPorId.get(t.eventId) ?? "Evento",
@@ -776,7 +785,7 @@ export function registerTubosRoutes(app: Express): void {
         })
         .slice(0, limite);
       res.json(saida);
-    } catch (error: any) {
+    } catch (error) {
       console.error("[tubos] falha ao listar os registros dos volumes:", error);
       res.status(500).json({ error: "Não foi possível carregar os registros dos tubos." });
     }
@@ -801,10 +810,10 @@ export function registerTubosRoutes(app: Express): void {
       res.json({
         // fechadoEm: a etiqueta do tubo lê para o rodapé "embalado dd/mm".
         tubo: { id: tubo.id, numero: tubo.numero, avulso: !!tubo.avulso, entregueEm: tubo.entregueEm, recebidoPor: tubo.recebidoPor, fechadoEm: tubo.fechadoEm },
-        evento: evento ? { ...evento, bookUrl: (comBook[0] as any)?.bookUrl ?? null } : null,
+        evento: evento ? { ...evento, bookUrl: comBook[0]?.bookUrl ?? null } : null,
         pecas: dentro.sort((a, b) => porCodigo(a.p, b.p)).map(({ p, l }) => pecaParaTela(p, l)),
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error("[tubos] falha ao ler o tubo:", error);
       res.status(500).json({ error: "Não foi possível carregar o tubo." });
     }
@@ -817,7 +826,7 @@ export function registerTubosRoutes(app: Express): void {
     if (pedidos === null) return res.status(400).json({ error: "itens deve ser uma lista de peças (com a quantidade, se não for tudo)" });
     const lidas = lerFotos(req.body);
     if (lidas.erro) return res.status(400).json({ error: lidas.erro });
-    let criado: any = null;
+    let criado: Tubo | null = null;
     try {
       const eventId = req.params.eventId;
       const [evento] = await db.select({ id: events.id, name: events.name, arquivadoEm: events.arquivadoEm }).from(events).where(eq(events.id, eventId));
@@ -840,7 +849,7 @@ export function registerTubosRoutes(app: Express): void {
       // hoje e 3 amanhã, sozinha, criava OUTRO avulso — "Embalada (7) ·
       // Embalada (3)" e duas entregas da mesma peça. Se ela já tem uma
       // embalagem avulsa ABERTA, as unidades novas vão para ela.
-      let existente: any = null;
+      let existente: Tubo | null = null;
       if (avulso) {
         const [achado] = await db.select({ id: tubos.id }).from(tubos)
           .innerJoin(tuboItens, eq(tuboItens.tuboId, tubos.id))
@@ -869,7 +878,7 @@ export function registerTubosRoutes(app: Express): void {
 
       await depoisDoCommit("avisar os tubos", async () => broadcast({ type: "tubos_atualizados", eventId }));
       res.status(existente ? 200 : 201).json(tubo);
-    } catch (error: any) {
+    } catch (error) {
       // A recusa de dentro da transação não deixa o volume recém-criado vazio para trás.
       if (criado) await db.delete(tubos).where(eq(tubos.id, criado.id)).catch(() => {});
       if (responderRecusa(res, error)) return;
@@ -929,10 +938,10 @@ export function registerTubosRoutes(app: Express): void {
             const dentro = new Set((await linhasDosTubos([travado.id], tx)).map((l) => l.itemId));
             if (planos.some((pl) => !dentro.has(pl.peca.id)) && dentro.size > 0) {
               const numero = await proximoNumero(travado.eventId, false, tx);
-              await tx.update(tubos).set({ avulso: false, numero } as any).where(eq(tubos.id, travado.id));
+              await tx.update(tubos).set({ avulso: false, numero }).where(eq(tubos.id, travado.id));
               travado.avulso = false; travado.numero = numero; virouTubo = numero;
               // A peça que já estava lá passa a ser "Tubo N": carimba para o delta `?since=`.
-              await tx.update(itemsTable).set({ updatedAt: new Date() } as any).where(inArray(itemsTable.id, Array.from(dentro)));
+              await tx.update(itemsTable).set({ updatedAt: new Date() }).where(inArray(itemsTable.id, Array.from(dentro)));
             }
           }
           await colocarNoTubo(req, travado, planos, tx);
@@ -957,7 +966,7 @@ export function registerTubosRoutes(app: Express): void {
       await avisarRetirada(req, feito.travado, feito.tiradas);
       await depoisDoCommit("avisar os tubos", async () => broadcast({ type: "tubos_atualizados", eventId: tubo.eventId }));
       res.json({ ok: true, numero: feito.travado.numero, avulso: !!feito.travado.avulso });
-    } catch (error: any) {
+    } catch (error) {
       if (responderRecusa(res, error)) return;
       console.error("[tubos] falha ao mudar peças do tubo:", error);
       res.status(500).json({ error: "Não foi possível mudar as peças do tubo." });
@@ -992,7 +1001,7 @@ export function registerTubosRoutes(app: Express): void {
         devolvidas ? `${apagado} — ${devolvidas} peça(s) voltaram a Conferido` : `${apagado} (estava vazio)`);
       broadcast({ type: "tubos_atualizados", eventId: tubo.eventId });
       res.json({ ok: true, devolvidas });
-    } catch (error: any) {
+    } catch (error) {
       if (responderRecusa(res, error)) return;
       console.error("[tubos] falha ao apagar tubo:", error);
       res.status(500).json({ error: "Não foi possível apagar o tubo." });
@@ -1028,7 +1037,7 @@ export function registerTubosRoutes(app: Express): void {
         // das que estão nele (abertas), senão o delta `?since=` da Gráfica não
         // as traz e a fila segue com a hora velha (revisão de 22/09).
         const ids = (await linhasDosTubos([travado.id], tx)).filter((l) => !l.entregueEm).map((l) => l.itemId);
-        if (ids.length) await tx.update(itemsTable).set({ updatedAt: agora } as any).where(inArray(itemsTable.id, Array.from(new Set(ids))));
+        if (ids.length) await tx.update(itemsTable).set({ updatedAt: agora }).where(inArray(itemsTable.id, Array.from(new Set(ids))));
         return total;
       });
       const n = fotos.length;
@@ -1042,7 +1051,7 @@ export function registerTubosRoutes(app: Express): void {
         broadcast({ type: "tubos_atualizados", eventId: tubo.eventId });
       });
       res.json({ ok: true, numero: tubo.numero, fotos: n, totalDeFotos });
-    } catch (error: any) {
+    } catch (error) {
       if (responderRecusa(res, error)) return;
       console.error("[tubos] falha ao guardar as fotos do tubo:", error);
       res.status(500).json({ error: "Não foi possível guardar as fotos do tubo." });
@@ -1065,7 +1074,7 @@ export function registerTubosRoutes(app: Express): void {
   // (dono, 23/09): o lote é esta mesma função chamada volume a volume, então
   // as recusas (trava, Kit, peça com problema) são as mesmas.
   type DadosDaEntrega = { quem: ReturnType<typeof resolveActor>; agora: Date; hora: string; recebedor: string; foto: string | null; obs: string };
-  const entregarVolume = (req: any, tuboId: string, { quem, agora, hora, recebedor, foto, obs }: DadosDaEntrega) =>
+  const entregarVolume = (req: Request, tuboId: string, { quem, agora, hora, recebedor, foto, obs }: DadosDaEntrega) =>
     db.transaction(async (tx: Ex) => {
       const tubo = await travarTubo(tx, tuboId);
       const dentro = await conteudoDoTubo(tubo.id, tx);
@@ -1090,7 +1099,7 @@ export function registerTubosRoutes(app: Express): void {
 
       for (const { p, l } of aEntregar) {
         const plano = planejarEntrega(p, l.quantidade);
-        await tx.update(tuboItens).set({ entregueEm: agora } as any).where(eq(tuboItens.id, l.id));
+        await tx.update(tuboItens).set({ entregueEm: agora }).where(eq(tuboItens.id, l.id));
         await tx.update(itemsTable).set({
           // RELATIVO e com teto: nunca grava um total lido fora da trava.
           deliveredQty: sql`least(${itemsTable.quantity}, coalesce(${itemsTable.deliveredQty}, 0) + ${l.quantidade})`,
@@ -1099,7 +1108,7 @@ export function registerTubosRoutes(app: Express): void {
           receivedBy: recebedor,
           ...(obs ? { deliveryNotes: obs } : {}),
           ...(plano.viraEntregue ? { status: "delivered", deliveredAt: agora, statusChangedAt: agora } : {}),
-        } as any).where(eq(itemsTable.id, p.id));
+        }).where(eq(itemsTable.id, p.id));
         await tx.insert(auditLogs).values({
           ...quem,
           action: "delivered",
@@ -1107,7 +1116,7 @@ export function registerTubosRoutes(app: Express): void {
           entityId: p.id,
           // "Entrega concluída (" é a frase que a medição de tempo por etapa lê.
           details: `${plano.viraEntregue ? "Entrega concluída (" : "Entrega parcial ("}${plano.deliveredQty}/${p.quantity}, recebido por: ${recebedor}) — ${l.quantidade} un. ${tubo.avulso ? "entregues" : `no Tubo ${tubo.numero}, entregue`} a ${recebedor} em ${hora}`,
-        } as any);
+        });
       }
       await tx.update(tubos).set({
         entregueEm: agora,
@@ -1115,14 +1124,14 @@ export function registerTubosRoutes(app: Express): void {
         fotoEntregaUrl: foto,
         entregueObs: obs || null,
         entreguePor: quem.userName,
-      } as any).where(eq(tubos.id, tubo.id));
+      }).where(eq(tubos.id, tubo.id));
       await tx.insert(auditLogs).values({
         ...quem,
         action: "delivered",
         entityType: "tubo",
         entityId: tubo.id,
         details: `${tubo.avulso ? "Embalagem avulsa entregue" : `Tubo ${tubo.numero} entregue`} a ${recebedor} em ${hora}${foto ? " (com foto)" : ""} — ${aEntregar.map(({ p, l }) => `${p.displayId ?? "peça"} (${l.quantidade})`).join(", ")}`,
-      } as any);
+      });
       // O ATALHO `items.tubo_id`: a peça dividida que ainda tem outro volume
       // aberto passa a apontar para ELE, não para o que acabou de sair.
       await acertarAtalho(aEntregar.map(({ p }) => p.id), agora, tx);
@@ -1170,7 +1179,7 @@ export function registerTubosRoutes(app: Express): void {
 
       await depoisDaEntrega(tubo.eventId, aEntregar.map(({ p }) => p.id));
       res.json({ ok: true, numero: tubo.numero, avulso: !!tubo.avulso, entregues: aEntregar.length, unidades: aEntregar.reduce((s, { l }) => s + l.quantidade, 0) });
-    } catch (error: any) {
+    } catch (error) {
       if (responderRecusa(res, error)) return;
       console.error("[tubos] falha ao entregar o tubo:", error);
       res.status(500).json({ error: "Não foi possível registrar a entrega do tubo." });

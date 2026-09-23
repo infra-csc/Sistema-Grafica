@@ -21,28 +21,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 import { fonteDaGrafica } from "./fonte-da-grafica";
 
-const rotas = fonteDasRotasDeItens();
 const grafica = fonteDaGrafica();
 
 // A ENTREGA POR PEÇA FOI APOSENTADA (dono, 21/09: "todas são embaladas" + "tem que
 // colocar as quantidades"): quem entrega é o volume (tubo ou embalagem avulsa),
 // em routes/tubos.ts — obrigatório é quem recebeu; a foto veio de antes (a da
-// conferência e a do embalar). A rota por peça responde 409 para qualquer peça.
-describe("a entrega por peça está aposentada", () => {
-  const i = rotas.indexOf('app.patch("/api/items/:id/deliver"');
-  const rota = rotas.slice(i, i + 900);
-  it("responde 409 que ensina, sem escrever nada", () => {
-    expect(i).toBeGreaterThan(-1);
-    expect(rota).toContain('return res.status(409).json({ error: "Embale antes de entregar (Embalar pede a foto; a entrega pede só quem recebeu)" });');
-    expect(rota).not.toContain("updateItem");
-    expect(rota).not.toContain("photoUrl is required");
-  });
-});
+// conferência e a do embalar). A rota por peça responde 409 para qualquer peça —
+// EXECUTADA em regras-estoque-peca-embalada.test.ts (409, nada gravado).
 
 // A TELA DA GRÁFICA não tem mais entrega por peça (nem individual, nem em lote,
 // nem fila do galpão): o código dormente saiu. A entrega é a do volume, na aba

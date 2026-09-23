@@ -124,22 +124,26 @@ const texto = (v: unknown): string | undefined =>
   typeof v === "string" && v.length > 0 && v.length <= 200 ? v : undefined;
 const numero = (v: unknown): number | undefined =>
   typeof v === "number" && Number.isFinite(v) ? v : undefined;
+type Campos = Record<string, unknown>;
+// Lê campos de um valor que talvez seja objeto; primitivo/nulo vira undefined.
+const obj = (v: unknown): Campos | undefined =>
+  typeof v === "object" && v !== null ? (v as Campos) : undefined;
 
 /** Mensagem cheia → sinal. Pura; nunca copia objeto nenhum para o fio. */
 export function recortarParaSinal(msg: MensagemWS): SinalWS {
-  const m = msg as Record<string, any>;
+  const m = msg as Campos;
   const principal = m.item ?? m.event ?? m.sponsor ?? m.comment ?? m.photo ?? m.notification ?? null;
   const sinal: SinalWS = { type: msg.type };
 
-  const id = texto(principal?.id) ?? texto(m.itemId) ?? texto(m.commentId) ?? texto(m.photoId)
-    ?? texto(m.sponsorId) ?? texto(m.assetId) ?? texto(m.targetId) ?? texto(m.itemSponsor?.itemId);
+  const id = texto(obj(principal)?.id) ?? texto(m.itemId) ?? texto(m.commentId) ?? texto(m.photoId)
+    ?? texto(m.sponsorId) ?? texto(m.assetId) ?? texto(m.targetId) ?? texto(obj(m.itemSponsor)?.itemId);
   if (id) sinal.id = id;
 
-  const eventId = texto(m.eventId) ?? texto(m.item?.eventId) ?? texto(m.event?.id) ?? texto(m.notification?.eventId);
+  const eventId = texto(m.eventId) ?? texto(obj(m.item)?.eventId) ?? texto(obj(m.event)?.id) ?? texto(obj(m.notification)?.eventId);
   if (eventId) sinal.eventId = eventId;
 
-  const itemId = texto(m.itemId) ?? texto(m.comment?.itemId) ?? texto(m.photo?.itemId) ?? texto(m.itemSponsor?.itemId)
-    ?? (msg.type.startsWith("standard_item") ? undefined : texto(m.item?.id));
+  const itemId = texto(m.itemId) ?? texto(obj(m.comment)?.itemId) ?? texto(obj(m.photo)?.itemId) ?? texto(obj(m.itemSponsor)?.itemId)
+    ?? (msg.type.startsWith("standard_item") ? undefined : texto(obj(m.item)?.id));
   if (itemId) sinal.itemId = itemId;
 
   const count = numero(m.count)
@@ -147,9 +151,9 @@ export function recortarParaSinal(msg: MensagemWS): SinalWS {
     ?? (Array.isArray(m.itemIds) ? m.itemIds.length : undefined);
   if (count !== undefined) sinal.count = count;
 
-  const nome = texto(m.event?.name) ?? texto(m.eventName);
+  const nome = texto(obj(m.event)?.name) ?? texto(m.eventName);
   if (nome) sinal.nome = nome;
-  const tipoDaPeca = msg.type.startsWith("standard_item") ? undefined : texto(m.item?.type);
+  const tipoDaPeca = msg.type.startsWith("standard_item") ? undefined : texto(obj(m.item)?.type);
   if (tipoDaPeca) sinal.tipoDaPeca = tipoDaPeca;
   const message = texto(m.message);
   if (message && msg.type !== "connected") sinal.message = message;

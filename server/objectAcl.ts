@@ -174,7 +174,8 @@ export function caminhoDoObjeto(raw: unknown): string | null {
   return m ? `/objects/${m[1]}` : null;
 }
 
-type Consulta = (sql: string, params: unknown[]) => Promise<{ rows: any[] }>;
+/** As colunas que as duas consultas daqui devolvem. */
+type Consulta = (sql: string, params: unknown[]) => Promise<{ rows: Array<{ url?: unknown; kit_remessa_id?: string | null; criado_por_id?: string | null }> }>;
 /** Dona do arquivo: a peça, ou a remessa do Kit (kitRemessaId = a própria remessa). */
 type Dona = { kitRemessaId: string | null; criadoPorId: string | null };
 

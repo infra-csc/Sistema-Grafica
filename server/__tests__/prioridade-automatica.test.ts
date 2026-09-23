@@ -4,6 +4,9 @@
 // A decisão de convivência, confirmada pelo dono: "automática + ajuste
 // manual" — a regra manda em todo evento sem trava; definir à mão trava
 // (priority_manual) até alguém limpar, e aí a automática volta NA HORA.
+//
+// O job, a trava e as rotas de evento rodam de verdade em
+// regras-fluxo-prioridade.test.ts; aqui ficam a régua pura e a tela.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
@@ -45,39 +48,7 @@ describe("a régua (função pura)", () => {
 });
 
 describe("a amarração", () => {
-  const SCHEMA = ler("shared/schema.ts");
-  const SERVICO = ler("server/services/prioridadeAutomatica.ts");
-  const EVENTS = ler("server/routes/events.ts");
-  const ROUTES = ler("server/routes.ts");
   const TELA = fonteDaTela("eventos");
-
-  it("a trava manual existe na coluna e o job a respeita", () => {
-    expect(SCHEMA).toContain('priorityManual: boolean("priority_manual").notNull().default(false)');
-    expect(SERVICO).toContain("if ((ev as any).priorityManual) continue;");
-    // evento finalizado fica SEM prioridade — saiu das filas
-    expect(SERVICO).toContain("motivoEventoFinalizado(ev as any, hojeBiz) !== null");
-  });
-
-  it("o job roda no boot e de hora em hora, e falha não derruba o processo", () => {
-    expect(SERVICO).toContain("void tick();");
-    expect(SERVICO).toContain("setInterval(tick, 60 * 60 * 1000);");
-    expect(ROUTES).toContain("startPrioridadeAutomatica();");
-  });
-
-  it("definir à mão TRAVA; limpar destrava e aplica a automática NA HORA", () => {
-    expect(EVENTS).toContain("priorityManual: !clearing,");
-    expect(EVENTS).toContain("priority: (clearing ? automatica : priority) as any,");
-    // e a trilha registra a decisão humana (travar/destravar) — o tick não loga
-    expect(EVENTS).toContain('voltou à automática');
-    expect(EVENTS).toContain("travada; a regra automática não mexe até limpar");
-    expect(SERVICO).not.toContain("createAuditLog");
-  });
-
-  it("evento novo já nasce com prioridade; mudar a saída reprioriza na hora", () => {
-    expect(EVENTS).toContain("prioridadeEscolhida ?? prioridadePelaSaida(truckAt.getTime(), Date.now())");
-    expect(EVENTS).toContain("priorityManual: !!prioridadeEscolhida,");
-    expect(EVENTS).toContain("if (patchData.truckDepartureDate) void aplicarPrioridadeAutomatica();");
-  });
 
   it("a tela diz a regra: 1–4 travam, 0 volta à automática", () => {
     expect(TELA).toContain("Voltar à automática (0)");

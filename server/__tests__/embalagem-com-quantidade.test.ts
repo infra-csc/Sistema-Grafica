@@ -10,10 +10,12 @@
 //   3. AS ROTAS usam essas contas — e a entrega por peça responde 409 para todos;
 //   4. OS CONTRATOS novos para quem lê: `quantidadeNoTubo`, `linhas`, `tuboVolumes`;
 //   5. A TELA: selo dividido, "Embalar 3", a linha da etiqueta e a frase do fluxo.
-// O modal com o campo "Quantas" é MONTADO em tubos-tres-modais.test.ts.
+// O modal com o campo "Quantas" é MONTADO em tubos-tres-modais.test.ts. As rotas
+// (3) e os contratos (4) são EXECUTADOS em regras-estoque-tubos-rotas.test.ts e
+// regras-estoque-peca-embalada.test.ts; o schema, em regras-estoque-schema.test.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
+import { comandosQueCitam, colunasConferidasPeloMjs, DESTRUTIVO } from "./regras-estoque-migracao";
 import { readFileSync } from "fs";
 import path from "path";
 import {
@@ -27,8 +29,6 @@ import { gatesDaGrafica } from "../../client/src/components/grafica/fila/regras"
 
 const RAIZ = path.resolve(__dirname, "../..");
 const ler = (rel: string) => readFileSync(path.resolve(RAIZ, rel), "utf8");
-const ROTAS = ler("server/routes/tubos.ts");
-const ITEMS = fonteDasRotasDeItens();
 const GRAFICA = fonteDaGrafica();
 
 const peca = (extra: Record<string, unknown> = {}) => ({ quantity: 10, quantityProduced: 10, reuseQty: 0, isReuse: false, conferredQty: 10, embaladaQty: 0, deliveredQty: 0, status: "conferred", ...extra });
@@ -104,120 +104,38 @@ describe("1 · as contas", () => {
 });
 
 describe("2 · o modelo é ADITIVO", () => {
-  const SCHEMA = ler("shared/schema.ts");
-  const SQL = ler("scripts/migracao-aditiva-producao.sql");
-  it("schema: items.embalada_qty e a tabela tubo_itens (única por tubo+peça, índice por peça, cascade)", () => {
-    expect(SCHEMA).toContain('embaladaQty: integer("embalada_qty").notNull().default(0),');
-    expect(SCHEMA).toContain('export const tuboItens = pgTable("tubo_itens", {');
-    expect(SCHEMA).toContain('tuboId: varchar("tubo_id").notNull().references(() => tubos.id, { onDelete: "cascade" }),');
-    expect(SCHEMA).toContain('itemId: varchar("item_id").notNull().references(() => items.id, { onDelete: "cascade" }),');
-    expect(SCHEMA).toContain('uniqueIndex("UQ_tubo_itens_tubo_item").on(table.tuboId, table.itemId),');
-    expect(SCHEMA).toContain('index("IDX_tubo_itens_item").on(table.itemId),');
-    // quem cria peça pelo corpo da requisição não escolhe o total embalado
-    expect(SCHEMA).toContain("  embaladaQty: true,\n  printMachine: true,\n  tuboId: true,");
-  });
+  // O schema (embalada_qty, tubo_itens, publicInsertItemSchema) é lido pelo drizzle em regras-estoque-schema.test.ts.
+  // Varredura: o .sql e o .mjs não rodam nos testes de unidade; confere-se cada COMANDO que cita a tabela.
   it("SQL: só ADD COLUMN / CREATE IF NOT EXISTS, quantidade > 0, e o preenchimento das peças que já estavam em tubo é idempotente", () => {
-    expect(SQL).toContain("ALTER TABLE items ADD COLUMN IF NOT EXISTS embalada_qty integer NOT NULL DEFAULT 0;");
-    expect(SQL).toContain("CREATE TABLE IF NOT EXISTS tubo_itens (");
-    expect(SQL).toContain("quantidade integer NOT NULL CHECK (quantidade > 0),");
-    expect(SQL).toContain('CREATE UNIQUE INDEX IF NOT EXISTS "UQ_tubo_itens_tubo_item" ON tubo_itens (tubo_id, item_id);');
-    expect(SQL).toContain('CREATE INDEX IF NOT EXISTS "IDX_tubo_itens_item" ON tubo_itens (item_id);');
-    expect(SQL).toContain("AND NOT EXISTS (SELECT 1 FROM tubo_itens x WHERE x.item_id = i.id);");
-    expect(SQL).toContain("WHERE s.item_id = i.id AND i.embalada_qty = 0;");
-    const bloco = SQL.slice(SQL.indexOf("-- EMBALAGEM COM QUANTIDADE"));
-    // ("ON DELETE CASCADE" é da chave estrangeira — não apaga nada ao rodar.)
-    expect(bloco).not.toMatch(/\bDROP\b|\bDELETE FROM\b|\bTRUNCATE\b|ALTER COLUMN/i);
+    const doModelo = [...comandosQueCitam("tubo_itens"), ...comandosQueCitam("embalada_qty")];
+    expect(doModelo.length).toBeGreaterThan(0);
+    for (const c of doModelo) expect(c).not.toMatch(DESTRUTIVO);
+    expect(doModelo).toContainEqual(expect.stringMatching(/^ALTER TABLE items ADD COLUMN IF NOT EXISTS embalada_qty integer NOT NULL DEFAULT 0\s*;/i));
+    const cria = doModelo.find((c) => /^CREATE TABLE IF NOT EXISTS tubo_itens\s*\(/i.test(c))!;
+    expect(cria).toMatch(/\bquantidade integer NOT NULL CHECK \(\s*quantidade > 0\s*\)/i);
+    expect(doModelo).toContainEqual(expect.stringMatching(/^CREATE UNIQUE INDEX IF NOT EXISTS "UQ_tubo_itens_tubo_item" ON tubo_itens\s*\(\s*tubo_id\s*,\s*item_id\s*\)/i));
+    expect(doModelo).toContainEqual(expect.stringMatching(/^CREATE INDEX IF NOT EXISTS "IDX_tubo_itens_item" ON tubo_itens\s*\(\s*item_id\s*\)/i));
+    // o preenchimento só toca quem ainda não tem linha / ainda está em 0 (rodar duas vezes não dobra)
+    const insere = doModelo.find((c) => /^INSERT INTO tubo_itens\b/i.test(c))!;
+    expect(insere).toMatch(/NOT EXISTS\s*\(\s*SELECT 1 FROM tubo_itens x WHERE x\.item_id = i\.id\s*\)/i);
+    const soma = doModelo.find((c) => /^UPDATE items\b/i.test(c))!;
+    expect(soma).toMatch(/\bi\.embalada_qty = 0\b/i);
   });
   it("o .mjs confere a coluna e a tabela depois de rodar", () => {
-    const MJS = ler("scripts/migracao-aditiva-producao.mjs");
-    expect(MJS).toContain("'reserva_por_maquina','embalada_qty',");
-    expect(MJS).toContain("(table_name='tubo_itens' AND column_name IN ('tubo_id','item_id','quantidade','entregue_em'))");
+    const conferidas = colunasConferidasPeloMjs();
+    expect(Array.from(conferidas.get("items") ?? [])).toContain("embalada_qty");
+    expect(Array.from(conferidas.get("tubo_itens") ?? [])).toEqual(expect.arrayContaining(["tubo_id", "item_id", "quantidade", "entregue_em"]));
   });
 });
 
-describe("3 · as rotas usam as contas", () => {
-  it("embalar aceita `itens: [{ id, quantidade }]` OU a lista de ids (quantidade = tudo o que dá), no tubo novo e no aberto", () => {
-    expect(ROTAS).toContain("function lerPedidos(itens: unknown, ids: unknown): Pedido[] | null {");
-    expect(ROTAS).toContain("const pedidos = lerPedidos(req.body?.itens, req.body?.itemIds);");
-    expect(ROTAS).toContain("const pedidos = lerPedidos(req.body?.itens, req.body?.adicionar);");
-    expect(ROTAS).toContain("const plano = planejarEmbalar(p, pedido.quantidade);");
-    expect(ROTAS).toContain("if (!plano.ok) { recusas.push(`${nome}: ${plano.motivo}`); continue; }");
-  });
-  it("embalar soma na linha (ou cria), soma em embalada_qty, vira packed só com tudo embalado, e acerta o atalho", () => {
-    expect(ROTAS).toContain("await tx.update(tuboItens).set({ quantidade: sql`${tuboItens.quantidade} + ${pl.quantidade}` } as any)");
-    expect(ROTAS).toContain("await tx.insert(tuboItens).values({ tuboId: tubo.id, itemId: pl.peca.id, quantidade: pl.quantidade, embaladoEm: agora, embaladoPor: quem } as any);");
-    expect(ROTAS).toContain("...(pl.viraEmbalada && pl.peca.status !== EMBALADO ? { status: EMBALADO, statusChangedAt: agora } : {}),");
-    expect(ROTAS).toContain("await acertarAtalho(planos.map((pl) => pl.peca.id), agora, tx);");
-    expect(ROTAS).toContain("const principal = volumePrincipal(todas.filter((l) => l.itemId === id));");
-  });
-  it("embalar SEMPRE pede foto (só conferida embala) — e, no tubo novo, a recusa vem antes de criar", () => {
-    const criar = ROTAS.slice(ROTAS.indexOf('app.post("/api/events/:eventId/tubos"'), ROTAS.indexOf('app.patch("/api/tubos/:id/itens"'));
-    expect(criar).toContain("if (previa.planos.length && lidas.fotos.length === 0) return res.status(400).json({ error: RECADO_FOTO_DO_EMBALAR });");
-    expect(criar.indexOf("RECADO_FOTO_DO_EMBALAR")).toBeLessThan(criar.indexOf("await criarTubo("));
-    const patch = ROTAS.slice(ROTAS.indexOf('app.patch("/api/tubos/:id/itens"'), ROTAS.indexOf('app.delete("/api/tubos/:id"'));
-    expect(patch).toContain("if (pedidos.length && lidas.fotos.length === 0) {");
-    expect(patch).toContain("return res.status(400).json({ error: RECADO_FOTO_DO_EMBALAR });");
-    expect(patch.slice(patch.indexOf("if (remover.length) {"))).not.toContain("RECADO_FOTO_DO_EMBALAR");
-  });
-  it("tirar é POR LINHA (as não entregues), com a trilha dizendo quantas unidades; avulso esvaziado some", () => {
-    expect(ROTAS).toContain("const doTubo = (await linhasDosTubos([tubo.id], tx)).filter((l) => ids.includes(l.itemId) && !l.entregueEm);");
-    expect(ROTAS).toContain("const plano = planejarRetirada(p, l.quantidade);");
-    expect(ROTAS).toContain('...(plano.voltaAConferida ? { status: "conferred", statusChangedAt: agora } : {}),');
-    expect(ROTAS).toContain("`Retirada do Tubo ${tubo.numero} — ${l.quantidade} un.${motivo ? ` (${motivo})` : \"\"}`");
-    expect(ROTAS).toContain("if (travado.avulso && tiradas.length > 0 && (await linhasDosTubos([travado.id], tx)).length === 0) {");
-  });
-  it("entregar o volume: carimba a linha, soma em deliveredQty, `delivered` só com tudo — numa transação; e o tubo guarda o que foi junto", () => {
-    const entregar = ROTAS.slice(ROTAS.indexOf("const entregarVolume ="));
-    expect(entregar).toContain("const plano = planejarEntrega(p, l.quantidade);");
-    expect(entregar).toContain("await tx.update(tuboItens).set({ entregueEm: agora } as any).where(eq(tuboItens.id, l.id));");
-    expect(entregar).toContain('...(plano.viraEntregue ? { status: "delivered", deliveredAt: agora, statusChangedAt: agora } : {}),');
-    expect(entregar).toContain('${plano.viraEntregue ? "Entrega concluída (" : "Entrega parcial ("}');
-    expect(entregar).toContain('aEntregar.map(({ p, l }) => `${p.displayId ?? "peça"} (${l.quantidade})`).join(", ")');
-    expect(entregar).toContain("db.transaction(async (tx: Ex) => {");
-    // só quem recebeu é obrigatório
-    expect(entregar).toContain("if (!recebedor) {");
-    expect(entregar).not.toContain("ainda não tem foto");
-  });
+describe("3 · a conferência fecha como Embalado só com tudo embalado", () => {
+  // As rotas (embalar, tirar, entregar, /deliver aposentada, leituras) são EXECUTADAS em
+  // regras-estoque-tubos-rotas.test.ts e regras-estoque-peca-embalada.test.ts.
   it("a conferência só fecha como Embalado se TUDO já estava embalado (a parcial embalou a parte dela antes)", () => {
-    // a conta mora em shared/embalagem (planejarConferencia), a mesma da rota
-    expect(ITEMS).toContain("const plano = planejarConferencia(current as any, qtdPedida);");
     const fecha = (embaladaQty: number) => planejarConferencia(peca({ status: "produced", conferredQty: 7, embaladaQty }), 3);
     expect(fecha(10)).toMatchObject({ ok: true, completa: true, novoStatus: "packed" });
     expect(fecha(7)).toMatchObject({ ok: true, completa: true, novoStatus: "conferred" });
     expect(planejarConferencia(peca({ status: "produced", conferredQty: 5, embaladaQty: 5 }), 3)).toMatchObject({ ok: true, completa: false, novoStatus: null });
-  });
-  it("PATCH /api/items/:id/deliver → 409 para QUALQUER peça (inclusive a parcial), sem escrever nada — a rota fica", () => {
-    const i = ITEMS.indexOf('app.patch("/api/items/:id/deliver"');
-    const rota = ITEMS.slice(i, ITEMS.indexOf("  // Update production (Gráfica module)", i));
-    expect(i).toBeGreaterThan(-1);
-    expect(rota).toContain('return res.status(409).json({ error: "Embale antes de entregar (Embalar pede a foto; a entrega pede só quem recebeu)" });');
-    expect(rota).not.toMatch(/updateItem|db\.update|db\.transaction|createAuditLog/);
-    expect(rota.length).toBeLessThan(900);
-  });
-});
-
-describe("4 · os contratos novos para quem lê", () => {
-  it("GET /api/tubos/:id e o retrato do evento devolvem `quantidadeNoTubo` por peça (a etiqueta do tubo usa)", () => {
-    expect(ROTAS).toContain("quantidadeNoTubo: linha ? linha.quantidade : 0,");
-    expect(ROTAS).toContain("pecas: dentro.sort((a, b) => porCodigo(a.p, b.p)).map(({ p, l }) => pecaParaTela(p, l)),");
-    expect(ROTAS).toContain("aEmbalar: aEmbalar(p),");
-  });
-  it("GET /api/tubos leva as `linhas` de cada volume num select só — e respeita o recorte do Kit", () => {
-    const rota = ROTAS.slice(ROTAS.indexOf('app.get("/api/tubos", requireAuth'), ROTAS.indexOf('app.get("/api/tubos/:id"'));
-    expect(rota).toContain("const todasAsLinhas = await linhasDosTubos(todos.map((t) => t.id));");
-    expect(rota).toContain(".from(tubos).where(volumeNaJanela());");
-    expect(rota).toContain("permitidas = todasAsLinhas.filter((l) => suas.has(l.itemId));");
-    expect(rota).toContain("linhas: porTubo.get(t.id) ?? []");
-  });
-  it("'sem tubo' virou 'tem unidade conferida ainda não embalada' — vale para a inteira, a parcial e a dividida", () => {
-    expect(ROTAS).toContain("const semTubo = pecas.filter((p) => !ehEntregue(p) && statusEmbalavel(p.status) && aEmbalar(p) > 0).sort(porCodigo).map((p) => pecaParaTela(p));");
-  });
-  it("a peça leva `tuboVolumes` (os volumes abertos com quantidade) para o resto do fluxo — um select a mais, com rede de segurança", () => {
-    const SERVICO = ler("server/services/tubosDaPeca.ts");
-    expect(SERVICO).toContain("export type VolumeDaPeca = { tuboId: string; numero: number; avulso: boolean; quantidade: number };");
-    expect(SERVICO).toContain("...(volumes?.length ? { tuboVolumes: volumes } : {}),");
-    expect(SERVICO).toContain("...(entregues?.length ? { tuboVolumesEntregues: entregues } : {}),");
-    expect(SERVICO).toContain('console.error("[tubosDaPeca] não foi possível ler as quantidades por volume:", erro);');
   });
 });
 

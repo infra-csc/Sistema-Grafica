@@ -24,6 +24,10 @@
 //     existem da metade do fluxo para frente. Não há carimbo para
 //     awaiting_linking, awaiting_submission nem awaiting_approval — que é
 //     exatamente onde está a maior fila.
+//
+// A coluna, o carimbo do storage e o backfill RODAM em
+// regras-fluxo-tempo-no-estado.test.ts; aqui ficam a tela e as amarrações
+// tela × servidor.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
@@ -33,7 +37,6 @@ import { fonteDaTela } from "./fonte-da-tela";
 
 const raiz = (p: string) => readFileSync(path.resolve(__dirname, "../../", p), "utf8");
 const tela = fonteDaTela("painel");
-const schema = raiz("shared/schema.ts");
 const storage = raiz("server/storage.ts");
 
 const codigo = tela
@@ -55,22 +58,6 @@ function contraste(a: string, b: string): number {
 }
 
 describe("a fonte do tempo no estado", () => {
-  it("é uma coluna própria, não `updatedAt`", () => {
-    expect(schema).toContain('statusChangedAt: timestamp("status_changed_at")');
-  });
-
-  it("o servidor carimba num lugar só, e sem ler antes de escrever", () => {
-    // `updateItem` é o funil por onde todas as ~30 rotas de mudança de status
-    // passam: uma rota nova nasce carimbando de graça.
-    //
-    // A comparação vai no SQL (`IS DISTINCT FROM`) e não num SELECT antes do
-    // UPDATE: ler-para-decidir abriria uma janela entre a leitura e a escrita
-    // em que outra requisição muda o status — e o carimbo sairia errado
-    // justamente nas peças mais movimentadas, que são as que interessam.
-    expect(storage).toContain("IS DISTINCT FROM");
-    expect(storage).toContain("updateData.statusChangedAt = sql`CASE WHEN");
-  });
-
   it("e a rota otimista carimba porque o WHERE já provou a transição", () => {
     const i = storage.indexOf("async updateItemWithStatusCheck");
     const bloco = storage.slice(i, i + 900);
@@ -97,13 +84,6 @@ describe("nada de idade inventada", () => {
     expect(tela).toContain("return idades.length ? Math.round(idades.reduce((t, d) => t + d, 0) / idades.length) : null;");
   });
 
-  it("e o backfill deixa NULL onde não há fonte", () => {
-    const script = raiz("scripts/backfill-status-changed-at.ts");
-    expect(script).toContain("IS NOT NULL");
-    expect(script).toContain("status_changed_at IS NULL");
-    // Idempotente: só toca linha ainda sem carimbo.
-    expect(script).not.toContain("created_at");
-  });
 });
 
 describe("a escala de tom", () => {

@@ -16,12 +16,12 @@ export function registerPhotoRoutes(app: Express): void {
     try {
       const fotos = await storage.getAllDeliveryPhotos();
       // Usuário do Kit (14/09): só os registros das peças do Kit que ele criou.
-      if ((req as any).userKit) {
-        const minhas = new Set(await storage.getIdsDasPecasDoKitDoCriador((req as any).userId ?? null));
-        return res.json(fotos.filter((f: any) => minhas.has(f.itemId)));
+      if (req.userKit) {
+        const minhas = new Set<string | null>(await storage.getIdsDasPecasDoKitDoCriador(req.userId ?? null));
+        return res.json(fotos.filter((f) => minhas.has(f.itemId)));
       }
       res.json(fotos);
-    } catch (error: any) {
+    } catch (error) {
       responderFalha(res, error, "GET /api/photos");
     }
   });
@@ -31,7 +31,7 @@ export function registerPhotoRoutes(app: Express): void {
     try {
       const photos = await storage.getDeliveryPhotos(req.params.itemId);
       res.json(photos);
-    } catch (error: any) {
+    } catch (error) {
       responderFalha(res, error, "GET /api/items/:itemId/photos");
     }
   });
@@ -51,7 +51,7 @@ export function registerPhotoRoutes(app: Express): void {
       broadcast({ type: "photo_added", photo });
 
       res.json(photo);
-    } catch (error: any) {
+    } catch (error) {
       // Erro de validação é culpa do payload, não do servidor: 400, não 500.
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors?.[0]?.message || "Dados da foto inválidos" });
@@ -73,7 +73,7 @@ export function registerPhotoRoutes(app: Express): void {
       broadcast({ type: "photo_deleted", photoId: req.params.id });
       
       res.json({ success: true });
-    } catch (error: any) {
+    } catch (error) {
       responderFalha(res, error, "DELETE /api/photos/:id");
     }
   });

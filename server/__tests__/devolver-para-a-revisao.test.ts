@@ -26,16 +26,17 @@
 //   3. A DEVOLUÇÃO MUDA SEM MOTIVO. Toda devolução do app exige motivo escrito
 //      pela mesma razão: quem recebe a peça de volta precisa saber o que
 //      refazer.
+//
+// A ROTA (papel, motivo, destino, janela, aviso) roda de verdade em
+// regras-fluxo-devolucoes.test.ts; aqui ficam a tabela e a tela.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import { origemDaAcao } from "@shared/maquina-de-estados";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 import { fonteDaGrafica } from "./fonte-da-grafica";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
-const rotas = fonteDasRotasDeItens();
 const tela = fonteDaGrafica();
 
 /** A lista de status declarada em cada lado, na ordem em que foi escrita. */
@@ -49,10 +50,6 @@ describe("a janela da devolução", () => {
   // A lista do servidor é a origem de "devolver-para-a-revisao" na máquina de
   // estados (shared/maquina-de-estados.ts), que a rota consulta.
   const noServidor = [...(origemDaAcao("devolver-para-a-revisao") ?? [])];
-
-  it("a rota consulta a tabela", () => {
-    expect(rotas).toContain('if (!vemDeOrigemValida(currentItem.status, "devolver-para-a-revisao")) {');
-  });
 
   it("só cobre os status de ANTES de produzir", () => {
     expect(noServidor).toEqual([
@@ -77,45 +74,10 @@ describe("cliente e servidor concordam sobre quando devolver", () => {
   });
 });
 
-describe("o gate de papel", () => {
-  it("devolver é da Gráfica — recusar o trabalho, não executá-lo", () => {
-    // `canProduce` (grafica|admin) e não `podeConferir`, que inclui
-    // solicitacao: quem decide NÃO imprimir é quem tem a impressora. E a
-    // Solicitação é justamente quem RECEBE a peça de volta.
-    expect(rotas).toContain('if (req.userRole !== "grafica" && req.userRole !== "admin") {');
-    expect(rotas).toContain("Apenas a Gráfica pode devolver para a Revisão");
-  });
-});
-
 describe("o motivo é obrigatório, como nas outras devoluções", () => {
-  it("o servidor passa pelo mesmo leitor de motivo", () => {
-    const rota = rotas.slice(rotas.indexOf('/api/items/:id/return-to-review'));
-    expect(rota.slice(0, 2000)).toContain("lerMotivoDevolucao(req)");
-  });
-
   it("e o modal explica o mínimo em vez de só desabilitar o botão", () => {
     // Botão desabilitado sem explicação é o que faz a pessoa achar que o app
     // travou.
     expect(tela).toContain("Mínimo de {MOTIVO_MIN_DEVOLUCAO} caracteres");
-  });
-});
-
-describe("a peça volta para o lugar certo", () => {
-  it("para Aguardando Revisão Final, que é a fila da tela Revisão", () => {
-    const rota = rotas.slice(rotas.indexOf('/api/items/:id/return-to-review'));
-    expect(rota.slice(0, 2500)).toContain('status: "awaiting_final_review"');
-  });
-
-  it("e a revisão anterior deixa de valer", () => {
-    // Foi ela que liberou a peça para a produção que a Gráfica está recusando.
-    const rota = rotas.slice(rotas.indexOf('/api/items/:id/return-to-review'));
-    expect(rota.slice(0, 2500)).toContain("creatorReviewedAt: null");
-  });
-
-  it("a fila da Gráfica é invalidada pelo broadcast certo", () => {
-    // `/api/items/approved` roda com staleTime Infinity: sem `item_updated` a
-    // peça devolvida continuaria na tela de quem devolveu até um F5.
-    const rota = rotas.slice(rotas.indexOf('/api/items/:id/return-to-review'));
-    expect(rota.slice(0, 3000)).toContain('broadcast({ type: "item_updated", item })');
   });
 });

@@ -1,5 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // ESTOQUE AGRUPADO POR QUANTIDADE + ONDE JÁ FOI USADO (dono, 21/09) — o puro.
+// A rota GET /api/estoque/usos (só admin, recortada, uma consulta) e o campo
+// location ainda aceito são EXECUTADOS em regras-estoque-reservas-rotas.test.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
@@ -64,16 +66,6 @@ describe("onde já foi usado", () => {
     const u2 = usosDoAtivo(origem, [], agora);
     expect(eventosDeUso([u1, u2, []]).map((e) => [e.eventName, e.unidades, e.situacao])).toEqual([["teste 3", 1, "separada"], ["Primavera RJ", 2, "origem"]]);
   });
-
-  it("a rota é de LEITURA, só do admin, recortada (itens=/ativos=) e numa consulta só (sem N+1)", () => {
-    const rota = ler("server/routes/estoque-reservas.ts");
-    const trecho = rota.slice(rota.indexOf('app.get("/api/estoque/usos"'), rota.indexOf('app.get("/api/estoque/reservas-ativas"'));
-    expect(trecho).toContain('app.get("/api/estoque/usos", requireRole("admin")');
-    expect(trecho).toContain("return res.status(400)");
-    expect(trecho.match(/await db/g)?.length).toBe(1);
-    expect(trecho).toContain(".leftJoin(itemsTable");
-    expect(trecho).not.toMatch(/\.(insert|update|delete)\(/);
-  });
 });
 
 describe("sem localização no galpão (dono, 21/09)", () => {
@@ -84,9 +76,5 @@ describe("sem localização no galpão (dono, 21/09)", () => {
       expect(fonte, rel).not.toMatch(/asset\.location|u\.location|a\.location/);
       expect(fonte, rel).not.toMatch(/>Localização<|"Localização"|Sem local|Galpão Central/);
     }
-  });
-  it("o banco e o servidor seguem aceitando o campo (nenhum dado muda)", () => {
-    expect(ler("shared/schema.ts")).toMatch(/location: text\("location"\)/);
-    expect(ler("server/routes/inventory.ts")).toContain("location: z.string().max(120).nullish(),");
   });
 });

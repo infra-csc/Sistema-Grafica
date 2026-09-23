@@ -97,7 +97,7 @@ export const ancoraDoKit = (remessa: { entregaMaterial: string | Date }): string
  * partir de `item.event` (Arte, Gráfica, Painel) passa a cobrar a peça do Kit
  * pela data dela sem mudar a conta. Sem remessa, devolve o evento como está.
  */
-export function eventoComDatasDoKit<E extends Record<string, any>>(
+export function eventoComDatasDoKit<E extends { startDate?: unknown; truckDepartureDate?: unknown }>(
   evento: E | undefined,
   remessa: { versao: string; saidaCaminhao?: string | Date | null; entregaMaterial: string | Date; dataEvento?: string | Date | null } | null | undefined,
 ): E | undefined {

@@ -40,8 +40,8 @@ export async function registrarImpressao(
       quantidade: dado.quantidade,
       totalDepois: dado.totalDepois,
       userName: ator.userName,
-      userId: (ator as any).userId ?? null,
-    } as any);
+      userId: ator.userId ?? null,
+    });
   } catch (error) {
     console.error("[maquinas] falha ao gravar o registro de impressão", {
       itemId: dado.itemId,
@@ -58,7 +58,7 @@ export async function registrarImpressao(
  */
 export async function registrarSaidaDaImpressora(req: QuemAge, peca: { id: string; status?: string | null; printMachine?: string | null; impressaoPorMaquina?: unknown; quantity?: number | null; reuseQty?: number | null; isReuse?: boolean | null; quantityProduced?: number | null }): Promise<void> {
   if (peca.status !== "inProduction" && peca.status !== "em_producao") return;
-  for (const maquina of Object.keys(partesAtivas(partesDaPeca(peca as any)))) {
+  for (const maquina of Object.keys(partesAtivas(partesDaPeca(peca)))) {
     await registrarImpressao(req, { itemId: peca.id, maquina, tipo: "pausa", quantidade: 0, totalDepois: peca.quantityProduced ?? 0 });
   }
 }
@@ -216,7 +216,7 @@ export function medidaMudou(
   novoW: string | number | null | undefined,
   novoH: string | number | null | undefined,
 ): boolean {
-  const num = (v: any) => (v != null ? parseFloat(String(v)) : NaN);
+  const num = (v: string | number | null | undefined) => (v != null ? parseFloat(String(v)) : NaN);
   return num(novoW) !== num(atual.fileWidth) || num(novoH) !== num(atual.fileHeight);
 }
 

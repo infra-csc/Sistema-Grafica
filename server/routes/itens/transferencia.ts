@@ -32,12 +32,12 @@ export function registrarTransferencia(app: Express): void {
       const item = await storage.getItem(req.params.id);
       if (!item) return res.status(404).json({ error: "Peça não encontrada" });
       // Peça na lixeira não se transfere: restaure antes (revisão 22/09).
-      if ((item as any).deletedAt) {
+      if (item.deletedAt) {
         return res.status(409).json({ error: "Esta peça está na lixeira. Restaure a peça antes de transferir.", code: "ITEM_DELETED" });
       }
       // PEÇA DO KIT: a remessa é do evento de origem (mesmas datas do Kit) —
       // no destino ela ficaria pendurada numa remessa de outro evento.
-      if ((item as any).kitRemessaId) {
+      if (item.kitRemessaId) {
         return res.status(409).json({ error: "Peça do Kit pertence a uma remessa deste evento e não troca de evento. Crie a peça no evento de destino.", code: "KIT_ITEM" });
       }
 
@@ -75,7 +75,7 @@ export function registrarTransferencia(app: Express): void {
 
       // Peça dentro de um volume ABERTO não troca de evento: o tubo é do
       // evento de origem, e ela seria entregue junto com ele no evento errado.
-      const [aberta] = ((await db.execute(sql`select 1 as ok from tubo_itens where item_id = ${item.id} and entregue_em is null limit 1`)) as any)?.rows ?? [];
+      const [aberta] = (await db.execute(sql`select 1 as ok from tubo_itens where item_id = ${item.id} and entregue_em is null limit 1`))?.rows ?? [];
       if (aberta) {
         return res.status(409).json({ error: "Esta peça está embalada num tubo ainda não entregue. Tire a peça do tubo antes de transferir.", code: "IN_OPEN_TUBE" });
       }
@@ -84,7 +84,7 @@ export function registrarTransferencia(app: Express): void {
       // Transferir a peça deixaria a reserva apontando para o evento errado.
       // Qualquer linha conta: reserva de evento que já passou não chega aqui
       // (o evento finalizado já foi barrado acima).
-      const [reservada] = ((await db.execute(sql`select 1 as ok from event_inventory_allocations where item_id = ${item.id} limit 1`)) as any)?.rows ?? [];
+      const [reservada] = (await db.execute(sql`select 1 as ok from event_inventory_allocations where item_id = ${item.id} limit 1`))?.rows ?? [];
       if (reservada) {
         return res.status(409).json({ error: "Esta peça tem peça do estoque reservada para ela. Libere a reserva antes de transferir.", code: "HAS_STOCK_RESERVATION" });
       }
@@ -104,16 +104,16 @@ export function registrarTransferencia(app: Express): void {
       const eventoOrigemId = item.eventId;
       // A solicitação do Atendimento é do evento de ORIGEM: a peça sai dela, e
       // a peça solicitada volta a ficar aberta lá (como na exclusão).
-      const ligadaAoPedido = !!(item as any).pedidoDePecaLinhaId;
+      const ligadaAoPedido = !!item.pedidoDePecaLinhaId;
       const atualizado = await storage.updateItem(item.id, {
         eventId: destinoId,
         kitRemessaId: null,
         ...(ligadaAoPedido ? { pedidoDePecaId: null, pedidoDePecaLinhaId: null } : {}),
-      } as any);
+      });
       if (!atualizado) return res.status(404).json({ error: PECA_NAO_ENCONTRADA });
       if (ligadaAoPedido) {
         const { aoExcluirPeca } = await import("../pedidos-de-peca");
-        await aoExcluirPeca(req, item as any, "transferida de evento");
+        await aoExcluirPeca(req, item, "transferida de evento");
       }
 
       await createAuditLog(

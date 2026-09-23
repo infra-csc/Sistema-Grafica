@@ -198,7 +198,7 @@ export async function aplicarInferenciaExecutivos(actor: ActorInferencia) {
         entityType: "sponsor",
         entityId: proposta.sponsorId,
         details: `Executivo de conta inferido: "${proposta.user.name}" respondeu por ${proposta.decisionsByTop} de ${proposta.totalDecisions} decisões (${Math.round(proposta.share * 100)}%) do patrocinador "${proposta.sponsorName}". Vínculo automático — corrija no cadastro se estiver errado.`,
-      } as any);
+      });
       aplicados += 1;
     }
 

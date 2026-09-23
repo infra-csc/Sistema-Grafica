@@ -10,7 +10,7 @@
 // "O sistema sugere" e a reserva NÃO são código novo: é a busca por semelhança
 // e a reserva de 14/09 (routes/estoque-reservas.ts), chamadas daqui.
 // ─────────────────────────────────────────────────────────────────────────────
-import { and, desc, eq, inArray, isNull, ne, notInArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne, notInArray, or, sql, type SQL } from "drizzle-orm";
 import { db } from "../db";
 import { doEventoNaoArquivado } from "./arquivamento";
 import { consultasDeEstoque, items as itemsTable, events, itemSponsors, sponsors, auditLogs } from "@shared/schema";
@@ -80,7 +80,8 @@ export async function criarConsulta(e: { itemId: string; eventId: string; quanti
       pedidoPorId: e.quem.userId,
     }).returning();
     return criada;
-  } catch (error: any) {
+  } catch (erroDoBanco: unknown) {
+    const error = erroDoBanco as { code?: unknown } | null | undefined;
     // 23505 = unique_violation: duas pessoas pediram no mesmo segundo.
     if (error?.code === "23505") throw erro(409, "Já existe uma solicitação ao estoque aberta para esta peça.");
     throw error;
@@ -99,7 +100,7 @@ export async function contarAbertas(): Promise<number> {
 export async function listarConsultas(filtro: { status?: string[]; pedidoPorId?: string; limite: number }) {
   // Consulta ABERTA de peça cancelada não pede resposta de ninguém: some da
   // caixa (e do número do menu) e volta sozinha se a peça for descancelada.
-  const condicoes: any[] = [
+  const condicoes: (SQL | undefined)[] = [
     isNull(itemsTable.deletedAt),
     // Peça de evento arquivado some da caixa (e do número do menu) também.
     doEventoNaoArquivado(itemsTable.eventId),
@@ -287,7 +288,7 @@ export async function responderConsulta(e: {
       const efeito = efeitoDoAtendimento(peca, e.atendida);
       if (!efeito.ok) throw erro(409, efeito.erro);
       if (pecaJaLiberada(peca.status)) {
-        const r = reescalarReservaEPartes(peca as any, peca.quantity - efeito.reuseQty);
+        const r = reescalarReservaEPartes(peca, peca.quantity - efeito.reuseQty);
         const [atualizada] = await tx.update(itemsTable).set({
           reuseQty: efeito.reuseQty,
           isReuse: efeito.isReuse,
@@ -295,7 +296,7 @@ export async function responderConsulta(e: {
           ...(lerPartes(peca.impressaoPorMaquina) ? { impressaoPorMaquina: efeito.fecha ? null : r.partes } : {}),
           ...colunasDaReserva(efeito.fecha ? null : r.reserva),
           updatedAt: new Date(),
-        } as any).where(eq(itemsTable.id, peca.id)).returning();
+        }).where(eq(itemsTable.id, peca.id)).returning();
         await tx.insert(auditLogs).values({
           userName: e.quem.userName,
           userId: e.quem.userId,
@@ -303,7 +304,7 @@ export async function responderConsulta(e: {
           entityType: "item",
           entityId: peca.id,
           details: trilhaDoAtendimento(e.atendida, atual.pedida, e.quem.userName),
-        } as any);
+        });
         pecaAtualizada = atualizada ?? null;
         aplicado = true;
       }

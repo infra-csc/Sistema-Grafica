@@ -3,6 +3,7 @@
 // rotas traria junto os guardas de papel (que alguns testes substituem por
 // mocks) — além de a importação da planilha do Kit criar a remessa por aqui.
 import { z } from "zod";
+import type { Request } from "express";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "../db";
 import { storage } from "../storage";
@@ -44,7 +45,10 @@ export async function remessasPorIds(ids: string[]) {
  * Só enquanto nenhuma peça andou no fluxo (rascunho/importada): peça que já foi
  * para a Arte precisa ser cancelada antes.
  */
-export async function excluirRemessa(req: any, id: string) {
+/** O que as funções abaixo leem da requisição (quem pede). */
+type QuemPede = Pick<Request, "userId" | "userName" | "userKit">;
+
+export async function excluirRemessa(req: QuemPede, id: string) {
   const remessa = await carregarRemessa(id);
   if (!remessa) return { status: 404, erro: "Remessa do Kit não encontrada" } as const;
   if (!remessaUtilizavelPor({ kit: req.userKit === true, userId: req.userId ?? null }, remessa)) {
@@ -73,7 +77,7 @@ export async function excluirRemessa(req: any, id: string) {
 }
 
 /** Cria a remessa (rota de remessas e importação da planilha do Kit). */
-export async function criarRemessa(req: any, dados: z.infer<typeof remessaSchema>) {
+export async function criarRemessa(req: QuemPede, dados: z.infer<typeof remessaSchema>) {
   const evento = await storage.getEvent(dados.eventId);
   if (!evento) return { status: 404, erro: "Evento não encontrado" } as const;
   const fechado = motivoEventoFechado(evento);

@@ -96,15 +96,24 @@ export function inicioDaJanela(agora: Date): Date {
   return base;
 }
 
+/** Data como vem do banco (Date) ou já serializada (texto) — os testes usam texto. */
+type Instante = Date | string | null | undefined;
+/** Só os campos que o resumo lê: linhas do banco e fixtures de teste servem. */
+type PecaDaFila = {
+  eventId: string; status: string; type?: string | null; finalFileUrl?: string | null;
+  deletedAt?: Instante; statusChangedAt?: Instante; updatedAt?: Instante; createdAt?: Instante;
+};
+
 export function montarResumo(
-  itens: any[],
+  itens: PecaDaFila[],
   nomeDoEvento: (eventId: string) => string,
   desde: Date,
   agora: Date,
 ): ResumoDaRevisao {
   // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça (ver shared/fluxo-peca).
   const naFila = itens.filter((i) => i.status === STATUS_EM_REVISAO && !i.deletedAt && !ehBookCompleto(i));
-  const entrouEm = (i: any) => new Date(i.statusChangedAt ?? i.updatedAt ?? i.createdAt).getTime();
+  // Linha real sempre tem createdAt; sem data nenhuma dá Invalid Date (NaN), como antes.
+  const entrouEm = (i: PecaDaFila) => new Date((i.statusChangedAt ?? i.updatedAt ?? i.createdAt) as Date | string).getTime();
 
   const porEvento = new Map<string, number>();
   for (const i of naFila) {
@@ -277,7 +286,7 @@ export async function enviarAvisoDaRevisao(
       entityType: "revisao",
       entityId: dia,
       details: `${DETALHE_TRILHA} (${dia} ${hora}h)${marcaManual}: ${desfecho}`,
-    } as any);
+    });
     if (!opcoes.manual) await anotarDesfecho(chaveDaEdicao, desfecho);
   };
 

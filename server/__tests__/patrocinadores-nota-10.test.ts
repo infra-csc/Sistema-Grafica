@@ -33,22 +33,12 @@ import { fonteDaTela } from "./fonte-da-tela";
 // server/routes/items.ts virou índice: o texto das rotas da peça vem de fonteDasRotasDeItens().
 const ler = (rel: string) => rel === "server/routes/items.ts" ? fonteDasRotasDeItens() : readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
 const P = ler("client/src/pages/patrocinadores.tsx");
-const STORAGE = ler("server/storage.ts");
 const semCom = (s: string) => s.replace(/\r\n/g, "\n").replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").map(l => l.replace(/^\s*\/\/.*$/, "")).join("\n");
 
 describe("1 · a coluna Resposta", () => {
-  it("o agregado vem no MESMO endpoint do uso — pendências e média, em duas queries a mais", () => {
-    const i = STORAGE.indexOf("async getSponsorUsage()");
-    const corpo = STORAGE.slice(i, i + 2600);
-    expect(corpo).toContain("pendencias: number; mediaDias: number | null");
-    expect(corpo).toContain("in ('pending', 'new_version_pending')");
-    expect(corpo).toContain("avg(extract(epoch from (coalesce(");
-    // Sem decisão, sem média — nunca zero.
-    expect(corpo).toContain("mediaDias: null as number | null");
-    expect(corpo).toContain("Number.isFinite(m) ? Math.max(0, Math.round(m)) : null");
-  });
-
+  // O agregado (getSponsorUsage: pendências e média no mesmo endpoint do uso)
+  // roda de verdade em regras-patrocinio-storage.
   it("a célula diz as duas medidas, com os tons da escala", () => {
     expect(P).toContain("data-testid={`cell-resposta-${sponsor.id}`}");
     // Os mesmos tons da escala, agora pelos tokens (sucesso/perigo/alerta.text

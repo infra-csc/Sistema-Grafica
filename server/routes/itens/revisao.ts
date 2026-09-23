@@ -3,7 +3,7 @@ import type { Express } from "express";
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
 import { storage } from "../../storage";
-import { type Item, items as itemsTable, auditLogs, notifications } from "@shared/schema";
+import { type Item, type Event, items as itemsTable, auditLogs, notifications } from "@shared/schema";
 // TRAVA DA SOLICITAÇÃO (21/09): o que faz a peça andar na Gráfica é barrado
 // com 409 e a frase humana; ver shared/trava-da-peca.ts.
 import { pecaTravada, fraseDaTrava, CODIGO_PECA_TRAVADA, colunasDoDestravar } from "@shared/trava-da-peca";
@@ -151,10 +151,10 @@ export function registrarRevisao(app: Express): void {
       // e destrava na mesma gravação; { manterTrava: true } libera e ela chega
       // à Gráfica ainda travada (lá ela não anda até alguém destravar). Sem
       // nenhum dos dois é 409 com o código da trava: a tela pergunta.
-      const travada = pecaTravada(currentItem as any);
+      const travada = pecaTravada(currentItem);
       const destravar = travada && req.body?.destravar === true;
       if (travada && !destravar && req.body?.manterTrava !== true) {
-        return res.status(409).json({ error: `${fraseDaTrava(currentItem as any)}. Escolha liberar destravando ou liberar mantendo a trava.`, code: CODIGO_PECA_TRAVADA });
+        return res.status(409).json({ error: `${fraseDaTrava(currentItem)}. Escolha liberar destravando ou liberar mantendo a trava.`, code: CODIGO_PECA_TRAVADA });
       }
 
       // Reaproveitamento parcial: body pode trazer { reuseQty } quando a Solicitação
@@ -569,7 +569,7 @@ export function registrarRevisao(app: Express): void {
       const destino = lerDestinoDevolucao(req);
       const notes = motivoLote.motivo;
 
-      const results: any[] = [];
+      const results: Item[] = [];
       const errors: Array<{ itemId: string; error: string }> = [];
       const destinos: Record<string, DestinoDevolucao> = {};
       const trilha: Array<{ action: string; entityType: string; entityId: string; details?: string }> = [];
@@ -578,7 +578,7 @@ export function registrarRevisao(app: Express): void {
 
       // Peças em paralelo, evento lido uma vez por evento, trilha em UM
       // INSERT e um broadcast por evento.
-      const eventoMemo = new Map<string, Promise<any>>();
+      const eventoMemo = new Map<string, Promise<Event | undefined>>();
       const eventoDe = (eventId: string) => {
         if (!eventoMemo.has(eventId)) eventoMemo.set(eventId, storage.getEvent(eventId));
         return eventoMemo.get(eventId)!;
@@ -628,7 +628,7 @@ export function registrarRevisao(app: Express): void {
         await createAuditLogsEmLote(req, trilha);
         // Uma notificação e um broadcast POR EVENTO: o lote pode misturar
         // eventos, e o aviso de um não pode apontar para o outro.
-        const porEvento = new Map<string, any[]>();
+        const porEvento = new Map<string, Item[]>();
         for (const r of results) porEvento.set(r.eventId, [...(porEvento.get(r.eventId) ?? []), r]);
         for (const [eventId, doEvento] of Array.from(porEvento.entries())) {
           broadcast({ type: "items_bulk_updated", itemIds: doEvento.map((r) => r.id), eventId });

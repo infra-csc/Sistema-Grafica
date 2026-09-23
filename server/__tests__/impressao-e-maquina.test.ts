@@ -18,10 +18,11 @@
 //   3. OS NOMES: inProduction → "Em Impressão"; produced → "Em Acabamento /
 //      Conferência". As CHAVES não mudaram — e a trilha antiga, que diz "Em
 //      Produção" e "Produzido", segue reconhecida por quem a interpreta.
+// As rotas (start-printing, start-production, confer, uncancel) RODAM em
+// regras-producao-itens.test.ts; aqui ficam as funções puras e as telas.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import { fonteDoComponente } from "./fonte-dos-componentes";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 import { MAQUINAS_DE_IMPRESSAO, ehMaquinaValida, rotuloDaMaquina } from "@shared/fluxo-peca";
@@ -29,17 +30,11 @@ import { avaliarProducao } from "../../client/src/lib/grafica-producao";
 import { fonteDaGrafica } from "./fonte-da-grafica";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
-const ITEMS = fonteDasRotasDeItens();
 const SHARED = ler("server/routes/shared.ts");
-const SCHEMA = ler("shared/schema.ts");
 const STATUS = ler("client/src/lib/status.ts");
 const GRAFICA = fonteDaGrafica();
 const FICHA = fonteDoComponente("client/src/components/item-details-dialog.tsx");
 const MODAL = ler("client/src/components/grafica/modal-impressao.tsx");
-// Desde 22/09 a conta do iniciar e do lançar mora em funções puras (shared),
-// chamadas pela rota sobre a linha TRAVADA.
-const RESERVA_SRC = ler("shared/reserva-de-impressora.ts");
-const DIVIDIDA = ler("shared/impressao-dividida.ts");
 
 describe("as máquinas", () => {
   it("são 1, 2, 3 e 4 — o banco guarda o código, a tela lê o nome do dono (21/09)", () => {
@@ -58,54 +53,9 @@ describe("as máquinas", () => {
       expect(ehMaquinaValida(ruim as any), String(ruim)).toBe(false);
     }
   });
-
-  it("a peça tem onde guardar a máquina", () => {
-    expect(SCHEMA).toContain('printMachine: text("print_machine"),');
-  });
-});
-
-describe("o primeiro momento: iniciar a impressão", () => {
-  const rota = ITEMS.slice(
-    ITEMS.indexOf('app.patch("/api/items/:id/start-printing"'),
-    ITEMS.indexOf('app.patch("/api/items/:id/start-production"'),
-  );
-
-  it("existe, é da Gráfica e do admin, e exige máquina válida", () => {
-    expect(rota.length).toBeGreaterThan(0);
-    expect(rota).toContain('req.userRole !== "grafica" && req.userRole !== "admin"');
-    expect(rota).toContain("if (!ehMaquinaValida(printMachine))");
-    expect(rota).toContain("Escolha a máquina em que a peça vai ser impressa");
-  });
-
-  it("leva a peça para 'Em Impressão' e guarda a máquina", () => {
-    expect(RESERVA_SRC).toContain('set: { status: "inProduction", printMachine: principal, impressaoPorMaquina, ...reserva }');
-    expect(rota).toContain("...plano.set,");
-    expect(rota).toContain("const pedido = { printMachine,");
-  });
-
-  it("respeita as mesmas guardas de quem imprime: evento finalizado e revisão", () => {
-    expect(rota).toContain("barraEventoFinalizado(antes, res)");
-    expect(rota).toContain("EM_REVISAO.has(current.status)");
-  });
-
-  it("não aceita peça sem nada a imprimir nem 'trocar' para a mesma máquina", () => {
-    expect(rota).toContain("Nada a imprimir");
-    expect(RESERVA_SRC).toContain("A peça já está na");
-  });
-
-  it("deixa rastro na trilha — inclusive quando só troca de máquina", () => {
-    expect(rota).toContain("Impressão iniciada na ${rotuloDaMaquina(printMachine)}");
-    expect(rota).toContain("Impressão mudou de máquina:");
-  });
 });
 
 describe("o segundo momento: registrar o que saiu", () => {
-  it("o servidor aceita a máquina junto e recusa máquina inválida", () => {
-    expect(ITEMS).toContain("const { printMachine, maquina } = req.body;");
-    expect(ITEMS).toContain("if (printMachine != null && !ehMaquinaValida(printMachine))");
-    // A enviada só vale para a peça SEM impressora (22/09): trocar é o start-printing.
-    expect(DIVIDIDA).toContain(": (!maquinaAtual && maquinaNaoDividida ? { printMachine: maquinaNaoDividida } : {})),");
-  });
 
   it("a máquina viaja no payload do registro", () => {
     const av = avaliarProducao({ quantity: 10, quantityProduced: 0, reuseQty: 0 } as any, 10, "2");
@@ -182,17 +132,6 @@ describe("a impressão é informada AOS POUCOS (dono, 14/09)", () => {
     // Dono, 21/09: o campo pergunta o que saiu AGORA; o total é calculado.
     expect(MODAL).toContain("Quantas saíram agora?");
   });
-
-  it("servidor: parcial fica Em Impressão; todas impressas vão para Impresso / Acabamento", () => {
-    expect(DIVIDIDA).toContain('const novoStatus = produzida ? "produced" : voltouParaAFila ? "ready_for_production" : "inProduction";');
-  });
-
-  it("servidor: a conferência exige foto e só vira Conferido quando confere tudo", () => {
-    expect(ITEMS).toContain("if (!foto && !current.conferencePhotoUrl)");
-    // 21/09 (embalagem com quantidade): só fecha como Embalado se TUDO já estava embalado
-    // — a conta mora em shared/embalagem (planejarConferencia), exercitada em conferencia-teto-e-impressas.test.ts.
-    expect(ITEMS).toContain("const novoStatus = plano.novoStatus;");
-  });
 });
 
 describe("os nomes novos — com a trilha antiga ainda legível", () => {
@@ -210,18 +149,6 @@ describe("os nomes novos — com a trilha antiga ainda legível", () => {
   it("nenhum rótulo de tela ou servidor ainda diz 'Em Produção' para a peça", () => {
     expect(SHARED).not.toContain('inProduction: "Em Produção"');
     expect(STATUS).not.toContain('meta("Em Produção"');
-  });
-
-  it("o descancelar entende os nomes novos E os antigos da trilha", () => {
-    for (const par of [
-      '"Em Impressão": "inProduction",',
-      '"Impresso / Acabamento": "produced",',
-      '"Em Acabamento / Conferência": "produced",',
-      '"Em Produção": "inProduction",',
-      '"Produzido": "produced",',
-    ]) {
-      expect(ITEMS).toContain(par);
-    }
   });
 
   it("a linha do tempo da ficha reconhece as palavras novas e as velhas", () => {

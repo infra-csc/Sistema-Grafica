@@ -13,75 +13,17 @@
 // somando a quantidade da peça e o status continua "Produzido". Nada volta
 // para a fila da Gráfica — é disso que a metragem (m2ToProduce) e o custo
 // leem a diferença.
+//
+// A ROTA (quem, quando, a conta e a trilha) roda de verdade em
+// regras-fluxo-reaproveitar-e-molde.test.ts; aqui fica a tela.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
-import { origemDaAcao, podeTransicionar } from "@shared/maquina-de-estados";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 import { fonteDaGrafica } from "./fonte-da-grafica";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
-const ITEMS = fonteDasRotasDeItens();
 const GRAFICA = fonteDaGrafica();
-
-/** O corpo da rota mark-reuse, isolado. */
-const rota = (() => {
-  const i = ITEMS.indexOf('app.post("/api/items/:id/mark-reuse"');
-  expect(i).toBeGreaterThan(-1);
-  return ITEMS.slice(i, ITEMS.indexOf('app.post("/api/items/:id/correct-reuse"'));
-})();
-
-describe("quem pode, e quando", () => {
-  it("após Produzido, só Solicitação e admin — a Gráfica ouve o porquê", () => {
-    expect(rota).toContain('const ehProduzida = current.status === "produced" || current.status === "produzido";');
-    expect(rota).toContain('&& podeTransicionar(current.status, "ajustar-reaproveitamento-da-produzida", req.userRole);');
-    // quem: Solicitação e admin (a tabela em shared/maquina-de-estados.ts)
-    for (const papel of ["solicitacao", "admin"]) expect(podeTransicionar("produced", "ajustar-reaproveitamento-da-produzida", papel)).toBe(true);
-    expect(podeTransicionar("produced", "ajustar-reaproveitamento-da-produzida", "grafica")).toBe(false);
-    // a Gráfica (que passa no gate de papel da rota) recebe recusa COM motivo,
-    // não o erro genérico de status
-    expect(rota).toContain("mudar o reaproveitamento agora é da Solicitação e do admin");
-  });
-
-  it("conferida ou entregue, acabou — o número virou contagem física", () => {
-    expect(rota).toContain('if (viaProduzida && (current.conferredQty || 0) > 0) {');
-    expect(rota).toContain('if (viaProduzida && (current.deliveredQty || 0) > 0) {');
-  });
-
-  it("o fluxo normal não mudou: fora de Produzido a régua é a mesma de antes", () => {
-    expect(rota).toContain('if (!vemDeOrigemValida(current.status, "reaproveitar-parte") && !viaProduzida) {');
-    // a régua de antes, agora na tabela (shared/maquina-de-estados.ts)
-    expect(origemDaAcao("reaproveitar-parte")).toEqual(["ready_for_production", "pronto_para_producao", "approved", "inProduction", "em_producao"]);
-    expect(origemDaAcao("ajustar-reaproveitamento-da-produzida")).toEqual(["produced", "produzido"]);
-    // a via produzida SAI cedo (return) — o fluxo normal continua só somando,
-    // sem invadir o produzido
-    expect(rota).toContain("if (viaProduzida) {");
-    expect(rota).toContain("const room = current.quantity - alreadyReused - produced;");
-  });
-});
-
-describe("a conversão fecha a conta — nas DUAS direções", () => {
-  it("o controle manda o TOTAL (reuseTotal, 0..quantidade) — 'só consigo aumentar' era o furo", () => {
-    // ajuste ABSOLUTO: aumentar E diminuir, inclusive voltar a zero
-    expect(rota).toContain("req.body?.reuseTotal != null");
-    expect(rota).toContain("Math.max(0, Math.min(current.quantity, Math.floor(Number(req.body.reuseTotal)) || 0))");
-    // sem mudança real, a rota recusa em vez de gravar à toa
-    expect(rota).toContain("if (alvo === alreadyReused) {");
-  });
-
-  it("o que vira reuso SAI do produzido — os dois números seguem somando a quantidade", () => {
-    expect(rota).toContain("quantityProduced: current.quantity - alvo,");
-    // e o status segue Produzido: a conversão nunca devolve a peça à fila
-    const viaBloco = rota.slice(rota.indexOf("if (viaProduzida) {"), rota.indexOf("── Fluxo normal"));
-    expect(viaBloco).toContain('status: "produced" as const,');
-  });
-
-  it("a trilha explica o ajuste, com os dois lados da conta", () => {
-    expect(rota).toContain("Reaproveitamento ajustado após Produzido");
-    expect(rota).toContain("→ ${alvo} un. reaproveitada(s)");
-  });
-});
 
 describe("a tela da Gráfica espelha o servidor", () => {
   it("o botão aparece em peça Produzida só para quem pode (podeMexerQtd = admin|solicitacao)", () => {

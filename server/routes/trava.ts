@@ -8,7 +8,7 @@
 // todas lendo `pecaTravada` (shared/trava-da-peca.ts). Tirar da impressora não
 // é barrado: recuar nunca é.
 // ─────────────────────────────────────────────────────────────────────────────
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import { requireAuth, broadcast, createAuditLog, resolveActor } from "./shared";
 import { storage } from "../storage";
 import { pecaVisivelPara } from "@shared/kit";
@@ -17,15 +17,15 @@ import { colunasDaTrava, colunasDoDestravar, lerMotivo, motivoDeNaoTravar, pecaT
 const RECADO_SO_VISUALIZA = "Peça do Kit: a Solicitação da Arena só visualiza. Quem age nela é o usuário do Kit.";
 
 /** A peça que quem pede enxerga — fora do recorte do Kit, é "não encontrada". */
-async function pecaDoPedido(req: any) {
+async function pecaDoPedido(req: Request) {
   const peca = await storage.getItem(req.params.id);
-  if (!peca || (peca as any).deletedAt) return null;
+  if (!peca || peca.deletedAt) return null;
   const quemVe = { kit: req.userKit === true, userId: req.userId ?? null };
-  return pecaVisivelPara(quemVe, { kitRemessaId: (peca as any).kitRemessaId, criadoPorId: (peca as any).criadoPorId }) ? peca : null;
+  return pecaVisivelPara(quemVe, { kitRemessaId: peca.kitRemessaId, criadoPorId: peca.criadoPorId }) ? peca : null;
 }
 
 /** Solicitação sem Kit só visualiza peça do Kit (o mesmo recorte de sempre). */
-const soVisualiza = (req: any, peca: any): boolean => req.userRole === "solicitacao" && req.userKit !== true && !!peca.kitRemessaId;
+const soVisualiza = (req: Request, peca: { kitRemessaId?: string | null }): boolean => req.userRole === "solicitacao" && req.userKit !== true && !!peca.kitRemessaId;
 
 export function registerTravaRoutes(app: Express): void {
   app.post("/api/items/:id/travar", requireAuth, async (req, res) => {
@@ -38,15 +38,15 @@ export function registerTravaRoutes(app: Express): void {
       const atual = await pecaDoPedido(req);
       if (!atual) return res.status(404).json({ error: "Peça não encontrada" });
       if (soVisualiza(req, atual)) return res.status(403).json({ error: RECADO_SO_VISUALIZA });
-      const motivo = motivoDeNaoTravar(atual as any);
+      const motivo = motivoDeNaoTravar(atual);
       if (motivo) return res.status(409).json({ error: motivo });
       const quem = resolveActor(req);
-      const item = await storage.updateItem(atual.id, colunasDaTrava(lido.motivo, { nome: quem.userName, id: quem.userId }, new Date()) as any);
+      const item = await storage.updateItem(atual.id, colunasDaTrava(lido.motivo, { nome: quem.userName, id: quem.userId }, new Date()));
       if (!item) return res.status(404).json({ error: "Peça não encontrada" });
       await createAuditLog(req, "updated", "item", item.id, `Travada pela Solicitação: ${lido.motivo} (${quem.userName})`);
       broadcast({ type: "item_updated", item });
       res.json(item);
-    } catch (error: any) {
+    } catch (error) {
       console.error("[trava] falha ao travar a peça:", error);
       res.status(500).json({ error: "Não foi possível travar a peça." });
     }
@@ -60,14 +60,14 @@ export function registerTravaRoutes(app: Express): void {
       const atual = await pecaDoPedido(req);
       if (!atual) return res.status(404).json({ error: "Peça não encontrada" });
       if (soVisualiza(req, atual)) return res.status(403).json({ error: RECADO_SO_VISUALIZA });
-      if (!pecaTravada(atual as any)) return res.status(409).json({ error: "A peça não está travada" });
+      if (!pecaTravada(atual)) return res.status(409).json({ error: "A peça não está travada" });
       const quem = resolveActor(req);
-      const item = await storage.updateItem(atual.id, colunasDoDestravar() as any);
+      const item = await storage.updateItem(atual.id, colunasDoDestravar());
       if (!item) return res.status(404).json({ error: "Peça não encontrada" });
       await createAuditLog(req, "updated", "item", item.id, `Destravada (${quem.userName})`);
       broadcast({ type: "item_updated", item });
       res.json(item);
-    } catch (error: any) {
+    } catch (error) {
       console.error("[trava] falha ao destravar a peça:", error);
       res.status(500).json({ error: "Não foi possível destravar a peça." });
     }

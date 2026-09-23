@@ -9,7 +9,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi } from "vitest";
 import { fonteDaTela } from "./fonte-da-tela";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
@@ -218,39 +217,12 @@ describe("o e-mail", () => {
   });
 });
 
+// Fila vazia (inclusive a refação), a trilha por dia e horário, só produção,
+// o interruptor ligado por padrão, a hora inteira do relógio e a subida junto
+// com o servidor agora RODAM em regras-avisos-digest-disparo.test.ts.
 describe("as decisões herdadas do aviso da Revisão", () => {
-  const SRC = ler("server/services/gestaoDigest.ts");
-  const ROUTES = ler("server/routes.ts");
-
-  it("fila vazia não vira e-mail — e 'vazia' inclui a refação da Criação (31/08)", () => {
-    expect(SRC).toContain('if (resumo.totalPendentes === 0 && resumo.naCriacao === 0) {');
-  });
-
-  it("não repete: a trilha guarda o disparo do dia E DO HORÁRIO", () => {
-    // Por dia só não bastaria com três disparos: o das 15h acharia que já
-    // mandou por causa do das 10h.
-    expect(SRC).toContain('if (!opcoes.manual && await jaAvisou(dia, hora)) return { status: "ja-enviado" };');
-    expect(SRC).toContain("const marca = `${DETALHE_TRILHA} (${dia} ${hora}h)`;");
-    expect(SRC).toContain('entityType: "gestao"');
-  });
-
-  it("só produção envia — dev compartilha segredos com o deploy", () => {
-    expect(SRC).toContain("if (!ehProducao(env)) {");
-    expect(SRC).toContain("if (!ehProducao()) {");
-  });
-
-  it("três vezes por dia, nos horários do aviso da Revisão, e atrás de uma chave", () => {
+  it("três vezes por dia, nos horários do aviso da Revisão", () => {
     expect(HORARIOS_DA_GESTAO).toEqual([10, 15, 18]);
-    // a HORA INTEIRA vale (27/08): a janela de 5 min morria num republish às 18:02
-    expect(SRC).toContain("if (!HORARIOS_DA_GESTAO.includes(hora)) return;");
-    expect(SRC).not.toContain("minuto >= 5");
-    // LIGADO por padrão em produção (decisão do dono, 28/08: "segue não
-    // mandando automático" — a chave opt-in nunca era criada no deploy e o
-    // aviso morria em silêncio). Desligar é que exige =false, e o
-    // desligamento explícito fica na trilha.
-    expect(SRC).toContain('env.GESTAO_DIGEST_ENABLED?.trim().toLowerCase() !== "false"');
-    expect(SRC).toContain('await registrar("desligado (GESTAO_DIGEST_ENABLED=false) — nada enviado");');
-    expect(ROUTES).toContain("startGestaoDigest();");
   });
 
   it("o rodapé do e-mail diz os três horários — não uma promessa desatualizada", () => {
@@ -324,25 +296,11 @@ describe("reprovada e nova versão TAMBÉM são pendência (dono, 31/08)", () =>
   });
 });
 
+// A rota do disparo à mão (só admin, { manual: true }, a mensagem de fila
+// vazia) e o manual que pula a trilha mas não a fila vazia agora RODAM em
+// regras-avisos-digest-rotas.test.ts e regras-avisos-digest-disparo.test.ts.
 describe("o disparo à mão", () => {
-  const ITEMS = fonteDasRotasDeItens();
   const TELA = fonteDaTela("atendimento");
-
-  it("tem porta própria, só para admin — um clique manda e-mail de verdade", () => {
-    expect(ITEMS).toContain('app.post("/api/gestao/digest/enviar", requireAuth');
-    expect(ITEMS).toContain("Apenas administradores podem disparar o aviso da gestão");
-    expect(ITEMS).toContain("enviarAvisoDaGestao(new Date(), process.env, { manual: true })");
-  });
-
-  it("o manual ignora a memória do dia, mas NÃO a fila vazia", () => {
-    const SRC = ler("server/services/gestaoDigest.ts");
-    // `opcoes.manual` pula o jaAvisou (alguém pediu agora e está esperando)…
-    expect(SRC).toContain("if (!opcoes.manual && await jaAvisou(dia, hora))");
-    // …e também o interruptor, mas a fila vazia continua calando o envio.
-    expect(SRC).toContain("const ligado = opcoes.manual || env.GESTAO_DIGEST_ENABLED");
-    expect(SRC).toContain('if (resumo.totalPendentes === 0 && resumo.naCriacao === 0) {');
-    expect(ITEMS).toContain("Nenhuma aprovação pendente agora");
-  });
 
   it("o botão vive no Atendimento, só para admin, e conta o desfecho real", () => {
     expect(TELA).toContain('data-testid="button-avisar-gestao"');

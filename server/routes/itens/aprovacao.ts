@@ -1,6 +1,7 @@
 // Envio para aprovação, aprovação do patrocinador, dispensa e as aprovações por patrocinador.
 import type { Express } from "express";
 import { storage } from "../../storage";
+import type { InsertItem } from "@shared/schema";
 import { POS_APROVACAO, DESTINO_DA_DISPENSA } from "@shared/fluxo-peca";
 import { ehMolde } from "@shared/molde";
 import { enviarMoldeParaRevisao } from "../molde";
@@ -92,7 +93,7 @@ export function registrarAprovacao(app: Express): void {
         }
       }
 
-      const itemUpdates: any = { 
+      const itemUpdates: Partial<InsertItem> = { 
         status: nextStatus,
         // Limpa flag de reprovação pelo criador quando item é reenviado
         // rejectedBySponsor permanece até ser aprovado pelo patrocinador novamente

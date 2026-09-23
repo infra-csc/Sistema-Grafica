@@ -16,8 +16,9 @@
 // peça já tinha sido liberada é que a resposta aplica o reaproveitamento na
 // hora — foi a Solicitação quem pediu.
 // ─────────────────────────────────────────────────────────────────────────────
-import type { Express } from "express";
+import type { Express, NextFunction, Request, Response } from "express";
 import { storage } from "../storage";
+import type { InsertNotification } from "@shared/schema";
 import { pecaVisivelPara } from "@shared/kit";
 import {
   MAX_OBSERVACAO_DA_CONSULTA,
@@ -33,21 +34,22 @@ import {
 import { requireRole, broadcast, createAuditLog, resolveActor } from "./shared";
 import { motivoEventoDaPeca, erroEventoFechado } from "./eventoFinalizado";
 import * as repo from "../services/consultasDeEstoque";
+import { camposDoErro } from "../erros";
 
 const requireConsultar = requireRole("admin", "solicitacao");
 const requireResponder = requireRole("admin", "grafica");
 const requireLerConsultas = requireRole("admin", "grafica", "solicitacao");
 
-const quemAgiu = (req: any) => resolveActor({ userName: req.userName, userId: req.userId ?? null });
+const quemAgiu = (req: Pick<Request, "userName" | "userId">) => resolveActor({ userName: req.userName, userId: req.userId ?? null });
 
 const lerTexto = (v: unknown): string | null => {
   const t = typeof v === "string" ? v.trim() : "";
   return t ? t : null;
 };
 
-async function notificar(dados: { type: string; message: string; eventId: string; itemId: string; targetRoles: string[]; targetUserId?: string | null }) {
+async function notificar(dados: { type: string; message: string; eventId: string; itemId: string; targetRoles: InsertNotification["targetRoles"]; targetUserId?: string | null }) {
   try {
-    const notification = await storage.createNotification(dados as any);
+    const notification = await storage.createNotification(dados);
     broadcast({ type: "notification_created", notification });
   } catch (error) {
     console.error("[solicitacao-ao-estoque] falha ao notificar:", error);
@@ -59,7 +61,7 @@ async function notificar(dados: { type: string; message: string; eventId: string
  * peças do Kit que ELE criou, e a Solicitação sem Kit não revisa peça do Kit
  * ("Peças do Kit são revisadas pela equipe do Kit").
  */
-function foraDoAlcance(req: any, peca: { kitRemessaId: string | null; criadoPorId: string | null }): boolean {
+function foraDoAlcance(req: Pick<Request, "userKit" | "userId" | "userRole">, peca: { kitRemessaId: string | null; criadoPorId: string | null }): boolean {
   if (!pecaVisivelPara({ kit: req.userKit === true, userId: req.userId ?? null }, peca)) return true;
   return req.userRole === "solicitacao" && req.userKit !== true && !!peca.kitRemessaId;
 }
@@ -68,9 +70,9 @@ function foraDoAlcance(req: any, peca: { kitRemessaId: string | null; criadoPorI
 // (a régua de papéis compara tabela × código), mas não tocam no banco. Vêm
 // DEPOIS da guarda de papel: quem não podia continua recebendo 403.
 // Escrita → 404 "Recurso desativado"; leitura → vazio, no formato de sempre.
-const desativadaParaEscrita = (_req: any, res: any, next: any) =>
+const desativadaParaEscrita = (_req: Request, res: Response, next: NextFunction) =>
   SOLICITACAO_AO_ESTOQUE_ATIVA ? next() : res.status(404).json({ error: "Recurso desativado" });
-const vazioSeDesativada = (vazio: unknown) => (_req: any, res: any, next: any) =>
+const vazioSeDesativada = (vazio: unknown) => (_req: Request, res: Response, next: NextFunction) =>
   SOLICITACAO_AO_ESTOQUE_ATIVA ? next() : res.json(vazio);
 
 export function registerConsultasDeEstoqueRoutes(app: Express): void {
@@ -119,8 +121,9 @@ export function registerConsultasDeEstoqueRoutes(app: Express): void {
       });
       broadcast({ type: "consultas_de_estoque", itemId: peca.id, eventId: peca.eventId });
       res.status(201).json(consulta);
-    } catch (error: any) {
-      if (error?.httpStatus) return res.status(error.httpStatus).json({ error: error.message });
+    } catch (error: unknown) {
+      const { httpStatus, message } = camposDoErro(error);
+      if (httpStatus) return res.status(httpStatus).json({ error: message });
       console.error("[solicitacao-ao-estoque] erro ao pedir:", error);
       res.status(500).json({ error: "Erro ao pedir ao estoque" });
     }
@@ -133,10 +136,10 @@ export function registerConsultasDeEstoqueRoutes(app: Express): void {
         : [];
       const limite = Math.max(1, Math.min(500, parseInt(String(req.query.limite ?? "200"), 10) || 200));
       // A Solicitação vê as DELA; Gráfica e admin, todas.
-      const soAsMinhas = (req as any).userRole === "solicitacao";
+      const soAsMinhas = req.userRole === "solicitacao";
       res.json(await repo.listarConsultas({
         status: pedidos.length ? pedidos : undefined,
-        pedidoPorId: soAsMinhas ? ((req as any).userId ?? "") : undefined,
+        pedidoPorId: soAsMinhas ? (req.userId ?? "") : undefined,
         limite,
       }));
     } catch (error) {
@@ -174,8 +177,8 @@ export function registerConsultasDeEstoqueRoutes(app: Express): void {
       // enxerga na fila.
       const todas = await repo.consultasDaRevisao();
       res.json(todas
-        .filter((c: any) => !foraDoAlcance(req, { kitRemessaId: c.kitRemessaId ?? null, criadoPorId: c.criadoPorId ?? null }))
-        .map(({ kitRemessaId: _k, criadoPorId: _c, ...resto }: any) => resto));
+        .filter((c) => !foraDoAlcance(req, { kitRemessaId: c.kitRemessaId ?? null, criadoPorId: c.criadoPorId ?? null }))
+        .map(({ kitRemessaId: _k, criadoPorId: _c, ...resto }) => resto));
     } catch (error) {
       console.error("[solicitacao-ao-estoque] erro ao ler as da revisão:", error);
       res.status(500).json({ error: "Erro ao ler as respostas do estoque" });
@@ -186,13 +189,14 @@ export function registerConsultasDeEstoqueRoutes(app: Express): void {
     try {
       const consulta = await repo.consultaPorId(req.params.id);
       if (!consulta) return res.status(404).json({ error: "Solicitação não encontrada" });
-      if ((req as any).userRole === "solicitacao" && consulta.pedidoPorId !== (req as any).userId) {
+      if (req.userRole === "solicitacao" && consulta.pedidoPorId !== req.userId) {
         return res.status(404).json({ error: "Solicitação não encontrada" });
       }
       const busca = typeof req.query.busca === "string" ? req.query.busca.slice(0, 120) : "";
       res.json(await repo.sugestoesParaPeca(consulta.itemId, busca));
-    } catch (error: any) {
-      if (error?.httpStatus) return res.status(error.httpStatus).json({ error: error.message });
+    } catch (error: unknown) {
+      const { httpStatus, message } = camposDoErro(error);
+      if (httpStatus) return res.status(httpStatus).json({ error: message });
       console.error("[solicitacao-ao-estoque] erro ao sugerir:", error);
       res.status(500).json({ error: "Erro ao procurar no acervo" });
     }
@@ -252,8 +256,9 @@ export function registerConsultasDeEstoqueRoutes(app: Express): void {
       if (codigos.length) broadcast({ type: "estoque_reservas", itemId: peca.id, eventId: peca.eventId });
       if (pecaAtualizada) broadcast({ type: "item_updated", item: pecaAtualizada });
       res.json(respondida);
-    } catch (error: any) {
-      if (error?.httpStatus) return res.status(error.httpStatus).json({ error: error.message });
+    } catch (error: unknown) {
+      const { httpStatus, message } = camposDoErro(error);
+      if (httpStatus) return res.status(httpStatus).json({ error: message });
       console.error("[solicitacao-ao-estoque] erro ao responder:", error);
       res.status(500).json({ error: "Erro ao responder a solicitação" });
     }
@@ -264,7 +269,7 @@ export function registerConsultasDeEstoqueRoutes(app: Express): void {
       const consulta = await repo.consultaPorId(req.params.id);
       if (!consulta) return res.status(404).json({ error: "Solicitação não encontrada" });
       // Cancela quem pediu, ou o admin.
-      if ((req as any).userRole !== "admin" && consulta.pedidoPorId !== (req as any).userId) {
+      if (req.userRole !== "admin" && consulta.pedidoPorId !== req.userId) {
         return res.status(403).json({ error: "Só quem pediu ao estoque (ou o admin) pode cancelar a solicitação." });
       }
       const cancelada = await repo.cancelarConsulta(consulta.id);

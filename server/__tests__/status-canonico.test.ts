@@ -8,6 +8,7 @@
 // bifurcação que seis arquivos hoje remendam com listas duplas.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi } from "vitest";
+import { rodarScript } from "./rodar-script";
 import { readFileSync, readdirSync } from "fs";
 import path from "path";
 
@@ -73,19 +74,48 @@ describe("o mapa da migração", () => {
     }
   });
 
-  it("a migração NÃO passa por updateItem — grafia não é transição", () => {
-    const SCRIPT = readFileSync(new URL("../../scripts/unificar-status-legado.ts", import.meta.url), "utf8");
-    expect(SCRIPT).toContain("UPDATE items SET status = ${destino} WHERE status = ${c.status}");
-    expect(SCRIPT).not.toContain("updateItem(");
-    // statusChangedAt intocado: peça migrada não pode virar "andou hoje".
-    expect(SCRIPT).toContain("statusChangedAt e updatedAt ficam como estão");
-    // e deixa rastro na trilha, uma linha por grafia
-    expect(SCRIPT).toContain("Grafia de status unificada");
+  // A migração RODA aqui, sobre um banco de mentira (antes lia-se o texto do script).
+  async function rodarMigracao(aplicar: boolean) {
+    const { PgDialect } = await import("drizzle-orm/pg-core");
+    const dialeto = new PgDialect();
+    const sqls: Array<{ sql: string; params: unknown[] }> = [];
+    const trilha: Array<Record<string, unknown>> = [];
+    const contagem = [{ status: "em_producao", n: 3 }, { status: "inProduction", n: 7 }, { status: "entregue", n: 2 }];
+    const cadeia = { from: () => cadeia, groupBy: async () => contagem };
+    const db = {
+      select: () => cadeia,
+      execute: async (consulta: import("drizzle-orm").SQL) => { sqls.push(dialeto.sqlToQuery(consulta)); return { rowCount: 3 }; },
+      insert: () => ({ values: async (v: Record<string, unknown>) => { trilha.push(v); } }),
+      // Qualquer update() pelo query builder (o que updateItem faz) seria transição: não pode acontecer.
+      update: () => { throw new Error("a migração não pode usar update() — grafia não é transição"); },
+    };
+    const { saidas } = await rodarScript({ nome: "unificar-status-legado", importar: () => import("../../scripts/unificar-status-legado"), args: aplicar ? ["--aplicar"] : [], db });
+    return { sqls, trilha, saidas };
+  }
+
+  it("a migração é um UPDATE só da coluna status, por grafia — sem updateItem (statusChangedAt/updatedAt intocados)", async () => {
+    const { sqls, saidas } = await rodarMigracao(true);
+    expect(saidas[0]).toBe(0);
+    // Só as grafias LEGADAS (inProduction já é canônica e fica fora).
+    expect(sqls.map((s) => s.params)).toEqual([["inProduction", "em_producao"], ["delivered", "entregue"]]);
+    for (const s of sqls) {
+      expect(s.sql).toMatch(/UPDATE items SET status = \$1 WHERE status = \$2/);
+      expect(s.sql).not.toMatch(/status_changed_at|updated_at/);
+    }
   });
 
-  it("é ensaio por padrão", () => {
-    const SCRIPT = readFileSync(new URL("../../scripts/unificar-status-legado.ts", import.meta.url), "utf8");
-    expect(SCRIPT).toContain('process.argv.includes("--aplicar")');
+  it("deixa rastro na trilha, uma linha por grafia, em nome do Sistema", async () => {
+    const { trilha } = await rodarMigracao(true);
+    expect(trilha).toHaveLength(2);
+    expect(trilha[0]).toMatchObject({ userName: "Sistema", entityType: "sistema", entityId: "unificacao-status" });
+    expect(String(trilha[0].details)).toContain("Grafia de status unificada");
+  });
+
+  it("é ensaio por padrão: sem --aplicar não grava nada", async () => {
+    const { sqls, trilha, saidas } = await rodarMigracao(false);
+    expect(saidas[0]).toBe(0);
+    expect(sqls).toEqual([]);
+    expect(trilha).toEqual([]);
   });
 });
 

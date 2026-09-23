@@ -11,14 +11,14 @@ import { broadcast, createAuditLog, createAuditLogsEmLote, updateEventStatus } f
 import AdmZip from "adm-zip";
 import { carregarRemessa, remessaSchema } from "./kitRemessas";
 import { cabecalhoDoKit, diaMesDoKit, remessaUtilizavelPor, type CabecalhoDoKit } from "@shared/kit";
-import { fraseDoZod } from "../erros";
+import { camposDoErro, fraseDoZod } from "../erros";
 import { tipoCanonico } from "@shared/molde";
 
   // ── O CABEÇALHO DA PLANILHA DO KIT (14/09) ───────────────────────────────
   // Rótulo na coluna A, valor na B, nas linhas acima da tabela de peças; o
   // nome do evento na A1. Null quando a planilha não é do Kit.
   export function lerCabecalhoDoKit(buffer: Buffer): CabecalhoDoKit | null {
-    let zip: any;
+    let zip: AdmZip;
     try { zip = new AdmZip(buffer); } catch { return null; }
     const compartilhadas: string[] = [];
     const ssEntry = zip.getEntry("xl/sharedStrings.xml");
@@ -148,9 +148,9 @@ import { tipoCanonico } from "@shared/molde";
     buffer: Buffer,
     matchSponsors: (texto: string) => string[],
   ): LeituraDaPlanilha {
-    let zip: any;
+    let zip: AdmZip;
     try { zip = new AdmZip(buffer); }
-    catch (e: any) { return { ok: false, erro: `Arquivo inválido ou corrompido: ${e.message}` }; }
+    catch (e: unknown) { return { ok: false, erro: `Arquivo inválido ou corrompido: ${camposDoErro(e).message}` }; }
 
     // sharedStrings: cada <si> é uma entrada; concatena todos os <t> filhos.
     const sharedStrings: string[] = [];
@@ -487,13 +487,13 @@ import { tipoCanonico } from "@shared/molde";
         (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
       const eventSponsorRows = await storage.getEventSponsors(event.id);
       const allSponsorsList = await storage.getAllSponsors();
-      const sponsorById = new Map(allSponsorsList.map((s: any) => [s.id, s]));
+      const sponsorById = new Map(allSponsorsList.map((s) => [s.id, s]));
       const eventSponsors = eventSponsorRows
-        .map((es: any) => sponsorById.get(es.sponsorId))
-        .filter(Boolean)
-        .map((s: any) => ({ id: s.id, name: s.name, norm: normSponsor(s.name) }))
+        .map((es) => sponsorById.get(es.sponsorId))
+        .filter((s): s is (typeof allSponsorsList)[number] => Boolean(s))
+        .map((s) => ({ id: s.id, name: s.name, norm: normSponsor(s.name) }))
         // ignora nomes muito curtos (< 3) para evitar falso-positivo em substrings
-        .filter((s: any) => s.norm.length >= 3);
+        .filter((s) => s.norm.length >= 3);
       // Retorna os ids dos patrocinadores do evento cujo nome aparece no texto.
       const matchSponsors = (text: string): string[] => {
         if (!text || eventSponsors.length === 0) return [];
@@ -507,10 +507,10 @@ import { tipoCanonico } from "@shared/molde";
       const multer = (await import("multer")).default;
       const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
       await new Promise<void>((resolve, reject) =>
-        upload.single("file")(req as any, res as any, (err: any) => err ? reject(err) : resolve())
+        upload.single("file")(req, res, (err: unknown) => err ? reject(err) : resolve())
       );
 
-      const file = (req as any).file as { buffer: Buffer; originalname: string } | undefined;
+      const file: { buffer: Buffer; originalname: string } | undefined = req.file;
       if (!file) return res.status(400).json({ error: "Arquivo .xlsx não encontrado" });
 
       const leitura = lerPlanilhaDePecas(file.buffer, matchSponsors);
@@ -523,13 +523,22 @@ import { tipoCanonico } from "@shared/molde";
       // `ignoradas`: as linhas que ficaram de fora e por quê — a tela lista
       // "Linha 12: quantidade mínima é 1" em vez de a peça sumir calada.
       res.json({ items: leitura.items, ignoradas: leitura.ignoradas, fileName: file.originalname, kit: lerCabecalhoDoKit(file.buffer) });
-    } catch (error: any) {
-      console.error("[preview-xlsx] unhandled error:", error?.message, error?.stack?.slice(0, 600));
+    } catch (error: unknown) {
+      const campos = camposDoErro(error) as { message?: string; code?: string; stack?: string };
+      console.error("[preview-xlsx] unhandled error:", campos.message, campos.stack?.slice(0, 600));
       // Arquivo grande demais é o único erro "do usuário" que chega aqui.
-      if (error?.code === "LIMIT_FILE_SIZE") return res.status(400).json({ error: "Planilha grande demais — o limite é 50 MB." });
+      if (campos.code === "LIMIT_FILE_SIZE") return res.status(400).json({ error: "Planilha grande demais — o limite é 50 MB." });
       res.status(400).json({ error: "Não foi possível ler a planilha. Confira se é um .xlsx válido." });
     }
   }
+
+  /** Uma linha como o preview devolveu. Vem do cliente: nada é garantido. */
+  type LinhaImportada = {
+    linha?: unknown; type?: unknown; description?: unknown; quantity?: unknown;
+    visualWidth?: unknown; visualHeight?: unknown; fileWidth?: unknown; fileHeight?: unknown;
+    calculatedM2?: unknown; material?: unknown; finish?: unknown; measurement?: unknown; observations?: unknown;
+    suggestedSponsorIds?: unknown; suggestedSponsorId?: unknown;
+  };
 
   // ── Confirm import (save pre-reviewed items) ─────────────────────────────
   //
@@ -545,7 +554,7 @@ import { tipoCanonico } from "@shared/molde";
       const event = await storage.getEvent(req.params.id);
       if (!event) return res.status(404).json({ error: "Evento não encontrado" });
 
-      const { items, fileName, kitRemessaId: kitCru } = req.body as { items: any[]; fileName?: string; kitRemessaId?: string };
+      const { items, fileName, kitRemessaId: kitCru } = req.body as { items: LinhaImportada[]; fileName?: string; kitRemessaId?: string };
       if (!items || !Array.isArray(items) || items.length === 0)
         return res.status(400).json({ error: "Nenhum item para importar" });
 
@@ -554,10 +563,10 @@ import { tipoCanonico } from "@shared/molde";
       const kitRemessaExistente = typeof kitCru === "string" && kitCru ? kitCru : null;
       // Planilha do Kit com remessa NOVA: a remessa nasce DENTRO da transação
       // das peças (abaixo) — aqui só se valida.
-      const novaRemessaCrua = (req.body as any)?.kitNovaRemessa;
+      const novaRemessaCrua: unknown = (req.body as { kitNovaRemessa?: unknown } | undefined)?.kitNovaRemessa;
       let novaRemessa: z.infer<typeof remessaSchema> | null = null;
       if (!kitRemessaExistente && novaRemessaCrua && typeof novaRemessaCrua === "object") {
-        if (!["admin", "solicitacao"].includes((req as any).userRole ?? "")) {
+        if (!["admin", "solicitacao"].includes(req.userRole ?? "")) {
           return res.status(403).json({ error: "Criar remessa do Kit é do admin e da Solicitação." });
         }
         const dadosRemessa = remessaSchema.safeParse({ ...novaRemessaCrua, eventId: event.id });
@@ -566,23 +575,27 @@ import { tipoCanonico } from "@shared/molde";
         }
         novaRemessa = dadosRemessa.data;
       }
-      if ((req as any).userKit && !kitRemessaExistente && !novaRemessa) {
+      if (req.userKit && !kitRemessaExistente && !novaRemessa) {
         return res.status(400).json({ error: "Usuário do Kit importa só peças do Kit — escolha a remessa do Kit." });
       }
       if (kitRemessaExistente) {
         const remessa = await carregarRemessa(kitRemessaExistente);
         if (!remessa || remessa.eventId !== event.id) return res.status(400).json({ error: "Remessa do Kit inválida para este evento." });
-        if (!remessaUtilizavelPor({ kit: (req as any).userKit === true, userId: (req as any).userId }, remessa)) {
+        if (!remessaUtilizavelPor({ kit: req.userKit === true, userId: req.userId }, remessa)) {
           return res.status(403).json({ error: "Esta remessa do Kit é de outra pessoa." });
         }
       }
 
       // A linha que a pessoa vê na planilha (o preview manda `linha`); sem
       // ela, a posição na lista.
-      const linhaDe = (i: number) => (Number.isInteger(items[i]?.linha) && items[i].linha > 0 ? items[i].linha : i + 1);
+      const linhaDe = (i: number) => {
+        const linha = items[i]?.linha;
+        // Number.isInteger já é falso para o que não é número.
+        return typeof linha === "number" && Number.isInteger(linha) && linha > 0 ? linha : i + 1;
+      };
       const texto = (v: unknown) => (v !== null && v !== undefined && v !== "" ? String(v) : null);
 
-      const toCreate = items.map((item: any) => ({
+      const toCreate = items.map((item) => ({
         eventId: event.id,
         type: typeof item.type === "string" ? tipoCanonico(item.type) : item.type,
         description: item.description,
@@ -602,12 +615,12 @@ import { tipoCanonico } from "@shared/molde";
         observations: item.observations || "",
         status: "requested",
         kitRemessaId: kitRemessaExistente,
-        criadoPorId: (req as any).userId ?? null,
+        criadoPorId: req.userId ?? null,
       }));
 
       // A mesma régua do preview, agora no servidor: a primeira linha com
       // defeito volta com o número da linha e o campo, em português.
-      const validated: any[] = [];
+      const validated: Array<z.infer<typeof insertItemSchema>> = [];
       for (let i = 0; i < toCreate.length; i++) {
         const item = toCreate[i];
         if (!Number.isInteger(item.quantity) || item.quantity < 1) {
@@ -621,7 +634,7 @@ import { tipoCanonico } from "@shared/molde";
       // Patrocinadores: só os do EVENTO. O vínculo com um patrocinador que
       // saiu do evento entre o preview e o confirmar não é gravado às cegas —
       // a importação volta dizendo qual linha e qual nome.
-      const doEvento = new Set((await storage.getEventSponsors(event.id)).map((es: any) => es.sponsorId));
+      const doEvento = new Set((await storage.getEventSponsors(event.id)).map((es) => es.sponsorId));
       const vinculosPorLinha: string[][] = [];
       for (let i = 0; i < items.length; i++) {
         const raw = items[i];
@@ -650,7 +663,7 @@ import { tipoCanonico } from "@shared/molde";
             `Remessa do Kit ${remessaCriada.versao} criada — entrega do material ${diaMesDoKit(remessaCriada.entregaMaterial) ?? "—"}`
             + (remessaCriada.saidaCaminhao ? `, saída do caminhão ${diaMesDoKit(remessaCriada.saidaCaminhao)}` : "")
             + (remessaCriada.arquivo ? ` (planilha "${remessaCriada.arquivo}")` : ""));
-        } catch (e: any) { console.error("[confirm-import] trilha da remessa falhou:", e?.message); }
+        } catch (e: unknown) { console.error("[confirm-import] trilha da remessa falhou:", camposDoErro(e).message); }
         broadcast({ type: "kit_remessas", eventId: event.id });
       }
       try {
@@ -661,12 +674,12 @@ import { tipoCanonico } from "@shared/molde";
           `${created.length} itens importados via Excel${fileName ? ` ("${fileName}")` : ""}`
         );
         // Uma linha por peça (o histórico acha o autor pela peça), num INSERT só.
-        await createAuditLogsEmLote(req, created.map((it: any) => ({
+        await createAuditLogsEmLote(req, created.map((it) => ({
           action: 'created', entityType: 'item', entityId: it.id,
           details: `Item "${it.type}" importado via Excel - Qtd: ${it.quantity}`,
         })));
-      } catch (e: any) {
-        console.error("[confirm-import] peças importadas, mas a trilha falhou:", e?.message);
+      } catch (e: unknown) {
+        console.error("[confirm-import] peças importadas, mas a trilha falhou:", camposDoErro(e).message);
       }
       // O aviso não pode desfazer a importação (15/09): as peças já estão
       // gravadas — erro aqui fazia a tela dizer "não deu" e a pessoa importar
@@ -679,19 +692,20 @@ import { tipoCanonico } from "@shared/molde";
           targetRoles: ["arte"], // só quem AGE agora: a Gráfica entra bem depois, quando liberam p/ produção
         });
         broadcast({ type: "notification_created", notification });
-      } catch (erroDoAviso: any) {
-        console.error("[confirm-import] peças importadas, mas o aviso falhou:", erroDoAviso?.message);
+      } catch (erroDoAviso: unknown) {
+        console.error("[confirm-import] peças importadas, mas o aviso falhou:", camposDoErro(erroDoAviso).message);
       }
       broadcast({ type: "items_bulk_created", items: created, eventId: event.id });
       try {
         await updateEventStatus(event.id);
-      } catch (e: any) {
-        console.error("[confirm-import] peças importadas, mas o status do evento não recalculou:", e?.message);
+      } catch (e: unknown) {
+        console.error("[confirm-import] peças importadas, mas o status do evento não recalculou:", camposDoErro(e).message);
       }
 
       res.status(201).json({ imported: created.length, items: created, ...(remessaCriada ? { kitRemessaId: remessaCriada.id } : {}) });
-    } catch (error: any) {
-      if (error?.httpStatus && error?.publico) return res.status(error.httpStatus).json({ error: error.publico });
+    } catch (error: unknown) {
+      const { httpStatus, publico } = camposDoErro(error) as { httpStatus?: number; publico?: string };
+      if (httpStatus && publico) return res.status(httpStatus).json({ error: publico });
       console.error("[confirm-import] falhou:", error);
       res.status(500).json({ error: "Não foi possível importar agora — nenhuma peça foi gravada. Tente de novo em instantes." });
     }
@@ -707,15 +721,16 @@ import { tipoCanonico } from "@shared/molde";
    */
   async function gravarImportacao(p: {
     eventId: string;
-    validated: any[];
+    validated: Array<z.infer<typeof insertItemSchema>>;
     vinculosPorLinha: string[][];
     novaRemessa: z.infer<typeof remessaSchema> | null;
-    req: any;
+    req: Pick<Request, "userName" | "userId">;
   }) {
     // Os dois cuidados da sequência moram (privados) no storage; aqui só se
-    // pede para garantir que ela existe e, na colisão, ressincronizar.
-    const armazem = storage as any;
-    if (typeof armazem.ensureDisplayIdSequence === "function") await armazem.ensureDisplayIdSequence();
+    // pede para garantir que ela existe e, na colisão, ressincronizar. O
+    // colchete é o acesso a membro privado que o TypeScript permite.
+    const armazem = storage;
+    if (typeof armazem["ensureDisplayIdSequence"] === "function") await armazem["ensureDisplayIdSequence"]();
     const rodar = () => db.transaction(async (tx) => {
       let remessaCriada: typeof kitRemessas.$inferSelect | null = null;
       let kitRemessaId: string | null = p.validated[0]?.kitRemessaId ?? null;
@@ -749,7 +764,7 @@ import { tipoCanonico } from "@shared/molde";
       }
 
       const seq = await tx.execute(sql`SELECT nextval('item_display_id_seq') as next_id FROM generate_series(1, ${p.validated.length})`);
-      const codigos: string[] = ((seq as any).rows ?? []).map((row: any) => `#${String(Number(row.next_id)).padStart(4, "0")}`);
+      const codigos: string[] = ((seq as { rows?: Array<{ next_id?: unknown }> }).rows ?? []).map((row) => `#${String(Number(row.next_id)).padStart(4, "0")}`);
       const linhas = p.validated.map((item, i) => ({
         ...item,
         kitRemessaId,
@@ -760,7 +775,7 @@ import { tipoCanonico } from "@shared/molde";
       }));
       const created = await tx.insert(itemsTable).values(linhas).returning();
 
-      const vinculos = created.flatMap((peca: any, i: number) => (p.vinculosPorLinha[i] ?? []).map((sponsorId) => ({ itemId: peca.id, sponsorId })));
+      const vinculos = created.flatMap((peca, i) => (p.vinculosPorLinha[i] ?? []).map((sponsorId) => ({ itemId: peca.id, sponsorId })));
       if (vinculos.length > 0) await tx.insert(itemSponsors).values(vinculos).onConflictDoNothing();
 
       return { created, remessaCriada };
@@ -768,8 +783,8 @@ import { tipoCanonico } from "@shared/molde";
     try {
       return await rodar();
     } catch (error) {
-      if (!isDisplayIdConflictError(error) || typeof armazem.syncDisplayIdSequence !== "function") throw error;
-      await armazem.syncDisplayIdSequence();
+      if (!isDisplayIdConflictError(error) || typeof armazem["syncDisplayIdSequence"] !== "function") throw error;
+      await armazem["syncDisplayIdSequence"]();
       return await rodar();
     }
   }

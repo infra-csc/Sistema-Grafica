@@ -63,16 +63,16 @@ export const COLUNAS_DA_TRILHA = [
 ] as const;
 
 /** Uma peça reduzida às colunas da trilha, na ordem de COLUNAS_DA_TRILHA. */
-export function projetarNaTrilha(item: Record<string, any>): Record<string, any> {
-  const saida: Record<string, any> = {};
-  for (const coluna of COLUNAS_DA_TRILHA) saida[coluna] = item[coluna] ?? null;
+export function projetarNaTrilha(item: object): Obj {
+  const saida: Obj = {};
+  for (const coluna of COLUNAS_DA_TRILHA) saida[coluna] = (item as Obj)[coluna] ?? null;
   return saida;
 }
 
 const MARCA_PECAS = "pecas-compactas";
 const MARCA_APROVACOES = "aprovacoes-compactas";
 
-type Obj = Record<string, any>;
+type Obj = Record<string, unknown>;
 
 export interface PecasCompactas {
   formato: typeof MARCA_PECAS;
@@ -84,7 +84,7 @@ export interface PecasCompactas {
   /** Patrocinadores referenciados (no delta: todos, como sempre foi). */
   patrocinadores: Obj[];
   formas: string[][];
-  pecas: any[][];
+  pecas: unknown[][];
   [extra: string]: unknown;
 }
 
@@ -94,7 +94,7 @@ export interface AprovacoesCompactas {
   patrocinadores: Obj[];
   sponsorsByItem: Record<string, Array<string | Obj>>;
   formas: string[][];
-  approvalsByItem: Record<string, any[][]>;
+  approvalsByItem: Record<string, unknown[][]>;
 }
 
 export const ehPecasCompactas = (x: unknown): x is PecasCompactas =>
@@ -180,11 +180,11 @@ function criarFormas() {
  * de repetir; evento/patrocinador fora da base vai embutido.
  */
 export function compactarPecas(
-  itens: Obj[],
-  base?: { eventos?: Obj[]; patrocinadores?: Obj[] },
+  itens: object[],
+  base?: { eventos?: object[]; patrocinadores?: object[] },
 ): PecasCompactas {
-  const eventos: Obj[] = base?.eventos ? base.eventos.slice() : [];
-  const patrocinadores: Obj[] = base?.patrocinadores ? base.patrocinadores.slice() : [];
+  const eventos = (base?.eventos ? base.eventos.slice() : []) as Obj[];
+  const patrocinadores = (base?.patrocinadores ? base.patrocinadores.slice() : []) as Obj[];
   const baseDeEventosFixa = !!base?.eventos;
   const baseDePatrocinadoresFixa = !!base?.patrocinadores;
 
@@ -202,10 +202,12 @@ export function compactarPecas(
   const memoPatrocinador = new Map<Obj, [string, unknown] | null>();
 
   const refDoEvento = (ev: unknown, kitRemessaId: unknown): string | null => {
-    if (!ev || typeof ev !== "object" || Array.isArray(ev) || typeof (ev as Obj).id !== "string") return null;
+    if (!ev || typeof ev !== "object" || Array.isArray(ev)) return null;
     const evento = ev as Obj;
+    const id = evento.id;
+    if (typeof id !== "string") return null;
     const doKit = evento.datasDoKit === true && typeof kitRemessaId === "string" && kitRemessaId !== "";
-    const chave = doKit ? `${evento.id}#kit-${kitRemessaId}` : evento.id;
+    const chave = doKit ? `${id}#kit-${kitRemessaId}` : id;
     const lembrada = memoEvento.get(evento);
     if (lembrada !== undefined && (lembrada === null || lembrada === chave)) return lembrada;
 
@@ -237,8 +239,10 @@ export function compactarPecas(
   };
 
   const refDoPatrocinador = (s: unknown): [string, unknown] | null => {
-    if (!s || typeof s !== "object" || Array.isArray(s) || typeof (s as Obj).id !== "string") return null;
+    if (!s || typeof s !== "object" || Array.isArray(s)) return null;
     const entrada = s as Obj;
+    const id = entrada.id;
+    if (typeof id !== "string") return null;
     const lembrada = memoPatrocinador.get(entrada);
     if (lembrada !== undefined) return lembrada;
 
@@ -247,16 +251,16 @@ export function compactarPecas(
     // A entrada é {...patrocinador, approvalStatus}: approvalStatus é a ÚLTIMA
     // chave. Qualquer outra forma vai embutida.
     if (chaves[chaves.length - 1] === "approvalStatus") {
-      let noDic = spPorId.get(entrada.id);
+      let noDic = spPorId.get(id);
       if (!noDic && !baseDePatrocinadoresFixa) {
         const obj: Obj = {};
         for (let k = 0; k < chaves.length - 1; k++) obj[chaves[k]] = entrada[chaves[k]];
         noDic = { obj, chaves: chaves.slice(0, -1) };
-        spPorId.set(entrada.id, noDic);
+        spPorId.set(id, noDic);
         patrocinadores.push(obj);
       }
       if (noDic && mesmosCampos(noDic.obj, noDic.chaves, entrada, chaves, chaves.length - 1)) {
-        ref = [entrada.id, entrada.approvalStatus];
+        ref = [id, entrada.approvalStatus];
       }
     }
     memoPatrocinador.set(entrada, ref);
@@ -264,11 +268,11 @@ export function compactarPecas(
   };
 
   const { formas, indice } = criarFormas();
-  const pecas: any[][] = new Array(itens.length);
+  const pecas: unknown[][] = new Array(itens.length);
   for (let p = 0; p < itens.length; p++) {
-    const item = itens[p];
+    const item = itens[p] as Obj;
     const chaves = chavesSerializaveis(item);
-    const linha: any[] = new Array(chaves.length + 1);
+    const linha: unknown[] = new Array(chaves.length + 1);
     linha[0] = indice(chaves);
     for (let k = 0; k < chaves.length; k++) {
       const chave = chaves[k];
@@ -374,27 +378,29 @@ export function expandirResposta(corpo: unknown): unknown {
  * (5,8 MB medidos). Compacto: patrocinador vira id, aprovação vira linha.
  */
 export function compactarAprovacoes(dados: {
-  sponsorsByItem: Record<string, Obj[]>;
-  approvalsByItem: Record<string, Obj[]>;
+  sponsorsByItem: Record<string, object[]>;
+  approvalsByItem: Record<string, object[]>;
 }): AprovacoesCompactas {
   const patrocinadores: Obj[] = [];
   const spPorId = new Map<string, { obj: Obj; chaves: string[] }>();
   const memo = new Map<Obj, string | null>();
   const refDo = (s: unknown): string | null => {
-    if (!s || typeof s !== "object" || Array.isArray(s) || typeof (s as Obj).id !== "string") return null;
+    if (!s || typeof s !== "object" || Array.isArray(s)) return null;
     const sp = s as Obj;
+    const id = sp.id;
+    if (typeof id !== "string") return null;
     const lembrada = memo.get(sp);
     if (lembrada !== undefined) return lembrada;
     const chaves = chavesSerializaveis(sp);
-    let noDic = spPorId.get(sp.id);
+    let noDic = spPorId.get(id);
     let ref: string | null = null;
     if (!noDic) {
       noDic = { obj: sp, chaves };
-      spPorId.set(sp.id, noDic);
+      spPorId.set(id, noDic);
       patrocinadores.push(sp);
-      ref = sp.id;
+      ref = id;
     } else if (mesmosCampos(noDic.obj, noDic.chaves, sp, chaves, chaves.length)) {
-      ref = sp.id;
+      ref = id;
     }
     memo.set(sp, ref);
     return ref;
@@ -402,15 +408,16 @@ export function compactarAprovacoes(dados: {
 
   const sponsorsByItem: Record<string, Array<string | Obj>> = {};
   for (const itemId of Object.keys(dados.sponsorsByItem ?? {})) {
-    sponsorsByItem[itemId] = dados.sponsorsByItem[itemId].map((s) => refDo(s) ?? s);
+    sponsorsByItem[itemId] = dados.sponsorsByItem[itemId].map((s) => refDo(s) ?? (s as Obj));
   }
 
   const { formas, indice } = criarFormas();
-  const approvalsByItem: Record<string, any[][]> = {};
+  const approvalsByItem: Record<string, unknown[][]> = {};
   for (const itemId of Object.keys(dados.approvalsByItem ?? {})) {
-    approvalsByItem[itemId] = dados.approvalsByItem[itemId].map((a) => {
+    approvalsByItem[itemId] = dados.approvalsByItem[itemId].map((aprovacao) => {
+      const a = aprovacao as Obj;
       const chaves = chavesSerializaveis(a);
-      const linha: any[] = new Array(chaves.length + 1);
+      const linha: unknown[] = new Array(chaves.length + 1);
       linha[0] = indice(chaves);
       for (let k = 0; k < chaves.length; k++) {
         const valor = a[chaves[k]];

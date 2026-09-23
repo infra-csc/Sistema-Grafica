@@ -17,16 +17,23 @@
 // (5.128 peças, 68 eventos, 159 patrocinadores, 60% entregues).
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeAll } from "vitest";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
-import { readFileSync } from "fs";
-import path from "path";
 
 const H = vi.hoisted(() => ({
   storage: {} as Record<string, any>,
   remessas: new Map<string, any>(),
+  onde: [] as unknown[],
 }));
 
-vi.mock("../db", () => ({ db: {}, pool: {} }));
+// db.select só para a paridade com o SQL de getApprovedItems (guarda o WHERE).
+vi.mock("../db", () => ({
+  db: {
+    select: () => {
+      const c: any = { from: () => c, orderBy: () => c, where: (w: unknown) => { H.onde.push(w); return c; }, then: (ok: any, f: any) => Promise.resolve([]).then(ok, f) };
+      return c;
+    },
+  },
+  pool: {},
+}));
 vi.mock("../storage", async () => {
   const real = await vi.importActual<any>("../storage");
   return { ...real, storage: H.storage };
@@ -64,7 +71,9 @@ import {
   compactarPecas, expandirPecas, expandirResposta, compactarAprovacoes, expandirAprovacoes,
 } from "@shared/itens-compactos";
 import { registerItemRoutes } from "../routes/items";
-import { cabeNaJanelaDeEntregues } from "../storage";
+import { cabeNaJanelaDeEntregues, DatabaseStorage } from "../storage";
+import { PgDialect } from "drizzle-orm/pg-core";
+import { ITEM_STATUSES } from "@shared/schema";
 import { aplicarDelta, getQueryFn, resetItensDelta } from "../../client/src/lib/queryClient";
 
 // ─── harness das rotas ───────────────────────────────────────────────────────
@@ -348,16 +357,43 @@ describe("codificar/decodificar é exato", () => {
 
 // ═════════════════════════════════════════════════════════════════════════════
 describe("paridade com o storage", () => {
-  it("os status do delta da Gráfica são os de getApprovedItems", () => {
-    const STORAGE = readFileSync(path.resolve(__dirname, "../storage.ts"), "utf8");
-    const fn = STORAGE.slice(STORAGE.indexOf("async getApprovedItems"), STORAGE.indexOf("private async generateNextDisplayId"));
-    const doSql = Array.from(fn.matchAll(/'([A-Za-z_]+)'/g), (m) => m[1]);
-    const ITEMS = fonteDasRotasDeItens();
-    const bloco = ITEMS.slice(ITEMS.indexOf("const STATUS_DA_FILA_DA_GRAFICA"), ITEMS.indexOf("]);", ITEMS.indexOf("const STATUS_DA_FILA_DA_GRAFICA")));
-    const daRota = Array.from(bloco.matchAll(/"([A-Za-z_]+)"/g), (m) => m[1]);
+  it("os status do delta da Gráfica são os de getApprovedItems", async () => {
+    // O SQL de verdade: getApprovedItems roda e o IN (...) sai do WHERE renderizado.
+    H.onde = [];
+    await new DatabaseStorage().getApprovedItems();
+    const { sql } = new PgDialect().sqlToQuery(H.onde[0] as any);
+    const lista = /"items"\."status" IN \(([^)]*)\)/.exec(sql)?.[1] ?? "";
+    const doSql = Array.from(lista.matchAll(/'([A-Za-z_]+)'/g), (m) => m[1]);
     expect(doSql.length).toBeGreaterThan(5);
-    expect(new Set(daRota)).toEqual(new Set(doSql));
-    expect(new Set(daRota)).toEqual(FILA_DA_GRAFICA);
+
+    // O delta de verdade: uma peça recém-mudada em CADA status que existe; as
+    // que voltam em `itens` são as que a rota considera da fila.
+    const candidatos = Array.from(new Set([...ITEM_STATUSES, ...doSql, "pronto_para_producao", "liberado", "em_producao", "produzido"]));
+    const agora = Date.now();
+    const antes = { ...H.storage };
+    try {
+      Object.assign(H.storage, {
+        getItemsChangedSince: async () => candidatos.map((status, n) => ({
+          id: `p-${status}`, displayId: `#${n}`, eventId: "e1", status, deletedAt: null, parentItemId: null,
+          updatedAt: new Date(agora), deliveredAt: new Date(agora - 60_000), kitRemessaId: null, criadoPorId: null,
+        })),
+        getIdsQueSairamDaJanelaDeEntregues: async () => [],
+        getAllEvents: async () => [{ id: "e1", name: "Evento", status: "created" }],
+        getAllSponsors: async () => [],
+        getItemSponsorsByItemIds: async () => [],
+        getItemSponsorApprovalsByItemIds: async () => [],
+        getItemsByIds: async () => [],
+        getComplementsByParentIds: async () => [],
+      });
+      const r = await chamar("GET /api/items/approved", { since: new Date(agora - 60_000).toISOString() }, "grafica");
+      const daRota = r.itens.map((i: any) => i.status);
+      expect(new Set(daRota)).toEqual(new Set(doSql));
+      expect(new Set(daRota)).toEqual(FILA_DA_GRAFICA);
+      expect(r.removidas).toHaveLength(candidatos.length - daRota.length);
+    } finally {
+      for (const k of Object.keys(H.storage)) delete H.storage[k];
+      Object.assign(H.storage, antes);
+    }
   });
 });
 
@@ -558,9 +594,8 @@ describe("GET /api/items recortado (?status=, ?ids=)", () => {
     const porId = vi.fn(H.storage.getItemSponsorsByItemIds);
     H.storage.getItemSponsorsByItemIds = porId;
     await chamar("GET /api/items", { status: REVISAO });
+    // Recorte pede a ordem do ACERVO: as leituras por id não são usadas.
     expect(porId).not.toHaveBeenCalled();
-    const fonte = fonteDasRotasDeItens();
-    expect(fonte).toContain("const escopado = list.length <= 500 && !carregados?.ordemDoAcervo;");
   });
 
   it("KIT: o recorte respeita pecaVisivelPara (cheio e delta)", async () => {

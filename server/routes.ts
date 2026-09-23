@@ -6,8 +6,8 @@
 // It used to contain every route inline (~4700 lines) — that logic was
 // split out module-by-module with no behavior changes; see server/routes/
 // and server/services/ for the actual route handlers.
-import type { Express } from "express";
-import { createServer, type Server } from "http";
+import type { Express, Request, Response } from "express";
+import { createServer, type Server, type IncomingMessage } from "http";
 import { WebSocketServer } from "ws";
 import { wsClients, iniciarTempoReal, type SocketDoApp } from "./tempo-real";
 import { sessionMiddleware } from "./session";
@@ -217,12 +217,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // res "fake" suficiente para o express-session ler o cookie na fase de
   // upgrade (não há ciclo normal de resposta aqui; só precisamos LER a sessão).
-  const noopRes: any = {
+  // Não é um Response de verdade (só os métodos que o express-session toca),
+  // por isso a afirmação dupla.
+  const noopRes = {
     setHeader() {}, getHeader() {}, removeHeader() {},
     writeHead() {}, on() {}, once() {}, end() {},
-  };
+  } as unknown as Response;
 
-  httpServer.on('upgrade', (req: any, socket, head) => {
+  httpServer.on('upgrade', (mensagem: IncomingMessage, socket, head) => {
+    // O express-session pendura `session` na própria requisição do upgrade.
+    const req = mensagem as Request;
     // Só tratamos /ws; outros upgrades (ex.: HMR do Vite em dev) seguem para
     // os handlers deles — por isso retornamos SEM destruir o socket.
     const path = (req.url || '').split('?')[0];

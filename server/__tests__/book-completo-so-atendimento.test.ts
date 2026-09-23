@@ -14,7 +14,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import { fonteDaTela } from "./fonte-da-tela";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import { ehBookCompleto } from "../../shared/fluxo-peca";
 
@@ -31,15 +30,9 @@ describe("o predicado", () => {
   });
 });
 
+// As portas do SERVIDOR (e a exceção da Correção) rodam em regras-avisos-book-completo.test.ts.
 describe("as portas fechadas", () => {
   const PORTAS: Array<[string, string]> = [
-    ["fila da Gráfica (rota approved)", "../routes/itens/leitura.ts"],
-    ["Versões", "../routes/versoes.ts"],
-    ["Análises", "../routes/analises.ts"],
-    ["Prazos", "../routes/prazos.ts"],
-    ["Relatório do evento", "../routes/relatorio.ts"],
-    ["busca global", "../routes/busca.ts"],
-    ["digest da revisão", "../services/revisaoDigest.ts"],
     ["Arte (fila principal)", "../../client/src/pages/arte.tsx"],
     // A query de peças do Painel mora no hook de dados da tela.
     ["Painel Geral", "../../client/src/components/painel/use-painel-dados.ts"],
@@ -56,15 +49,5 @@ describe("as portas fechadas", () => {
 describe("as exceções deliberadas", () => {
   it("o Atendimento NÃO filtra — é o lugar dela", () => {
     expect(fonteDaTela("atendimento")).not.toContain("ehBookCompleto");
-  });
-
-  it("a Correção da Arte NÃO filtra — reprovada, a v2 precisa da porta", () => {
-    // resubmission-needed monta a fila da Correção; o filtro da Arte vale só
-    // para allItems (a fila principal), e este teste quebra se alguém aplicar
-    // o predicado dentro da rota.
-    const items = fonteDasRotasDeItens();
-    const i = items.indexOf('"/api/items/resubmission-needed"');
-    const rota = items.slice(i, items.indexOf("app.get(", i + 10));
-    expect(rota).not.toContain("ehBookCompleto");
   });
 });

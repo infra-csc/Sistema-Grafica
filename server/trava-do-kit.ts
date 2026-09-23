@@ -32,7 +32,7 @@ const textos = (v: unknown): string[] =>
  * corpo (`itemIds`, `ids`, `itemId`). Em leitura, só conta a URL com sufixo
  * (/api/items/:id/comments…): `GET /api/items/:x` sem sufixo é por EVENTO.
  */
-export function idsDePecaAlvo(req: { method: string; path: string; body?: any }): string[] {
+export function idsDePecaAlvo(req: { method: string; path: string; body?: unknown }): string[] {
   const ids: string[] = [];
   const escrita = ESCRITA.has(req.method);
   const m = req.path.match(/^\/api\/items\/([^/]+)(\/.*)?$/);
@@ -42,7 +42,8 @@ export function idsDePecaAlvo(req: { method: string; path: string; body?: any })
     if (ehId && (escrita || !!sufixo)) ids.push(alvo);
   }
   if (escrita && req.body && typeof req.body === "object") {
-    ids.push(...textos(req.body.itemIds), ...textos(req.body.ids), ...textos(req.body.itemId));
+    const corpo = req.body as Record<string, unknown>;
+    ids.push(...textos(corpo.itemIds), ...textos(corpo.ids), ...textos(corpo.itemId));
   }
   return Array.from(new Set(ids));
 }
@@ -64,12 +65,13 @@ export function escritaDeEvento(req: { method: string; path: string }): { eventI
 }
 
 /** Ids de peça do corpo de embalar/tirar: `itens: [{ id }]`, `itemIds`, `adicionar`, `remover`. */
-export function idsDoCorpoDoVolume(body: any): string[] {
+export function idsDoCorpoDoVolume(body: unknown): string[] {
   if (!body || typeof body !== "object") return [];
-  const itens = Array.isArray(body.itens)
-    ? body.itens.map((x: any) => x?.id).filter((x: unknown): x is string => typeof x === "string")
+  const corpo = body as Record<string, unknown>;
+  const itens: string[] = Array.isArray(corpo.itens)
+    ? corpo.itens.map((x: { id?: unknown } | null | undefined) => x?.id).filter((x: unknown): x is string => typeof x === "string")
     : [];
-  return Array.from(new Set([...itens, ...textos(body.itemIds), ...textos(body.adicionar), ...textos(body.remover)]));
+  return Array.from(new Set([...itens, ...textos(corpo.itemIds), ...textos(corpo.adicionar), ...textos(corpo.remover)]));
 }
 
 export type PecaParaTrava = { id: string; kitRemessaId: string | null; criadoPorId: string | null };

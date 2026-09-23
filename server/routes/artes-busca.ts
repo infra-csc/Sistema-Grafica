@@ -149,7 +149,7 @@ export const mesmaPecaFisica = (
   && numeroDaMedida(a.fileHeight) === numeroDaMedida(b.fileHeight);
 
 export function registerArtesBuscaRoutes(app: Express) {
-  app.get("/api/artes/busca", requireArte, async (req: any, res) => {
+  app.get("/api/artes/busca", requireArte, async (req, res) => {
     try {
       const alvoId = typeof req.query?.item === "string" ? req.query.item : "";
       const termo = typeof req.query?.q === "string" ? req.query.q : "";
@@ -372,7 +372,7 @@ export function registerArtesBuscaRoutes(app: Express) {
   // da peça DE ONDE A ARTE VEIO, e um caminho de rede chutado é pior que
   // campo vazio. E é só leitura: nada é gravado até o envio de sempre
   // (submit-final-file).
-  app.get("/api/artes/sugestao-final", requireArte, async (req: any, res) => {
+  app.get("/api/artes/sugestao-final", requireArte, async (req, res) => {
     try {
       const alvoId = typeof req.query?.item === "string" ? req.query.item : "";
       if (!alvoId) return res.status(400).json({ error: "Informe a peça (item)." });

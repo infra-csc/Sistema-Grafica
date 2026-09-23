@@ -754,7 +754,10 @@ export class DatabaseStorage implements IStorage {
         startDate: events.startDate,
         arquivadoEm: events.arquivadoEm,
         arquivadoPor: events.arquivadoPor,
-        totalPecas: sql<number>`(select count(*)::int from items i_cont where i_cont.event_id = ${events.id} and i_cont.deleted_at is null)`,
+        // "events"."id" escrito por extenso: dentro de uma subconsulta no select o
+        // drizzle rende `${events.id}` como "id" solto, e o banco o lia como o id
+        // da PEÇA — a contagem dava sempre 0.
+        totalPecas: sql<number>`(select count(*)::int from items i_cont where i_cont.event_id = "events"."id" and i_cont.deleted_at is null)`,
       })
       .from(events)
       .where(isNotNull(events.arquivadoEm))

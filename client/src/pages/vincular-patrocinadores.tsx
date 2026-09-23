@@ -117,7 +117,7 @@ function TelaDaVinculacao({ emCartoes, isMobile }: { emCartoes: boolean; isMobil
     // Silhueta em vez de spinner central: reserva o espaço da lista e a
     // chegada dos dados não empurra a tela.
     return (
-      <div aria-busy="true" style={{ padding: '18px 18px 64px', maxWidth: 1100, margin: '0 auto' }}>
+      <div key="carregando" aria-busy="true" style={{ padding: '18px 18px 64px', maxWidth: 1100, margin: '0 auto' }}>
         <div className="animate-pulse" style={{ width: 260, height: 22, borderRadius: R.sm, backgroundColor: T.border, marginBottom: 8 }} />
         <div className="animate-pulse" style={{ width: 360, height: 13, borderRadius: 4, backgroundColor: N.n3, marginBottom: 20 }} />
         <EsqueletoDeFila linhas={9} />
@@ -131,7 +131,7 @@ function TelaDaVinculacao({ emCartoes, isMobile }: { emCartoes: boolean; isMobil
   // também fica inutilizável (nenhum chip para vincular).
   if (v.itemsError || v.eventsError || v.sponsorsError) {
     return (
-      <div data-testid="button-retry-items" style={{ maxWidth: 520, margin: '10vh auto 0', padding: 24 }}>
+      <div key="erro" data-testid="button-retry-items" style={{ maxWidth: 520, margin: '10vh auto 0', padding: 24 }}>
         {/* O testid antigo fica na caixa: o botão agora é o do EstadoErro. */}
         <EstadoErro
           titulo="Não foi possível carregar as peças"
@@ -144,7 +144,7 @@ function TelaDaVinculacao({ emCartoes, isMobile }: { emCartoes: boolean; isMobil
 
   if (v.visibleItems.length === 0) {
     return (
-      <div style={{ maxWidth: 520, margin: '10vh auto 0', padding: 24 }}>
+      <div key="vazio" style={{ maxWidth: 520, margin: '10vh auto 0', padding: 24 }}>
         <EstadoVazio
           icone={CheckCircle2}
           titulo="Nada para vincular agora"
@@ -155,9 +155,11 @@ function TelaDaVinculacao({ emCartoes, isMobile }: { emCartoes: boolean; isMobil
   }
 
   // O respiro de baixo acompanha a barra de lote FIXA, que no celular quebra
+  // Cada estado (carregando, erro, vazio, tela) tem a sua `key`: sem ela o React
+  // reaproveita a mesma <div> e mistura `padding` com `paddingBottom` ao trocar.
   // em duas linhas — é a janela que manda nela, não a caixa da tela.
   return (
-    <div className="container mx-auto p-4 max-w-6xl pb-24" style={{ height: "100%", overflowY: "auto", paddingBottom: selectedItemIds.size > 0 ? (isMobile ? 260 : 150) : undefined }}>
+    <div key="tela" className="container mx-auto p-4 max-w-6xl pb-24" style={{ height: "100%", overflowY: "auto", paddingBottom: selectedItemIds.size > 0 ? (isMobile ? 260 : 150) : undefined }}>
 
       <ModalReferenciaVisual
         previewRefUrl={a.previewRefUrl}

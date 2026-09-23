@@ -19,10 +19,12 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
+import { fonteDaTela } from "./fonte-da-tela";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
 const A = ler("client/src/pages/dashboard-analises.tsx");
-const PAINEL = ler("client/src/pages/painel-geral.tsx");
+// A página e os pedaços dela (o recorte mora em components/painel/recorte.ts).
+const PAINEL = fonteDaTela("painel");
 
 describe("1 · a variação diz quando é ruído", () => {
   it("o piso é 30 e vale a MENOR das duas janelas", () => {
@@ -95,7 +97,7 @@ describe("2 · cada número leva às peças que o compõem", () => {
   it("O DESTINO SABE FILTRAR — os focos foram criados no Painel Geral", () => {
     // A regra do prompt: nenhum link pode levar a uma lista que não responde ao
     // clique. Nenhuma tela filtrava por isso, então os filtros foram criados.
-    expect(PAINEL).toContain('f === "retrabalho" ? temRefacao(item as any)');
+    expect(PAINEL).toContain('f === "retrabalho" ? temRefacao(item)');
     expect(PAINEL).toContain('f === "fora-do-prazo" ? entregueForaDoPrazo(item)');
     expect(PAINEL).toContain('sortBy === "ciclo"');
   });

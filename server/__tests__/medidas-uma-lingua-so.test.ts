@@ -26,6 +26,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
+import { fonteDaTela } from "./fonte-da-tela";
+import { fonteDoComponente } from "./fonte-dos-componentes";
 import { readFileSync } from "fs";
 import path from "path";
 
@@ -57,7 +59,7 @@ describe("a Gráfica lê o par que imprime", () => {
 });
 
 describe("o formulário de peça aponta para o par que cobra", () => {
-  const ed = ler("client/src/pages/event-detail.tsx");
+  const ed = fonteDaTela("detalhe-do-evento");
 
   it("a bolinha laranja marca o ARQ, não o VIS", () => {
     expect(ed).toContain('{ label: "ARQ. Largura", key: "fileWidth", orange: true');
@@ -87,7 +89,7 @@ describe("o formulário de peça aponta para o par que cobra", () => {
 
 describe("as demais telas usam os mesmos dois nomes", () => {
   it("Painel Geral: ARQ primeiro e escuro, como a Gráfica", () => {
-    const pg = ler("client/src/pages/painel-geral.tsx");
+    const pg = fonteDaTela("painel");
     const i = pg.indexOf("ARQ primeiro e escuro");
     expect(i).toBeGreaterThan(-1);
     // O chip compacto também prefere o ARQ.
@@ -99,7 +101,7 @@ describe("as demais telas usam os mesmos dois nomes", () => {
   });
 
   it("a ficha da peça tem dois pares, não três nomes", () => {
-    const idd = ler("client/src/components/item-details-dialog.tsx");
+    const idd = fonteDoComponente("client/src/components/item-details-dialog.tsx");
     expect(idd).toContain('{ label: "Arquivo (ARQ.)"');
     expect(idd).toContain('{ label: "Visual (VIS.)"');
     // "Medida" (o texto derivado) saiu: era a mesma linha que "Arquivo" com
@@ -114,7 +116,7 @@ describe("as demais telas usam os mesmos dois nomes", () => {
   });
 
   it("a importação diz de onde sai o m²", () => {
-    expect(ler("client/src/components/import-xlsx-dialog.tsx"))
+    expect(fonteDoComponente("client/src/components/import-xlsx-dialog.tsx"))
       .toContain("o que a impressora recebe (m); o m² sai daqui");
   });
 

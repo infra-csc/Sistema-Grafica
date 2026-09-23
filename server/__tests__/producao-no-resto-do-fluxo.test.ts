@@ -15,6 +15,8 @@
 //     andamento dos pedidos.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi } from "vitest";
+import { fonteDaTela } from "./fonte-da-tela";
+import { fonteDoComponente } from "./fonte-dos-componentes";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
@@ -139,7 +141,7 @@ describe("subTrilhaDaProducao — a etapa Produção aberta na ficha", () => {
   });
 
   it("a ficha desenha a sub-trilha e usa a frase na faixa; carimbos com o nome novo", () => {
-    const FICHA = ler("client/src/components/item-details-dialog.tsx");
+    const FICHA = fonteDoComponente("client/src/components/item-details-dialog.tsx");
     expect(FICHA).toContain("<SubTrilhaDaProducao item={item} isMobile={isMobile} />");
     expect(FICHA).toContain('data-testid="sub-trilha-producao"');
     expect(FICHA).toContain("detalhe: detalheDaProducao(item) }");
@@ -192,7 +194,7 @@ describe("o tubo viaja na peça", () => {
 });
 
 describe("Atendimento — Conferido e Embalado têm etapa própria", () => {
-  const AT = ler("client/src/pages/atendimento.tsx");
+  const AT = fonteDaTela("atendimento");
   const iPipe = AT.indexOf("const PIPELINE_STAGES");
   const PIPE = AT.slice(iPipe, AT.indexOf("];", iPipe));
 
@@ -286,8 +288,9 @@ describe("rótulos, visão, Excel e pedidos", () => {
   });
 
   it("Detalhe do evento e Painel geral mostram a frase junto do selo", () => {
-    expect(ler("client/src/pages/event-detail.tsx")).toContain("<StatusBadge status={statusDeExibicao(item)} short /><DetalheProducao item={item} />");
-    expect(ler("client/src/pages/painel-geral.tsx").match(/<DetalheProducao item=\{item\}/g)!.length).toBe(2);
+    expect(fonteDaTela("detalhe-do-evento")).toContain("<StatusBadge status={statusDeExibicao(item)} short /><DetalheProducao item={item} />");
+    // Uma na linha da tabela, outra no cartão do celular (components/painel/).
+    expect(fonteDaTela("painel").match(/<DetalheProducao item=\{item\}/g)!.length).toBe(2);
   });
 });
 

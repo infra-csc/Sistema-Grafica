@@ -33,8 +33,9 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
+import { fonteDaTela } from "./fonte-da-tela";
 
-const painel = readFileSync(path.resolve(__dirname, "../../client/src/pages/painel-geral.tsx"), "utf8");
+const painel = fonteDaTela("painel");
 
 /** Toda receita de rótulo em caixa-alta declarada na tela. */
 function receitas(): Map<string, number> {

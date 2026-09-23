@@ -21,10 +21,11 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
+import { fonteDaTela } from "./fonte-da-tela";
 import { T } from "@/lib/theme";
 
 const css = readFileSync(path.resolve(__dirname, "../../client/src/index.css"), "utf8");
-const painel = readFileSync(path.resolve(__dirname, "../../client/src/pages/painel-geral.tsx"), "utf8");
+const painel = fonteDaTela("painel");
 
 /** Contraste WCAG entre duas cores hex. */
 function contraste(a: string, b: string): number {

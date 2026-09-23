@@ -28,6 +28,7 @@ import { describe, it, expect } from "vitest";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
+import { fonteDaTela } from "./fonte-da-tela";
 
 // server/routes/items.ts virou índice: o texto das rotas da peça vem de fonteDasRotasDeItens().
 const ler = (rel: string) => rel === "server/routes/items.ts" ? fonteDasRotasDeItens() : readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
@@ -77,7 +78,7 @@ describe("3 · o uso leva às peças", () => {
     const i = P.indexOf("data-testid={`link-uso-${sponsor.id}`}");
     expect(P.slice(i - 300, i)).toContain("onClick={e => e.stopPropagation()}");
     // E o Painel de fato lê esse parâmetro.
-    expect(ler("client/src/pages/painel-geral.tsx")).toContain('fromCsv("patrocinador")');
+    expect(fonteDaTela("painel")).toContain('fromCsv("patrocinador")');
   });
 
   it("'sem evento' continua selo, não link", () => {

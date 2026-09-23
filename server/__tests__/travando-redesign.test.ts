@@ -36,10 +36,11 @@ describe("só os piores à vista", () => {
 describe("a gravidade veste o chip inteiro", () => {
   it("a régua é a MESMA de tomDaIdade: ≥14d gargalo, 7–13d atenção, <7d rotina", () => {
     const pele = ARTE.slice(ARTE.indexOf("const pele = (espera: number, ligado: boolean)"));
-    expect(pele.slice(0, 500)).toContain("if (espera >= 14) return { bg: '#fef2f2'");
-    expect(pele.slice(0, 500)).toContain("if (espera >= 7) return { bg: '#fffbeb'");
+    // As cores vêm dos tokens (TOM.perigo = #fef2f2, TOM.alerta = #fffbeb, T.text = #1c1917).
+    expect(pele.slice(0, 500)).toContain("if (espera >= 14) return { bg: TOM.perigo.bg");
+    expect(pele.slice(0, 500)).toContain("if (espera >= 7) return { bg: TOM.alerta.bg");
     // ligado continua soberano: chip escuro, seja qual for a idade
-    expect(pele.slice(0, 500)).toContain("if (ligado) return { bg: '#1c1917'");
+    expect(pele.slice(0, 500)).toContain("if (ligado) return { bg: T.text");
   });
 });
 

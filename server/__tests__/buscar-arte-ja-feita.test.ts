@@ -456,9 +456,10 @@ describe("o botão e o modal na Arte", () => {
     expect(ARTE_TSX).toContain("setFinalDirty(true);");
   });
 
-  it("escolher a arte que já é a atual não chama update-thumb — aviso neutro", () => {
+  it("escolher a arte que já é a atual não chama update-thumb — aviso, não erro", () => {
     expect(ARTE_TSX).toContain("if (itemPorId.get(buscaDeArte.itemId)?.approvalThumbUrl === imagem) {");
-    expect(ARTE_TSX).toContain('toast({ title: "Essa já é a arte atual desta peça" });');
+    // `warning`: a ação não aconteceu mas nada quebrou (não é `destructive`).
+    expect(ARTE_TSX).toContain('toast({ title: "Essa já é a arte atual desta peça", variant: "warning" });');
   });
 
   it("a miniatura da Correção tenta a imagem sempre e cai no ícone só no erro — objetos não têm extensão", () => {
@@ -478,7 +479,9 @@ describe("o botão e o modal na Arte", () => {
     expect(MODAL).toContain('data-testid="vazio-buscar-arte"');
     expect(MODAL).toContain('data-testid="erro-buscar-arte"');
     expect(MODAL).toContain('data-testid="button-usar-esta-arte"');
-    expect(MODAL).toContain('role="alert"');
+    // O erro é o <EstadoErro> do design system, que anuncia com role="alert".
+    expect(MODAL).toContain("<EstadoErro");
+    expect(MODAL).toContain("aoTentarDeNovo={() => refetch()}");
     expect(MODAL).toContain('aria-busy="true"');
   });
 
@@ -490,7 +493,7 @@ describe("o botão e o modal na Arte", () => {
 
   it("celular: alvo de 44px e campo a 16px (o iPhone dá zoom abaixo disso)", () => {
     expect(MODAL).toContain("minHeight: 44");
-    expect(MODAL).toContain("fontSize: 16");
+    expect(MODAL).toContain("fontSize: FS.lead"); // FS.lead = 16
   });
 
   it("a lista vazia é uma constante estável — useQuery com `= []` e efeito é laço infinito", () => {

@@ -31,7 +31,11 @@ import { useQuery } from "@tanstack/react-query";
 import { FileText, ImageIcon, Search, Sparkles } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, ModalFooter, ModalHeader, modalSurface } from "@/components/modal-shell";
+import { Botao } from "@/components/ui/botao";
+import { Selo } from "@/components/ui/selo";
+import { EstadoVazio, EstadoErro } from "@/components/ui/estados";
 import { miniatura } from "@/lib/miniatura";
+import { T, N, TOM, FS, FW, R, SHADOW } from "@/lib/theme";
 
 export interface ArteEncontrada {
   id: string;
@@ -79,6 +83,11 @@ export const imagemDaArte = (arte: Pick<ArteEncontrada, "thumbUrl" | "previewUrl
  *  constante vazia é estável — a mesma referência sempre. */
 const SEM_ARTES: ArteEncontrada[] = [];
 
+/** Texto que quebra em até duas linhas e só então corta. */
+const DUAS_LINHAS: React.CSSProperties = {
+  display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
+};
+
 const dia = (iso: string | null) => {
   if (!iso) return null;
   const d = new Date(iso);
@@ -94,16 +103,9 @@ export function textoDaAprovacao(arte: Pick<ArteEncontrada, "aprovada" | "aprova
   return detalhe ? `Aprovada ${detalhe}` : "Aprovada";
 }
 
-function Selo({ cor, fundo, titulo, children }: { cor: string; fundo: string; titulo?: string; children: React.ReactNode }) {
-  return (
-    <span title={titulo} style={{
-      display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 999,
-      background: fundo, color: cor, fontSize: 11, fontWeight: 700, lineHeight: 1.5, whiteSpace: "nowrap",
-    }}>
-      {children}
-    </span>
-  );
-}
+/** Selo compacto do cartão: 2px de altura a menos que o padrão, porque são
+ *  até quatro por cartão de 180px. */
+const SELO_DO_CARTAO: React.CSSProperties = { padding: "2px 8px", lineHeight: 1.5 };
 
 function Cartao({ arte, escolhida, onEscolher }: {
   arte: ArteEncontrada; escolhida: boolean; onEscolher: () => void;
@@ -122,36 +124,39 @@ function Cartao({ arte, escolhida, onEscolher }: {
         // o `textAlign: left` é porque button centra o texto por padrão.
         minHeight: 44, textAlign: "left", padding: 10, cursor: "pointer",
         display: "flex", flexDirection: "column", gap: 8,
-        background: "#fff", borderRadius: 12,
-        border: escolhida ? "2px solid #1c1917" : "1px solid #e7e5e4",
-        boxShadow: escolhida ? "0 6px 16px -6px rgba(0,0,0,0.25)" : "none",
+        background: T.surface, borderRadius: R.lg,
+        border: escolhida ? `2px solid ${T.text}` : `1px solid ${T.border}`,
+        boxShadow: escolhida ? SHADOW.md : "none",
         transition: "border-color 0.12s, box-shadow 0.12s",
       }}
     >
-      <div style={{ width: "100%", aspectRatio: "4 / 3", borderRadius: 8, overflow: "hidden", background: "#f5f5f4", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ width: "100%", aspectRatio: "4 / 3", borderRadius: R.md, overflow: "hidden", background: N.n2, display: "flex", alignItems: "center", justifyContent: "center" }}>
         {url && !falhou
           ? <img src={miniatura(url)} alt="" loading="lazy" decoding="async" onError={() => setFalhou(true)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-          : <ImageIcon size={22} color="#78716c" aria-hidden="true" />}
+          : <ImageIcon size={22} color={T.second} aria-hidden="true" />}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
-        <span style={{ fontSize: 13, fontWeight: 800, color: "#1c1917", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {/* Em até DUAS linhas, e não reticência: o fim do nome do evento
+            ("Estações — Primavera") é justamente o que diferencia um cartão do
+            outro, e no toque não existe hover para ler o resto. */}
+        <span style={{ fontSize: FS.body, fontWeight: FW.rotulo, color: T.text, ...DUAS_LINHAS }}>
           {arte.displayId ?? "Peça"} · {arte.tipo}
         </span>
-        <span style={{ fontSize: 12, color: "#57534e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <span style={{ fontSize: FS.meta, color: T.apoio, ...DUAS_LINHAS }}>
           {arte.eventName ?? "Sem evento"}{dia(arte.eventInicio) ? ` · ${dia(arte.eventInicio)}` : ""}
         </span>
         {arte.descricao && (
-          <span style={{ fontSize: 11.5, color: "#746e69", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: FS.meta, color: T.second, ...DUAS_LINHAS }}>
             {arte.descricao}
           </span>
         )}
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-        {arte.mesmoPatrocinador && <Selo cor="#065f46" fundo="#d1fae5">mesmo patrocinador</Selo>}
-        {arte.eventoParecido && <Selo cor="#1d4ed8" fundo="#eff6ff">evento parecido</Selo>}
-        {arte.mesmoTipo && <Selo cor="#44403c" fundo="#e7e5e4">mesmo tipo</Selo>}
+        {arte.mesmoPatrocinador && <Selo tom="esmeralda" style={SELO_DO_CARTAO}>mesmo patrocinador</Selo>}
+        {arte.eventoParecido && <Selo tom="info" style={SELO_DO_CARTAO}>evento parecido</Selo>}
+        {arte.mesmoTipo && <Selo tom="neutro" style={SELO_DO_CARTAO}>mesmo tipo</Selo>}
         {arte.aprovada && (
-          <Selo cor="#065f46" fundo="#ecfdf5" titulo={textoDaAprovacao(arte) ?? undefined}>
+          <Selo tom="esmeralda" style={SELO_DO_CARTAO} title={textoDaAprovacao(arte) ?? undefined}>
             <span data-testid={`selo-aprovada-${arte.id}`}>Aprovada</span>
           </Selo>
         )}
@@ -205,7 +210,7 @@ export function BuscarArteDialog({ item, querArquivoFinal, onUsar, onClose }: {
     <Dialog open={!!item} onOpenChange={(aberto) => { if (!aberto) onClose(); }}>
       <DialogContent
         className={`p-0 gap-0 border-0 ${HIDE_NATIVE_CLOSE}`}
-        style={{ ...modalSurface(820), backgroundColor: "#fafaf9" }}
+        style={{ ...modalSurface(820), backgroundColor: T.bg }}
       >
         <DialogTitle className="sr-only">Buscar arte já feita</DialogTitle>
         <DialogDescription className="sr-only">
@@ -214,7 +219,7 @@ export function BuscarArteDialog({ item, querArquivoFinal, onUsar, onClose }: {
 
         <ModalHeader
           icon={Sparkles}
-          tint="#6d28d9"
+          tint={TOM.roxo.text}
           title="Buscar arte já feita"
           subtitle={data?.alvo
             ? `Para ${data.alvo.displayId ?? "esta peça"} · ${data.alvo.tipo} — mesmo patrocinador e eventos do mesmo circuito primeiro.`
@@ -222,9 +227,9 @@ export function BuscarArteDialog({ item, querArquivoFinal, onUsar, onClose }: {
           onClose={onClose}
         />
 
-        <div style={{ padding: "12px 20px", background: "#fff", borderBottom: "1px solid #e7e5e4", flexShrink: 0 }}>
+        <div style={{ padding: "12px 20px", background: T.surface, borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
           <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-            <Search size={15} aria-hidden="true" style={{ position: "absolute", left: 12, color: "#78716c" }} />
+            <Search size={15} aria-hidden="true" style={{ position: "absolute", left: 12, color: T.second }} />
             <input
               type="search"
               value={termo}
@@ -235,13 +240,13 @@ export function BuscarArteDialog({ item, querArquivoFinal, onUsar, onClose }: {
               style={{
                 // 16px: abaixo disso o Safari do iPhone dá zoom no campo ao
                 // focar e a tela salta.
-                width: "100%", minHeight: 44, padding: "0 12px 0 34px", fontSize: 16,
-                borderRadius: 10, border: "1px solid #d6d3d1", background: "#fff", color: "#1c1917",
+                width: "100%", minHeight: 44, padding: "0 12px 0 34px", fontSize: FS.lead,
+                borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: T.text,
               }}
             />
           </div>
           {termoBuscado === "" && (
-            <p style={{ margin: "8px 0 0", fontSize: 11.5, color: "#78716c" }}>
+            <p style={{ margin: "8px 0 0", fontSize: FS.meta, color: T.second }}>
               Sugestões para esta peça. Digite para procurar em todo o acervo de artes.
             </p>
           )}
@@ -251,35 +256,39 @@ export function BuscarArteDialog({ item, querArquivoFinal, onUsar, onClose }: {
           {(isLoading || digitando) && (
             <div aria-busy="true" aria-label="Procurando artes" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 }}>
               {[0, 1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="animate-pulse" style={{ background: "#fff", border: "1px solid #e7e5e4", borderRadius: 12, padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-                  <div style={{ width: "100%", aspectRatio: "4 / 3", borderRadius: 8, background: "#e7e5e4" }} />
-                  <div style={{ width: "70%", height: 11, borderRadius: 6, background: "#e7e5e4" }} />
-                  <div style={{ width: "90%", height: 10, borderRadius: 6, background: "#f5f5f4" }} />
+                <div key={i} className="animate-pulse" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ width: "100%", aspectRatio: "4 / 3", borderRadius: R.md, background: T.border }} />
+                  <div style={{ width: "70%", height: 11, borderRadius: R.sm, background: T.border }} />
+                  <div style={{ width: "90%", height: 10, borderRadius: R.sm, background: N.n2 }} />
                 </div>
               ))}
             </div>
           )}
 
           {isError && !isLoading && (
-            <div role="alert" data-testid="erro-buscar-arte" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "12px 14px", borderRadius: 12, background: "#fef2f2", border: "1px solid #fecaca", fontSize: 13, color: "#b91c1c" }}>
-              <span>Não foi possível procurar as artes agora. A peça continua como está — nada foi alterado.</span>
-              <button type="button" onClick={() => refetch()} style={{ minHeight: 44, padding: "0 16px", borderRadius: 8, border: "1px solid #fecaca", background: "#fff", color: "#1c1917", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-                Tentar de novo
-              </button>
+            // O EstadoErro já anuncia com role="alert"; a caixa só guarda o testid.
+            <div data-testid="erro-buscar-arte">
+              <EstadoErro
+                compacto
+                titulo="Não foi possível procurar as artes agora."
+                detalhe="A peça continua como está — nada foi alterado."
+                aoTentarDeNovo={() => refetch()}
+              />
             </div>
           )}
 
           {!isLoading && !isError && !digitando && artes.length === 0 && (
-            <div data-testid="vazio-buscar-arte" style={{ textAlign: "center", padding: "26px 12px", color: "#57534e" }}>
-              <ImageIcon size={26} color="#78716c" aria-hidden="true" />
-              <p style={{ margin: "8px 0 2px", fontSize: 14, fontWeight: 800, color: "#1c1917" }}>Nenhuma arte encontrada</p>
-              <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5 }}>
-                {termoBuscado
+            <div data-testid="vazio-buscar-arte">
+              <EstadoVazio
+                compacto
+                icone={ImageIcon}
+                titulo="Nenhuma arte encontrada"
+                descricao={termoBuscado
                   ? <>Nada com “{termoBuscado}”{querArquivoFinal ? " que tenha arquivo final" : ""}. Tente o nome do patrocinador ou do circuito — “estações”, por exemplo.</>
                   : querArquivoFinal
                     ? "Nenhuma peça com arquivo final até agora. Suba o arquivo desta vez."
                     : "Nenhuma peça com arte no app ainda. Suba a imagem desta vez."}
-              </p>
+              />
             </div>
           )}
 
@@ -292,7 +301,7 @@ export function BuscarArteDialog({ item, querArquivoFinal, onUsar, onClose }: {
           )}
 
           {data?.cortou && !isLoading && !isError && (
-            <p style={{ margin: 0, fontSize: 11.5, color: "#78716c", textAlign: "center" }}>
+            <p style={{ margin: 0, fontSize: FS.meta, color: T.second, textAlign: "center" }}>
               Mostrando as {artes.length} artes mais parecidas. Refine a busca para achar outra.
             </p>
           )}
@@ -301,40 +310,40 @@ export function BuscarArteDialog({ item, querArquivoFinal, onUsar, onClose }: {
         {escolhida && (
           <ModalFooter>
             <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-              <div style={{ width: 72, height: 54, borderRadius: 8, overflow: "hidden", background: "#f5f5f4", border: "1px solid #e7e5e4", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: 72, height: 54, borderRadius: R.md, overflow: "hidden", background: N.n2, border: `1px solid ${T.border}`, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 {previa
                   ? <img src={miniatura(previa)} alt={`Prévia da arte de ${escolhida.displayId ?? "peça"}`} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  : <ImageIcon size={18} color="#78716c" aria-hidden="true" />}
+                  : <ImageIcon size={18} color={T.second} aria-hidden="true" />}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#1c1917", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <div style={{ fontSize: FS.body, fontWeight: FW.rotulo, color: T.text, ...DUAS_LINHAS }}>
                   {escolhida.displayId ?? "Peça"} · {escolhida.eventName ?? "Sem evento"}
                 </div>
-                <div style={{ fontSize: 11.5, color: "#57534e", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {/* Os patrocinadores são a razão de escolher ESTA arte: em
+                    duas linhas, não cortados. */}
+                <div style={{ fontSize: FS.meta, color: T.apoio, marginTop: 2, ...DUAS_LINHAS }}>
                   {escolhida.patrocinadores.length > 0 ? escolhida.patrocinadores.join(", ") : "Sem patrocinador"}
                   {escolhida.temArquivoFinal && <> · <FileText size={11} aria-hidden="true" style={{ display: "inline", verticalAlign: "-1px" }} /> arquivo final</>}
                 </div>
                 {escolhida.aprovada && (
-                  <div data-testid="texto-aprovacao-escolhida" style={{ fontSize: 11.5, color: "#065f46", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div data-testid="texto-aprovacao-escolhida" style={{ fontSize: FS.meta, color: TOM.esmeralda.text, marginTop: 2, ...DUAS_LINHAS }}>
                     {textoDaAprovacao(escolhida)}
                   </div>
                 )}
               </div>
             </div>
-            <button
-              type="button"
+            <Botao
+              variante="primario"
+              tamanho="toque"
+              larguraCheia
               data-testid="button-usar-esta-arte"
               onClick={() => onUsar(escolhida)}
-              style={{
-                width: "100%", minHeight: 44, borderRadius: 9, border: "none",
-                background: "#1c1917", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer",
-              }}
             >
               Usar esta arte
-            </button>
+            </Botao>
             {/* Dizer ANTES do clique que nada pula etapa: reaproveitar não é
                 atalho de aprovação, é só não subir o arquivo de novo. */}
-            <p style={{ margin: 0, fontSize: 11.5, color: "#78716c", textAlign: "center", lineHeight: 1.45 }}>
+            <p style={{ margin: 0, fontSize: FS.meta, color: T.second, textAlign: "center", lineHeight: 1.45 }}>
               A arte é aplicada nesta peça e ela segue o fluxo normal de aprovação.
             </p>
           </ModalFooter>

@@ -73,7 +73,11 @@ function handlerDaRota(assinatura: string): string {
 const rotaBarrada = (assinatura: string): boolean =>
   /barraEventoFinalizado\(|contadorDeBloqueio\(\)|erroEventoFechado\(|corpoEventoFechado\(/.test(handlerDaRota(assinatura));
 
-/** O JSX de um <button> identificado por um trecho do seu `data-testid`. */
+/**
+ * O JSX de um botão identificado por um trecho do seu `data-testid` — um
+ * <button> cru ou um <Botao> do design system (a migração trocou vários; a
+ * abertura mais próxima antes da marca decide qual tag fecha o bloco).
+ */
 function botao(fonte: string, marca: string): string {
   const i = fonte.indexOf(marca);
   if (i < 0) throw new Error(`botão não encontrado: ${marca}`);

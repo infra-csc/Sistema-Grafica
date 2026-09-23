@@ -20,11 +20,11 @@
 //
 // Espelho de POST /api/items/:id/complement (server/routes/items.ts).
 // ─────────────────────────────────────────────────────────────────────────────
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import {
   PlusCircle, AlertTriangle, Recycle, Truck, RotateCw, Database,
-  Minus, Plus, Lock, Package, Calendar, Check, Loader2,
+  Minus, Plus, Lock, Package, Calendar, Check,
 } from "lucide-react";
 import {
   Dialog,
@@ -41,7 +41,10 @@ import { calculateM2 } from "@/lib/calculateM2";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile, usePonteiroGrosso, alvo } from "@/hooks/use-mobile";
+import { Botao } from "@/components/ui/botao";
+import { Selo } from "@/components/ui/selo";
+import { T, TOM, FS, FW, R, FONT } from "@/lib/theme";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Vocabulário e gates
@@ -246,7 +249,7 @@ const TITULO_ERRO: Record<string, string> = {
 
 const AVISO_BASE: React.CSSProperties = {
   display: "flex", gap: 8, alignItems: "flex-start",
-  padding: "10px 12px", borderRadius: 8, fontSize: 12, lineHeight: 1.5,
+  padding: "10px 12px", borderRadius: R.md, fontSize: FS.meta, lineHeight: 1.5,
 };
 
 /** Chips de salto da quantidade. O stepper já cobre o +1 — um chip para ele seria redundante. */
@@ -260,6 +263,42 @@ const ATALHOS_MOTIVO: Array<{ rotulo: string; texto: string }> = [
 ];
 
 /** Telas muito estreitas (< 360px): a fileira do rodapé vira coluna. */
+/**
+ * Largura do próprio modal, medida (callback ref + ResizeObserver).
+ *
+ * O layout de dentro (2 ou 4 azulejos, a conta em linha ou empilhada) dependia
+ * de `useIsMobile` — 768px de JANELA. Mas quem aperta o conteúdo é a largura do
+ * MODAL, que tem teto de 560: numa janela de 700 o modal já é o do celular e a
+ * conta em linha espremia. `useElementSize` não serve aqui porque o conteúdo do
+ * Dialog monta DEPOIS do componente (portal, só quando abre); o callback ref
+ * liga o observador na hora em que o nó existe. 0 = ainda não mediu.
+ */
+function useLarguraMedida<E extends HTMLElement>() {
+  const [el, setEl] = useState<E | null>(null);
+  const [largura, setLargura] = useState(0);
+  useLayoutEffect(() => {
+    if (!el) return;
+    const aplicar = () => {
+      const w = Math.round(el.getBoundingClientRect().width);
+      setLargura((antes) => (antes === w ? antes : w));
+    };
+    aplicar();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(aplicar);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [el]);
+  return [setEl, largura] as const;
+}
+
+/** Texto que quebra em até duas linhas e só então corta. */
+const DUAS_LINHAS: React.CSSProperties = {
+  display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
+};
+
+/** Abaixo disto o corpo do modal empilha (2 azulejos, conta em 3 linhas). */
+const CORPO_APERTADO = 480;
+
 function useLarguraAbaixoDe(px: number): boolean {
   const [abaixo, setAbaixo] = useState(false);
   useEffect(() => {
@@ -277,15 +316,15 @@ function Azulejo({ rotulo, valor, sub, subCor }: {
   rotulo: string; valor: number; sub?: string | null; subCor?: string;
 }) {
   return (
-    <div style={{ background: "#fff", borderRadius: 8, padding: "8px 10px", minWidth: 0 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#746e69" }}>
+    <div style={{ background: T.surface, borderRadius: R.md, padding: "8px 10px", minWidth: 0 }}>
+      <div style={{ fontSize: FS.micro, fontWeight: FW.forte, textTransform: "uppercase", letterSpacing: "0.08em", color: T.second }}>
         {rotulo}
       </div>
-      <div style={{ fontSize: 18, fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif", color: "#1c1917", lineHeight: 1, marginTop: 3 }}>
+      <div style={{ fontSize: FS.title, fontWeight: FW.rotulo, fontFamily: FONT.display, color: T.text, lineHeight: 1, marginTop: 3 }}>
         {valor}
       </div>
       {sub && (
-        <div style={{ fontSize: 10, color: subCor ?? "#746e69", marginTop: 3, lineHeight: 1.3 }}>{sub}</div>
+        <div style={{ fontSize: FS.micro, color: subCor ?? T.second, marginTop: 3, lineHeight: 1.3 }}>{sub}</div>
       )}
     </div>
   );
@@ -313,7 +352,12 @@ export function AumentarQuantidadeDialog({
   item, event, open, onOpenChange, sugestao, onCreated,
 }: AumentarQuantidadeDialogProps) {
   const { toast } = useToast();
+  // `isMobile` só para o TECLADO virtual (onde pôr o foco ao abrir) e a fonte
+  // de 16px do campo; alvo de toque vem do ponteiro, layout da largura medida.
   const isMobile = useIsMobile();
+  const dedo = usePonteiroGrosso();
+  const [medirCorpo, larguraCorpo] = useLarguraMedida<HTMLElement>();
+  const apertado = larguraCorpo === 0 ? isMobile : larguraCorpo < CORPO_APERTADO;
   const estreito = useLarguraAbaixoDe(360);
   const [qtdRaw, setQtdRaw] = useState("1");
   const [motivo, setMotivo] = useState("");
@@ -419,12 +463,15 @@ export function AumentarQuantidadeDialog({
       onOpenChange(false);
       toast(deduped
         ? {
+            // Aviso: nada novo aconteceu, e nada quebrou.
             title: "Complemento já criado",
             description: `${child?.displayId ?? displayFilho} já havia sido criado agora há pouco — nada foi duplicado.`,
+            variant: "warning",
           }
         : {
             title: "Complemento criado",
             description: `${child?.displayId ?? displayFilho} · +${qtd} un. — já está na fila, logo abaixo de ${item?.displayId}.`,
+            variant: "success",
           });
     },
     onError: (e: unknown) => {
@@ -486,7 +533,7 @@ export function AumentarQuantidadeDialog({
   if (!item) return null;
 
   const controlesTravados = pendente;
-  const larguraMiniatura = isMobile ? 64 : 56;
+  const larguraMiniatura = apertado ? 64 : 56;
 
   const dicaRodape = pendente
     ? "Criando o complemento…"
@@ -500,7 +547,7 @@ export function AumentarQuantidadeDialog({
     ? "Criando…"
     : !qtdValida
     ? "Criar complemento"
-    : isMobile
+    : apertado
     ? `Criar +${qtd} un.`
     : `Criar complemento (+${qtd} un.)`;
 
@@ -510,19 +557,20 @@ export function AumentarQuantidadeDialog({
       ?? (!erro.code && /^Sem permissão/i.test(erro.message) ? "Sem permissão" : "Não foi possível criar");
 
   const botaoSalto: React.CSSProperties = {
-    height: isMobile ? 36 : 30, padding: "0 12px", borderRadius: 999,
-    border: "1px solid #e7e5e4", background: "#fff",
-    fontSize: 11, fontWeight: 700, color: "#57534e", cursor: "pointer",
+    height: alvo(30, dedo), padding: "0 12px", borderRadius: R.pill,
+    border: `1px solid ${T.border}`, background: T.surface,
+    fontSize: FS.small, fontWeight: FW.forte, color: T.apoio, cursor: "pointer",
     display: "inline-flex", alignItems: "center", justifyContent: "center", whiteSpace: "nowrap",
   };
   const botaoSaltoAtivo: React.CSSProperties = {
-    ...botaoSalto, background: "#fff7ed", border: "1px solid #fed7aa", color: "#c2410c",
+    ...botaoSalto, background: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, color: T.accentText,
   };
+  // O realce de hover/ativo/desabilitado vem da classe .ds-botao (index.css):
+  // o par onMouseEnter/Leave que trocava o fundo não cobria teclado.
   const botaoStepper: React.CSSProperties = {
-    width: isMobile ? 56 : 52, height: 56, flexShrink: 0, borderRadius: 8,
-    background: "#fff", border: "1px solid #e7e5e4",
+    width: apertado ? 56 : 52, height: 56, flexShrink: 0, borderRadius: R.md,
+    background: T.surface, border: `1px solid ${T.border}`,
     display: "flex", alignItems: "center", justifyContent: "center",
-    transition: "background-color 0.15s",
   };
 
   return (
@@ -549,7 +597,7 @@ export function AumentarQuantidadeDialog({
         <ModalHeader
           variant="work"
           icon={PlusCircle}
-          tint="#c2410c"
+          tint={T.accentText}
           title="Aumentar quantidade"
           subtitle={`${item.displayId} · ${item.type}`}
           onClose={() => { if (!pendente) onOpenChange(false); }}
@@ -557,29 +605,34 @@ export function AumentarQuantidadeDialog({
 
         {migracaoPendente ? (
           <>
-            <div style={{ padding: isMobile ? 16 : 24, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
-              <div style={{ ...AVISO_BASE, backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c" }}>
+            <div ref={medirCorpo} style={{ padding: apertado ? 16 : 24, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
+              <div style={{ ...AVISO_BASE, backgroundColor: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}`, color: TOM.perigo.text }}>
                 <Database aria-hidden="true" style={{ width: 15, height: 15, flexShrink: 0, marginTop: 1 }} />
+                {/* Frase de quem usa: o comando do servidor que faltava rodar
+                    não diz nada a quem está no galpão — diz ao administrador,
+                    e é a ele que a frase manda. */}
                 <span>
                   <strong style={{ display: "block", marginBottom: 2 }}>Recurso indisponível</strong>
-                  Falta rodar a atualização do banco (<code style={{ fontFamily: "'DM Mono', monospace" }}>npm run db:push</code>).
+                  Este recurso ainda não foi ativado no sistema.
                   Fale com o administrador — até lá, o aumento precisa ser combinado por fora do sistema.
                 </span>
               </div>
             </div>
             <ModalFooter>
-              <button
-                type="button"
+              <Botao
+                variante="fantasma"
+                tamanho="toque"
+                larguraCheia
                 onClick={() => onOpenChange(false)}
                 data-testid="button-entendi-migracao"
-                style={{ width: "100%", height: 44, borderRadius: 8, border: "none", background: "none", fontSize: 13, fontWeight: 700, color: "#746e69", cursor: "pointer" }}
               >
                 Entendi
-              </button>
+              </Botao>
             </ModalFooter>
           </>
         ) : (
           <form
+            ref={medirCorpo}
             onSubmit={submeter}
             style={{
               // Este <form> é o ELO da coluna: o teto do `modalSurface` só chega
@@ -592,8 +645,8 @@ export function AumentarQuantidadeDialog({
           >
             <div
               style={{
-                padding: isMobile ? "16px" : "18px 24px",
-                display: "flex", flexDirection: "column", gap: isMobile ? 14 : 16,
+                padding: apertado ? "16px" : "18px 24px",
+                display: "flex", flexDirection: "column", gap: apertado ? 14 : 16,
                 // ALTURA: era `min(62vh, calc(100vh - 300px))` no desktop e
                 // `calc(88vh - 168px)` no celular — dois descontos FIXOS, e os
                 // 300 são o número que a Gestão de Prazos abandonou por não
@@ -612,12 +665,12 @@ export function AumentarQuantidadeDialog({
               }}
             >
 
-              <div style={{ background: "#f4f3f0", borderRadius: 12, padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ background: T.low, borderRadius: R.lg, padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
                 <div style={{ display: "flex", gap: 12 }}>
                   <div
                     style={{
                       width: larguraMiniatura, height: larguraMiniatura, flexShrink: 0,
-                      borderRadius: 8, border: "1px solid #e7e5e4", background: "#fff",
+                      borderRadius: R.md, border: `1px solid ${T.border}`, background: T.surface,
                       display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden",
                     }}
                   >
@@ -630,37 +683,39 @@ export function AumentarQuantidadeDialog({
                         onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                       />
                     ) : (
-                      <Package aria-hidden="true" style={{ width: 16, height: 16, color: "#a8a29e" }} />
+                      <Package aria-hidden="true" style={{ width: 16, height: 16, color: T.muted }} />
                     )}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: "#c2410c" }}>
-                        {idBase}{idSuffix && <span style={{ color: "#9a3412" }}>{idSuffix}</span>}
+                      <span style={{ fontFamily: FONT.mono, fontSize: FS.body, fontWeight: FW.forte, color: T.accentText }}>
+                        {idBase}{idSuffix && <span style={{ color: T.accentText }}>{idSuffix}</span>}
                       </span>
                       <StatusPill status={item.status} size="sm" />
                     </div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: "#1c1917", marginTop: 2 }}>{item.type}</div>
+                    <div style={{ fontSize: FS.strong, fontWeight: FW.forte, color: T.text, marginTop: 2 }}>{item.type}</div>
+                    {/* Descrição e evento em até duas linhas: é a identidade da
+                        peça que se veio conferir, e cortada não confere. */}
                     {item.description && item.description !== item.type && (
-                      <div style={{ fontSize: 13, color: "#746e69", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <div style={{ fontSize: FS.body, color: T.second, ...DUAS_LINHAS }}>
                         {item.description}
                       </div>
                     )}
                     {nomeEvento && (
-                      <div style={{ fontSize: 13, color: "#746e69", marginTop: 4, display: "flex", alignItems: "center", gap: 5, minWidth: 0 }}>
-                        <Calendar aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0 }} />
-                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nomeEvento}</span>
+                      <div style={{ fontSize: FS.body, color: T.second, marginTop: 4, display: "flex", alignItems: "flex-start", gap: 5, minWidth: 0 }}>
+                        <Calendar aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0, marginTop: 4 }} />
+                        <span style={{ minWidth: 0, ...DUAS_LINHAS }}>{nomeEvento}</span>
                       </div>
                     )}
                   </div>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,minmax(0,1fr))" : "repeat(4,minmax(0,1fr))", gap: 8 }}>
+                <div style={{ display: "grid", gridTemplateColumns: apertado ? "repeat(2,minmax(0,1fr))" : "repeat(4,minmax(0,1fr))", gap: 8 }}>
                   <Azulejo
                     rotulo="Contratado"
                     valor={s.qty}
                     sub={s.complementsQty > 0 ? `+${s.complementsQty} em complementos` : null}
-                    subCor="#c2410c"
+                    subCor={T.accentText}
                   />
                   <Azulejo
                     rotulo="Produzido"
@@ -672,12 +727,12 @@ export function AumentarQuantidadeDialog({
                     rotulo="Entregue"
                     valor={s.delivered}
                     sub={s.isDelivered ? "peça fechada" : null}
-                    subCor="#15803d"
+                    subCor={TOM.sucesso.text}
                   />
                 </div>
 
                 {complementos.length > 0 && (
-                  <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 8, padding: "7px 10px", fontSize: 11, lineHeight: 1.45, color: "#7c2d12" }}>
+                  <div style={{ background: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, borderRadius: R.md, padding: "7px 10px", fontSize: FS.small, lineHeight: 1.45, color: TOM.laranja.text }}>
                     <strong>Já existem:</strong>{" "}
                     {complementos
                       .slice(0, 3)
@@ -689,46 +744,46 @@ export function AumentarQuantidadeDialog({
 
                 {(item.isReuse || s.reused > 0) && (
                   <div style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
-                    <Recycle aria-hidden="true" style={{ width: 12, height: 12, color: "#57534e", flexShrink: 0, marginTop: 2 }} />
-                    <span style={{ fontSize: 11, color: "#746e69", lineHeight: 1.45 }}>
+                    <Recycle aria-hidden="true" style={{ width: 12, height: 12, color: T.apoio, flexShrink: 0, marginTop: 2 }} />
+                    <span style={{ fontSize: FS.small, color: T.second, lineHeight: 1.45 }}>
                       A original foi reaproveitada — as novas nascem para impressão.
                     </span>
                   </div>
                 )}
 
-                <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 8, padding: "8px 10px", display: "flex", gap: 7, alignItems: "flex-start" }}>
-                  <Lock aria-hidden="true" style={{ width: 12, height: 12, color: "#c2410c", flexShrink: 0, marginTop: 2 }} />
-                  <span style={{ fontSize: 12, lineHeight: 1.45, color: "#7c2d12" }}>
+                <div style={{ background: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, borderRadius: R.md, padding: "8px 10px", display: "flex", gap: 7, alignItems: "flex-start" }}>
+                  <Lock aria-hidden="true" style={{ width: 12, height: 12, color: T.accentText, flexShrink: 0, marginTop: 2 }} />
+                  <span style={{ fontSize: FS.meta, lineHeight: 1.45, color: TOM.laranja.text }}>
                     <strong>{item.displayId} continua com {s.qty} un.</strong> — nada muda nela. O aumento nasce como uma peça nova, com produção própria.
                   </span>
                 </div>
               </div>
 
               {saidaCaminhao && (
-                <div style={{ ...AVISO_BASE, backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c" }}>
+                <div style={{ ...AVISO_BASE, backgroundColor: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}`, color: TOM.perigo.text }}>
                   <Truck aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0, marginTop: 2 }} />
                   <span>O caminhão deste evento saiu em {saidaCaminhao}. Combine a logística antes de confirmar.</span>
                 </div>
               )}
 
               {((s.isInProd && s.toProduce > 0) || !item.finalFileUrl) && (
-                <div style={{ ...AVISO_BASE, backgroundColor: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", flexDirection: "column", gap: 6 }}>
+                <div style={{ ...AVISO_BASE, backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, color: TOM.alerta.text, flexDirection: "column", gap: 6 }}>
                   <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     <AlertTriangle aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0 }} />
-                    <strong style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    <strong style={{ fontSize: FS.small, fontWeight: FW.rotulo, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                       Antes de confirmar
                     </strong>
                   </span>
                   <ul style={{ margin: 0, paddingLeft: 22, display: "flex", flexDirection: "column", gap: 4, listStyle: "none" }}>
                     {s.isInProd && s.toProduce > 0 && (
-                      <li style={{ fontSize: 12, lineHeight: 1.5, position: "relative" }}>
-                        <span aria-hidden="true" style={{ position: "absolute", left: -14, color: "#d97706", fontWeight: 800 }}>•</span>
+                      <li style={{ fontSize: FS.meta, lineHeight: 1.5, position: "relative" }}>
+                        <span aria-hidden="true" style={{ position: "absolute", left: -14, color: TOM.alerta.text, fontWeight: FW.rotulo }}>•</span>
                         Ainda faltam {s.toProduce} un. na peça original. O complemento é um lote separado.
                       </li>
                     )}
                     {!item.finalFileUrl && (
-                      <li style={{ fontSize: 12, lineHeight: 1.5, position: "relative" }}>
-                        <span aria-hidden="true" style={{ position: "absolute", left: -14, color: "#d97706", fontWeight: 800 }}>•</span>
+                      <li style={{ fontSize: FS.meta, lineHeight: 1.5, position: "relative" }}>
+                        <span aria-hidden="true" style={{ position: "absolute", left: -14, color: TOM.alerta.text, fontWeight: FW.rotulo }}>•</span>
                         A peça original não tem arquivo final registrado. A Gráfica vai receber o complemento sem arquivo.
                       </li>
                     )}
@@ -738,10 +793,10 @@ export function AumentarQuantidadeDialog({
 
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, marginBottom: 8 }}>
-                  <label htmlFor="complemento-qtd" style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" }}>
+                  <label htmlFor="complemento-qtd" style={{ fontSize: FS.micro, fontWeight: FW.forte, textTransform: "uppercase", letterSpacing: "0.1em", color: T.second }}>
                     Quantas unidades a mais
                   </label>
-                  <span style={{ fontSize: 10, fontWeight: 600, color: "#746e69", whiteSpace: "nowrap" }}>
+                  <span style={{ fontSize: FS.micro, fontWeight: FW.medio, color: T.second, whiteSpace: "nowrap" }}>
                     {item.displayId} tem {s.qty} un.
                   </span>
                 </div>
@@ -753,15 +808,13 @@ export function AumentarQuantidadeDialog({
                     disabled={controlesTravados || qtd <= 1}
                     aria-label="Diminuir uma unidade"
                     data-testid="button-complemento-menos"
+                    className="ds-botao"
                     style={{
                       ...botaoStepper,
-                      opacity: qtd <= 1 ? 0.45 : 1,
                       cursor: controlesTravados ? "wait" : qtd <= 1 ? "not-allowed" : "pointer",
                     }}
-                    onMouseEnter={(e) => { if (!controlesTravados && qtd > 1) e.currentTarget.style.backgroundColor = "#f5f5f4"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#fff"; }}
                   >
-                    <Minus aria-hidden="true" style={{ width: 18, height: 18, color: "#57534e" }} />
+                    <Minus aria-hidden="true" style={{ width: 18, height: 18, color: T.apoio }} />
                   </button>
 
                   <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
@@ -777,7 +830,7 @@ export function AumentarQuantidadeDialog({
                       onChange={(e) => escreverQtd(e.target.value)}
                       onFocus={(e) => {
                         e.currentTarget.select();
-                        e.currentTarget.style.borderColor = "#c2410c";
+                        e.currentTarget.style.borderColor = T.accentText;
                         e.currentTarget.style.boxShadow = "0 0 0 3px rgba(194,65,12,0.18)";
                       }}
                       onBlur={(e) => {
@@ -793,16 +846,16 @@ export function AumentarQuantidadeDialog({
                       data-testid="input-complemento-quantidade"
                       style={{
                         width: "100%", height: 56, boxSizing: "border-box",
-                        background: "#f3f4f3", border: "1.5px solid transparent", borderRadius: 8,
-                        textAlign: "center", fontFamily: "'Space Grotesk', sans-serif",
-                        fontSize: 30, fontWeight: 800, color: "#1a1c1c",
+                        background: T.low, border: "1.5px solid transparent", borderRadius: R.md,
+                        textAlign: "center", fontFamily: FONT.display,
+                        fontSize: 30, fontWeight: FW.rotulo, color: T.text,
                         paddingRight: 48, paddingLeft: 14,
                         transition: "border-color 0.15s, box-shadow 0.15s",
                       }}
                     />
                     <span
                       aria-hidden="true"
-                      style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", fontSize: 13, fontWeight: 600, color: "#746e69", pointerEvents: "none" }}
+                      style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", fontSize: FS.body, fontWeight: FW.medio, color: T.second, pointerEvents: "none" }}
                     >
                       un.
                     </span>
@@ -814,15 +867,13 @@ export function AumentarQuantidadeDialog({
                     disabled={controlesTravados || qtd >= 9999}
                     aria-label="Aumentar uma unidade"
                     data-testid="button-complemento-mais"
+                    className="ds-botao"
                     style={{
                       ...botaoStepper,
-                      opacity: qtd >= 9999 ? 0.45 : 1,
                       cursor: controlesTravados ? "wait" : qtd >= 9999 ? "not-allowed" : "pointer",
                     }}
-                    onMouseEnter={(e) => { if (!controlesTravados && qtd < 9999) e.currentTarget.style.backgroundColor = "#f5f5f4"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#fff"; }}
                   >
-                    <Plus aria-hidden="true" style={{ width: 18, height: 18, color: "#57534e" }} />
+                    <Plus aria-hidden="true" style={{ width: 18, height: 18, color: T.apoio }} />
                   </button>
                 </div>
 
@@ -843,7 +894,7 @@ export function AumentarQuantidadeDialog({
                 </div>
 
                 {foraDaFaixa && (
-                  <div style={{ ...AVISO_BASE, backgroundColor: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", marginTop: 8 }}>
+                  <div style={{ ...AVISO_BASE, backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, color: TOM.alerta.text, marginTop: 8 }}>
                     <AlertTriangle aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0, marginTop: 2 }} />
                     <span>
                       Confira: <strong>+{qtd} un.</strong> é mais de 3× a quantidade de {item.displayId} ({s.qty} un.). Se for isso mesmo, pode seguir.
@@ -858,10 +909,10 @@ export function AumentarQuantidadeDialog({
                   data-testid="tira-resultado-complemento"
                   style={{
                     display: "flex", gap: 10, marginTop: 10,
-                    alignItems: qtdValida && isMobile ? "stretch" : "center",
-                    background: qtdValida ? "#fff7ed" : "#fafaf9",
-                    border: `1px solid ${qtdValida ? "#fed7aa" : "#ebe8e4"}`,
-                    borderRadius: 10, padding: "10px 12px",
+                    alignItems: qtdValida && apertado ? "stretch" : "center",
+                    background: qtdValida ? TOM.laranja.bg : T.bg,
+                    border: `1px solid ${qtdValida ? TOM.laranja.border : T.border}`,
+                    borderRadius: R.md, padding: "10px 12px",
                   }}
                 >
                   <span className="sr-only">
@@ -878,17 +929,17 @@ export function AumentarQuantidadeDialog({
                       // 16px à esquerda, para os números continuarem alinhados.
                       const celulaEsq = (
                         <span style={{ minWidth: 0 }}>
-                          <span style={{ display: "block", fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 800, color: "#c2410c" }}>
+                          <span style={{ display: "block", fontFamily: FONT.mono, fontSize: FS.meta, fontWeight: FW.rotulo, color: T.accentText }}>
                             {item.displayId}
                           </span>
-                          <span style={{ display: "block", fontSize: 11, color: "#7c2d12" }}>{s.qty} un. — não muda</span>
+                          <span style={{ display: "block", fontSize: FS.small, color: TOM.laranja.text }}>{s.qty} un. — não muda</span>
                         </span>
                       );
                       const celulaMeio = (
                         <span style={{ minWidth: 0 }}>
-                          <span style={{ display: "block", fontSize: 13, fontWeight: 800, color: "#7c2d12" }}>+{qtd} un.</span>
+                          <span style={{ display: "block", fontSize: FS.body, fontWeight: FW.rotulo, color: TOM.laranja.text }}>+{qtd} un.</span>
                           <span
-                            style={{ display: "block", fontSize: 11, color: "#7c2d12" }}
+                            style={{ display: "block", fontSize: FS.small, color: TOM.laranja.text }}
                             title={m2 === null ? "A peça original não tem medida de arquivo — a Gráfica calcula na produção." : undefined}
                           >
                             {m2 !== null ? `${fmtM2(m2)} m²` : "m² a definir"}
@@ -898,20 +949,25 @@ export function AumentarQuantidadeDialog({
                       const celulaDir = (
                         <span style={{ minWidth: 0 }}>
                           <span style={{ display: "block" }}>
-                            <span style={{ background: "#c2410c", color: "#fff", fontSize: 9, fontWeight: 800, borderRadius: 5, padding: "1px 6px", marginRight: 5, letterSpacing: "0.06em" }}>
+                            <Selo
+                              tamanho="sm"
+                              forma="retangulo"
+                              cores={{ bg: T.accentText, text: T.surface, border: T.accentText }}
+                              style={{ padding: "1px 6px", marginRight: 5 }}
+                            >
                               NOVA
-                            </span>
-                            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 800, color: "#c2410c" }}>
-                              {item.displayId}<span style={{ color: "#9a3412" }}>-C{sufixo}</span>
+                            </Selo>
+                            <span style={{ fontFamily: FONT.mono, fontSize: FS.meta, fontWeight: FW.rotulo, color: T.accentText }}>
+                              {item.displayId}<span style={{ color: T.accentText }}>-C{sufixo}</span>
                             </span>
                           </span>
-                          <span style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#7c2d12" }}>{totalDepois} un. no total</span>
+                          <span style={{ display: "block", fontSize: FS.small, fontWeight: FW.forte, color: TOM.laranja.text }}>{totalDepois} un. no total</span>
                         </span>
                       );
-                      const glifo: React.CSSProperties = { fontSize: 13, fontWeight: 800, color: "#7c2d12", flexShrink: 0 };
+                      const glifo: React.CSSProperties = { fontSize: FS.body, fontWeight: FW.rotulo, color: TOM.laranja.text, flexShrink: 0 };
                       const calha: React.CSSProperties = { ...glifo, width: 16, textAlign: "center" };
 
-                      return isMobile ? (
+                      return apertado ? (
                         <div aria-hidden="true" style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%", minWidth: 0 }}>
                           <div style={{ display: "flex", gap: 8, minWidth: 0 }}>
                             <span style={{ width: 16, flexShrink: 0 }} />
@@ -937,7 +993,7 @@ export function AumentarQuantidadeDialog({
                       );
                     })()
                   ) : (
-                    <span aria-hidden="true" style={{ fontSize: 12, color: "#746e69" }}>
+                    <span aria-hidden="true" style={{ fontSize: FS.meta, color: T.second }}>
                       Informe as unidades para ver o resultado.
                     </span>
                   )}
@@ -946,16 +1002,16 @@ export function AumentarQuantidadeDialog({
 
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, marginBottom: 8 }}>
-                  <label htmlFor="complemento-motivo" style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" }}>
+                  <label htmlFor="complemento-motivo" style={{ fontSize: FS.micro, fontWeight: FW.forte, textTransform: "uppercase", letterSpacing: "0.1em", color: T.second }}>
                     Por que o aumento
                   </label>
                   {motivoValido ? (
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#15803d", whiteSpace: "nowrap" }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: FS.small, fontWeight: FW.forte, color: TOM.sucesso.text, whiteSpace: "nowrap" }}>
                       <Check aria-hidden="true" style={{ width: 12, height: 12 }} />
                       ok
                     </span>
                   ) : (
-                    <span style={{ fontSize: 11, fontWeight: 700, color: tocouMotivo ? "#b91c1c" : "#746e69", whiteSpace: "nowrap" }}>
+                    <span style={{ fontSize: FS.small, fontWeight: FW.forte, color: tocouMotivo ? TOM.perigo.text : T.second, whiteSpace: "nowrap" }}>
                       faltam {faltamCaracteres} caracteres
                     </span>
                   )}
@@ -973,9 +1029,9 @@ export function AumentarQuantidadeDialog({
                         title={motivo.length > 0 ? "Apague o texto para usar um atalho" : undefined}
                         data-testid={`chip-motivo-${a.rotulo.toLowerCase().replace(/\s+/g, "-")}`}
                         style={{
-                          height: isMobile ? 36 : 28, padding: "0 12px", borderRadius: 999,
-                          border: "1px solid #e7e5e4", background: "#fff",
-                          fontSize: 11, fontWeight: 700, color: "#57534e",
+                          height: alvo(28, dedo), padding: "0 12px", borderRadius: R.pill,
+                          border: `1px solid ${T.border}`, background: T.surface,
+                          fontSize: FS.small, fontWeight: FW.forte, color: T.apoio,
                           cursor: bloqueado ? "not-allowed" : "pointer",
                           opacity: bloqueado ? 0.5 : 1, whiteSpace: "nowrap",
                         }}
@@ -995,11 +1051,11 @@ export function AumentarQuantidadeDialog({
                   onChange={(e) => setMotivo(e.target.value)}
                   onBlur={(e) => {
                     setTocouMotivo(true);
-                    e.currentTarget.style.borderColor = motivoValido ? "#e7e5e4" : "#fecaca";
+                    e.currentTarget.style.borderColor = motivoValido ? T.border : TOM.perigo.border;
                     e.currentTarget.style.boxShadow = "none";
                   }}
                   onFocus={(e) => {
-                    e.currentTarget.style.borderColor = "#c2410c";
+                    e.currentTarget.style.borderColor = T.accentText;
                     e.currentTarget.style.boxShadow = "0 0 0 3px rgba(194,65,12,0.18)";
                   }}
                   disabled={controlesTravados}
@@ -1007,21 +1063,22 @@ export function AumentarQuantidadeDialog({
                   data-testid="input-complemento-motivo"
                   style={{
                     width: "100%", boxSizing: "border-box", minHeight: 76,
-                    background: "#fff",
-                    border: `1.5px solid ${tocouMotivo && !motivoValido ? "#fecaca" : "#e7e5e4"}`,
-                    borderRadius: 8, padding: "12px 14px",
-                    fontSize: isMobile ? 16 : 14, fontFamily: "inherit", lineHeight: 1.5,
-                    color: "#1a1c1c", resize: "vertical",
+                    background: T.surface,
+                    border: `1.5px solid ${tocouMotivo && !motivoValido ? TOM.perigo.border : T.border}`,
+                    borderRadius: R.md, padding: "12px 14px",
+                    // 16px no toque/celular: abaixo disso o iOS dá zoom ao focar.
+                    fontSize: dedo || isMobile ? FS.lead : FS.read, fontFamily: "inherit", lineHeight: 1.5,
+                    color: T.text, resize: "vertical",
                     transition: "border-color 0.15s, box-shadow 0.15s",
                   }}
                 />
 
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 6 }}>
-                  <span style={{ fontSize: 11, color: "#746e69", lineHeight: 1.4 }}>
+                  <span style={{ fontSize: FS.small, color: T.second, lineHeight: 1.4 }}>
                     Vai para a fila da Gráfica, para o sino e para o histórico da peça.
                   </span>
                   {motivo.length > 400 && (
-                    <span style={{ fontSize: 11, fontWeight: 600, fontFamily: "'DM Mono', monospace", color: "#746e69", flexShrink: 0 }}>
+                    <span style={{ fontSize: FS.small, fontWeight: FW.medio, fontFamily: FONT.mono, color: T.second, flexShrink: 0 }}>
                       {motivo.length}/500
                     </span>
                   )}
@@ -1033,26 +1090,27 @@ export function AumentarQuantidadeDialog({
                   ref={erroRef}
                   role="alert"
                   data-testid="erro-complemento"
-                  style={{ ...AVISO_BASE, backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", flexDirection: "column", gap: 8 }}
+                  style={{ ...AVISO_BASE, backgroundColor: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}`, color: TOM.perigo.text, flexDirection: "column", gap: 8 }}
                 >
                   <span style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
                     <AlertTriangle aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0, marginTop: 2 }} />
                     <span>
-                      <strong style={{ display: "block", fontSize: 13, fontWeight: 800, marginBottom: 2 }}>{tituloErro}</strong>
-                      <span style={{ fontSize: 12, lineHeight: 1.5 }}>{erro.message}</span>
+                      <strong style={{ display: "block", fontSize: FS.body, fontWeight: FW.rotulo, marginBottom: 2 }}>{tituloErro}</strong>
+                      <span style={{ fontSize: FS.meta, lineHeight: 1.5 }}>{erro.message}</span>
                     </span>
                   </span>
                   {erroRetentavel && (
-                    <button
-                      type="button"
+                    <Botao
+                      variante="secundario"
+                      tamanho={dedo ? "toque" : "sm"}
+                      icone={RotateCw}
                       onClick={() => submeter()}
-                      disabled={pendente}
+                      carregando={pendente}
                       data-testid="button-retry-complemento"
-                      style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6, background: "#fff", border: "1px solid #fecaca", borderRadius: 6, padding: "5px 10px", fontSize: 11, fontWeight: 800, color: "#b91c1c", cursor: pendente ? "wait" : "pointer" }}
+                      style={{ alignSelf: "flex-start" }}
                     >
-                      <RotateCw aria-hidden="true" style={{ width: 12, height: 12 }} />
                       Tentar de novo
-                    </button>
+                    </Botao>
                   )}
                 </div>
               )}
@@ -1060,49 +1118,37 @@ export function AumentarQuantidadeDialog({
 
             <ModalFooter>
               {dicaRodape && (
-                <p style={{ margin: 0, fontSize: 11, fontWeight: 600, textAlign: "center", lineHeight: 1.5, color: tentouEnviar && !pendente ? "#b91c1c" : "#746e69" }}>
+                <p style={{ margin: 0, fontSize: FS.small, fontWeight: FW.medio, textAlign: "center", lineHeight: 1.5, color: tentouEnviar && !pendente ? TOM.perigo.text : T.second }}>
                   {dicaRodape}
                 </p>
               )}
               <div style={{ display: "flex", gap: 10, flexDirection: estreito ? "column-reverse" : "row" }}>
-                <button
-                  type="button"
+                <Botao
+                  variante="secundario"
+                  tamanho="toque"
                   onClick={() => onOpenChange(false)}
                   disabled={pendente}
                   data-testid="button-cancelar-complemento"
-                  style={{
-                    flex: estreito ? undefined : 1, width: estreito ? "100%" : undefined,
-                    height: 48, borderRadius: 8, background: "transparent",
-                    border: "1.5px solid #e7e5e4", fontSize: 13, fontWeight: 700, color: "#746e69",
-                    cursor: pendente ? "wait" : "pointer", transition: "background-color 0.15s",
-                  }}
-                  onMouseEnter={(e) => { if (!pendente) e.currentTarget.style.backgroundColor = "#f5f5f4"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
+                  style={{ flex: estreito ? undefined : 1, width: estreito ? "100%" : undefined }}
                 >
                   Cancelar
-                </button>
-                <button
+                </Botao>
+                {/* Primário do design system (escuro), não o laranja com
+                    sombra de antes. O motivo de não dar ainda não vem no
+                    `motivo`: ele já está na dica logo acima, e o botão fica
+                    ativo de propósito (o clique leva ao campo que falta). */}
+                <Botao
+                  variante="primario"
+                  tamanho="toque"
                   type="submit"
-                  disabled={pendente || migracaoPendente}
+                  icone={PlusCircle}
+                  disabled={migracaoPendente}
+                  carregando={pendente}
                   data-testid="button-criar-complemento"
-                  style={{
-                    flex: estreito ? undefined : 2, width: estreito ? "100%" : undefined,
-                    height: 48, borderRadius: 8, border: "none",
-                    background: "#c2410c", color: "#fff",
-                    fontSize: 13, fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif",
-                    cursor: pendente ? "wait" : "pointer",
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                    boxShadow: "0 4px 14px rgba(194,65,12,0.30)",
-                    transition: "background-color 0.15s",
-                  }}
-                  onMouseEnter={(e) => { if (!pendente) e.currentTarget.style.backgroundColor = "#9a3412"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#c2410c"; }}
+                  style={{ flex: estreito ? undefined : 2, width: estreito ? "100%" : undefined }}
                 >
-                  {pendente
-                    ? <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 15, height: 15 }} />
-                    : <PlusCircle aria-hidden="true" style={{ width: 15, height: 15 }} />}
                   {rotuloPrimario}
-                </button>
+                </Botao>
               </div>
             </ModalFooter>
           </form>
@@ -1172,31 +1218,31 @@ export function ComplementoDaFicha({
 
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", margin: 0, display: "flex", alignItems: "center", gap: 6, color: "#746e69" }}>
-        <PlusCircle aria-hidden="true" style={{ width: 13, height: 13, color: "#c2410c" }} />
+      <h3 style={{ fontFamily: FONT.display, fontWeight: FW.rotulo, fontSize: FS.micro, textTransform: "uppercase", letterSpacing: "0.12em", margin: 0, display: "flex", alignItems: "center", gap: 6, color: T.second }}>
+        <PlusCircle aria-hidden="true" style={{ width: 13, height: 13, color: T.accentText }} />
         {ehFilho ? "Esta peça é um complemento" : "Complementos"}
       </h3>
 
       {ehFilho && (
-        <div style={{ backgroundColor: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 10, padding: "12px 14px" }}>
-          <p style={{ margin: 0, fontSize: 12, color: "#7c2d12", lineHeight: 1.5 }}>
+        <div style={{ backgroundColor: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, borderRadius: R.md, padding: "12px 14px" }}>
+          <p style={{ margin: 0, fontSize: FS.meta, color: TOM.laranja.text, lineHeight: 1.5 }}>
             Complemento de{" "}
             {onAbrirPeca && item.parent?.id ? (
               <button
                 type="button"
                 onClick={() => onAbrirPeca(item.parent.id)}
                 data-testid="button-abrir-peca-mae"
-                style={{ background: "none", border: "none", padding: 0, fontFamily: "'DM Mono', monospace", fontWeight: 800, fontSize: 12, color: "#c2410c", cursor: "pointer", textDecoration: "underline" }}
+                style={{ background: "none", border: "none", padding: 0, fontFamily: FONT.mono, fontWeight: FW.rotulo, fontSize: FS.meta, color: T.accentText, cursor: "pointer", textDecoration: "underline" }}
               >
                 {item.parent.displayId}
               </button>
             ) : (
-              <strong style={{ fontFamily: "'DM Mono', monospace", color: "#c2410c" }}>{item.parent?.displayId ?? "peça original"}</strong>
+              <strong style={{ fontFamily: FONT.mono, color: T.accentText }}>{item.parent?.displayId ?? "peça original"}</strong>
             )}
             {" — "}a peça original permanece com {item.parent?.quantity ?? "?"} un. e não foi alterada.
           </p>
           {item.complementReason && (
-            <p style={{ margin: "8px 0 0", fontSize: 12, color: "#7c2d12", lineHeight: 1.5 }}>
+            <p style={{ margin: "8px 0 0", fontSize: FS.meta, color: TOM.laranja.text, lineHeight: 1.5 }}>
               <strong>Motivo{item.complementRequestedBy ? ` (${item.complementRequestedBy}${pedidoEm ? `, ${pedidoEm}` : ""})` : ""}:</strong>{" "}
               {item.complementReason}
             </p>
@@ -1205,38 +1251,38 @@ export function ComplementoDaFicha({
       )}
 
       {complementos.length > 0 && (
-        <div style={{ border: "1px solid #fed7aa", borderRadius: 10, overflow: "hidden" }}>
+        <div style={{ border: `1px solid ${TOM.laranja.border}`, borderRadius: R.md, overflow: "hidden" }}>
           {complementos.map((c: any) => (
-            <div key={c.id} style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", padding: "10px 14px", backgroundColor: "#fff7ed", borderBottom: "1px solid #fed7aa" }}>
+            <div key={c.id} style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", padding: "10px 14px", backgroundColor: TOM.laranja.bg, borderBottom: `1px solid ${TOM.laranja.border}` }}>
               {onAbrirPeca ? (
                 <button
                   type="button"
                   onClick={() => onAbrirPeca(c.id)}
                   data-testid={`button-abrir-complemento-${c.id}`}
-                  style={{ background: "none", border: "none", padding: 0, fontFamily: "'DM Mono', monospace", fontWeight: 800, fontSize: 12, color: "#c2410c", cursor: "pointer", textDecoration: "underline" }}
+                  style={{ background: "none", border: "none", padding: 0, fontFamily: FONT.mono, fontWeight: FW.rotulo, fontSize: FS.meta, color: T.accentText, cursor: "pointer", textDecoration: "underline" }}
                 >
                   {c.displayId}
                 </button>
               ) : (
-                <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 800, fontSize: 12, color: "#c2410c" }}>{c.displayId}</span>
+                <span style={{ fontFamily: FONT.mono, fontWeight: FW.rotulo, fontSize: FS.meta, color: T.accentText }}>{c.displayId}</span>
               )}
-              <span style={{ backgroundColor: "#c2410c", color: "#ffffff", borderRadius: 6, padding: "2px 7px", fontSize: 10, fontWeight: 800 }}>
+              <Selo tamanho="sm" forma="retangulo" cores={{ bg: T.accentText, text: T.surface, border: T.accentText }} style={{ padding: "2px 7px" }}>
                 +{c.quantity} UN.
-              </span>
+              </Selo>
               <StatusPill status={c.status} size="sm" />
-              <span style={{ fontSize: 11, color: "#7c2d12", fontFamily: "'DM Mono', monospace" }}>
+              <span style={{ fontSize: FS.small, color: TOM.laranja.text, fontFamily: FONT.mono }}>
                 {Number(c.quantityProduced) || 0}/{Number(c.conferredQty) || 0}/{Number(c.deliveredQty) || 0}
-                <span style={{ fontFamily: "inherit", color: "#9a3412" }}> prod./conf./entr.</span>
+                <span style={{ fontFamily: "inherit", color: T.accentText }}> prod./conf./entr.</span>
               </span>
               {c.complementReason && (
-                <span style={{ flexBasis: "100%", fontSize: 11, color: "#7c2d12", lineHeight: 1.45 }}>
+                <span style={{ flexBasis: "100%", fontSize: FS.small, color: TOM.laranja.text, lineHeight: 1.45 }}>
                   {c.complementRequestedBy ? <strong>{c.complementRequestedBy}: </strong> : null}
                   {c.complementReason}
                 </span>
               )}
             </div>
           ))}
-          <div style={{ padding: "9px 14px", backgroundColor: "#ffedd5", fontSize: 12, fontWeight: 800, color: "#7c2d12" }}>
+          <div style={{ padding: "9px 14px", backgroundColor: TOM.laranja.bg, fontSize: FS.meta, fontWeight: FW.rotulo, color: TOM.laranja.text }}>
             Contratado total: {total} un. ({item.quantity} + {somaFilhos})
           </div>
         </div>
@@ -1245,7 +1291,7 @@ export function ComplementoDaFicha({
       {podeAumentar && onAumentar && (
         <div>
           <AumentarQuantidadeButton onClick={() => onAumentar(item)} />
-          <p style={{ margin: "6px 0 0", fontSize: 11, color: "#746e69", lineHeight: 1.5 }}>
+          <p style={{ margin: "6px 0 0", fontSize: FS.small, color: T.second, lineHeight: 1.5 }}>
             A peça em produção não muda de quantidade. O aumento vira uma peça complementar, com ciclo próprio e a mesma arte.
           </p>
         </div>
@@ -1270,6 +1316,24 @@ export function AumentarQuantidadeButton({
   testId?: string;
 }) {
   const link = variant === "link";
+  const dedo = usePonteiroGrosso();
+  // A variante "link" continua texto sublinhável dentro de linha de lista; a
+  // de contorno é um botão de ação de verdade, então é o <Botao>.
+  if (!link) {
+    return (
+      <Botao
+        variante="secundario"
+        tamanho={dedo ? "toque" : "md"}
+        icone={PlusCircle}
+        onClick={onClick}
+        disabled={disabled}
+        data-testid={testId}
+        title="Aumentar quantidade — cria uma peça complementar"
+      >
+        Aumentar quantidade
+      </Botao>
+    );
+  }
   return (
     <button
       type="button"
@@ -1277,16 +1341,9 @@ export function AumentarQuantidadeButton({
       disabled={disabled}
       data-testid={testId}
       title="Aumentar quantidade — cria uma peça complementar"
-      style={link
-        ? { alignSelf: "flex-start", background: "none", border: "none", padding: 0, fontSize: 11, fontWeight: 800, color: "#c2410c", cursor: disabled ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 4 }
-        : {
-            display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
-            backgroundColor: "#fff7ed", border: "1px solid #fed7aa", color: "#c2410c",
-            borderRadius: 8, padding: "9px 14px", fontSize: 12, fontWeight: 800,
-            cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.6 : 1,
-          }}
+      style={{ alignSelf: "flex-start", background: "none", border: "none", padding: 0, minHeight: alvo(0, dedo), fontSize: FS.small, fontWeight: FW.rotulo, color: T.accentText, cursor: disabled ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}
     >
-      <PlusCircle aria-hidden="true" style={{ width: link ? 11 : 14, height: link ? 11 : 14 }} />
+      <PlusCircle aria-hidden="true" style={{ width: 11, height: 11 }} />
       Aumentar quantidade
     </button>
   );

@@ -124,7 +124,7 @@ describe("Arte 1280px — topo limpo e 'Mais ações'", { timeout: 60_000 }, () 
     expect(lote.textContent).toContain("Marque as peças");
     // As cores de 17/09 continuam dentro do menu.
     expect(tid("button-export-pdf")!.style.color).toBe("rgb(29, 78, 216)");
-    expect(tid("button-upload-book")!.style.color).toBe("rgb(107, 33, 168)");
+    expect(tid("button-upload-book")!.style.color).toBe("rgb(126, 34, 206)"); // TOM.roxo.text (#7e22ce)
   });
 
   it("o guia da fase mora no '?' ao lado do título", async () => {
@@ -169,7 +169,8 @@ describe("Arte 1280px — topo limpo e 'Mais ações'", { timeout: 60_000 }, () 
 describe("Arte 390px — topo e card limpos", { timeout: 60_000 }, () => {
   it("topo com alvos de 44px e 'Mais ações' abrindo as ações de apoio", async () => {
     await montar(390);
-    expect(tid("button-mais-acoes")!.style.height).toBe("44px");
+    // "Mais ações" é um <Botao> (tamanho "toque" no dedo/celular): alvo em minHeight.
+    expect(tid("button-mais-acoes")!.style.minHeight).toBe("44px");
     expect(tid("button-open-bulk-thumb")!.style.height).toBe("44px");
     expect(tid("button-export-pdf")).toBeNull();
     await clicar(tid("button-mais-acoes"));
@@ -183,6 +184,6 @@ describe("Arte 390px — topo e card limpos", { timeout: 60_000 }, () => {
     expect(tid("meta-peca-p1")!.textContent).toContain("Qtd 2");
     expect(card.textContent).not.toContain("Marca A");
     expect(card.querySelectorAll('[data-testid^="button-action-"]').length).toBe(1);
-    expect(tid("button-action-p1")!.style.height).toBe("44px");
+    expect(tid("button-action-p1")!.style.minHeight).toBe("44px");
   });
 });

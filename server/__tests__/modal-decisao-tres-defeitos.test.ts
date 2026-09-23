@@ -72,7 +72,8 @@ describe("1 · os botões de decisão nunca se sobrepõem", () => {
     const i = REV.indexOf("4 · DECISÃO");
     expect(i).toBeGreaterThan(-1);
     const faixa = REV.slice(i, i + 1200);
-    expect(faixa).toContain('backgroundColor: "#fafaf9"');
+    // T.bg (#fafaf9), o papel claro — o token, desde a passada hex→token.
+    expect(faixa).toContain("backgroundColor: T.bg");
     expect(semCom(faixa)).not.toContain('backgroundColor: "#1c1917"');
   });
 
@@ -133,7 +134,7 @@ describe("4 · a tira de metadados não é cortada pela borda", () => {
     // da altura reservada não tem mais onde nascer.
     expect(REV).toContain('flex: "1 1 0", minWidth: isMobile ? 76 : 0');
     expect(REV).toContain('title={String(value)}');
-    expect(REV).toContain('borderLeft: i === 0 ? "none" : "1px solid #e7e5e4"');
+    expect(REV).toContain("borderLeft: i === 0 ? \"none\" : `1px solid ${T.border}`");
   });
 
   it("no celular a tira rola em vez de esconder", () => {

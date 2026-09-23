@@ -11,7 +11,13 @@
 // procura gargalo agiria sobre isso.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function diasNaFase(item: any, hoje: Date): number | null {
+/** A peça como a idade a lê: a última troca de status (camelCase ou a coluna crua). */
+export interface PecaComIdade {
+  statusChangedAt?: string | Date | null;
+  status_changed_at?: string | Date | null;
+}
+
+export function diasNaFase(item: PecaComIdade | null | undefined, hoje: Date): number | null {
   const bruto = item?.statusChangedAt ?? item?.status_changed_at;
   if (!bruto) return null;
   const t = new Date(bruto).getTime();

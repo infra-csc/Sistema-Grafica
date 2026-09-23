@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import type { CorpoDoLogin, UsuarioSemSenha } from "@shared/api";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle, Lock, Loader2, AlertTriangle, ChevronDown, ChevronUp, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { T, FS, R, N, FW, FONT, TOM } from "@/lib/theme";
@@ -85,7 +86,7 @@ export default function Login() {
 
   const loginMutation = useMutation({
     mutationFn: async (data: LoginForm) => {
-      const res = await apiRequest("POST", "/api/auth/login", data);
+      const res = await apiRequest<UsuarioSemSenha, CorpoDoLogin>("POST", "/api/auth/login", data);
       return await res.json();
     },
     onSuccess: async (user) => {
@@ -95,7 +96,7 @@ export default function Login() {
     },
     // Só inline. O toast repetia a mesma frase no canto da tela, longe do
     // formulário — dois avisos do mesmo erro, um deles sumindo sozinho.
-    onError: (error: any) => {
+    onError: (error) => {
       setLoginError(error.message || "E-mail ou senha inválidos");
     },
   });

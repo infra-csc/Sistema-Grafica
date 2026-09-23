@@ -61,7 +61,7 @@ export function agruparPorEvento(ativos: EnrichedAsset[], reservaPorAtivo: Map<s
     }
     e.pecas += 1;
     e.unidades += a.quantity ?? 1;
-    const voltou = new Date((a as any).updatedAt ?? (a as any).createdAt ?? Date.now()).getTime();
+    const voltou = new Date(a.updatedAt ?? a.createdAt ?? Date.now()).getTime();
     if (voltou < e.desde) e.desde = voltou;
     const r = reservaPorAtivo.get(a.id);
     if (r) {

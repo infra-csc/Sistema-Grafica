@@ -79,7 +79,7 @@ describe("3 · duplicar modelo", () => {
   });
 
   it("abre o formulário COMO CRIAÇÃO, pré-preenchido, nome sufixado", () => {
-    expect(M).toContain("const handleDuplicate = (item: any) => {");
+    expect(M).toContain("const handleDuplicate = (item: ModeloComUso) => {");
     const i = M.indexOf("const handleDuplicate");
     const corpo = M.slice(i, i + 1200);
     expect(corpo).toContain("setEditingItem(null);");

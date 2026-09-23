@@ -11,7 +11,7 @@
  */
 import type { ElementType } from "react";
 import { Sparkles, Hammer, Trash2 } from "lucide-react";
-import type { InventoryAsset } from "@shared/schema";
+import type { AtivoNaTriagem } from "@shared/api";
 
 export const CONDITIONS = ["PERFEITO", "AVARIA_LEVE", "SUCATA"] as const;
 export type Condition = (typeof CONDITIONS)[number];
@@ -39,15 +39,11 @@ export const CONDITION_META: Record<Condition, ConditionMeta> = {
 
 /**
  * Payload de /api/inventory/awaiting-triage — o servidor enriquece o ativo
- * com evento (id/nome/data) e patrocinadores resolvidos. Tipo único,
+ * com evento (id/nome/data) e patrocinadores resolvidos. É o contrato da rota
+ * (@shared/api, `AtivoNaTriagem`: datas em texto ISO, como chegam pelo cabo),
  * importado por triagem-retorno e pelo TriagemModal.
  */
-export type EnrichedAsset = InventoryAsset & {
-  eventId: string | null;
-  eventName: string | null;
-  eventDate: string | null;
-  sponsors: { id: string; name: string }[];
-};
+export type EnrichedAsset = AtivoNaTriagem;
 
 /**
  * Acesso seguro quando a condição vem do banco como `string | null` —

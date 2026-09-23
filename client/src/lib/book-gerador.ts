@@ -29,7 +29,9 @@ const cor = (hex: string) => {
 };
 
 /** Baixa a arte e reamostra para JPEG (bytes + dimensões). Lança em falha. */
-async function arteComoJpeg(url: string): Promise<{ bytes: Uint8Array; w: number; h: number }> {
+async function arteComoJpeg(url: string | null | undefined): Promise<{ bytes: Uint8Array; w: number; h: number }> {
+  // Peça sem arte: falha como qualquer arte que não carrega (entra em `falhas`).
+  if (!url) throw new Error("peça sem arte");
   const local = convertGCSUrlToLocalPath(url);
   const resp = await fetch(local.startsWith("/") ? local : url, { credentials: "include" });
   if (!resp.ok) throw new Error(`arte não carregou (${resp.status})`);
@@ -144,8 +146,8 @@ export async function gerarBookPdf(
         const box = encaixeContain(celulas[i], arte.w, arte.h);
         // book-spec usa origem no topo; o PDF, no fundo — converte aqui.
         page.drawImage(img, { x: box.x, y: BOOK.ALTURA - box.y - box.h, width: box.w, height: box.h });
-      } catch (e: any) {
-        falhas.push({ displayId: item.displayId, motivo: e?.message ?? "falha ao carregar" });
+      } catch (e) {
+        falhas.push({ displayId: item.displayId, motivo: (e instanceof Error ? e.message : undefined) ?? "falha ao carregar" });
       }
     }
 

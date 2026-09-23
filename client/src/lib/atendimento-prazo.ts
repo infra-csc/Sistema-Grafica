@@ -18,6 +18,12 @@
  */
 export const OFFSET_APROVACAO_PADRAO = -12;
 
+/** O evento como o prazo de aprovação o lê (o da lista e o embutido na peça servem). */
+export interface EventoDoPrazoAprovacao {
+  truckDepartureDate?: string | Date | null;
+  deadlineAprovacaoLayout?: number | null;
+}
+
 export interface PrazoAprovacao {
   /**
    * Instante bruto (saída do caminhão + offset), sem normalizar a hora — é o
@@ -50,9 +56,9 @@ export function inicioDoDia(now: Date = new Date()): Date {
  * `null` quando o evento não tem saída marcada — sem âncora, qualquer data
  * seria inventada, e peça sem prazo não é peça atrasada.
  */
-export function prazoAprovacaoLayout(event: any, hoje: Date): PrazoAprovacao | null {
+export function prazoAprovacaoLayout(event: EventoDoPrazoAprovacao | null | undefined, hoje: Date): PrazoAprovacao | null {
   const raw = event?.truckDepartureDate;
-  if (!raw) return null;
+  if (!event || !raw) return null;
   const base = new Date(raw);
   if (!Number.isFinite(base.getTime())) return null;
   const offset = event.deadlineAprovacaoLayout ?? OFFSET_APROVACAO_PADRAO;
@@ -67,7 +73,7 @@ export function prazoAprovacaoLayout(event: any, hoje: Date): PrazoAprovacao | n
 }
 
 /** O evento já passou do marco de Aprovação de Layout? */
-export function isEventoAtrasadoNaAprovacao(event: any, hoje: Date): boolean {
+export function isEventoAtrasadoNaAprovacao(event: EventoDoPrazoAprovacao | null | undefined, hoje: Date): boolean {
   const p = prazoAprovacaoLayout(event, hoje);
   return !!p && p.diff < 0;
 }
@@ -78,7 +84,7 @@ export function isEventoAtrasadoNaAprovacao(event: any, hoje: Date): boolean {
  */
 export function filtrarAtrasadosNaAprovacao<T extends { eventId?: string | null }>(
   items: T[],
-  eventoPorId: Map<string, any>,
+  eventoPorId: ReadonlyMap<string, EventoDoPrazoAprovacao | null | undefined>,
   hoje: Date,
 ): T[] {
   return items.filter((i) =>

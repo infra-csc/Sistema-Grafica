@@ -22,6 +22,7 @@ import { SponsorChips } from "@/components/sponsor-chips";
 import { useAuth } from "@/contexts/auth-context";
 import { useDensidadeDoConteudo, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { CONDITION_META, type Condition, type ConditionMeta, type EnrichedAsset } from "@/lib/inventory-meta";
+import type { OrigemDoAtivo } from "@shared/api";
 import { T, N, TOM, FS, FW, R, FONT, SHADOW } from "@/lib/theme";
 import { Botao } from "@/components/ui/botao";
 import { CartaoKpi } from "@/components/ui/cartao-kpi";
@@ -297,7 +298,7 @@ export default function TriagemRetorno() {
   });
   // A peça de ORIGEM do ativo aberto no modal — só ela, pela rota enxuta do
   // acervo. Antes baixava /api/items inteiro (MBs) para ler uma linha.
-  const { data: pecaDeOrigem = null } = useQuery<any | null>({
+  const { data: pecaDeOrigem = null } = useQuery<OrigemDoAtivo | null>({
     queryKey: [`/api/inventory/${selectedAsset?.id}/origem`],
     enabled: !!selectedAsset?.originalItemId,
   });
@@ -461,7 +462,8 @@ export default function TriagemRetorno() {
         : RESULT_META[entry.splits[0].result].label;
       toast({ title: `${asset.displayId} triada · ${destino}`, variant: "success" });
       return true;
-    } catch (e: any) {
+    } catch (erro) {
+      const e = erro instanceof Error ? erro : null;
       // Outra pessoa chegou antes (409): não é erro de quem está aqui — a
       // lista só estava velha. Aviso neutro e lista nova.
       if (ehRecusaDeJaTriada(e?.message)) {

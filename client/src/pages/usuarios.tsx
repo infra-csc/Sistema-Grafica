@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import type { UsuarioDaLista } from "@shared/api";
 import {
   Form, FormControl, FormField, FormItem, FormMessage,
 } from "@/components/ui/form";
@@ -144,10 +145,8 @@ const userSchema = z.object({
 });
 type UserForm = z.infer<typeof userSchema>;
 
-interface User {
-  id: string; name: string; email: string; role: string;
-  mustChangePassword: boolean; createdAt: string; kit?: boolean;
-}
+/** Linha de GET /api/users (contrato em @shared/api — o usuário sem o hash). */
+type User = UsuarioDaLista;
 
 function initials(name: string) {
   return name.split(" ").filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join("");
@@ -343,7 +342,8 @@ export default function Usuarios() {
 
   const openEdit = (u: User) => {
     setEditingUser(u);
-    form.reset({ name: u.name, email: u.email, role: u.role as any, kit: !!u.kit });
+    // O perfil gravado é um dos cinco (o servidor valida na escrita).
+    form.reset({ name: u.name, email: u.email, role: u.role as UserForm["role"], kit: !!u.kit });
     setModalOpen(true);
   };
 
@@ -472,7 +472,7 @@ export default function Usuarios() {
   const roleFilterOptions = Object.entries(ROLE_CFG)
     .map(([v, c]) => ({
       value: v,
-      label: (c as any).label as string,
+      label: c.label,
       count: users.filter(u => u.role === v && casaBusca(u)).length,
     }))
     .filter(o => o.count > 0);

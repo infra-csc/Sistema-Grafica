@@ -21,7 +21,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { rotuloDaMaquina } from "@shared/fluxo-peca";
 import { moldeConcluido } from "@shared/molde";
-import { progressoDaEmbalagem, seloDosVolumes } from "@shared/embalagem";
+import { progressoDaEmbalagem, seloDosVolumes, type PecaDaEmbalagem } from "@shared/embalagem";
 import { numerosDaImpressao, fraseDaFila } from "@shared/progresso-da-impressao";
 import { PRODUCTION_STATUSES, getStatusMeta } from "@/lib/status";
 
@@ -105,11 +105,11 @@ export function detalheDaProducao(item: PecaComProducao | null | undefined): str
   if (LIBERADA.has(status)) {
     // "Fila: Impressora 2", "Fila: Impressora 1 (20) · Impressora 2 (14)",
     // "Pausada · Fila: …" — o mesmo selo da linha da Gráfica.
-    return fraseDaFila(item as any);
+    return fraseDaFila(item);
   }
 
   if (EM_IMPRESSAO.has(status)) {
-    const n = numerosDaImpressao(item as any);
+    const n = numerosDaImpressao(item);
     if (n.dividida) {
       return Object.entries(n.partes)
         .map(([m, parte]) => `${rotuloDaMaquina(m)} · ${parte.impressas} de ${parte.atrib}`)
@@ -126,7 +126,9 @@ export function detalheDaProducao(item: PecaComProducao | null | undefined): str
   // Parte já embalada (a parcial, ou a que foi dividida no tempo): o progresso
   // e onde está — "7 de 10 embaladas · Tubo 1 (7)". A entrega parcial ANTIGA
   // (sem volume) diz "7 de 10 entregues" — nunca "embaladas".
-  const parcial = progressoDaEmbalagem(item as any);
+  // As quantidades podem vir em texto (peça antiga): a embalagem as lê por
+  // Number(), então o texto numérico serve — o tipo dela só declara número.
+  const parcial = progressoDaEmbalagem(item as PecaDaEmbalagem);
   if (parcial && !ENTREGUE.has(status) && status !== "packed") return [parcial, volumesDaPeca(item)].filter(Boolean).join(" · ");
 
   if (IMPRESSA.has(status)) {

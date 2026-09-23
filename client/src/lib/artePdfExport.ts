@@ -15,14 +15,23 @@ export const convertGCSUrlToLocalPath = (gcsUrl: string): string => {
   return gcsUrl;
 };
 
+/** A peça como o PDF a lê: nome, arte e evento — só isso. */
+export interface PecaDoPdf {
+  type?: string | null;
+  description?: string | null;
+  approvalThumbUrl?: string | null;
+  eventId?: string | null;
+  event?: { name?: string | null } | null;
+}
+
 // Chave de grupo de uma peça (ex.: "Pórtico (Frontal)" → "Pórtico").
-export const groupKeyOf = (item: any): string => (item.type ?? "").split(/[\s(]/)[0] || "Sem grupo";
+export const groupKeyOf = (item: PecaDoPdf): string => (item.type ?? "").split(/[\s(]/)[0] || "Sem grupo";
 
 export const MAX_ITEMS_PER_COMBINED_PAGE = 6;
 
 // Pré-busca imagens como data URIs (resolve GCS 403 + timing de carregamento).
-async function prefetchThumbsAsDataUris(items: any[]): Promise<Record<string, string>> {
-  const rawUrls = Array.from(new Set(items.map((i: any) => i.approvalThumbUrl).filter(Boolean) as string[]));
+async function prefetchThumbsAsDataUris(items: PecaDoPdf[]): Promise<Record<string, string>> {
+  const rawUrls = Array.from(new Set(items.map((i) => i.approvalThumbUrl).filter(Boolean) as string[]));
   const out: Record<string, string> = {};
   await Promise.allSettled(rawUrls.map(async (rawUrl) => {
     if (/\.pdf$/i.test(rawUrl)) return;
@@ -48,9 +57,9 @@ async function prefetchThumbsAsDataUris(items: any[]): Promise<Record<string, st
   return out;
 }
 
-type Chunk = { group: string; items: any[]; part: number; parts: number };
+type Chunk = { group: string; items: PecaDoPdf[]; part: number; parts: number };
 
-function chunkGroup(group: string, groupItems: any[]): Chunk[] {
+function chunkGroup(group: string, groupItems: PecaDoPdf[]): Chunk[] {
   const parts = Math.ceil(groupItems.length / MAX_ITEMS_PER_COMBINED_PAGE);
   return Array.from({ length: parts }, (_, p) => ({
     group,
@@ -61,7 +70,7 @@ function chunkGroup(group: string, groupItems: any[]): Chunk[] {
 }
 
 /** Uma peça por página: arte grande + nome embaixo. */
-function buildItemPage(item: any, thumbDataUris: Record<string, string>): string {
+function buildItemPage(item: PecaDoPdf, thumbDataUris: Record<string, string>): string {
   const thumbUrl = item.approvalThumbUrl || "";
   const thumbDataUri = thumbDataUris[thumbUrl] || null;
   const isImg = !!thumbDataUri;
@@ -177,7 +186,7 @@ function imprimirQuandoPronto(win: Window) {
  * uma capa divisória por evento quando há mais de um.
  */
 export async function exportMixedToPDF(
-  items: any[],
+  items: PecaDoPdf[],
   combinedGroups: Set<string>,
   title = "Peças",
   groupByEvent = false,
@@ -205,7 +214,7 @@ export async function exportMixedToPDF(
 
   // Separa por evento primeiro para não misturar peças de eventos diferentes
   // com o mesmo grupo na mesma página.
-  const eventsMap = new Map<string, { name: string; items: any[] }>();
+  const eventsMap = new Map<string, { name: string; items: PecaDoPdf[] }>();
   items.forEach(item => {
     const key = item.eventId || "__sem_evento__";
     if (!eventsMap.has(key)) eventsMap.set(key, { name: item.event?.name || "Sem evento", items: [] });
@@ -216,7 +225,7 @@ export async function exportMixedToPDF(
   type Page =
     | { kind: "cover"; name: string }
     | { kind: "group"; chunk: Chunk }
-    | { kind: "item"; item: any };
+    | { kind: "item"; item: PecaDoPdf };
   const sequence: Page[] = [];
 
   const multiEvent = eventEntries.length > 1;
@@ -228,7 +237,7 @@ export async function exportMixedToPDF(
     if (multiEvent && groupByEvent) {
       sequence.push({ kind: "cover", name: ev.name });
     }
-    const groupsMap = new Map<string, any[]>();
+    const groupsMap = new Map<string, PecaDoPdf[]>();
     ev.items.forEach(item => {
       const key = groupKeyOf(item);
       if (!groupsMap.has(key)) groupsMap.set(key, []);

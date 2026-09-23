@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { MARCOS_DO_EVENTO, OFFSET_PADRAO_DO_MARCO } from "@shared/prazo-dates";
+import type { EventoDaLista } from "@shared/api";
 import { useDensidadeDoConteudo, usePonteiroGrosso, alvo } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
 import { T, FS, R, N, H, FW, FONT, TOM, SHADOW } from "@/lib/theme";
@@ -42,7 +43,7 @@ const P = {
    "completed" reaproveita o verde do status de evento concluído; sem
    prioridade cai na família neutra. */
 const NO_PRIO = { label: "Sem prioridade", bg: T.low, text: T.strong, border: T.border, dot: T.second };
-function prioMeta(ev: any): { label: string; bg: string; text: string; border: string; dot: string } {
+function prioMeta(ev: EventoDaLista): { label: string; bg: string; text: string; border: string; dot: string } {
   // Encerrado à mão vem ANTES da prioridade: um evento que alguém fechou
   // exibindo o chip vermelho "Urgente" cobra um trabalho que já saiu de pauta.
   const chave = isEventoEncerrado(ev) ? "closed" : ev.status === "completed" ? "completed" : null;
@@ -108,6 +109,15 @@ const MARCOS_POR_PAPEL: Record<string, string[]> = {
 };
 
 const DEADLINE_DEFAULTS: Record<string, number> = OFFSET_PADRAO_DO_MARCO;
+
+/** O prazo do marco no evento (a coluna `campo`, em dias sobre a saída) ou o padrão da casa. */
+function offsetDoMarco(ev: EventoDaLista, campo: string): number {
+  const proprio = (ev as Record<string, unknown>)[campo] as number | null | undefined;
+  return proprio ?? DEADLINE_DEFAULTS[campo];
+}
+
+/** O evento na grade: a mesma linha da lista, marcada como início ou saída. */
+type EventoNaGrade = EventoDaLista & { _type: "start" | "departure" };
 
 /* Sunday-first week (matches mockup) */
 const WEEK_DAYS = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"];
@@ -200,7 +210,7 @@ export default function Calendario() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const { data: events = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ["/api/events"] });
+  const { data: events = [], isLoading, isError, refetch } = useQuery<EventoDaLista[]>({ queryKey: ["/api/events"] });
 
   // Tick de 1 min: as contagens regressivas usam "agora", e a tela fica aberta
   // por horas (TV do galpão). Sem o tick, os valores congelavam no instante do
@@ -238,8 +248,8 @@ export default function Calendario() {
      (event-detail/arte/atendimento) e dos alertas do servidor. */
   const byDay = useMemo(() => {
     const map = new Map<string, {
-      events: any[];
-      deadlines: Array<{ event: any; dtype: typeof DEADLINE_TYPES[number] }>;
+      events: EventoNaGrade[];
+      deadlines: Array<{ event: EventoDaLista; dtype: typeof DEADLINE_TYPES[number] }>;
     }>();
     const bucket = (ds: string) => {
       let b = map.get(ds);
@@ -255,7 +265,7 @@ export default function Calendario() {
       const base = toUTCDisplayDate(ev.truckDepartureDate);
       base.setHours(0, 0, 0, 0);
       for (const dt of tiposVisiveis) {
-        const offset: number = (ev as any)[dt.key] ?? DEADLINE_DEFAULTS[dt.key];
+        const offset = offsetDoMarco(ev, dt.key);
         const d = new Date(base);
         d.setDate(d.getDate() + offset);
         bucket(d.toDateString()).deadlines.push({ event: ev, dtype: dt });
@@ -283,7 +293,7 @@ export default function Calendario() {
   const MS_DIA = 86_400_000;
 
   /** Menor número = mais urgente = aparece primeiro e nunca é o cortado. */
-  function pesoDaUrgencia(item: { kind: string; ev?: any }, diaMs: number, agoraMs: number): number {
+  function pesoDaUrgencia(item: { kind: string; ev?: EventoNaGrade }, diaMs: number, agoraMs: number): number {
     if (item.kind === "deadline") {
       const hoje = new Date(agoraMs); hoje.setHours(0, 0, 0, 0);
       if (diaMs === hoje.getTime()) return 0;   // vence hoje
@@ -381,7 +391,7 @@ export default function Calendario() {
       const base = toUTCDisplayDate(ev.truckDepartureDate);
       base.setHours(0, 0, 0, 0);
       return tiposVisiveis.some(dt => {
-        const offset: number = (ev as any)[dt.key] ?? DEADLINE_DEFAULTS[dt.key];
+        const offset = offsetDoMarco(ev, dt.key);
         const d = new Date(base);
         d.setDate(d.getDate() + offset);
         return noMes(d);
@@ -423,7 +433,7 @@ export default function Calendario() {
   /* pill background for urgent countdown.
      #c2410c (orange-700): branco sobre o #f97316 saturado ficava em ~2,8:1 —
      o aviso mais urgente da tela era o menos legível (AA pede 4,5:1). */
-  function urgentBg(ev: any) {
+  function urgentBg(ev: EventoDaLista) {
     const hrs = (toUTCDisplayDate(ev.truckDepartureDate).getTime() - now) / 3_600_000;
     return hrs < 24 ? TOM.perigo.text : T.accentText;
   }
@@ -881,7 +891,7 @@ export default function Calendario() {
               );
               const allCellItems: Array<
                 | { kind: "event"; ev: (typeof dayEvs)[number] }
-                | { kind: "deadline"; event: any; dtype: typeof DEADLINE_TYPES[number] }
+                | { kind: "deadline"; event: EventoDaLista; dtype: typeof DEADLINE_TYPES[number] }
               > = [
                 ...dayEvs.map(ev => ({ kind: "event" as const, ev })),
                 ...dayDeadlines.map(d => ({ kind: "deadline" as const, event: d.event, dtype: d.dtype })),

@@ -1098,7 +1098,7 @@ function BotaoReenviarAviso({ eventId, altura }: { eventId: string; altura: numb
       description: d.mensagem,
       variant: d.aviso?.status === "sent" ? "success" : "destructive",
     }),
-    onError: (e: any) => toast({ title: "Erro ao reenviar", description: e.message, variant: "destructive" }),
+    onError: (e) => toast({ title: "Erro ao reenviar", description: e.message, variant: "destructive" }),
   });
   // `carregando` troca o ícone por spinner E desabilita: dois cliques rápidos
   // mandariam dois e-mails para a lista inteira.

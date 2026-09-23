@@ -167,7 +167,8 @@ describe("o que NÃO podia mudar continua de pé", () => {
 
   it("semana futura tem concluído nulo, e a série nula é filtrada do tooltip", () => {
     expect(A).toContain("concluido: s.concluidoM2 == null ? null : Math.round(s.concluidoM2),");
-    expect(A).toContain("const series = payload.filter((p: any) => p?.value != null);");
+    // (tipada em 23/09: o filtro é o mesmo, agora com o tipo que garante `value`)
+    expect(A).toContain("const series = payload.filter((p): p is SerieDaDica & { value: number } => p?.value != null);");
   });
 
   it("os testids da tela continuam", () => {

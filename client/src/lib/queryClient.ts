@@ -3,6 +3,7 @@ import { eventoComDatasDoKit } from "@shared/kit";
 import { FORMATO_COMPACTO, ehPecasCompactas, expandirResposta } from "@shared/itens-compactos";
 import { ITENS_RESUMO, expandirItensDosEventos } from "@shared/eventos-resumo";
 import { CABECALHO_DA_VERSAO, observarVersao } from "@/lib/versao-do-app";
+import type { DeltaDePecas } from "@shared/api";
 
 /**
  * Sessão expirada tem de levar para o login.
@@ -75,8 +76,9 @@ export function getCurrentUserName(): string {
   try {
     const userStr = localStorage.getItem("currentUser");
     if (userStr) {
-      const user = JSON.parse(userStr);
-      return user.name || 'Sistema';
+      const user: unknown = JSON.parse(userStr);
+      const nome = user && typeof user === "object" ? (user as { name?: unknown }).name : undefined;
+      return typeof nome === "string" && nome ? nome : 'Sistema';
     }
   } catch (error) {
     console.error('Error getting current user:', error);
@@ -110,11 +112,30 @@ async function fetchComRede(input: string, init?: RequestInit): Promise<Response
   }
 }
 
-export async function apiRequest(
+/**
+ * A `Response` com o `json()` tipado pelo contrato da rota (`@shared/api`).
+ * Sem o parâmetro de tipo, `json()` devolve o mesmo que o `Response` do DOM.
+ */
+export interface RespostaDaApi<TResposta> extends Response {
+  json(): Promise<TResposta>;
+}
+
+/** O que `Response.json()` do DOM devolve — o padrão de quem ainda não declarou o contrato. */
+type JsonSemContrato = Awaited<ReturnType<Response["json"]>>;
+
+/**
+ * Escrita (e leitura avulsa) na API.
+ *
+ * `TResposta` tipa o `res.json()`; `TCorpo` tipa o corpo enviado — os dois
+ * vêm de `@shared/api` (ex.: `apiRequest<UsuarioSemSenha, CorpoDoLogin>`).
+ * O corpo pode ser um `FormData` (upload): vai sem Content-Type, para o
+ * navegador pôr o boundary.
+ */
+export async function apiRequest<TResposta = JsonSemContrato, TCorpo = unknown>(
   method: string,
   url: string,
-  data?: unknown | undefined,
-): Promise<Response> {
+  data?: TCorpo | FormData,
+): Promise<RespostaDaApi<TResposta>> {
   const headers: Record<string, string> = {
     "x-user-name": getCurrentUserName(),
   };
@@ -201,7 +222,7 @@ const LISTAS_COMPACTAS: ReadonlySet<string> = new Set(["/api/items/pending", "/a
 type Assinaturas = { eventos: Map<string, string>; patrocinadores: Map<string, string> };
 /** `cheioEm`: quando foi a última busca CHEIA desta URL (relógio do cliente —
  *  só mede idade, nunca vira âncora do delta). */
-type Sincronia = { since: string; dados: any[]; assinaturas: Assinaturas | null; cheioEm: number };
+type Sincronia = { since: string; dados: PecaDoCache[]; assinaturas: Assinaturas | null; cheioEm: number };
 const sincronias = new Map<string, Sincronia>();
 /** Logout/troca de usuário invalida o que ainda estiver a caminho. */
 let geracaoDaSincronia = 0;
@@ -224,7 +245,34 @@ const RESYNC_CHEIO_MS = 30 * 60 * 1000;
 /** Uma busca por URL de cada vez (ver fetchItensComDelta). */
 const buscasEmVoo = new Map<string, Promise<unknown>>();
 
-function assinar(eventos?: any[], patrocinadores?: any[]): Assinaturas {
+/**
+ * O que o delta-sync LÊ de uma peça do cache. As listas guardam
+ * `PecaEnriquecida` (ou `PecaDaTrilha`, na projeção) — ver `@shared/api` —,
+ * mas o merge só depende destes campos; o resto passa intacto.
+ */
+export interface PecaDoCache {
+  id: string;
+  eventId?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  event?: unknown;
+  sponsors?: ReadonlyArray<{ id: string; approvalStatus?: string | null }>;
+  kitRemessaId?: string | null;
+  /** As datas da remessa do Kit (eventoComDatasDoKit). */
+  kitRemessa?: { versao: string; entregaMaterial: string; saidaCaminhao?: string | null; dataEvento?: string | null } | null;
+}
+/** Evento ou patrocinador como vem no delta: só o `id` é garantido ao merge. */
+type ComId = { id: string };
+/** O delta depois de `expandirResposta` (formato compacto já decodificado). */
+export type DeltaDoCache = Omit<DeltaDePecas<PecaDoCache>, "eventos" | "patrocinadores"> & {
+  eventos?: ComId[];
+  patrocinadores?: ComId[];
+};
+/** A resposta das listas com delta, já decodificada: o array cheio ou o delta. */
+const ehDelta = (corpo: unknown): corpo is DeltaDoCache =>
+  !!corpo && typeof corpo === "object" && !Array.isArray(corpo) && (corpo as { delta?: unknown }).delta === true;
+
+function assinar(eventos?: ReadonlyArray<ComId | null | undefined>, patrocinadores?: ReadonlyArray<ComId | null | undefined>): Assinaturas {
   const doEvento = new Map<string, string>();
   for (const e of eventos ?? []) if (e?.id) doEvento.set(e.id, JSON.stringify(e));
   const doPatrocinador = new Map<string, string>();
@@ -234,10 +282,10 @@ function assinar(eventos?: any[], patrocinadores?: any[]): Assinaturas {
 
 /** O maior updated_at/created_at do lote — âncora do próximo delta, imune a
  *  relógio de cliente. */
-function maiorCarimbo(dados: any[]): string | null {
+function maiorCarimbo(dados: PecaDoCache[]): string | null {
   let max: string | null = null;
   for (const i of dados) {
-    const c = (i?.updatedAt ?? i?.createdAt ?? null) as string | null;
+    const c = i?.updatedAt ?? i?.createdAt ?? null;
     if (c && (!max || c > max)) max = c;
   }
   return max;
@@ -245,7 +293,7 @@ function maiorCarimbo(dados: any[]): string | null {
 
 /** Mesma ordem do full fetch (ORDER BY created_at DESC). O sort é estável:
  *  empate mantém a ordem anterior. */
-const maisNovaPrimeiro = (a: any, b: any) => {
+const maisNovaPrimeiro = (a: PecaDoCache, b: PecaDoCache) => {
   const ca = a?.createdAt ?? "";
   const cb = b?.createdAt ?? "";
   return ca === cb ? 0 : ca < cb ? 1 : -1;
@@ -262,10 +310,10 @@ const maisNovaPrimeiro = (a: any, b: any) => {
  * embutido mudou (comparado pela assinatura da sincronia anterior; sem
  * assinatura, re-costura tudo como antes). Nada mudou → devolve `anterior`.
  */
-export function aplicarDelta(anterior: any[], delta: any, assinaturas?: Assinaturas | null): any[] {
-  const evPorId = new Map((delta.eventos ?? []).map((e: any) => [e.id, e]));
-  const spPorId = new Map((delta.patrocinadores ?? []).map((s: any) => [s.id, s]));
-  const porId = new Map<string, any>(anterior.map((i) => [i.id, i]));
+export function aplicarDelta(anterior: PecaDoCache[], delta: DeltaDoCache, assinaturas?: Assinaturas | null): PecaDoCache[] {
+  const evPorId = new Map<string, ComId>((delta.eventos ?? []).map((e) => [e.id, e]));
+  const spPorId = new Map<string, ComId>((delta.patrocinadores ?? []).map((s) => [s.id, s]));
+  const porId = new Map<string, PecaDoCache>(anterior.map((i) => [i.id, i]));
   let mudou = false;
   for (const id of delta.removidas ?? []) if (porId.delete(id)) mudou = true;
   // Evento EXCLUÍDO apaga as peças em cascata no banco, e linha apagada não
@@ -276,7 +324,7 @@ export function aplicarDelta(anterior: any[], delta: any, assinaturas?: Assinatu
       if (i?.eventId && !evPorId.has(i.eventId)) { porId.delete(id); mudou = true; }
     }
   }
-  const doDelta = new Set<any>();
+  const doDelta = new Set<PecaDoCache>();
   let entraram = 0;
   for (const item of delta.itens ?? []) {
     const antes = porId.get(item.id);
@@ -312,10 +360,12 @@ export function aplicarDelta(anterior: any[], delta: any, assinaturas?: Assinatu
     // `"event" in i`: a projeção da trilha (`?campos=trilha`) não traz evento
     // embutido. Sem esta guarda o merge CRIAVA a chave `event` nas peças
     // projetadas — engordando de volta o que a projeção existe para enxugar.
+    const eventId = i.eventId ?? "";
     const trocaEvento = "event" in i
-      && (veioNoDelta || (evPorId.has(i.eventId) && eventoMudou(i.eventId)));
-    const trocaPatrocinadores = Array.isArray(i.sponsors)
-      && (veioNoDelta || i.sponsors.some((s: any) => spPorId.has(s?.id) && patrocinadorMudou(s.id)));
+      && (veioNoDelta || (evPorId.has(eventId) && eventoMudou(eventId)));
+    const patrocinadores = i.sponsors;
+    const trocaPatrocinadores = Array.isArray(patrocinadores)
+      && (veioNoDelta || patrocinadores.some((s) => spPorId.has(s?.id) && patrocinadorMudou(s.id)));
     if (!trocaEvento && !trocaPatrocinadores) return i;
     mudou = true;
     return {
@@ -323,10 +373,10 @@ export function aplicarDelta(anterior: any[], delta: any, assinaturas?: Assinatu
       // Peça do Kit (15/09): o evento re-costurado precisa manter as datas da
       // remessa — sem isto a Arte voltava a cobrar a peça do Kit pela Arena.
       event: !trocaEvento ? i.event : i.kitRemessaId && i.kitRemessa
-        ? eventoComDatasDoKit((evPorId.get(i.eventId) as any) ?? i.event, i.kitRemessa)
-        : evPorId.get(i.eventId) ?? i.event,
-      sponsors: trocaPatrocinadores
-        ? i.sponsors.map((s: any) => {
+        ? eventoComDatasDoKit(evPorId.get(eventId) ?? (i.event as ComId | undefined), i.kitRemessa)
+        : evPorId.get(eventId) ?? i.event,
+      sponsors: trocaPatrocinadores && patrocinadores
+        ? patrocinadores.map((s) => {
             const atual = spPorId.get(s.id);
             return atual ? { ...atual, approvalStatus: s.approvalStatus ?? null } : s;
           })
@@ -348,7 +398,7 @@ export function aplicarDelta(anterior: any[], delta: any, assinaturas?: Assinatu
  * primeira e pede só o delta desde ela: nada se perde (ela sai DEPOIS de tudo
  * o que a primeira viu) e custa KBs.
  */
-function fetchItensComDelta(url: string, headers: Record<string, string>): Promise<any[]> {
+function fetchItensComDelta(url: string, headers: Record<string, string>): Promise<PecaDoCache[]> {
   const anterior = buscasEmVoo.get(url);
   const busca = (async () => {
     if (anterior) await anterior.catch(() => undefined);
@@ -360,7 +410,7 @@ function fetchItensComDelta(url: string, headers: Record<string, string>): Promi
   return busca;
 }
 
-async function buscarComDelta(url: string, headers: Record<string, string>): Promise<any[]> {
+async function buscarComDelta(url: string, headers: Record<string, string>): Promise<PecaDoCache[]> {
   const geracao = geracaoDaSincronia;
   const geracaoDaUrl = geracaoPorUrl.get(url) ?? 0;
   const guardada = sincronias.get(url) ?? null;
@@ -376,9 +426,11 @@ async function buscarComDelta(url: string, headers: Record<string, string>): Pro
     throw new Error("O sistema acabou de ser atualizado — recarregue a página (F5) e tente de novo. Se continuar, avise o administrador.");
   }
   await throwIfResNotOk(res, url);
-  const bruto = await res.json();
+  const bruto: unknown = await res.json();
   const compacto = ehPecasCompactas(bruto);
-  const corpo = expandirResposta(bruto) as any;
+  // Decodificado: o array cheio de peças (full fetch) ou o delta. Nada aqui
+  // valida peça a peça — o servidor é a fonte (ver @shared/api/itens.ts).
+  const corpo = expandirResposta(bruto) as PecaDoCache[] | DeltaDoCache;
   // Sessão trocada (ou a chave descartada) enquanto a resposta vinha:
   // entrega, mas não grava estado.
   const vale = geracao === geracaoDaSincronia && geracaoDaUrl === (geracaoPorUrl.get(url) ?? 0);
@@ -386,14 +438,16 @@ async function buscarComDelta(url: string, headers: Record<string, string>): Pro
     // full fetch (primeira vez, servidor antigo ou since expirado)
     if (vale) {
       sincronias.set(url, {
-        since: (compacto ? (bruto.agora as string | undefined) : undefined) ?? maiorCarimbo(corpo) ?? new Date(0).toISOString(),
+        since: (compacto && typeof bruto.agora === "string" ? bruto.agora : undefined) ?? maiorCarimbo(corpo) ?? new Date(0).toISOString(),
         dados: corpo,
-        assinaturas: compacto ? assinar(bruto.eventos, bruto.patrocinadores) : null,
+        assinaturas: compacto ? assinar(bruto.eventos as ComId[], bruto.patrocinadores as ComId[]) : null,
         cheioEm: Date.now(),
       });
     }
     return corpo;
   }
+  // Nem array nem delta (resposta inesperada): o cache fica como estava.
+  if (!ehDelta(corpo)) return itensSync?.dados ?? [];
   const dados = aplicarDelta(itensSync?.dados ?? [], corpo, itensSync?.assinaturas);
   if (vale) {
     sincronias.set(url, {
@@ -413,51 +467,61 @@ export function resetItensDelta(): void {
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
-export const getQueryFn: <T>(options: {
-  on401: UnauthorizedBehavior;
-}) => QueryFunction<T> =
-  ({ on401: unauthorizedBehavior }) =>
-  async ({ queryKey }) => {
-    const url = urlDaLista(queryKey);
-    // As chaves mais pesadas do app buscam por delta (ver bloco acima) — para
-    // os consumidores nada muda: o retorno é o mesmo array completo de sempre.
-    if (temDelta(url)) {
-      return (await fetchItensComDelta(url, { "x-user-name": getCurrentUserName() })) as any;
-    }
-    const compacta = LISTAS_COMPACTAS.has(url);
-    // LISTA DE EVENTOS (perf, 17/09): ~80% dos 826 KB eram as peças embutidas
-    // em cada evento, e toda tela que lê ["/api/events"] só CONTA essas peças
-    // por status. `?itens=resumo` manda a contagem; `expandirItensDosEventos`
-    // devolve `items` como array antes do cache (ver shared/eventos-resumo.ts).
-    const eventos = url === "/api/events";
-    const destino = compacta ? `${url}?formato=${FORMATO_COMPACTO}`
-      : eventos ? `${url}?itens=${ITENS_RESUMO}`
-      : url;
-    const res = await fetchComRede(destino, {
-      credentials: "include",
-      headers: {
-        "x-user-name": getCurrentUserName(),
-      },
-    });
+/**
+ * O fetch padrão das queries. `T` é o contrato da rota (`@shared/api`) —
+ * com `on401: "returnNull"`, a sessão ausente vira `null` em vez de erro.
+ *
+ * O corpo NÃO é validado em tempo de execução: o tipo declara o que o
+ * servidor devolve (as rotas são a fonte), e o `as` no fim é esse acordo.
+ */
+export function getQueryFn<T>(options: { on401: "returnNull" }): QueryFunction<T | null>;
+export function getQueryFn<T>(options: { on401: "throw" }): QueryFunction<T>;
+export function getQueryFn<T>(options: { on401: UnauthorizedBehavior }): QueryFunction<T | null>;
+export function getQueryFn<T>({ on401: unauthorizedBehavior }: { on401: UnauthorizedBehavior }): QueryFunction<T | null> {
+  return async ({ queryKey }) => (await lerDaQuery(queryKey, unauthorizedBehavior)) as T | null;
+}
 
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      return null;
-    }
+async function lerDaQuery(queryKey: readonly unknown[], unauthorizedBehavior: UnauthorizedBehavior): Promise<unknown> {
+  const url = urlDaLista(queryKey);
+  // As chaves mais pesadas do app buscam por delta (ver bloco acima) — para
+  // os consumidores nada muda: o retorno é o mesmo array completo de sempre.
+  if (temDelta(url)) {
+    return await fetchItensComDelta(url, { "x-user-name": getCurrentUserName() });
+  }
+  const compacta = LISTAS_COMPACTAS.has(url);
+  // LISTA DE EVENTOS (perf, 17/09): ~80% dos 826 KB eram as peças embutidas
+  // em cada evento, e toda tela que lê ["/api/events"] só CONTA essas peças
+  // por status. `?itens=resumo` manda a contagem; `expandirItensDosEventos`
+  // devolve `items` como array antes do cache (ver shared/eventos-resumo.ts).
+  const eventos = url === "/api/events";
+  const destino = compacta ? `${url}?formato=${FORMATO_COMPACTO}`
+    : eventos ? `${url}?itens=${ITENS_RESUMO}`
+    : url;
+  const res = await fetchComRede(destino, {
+    credentials: "include",
+    headers: {
+      "x-user-name": getCurrentUserName(),
+    },
+  });
 
-    // Mesma guarda do apiRequest: rota /api/* respondendo HTML = o processo
-    // Express em execução não conhece a rota (git pull sem Stop/Run) e o
-    // catch-all do SPA devolveu o index com 200 — sem isto o res.json()
-    // abaixo estourava com SyntaxError críptico em vez de dizer o conserto.
-    if (url.startsWith("/api/") && (res.headers.get("content-type") || "").includes("text/html")) {
-      throw new Error("O sistema acabou de ser atualizado — recarregue a página (F5) e tente de novo. Se continuar, avise o administrador.");
-    }
+  if (unauthorizedBehavior === "returnNull" && res.status === 401) {
+    return null;
+  }
 
-    await throwIfResNotOk(res, url);
-    // Lista compacta volta ao formato de sempre ANTES do cache.
-    if (compacta) return expandirResposta(await res.json());
-    if (eventos) return expandirItensDosEventos(await res.json());
-    return await res.json();
-  };
+  // Mesma guarda do apiRequest: rota /api/* respondendo HTML = o processo
+  // Express em execução não conhece a rota (git pull sem Stop/Run) e o
+  // catch-all do SPA devolveu o index com 200 — sem isto o res.json()
+  // abaixo estourava com SyntaxError críptico em vez de dizer o conserto.
+  if (url.startsWith("/api/") && (res.headers.get("content-type") || "").includes("text/html")) {
+    throw new Error("O sistema acabou de ser atualizado — recarregue a página (F5) e tente de novo. Se continuar, avise o administrador.");
+  }
+
+  await throwIfResNotOk(res, url);
+  // Lista compacta volta ao formato de sempre ANTES do cache.
+  if (compacta) return expandirResposta(await res.json());
+  if (eventos) return expandirItensDosEventos(await res.json());
+  return await res.json();
+}
 
 export const queryClient = new QueryClient({
   defaultOptions: {

@@ -230,11 +230,22 @@ describe("agrupar como Kit, selo compacto e datas do Kit no delta (15/09)", () =
     expect(grupoDoKit({ kitRemessaId: null })).toBeNull();
   });
 
-  it("lista do evento, rascunhos e Vincular agrupam o Kit; delta mantém as datas do Kit; selo em duas linhas", () => {
+  it("lista do evento, rascunhos e Vincular agrupam o Kit; delta mantém as datas do Kit; selo em duas linhas", async () => {
     expect(EVENTO).toContain("const g = grupoDoKit(item) ?? (groupOf(item.type) || '');");
     const VINC = ler("client/src/pages/vincular-patrocinadores.tsx");
     expect(VINC).toContain("const abreTipo = !anterior || secaoDaPeca(anterior) !== secaoDaPeca(item);");
-    expect(ler("client/src/lib/queryClient.ts")).toContain("eventoComDatasDoKit((evPorId.get(i.eventId) as any) ?? i.event, i.kitRemessa)");
+    // Delta mantém as datas do Kit — por COMPORTAMENTO (a linha de código que
+    // isto conferia foi tipada): o evento renomeado chega no delta e a peça do
+    // Kit o recebe re-costurado com as datas da remessa, não com as da Arena.
+    const { aplicarDelta } = await import("../../client/src/lib/queryClient");
+    const { eventoComDatasDoKit } = await import("@shared/kit");
+    const arena = { id: "e1", name: "Arena", truckDepartureDate: "2026-09-20T08:00:00Z", startDate: "2026-09-21T00:00:00Z" };
+    const remessa = { versao: "V1", entregaMaterial: "2026-09-14T12:00:00Z", saidaCaminhao: null, dataEvento: null };
+    const pecaDoKit = { id: "p1", eventId: "e1", createdAt: "2026-09-01T00:00:00Z", event: eventoComDatasDoKit(arena, remessa), sponsors: [], kitRemessaId: "r1", kitRemessa: remessa };
+    const renomeado = { ...arena, name: "Arena Renomeada" };
+    const [depois] = aplicarDelta([pecaDoKit], { delta: true, itens: [], removidas: [], eventos: [renomeado], patrocinadores: [] }, null);
+    expect(depois.event).toEqual(eventoComDatasDoKit(renomeado, remessa));
+    expect((depois.event as { truckDepartureDate?: unknown }).truckDepartureDate).not.toBe(arena.truckDepartureDate);
     // Selo de uma linha, curto: "KIT · 14/09" (detalhe no title).
     const SELO = ler("client/src/components/kit/selo-kit.tsx");
     expect(SELO).toContain("KIT{entrega ? <span");

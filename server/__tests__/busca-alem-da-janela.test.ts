@@ -70,7 +70,7 @@ describe("a tela pede o que a janela não alcança", () => {
   it("o resultado entra pelo MESMO funil das páginas caminhadas", () => {
     // Registros crus mesclados com dedup por id antes do buildTimeline: mesma
     // aparência, mesmo autor, mesma navegação — não uma segunda lista.
-    expect(TELA).toContain("const [alemDaJanela, setAlemDaJanela] = useState<any[]>([]);");
+    expect(TELA).toContain("const [alemDaJanela, setAlemDaJanela] = useState<RegistroDeAuditoriaJson[]>([]);");
     expect(TELA).toContain("paginasSeguintes.concat(alemDaJanela)");
   });
 

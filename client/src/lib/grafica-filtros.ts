@@ -36,6 +36,15 @@ export interface ItemGrafica extends SaldoItem {
   event?: { name?: string | null; truckDepartureDate?: string | Date | null } | null;
   /** Código da impressora ("1".."4") gravado quando a impressão começa. */
   printMachine?: string | null;
+  // O que a régua das impressoras (shared/progresso-da-impressao) e a trava
+  // (shared/trava-da-peca) leem — declarados para não passar por `unknown`.
+  maquinaPrevista?: string | null;
+  reservaPorMaquina?: unknown;
+  impressaoPorMaquina?: unknown;
+  travadaEm?: string | Date | null;
+  travadaPor?: string | null;
+  travadaPorId?: string | null;
+  travadaMotivo?: string | null;
 }
 
 export interface GraficaFiltros {
@@ -113,7 +122,7 @@ const vazio = (v: string | string[] | boolean): boolean =>
 /** Filtros de fato aplicados pelo usuário, na ordem em que aparecem na barra. */
 export function filtrosAtivos(f: GraficaFiltros): Array<{ chave: string; rotulo: string; valor: string }> {
   return CAMPOS
-    .filter((c) => !vazio(f[c.chave] as any))
+    .filter((c) => !vazio(f[c.chave] as string | string[] | boolean))
     .map((c) => {
       const v = f[c.chave] as string | string[] | boolean;
       return {
@@ -307,7 +316,7 @@ export function itemImpressora(item: ItemGrafica): string | null {
  */
 export function itemImpressoras(item: ItemGrafica): string[] {
   if (!item) return [];
-  const achadas = impressorasDaPeca(item as any);
+  const achadas = impressorasDaPeca(item);
   if (achadas.length) return achadas;
   return isInProd(item) ? [SEM_IMPRESSORA] : [];
 }
@@ -410,7 +419,7 @@ export function itemCasaFiltros(
   // verdes da linha (reusedTotalOf considera as duas formas).
   if (!ignorarStatus && f.reaproveitamento && !(item.isReuse || reusedTotalOf(item) > 0)) return false;
   // Travadas pela Solicitação (shared/trava-da-peca.ts).
-  if (f.travadas && !pecaTravada(item as any)) return false;
+  if (f.travadas && !pecaTravada(item)) return false;
 
   if (excluir !== "evento" && f.evento.length > 0 && !f.evento.includes(String(item.eventId ?? ""))) return false;
   if (excluir !== "grupo" && f.grupo.length > 0 && !f.grupo.includes(ctx.groupOf(String(item.type ?? "")))) return false;
@@ -434,7 +443,7 @@ export function itemCasaFiltros(
   const saida = item.event?.truckDepartureDate;
   const saidaUTC = (() => {
     if (!saida) return null;
-    const d = new Date(saida as any);
+    const d = new Date(saida);
     if (Number.isNaN(d.getTime())) return null;
     return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
   })();
@@ -464,7 +473,7 @@ export function itemCasaFiltros(
 export function itemMes(item: ItemGrafica): string | null {
   const saida = item.event?.truckDepartureDate;
   if (!saida) return null;
-  const d = new Date(saida as any);
+  const d = new Date(saida);
   if (Number.isNaN(d.getTime())) return null;
   return String(d.getUTCMonth() + 1);
 }

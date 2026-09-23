@@ -27,6 +27,7 @@
 import { describe, it, expect } from "vitest";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
+import { diasNaFase } from "../../client/src/lib/idade-na-fase";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
@@ -42,7 +43,15 @@ const semCom = (s: string) => s.replace(/\r\n/g, "\n").replace(/\/\*[\s\S]*?\*\/
 
 describe("1 · idade na fase", () => {
   it("deriva de statusChangedAt, e sem registro não exibe nada", () => {
-    expect(IDADE).toContain("export function diasNaFase(item: any, hoje: Date): number | null {");
+    // Comportamento (a assinatura agora é tipada — PecaComIdade — e não `any`):
+    // conta os dias desde statusChangedAt (ou a coluna crua), e sem o registro
+    // devolve null — nunca cai para a criação da peça.
+    const hoje = new Date("2026-09-20T12:00:00Z");
+    expect(diasNaFase({ statusChangedAt: "2026-09-10T12:00:00Z" }, hoje)).toBe(10);
+    expect(diasNaFase({ status_changed_at: "2026-09-19T12:00:00Z" }, hoje)).toBe(1);
+    expect(diasNaFase({ statusChangedAt: null, createdAt: "2026-01-01T00:00:00Z" } as Parameters<typeof diasNaFase>[0], hoje)).toBeNull();
+    expect(diasNaFase(null, hoje)).toBeNull();
+    expect(IDADE).toContain("export function diasNaFase(item: PecaComIdade | null | undefined, hoje: Date): number | null {");
     expect(IDADE).toContain("const bruto = item?.statusChangedAt ?? item?.status_changed_at;");
     expect(IDADE).toContain("if (!bruto) return null;");
     const i = IDADE.indexOf("function diasNaFase");

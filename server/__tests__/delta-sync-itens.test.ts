@@ -89,7 +89,7 @@ describe("o cliente", () => {
     expect(fn.slice(0, 1900)).toContain("porId.delete(id)");
     expect(fn.slice(0, 1900)).toContain("porId.set(item.id, item)");
     // Peça do Kit (15/09) re-costura o evento com as datas da remessa; o resto, como sempre.
-    expect(fn.slice(0, 3300)).toContain(": evPorId.get(i.eventId) ?? i.event,");
+    expect(fn.slice(0, 3300)).toContain(": evPorId.get(eventId) ?? i.event,");
     expect(fn.slice(0, 3300)).toContain("eventoComDatasDoKit(");
     expect(fn.slice(0, 3500)).toContain("approvalStatus: s.approvalStatus ?? null");
   });

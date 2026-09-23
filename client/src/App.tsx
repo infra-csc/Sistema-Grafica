@@ -17,6 +17,7 @@ import {
 import { AppSidebar } from "@/components/app-sidebar";
 import { NotificationBell, type Notification } from "@/components/notification-bell";
 import { BuscaGlobal, abrirBuscaGlobal } from "@/components/busca-global";
+import { FullPageLoader } from "@/components/full-page-loader";
 import { Search, WifiOff, RefreshCw } from "lucide-react";
 import { AuthProvider, useAuth } from "@/contexts/auth-context";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -25,7 +26,7 @@ import { useToast, toast as toastGlobal } from "@/hooks/use-toast";
 import { useLogout } from "@/hooks/use-logout";
 import { useWebSocket, onConexaoTempoReal } from "@/hooks/use-websocket";
 import { useEffect, useState, Component, lazy, Suspense, type ReactNode, type ComponentType } from "react";
-import { T, N, R, FS, FW, FONT } from "@/lib/theme";
+import { T, N, R } from "@/lib/theme";
 
 /**
  * lazy() com rede: se o chunk falhar ao baixar (deploy trocou os arquivos no
@@ -34,7 +35,8 @@ import { T, N, R, FS, FW, FONT } from "@/lib/theme";
  */
 const CHAVE_RELOAD_DE_CHUNK = "chunk-reload-once";
 
-function lazyPage<T extends ComponentType<any>>(fabrica: () => Promise<{ default: T }>) {
+// As páginas não recebem props (a rota lê os parâmetros por hook): `ComponentType` sem props basta.
+function lazyPage<T extends ComponentType>(fabrica: () => Promise<{ default: T }>) {
   return lazy(() =>
     fabrica()
       .then((modulo) => {
@@ -205,22 +207,8 @@ class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: string }
   }
 }
 
-// Um único loader de página inteira: o mesmo bloco vivia copiado em
-// ProtectedRoute, RoleProtectedRoute e AppContent.
-// A marca no lugar do "Carregando..." solto: é a primeira coisa que se vê a
-// cada F5, e texto cinza no meio do vazio tinha cara de página quebrada.
-function FullPageLoader() {
-  return (
-    <div role="status" aria-live="polite" className="flex items-center justify-center h-dvh" style={{ backgroundColor: T.bg }}>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-        <span aria-hidden="true" className="animate-pulse" style={{ fontFamily: FONT.display, fontSize: FS.title, fontWeight: FW.rotulo, letterSpacing: "-0.05em", color: T.text }}>
-          NORTE
-        </span>
-        <span style={{ fontSize: FS.meta, color: T.second }}>Carregando…</span>
-      </div>
-    </div>
-  );
-}
+// Um único loader de página inteira (components/full-page-loader.tsx): o mesmo
+// bloco vivia copiado em ProtectedRoute, RoleProtectedRoute e AppContent.
 
 // ─── Rota → rótulo (fonte única: títulos da sidebar) ─────────────────────────
 const ROUTE_LABELS: Record<string, string> = {
@@ -420,7 +408,7 @@ function RoleProtectedRoute({
 }) {
   const { isAuthenticated, isLoading, user: usuario } = useAuth();
   // Usuário do Kit numa tela que não é dele conta como perfil sem acesso.
-  const user = usuario && semKit && usuario.kit ? { ...usuario, role: "__kit__" as any } : usuario;
+  const user = usuario && semKit && usuario.kit ? { ...usuario, role: "__kit__" as string } : usuario;
   const [location, setLocation] = useLocation();
 
   // replace: mesmo racional do ProtectedRoute — redirect de guard não empilha

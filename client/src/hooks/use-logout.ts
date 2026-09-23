@@ -21,9 +21,9 @@ export function useLogout() {
       // O toast que existia aqui vinha DEPOIS do redirect — nunca aparecia.
       window.location.href = import.meta.env.VITE_HUB_URL ?? "/login";
     },
-    onError: (error: any) => {
+    onError: (error) => {
       // Sem isto, uma falha de rede no logout era silêncio absoluto.
-      toast({ title: "Erro ao sair", description: error?.message || "Tente novamente.", variant: "destructive" });
+      toast({ title: "Erro ao sair", description: (error instanceof Error ? error.message : "") || "Tente novamente.", variant: "destructive" });
     },
   });
 }

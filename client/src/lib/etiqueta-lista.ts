@@ -26,7 +26,7 @@ export type PecaDaLista = {
  * Aceita as grafias que chegam das planilhas: "2x1", "2X1", "2×1", "2 x 1",
  * "2x1 MBRF" — e não confunde "2x10" nem "12x1".
  */
-export const ehDoisPorUm = (p: any) => /^2\s*[x×]\s*1(?![0-9])/i.test(String(p?.type ?? "").trim());
+export const ehDoisPorUm = (p: { type?: string | null } | null | undefined) => /^2\s*[x×]\s*1(?![0-9])/i.test(String(p?.type ?? "").trim());
 
 /**
  * A LINHA: "2x1 Ministério - 16" (tipo + descrição + " - " + quantidade).

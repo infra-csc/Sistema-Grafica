@@ -8,6 +8,7 @@ import { pool } from "./db";
 import { writeRateLimiter } from "./routes/shared";
 import { sessionMiddleware, SESSION_SECRET } from "./session";
 import { criarTrocaDeSso, verificarJwtDoPortal } from "./sso-troca";
+import { cabecalhosDeSeguranca } from "./cabecalhos-de-seguranca";
 
 // SESSION_SECRET é validado (fail-fast) em ./session. Reutilizado aqui como
 // fallback do segredo de SSO quando SSO_SECRET não é definido — mantido para
@@ -15,7 +16,11 @@ import { criarTrocaDeSso, verificarJwtDoPortal } from "./sso-troca";
 // ser compartilhado com outro sistema.
 const SSO_SECRET = process.env.SSO_SECRET || SESSION_SECRET;
 if (!process.env.SSO_SECRET) {
-  console.warn("[SSO] SSO_SECRET não definido — usando SESSION_SECRET para validar o portal. Defina um SSO_SECRET próprio.");
+  console.warn(
+    "[SSO] ATENÇÃO: SSO_SECRET não está definido — o login pelo portal está validando com o SESSION_SECRET. " +
+    "Assim o portal precisa conhecer o segredo que assina as sessões deste app (quem tem um forja o outro). " +
+    "Defina em Secrets um SSO_SECRET igual ao do portal NORTE e diferente do SESSION_SECRET (ver README, seção 'Variáveis').",
+  );
 }
 
 // Cadastro inicial: só num banco NOVO (tabela users vazia) e só com
@@ -89,42 +94,8 @@ app.use(sessionMiddleware);
 // oferece "Recarregar" (ver ./versaoDoApp e client/src/lib/versao-do-app).
 app.use(cabecalhoDeVersao());
 
-// ── Security headers ─────────────────────────────────────────────────────────
-// Applied to every response. Keeps the browser from doing dangerous things
-// with our content (sniffing MIME types, embedding in iframes, etc.).
-app.use((_req, res, next) => {
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-XSS-Protection", "1; mode=block");
-  res.setHeader("Referrer-Policy", "same-origin");
-  res.setHeader("X-DNS-Prefetch-Control", "off");
-  // Sistema interno: fora de buscadores (o client/index.html repete em <meta>).
-  res.setHeader("X-Robots-Tag", "noindex, nofollow");
-  // CSP — restricts which sources can load scripts/styles/frames.
-  // 'unsafe-inline' is required for React (inline event handlers + style props).
-  // In dev, frame-ancestors allows *.replit.dev so the Replit preview pane works.
-  // In production, frame-ancestors 'none' + X-Frame-Options: DENY block all embedding.
-  const isProd = process.env.NODE_ENV === "production";
-  if (isProd) {
-    res.setHeader("X-Frame-Options", "DENY");
-  }
-  res.setHeader(
-    "Content-Security-Policy",
-    [
-      "default-src 'self'",
-      "script-src 'self' 'unsafe-inline'",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "img-src 'self' data: blob: https:",
-      "font-src 'self' data: https://fonts.gstatic.com",
-      "connect-src 'self' wss:",
-      isProd ? "frame-ancestors 'none'" : "frame-ancestors 'self' https://*.replit.dev https://*.replit.app https://*.repl.co",
-    ].join("; ")
-  );
-  // HSTS — force HTTPS for 1 year (production only; dev uses HTTP).
-  if (process.env.NODE_ENV === "production") {
-    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
-  }
-  next();
-});
+// ── Cabeçalhos de segurança e CSP (ver ./cabecalhos-de-seguranca) ─────────────
+app.use(cabecalhosDeSeguranca());
 
 // ── CSRF protection ──────────────────────────────────────────────────────────
 // For state-mutating requests, verify the Origin header matches the server host.
@@ -159,6 +130,9 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 // ── Write rate limiter ───────────────────────────────────────────────────────
 // Applied globally to all API mutation requests (POST/PUT/PATCH/DELETE).
 // Protects against automated scripts; normal human usage never approaches the limit.
+// Conta POR CÓPIA de propósito (memória): é freio de script, não cota — levar
+// cada escrita ao banco custaria uma consulta a mais em toda mutação. Só o de
+// login é compartilhado entre as cópias (routes/shared.ts).
 const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 app.use((req: Request, res: Response, next: NextFunction) => {
   if (!WRITE_METHODS.has(req.method)) return next();

@@ -1,0 +1,4 @@
+# Migrações: o hash de cada arquivo fica gravado no banco. Fim de linha
+# fixo para o mesmo arquivo ter o mesmo hash no Windows e no Replit.
+*.sql text eol=lf
+*.json text eol=lf

@@ -29,11 +29,12 @@ Pull  →  Stop  →  Run  →  Republish
 anterior. E só o **Republish** troca o que o usuário final enxerga — o preview
 do editor é outro processo.
 
-Se o schema mudou, rode a migração aditiva **antes** de republicar, e confira o
-drift depois (README → "Migrações"). **Nunca `db:push` em produção sem
-`npm run db:drift` antes**: o `drizzle-kit push` derruba o que o schema não
-declara — a sequência do `displayId`, os índices criados por script e a tabela
-`session` (derrubá-la desloga todo mundo).
+Se o Pull trouxe arquivo novo em `migrations/`, rode na Shell, **antes** de
+republicar: `npm run db:migrate` (simulação) e `npm run db:migrate -- --aplicar`
+(README → "Banco e migrações"; a adoção, uma vez por banco, está lá). **Nunca
+`db:push` em produção**: o `drizzle-kit push` derruba o que o schema não
+declara — os índices de busca criados por script, por exemplo — e já apagou
+tabela e índices aqui. `db:push` é só para banco descartável.
 
 ## Configuração do Repl
 

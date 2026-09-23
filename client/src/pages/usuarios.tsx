@@ -16,9 +16,14 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   UserPlus, Pencil, Trash2, Search,
-  ChevronLeft, ChevronRight, X, Check, ScrollText,
+  ChevronLeft, ChevronRight, X, Check, ScrollText, ShieldOff, Users,
 } from "lucide-react";
-import { T, FS, R } from "@/lib/theme";
+import { T, N, TOM, FS, FW, R, FONT } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { Selo } from "@/components/ui/selo";
+import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
+import { EstadoErro, EstadoVazio, Esqueleto } from "@/components/ui/estados";
+import { useConfirmar } from "@/components/ui/usar-confirmar";
 import { alvo, useDensidadeDoConteudo, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { useFiltrosNaUrl, paginaValida } from "@/hooks/use-filtros-na-url";
 
@@ -110,14 +115,21 @@ const TELAS_DE_TODOS = "Painel Geral, Eventos, Gestão de Prazos, Calendário, H
 
 /* ── Role config ── */
 // Tons 700 nos textos dos badges: os 500/600 anteriores reprovavam o piso de
-// contraste 4.5:1 sobre os fundos pastéis.
+// contraste 4.5:1 sobre os fundos pastéis. Selo e texto vêm de TOM.*; o fundo
+// do AVATAR é o degrau 100 da mesma família, um passo mais forte que o selo de
+// propósito (o avatar é a mancha que se acha na lista) — o theme não tem esse
+// degrau, e o 200 (`border`) derruba o laranja para 3,8:1 sob a inicial.
 const ROLE_CFG: Record<string, { label: string; bg: string; color: string; avatarBg: string; avatarColor: string }> = {
-  admin:       { label: "Admin",        bg: "#fef2f2", color: "#b91c1c", avatarBg: "#fee2e2", avatarColor: "#b91c1c" },
-  solicitacao: { label: "Solicitação",  bg: "#eff6ff", color: "#1d4ed8", avatarBg: "#dbeafe", avatarColor: "#1d4ed8" },
-  arte:        { label: "Arte",         bg: "#faf5ff", color: "#7e22ce", avatarBg: "#ede9fe", avatarColor: "#6d28d9" },
-  grafica:     { label: "Gráfica",      bg: "#fff7ed", color: "#c2410c", avatarBg: "#ffedd5", avatarColor: "#c2410c" },
-  atendimento: { label: "Atendimento",  bg: "#f0fdf4", color: "#15803d", avatarBg: "#dcfce7", avatarColor: "#15803d" },
+  admin:       { label: "Admin",        bg: TOM.perigo.bg,  color: TOM.perigo.text,  avatarBg: "#fee2e2", avatarColor: TOM.perigo.text },
+  solicitacao: { label: "Solicitação",  bg: TOM.info.bg,    color: TOM.info.text,    avatarBg: "#dbeafe", avatarColor: TOM.info.text },
+  arte:        { label: "Arte",         bg: TOM.roxo.bg,    color: TOM.roxo.text,    avatarBg: "#ede9fe", avatarColor: TOM.roxo.text },
+  grafica:     { label: "Gráfica",      bg: TOM.laranja.bg, color: TOM.laranja.text, avatarBg: "#ffedd5", avatarColor: TOM.laranja.text },
+  atendimento: { label: "Atendimento",  bg: TOM.sucesso.bg, color: TOM.sucesso.text, avatarBg: "#dcfce7", avatarColor: TOM.sucesso.text },
 };
+
+// Violeta do "Kit": precisa ser DIFERENTE do roxo da Arte, que mora ao lado no
+// mesmo selo de perfil. Não há violeta no theme; fica aqui, uma vez só.
+const KIT = { bg: "#f5f3ff", text: "#6d28d9", border: "#ddd6fe" } as const;
 
 // Rótulos completos para o <select> do formulário, derivados de ROLE_CFG para
 // as opções nunca divergirem dos perfis reais.
@@ -146,8 +158,8 @@ const PAGE_SIZE = 10;
 /* ── Titanium Input ── */
 const tiInput: React.CSSProperties = {
   width: "100%", padding: "11px 14px",
-  backgroundColor: "#f0efee", border: "none", borderRadius: R.md,
-  fontSize: 13, color: T.text,
+  backgroundColor: N.n3, border: "none", borderRadius: R.md,
+  fontSize: FS.body, color: T.text,
   transition: "background-color 0.15s ease, box-shadow 0.15s ease",
 };
 
@@ -155,30 +167,17 @@ const tiInput: React.CSSProperties = {
 const filterSel: React.CSSProperties = {
   height: 40, padding: "0 12px", backgroundColor: T.surface,
   border: `1px solid ${T.border}`, borderRadius: R.md,
-  fontSize: 12, fontWeight: 700, color: T.second,
+  fontSize: FS.meta, fontWeight: FW.forte, color: T.second,
   cursor: "pointer",
   appearance: "none", WebkitAppearance: "none",
 };
 
-/* ── Desenho comum das telas de cadastro ──
-   Usuários, Patrocinadores, Modelos e Logs repetem estes controles com as
-   MESMAS medidas (40px de alvo, raio 8, rótulo 12/800 em caixa alta). Antes
-   cada tela tinha o seu: Modelos salvava em laranja com raio 12, Usuários
-   escrevia 13px, Patrocinadores 11px — trocar de cadastro parecia trocar de
-   produto. Copiado (e não importado) porque cada tela é dona do próprio
-   arquivo; se mudar aqui, mude nas outras três. */
-const BTN_PRIMARIO: React.CSSProperties = {
-  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
-  height: 40, padding: "0 18px", backgroundColor: T.dark, color: "#fff",
-  border: "none", borderRadius: R.md, cursor: "pointer",
-  fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em",
-  whiteSpace: "nowrap", transition: "background-color 0.15s ease",
-};
-const BTN_LIMPAR: React.CSSProperties = {
-  display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 12px",
-  backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: R.md, cursor: "pointer",
-  fontSize: 11, fontWeight: 800, color: "#b91c1c", textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap",
-};
+// Foco do campo cinza: acende em branco com o anel laranja da casa.
+const acenderCampo = (e: React.FocusEvent<HTMLInputElement>) => { e.currentTarget.style.backgroundColor = T.surface; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; };
+const apagarCampo = (e: React.FocusEvent<HTMLInputElement>) => { e.currentTarget.style.backgroundColor = N.n3; e.currentTarget.style.boxShadow = "none"; };
+
+// Rótulo em caixa-alta dos campos do formulário.
+const ROTULO_CAMPO: React.CSSProperties = { display: "block", fontSize: FS.micro, fontWeight: FW.rotulo, color: T.second, textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 7 };
 
 /**
  * PAGINAÇÃO — janela de até 5 páginas em volta da atual, alvos de 32px (44 no
@@ -189,26 +188,18 @@ function Paginacao({ pagina, totalPaginas, onIr, toque }: { pagina: number; tota
   if (totalPaginas <= 1) return null;
   const inicio = Math.max(1, Math.min(pagina - 2, totalPaginas - 4));
   const paginas = Array.from({ length: Math.min(5, totalPaginas) }, (_, i) => inicio + i);
-  const base: React.CSSProperties = {
-    minWidth: toque, height: toque, padding: "0 6px", display: "inline-flex", alignItems: "center", justifyContent: "center",
-    borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.surface, color: T.second,
-    fontSize: 12, fontWeight: 700, cursor: "pointer", transition: "background-color 0.12s ease, border-color 0.12s ease",
-  };
-  const seta = (desligada: boolean): React.CSSProperties => ({ ...base, opacity: desligada ? 0.4 : 1, cursor: desligada ? "not-allowed" : "pointer" });
+  // Botao da casa: hover/foco/desabilitado vêm da classe, não de handler.
+  const medida: React.CSSProperties = { minWidth: toque, height: toque, padding: "0 6px" };
   return (
     <nav aria-label="Paginação" style={{ display: "flex", alignItems: "center", gap: 4 }}>
-      <button type="button" onClick={() => onIr(pagina - 1)} disabled={pagina === 1} aria-label="Página anterior" style={seta(pagina === 1)}>
-        <ChevronLeft aria-hidden="true" style={{ width: 14, height: 14 }} />
-      </button>
+      <Botao tamanho="sm" icone={ChevronLeft} onClick={() => onIr(pagina - 1)} disabled={pagina === 1} aria-label="Página anterior" style={medida} />
       {paginas.map(p => (
-        <button key={p} type="button" onClick={() => onIr(p)} aria-label={`Página ${p}`} aria-current={p === pagina ? "page" : undefined}
-          style={p === pagina ? { ...base, backgroundColor: T.dark, borderColor: T.dark, color: "#fff" } : base}>
+        <Botao key={p} tamanho="sm" variante={p === pagina ? "primario" : "secundario"} onClick={() => onIr(p)} aria-label={`Página ${p}`} aria-current={p === pagina ? "page" : undefined}
+          style={medida}>
           {p}
-        </button>
+        </Botao>
       ))}
-      <button type="button" onClick={() => onIr(pagina + 1)} disabled={pagina === totalPaginas} aria-label="Próxima página" style={seta(pagina === totalPaginas)}>
-        <ChevronRight aria-hidden="true" style={{ width: 14, height: 14 }} />
-      </button>
+      <Botao tamanho="sm" icone={ChevronRight} onClick={() => onIr(pagina + 1)} disabled={pagina === totalPaginas} aria-label="Próxima página" style={medida} />
     </nav>
   );
 }
@@ -242,6 +233,7 @@ export default function Usuarios() {
   // janela e é usado com o dedo — os 32px valiam lá e eram metade do mínimo.
   const toque = alvo(32, ponteiroGrosso || isMobile);
   const { toast } = useToast();
+  const { confirmar, dialogo } = useConfirmar();
 
   const { data: users = [], isLoading, isError, refetch } = useQuery<User[]>({ queryKey: ["/api/users"] });
 
@@ -285,7 +277,7 @@ export default function Usuarios() {
     // nada, então o próximo passo é de quem cadastrou.
     onSuccess: (_r, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-      toast({ title: `${vars.name} foi criado`, description: `Avise a pessoa: ela entra pelo portal NORTE com a conta Microsoft ${vars.email}. O sistema não envia convite.` });
+      toast({ variant: "success", title: `${vars.name} foi criado`, description: `Avise a pessoa: ela entra pelo portal NORTE com a conta Microsoft ${vars.email}. O sistema não envia convite.` });
       if (continuarRef.current) {
         continuarRef.current = false;
         setCriadosNestaSequencia(prev => [...prev, vars.name]);
@@ -317,6 +309,7 @@ export default function Usuarios() {
       // sessões da pessoa no servidor — o toast confirma o efeito colateral.
       const derrubouSessao = vars.update.role !== undefined || vars.update.kit !== undefined;
       toast({
+        variant: "success",
         title: "Alterações salvas",
         description: editingUser
           ? `Cadastro de ${editingUser.name} atualizado.${derrubouSessao && me?.id !== editingUser.id ? " A pessoa foi desconectada e entra de novo já com o novo perfil." : ""}`
@@ -335,7 +328,7 @@ export default function Usuarios() {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       const nome = deletingUser?.name;
       setDeletingUser(null);
-      toast({ title: "Usuário excluído", description: nome ? `${nome} não tem mais acesso ao sistema.` : undefined });
+      toast({ variant: "success", title: "Usuário excluído", description: nome ? `${nome} não tem mais acesso ao sistema.` : undefined });
     },
     onError: (e: Error) => toast({ variant: "destructive", title: "Não foi possível excluir o usuário", description: e.message }),
   });
@@ -357,21 +350,42 @@ export default function Usuarios() {
   // Saída única do modal (X, Cancelar, Esc, clique fora): confirma descarte só
   // quando há alteração real e sempre zera editingUser — antes, fechar pelo X
   // deixava o usuário em edição "grudado" na próxima abertura.
-  const requestClose = () => {
-    if (form.formState.isDirty && !window.confirm("Descartar as alterações deste formulário?")) return;
+  //
+  // ASSÍNCRONA agora (diálogo do app, não window.confirm): o Dialog pede para
+  // fechar, mas `modalOpen` só vira false depois do "Descartar" — recusar
+  // deixa o modal aberto e com o que foi digitado, como antes.
+  const requestClose = async () => {
+    if (form.formState.isDirty) {
+      const descartar = await confirmar({
+        titulo: "Descartar as alterações deste formulário?",
+        descricao: "O que foi digitado aqui se perde.",
+        confirmar: "Descartar",
+        cancelar: "Continuar editando",
+        perigo: true,
+      });
+      if (!descartar) return;
+    }
     setModalOpen(false);
     setEditingUser(null);
     form.reset({ name: "", email: "", role: "solicitacao", kit: false });
   };
 
-  const onSubmit = (data: UserForm) => {
+  const onSubmit = async (data: UserForm) => {
     if (editingUser) {
       // Rebaixar o próprio papel derruba a própria sessão (o servidor invalida
       // as sessões ao trocar papel) e tranca esta tela — merece confirmação.
+      // Perigo: é perder o próprio acesso, sem volta por esta tela.
       if (
         me && editingUser.id === me.id &&
         editingUser.role === "admin" && data.role !== "admin" &&
-        !window.confirm("Você está removendo seu próprio acesso de administrador. Sua sessão será encerrada e você perderá o acesso a esta tela. Continuar?")
+        !(await confirmar({
+          titulo: "Remover seu próprio acesso de administrador?",
+          descricao: "Você está removendo seu próprio acesso de administrador. Sua sessão será encerrada e você perderá o acesso a esta tela.",
+          confirmar: "Remover meu acesso",
+          cancelar: "Manter como admin",
+          perigo: true,
+          icone: ShieldOff,
+        }))
       ) {
         return;
       }
@@ -403,48 +417,42 @@ export default function Usuarios() {
   // As três ações da linha, uma vez só: a tabela e o cartão precisam
   // exatamente das mesmas, com os mesmos rótulos e as mesmas guardas.
   const acoesDoUsuario = (user: User) => {
-    const iconeBtn = {
-      width: toque, height: toque, color: T.second, backgroundColor: "transparent",
-      border: "none", borderRadius: R.md, cursor: "pointer", display: "flex",
-      alignItems: "center", justifyContent: "center",
-      transition: "background-color 0.12s ease, color 0.12s ease",
-    } as const;
+    // Botao fantasma quadrado: o hover e o foco vêm da classe .ds-botao, e o
+    // lado do quadrado segue o alvo do ponteiro (32 no mouse, 44 no dedo).
+    const iconeBtn = { width: toque, height: toque, padding: 0, color: T.second } as const;
     return (
       <>
-        <button
+        <Botao
+          variante="fantasma"
+          tamanho="sm"
+          icone={Pencil}
           data-testid={`button-edit-${user.id}`}
           onClick={() => openEdit(user)}
           aria-label={`Editar usuário ${user.name}`}
           style={iconeBtn}
-          onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.low; e.currentTarget.style.color = T.text; }}
-          onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.second; }}
-        >
-          <Pencil style={{ width: 15, height: 15 }} />
-        </button>
+        />
         {/* "QUEM FEZ ISSO?" ao contrário: "o que esta pessoa fez?". Era abrir
             Logs e digitar o nome; o atalho abre a trilha já buscando por ele (a
             busca dos Logs casa o nome do autor e mora na URL). */}
-        <button
+        <Botao
+          variante="fantasma"
+          tamanho="sm"
+          icone={ScrollText}
           data-testid={`button-logs-${user.id}`}
           onClick={() => navigate(`/logs-sistema?busca=${encodeURIComponent(user.name)}`)}
           aria-label={`Ver nos logs o que ${user.name} fez`}
           style={iconeBtn}
-          onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.low; e.currentTarget.style.color = T.text; }}
-          onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.second; }}
-        >
-          <ScrollText style={{ width: 15, height: 15 }} />
-        </button>
+        />
         {me?.id !== user.id && (
-          <button
+          <Botao
+            variante="fantasma"
+            tamanho="sm"
+            icone={Trash2}
             data-testid={`button-delete-${user.id}`}
             onClick={() => setDeletingUser(user)}
             aria-label={`Excluir usuário ${user.name}`}
             style={iconeBtn}
-            onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#fef2f2"; e.currentTarget.style.color = "#b91c1c"; }}
-            onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.second; }}
-          >
-            <Trash2 style={{ width: 15, height: 15 }} />
-          </button>
+          />
         )}
       </>
     );
@@ -473,54 +481,57 @@ export default function Usuarios() {
     <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "16px 16px 48px" : "28px 32px 64px" }}>
 
       {/* ── Header ── */}
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 24, gap: 16, flexWrap: "wrap" }}>
-        <div>
-          <h1 style={{ fontSize: FS.h1, fontWeight: 700, color: T.text, margin: "0 0 6px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", lineHeight: 1.1 }}>
-            Usuários
-          </h1>
-          <p style={{ fontSize: FS.body, color: T.second, margin: 0, lineHeight: 1.5, maxWidth: 640 }}>
-            {/* Responde as duas dúvidas do primeiro cadastro antes do clique:
-                como a pessoa entra e o que decide o que ela vê. */}
-            Quem entra no sistema e o que cada um vê e faz. O acesso é pela conta Microsoft, via portal NORTE — não há senha para enviar; o perfil define telas e ações.
-          </p>
-        </div>
-        <button
-          data-testid="button-new-user"
-          onClick={openCreate}
-          style={{ ...BTN_PRIMARIO, width: isMobile ? "100%" : undefined }}
-          onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#292524")}
-          onMouseLeave={e => (e.currentTarget.style.backgroundColor = T.dark)}
-        >
-          <UserPlus aria-hidden="true" style={{ width: 15, height: 15 }} />
-          Novo Usuário
-        </button>
-      </div>
+      <CabecalhoDaPagina
+        titulo="Usuários"
+        subtitulo={isLoading || isError ? undefined : `${users.length} ${users.length === 1 ? "pessoa com acesso" : "pessoas com acesso"}`}
+        acoes={
+          <Botao
+            variante="primario"
+            tamanho={ponteiroGrosso || isMobile ? "toque" : "md"}
+            icone={UserPlus}
+            data-testid="button-new-user"
+            onClick={openCreate}
+            larguraCheia={isMobile}
+          >
+            Novo Usuário
+          </Botao>
+        }
+      />
+      {/* Responde as duas dúvidas do primeiro cadastro antes do clique: como
+          a pessoa entra e o que decide o que ela vê. */}
+      <p style={{ fontSize: FS.body, color: T.second, margin: "-8px 0 24px", lineHeight: 1.5, maxWidth: 640 }}>
+        Quem entra no sistema e o que cada um vê e faz. O acesso é pela conta Microsoft, via portal NORTE — não há senha para enviar; o perfil define telas e ações.
+      </p>
 
       {/* ── Role chips summary ── */}
       <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
         {Object.entries(ROLE_CFG).map(([role, cfg]) => (
+          // Chip de filtro com desenho próprio (cor do perfil): fica <button>
+          // nativo; o realce de hover/foco vem da classe da casa.
           <button
             key={role}
+            type="button"
+            className="ds-botao"
             onClick={() => atualizar({ perfil: roleFilter === role ? "all" : role, pagina: 1 })}
             // O chip é um alternador: aria-pressed diz ao leitor de tela o que
             // hoje só a cor dizia (qual perfil está filtrando a tabela).
             aria-pressed={roleFilter === role}
             title={roleFilter === role ? "Mostrar todos os perfis" : `Mostrar só ${cfg.label}`}
             style={{
-              minHeight: isMobile ? 36 : 28, padding: "0 14px", borderRadius: 999,
+              minHeight: alvo(28, ponteiroGrosso || isMobile), padding: "0 14px", borderRadius: R.pill,
               backgroundColor: roleFilter === role ? cfg.bg : T.low,
               border: `1px solid ${roleFilter === role ? cfg.color + "40" : T.border}`,
               color: roleFilter === role ? cfg.color : T.second,
-              fontSize: 11, fontWeight: 700, cursor: "pointer",
-              transition: "all 0.15s", display: "flex", alignItems: "center", gap: 6,
+              fontSize: FS.small, fontWeight: FW.forte, cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 6,
             }}
           >
-            <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700 }}>{roleCounts[role]}</span>
+            <span style={{ fontFamily: FONT.mono, fontWeight: FW.forte }}>{roleCounts[role]}</span>
             {cfg.label}
           </button>
         ))}
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: T.second, fontWeight: 600 }}>
-          <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, color: T.second }}>{users.length}</span> usuários totais
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, fontSize: FS.small, color: T.second, fontWeight: FW.medio }}>
+          <span style={{ fontFamily: FONT.mono, fontWeight: FW.forte, color: T.second }}>{users.length}</span> usuários totais
         </div>
       </div>
 
@@ -536,9 +547,9 @@ export default function Usuarios() {
             aria-label="Buscar usuário por nome ou e-mail"
             type="search"
             data-testid="input-search-users"
-            style={{ ...tiInput, height: 40, padding: "0 12px 0 36px", borderRadius: R.md, width: "100%" }}
-            onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
-            onBlur={e => { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
+            style={{ ...tiInput, height: alvo(40, ponteiroGrosso || isMobile), padding: "0 12px 0 36px", borderRadius: R.md, width: "100%", fontSize: isMobile ? FS.lead : FS.body }}
+            onFocus={acenderCampo}
+            onBlur={apagarCampo}
           />
         </div>
         <FilterSelect
@@ -553,58 +564,48 @@ export default function Usuarios() {
         {(search || roleFilter !== "all") && (
           // N = quantos filtros o botão desfaz — o mesmo "Limpar (N)" de
           // Patrocinadores, Logs e Modelos.
-          <button type="button" onClick={limparFiltros} style={BTN_LIMPAR}>
-            <X aria-hidden="true" style={{ width: 11, height: 11 }} /> Limpar ({(search ? 1 : 0) + (roleFilter !== "all" ? 1 : 0)})
-          </button>
+          <Botao variante="secundario" icone={X} onClick={limparFiltros}>
+            Limpar ({(search ? 1 : 0) + (roleFilter !== "all" ? 1 : 0)})
+          </Botao>
         )}
-        <span style={{ marginLeft: "auto", fontSize: 11, color: T.second, fontWeight: 600 }}>
+        <span style={{ marginLeft: "auto", fontSize: FS.small, color: T.second, fontWeight: FW.medio }}>
           {filtered.length} resultado{filtered.length !== 1 ? "s" : ""}
         </span>
       </div>
 
       {/* ── Table ── */}
-      <section ref={listaRef} style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden", marginBottom: 20 }}>
+      <section ref={listaRef} style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, overflow: "hidden", marginBottom: 20 }}>
         {isLoading ? (
-          // Esqueleto com a silhueta das linhas (avatar + nome + perfil): a
-          // tabela "chega" no lugar em que vai ficar, em vez de um texto que
-          // some e empurra tudo. O pulso só roda com motion-safe.
-          <div role="status" aria-label="Carregando usuários" style={{ padding: "8px 0" }}>
-            {Array.from({ length: 5 }, (_, i) => (
-              <div key={i} className="motion-safe:animate-pulse" style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 20px", borderBottom: `1px solid ${T.low}` }}>
-                <div style={{ width: 32, height: 32, borderRadius: "50%", backgroundColor: T.low }} />
-                <div style={{ width: 160, height: 12, borderRadius: 4, backgroundColor: T.low }} />
-                <div style={{ width: 200, height: 12, borderRadius: 4, backgroundColor: T.low, marginLeft: 24 }} />
-                <div style={{ width: 70, height: 18, borderRadius: 999, backgroundColor: T.low, marginLeft: 24 }} />
-              </div>
-            ))}
+          // Esqueleto com a silhueta do que vem (cartões ou tabela): a lista
+          // "chega" no lugar em que vai ficar, em vez de um texto que some.
+          <div style={{ padding: 12 }}>
+            <Esqueleto variante={cards ? "lista" : "tabela"} linhas={5} rotulo="Carregando usuários" />
           </div>
         ) : isError ? (
-          <div style={{ padding: "56px 24px", textAlign: "center" }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: "0 0 4px" }}>Não foi possível carregar os usuários</p>
-            <p style={{ fontSize: 12, color: T.second, margin: "0 0 16px" }}>Verifique sua conexão e tente novamente.</p>
-            <button
-              type="button"
-              onClick={() => refetch()}
-              style={{ ...BTN_PRIMARIO, height: 36, fontSize: 11 }}
-            >
-              Tentar novamente
-            </button>
+          <div style={{ padding: 12 }}>
+            <EstadoErro
+              compacto
+              titulo="Não foi possível carregar os usuários"
+              detalhe="Verifique sua conexão e tente novamente."
+              aoTentarDeNovo={() => refetch()}
+            />
           </div>
         ) : filtered.length === 0 ? (
-          <div style={{ padding: "56px 24px", textAlign: "center" }}>
+          <div style={{ padding: 12 }}>
             {users.length === 0 ? (
-              <p style={{ fontSize: 13, color: T.second, margin: 0 }}>Nenhum usuário cadastrado ainda — use "Novo Usuário" para criar o primeiro.</p>
+              <EstadoVazio
+                compacto
+                icone={Users}
+                titulo="Nenhum usuário cadastrado ainda"
+                descricao={'Use "Novo Usuário" para criar o primeiro.'}
+              />
             ) : (
-              <>
-                <p style={{ fontSize: 13, color: T.second, margin: "0 0 14px" }}>Nenhum usuário corresponde à busca e aos filtros aplicados.</p>
-                <button
-                  type="button"
-                  onClick={limparFiltros}
-                  style={{ ...BTN_PRIMARIO, height: 36, backgroundColor: T.surface, color: T.text, border: `1px solid ${T.bdark}`, fontSize: 11 }}
-                >
-                  Limpar filtros
-                </button>
-              </>
+              <EstadoVazio
+                compacto
+                icone={Search}
+                titulo="Nenhum usuário corresponde à busca e aos filtros aplicados."
+                acao={<Botao variante="secundario" onClick={limparFiltros}>Limpar filtros</Botao>}
+              />
             )}
           </div>
         ) : (
@@ -625,57 +626,43 @@ export default function Usuarios() {
                         width: 32, height: 32, borderRadius: "50%",
                         backgroundColor: cfg.avatarBg, color: cfg.avatarColor,
                         display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 11, fontWeight: 800, flexShrink: 0, letterSpacing: 0,
+                        fontSize: FS.small, fontWeight: FW.rotulo, flexShrink: 0, letterSpacing: 0,
                       }}>
                         {initials(user.name)}
                       </div>
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: T.text, overflowWrap: "anywhere", lineHeight: 1.3 }}>
+                        <div style={{ fontSize: FS.read, fontWeight: FW.forte, color: T.text, overflowWrap: "anywhere", lineHeight: 1.3 }}>
                           {user.name}
                           {me?.id === user.id && (
-                            <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: T.second, backgroundColor: T.low, borderRadius: 999, padding: "2px 8px" }}>você</span>
+                            <span style={{ marginLeft: 6, fontSize: FS.small, fontWeight: FW.forte, color: T.second, backgroundColor: T.low, borderRadius: R.pill, padding: "2px 8px" }}>você</span>
                           )}
                         </div>
                         {/* E-MAIL INTEIRO, quebrando onde precisar: é por ele
                             que a pessoa entra (SSO) e é o que se confere. */}
-                        <div style={{ fontSize: 12.5, color: T.second, overflowWrap: "anywhere", lineHeight: 1.35 }}>{user.email}</div>
+                        <div style={{ fontSize: FS.meta, color: T.second, overflowWrap: "anywhere", lineHeight: 1.35 }}>{user.email}</div>
                       </div>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                      <span style={{
-                        padding: "3px 10px", borderRadius: 999,
-                        backgroundColor: cfg.bg, color: cfg.color,
-                        fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
-                      }}>
+                      <Selo tamanho="sm" cores={{ bg: cfg.bg, text: cfg.color, border: cfg.bg }}>
                         {cfg.label}
-                      </span>
+                      </Selo>
                       {user.kit && (
-                        <span data-testid={`badge-kit-${user.id}`} style={{
-                          padding: "3px 8px", borderRadius: 999,
-                          backgroundColor: "#f5f3ff", color: "#6d28d9", border: "1px solid #ddd6fe",
-                          fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em",
-                        }}>
+                        <Selo tamanho="sm" cores={KIT} data-testid={`badge-kit-${user.id}`}>
                           Kit
                           <span className="sr-only"> — só vê e cria peças do Kit, e só as dele</span>
-                        </span>
+                        </Selo>
                       )}
                       {user.mustChangePassword ? (
-                        <span style={{
-                          padding: "3px 8px", borderRadius: 6,
-                          border: "1px solid #fde68a", color: "#a16207", backgroundColor: "#fefce8",
-                          fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
-                        }}>
-                          Trocar Senha
-                        </span>
+                        <Selo tamanho="sm" tom="alerta" forma="retangulo">Trocar Senha</Selo>
                       ) : (
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-                          <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: "#22c55e" }} />
-                          <span style={{ fontSize: 11, color: T.second, fontWeight: 600 }}>Ativo</span>
+                          <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: TOM.sucesso.dot }} />
+                          <span style={{ fontSize: FS.small, color: T.second, fontWeight: FW.medio }}>Ativo</span>
                         </span>
                       )}
                     </div>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                      <span style={{ fontSize: 11.5, color: T.second }}>
+                      <span style={{ fontSize: FS.small, color: T.second }}>
                         Criado em {format(new Date(user.createdAt), "dd/MM/yyyy", { locale: ptBR })}
                       </span>
                       <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>{acoesDoUsuario(user)}</div>
@@ -697,7 +684,7 @@ export default function Usuarios() {
                       : ["Nome", "Email", "Perfil", "Status", "Criado em", "Ações"]
                     ).map((h, i, todas) => (
                       <th key={h} scope="col" style={{
-                        padding: "12px 20px", fontSize: 10, fontWeight: 900,
+                        padding: "12px 20px", fontSize: FS.micro, fontWeight: FW.rotulo,
                         color: T.second, textTransform: "uppercase", letterSpacing: "0.16em",
                         textAlign: i === todas.length - 1 ? "right" : "left",
                       }}>{h}</th>
@@ -711,9 +698,9 @@ export default function Usuarios() {
                     return (
                       <tr key={user.id}
                         data-testid={`row-user-${user.id}`}
+                        // Realce da linha pela classe (n1 = stone-50), não por handler.
+                        className="hover:bg-stone-50"
                         style={{ borderBottom: `1px solid ${T.low}`, transition: "background 0.1s" }}
-                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#fafaf9")}
-                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
                       >
                         {/* Nome + avatar */}
                         <td style={{ padding: "14px 20px" }}>
@@ -722,75 +709,60 @@ export default function Usuarios() {
                               width: 32, height: 32, borderRadius: "50%",
                               backgroundColor: cfg.avatarBg, color: cfg.avatarColor,
                               display: "flex", alignItems: "center", justifyContent: "center",
-                              fontSize: 10, fontWeight: 800, flexShrink: 0, letterSpacing: 0,
+                              fontSize: FS.micro, fontWeight: FW.rotulo, flexShrink: 0, letterSpacing: 0,
                             }}>
                               {init}
                             </div>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{user.name}</span>
+                            <span style={{ fontSize: FS.body, fontWeight: FW.forte, color: T.text }}>{user.name}</span>
                             {/* A própria linha não tem lixeira (o servidor
                                 bloqueia a auto-exclusão); sem o "você", a
                                 ausência do botão parecia defeito. */}
                             {me?.id === user.id && (
-                              <span style={{ fontSize: 10, fontWeight: 700, color: T.second, backgroundColor: T.low, borderRadius: 999, padding: "2px 8px" }}>você</span>
+                              <span style={{ fontSize: FS.micro, fontWeight: FW.forte, color: T.second, backgroundColor: T.low, borderRadius: R.pill, padding: "2px 8px" }}>você</span>
                             )}
                           </div>
                           {compacto && (
-                            <div style={{ fontSize: 11, color: T.second, marginTop: 3, paddingLeft: 42 }}>
+                            <div style={{ fontSize: FS.small, color: T.second, marginTop: 3, paddingLeft: 42 }}>
                               Criado em {format(new Date(user.createdAt), "dd/MM/yyyy", { locale: ptBR })}
                             </div>
                           )}
                         </td>
 
                         {/* Email */}
-                        <td style={{ padding: "14px 20px", fontSize: 13, color: T.second }}>{user.email}</td>
+                        <td style={{ padding: "14px 20px", fontSize: FS.body, color: T.second }}>{user.email}</td>
 
                         {/* Perfil badge */}
                         <td style={{ padding: "14px 20px" }}>
-                          <span style={{
-                            padding: "3px 10px", borderRadius: 999,
-                            backgroundColor: cfg.bg, color: cfg.color,
-                            fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
-                          }}>
+                          <Selo tamanho="sm" cores={{ bg: cfg.bg, text: cfg.color, border: cfg.bg }}>
                             {cfg.label}
-                          </span>
+                          </Selo>
                           {user.kit && (
-                            <span data-testid={`badge-kit-${user.id}`} style={{
-                              marginLeft: 6, padding: "3px 8px", borderRadius: 999,
-                              backgroundColor: "#f5f3ff", color: "#6d28d9", border: "1px solid #ddd6fe",
-                              fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em",
-                            }}>
+                            <Selo tamanho="sm" cores={KIT} data-testid={`badge-kit-${user.id}`} style={{ marginLeft: 6 }}>
                               Kit
                               {/* O que "Kit" quer dizer ia só no `title`: no
                                   tablet não há hover e o leitor de tela não o
                                   lê num <span>. Agora é texto, escondido só
                                   visualmente. */}
                               <span className="sr-only"> — só vê e cria peças do Kit, e só as dele</span>
-                            </span>
+                            </Selo>
                           )}
                         </td>
 
                         {/* Status */}
                         <td style={{ padding: "14px 20px" }}>
                           {user.mustChangePassword ? (
-                            <span style={{
-                              padding: "3px 8px", borderRadius: 6,
-                              border: "1px solid #fde68a", color: "#a16207",
-                              backgroundColor: "#fefce8",
-                              fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
-                            }}>
-                              Trocar Senha
-                            </span>
+                            <Selo tamanho="sm" tom="alerta" forma="retangulo">Trocar Senha</Selo>
                           ) : (
                             <span style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 4 }}>
-                              <span style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: "#22c55e" }} />
-                              <span style={{ fontSize: 10, color: T.second, fontWeight: 600 }}>Ativo</span>
+                              <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: TOM.sucesso.dot }} />
+                              <span style={{ fontSize: FS.micro, color: T.second, fontWeight: FW.medio }}>Ativo</span>
                             </span>
                           )}
                         </td>
 
                         {/* Criado em */}
                         {!compacto && (
-                          <td style={{ padding: "14px 20px", fontSize: 13, color: T.second }}>
+                          <td style={{ padding: "14px 20px", fontSize: FS.body, color: T.second }}>
                             {format(new Date(user.createdAt), "dd/MM/yyyy", { locale: ptBR })}
                           </td>
                         )}
@@ -811,7 +783,7 @@ export default function Usuarios() {
 
             {/* Pagination footer */}
             <div style={{ padding: "10px 20px", borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, backgroundColor: T.low }}>
-              <p style={{ fontSize: 11, color: T.second, fontWeight: 600, margin: 0 }}>
+              <p style={{ fontSize: FS.small, color: T.second, fontWeight: FW.medio, margin: 0 }}>
                 Exibindo {Math.min((safePage - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(safePage * PAGE_SIZE, filtered.length)} de {filtered.length} usuário{filtered.length !== 1 ? "s" : ""}
               </p>
               <Paginacao pagina={safePage} totalPaginas={totalPages} onIr={setPage} toque={toque} />
@@ -828,16 +800,16 @@ export default function Usuarios() {
           Se um fluxo com senha provisória voltar, o card pode voltar com ele. */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16, marginTop: 24 }}>
         {/* Dark card — Relatório de Acessos */}
-        <div style={{ backgroundColor: T.dark, borderRadius: 12, padding: isMobile ? "22px 20px" : "28px 32px", display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: 200, position: "relative", overflow: "hidden" }}>
+        <div style={{ backgroundColor: T.dark, borderRadius: R.lg, padding: isMobile ? "22px 20px" : "28px 32px", display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: 200, position: "relative", overflow: "hidden" }}>
           <div style={{ position: "absolute", top: -40, right: -40, width: 180, height: 180, borderRadius: "50%", backgroundColor: T.accent, opacity: 0.12, filter: "blur(60px)" }} />
           <div>
-            <h3 style={{ fontSize: 22, fontWeight: 900, color: "#fff", margin: "0 0 8px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.04em", textTransform: "uppercase", lineHeight: 1 }}>
+            <h3 style={{ fontSize: FS.h2, fontWeight: FW.rotulo, color: T.surface, margin: "0 0 8px", fontFamily: FONT.display, letterSpacing: "-0.04em", textTransform: "uppercase", lineHeight: 1 }}>
               Controle de Acessos
             </h3>
             {/* O texto antigo prometia "atividade e status de segurança em tempo
                 real" — o sistema não grava login (ver logs-sistema.tsx). O card
                 agora diz o que o botão entrega de fato: a trilha de operações. */}
-            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.72)", margin: 0, maxWidth: 380 }}>
+            <p style={{ fontSize: FS.body, color: "rgba(255,255,255,0.72)", margin: 0, maxWidth: 380 }}>
               Consulte quem criou, alterou, aprovou ou excluiu cada registro na trilha de operações do sistema.
             </p>
           </div>
@@ -846,29 +818,27 @@ export default function Usuarios() {
               {users.slice(0, 4).map((u, i) => {
                 const cfg = ROLE_CFG[u.role] || ROLE_CFG.solicitacao;
                 return (
-                  <div key={u.id} style={{ width: 36, height: 36, borderRadius: "50%", backgroundColor: cfg.avatarBg, border: `2px solid ${T.dark}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, color: cfg.avatarColor, marginLeft: i > 0 ? -10 : 0 }}>
+                  <div key={u.id} style={{ width: 36, height: 36, borderRadius: "50%", backgroundColor: cfg.avatarBg, border: `2px solid ${T.dark}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: FS.micro, fontWeight: FW.rotulo, color: cfg.avatarColor, marginLeft: i > 0 ? -10 : 0 }}>
                     {initials(u.name)}
                   </div>
                 );
               })}
               {users.length > 4 && (
-                <div style={{ width: 36, height: 36, borderRadius: "50%", backgroundColor: "#292524", border: `2px solid ${T.dark}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#d6d3d1", marginLeft: -10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: "50%", backgroundColor: T.strong, border: `2px solid ${T.dark}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: FS.micro, fontWeight: FW.forte, color: T.bdark, marginLeft: -10 }}>
                   +{users.length - 4}
                 </div>
               )}
             </div>
-            <button
+            {/* Botão CLARO sobre o card escuro: o secundário da casa (fundo
+                branco). O laranja cheio que estava aqui era o único botão
+                laranja das telas de cadastro. */}
+            <Botao
+              variante="secundario"
               onClick={() => navigate("/logs-sistema")}
               data-testid="button-ver-logs"
-              // Botão CLARO sobre o card escuro: é o primário da casa invertido.
-              // O laranja cheio que estava aqui era o único botão laranja das
-              // telas de cadastro.
-              style={{ ...BTN_PRIMARIO, height: 36, backgroundColor: "#fff", color: T.dark, fontSize: 11 }}
-              onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#e7e5e4")}
-              onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#fff")}
             >
               Ver Logs
-            </button>
+            </Botao>
           </div>
         </div>
       </div>
@@ -940,7 +910,7 @@ export default function Usuarios() {
                     (que some) dizia que o anterior entrou. A lista fica à
                     vista enquanto a sequência durar. */}
                 {!editingUser && criadosNestaSequencia.length > 0 && (
-                  <p role="status" data-testid="usuarios-criados-na-sequencia" style={{ margin: 0, display: "flex", gap: 7, alignItems: "flex-start", padding: "9px 12px", borderRadius: 6, backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", fontSize: 12, lineHeight: 1.45, color: "#166534" }}>
+                  <p role="status" data-testid="usuarios-criados-na-sequencia" style={{ margin: 0, display: "flex", gap: 7, alignItems: "flex-start", padding: "9px 12px", borderRadius: R.sm, backgroundColor: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}`, fontSize: FS.meta, lineHeight: 1.45, color: TOM.sucesso.text }}>
                     <Check aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0, marginTop: 2 }} />
                     <span>
                       {criadosNestaSequencia.length === 1 ? "1 usuário criado" : `${criadosNestaSequencia.length} usuários criados`} nesta sequência: {criadosNestaSequencia.join(", ")}.
@@ -952,12 +922,12 @@ export default function Usuarios() {
                 {/* Nome */}
                 <FormField control={form.control} name="name" render={({ field }) => (
                   <FormItem>
-                    <label htmlFor="user-form-name" style={{ display: "block", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 7 }}>Nome Completo</label>
+                    <label htmlFor="user-form-name" style={ROTULO_CAMPO}>Nome Completo</label>
                     <FormControl>
                       <input {...field} id="user-form-name" placeholder="Ex: Roberto Carlos" data-testid="input-name"
-                        style={tiInput}
-                        onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
-                        onBlur={e => { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
+                        style={{ ...tiInput, fontSize: isMobile ? FS.lead : FS.body }}
+                        onFocus={acenderCampo}
+                        onBlur={apagarCampo}
                       />
                     </FormControl>
                     <FormMessage />
@@ -968,12 +938,12 @@ export default function Usuarios() {
                 <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
                   <FormField control={form.control} name="email" render={({ field }) => (
                     <FormItem>
-                      <label htmlFor="user-form-email" style={{ display: "block", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 7 }}>Email</label>
+                      <label htmlFor="user-form-email" style={ROTULO_CAMPO}>Email</label>
                       <FormControl>
                         <input {...field} id="user-form-email" type="email" placeholder="email@norte.com" data-testid="input-email"
-                          style={tiInput}
-                          onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
-                          onBlur={e => { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
+                          style={{ ...tiInput, fontSize: isMobile ? FS.lead : FS.body }}
+                          onFocus={acenderCampo}
+                          onBlur={apagarCampo}
                         />
                       </FormControl>
                       <FormMessage />
@@ -982,7 +952,7 @@ export default function Usuarios() {
                           senha nem convite: o login é o SSO do portal NORTE, que
                           procura este e-mail EXATAMENTE como gravado (server/
                           index.ts, `WHERE email = $1`) — por isso o "igual". */}
-                      <p style={{ margin: "6px 0 0", fontSize: 11, lineHeight: 1.4, color: "#57534e" }}>
+                      <p style={{ margin: "6px 0 0", fontSize: FS.small, lineHeight: 1.4, color: T.apoio }}>
                         Igual ao da conta Microsoft. Não há senha nem convite por e-mail: avise a pessoa para entrar pelo portal NORTE.
                       </p>
                     </FormItem>
@@ -990,7 +960,7 @@ export default function Usuarios() {
 
                   <FormField control={form.control} name="role" render={({ field }) => (
                     <FormItem>
-                      <label htmlFor="user-form-role" style={{ display: "block", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 7 }}>Perfil</label>
+                      <label htmlFor="user-form-role" style={ROTULO_CAMPO}>Perfil</label>
                       <FormControl>
                         {/* kind="field": campo de formulário, não filtro (ver o
                             vocabulário em components/filter-select.tsx). O
@@ -1018,10 +988,10 @@ export default function Usuarios() {
                       {/* HERDADO, DITO NO CAMPO. "Cadastrar outro" mantém o
                           perfil do anterior; sem este aviso o próximo usuário
                           saía com o perfil de outra pessoa sem ninguém notar.
-                          Some quando a pessoa troca o perfil. #92400e sobre
-                          #fffbeb = 7,1:1. */}
+                          Some quando a pessoa troca o perfil. TOM.alerta.text
+                          sobre TOM.alerta.bg passa AA. */}
                       {!editingUser && perfilHerdado && field.value === perfilHerdado && (
-                        <p role="status" data-testid="aviso-perfil-herdado" style={{ margin: "6px 0 0", padding: "6px 10px", borderRadius: 6, backgroundColor: "#fffbeb", border: "1px solid #fde68a", fontSize: 11.5, fontWeight: 700, lineHeight: 1.4, color: "#92400e" }}>
+                        <p role="status" data-testid="aviso-perfil-herdado" style={{ margin: "6px 0 0", padding: "6px 10px", borderRadius: R.sm, backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, fontSize: FS.small, fontWeight: FW.forte, lineHeight: 1.4, color: TOM.alerta.text }}>
                           Perfil mantido do cadastro anterior — confira antes de salvar.
                         </p>
                       )}
@@ -1037,26 +1007,26 @@ export default function Usuarios() {
                         return (
                           <div data-testid="bloco-permissoes"
                             style={{
-                              marginTop: 10, padding: "11px 13px", borderRadius: 6,
-                              backgroundColor: ehAdmin ? "#fef2f2" : "#fafaf9",
-                              border: `1px solid ${ehAdmin ? "#fecaca" : T.border}`,
+                              marginTop: 10, padding: "11px 13px", borderRadius: R.sm,
+                              backgroundColor: ehAdmin ? TOM.perigo.bg : T.bg,
+                              border: `1px solid ${ehAdmin ? TOM.perigo.border : T.border}`,
                             }}>
-                            {/* #b91c1c sobre #fef2f2 = 6,1:1 · #57534e sobre #fafaf9 = 7,1:1 */}
+                            {/* perigo.text sobre perigo.bg = 6,1:1 · apoio (n8) sobre n1 = 7,1:1 */}
                             <p style={{
-                              margin: "0 0 7px", fontSize: 10, fontWeight: 900,
+                              margin: "0 0 7px", fontSize: FS.micro, fontWeight: FW.rotulo,
                               textTransform: "uppercase", letterSpacing: "0.14em",
-                              color: ehAdmin ? "#b91c1c" : "#57534e",
+                              color: ehAdmin ? TOM.perigo.text : T.apoio,
                             }}>
                               O que este perfil concede
                             </p>
                             <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 5 }}>
                               {linhas.map((l) => (
                                 <li key={l.texto} style={{ display: "flex", gap: 7, alignItems: "flex-start" }}>
-                                  {/* #15803d = 4,8:1 e #b91c1c = 6,3:1 sobre #fafaf9 */}
+                                  {/* sucesso.text = 4,8:1 e perigo.text = 6,3:1 sobre n1 */}
                                   {l.pode
-                                    ? <Check aria-hidden="true" style={{ width: 13, height: 13, color: "#15803d", flexShrink: 0, marginTop: 1 }} />
-                                    : <X aria-hidden="true" style={{ width: 13, height: 13, color: "#b91c1c", flexShrink: 0, marginTop: 1 }} />}
-                                  <span style={{ fontSize: 12, lineHeight: 1.4, color: "#44403c" }}>
+                                    ? <Check aria-hidden="true" style={{ width: 13, height: 13, color: TOM.sucesso.text, flexShrink: 0, marginTop: 1 }} />
+                                    : <X aria-hidden="true" style={{ width: 13, height: 13, color: TOM.perigo.text, flexShrink: 0, marginTop: 1 }} />}
+                                  <span style={{ fontSize: FS.meta, lineHeight: 1.4, color: T.strong }}>
                                     <span className="sr-only">{l.pode ? "Pode: " : "Não pode: "}</span>
                                     {l.texto}
                                   </span>
@@ -1064,15 +1034,15 @@ export default function Usuarios() {
                               ))}
                             </ul>
                             {ehAdmin && (
-                              <p style={{ margin: "8px 0 0", fontSize: 11, fontWeight: 700, color: "#b91c1c", lineHeight: 1.4 }}>
+                              <p style={{ margin: "8px 0 0", fontSize: FS.small, fontWeight: FW.forte, color: TOM.perigo.text, lineHeight: 1.4 }}>
                                 Perfil sem restrição: pode excluir dados e conceder acesso a outras pessoas.
                               </p>
                             )}
                             {/* O QUE APARECE NO MENU — "poder fazer" não diz
-                                "onde clicar". #44403c sobre #fafaf9/#fef2f2 ≥ 9:1. */}
+                                "onde clicar". strong (n9) sobre n1/perigo.bg ≥ 9:1. */}
                             {TELAS_NO_MENU[field.value] && (
-                              <p data-testid="bloco-telas-do-perfil" style={{ margin: "9px 0 0", paddingTop: 8, borderTop: `1px dashed ${ehAdmin ? "#fecaca" : T.border}`, fontSize: 11.5, lineHeight: 1.45, color: "#44403c" }}>
-                                <strong style={{ fontWeight: 800 }}>No menu: </strong>
+                              <p data-testid="bloco-telas-do-perfil" style={{ margin: "9px 0 0", paddingTop: 8, borderTop: `1px dashed ${ehAdmin ? TOM.perigo.border : T.border}`, fontSize: FS.small, lineHeight: 1.45, color: T.strong }}>
+                                <strong style={{ fontWeight: FW.rotulo }}>No menu: </strong>
                                 {TELAS_NO_MENU[field.value]}
                                 {field.value !== "admin" && `, além de ${TELAS_DE_TODOS}, que todos veem`}.
                               </p>
@@ -1088,13 +1058,13 @@ export default function Usuarios() {
                 {form.watch("role") === "solicitacao" && (
                   <FormField control={form.control} name="kit" render={({ field }) => (
                     <FormItem>
-                      <label htmlFor="user-form-kit" style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "11px 13px", borderRadius: 6, border: `1px solid ${field.value ? "#ddd6fe" : T.border}`, backgroundColor: field.value ? "#f5f3ff" : "#fafaf9", cursor: "pointer" }}>
+                      <label htmlFor="user-form-kit" style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "11px 13px", borderRadius: R.sm, border: `1px solid ${field.value ? KIT.border : T.border}`, backgroundColor: field.value ? KIT.bg : T.bg, cursor: "pointer" }}>
                         <input id="user-form-kit" type="checkbox" data-testid="checkbox-user-kit"
                           checked={field.value} onChange={(e) => field.onChange(e.target.checked)}
-                          style={{ width: 16, height: 16, marginTop: 2, accentColor: "#6d28d9", flexShrink: 0 }} />
+                          style={{ width: 16, height: 16, marginTop: 2, accentColor: KIT.text, flexShrink: 0 }} />
                         <span>
-                          <span style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.text }}>Usuário do Kit</span>
-                          <span style={{ display: "block", fontSize: 12, color: "#57534e", lineHeight: 1.4, marginTop: 2 }}>
+                          <span style={{ display: "block", fontSize: FS.body, fontWeight: FW.rotulo, color: T.text }}>Usuário do Kit</span>
+                          <span style={{ display: "block", fontSize: FS.meta, color: T.apoio, lineHeight: 1.4, marginTop: 2 }}>
                             {/* "menos Modelos": o item do menu tem `semKit` e a
                                 rota de escrita do catálogo recusa o Kit (routes.ts). */}
                             Mesmas telas da Solicitação, menos Modelos. Só vê e cria peças do Kit — e só as que ele criou.
@@ -1117,7 +1087,7 @@ export default function Usuarios() {
                   const kitAgora = papel === "solicitacao" && form.watch("kit");
                   if (papel === editingUser.role && kitAgora === !!editingUser.kit) return null;
                   return (
-                    <p role="status" data-testid="aviso-sessao-encerrada" style={{ margin: 0, padding: "10px 12px", borderRadius: 6, backgroundColor: "#fffbeb", border: "1px solid #fde68a", fontSize: 12, lineHeight: 1.45, color: "#92400e" }}>
+                    <p role="status" data-testid="aviso-sessao-encerrada" style={{ margin: 0, padding: "10px 12px", borderRadius: R.sm, backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, fontSize: FS.meta, lineHeight: 1.45, color: TOM.alerta.text }}>
                       Ao salvar, <strong>{editingUser.name}</strong> é desconectado e precisa entrar de novo pelo portal — já com o novo perfil.
                     </p>
                   );
@@ -1129,36 +1099,35 @@ export default function Usuarios() {
             {/* Rodapé da casa: primário cheio, recuar discreto abaixo — o
                 mesmo par de Patrocinadores, Modelos e das confirmações. */}
             <ModalFooter>
-              <button type="submit" form="user-form"
+              <Botao type="submit" form="user-form"
+                variante="primario"
+                larguraCheia
                 data-testid="button-save-user"
-                disabled={createMutation.isPending || updateMutation.isPending}
-                aria-busy={createMutation.isPending || updateMutation.isPending}
-                style={{ height: toque + 4, borderRadius: R.md, border: "none", backgroundColor: T.dark, color: "#fff", fontSize: 14, fontWeight: 800, cursor: createMutation.isPending || updateMutation.isPending ? "wait" : "pointer", opacity: createMutation.isPending || updateMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s ease" }}
-                onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#292524")}
-                onMouseLeave={e => (e.currentTarget.style.backgroundColor = T.dark)}
+                carregando={createMutation.isPending || updateMutation.isPending}
+                style={{ minHeight: toque + 4, fontSize: FS.read }}
                 onClick={() => { continuarRef.current = false; }}>
                 {createMutation.isPending || updateMutation.isPending ? "Salvando…" : editingUser ? "Salvar alterações" : "Criar usuário"}
-              </button>
+              </Botao>
               {/* Secundário (contorno) e só na criação: editar é um de cada
                   vez. Mesmo submit do formulário — só não fecha o modal. */}
               {!editingUser && (
-                <button type="submit" form="user-form"
+                <Botao type="submit" form="user-form"
+                  variante="secundario"
+                  larguraCheia
                   data-testid="button-save-user-e-outro"
                   disabled={createMutation.isPending}
                   onClick={() => { continuarRef.current = true; }}
-                  style={{ height: toque + 4, borderRadius: R.md, border: `1px solid ${T.bdark}`, backgroundColor: T.surface, color: T.text, fontSize: 13, fontWeight: 800, cursor: createMutation.isPending ? "wait" : "pointer", opacity: createMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s ease" }}
-                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = T.low)}
-                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = T.surface)}>
+                  style={{ minHeight: toque + 4 }}>
                   Criar e cadastrar outro
-                </button>
+                </Botao>
               )}
-              <button type="button" onClick={requestClose}
+              {/* Depois de criar alguém na sequência, "Cancelar" sugeria
+                  desfazer quem já entrou — e não desfaz. */}
+              <Botao variante="fantasma" larguraCheia onClick={requestClose}
                 data-testid="button-cancel"
-                style={{ height: toque, borderRadius: R.md, border: "none", backgroundColor: "transparent", color: "#57534e", fontSize: FS.body, fontWeight: 700, cursor: "pointer" }}>
-                {/* Depois de criar alguém na sequência, "Cancelar" sugeria
-                    desfazer quem já entrou — e não desfaz. */}
+                style={{ minHeight: toque }}>
                 {criadosNestaSequencia.length > 0 && !editingUser ? "Fechar" : "Cancelar"}
-              </button>
+              </Botao>
             </ModalFooter>
           </div>
           </FreezeWhileClosing>
@@ -1195,16 +1164,16 @@ export default function Usuarios() {
               <ModalHeader
                 icon={Trash2}
                 variant="confirm"
-                tint="#b91c1c"
+                tint={TOM.perigo.text}
                 title={`Excluir ${deletingUser.name}?`}
                 subtitle="Esta ação não pode ser desfeita."
                 onClose={() => setDeletingUser(null)}
               />
               <div style={{ padding: "16px 24px", overflowY: "auto", flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-                <p style={{ fontSize: FS.body, color: "#44403c", margin: 0, lineHeight: 1.5 }}>
+                <p style={{ fontSize: FS.body, color: T.strong, margin: 0, lineHeight: 1.5 }}>
                   <strong style={{ color: T.text }}>{deletingUser.name}</strong> perde o acesso ao sistema imediatamente.
                 </p>
-                <p style={{ fontSize: 12, color: T.second, margin: 0, padding: "9px 12px", borderRadius: R.sm, backgroundColor: T.low, border: `1px solid ${T.border}`, fontFamily: "'DM Mono', monospace", overflowWrap: "anywhere" }}>
+                <p style={{ fontSize: FS.meta, color: T.second, margin: 0, padding: "9px 12px", borderRadius: R.sm, backgroundColor: T.low, border: `1px solid ${T.border}`, fontFamily: FONT.mono, overflowWrap: "anywhere" }}>
                   {deletingUser.email} · {(ROLE_CFG[deletingUser.role] ?? ROLE_CFG.solicitacao).label}
                 </p>
                 {/* O QUE MUDA E O QUE FICA. Conferido no schema: patrocinadores
@@ -1214,9 +1183,9 @@ export default function Usuarios() {
                 {(() => {
                   const contas = patrocinadores.filter(s => s.accountExecutiveId === deletingUser.id);
                   return (
-                    <ul data-testid="delete-user-impacto" style={{ margin: 0, paddingLeft: 18, fontSize: 12, lineHeight: 1.5, color: "#44403c", display: "flex", flexDirection: "column", gap: 3 }}>
+                    <ul data-testid="delete-user-impacto" style={{ margin: 0, paddingLeft: 18, fontSize: FS.meta, lineHeight: 1.5, color: T.strong, display: "flex", flexDirection: "column", gap: 3 }}>
                       {contas.length > 0 && (
-                        <li style={{ color: "#92400e", fontWeight: 600 }}>
+                        <li style={{ color: TOM.alerta.text, fontWeight: FW.medio }}>
                           É executivo de {contas.length === 1 ? "1 patrocinador" : `${contas.length} patrocinadores`} ({contas.slice(0, 3).map(s => s.name).join(", ")}{contas.length > 3 ? "…" : ""}) — {contas.length === 1 ? "ele fica" : "eles ficam"} sem executivo.
                         </li>
                       )}
@@ -1229,30 +1198,30 @@ export default function Usuarios() {
               {/* Excluir é o cheio (vermelho); recuar é o discreto abaixo —
                   o par de botões de toda confirmação da casa. */}
               <ModalFooter>
-                <button
-                  type="button"
+                <Botao
+                  variante="perigo"
+                  larguraCheia
                   data-testid="button-confirm-delete"
                   onClick={() => deleteMutation.mutate(deletingUser.id)}
-                  disabled={deleteMutation.isPending}
-                  aria-busy={deleteMutation.isPending}
-                  style={{ height: toque + 4, borderRadius: R.md, border: "none", backgroundColor: "#b91c1c", color: "#fff", fontSize: 14, fontWeight: 800, cursor: deleteMutation.isPending ? "wait" : "pointer", opacity: deleteMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s ease" }}
-                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#991b1b")}
-                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#b91c1c")}>
+                  carregando={deleteMutation.isPending}
+                  style={{ minHeight: toque + 4, fontSize: FS.read }}>
                   {deleteMutation.isPending ? "Excluindo…" : "Sim, excluir"}
-                </button>
-                <button
-                  type="button"
+                </Botao>
+                <Botao
+                  variante="fantasma"
+                  larguraCheia
                   data-testid="button-cancel-delete"
                   onClick={() => setDeletingUser(null)}
-                  style={{ height: toque, borderRadius: R.md, border: "none", backgroundColor: "transparent", color: "#57534e", fontSize: FS.body, fontWeight: 700, cursor: "pointer" }}>
+                  style={{ minHeight: toque }}>
                   Manter
-                </button>
+                </Botao>
               </ModalFooter>
             </>
           )}
           </FreezeWhileClosing>
         </DialogContent>
       </Dialog>
+      {dialogo}
     </div>
   );
 }

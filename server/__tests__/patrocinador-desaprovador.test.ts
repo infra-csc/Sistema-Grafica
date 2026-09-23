@@ -50,10 +50,11 @@ describe("1 · a flag no cadastro", () => {
     expect(PAGE).toContain("strictApproval: !!s.strictApproval });");
   });
 
-  it("a tabela marca quem é, com contraste (#9a3412 sobre #fff7ed = 7,0:1)", () => {
+  it("a tabela marca quem é, com contraste (selo laranja: laranja.text sobre laranja.bg, AA)", () => {
     expect(PAGE).toContain("data-testid={`tag-desaprovador-${sponsor.id}`}");
     const i = PAGE.indexOf("data-testid={`tag-desaprovador-${sponsor.id}`}");
-    expect(PAGE.slice(i, i + 600)).toContain('color: "#9a3412", backgroundColor: "#fff7ed"');
+    // Selo do design system no tom laranja (texto #c2410c sobre #fff7ed).
+    expect(PAGE.slice(i - 200, i)).toContain('<Selo tom="laranja"');
     expect(PAGE.slice(i - 200, i)).toContain("{sponsor.strictApproval && (");
   });
 });

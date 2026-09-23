@@ -48,8 +48,10 @@ describe("1 · a coluna Resposta", () => {
 
   it("a célula diz as duas medidas, com os tons da escala", () => {
     expect(P).toContain("data-testid={`cell-resposta-${sponsor.id}`}");
-    expect(P).toContain('const corPend = pend === 0 ? "#15803d" : pend >= 5 ? "#b91c1c" : "#b45309";');
-    expect(P).toContain('const corMedia = media === null ? T.second : media >= 14 ? "#b91c1c" : media >= 7 ? "#b45309" : "#57534e";');
+    // Os mesmos tons da escala, agora pelos tokens (sucesso/perigo/alerta.text
+    // = #15803d/#b91c1c/#b45309; T.apoio = #57534e).
+    expect(P).toContain("const corPend = pend === 0 ? TOM.sucesso.text : pend >= 5 ? TOM.perigo.text : TOM.alerta.text;");
+    expect(P).toContain("const corMedia = media === null ? T.second : media >= 14 ? TOM.perigo.text : media >= 7 ? TOM.alerta.text : T.apoio;");
     expect(P).toContain('{pend === 0 ? "em dia" : `${pend} pend.`}');
     expect(P).toContain('{media === null ? "—" : `${media}d`}');
   });

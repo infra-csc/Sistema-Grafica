@@ -19,7 +19,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Send, Loader2, X, Plus, CheckCircle2, AlertTriangle, MinusCircle } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useDensidadeDoConteudo, usePonteiroGrosso, alvo } from "@/hooks/use-mobile";
 import { FS, R, T, FW, FONT, TOM } from "@/lib/theme";
 import { Botao } from "@/components/ui/botao";
 import { EstadoErro } from "@/components/ui/estados";
@@ -86,7 +86,13 @@ const rotuloDia = (dia: string) => `${dia.slice(8, 10)}/${dia.slice(5, 7)}`;
 export default function Notificacoes() {
   const { toast } = useToast();
   const { confirmar, dialogo } = useConfirmar();
-  const isMobile = useIsMobile();
+  // RÉGUA PELA ÁREA ÚTIL: a grade dia × edição tem 760px de piso. Abaixo de
+  // 820px de conteúdo (celular, tablet em retrato, janela com a barra lateral
+  // aberta) ela vira um cartão por dia — antes rolava de lado dentro do card e
+  // a coluna "Manuais" ficava fora da vista. `isMobile` segue só para o que é
+  // de celular: respiro da casca e botões em largura cheia.
+  const { ref: refConteudo, cards: gradeEmCartoes, isMobile } = useDensidadeDoConteudo<HTMLDivElement>();
+  const ponteiroGrosso = usePonteiroGrosso();
   const { data, isLoading, isError, refetch } = useQuery<Retrato>({ queryKey: ["/api/admin/notificacoes"] });
   // SAÚDE DOS DADOS (08/09): as contradições que nenhuma tela vê sozinha —
   // foi um par proibido (peça isenta E aguardando patrocinador) que escondeu
@@ -105,7 +111,7 @@ export default function Notificacoes() {
     onSuccess: (_r, v) => {
       invalidar();
       setNovoEmail((p) => ({ ...p, [v.canal]: "" }));
-      toast({ title: "Destinatário adicionado", description: v.email });
+      toast({ title: "Destinatário adicionado", description: v.email, variant: "success" });
     },
     onError: (e: any) => toast({ title: "Não foi possível adicionar o destinatário", description: e.message, variant: "destructive" }),
   });
@@ -114,7 +120,7 @@ export default function Notificacoes() {
     mutationFn: async (id: string) => (await apiRequest("DELETE", `/api/admin/notificacoes/destinatarios/${id}`)).json(),
     onSuccess: (r: any) => {
       invalidar();
-      toast({ title: "Destinatário removido", description: r?.removido?.email });
+      toast({ title: "Destinatário removido", description: r?.removido?.email, variant: "success" });
     },
     onError: (e: any) => toast({ title: "Não foi possível remover o destinatário", description: e.message, variant: "destructive" }),
   });
@@ -127,7 +133,7 @@ export default function Notificacoes() {
       toast({
         title: r.status === "enviado" ? "Aviso enviado" : "Aviso não enviado",
         description: r.mensagem,
-        variant: r.status === "enviado" || r.status === "sem-fila" ? undefined : "destructive",
+        variant: r.status === "enviado" || r.status === "sem-fila" ? "success" : "destructive",
       });
     },
     onError: (e: any) => toast({ title: "Falha no disparo", description: e.message, variant: "destructive" }),
@@ -139,7 +145,7 @@ export default function Notificacoes() {
   // tela "piscava" de um layout para outro quando o retrato chegava.
   const casca = (conteudo: React.ReactNode) => (
     <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "16px 16px 48px" : "28px 32px 64px" }}>
-      <div style={{ maxWidth: 1060 }}>
+      <div ref={refConteudo} style={{ maxWidth: 1060 }}>
         <div style={{ marginBottom: 24 }}>
           <h1 style={{ margin: "0 0 6px", fontFamily: FONT.display, fontSize: FS.h1, fontWeight: FW.rotulo, letterSpacing: "-0.03em", lineHeight: 1.1, color: T.text }}>
             Notificações
@@ -199,7 +205,7 @@ export default function Notificacoes() {
     // a página inteira para o lado.
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 6, minHeight: 28, padding: "4px 12px", borderRadius: R.pill,
-      fontSize: 12, fontWeight: FW.forte, lineHeight: 1.35, overflowWrap: "anywhere", maxWidth: "100%", boxSizing: "border-box",
+      fontSize: FS.meta, fontWeight: FW.forte, lineHeight: 1.35, overflowWrap: "anywhere", maxWidth: "100%", boxSizing: "border-box",
       background: ok ? TOM.sucesso.bg : neutroSeFalse ? T.bg : TOM.perigo.bg,
       border: `1px solid ${ok ? TOM.sucesso.border : neutroSeFalse ? T.border : TOM.perigo.border}`,
       color: ok ? TOM.sucesso.text : neutroSeFalse ? T.apoio : TOM.perigo.text,
@@ -209,7 +215,7 @@ export default function Notificacoes() {
     </span>
   );
 
-  const celula = (aviso: "gestao" | "revisao", dia: string, hora: number) => {
+  const celula = (aviso: "gestao" | "revisao", dia: string, hora: number, emCartao = false) => {
     const e = edicaoDe(aviso, dia, hora, false);
     const jaPassou = dia < agora.dia || (dia === agora.dia && hora <= agora.hora);
     // T.second (n7) e não T.muted (n6): o traço é TEXTO, e o cinza claro
@@ -233,28 +239,52 @@ export default function Notificacoes() {
     const temDetalhe = texto !== "—";
     const rotulo = `${aviso === "gestao" ? "Acompanhamento" : "Revisão"} · ${rotuloDia(dia)} ${hora}h`;
     const aberta = detalhe?.rotulo === rotulo;
-    const selo = { display: "inline-block", minWidth: 74, padding: "3px 8px", borderRadius: 6, fontSize: FS.small, fontWeight: FW.forte, background: bg, color: cor } as const;
+    const selo = { display: "inline-block", minWidth: 74, padding: "3px 8px", borderRadius: R.sm, fontSize: FS.small, fontWeight: FW.forte, background: bg, color: cor } as const;
+    const conteudo = temDetalhe ? (
+      // Célula clicável da grade: fica <button> nativo com o desenho do selo.
+      <button type="button" aria-expanded={aberta} aria-controls="detalhe-da-edicao"
+        aria-label={`${rotulo}: ${texto}. Ver o desfecho`}
+        onClick={() => setDetalhe(aberta ? null : { rotulo, texto, desfecho: title })}
+        style={{ ...selo, border: "none", cursor: "pointer", font: "inherit", fontSize: FS.small, fontWeight: FW.forte, outline: aberta ? `2px solid ${cor}` : undefined, outlineOffset: 1, minHeight: emCartao ? alvo(28, ponteiroGrosso || isMobile) : undefined }}>
+        {texto}
+      </button>
+    ) : (
+      <span style={selo}>{texto}</span>
+    );
+    if (emCartao) {
+      // No cartão a hora vai junto: sem o cabeçalho da grade, "Enviado"
+      // sozinho não diz de qual edição.
+      return (
+        <div key={`${aviso}-${hora}`} title={title} data-testid={`celula-${aviso}-${dia}-${hora}`}
+          style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontFamily: FONT.mono, fontSize: FS.small, fontWeight: FW.forte, color: T.second, minWidth: 26, textAlign: "right" }}>{hora}h</span>
+          {conteudo}
+        </div>
+      );
+    }
     return (
       <td key={`${aviso}-${hora}`} title={title} data-testid={`celula-${aviso}-${dia}-${hora}`}
         style={{ padding: "7px 10px", textAlign: "center", borderLeft: `1px solid ${T.border}` }}>
-        {temDetalhe ? (
-          <button type="button" aria-expanded={aberta} aria-controls="detalhe-da-edicao"
-            aria-label={`${rotulo}: ${texto}. Ver o desfecho`}
-            onClick={() => setDetalhe(aberta ? null : { rotulo, texto, desfecho: title })}
-            style={{ ...selo, border: "none", cursor: "pointer", font: "inherit", fontSize: FS.small, fontWeight: FW.forte, outline: aberta ? `2px solid ${cor}` : undefined, outlineOffset: 1 }}>
-            {texto}
-          </button>
-        ) : (
-          <span style={selo}>{texto}</span>
-        )}
+        {conteudo}
       </td>
     );
   };
 
+  // As edições manuais do dia — a mesma lista na grade e no cartão.
+  const manuais = (dia: string) =>
+    manuaisDoDia(dia).length === 0
+      ? <span style={{ color: T.second, fontSize: FS.small }}>—</span>
+      : manuaisDoDia(dia).map((e, i) => (
+          <span key={i} title={e.desfecho} style={{ display: "inline-flex", alignItems: "center", gap: 4, marginRight: 4, padding: "2px 7px", borderRadius: R.sm, fontSize: FS.micro, fontWeight: FW.forte, background: e.status === "enviado" ? TOM.sucesso.bg : TOM.perigo.bg, color: e.status === "enviado" ? TOM.sucesso.text : TOM.perigo.text, border: `1px solid ${T.border}` }}>
+            {e.aviso === "gestao" ? "Acomp." : "Revisão"} {e.hora}h
+          </span>
+        ));
+
   // Títulos de seção num degrau só (15/800), em vez de dois rótulos 11px em
   // caixa alta e um h2 de 15 para o terceiro bloco.
-  const tituloDeSecao: React.CSSProperties = { margin: 0, fontFamily: FONT.display, fontSize: 15, fontWeight: FW.rotulo, color: T.text };
-  const toque = isMobile ? 44 : 36;
+  const tituloDeSecao: React.CSSProperties = { margin: 0, fontFamily: FONT.display, fontSize: FS.strong, fontWeight: FW.rotulo, color: T.text };
+  // Alvo pelo ponteiro, não pela janela: o tablet do galpão é dedo também.
+  const toque = alvo(36, ponteiroGrosso || isMobile);
 
   // "CONFERIR DE NOVO" também com a conferência limpa ou com achados: depois
   // de corrigir uma peça, a única forma de ver a lista diminuir era F5.
@@ -272,7 +302,7 @@ export default function Notificacoes() {
         {/* ── 1 · As chaves ── */}
         <div data-testid="chaves-dos-avisos" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", padding: "12px 14px", borderRadius: R.lg, background: T.surface, border: `1px solid ${T.border}`, marginBottom: 16 }}>
           {data.servidorNoArDesde && (
-            <span title="Se esta data for ANTERIOR ao último git pull + Republicar, a produção está rodando código velho — republique." style={{ display: "inline-flex", alignItems: "center", height: 28, padding: "0 12px", borderRadius: R.pill, fontSize: 12, fontWeight: FW.forte, whiteSpace: "nowrap", background: T.bg, border: `1px solid ${T.border}`, color: T.apoio }}>
+            <span title="Se esta data for ANTERIOR ao último git pull + Republicar, a produção está rodando código velho — republique." style={{ display: "inline-flex", alignItems: "center", height: 28, padding: "0 12px", borderRadius: R.pill, fontSize: FS.meta, fontWeight: FW.forte, whiteSpace: "nowrap", background: T.bg, border: `1px solid ${T.border}`, color: T.apoio }}>
               Servidor no ar desde {new Date(data.servidorNoArDesde).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
             </span>
           )}
@@ -300,21 +330,21 @@ export default function Notificacoes() {
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
                   {usandoPadrao
                     ? c.padrao.map((email) => (
-                        <span key={email} title="Lista padrão do sistema — adicione alguém para a lista virar editável" style={{ display: "inline-flex", alignItems: "center", minHeight: 28, padding: "0 10px", borderRadius: R.pill, background: T.bg, border: `1px dashed ${T.bdark}`, color: T.apoio, fontSize: 12, fontWeight: 600, maxWidth: "100%", overflowWrap: "anywhere" }}>
+                        <span key={email} title="Lista padrão do sistema — adicione alguém para a lista virar editável" style={{ display: "inline-flex", alignItems: "center", minHeight: 28, padding: "0 10px", borderRadius: R.pill, background: T.bg, border: `1px dashed ${T.bdark}`, color: T.apoio, fontSize: FS.meta, fontWeight: FW.medio, maxWidth: "100%", overflowWrap: "anywhere" }}>
                           {email}
                         </span>
                       ))
                     : c.personalizados.map((p) => (
-                        <span key={p.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, minHeight: 28, padding: "0 2px 0 10px", borderRadius: R.pill, background: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, color: T.accentText, fontSize: 12, fontWeight: 600, maxWidth: "100%", overflowWrap: "anywhere" }}>
+                        <span key={p.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, minHeight: 28, padding: "0 2px 0 10px", borderRadius: R.pill, background: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, color: T.accentText, fontSize: FS.meta, fontWeight: FW.medio, maxWidth: "100%", overflowWrap: "anywhere" }}>
                           {p.email}
-                          {/* Alvo de 24px (44 no celular; era 17) e realce no
-                              hover — o X é a única ação destrutiva da lista. */}
+                          {/* Alvo de 24px (44 com o dedo; era 17) e realce no
+                              hover — o X é a única ação destrutiva da lista.
+                              O realce vem da classe (cobre teclado também). */}
                           <button type="button" onClick={() => remover.mutate(p.id)} disabled={remover.isPending}
                             title={`Remover ${p.email} deste aviso`} aria-label={`Remover ${p.email}`}
                             data-testid={`remover-${p.id}`}
-                            onMouseEnter={(e) => { e.currentTarget.style.background = TOM.laranja.border; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: isMobile ? 44 : 24, height: isMobile ? 44 : 24, margin: isMobile ? "-8px -8px -8px 0" : 0, flexShrink: 0, borderRadius: R.pill, border: "none", background: "transparent", color: T.accentText, cursor: remover.isPending ? "wait" : "pointer", padding: 0, transition: "background-color 0.12s ease" }}>
+                            className="ds-botao ds-botao-fantasma"
+                            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: alvo(24, ponteiroGrosso || isMobile), height: alvo(24, ponteiroGrosso || isMobile), margin: ponteiroGrosso || isMobile ? "-8px -8px -8px 0" : 0, flexShrink: 0, borderRadius: R.pill, border: "none", background: "transparent", color: T.accentText, cursor: remover.isPending ? "wait" : "pointer", padding: 0 }}>
                             <X aria-hidden="true" style={{ width: 12, height: 12 }} />
                           </button>
                         </span>
@@ -352,22 +382,21 @@ export default function Notificacoes() {
                     placeholder="nome.sobrenome@nortemkt.com"
                     aria-label={`E-mail para adicionar em ${c.titulo}`}
                     data-testid={`input-destinatario-${c.canal}`}
-                    style={{ flex: 1, minWidth: 0, height: toque, padding: "0 10px", borderRadius: R.md, border: `1px solid ${T.bdark}`, fontSize: 13, color: T.text, background: T.surface }}
+                    style={{ flex: 1, minWidth: 0, height: toque, padding: "0 10px", borderRadius: R.md, border: `1px solid ${T.bdark}`, fontSize: isMobile ? FS.lead : FS.body, color: T.text, background: T.surface }}
                   />
                   {/* Desligado PARECE desligado: antes ficava igual ao ligado e
                       o clique num campo vazio não dava retorno nenhum. */}
                   {(() => {
-                    const desligado = adicionar.isPending || !(novoEmail[c.canal] ?? "").trim();
+                    const esteAdicionando = adicionar.isPending && adicionar.variables?.canal === c.canal;
                     return (
-                      <button type="submit" disabled={desligado}
-                        aria-busy={adicionar.isPending && adicionar.variables?.canal === c.canal}
+                      <Botao type="submit" variante="primario"
+                        disabled={adicionar.isPending || !(novoEmail[c.canal] ?? "").trim()}
+                        carregando={esteAdicionando}
+                        icone={Plus}
                         data-testid={`adicionar-destinatario-${c.canal}`}
-                        style={{ display: "inline-flex", alignItems: "center", gap: 6, height: toque, padding: "0 14px", borderRadius: R.md, border: "none", background: T.dark, color: T.surface, fontSize: 12, fontWeight: FW.rotulo, cursor: desligado ? "not-allowed" : "pointer", opacity: desligado ? 0.5 : 1, whiteSpace: "nowrap", transition: "opacity 0.15s ease" }}>
-                        {adicionar.isPending && adicionar.variables?.canal === c.canal
-                          ? <Loader2 aria-hidden="true" className="motion-safe:animate-spin" style={{ width: 13, height: 13 }} />
-                          : <Plus aria-hidden="true" style={{ width: 13, height: 13 }} />}
+                        style={{ minHeight: toque, fontSize: FS.meta }}>
                         Adicionar
-                      </button>
+                      </Botao>
                     );
                   })()}
                 </form>
@@ -418,44 +447,65 @@ export default function Notificacoes() {
             );
           })}
         </div>
+        {gradeEmCartoes ? (
+          <div data-testid="grade-de-envios-cartoes" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {dias.map((dia) => (
+              <section key={dia} aria-label={`Envios de ${rotuloDia(dia)}`}
+                style={{ padding: "10px 12px", borderRadius: R.lg, background: T.surface, border: `1px solid ${T.border}`, display: "flex", flexDirection: "column", gap: 8 }}>
+                <p style={{ margin: 0, fontFamily: FONT.mono, fontSize: FS.meta, fontWeight: dia === agora.dia ? FW.rotulo : FW.corpo, color: dia === agora.dia ? T.text : T.apoio }}>
+                  {rotuloDia(dia)}{dia === agora.dia ? " · hoje" : ""}
+                </p>
+                {(["gestao", "revisao"] as const).map((aviso) => (
+                  <div key={aviso} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <span style={{ fontSize: FS.micro, fontWeight: FW.rotulo, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                      {aviso === "gestao" ? "Acompanhamento" : "Revisão"}
+                    </span>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 12px" }}>
+                      {horarios.map((h) => celula(aviso, dia, h, true))}
+                    </div>
+                  </div>
+                ))}
+                <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
+                  <span style={{ fontSize: FS.micro, fontWeight: FW.rotulo, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.06em" }}>Manuais</span>
+                  {manuais(dia)}
+                </div>
+              </section>
+            ))}
+          </div>
+        ) : (
         <div style={{ borderRadius: R.lg, background: T.surface, border: `1px solid ${T.border}`, overflowX: "auto" }}>
           <table data-testid="grade-de-envios" style={{ width: "100%", borderCollapse: "collapse", minWidth: 760 }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${T.border}` }}>
-                <th rowSpan={2} style={{ padding: "8px 12px", fontSize: 11, fontWeight: FW.rotulo, color: T.apoio, textAlign: "left", textTransform: "uppercase", letterSpacing: "0.06em" }}>Dia</th>
-                <th colSpan={horarios.length} style={{ padding: "8px 10px", fontSize: 11, fontWeight: FW.rotulo, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.06em", borderLeft: `1px solid ${T.border}` }}>Acompanhamento</th>
-                <th colSpan={horarios.length} style={{ padding: "8px 10px", fontSize: 11, fontWeight: FW.rotulo, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.06em", borderLeft: `1px solid ${T.border}` }}>Revisão</th>
-                <th rowSpan={2} style={{ padding: "8px 12px", fontSize: 11, fontWeight: FW.rotulo, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.06em", borderLeft: `1px solid ${T.border}` }}>Manuais</th>
+                <th rowSpan={2} style={{ padding: "8px 12px", fontSize: FS.small, fontWeight: FW.rotulo, color: T.apoio, textAlign: "left", textTransform: "uppercase", letterSpacing: "0.06em" }}>Dia</th>
+                <th colSpan={horarios.length} style={{ padding: "8px 10px", fontSize: FS.small, fontWeight: FW.rotulo, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.06em", borderLeft: `1px solid ${T.border}` }}>Acompanhamento</th>
+                <th colSpan={horarios.length} style={{ padding: "8px 10px", fontSize: FS.small, fontWeight: FW.rotulo, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.06em", borderLeft: `1px solid ${T.border}` }}>Revisão</th>
+                <th rowSpan={2} style={{ padding: "8px 12px", fontSize: FS.small, fontWeight: FW.rotulo, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.06em", borderLeft: `1px solid ${T.border}` }}>Manuais</th>
               </tr>
               <tr style={{ borderBottom: `1px solid ${T.border}` }}>
                 {(["gestao", "revisao"] as const).flatMap((aviso) =>
                   horarios.map((h) => (
-                    <th key={`${aviso}-${h}`} style={{ padding: "5px 10px", fontSize: 11, fontWeight: FW.forte, color: T.second, borderLeft: `1px solid ${T.border}` }}>{h}h</th>
+                    <th key={`${aviso}-${h}`} style={{ padding: "5px 10px", fontSize: FS.small, fontWeight: FW.forte, color: T.second, borderLeft: `1px solid ${T.border}` }}>{h}h</th>
                   )))}
               </tr>
             </thead>
             <tbody>
               {dias.map((dia) => (
                 <tr key={dia} style={{ borderBottom: `1px solid ${T.border}` }}>
-                  <td style={{ padding: "7px 12px", fontFamily: FONT.mono, fontSize: 12, fontWeight: dia === agora.dia ? 800 : 500, color: dia === agora.dia ? T.text : T.apoio, whiteSpace: "nowrap" }}>
+                  <td style={{ padding: "7px 12px", fontFamily: FONT.mono, fontSize: FS.meta, fontWeight: dia === agora.dia ? FW.rotulo : FW.corpo, color: dia === agora.dia ? T.text : T.apoio, whiteSpace: "nowrap" }}>
                     {rotuloDia(dia)}{dia === agora.dia ? " · hoje" : ""}
                   </td>
                   {horarios.map((h) => celula("gestao", dia, h))}
                   {horarios.map((h) => celula("revisao", dia, h))}
                   <td style={{ padding: "7px 12px", borderLeft: `1px solid ${T.border}`, whiteSpace: "nowrap" }}>
-                    {manuaisDoDia(dia).length === 0
-                      ? <span style={{ color: T.second, fontSize: FS.small }}>—</span>
-                      : manuaisDoDia(dia).map((e, i) => (
-                          <span key={i} title={e.desfecho} style={{ display: "inline-flex", alignItems: "center", gap: 4, marginRight: 4, padding: "2px 7px", borderRadius: 6, fontSize: FS.micro, fontWeight: FW.forte, background: e.status === "enviado" ? TOM.sucesso.bg : TOM.perigo.bg, color: e.status === "enviado" ? TOM.sucesso.text : TOM.perigo.text, border: `1px solid ${T.border}` }}>
-                            {e.aviso === "gestao" ? "Acomp." : "Revisão"} {e.hora}h
-                          </span>
-                        ))}
+                    {manuais(dia)}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        )}
         {/* O DESFECHO da edição clicada. Região viva: quem clica pelo teclado
             ouve o texto sem precisar achar o painel. */}
         <div id="detalhe-da-edicao" aria-live="polite">
@@ -465,6 +515,7 @@ export default function Notificacoes() {
                 <strong style={{ color: T.text }}>{detalhe.rotulo} — {detalhe.texto}.</strong> {detalhe.desfecho}
               </p>
               <button type="button" onClick={() => setDetalhe(null)} aria-label="Fechar o desfecho"
+                className="ds-botao ds-botao-fantasma"
                 style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: toque, height: toque, flexShrink: 0, border: "none", borderRadius: R.md, background: "transparent", color: T.apoio, cursor: "pointer" }}>
                 <X aria-hidden="true" style={{ width: 14, height: 14 }} />
               </button>
@@ -476,7 +527,7 @@ export default function Notificacoes() {
         <p data-testid="legenda-da-grade" style={{ margin: "8px 0 0", fontSize: FS.small, lineHeight: 1.55, color: T.apoio }}>
           <strong>Enviado</strong>: saiu para a lista · <strong>Fila vazia</strong>: não havia o que avisar, nada enviado (normal) · <strong>Simulação</strong>: montado e não enviado · <strong>Desligado</strong>/<strong>Falhou</strong>: não saiu — o desfecho diz o motivo · <strong>Não rodou</strong>: nenhum registro. Clique numa célula para ver o desfecho.
         </p>
-        <p style={{ margin: "8px 0 0", fontSize: 11, color: T.second, display: "flex", alignItems: "center", gap: 5 }}>
+        <p style={{ margin: "8px 0 0", fontSize: FS.small, color: T.second, display: "flex", alignItems: "center", gap: 5 }}>
           <MinusCircle aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0 }} />
           "Não rodou" antes de 27/08 pode ser só a versão antiga, que não registrava edição de fila vazia — desde 27/08, toda edição deixa rastro.
         </p>
@@ -495,14 +546,14 @@ export default function Notificacoes() {
         </p>
 
         {saudeCarregando && (
-          <p role="status" style={{ display: "flex", alignItems: "center", gap: 8, margin: 0, padding: "12px 14px", borderRadius: R.lg, background: T.surface, border: `1px solid ${T.border}`, fontSize: 13, color: T.apoio }}>
+          <p role="status" style={{ display: "flex", alignItems: "center", gap: 8, margin: 0, padding: "12px 14px", borderRadius: R.lg, background: T.surface, border: `1px solid ${T.border}`, fontSize: FS.body, color: T.apoio }}>
             <Loader2 aria-hidden="true" className="motion-safe:animate-spin" style={{ width: 14, height: 14 }} />
             Conferindo…
           </p>
         )}
 
         {saudeFalhou && (
-          <div data-testid="saude-falhou" role="alert" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "12px 14px", borderRadius: R.lg, background: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}`, fontSize: 13, color: TOM.perigo.text }}>
+          <div data-testid="saude-falhou" role="alert" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "12px 14px", borderRadius: R.lg, background: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}`, fontSize: FS.body, color: TOM.perigo.text }}>
             <span style={{ flex: "1 1 260px" }}>
               Não foi possível conferir agora. Enquanto isso, estas verificações estão sem vigilância.
             </span>
@@ -517,8 +568,8 @@ export default function Notificacoes() {
         )}
 
         {saude && saude.achados.length === 0 && (
-          <div data-testid="saude-limpa" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "12px 14px", borderRadius: R.lg, background: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}`, fontSize: 13, color: TOM.sucesso.text }}>
-            <CheckCircle2 style={{ width: 15, height: 15, flexShrink: 0 }} />
+          <div data-testid="saude-limpa" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "12px 14px", borderRadius: R.lg, background: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}`, fontSize: FS.body, color: TOM.sucesso.text }}>
+            <CheckCircle2 aria-hidden="true" style={{ width: 15, height: 15, flexShrink: 0 }} />
             <span style={{ flex: "1 1 220px" }}>Nenhuma contradição encontrada — {saude.verificadas} verificações.</span>
             {botaoReconferir}
           </div>
@@ -547,14 +598,14 @@ export default function Notificacoes() {
                     <span style={{ fontSize: FS.micro, fontWeight: FW.rotulo, letterSpacing: "0.06em", textTransform: "uppercase", color: cor.texto }}>{cor.rotulo}</span>
                     <strong style={{ fontSize: FS.read, color: T.text }}>{a.titulo}</strong>
                     {a.quantas > 0 && (
-                      <span style={{ fontSize: 12, fontWeight: FW.forte, color: cor.texto }}>
+                      <span style={{ fontSize: FS.meta, fontWeight: FW.forte, color: cor.texto }}>
                         · {a.quantas} {a.quantas === 1 ? "peça" : "peças"}
                       </span>
                     )}
                   </div>
                   <p style={{ margin: "5px 0 0", fontSize: FS.meta, lineHeight: 1.5, color: cor.texto }}>{a.explicacao}</p>
                   {a.amostra.length > 0 && (
-                    <p style={{ margin: "6px 0 0", fontSize: 12, color: T.apoio, fontFamily: "ui-monospace, monospace" }}>
+                    <p style={{ margin: "6px 0 0", fontSize: FS.meta, color: T.apoio, fontFamily: FONT.mono, overflowWrap: "anywhere" }}>
                       {a.amostra.join("  ")}{a.quantas > a.amostra.length ? `  …e mais ${a.quantas - a.amostra.length}` : ""}
                     </p>
                   )}

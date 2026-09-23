@@ -136,7 +136,8 @@ describe("o bloco na tela", () => {
 
   it("o Admin ganha o tratamento vermelho e a frase do poder sem restrição", () => {
     expect(TELA).toContain('const ehAdmin = field.value === "admin";');
-    expect(TELA).toContain('backgroundColor: ehAdmin ? "#fef2f2" : "#fafaf9"');
+    // Os mesmos tons, agora pelos tokens (perigo.bg = #fef2f2, T.bg = n1 #fafaf9).
+    expect(TELA).toContain("backgroundColor: ehAdmin ? TOM.perigo.bg : T.bg");
     expect(TELA).toContain("Perfil sem restrição: pode excluir dados e conceder acesso a outras pessoas.");
   });
 

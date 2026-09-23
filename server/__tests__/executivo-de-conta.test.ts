@@ -111,6 +111,9 @@ describe("a aplicação pela produção é explícita e protegida", () => {
     expect(TELA).toContain("Propostas claras");
     expect(TELA).toContain("Preservados para decisão manual");
     expect(TELA).toContain("Sem sinal histórico");
-    expect(TELA).toContain("window.confirm(");
+    // A confirmação antes de aplicar continua — agora no diálogo do app
+    // (useConfirmar), não na caixa do sistema que trava a thread.
+    expect(TELA).toContain("await confirmar({");
+    expect(TELA).not.toContain("window.confirm(");
   });
 });

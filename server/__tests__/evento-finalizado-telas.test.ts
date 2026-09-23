@@ -72,13 +72,20 @@ function handlerDaRota(assinatura: string): string {
 const rotaBarrada = (assinatura: string): boolean =>
   /barraEventoFinalizado\(|contadorDeBloqueio\(\)|erroEventoFechado\(|corpoEventoFechado\(/.test(handlerDaRota(assinatura));
 
-/** O JSX de um <button> identificado por um trecho do seu `data-testid`. */
+/**
+ * O JSX de um botão identificado por um trecho do seu `data-testid` — um
+ * <button> cru ou um <Botao> do design system (a migração trocou vários; a
+ * abertura mais próxima antes da marca decide qual tag fecha o bloco).
+ */
 function botao(fonte: string, marca: string): string {
   const i = fonte.indexOf(marca);
   if (i < 0) throw new Error(`botão não encontrado: ${marca}`);
-  const ini = fonte.lastIndexOf("<button", i);
-  const fim = fonte.indexOf("</button>", i);
-  if (ini < 0 || fim < 0) throw new Error(`<button> mal delimitado: ${marca}`);
+  const iButton = fonte.lastIndexOf("<button", i);
+  const iBotao = fonte.lastIndexOf("<Botao", i);
+  const ehBotao = iBotao > iButton;
+  const ini = ehBotao ? iBotao : iButton;
+  const fim = fonte.indexOf(ehBotao ? "</Botao>" : "</button>", i);
+  if (ini < 0 || fim < 0) throw new Error(`botão mal delimitado: ${marca}`);
   return fonte.slice(ini, fim);
 }
 

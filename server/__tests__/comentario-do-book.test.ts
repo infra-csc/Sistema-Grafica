@@ -61,8 +61,10 @@ describe("os dois pontos de publicação usam a MESMA caixinha", () => {
     expect(ARTE).toContain('from "@/components/comentario-do-book"');
     expect(ARTE).toContain("const bookComentarioFalta = !!existingBookUrl && !comentarioDoBookValido(true, bookComentario);");
     expect(ARTE).toContain("comentario: bookComentario.trim() || undefined,");
-    // a trava é do botão (disabled), com o porquê no title
-    expect(ARTE).toContain("bookComentarioFalta || saveBookMutation.isPending}");
+    // a trava é do botão (disabled — o <Botao> também trava enquanto salva,
+    // via `carregando`), com o porquê no title
+    expect(ARTE).toContain("disabled={!bookFileUrl || bookSelectedIds.size === 0 || bookComentarioFalta}");
+    expect(ARTE).toContain("carregando={saveBookMutation.isPending}");
     expect(ARTE).toContain("escreva o que mudou nesta versão");
   });
 

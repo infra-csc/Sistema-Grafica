@@ -169,11 +169,13 @@ describe("6 · o modal aplica a MESMA imagem que mostra", () => {
 describe("7 · a Arte no celular", () => {
   const arte = ler("client/src/pages/arte.tsx");
 
-  it("as datas da faixa do evento abrem num botão 'i' com popover (44px no celular)", () => {
+  it("as datas da faixa do evento abrem num botão 'i' com popover (44px no toque)", () => {
     expect(arte).toContain('data-testid="button-datas-da-faixa"');
     expect(arte).toContain('data-testid="popover-datas-da-faixa"');
     expect(arte).toContain("aria-label={`Datas de ${bloco.eventName}`}");
-    expect(arte).toContain("const lado = isMobile ? 44 : 28;");
+    // alvo(): 44 com ponteiro grosso (dedo = usePonteiroGrosso() || isMobile).
+    expect(arte).toContain("const lado = alvo(28, dedo);");
+    expect(arte).toContain("const dedo = usePonteiroGrosso() || isMobile;");
     // A saída/entrega, o evento e os marcos da fase estão no popover.
     const trecho = arte.slice(arte.indexOf("const datas: Array<[string, string]> = [];"), arte.indexOf('data-testid="popover-datas-da-faixa"'));
     for (const t of ['"Entrega do material"', '"Saída"', '"Evento"', "ARTE_MARCOS_FAIXA"]) expect(trecho).toContain(t);
@@ -181,7 +183,7 @@ describe("7 · a Arte no celular", () => {
 
   it("Prazo, Prioridade, Thumb e Arquivo final: cada botão com 44×44 no celular", () => {
     const seg = arte.slice(arte.indexOf("const segmentos = (<>"), arte.indexOf("// Ordenação — a regra de negócio inteira"));
-    expect(seg.split("minHeight: isMobile ? 44 : undefined, minWidth: isMobile ? 44 : undefined").length - 1).toBe(3);
+    expect(seg.split("minHeight: dedo ? ALVO_TOQUE : undefined, minWidth: dedo ? ALVO_TOQUE : undefined").length - 1).toBe(3);
     expect(seg).not.toContain("margin: '3px 0', padding: '0 10px'");
     expect(seg.split("height: isMobile ? 'auto' : 36").length - 1).toBe(3);
   });

@@ -108,7 +108,8 @@ describe("5. o motivo da recusa ficou legível", () => {
 
 describe("6. os alvos da aba", () => {
   it("as pílulas de patrocinador têm 36px", () => {
-    expect(arte).toContain("height: 36, padding: '0 13px', borderRadius: 999");
+    // 36 no mouse, 44 no dedo (alvo()).
+    expect(arte).toContain("height: alvo(36, dedo), padding: '0 13px', borderRadius: 999");
   });
 
   it("e o card não tem mais sombra vermelha dupla", () => {
@@ -127,13 +128,17 @@ describe("7. o que a segunda passada fechou", () => {
   it("o erro de carga é uma caixa, não um vazio", () => {
     // Sem contorno, "não consegui buscar" lia como "não há nada" — e a
     // diferença entre as duas é a diferença entre seguir o dia e recarregar.
-    expect(arte).toContain("background: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 12 }} data-testid={testId}");
+    // Agora é a <EstadoErro> do design system (caixa com contorno, role=alert).
+    const erro = arte.slice(arte.indexOf("const renderErroDeCarga"), arte.indexOf("const renderCorrecaoTab"));
+    expect(erro).toContain("<div data-testid={testId}");
+    expect(erro).toContain("<EstadoErro");
+    expect(erro).toContain("aoTentarDeNovo={tentarDeNovo}");
   });
 
   it("e o círculo do upload troca sombra por hairline", () => {
     // Escopo: a MESMA sombra e usada por outro modal fora deste handoff, entao
     // a asserção é sobre o círculo, não sobre o valor solto no arquivo.
-    expect(arte).toContain("borderRadius: '50%', backgroundColor: '#fff', border: '1px solid #ebe8e3'");
+    expect(arte).toContain("borderRadius: '50%', backgroundColor: T.surface, border: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 6");
   });
 });
 
@@ -143,18 +148,26 @@ describe("8. quem encolhe primeiro no cabeçalho do card", () => {
   // "PLACAS DIVERSAS › P… — Cheque Premiação R…" — o nome da peça reduzido a
   // uma letra enquanto o rótulo do grupo aparecia inteiro.
   //
-  // A prioridade agora é peso de encolhimento: descrição cede primeiro, grupo
-  // cede depois, tipo não cede.
-  it("o tipo da peça não cede espaço", () => {
-    expect(arte).toContain("letterSpacing: '-0.02em', flexShrink: 0, maxWidth: '100%'");
+  // Migração para o design system (23/09): tipo e descrição deixaram de
+  // truncar numa linha só — quebram em até DUAS linhas (o texto inteiro no
+  // `title` não existe para quem toca). O grupo, rótulo curto, fica numa
+  // linha própria acima e é o único que ainda pode ganhar reticência.
+  const cab = arte.slice(arte.indexOf('<span title={item.type}'), arte.indexOf('<SeloKit peca={item} style={{ flexShrink: 0 }} />'));
+  const duasLinhas = "display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical'";
+
+  it("o tipo da peça não vira reticência numa linha só", () => {
+    const tipo = cab.slice(0, cab.indexOf("{item.type}</span>"));
+    expect(tipo).toContain(duasLinhas);
+    expect(tipo).not.toContain("whiteSpace: 'nowrap'");
   });
 
-  it("a descrição é a primeira a ceder", () => {
-    expect(arte).toContain("fontSize: 12, color: '#57534e', flexShrink: 999");
+  it("a descrição também quebra em duas linhas", () => {
+    const desc = cab.slice(cab.indexOf('<span title={item.description}'), cab.indexOf("{item.description}</span>"));
+    expect(desc).toContain(duasLinhas);
+    expect(desc).not.toContain("whiteSpace: 'nowrap'");
   });
 
   it("e o grupo deixou de ser o único protegido", () => {
-    expect(arte).toContain("fontWeight: 600, flexShrink: 1, minWidth: 0, maxWidth: 140");
     expect(codigo).not.toContain("fontWeight: 600, flexShrink: 0 }}>{groupLabel}");
   });
 

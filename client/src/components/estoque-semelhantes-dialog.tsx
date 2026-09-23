@@ -29,7 +29,10 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { miniatura } from "@/lib/miniatura";
 import { conditionMeta } from "@/lib/inventory-meta";
-import { T } from "@/lib/theme";
+import { T, N, TOM, FS, R, FW } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { Selo } from "@/components/ui/selo";
+import { EstadoErro, EstadoVazio, Esqueleto } from "@/components/ui/estados";
 
 type Lote = {
   chave: string;
@@ -81,16 +84,23 @@ const SITUACAO: Record<string, string> = {
   DESCARTADO: "Descartada",
 };
 
-const TOM: Record<Disponibilidade, { cor: string; fundo: string; borda: string }> = {
-  disponivel:    { cor: "#047857", fundo: "#ecfdf5", borda: "#a7f3d0" },
-  chega_a_tempo: { cor: "#1d4ed8", fundo: "#eff6ff", borda: "#bfdbfe" },
-  falta_triagem: { cor: "#b45309", fundo: "#fffbeb", borda: "#fde68a" },
-  indisponivel:  { cor: "#57534e", fundo: "#f5f5f4", borda: "#e7e5e4" },
+const TOM_DA_DISPONIBILIDADE: Record<Disponibilidade, { cor: string; fundo: string; borda: string }> = {
+  disponivel:    { cor: TOM.esmeralda.text, fundo: TOM.esmeralda.bg, borda: TOM.esmeralda.border },
+  chega_a_tempo: { cor: TOM.info.text, fundo: TOM.info.bg, borda: TOM.info.border },
+  falta_triagem: { cor: TOM.alerta.text, fundo: TOM.alerta.bg, borda: TOM.alerta.border },
+  indisponivel:  { cor: T.apoio, fundo: N.n2, borda: T.border },
 };
 
+// A relação de patrocínio usa a TINTA CHEIA (fundo 100, texto 800) de
+// propósito: ela fica colada nos selos da condição e da disponibilidade, que
+// são a tinta clara (50/700) das mesmas famílias — "Mesmo patrocinador" verde
+// ao lado de "No galpão" verde, "Diferente" vermelho ao lado de "Sucata"
+// vermelho. Com o mesmo token os selos virariam um só. Por isso os três tons
+// de cor ficam cravados (o TOM não tem o degrau 100/800); o neutro já existe
+// na escada.
 const TOM_DA_RELACAO: Record<RelacaoDePatrocinio, { cor: string; fundo: string }> = {
   identica:  { cor: "#065f46", fundo: "#d1fae5" },
-  generica:  { cor: "#44403c", fundo: "#e7e5e4" },
+  generica:  { cor: T.strong, fundo: T.border },
   a_definir: { cor: "#92400e", fundo: "#fef3c7" },
   diferente: { cor: "#991b1b", fundo: "#fee2e2" },
 };
@@ -117,19 +127,21 @@ export function escolherAtivos(ativos: Array<{ id: string; quantidade: number }>
 function Miniatura({ url, tamanho = 56 }: { url: string | null; tamanho?: number }) {
   const [falhou, setFalhou] = useState(false);
   return (
-    <div style={{ width: tamanho, height: tamanho, borderRadius: 8, overflow: "hidden", background: "#f5f5f4", border: "1px solid #e7e5e4", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div style={{ width: tamanho, height: tamanho, borderRadius: R.md, overflow: "hidden", background: N.n2, border: `1px solid ${T.border}`, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
       {ehImagem(url) && !falhou
         ? <img src={miniatura(url!)} alt="" loading="lazy" decoding="async" onError={() => setFalhou(true)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-        : <Package size={Math.round(tamanho / 3)} color="#78716c" aria-hidden="true" />}
+        : <Package size={Math.round(tamanho / 3)} color={T.second} aria-hidden="true" />}
     </div>
   );
 }
 
+/** Selo sem borda aparente (borda = fundo), com reticências no nome longo. */
 function Chip({ cor, fundo, title, children }: { cor: string; fundo: string; title?: string; children: React.ReactNode }) {
   return (
-    <span title={title} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 999, background: fundo, color: cor, fontSize: 11, fontWeight: 700, lineHeight: 1.5, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+    <Selo title={title} cores={{ bg: fundo, text: cor, border: fundo }}
+      style={{ gap: 4, padding: "2px 8px", lineHeight: 1.5, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis" }}>
       {children}
-    </span>
+    </Selo>
   );
 }
 
@@ -137,18 +149,18 @@ function LoteLinha({ lote, indice, nomeDe, maximo, quantidade, onQuantidade, onR
   lote: Lote; indice: number; nomeDe: (id: string) => string; maximo: number; quantidade: number;
   onQuantidade: (n: number) => void; onReservar: () => void; reservando: boolean; podeAgir: boolean;
 }) {
-  const tom = TOM[lote.disponibilidade];
+  const tom = TOM_DA_DISPONIBILIDADE[lote.disponibilidade];
   const cond = conditionMeta(lote.condicao);
   const rel = TOM_DA_RELACAO[lote.relacao];
   const patrocinadores = lote.sponsorIds.map(nomeDe).join(", ");
   const situacao = lote.disponibilidade === "disponivel" ? (SITUACAO[lote.situacao] ?? lote.situacao) : lote.motivo;
   return (
-    <div data-testid={`lote-estoque-${indice}`} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, padding: "12px 14px", background: "#fff", border: `1px solid ${tom.borda}`, borderRadius: 12 }}>
+    <div data-testid={`lote-estoque-${indice}`} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, padding: "12px 14px", background: T.surface, border: `1px solid ${tom.borda}`, borderRadius: R.lg }}>
       <Miniatura url={lote.thumb} />
       <div style={{ flex: "1 1 240px", minWidth: 0, display: "flex", flexDirection: "column", gap: 6 }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: "#1c1917", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <div style={{ fontSize: FS.body, fontWeight: FW.rotulo, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {lote.origem.displayId ?? "—"}
-          <span style={{ fontWeight: 600, color: "#57534e" }}>
+          <span style={{ fontWeight: FW.medio, color: T.apoio }}>
             {" · "}{lote.origem.eventName ?? "evento"}{lote.origem.eventInicio ? ` · ${diaEMes(lote.origem.eventInicio)}` : ""}
           </span>
         </div>
@@ -160,35 +172,39 @@ function LoteLinha({ lote, indice, nomeDe, maximo, quantidade, onQuantidade, onR
           <Chip cor={tom.cor} fundo={tom.fundo}>{situacao}</Chip>
         </div>
         {lote.aviso && (
-          <div style={{ display: "flex", gap: 6, fontSize: 12, color: "#92400e", lineHeight: 1.4 }}>
+          <div style={{ display: "flex", gap: 6, fontSize: FS.meta, color: TOM.alerta.text, lineHeight: 1.4 }}>
             <AlertTriangle size={13} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />
             <span>{lote.aviso}</span>
           </div>
         )}
       </div>
       <div style={{ marginLeft: "auto", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-        <span style={{ fontSize: 20, fontWeight: 900, color: "#1c1917", fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>
-          {lote.quantidade}<span style={{ fontSize: 11, fontWeight: 700, color: T.second }}> un.</span>
+        <span style={{ fontSize: 20, fontWeight: 900, color: T.text, fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>
+          {lote.quantidade}<span style={{ fontSize: FS.small, fontWeight: FW.forte, color: T.second }}> un.</span>
         </span>
         {podeAgir && maximo > 0 && (
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             {/* Stepper e Reservar com 44px: a busca também abre no celular
-                (Detalhe do Evento), e 30px ficavam abaixo da ponta do dedo. */}
-            <div style={{ display: "inline-flex", alignItems: "center", border: "1px solid #d6d3d1", borderRadius: 8, overflow: "hidden", height: 44 }}>
+                (Detalhe do Evento), e 30px ficavam abaixo da ponta do dedo.
+                Os dois lados do stepper são peças de um controle só: ficam
+                <button> nativos, com o realce da .ds-botao. */}
+            <div style={{ display: "inline-flex", alignItems: "center", border: `1px solid ${T.bdark}`, borderRadius: R.md, overflow: "hidden", height: 44 }}>
               <button type="button" aria-label="Uma a menos" disabled={quantidade <= 1} onClick={() => onQuantidade(quantidade - 1)}
-                style={{ width: 44, height: "100%", border: "none", background: "#fafaf9", cursor: quantidade <= 1 ? "not-allowed" : "pointer", color: "#44403c", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                className="ds-botao"
+                style={{ width: 44, height: "100%", border: "none", background: T.bg, cursor: quantidade <= 1 ? "not-allowed" : "pointer", color: T.strong, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Minus size={13} />
               </button>
-              <span aria-live="polite" style={{ minWidth: 28, textAlign: "center", fontSize: 13, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>{quantidade}</span>
+              <span aria-live="polite" style={{ minWidth: 28, textAlign: "center", fontSize: FS.body, fontWeight: FW.rotulo, fontVariantNumeric: "tabular-nums" }}>{quantidade}</span>
               <button type="button" aria-label="Uma a mais" disabled={quantidade >= maximo} onClick={() => onQuantidade(quantidade + 1)}
-                style={{ width: 44, height: "100%", border: "none", background: "#fafaf9", cursor: quantidade >= maximo ? "not-allowed" : "pointer", color: "#44403c", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                className="ds-botao"
+                style={{ width: 44, height: "100%", border: "none", background: T.bg, cursor: quantidade >= maximo ? "not-allowed" : "pointer", color: T.strong, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Plus size={13} />
               </button>
             </div>
-            <button type="button" data-testid={`button-reservar-lote-${indice}`} disabled={reservando} onClick={onReservar}
-              style={{ height: 44, padding: "0 16px", borderRadius: 8, border: "none", background: "#1c1917", color: "#fff", fontWeight: 700, fontSize: 13, cursor: reservando ? "wait" : "pointer", opacity: reservando ? 0.6 : 1, whiteSpace: "nowrap" }}>
+            <Botao variante="primario" tamanho="toque" data-testid={`button-reservar-lote-${indice}`} carregando={reservando} onClick={onReservar}
+              style={{ fontSize: FS.body }}>
               {reservando ? "Reservando…" : `Reservar ${quantidade} un.`}
-            </button>
+            </Botao>
           </div>
         )}
       </div>
@@ -222,7 +238,7 @@ export function EstoqueSemelhantesDialog({ item, podeReservar, onClose }: {
     onSuccess: (r: { reservadas: number }) => {
       // "Posso desfazer?" — pode: o Liberar fica na lista logo acima. Dizer
       // isso no toast tira o medo do toque.
-      toast({ title: `${r.reservadas} un. reservada(s) do estoque`, description: "A peça fica segura para este evento. Mudou de ideia? Use Liberar em “Reservadas para esta peça”." });
+      toast({ title: `${r.reservadas} un. reservada(s) do estoque`, description: "A peça fica segura para este evento. Mudou de ideia? Use Liberar em “Reservadas para esta peça”.", variant: "success" });
       setEscolha({});
       atualizar();
     },
@@ -234,7 +250,7 @@ export function EstoqueSemelhantesDialog({ item, podeReservar, onClose }: {
 
   const liberar = useMutation({
     mutationFn: async (reservaId: string) => (await apiRequest("DELETE", `/api/items/${item!.id}/reservas/${reservaId}`)).json(),
-    onSuccess: () => { toast({ title: "Reserva liberada", description: "A peça voltou a ficar disponível no estoque." }); atualizar(); },
+    onSuccess: () => { toast({ title: "Reserva liberada", description: "A peça voltou a ficar disponível no estoque.", variant: "success" }); atualizar(); },
     // Recarrega também no erro: o 409 mais comum é "já saiu no caminhão" ou
     // "reserva não encontrada" (outra aba liberou) — a lista precisa mostrar isso.
     onError: (e: Error) => { toast({ title: "Não deu para liberar", description: e.message, variant: "destructive" }); atualizar(); },
@@ -259,7 +275,7 @@ export function EstoqueSemelhantesDialog({ item, podeReservar, onClose }: {
         className={`p-0 gap-0 border-0 ${HIDE_NATIVE_CLOSE}`}
         // Casca da casa: teto em dvh (no celular a barra do navegador cobria o
         // rodapé com o 100vh de antes), raio e sombra iguais aos outros modais.
-        style={{ ...modalSurface(780), backgroundColor: "#fafaf9" }}
+        style={{ ...modalSurface(780), backgroundColor: T.bg }}
       >
         <DialogTitle className="sr-only">Buscar no estoque</DialogTitle>
         <DialogDescription className="sr-only">
@@ -271,7 +287,7 @@ export function EstoqueSemelhantesDialog({ item, podeReservar, onClose }: {
             subtítulo diz qual peça se busca e a régua da busca. */}
         <ModalHeader
           icon={Warehouse}
-          tint="#c2410c"
+          tint={T.accentText}
           title="Buscar no estoque"
           subtitle={peca
             ? `${peca.displayId ?? "Peça"} · ${peca.type} · ${medida(peca.largura, peca.altura)} · ${peca.quantity} un. — mesmo tipo e medida; mesmo patrocinador primeiro.`
@@ -280,13 +296,13 @@ export function EstoqueSemelhantesDialog({ item, podeReservar, onClose }: {
         />
 
         {peca && (
-          <div style={{ padding: "10px 20px", background: "#fff", borderBottom: "1px solid #e7e5e4", flexShrink: 0 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontWeight: 700, color: "#44403c", marginBottom: 6 }}>
+          <div style={{ padding: "10px 20px", background: T.surface, borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: FS.meta, fontWeight: FW.forte, color: T.strong, marginBottom: 6 }}>
               <span data-testid="reservadas-da-peca">Reservadas {reservadasUn} de {peca.quantity} un.</span>
-              <span style={{ color: falta === 0 ? "#047857" : "#78716c" }}>{falta === 0 ? "Quantidade coberta" : `Faltam ${falta}`}</span>
+              <span style={{ color: falta === 0 ? TOM.esmeralda.text : T.second }}>{falta === 0 ? "Quantidade coberta" : `Faltam ${falta}`}</span>
             </div>
-            <div style={{ height: 6, borderRadius: 3, background: "#e7e5e4", overflow: "hidden" }}>
-              <div style={{ width: `${Math.min(100, (reservadasUn / Math.max(1, peca.quantity)) * 100)}%`, height: "100%", background: "#047857", transition: "width 0.2s" }} />
+            <div style={{ height: 6, borderRadius: 3, background: T.border, overflow: "hidden" }}>
+              <div style={{ width: `${Math.min(100, (reservadasUn / Math.max(1, peca.quantity)) * 100)}%`, height: "100%", background: TOM.esmeralda.text, transition: "width 0.2s" }} />
             </div>
           </div>
         )}
@@ -294,71 +310,58 @@ export function EstoqueSemelhantesDialog({ item, podeReservar, onClose }: {
         <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", padding: "16px 20px 20px", display: "flex", flexDirection: "column", gap: 18 }}>
           {/* Carregando: o formato dos lotes em esqueleto, e não uma linha de
               texto que some e empurra tudo para baixo quando a lista chega. */}
-          {isLoading && (
-            <div aria-busy="true" aria-label="Procurando no estoque" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {[0, 1, 2].map((i) => (
-                <div key={i} className="animate-pulse" style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: "#fff", border: "1px solid #e7e5e4", borderRadius: 12 }}>
-                  <div style={{ width: 56, height: 56, borderRadius: 8, background: "#e7e5e4", flexShrink: 0 }} />
-                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-                    <div style={{ width: "55%", height: 12, borderRadius: 6, background: "#e7e5e4" }} />
-                    <div style={{ width: "80%", height: 18, borderRadius: 999, background: "#f5f5f4" }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          {isLoading && <Esqueleto variante="lista" linhas={3} rotulo="Procurando no estoque" />}
           {isError && (
-            <div role="alert" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "12px 14px", borderRadius: 12, background: "#fef2f2", border: "1px solid #fecaca", fontSize: 13, color: "#b91c1c" }}>
-              <span>Não foi possível consultar o estoque.</span>
-              <button type="button" onClick={() => refetch()} style={{ minHeight: 44, padding: "0 16px", borderRadius: 8, border: "1px solid #fecaca", background: "#fff", color: "#1c1917", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Tentar de novo</button>
-            </div>
+            <EstadoErro compacto titulo="Não foi possível consultar o estoque." aoTentarDeNovo={() => refetch()} />
           )}
 
           {data?.semMedida && (
-            <p style={{ margin: 0, padding: "10px 12px", borderRadius: 10, background: "#fffbeb", border: "1px solid #fde68a", fontSize: 12.5, color: "#92400e" }}>
+            <p style={{ margin: 0, padding: "10px 12px", borderRadius: R.md, background: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, fontSize: FS.meta, color: TOM.alerta.text }}>
               Esta peça não tem largura e altura. A busca compara pela medida — preencha as dimensões da peça para ver o que tem no estoque.
             </p>
           )}
           {data?.caminhaoJaSaiu && (
-            <p style={{ margin: 0, padding: "10px 12px", borderRadius: 10, background: "#f5f5f4", border: "1px solid #e7e5e4", fontSize: 12.5, color: "#44403c" }}>
+            <p style={{ margin: 0, padding: "10px 12px", borderRadius: R.md, background: N.n2, border: `1px solid ${T.border}`, fontSize: FS.meta, color: T.strong }}>
               O caminhão deste evento já saiu — dá para consultar, mas não para reservar.
             </p>
           )}
           {data?.motivoSemReserva && !data.caminhaoJaSaiu && (
-            <p data-testid="motivo-sem-reserva" style={{ margin: 0, padding: "10px 12px", borderRadius: 10, background: "#f5f5f4", border: "1px solid #e7e5e4", fontSize: 12.5, color: "#44403c" }}>
+            <p data-testid="motivo-sem-reserva" style={{ margin: 0, padding: "10px 12px", borderRadius: R.md, background: N.n2, border: `1px solid ${T.border}`, fontSize: FS.meta, color: T.strong }}>
               {data.motivoSemReserva}
             </p>
           )}
           {data && !podeReservar && (
-            <p style={{ margin: 0, fontSize: 12, color: T.second }}>Reservar é da Solicitação e do admin — aqui você só consulta.</p>
+            <p style={{ margin: 0, fontSize: FS.meta, color: T.second }}>Reservar é da Solicitação e do admin — aqui você só consulta.</p>
           )}
 
           {data && data.reservadas.length > 0 && (
             <section aria-labelledby="titulo-reservadas" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <h3 id="titulo-reservadas" style={{ margin: 0, fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "#047857" }}>
+              <h3 id="titulo-reservadas" style={{ margin: 0, fontSize: FS.small, fontWeight: FW.rotulo, letterSpacing: "0.08em", textTransform: "uppercase", color: TOM.esmeralda.text }}>
                 Reservadas para esta peça
               </h3>
               {data.reservadas.map((r) => (
-                <div key={r.reservaId} data-testid={`reserva-${r.reservaId}`} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "#ecfdf5", border: "1px solid #a7f3d0", borderRadius: 10, flexWrap: "wrap" }}>
+                <div key={r.reservaId} data-testid={`reserva-${r.reservaId}`} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: TOM.esmeralda.bg, border: `1px solid ${TOM.esmeralda.border}`, borderRadius: R.md, flexWrap: "wrap" }}>
                   <Miniatura url={r.thumb} tamanho={36} />
                   <div style={{ flex: "1 1 200px", minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: "#1c1917" }}>
+                    <div style={{ fontSize: FS.body, fontWeight: FW.rotulo, color: T.text }}>
                       {r.displayId}{r.quantidade > 1 ? ` ×${r.quantidade}` : ""}
-                      <span style={{ fontWeight: 600, color: "#57534e" }}>{r.origem ? ` · ${r.origem.displayId ?? ""} · ${r.origem.eventName ?? ""}` : ""}</span>
+                      <span style={{ fontWeight: FW.medio, color: T.apoio }}>{r.origem ? ` · ${r.origem.displayId ?? ""} · ${r.origem.eventName ?? ""}` : ""}</span>
                     </div>
-                    <div style={{ fontSize: 11.5, color: "#44403c", marginTop: 2 }}>
+                    <div style={{ fontSize: FS.small, color: T.strong, marginTop: 2 }}>
                       {SITUACAO[r.situacao ?? ""] ?? "—"}{r.reservadoPor ? ` · reservada por ${r.reservadoPor}` : ""}
                     </div>
                   </div>
                   {r.podeLiberar ? (
                     podeReservar && (
-                      <button type="button" data-testid={`button-liberar-${r.reservaId}`} disabled={liberar.isPending} onClick={() => liberar.mutate(r.reservaId)}
-                        style={{ height: 44, padding: "0 14px", borderRadius: 8, border: "1px solid #a7f3d0", background: "#fff", color: "#065f46", fontSize: 13, fontWeight: 700, cursor: liberar.isPending ? "wait" : "pointer" }}>
+                      <Botao variante="secundario" tamanho="toque" data-testid={`button-liberar-${r.reservaId}`}
+                        disabled={liberar.isPending} carregando={liberar.isPending && liberar.variables === r.reservaId}
+                        onClick={() => liberar.mutate(r.reservaId)}
+                        style={{ fontSize: FS.body, color: TOM.esmeralda.text, borderColor: TOM.esmeralda.border }}>
                         {liberar.isPending && liberar.variables === r.reservaId ? "Liberando…" : "Liberar"}
-                      </button>
+                      </Botao>
                     )
                   ) : (
-                    <span style={{ fontSize: 11.5, fontWeight: 700, color: "#065f46" }}>Já saiu no caminhão</span>
+                    <span style={{ fontSize: FS.small, fontWeight: FW.forte, color: TOM.esmeralda.text }}>Já saiu no caminhão</span>
                   )}
                 </div>
               ))}
@@ -370,7 +373,7 @@ export function EstoqueSemelhantesDialog({ item, podeReservar, onClose }: {
             if (lotes.length === 0) return null;
             return (
               <section key={grupo} aria-labelledby={`titulo-${grupo}`} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <h3 id={`titulo-${grupo}`} style={{ margin: 0, display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: TOM[grupo].cor }}>
+                <h3 id={`titulo-${grupo}`} style={{ margin: 0, display: "flex", justifyContent: "space-between", fontSize: FS.small, fontWeight: FW.rotulo, letterSpacing: "0.08em", textTransform: "uppercase", color: TOM_DA_DISPONIBILIDADE[grupo].cor }}>
                   <span>{ROTULO_DA_DISPONIBILIDADE[grupo]}</span>
                   <span style={{ fontVariantNumeric: "tabular-nums" }}>{somaUn(lotes)} un.</span>
                 </h3>
@@ -390,7 +393,7 @@ export function EstoqueSemelhantesDialog({ item, podeReservar, onClose }: {
                       onReservar={() => {
                         const ids = escolherAtivos(lote.ativos, Math.max(1, quantidade));
                         if (ids.length === 0) {
-                          toast({ title: "Este lote não se divide nessa quantidade", description: "Escolha outra quantidade.", variant: "destructive" });
+                          toast({ title: "Este lote não se divide nessa quantidade", description: "Escolha outra quantidade.", variant: "warning" });
                           return;
                         }
                         reservar.mutate(ids);
@@ -405,24 +408,23 @@ export function EstoqueSemelhantesDialog({ item, podeReservar, onClose }: {
           })}
 
           {data && !data.semMedida && reservaveis === 0 && (
-            <div style={{ textAlign: "center", padding: "22px 12px", color: "#57534e" }}>
-              <Package size={26} color="#78716c" aria-hidden="true" />
-              <p style={{ margin: "8px 0 2px", fontSize: 14, fontWeight: 800, color: "#1c1917" }}>Nada para usar no estoque</p>
-              <p style={{ margin: 0, fontSize: 12.5 }}>
-                {indisponiveis.length > 0
-                  ? "Existem peças iguais, mas nenhuma está livre a tempo — veja o motivo de cada uma abaixo."
-                  : "Nenhuma peça do mesmo tipo e medida foi guardada até agora."}
-              </p>
-            </div>
+            <EstadoVazio
+              compacto
+              icone={Package}
+              titulo="Nada para usar no estoque"
+              descricao={indisponiveis.length > 0
+                ? "Existem peças iguais, mas nenhuma está livre a tempo — veja o motivo de cada uma abaixo."
+                : "Nenhuma peça do mesmo tipo e medida foi guardada até agora."}
+            />
           )}
 
           {indisponiveis.length > 0 && (
             <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <button type="button" data-testid="button-ver-indisponiveis" aria-expanded={verIndisponiveis} onClick={() => setVerIndisponiveis((v) => !v)}
-                style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, border: "none", background: "none", padding: 0, fontSize: 13, fontWeight: 700, color: "#57534e", cursor: "pointer" }}>
-                <ChevronDown size={14} style={{ transform: verIndisponiveis ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+              <Botao variante="fantasma" tamanho="toque" data-testid="button-ver-indisponiveis" aria-expanded={verIndisponiveis} onClick={() => setVerIndisponiveis((v) => !v)}
+                style={{ alignSelf: "flex-start", gap: 6, padding: "0 8px", marginLeft: -8, fontSize: FS.body }}>
+                <ChevronDown size={14} aria-hidden="true" style={{ transform: verIndisponiveis ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
                 {verIndisponiveis ? "Esconder" : "Ver"} {somaUn(indisponiveis)} un. que não dá para usar
-              </button>
+              </Botao>
               {verIndisponiveis && indisponiveis.map((lote) => {
                 const i = indice++;
                 return (
@@ -434,7 +436,7 @@ export function EstoqueSemelhantesDialog({ item, podeReservar, onClose }: {
           )}
         </div>
 
-        <footer style={{ padding: "10px 20px", borderTop: "1px solid #e7e5e4", background: "#fff", fontSize: 11.5, color: T.second, lineHeight: 1.45, flexShrink: 0 }}>
+        <footer style={{ padding: "10px 20px", borderTop: `1px solid ${T.border}`, background: T.surface, fontSize: FS.small, color: T.second, lineHeight: 1.45, flexShrink: 0 }}>
           Reservar só segura a peça física para este evento. Quando for usar, a Gráfica marca o reaproveitamento na fila dela.
         </footer>
       </DialogContent>

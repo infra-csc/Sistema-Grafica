@@ -9,7 +9,7 @@ import type { InventoryAsset, Sponsor, Event } from "@shared/schema";
 import {
   Archive, Search, Pencil, Trash2, CheckCircle2,
   XCircle, Tag, X, Package, Warehouse, Truck, ScanSearch, Calendar, CalendarDays,
-  Grid3X3, Eye, Check, Layers, ClipboardCheck, Wrench, BookmarkCheck, ChevronDown,
+  Grid3X3, Eye, Check, Layers, ClipboardCheck, Wrench, BookmarkCheck, ChevronDown, Plus,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -26,21 +26,28 @@ import {
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { HIDE_NATIVE_CLOSE, FreezeWhileClosing, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { CONDITIONS, CONDITION_META, conditionMeta, type Condition } from "@/lib/inventory-meta";
-import { FS, R } from "@/lib/theme";
+import { T, N, TOM, FS, R, FW, FONT, SHADOW } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { CartaoKpi } from "@/components/ui/cartao-kpi";
+import { Selo } from "@/components/ui/selo";
+import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
+import { EstadoErro, EstadoVazio, Esqueleto } from "@/components/ui/estados";
 
 // ─── Status meta ─────────────────────────────────────────────────────────────
-// Tons 700/800 (#15803d, #9a3412): os 600 reprovavam contraste AA no texto
-// pequeno em caps da coluna Status.
 /** Referência estável para "ainda sem dados": um `= []` no useQuery cria um
  *  array novo a cada render e todo useMemo que depende dele recalcula sempre. */
 const VAZIO: never[] = [];
 
-const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
-  NO_GALPAO:          { label: "No Galpão",   color: "#15803d", bg: "rgba(22,163,74,0.10)"  },
-  EM_USO:             { label: "Em Uso",       color: "#9a3412", bg: "rgba(234,88,12,0.10)"  },
-  AGUARDANDO_TRIAGEM: { label: "Ag. Triagem",  color: "#b45309", bg: "rgba(180,83,9,0.10)"   },
-  EM_MANUTENCAO:      { label: "Manutenção",   color: "#92400e", bg: "rgba(146,64,14,0.10)"  },
-  DESCARTADO:         { label: "Descartado",   color: "#6b7280", bg: "rgba(107,114,128,0.10)"},
+// Triagem e Manutenção dividem o TOM.alerta (eram âmbar 700 e 800, quase
+// iguais). Não colidem: a lista do acervo nunca mostra AGUARDANDO_TRIAGEM —
+// essas peças moram na tela da Triagem; aqui o rótulo só aparece no campo
+// travado do formulário, sem cor.
+const STATUS_META: Record<string, { label: string; color: string }> = {
+  NO_GALPAO:          { label: "No Galpão",   color: TOM.sucesso.text },
+  EM_USO:             { label: "Em Uso",       color: TOM.laranja.text },
+  AGUARDANDO_TRIAGEM: { label: "Ag. Triagem",  color: TOM.alerta.text },
+  EM_MANUTENCAO:      { label: "Manutenção",   color: TOM.alerta.text },
+  DESCARTADO:         { label: "Descartado",   color: T.second },
 };
 const ALL_STATUSES = ["NO_GALPAO", "EM_USO", "AGUARDANDO_TRIAGEM", "EM_MANUTENCAO", "DESCARTADO"] as const;
 type TrackingStatus = typeof ALL_STATUSES[number];
@@ -85,65 +92,9 @@ const paraQuemEstaReservada = (r: ReservaAtiva) =>
 /** Aviso de peça reservada — antes de excluir ou tirar do galpão. */
 function AvisoDeReserva({ reserva, acao }: { reserva: ReservaAtiva; acao: string }) {
   return (
-    <p role="status" data-testid="aviso-ativo-reservado" style={{ margin: "0 0 16px", padding: "10px 12px", borderRadius: 10, background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1e40af", fontSize: 13, lineHeight: 1.45, fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+    <p role="status" data-testid="aviso-ativo-reservado" style={{ margin: "0 0 16px", padding: "10px 12px", borderRadius: R.md, background: TOM.info.bg, border: `1px solid ${TOM.info.border}`, color: TOM.info.text, fontSize: FS.body, lineHeight: 1.45, fontFamily: FONT.corpo }}>
       Esta peça está reservada para <strong>{paraQuemEstaReservada(reserva)}</strong>. Libere a reserva na peça do evento (Gráfica → buscar no estoque) antes de {acao}.
     </p>
-  );
-}
-
-// ─── Stat card with watermark icon ───────────────────────────────────────────
-function StatCard({ label, value, Icon, color, subtext, subColor, onClick, active, compacto }: {
-  label: string; value: number; Icon: React.ElementType;
-  color: string; subtext: string; subColor?: string;
-  onClick?: () => void; active?: boolean;
-  /** Celular: três cartões por linha em ~110px — padding e número menores,
-   *  sem o ícone d'água (que empurrava o número para fora do cartão). */
-  compacto?: boolean;
-}) {
-  const [hov, setHov] = useState(false);
-  const on = active || hov;
-  return (
-    <div
-      onClick={onClick}
-      // O cartão FILTRA a tabela — era uma <div> com clique e nada mais, então
-      // quem navega por teclado não chegava a nenhum dos seis atalhos.
-      role={onClick ? "button" : undefined}
-      tabIndex={onClick ? 0 : undefined}
-      aria-pressed={onClick && active !== undefined ? !!active : undefined}
-      onKeyDown={onClick ? (e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }) : undefined}
-      style={{
-        background: "#fff",
-        padding: compacto ? "12px 12px 10px" : "18px 20px 16px",
-        borderRadius: 12,
-        border: "1px solid #e2e8f0",
-        borderBottom: `3px solid ${color}`,
-        boxShadow: on ? "0 4px 14px rgba(15,23,42,0.08)" : "0 1px 2px rgba(0,0,0,0.04)",
-        transition: "box-shadow 0.15s, transform 0.15s",
-        cursor: onClick ? "pointer" : "default",
-        display: "flex", flexDirection: "column", gap: compacto ? 4 : 8,
-        transform: on && !compacto ? "translateY(-1px)" : "none",
-        minWidth: 0,
-      }}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-    >
-      {/* Label — #64748b: o #94a3b8 anterior reprovava contraste AA. Caixa
-          alta com 0.18em de espaçamento gritava em seis cartões seguidos. */}
-      <span style={{ fontSize: compacto ? 11 : 12, fontWeight: 600, color: "#64748b", fontFamily: "Space Grotesk, sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-        {label}
-      </span>
-      {/* Value + faded icon */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <p style={{ margin: 0, fontSize: compacto ? 22 : 30, fontWeight: 800, color: on ? color : "#0f172a", fontFamily: "Space Grotesk, sans-serif", letterSpacing: "-0.03em", lineHeight: 1, transition: "color 0.15s", fontVariantNumeric: "tabular-nums" }}>
-          {value.toLocaleString("pt-BR")}
-        </p>
-        {!compacto && <Icon size={28} color={color} aria-hidden="true" style={{ opacity: 0.15 }} />}
-      </div>
-      {/* Subtext */}
-      <p style={{ margin: 0, fontSize: compacto ? 10 : 11, fontWeight: 500, fontFamily: "Plus Jakarta Sans, sans-serif", color: subColor ?? "#64748b", lineHeight: 1.3 }}>
-        {subtext}
-      </p>
-    </div>
   );
 }
 
@@ -151,49 +102,43 @@ function StatCard({ label, value, Icon, color, subtext, subColor, onClick, activ
 function DeleteModal({ asset, reserva, onClose, onConfirm, isPending }: {
   asset: InventoryAsset; reserva?: ReservaAtiva; onClose: () => void; onConfirm: () => void; isPending: boolean;
 }) {
-  const bloqueada = isPending || !!reserva;
   return (
     <AlertDialog open onOpenChange={open => { if (!open && !isPending) onClose(); }}>
       <AlertDialogContent
         className="p-0 gap-0 border-0"
         style={{
-          display: "block", padding: 0, overflow: "hidden", borderRadius: 20,
+          display: "block", padding: 0, overflow: "hidden", borderRadius: R.xl,
           width: "min(420px, calc(100vw - 32px))", maxWidth: "min(420px, calc(100vw - 32px))",
-          boxShadow: "0 25px 60px rgba(0,0,0,0.2)",
+          boxShadow: SHADOW.lg,
         }}
       >
-        {/* #b91c1c: branco sobre #ef4444 dava 3,8:1 no título em 13px. */}
-        <div style={{ background: "#b91c1c", padding: "16px 20px" }}>
+        {/* TOM.perigo.text (#b91c1c): branco sobre o #ef4444 dava 3,8:1. */}
+        <div style={{ background: TOM.perigo.text, padding: "16px 20px" }}>
           <AlertDialogTitle asChild>
-            <p style={{ color: "#fff", fontWeight: 700, fontSize: 15, fontFamily: "Space Grotesk, sans-serif", margin: 0, letterSpacing: "-0.01em" }}>
+            <p style={{ color: T.surface, fontWeight: FW.forte, fontSize: FS.strong, fontFamily: FONT.display, margin: 0, letterSpacing: "-0.01em" }}>
               Atenção: ação irreversível
             </p>
           </AlertDialogTitle>
         </div>
         <div style={{ padding: 24 }}>
           <AlertDialogDescription asChild>
-            <p style={{ fontSize: 14, color: "#1e293b", margin: "0 0 8px", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+            <p style={{ fontSize: FS.read, color: T.text, margin: "0 0 8px", fontFamily: FONT.corpo }}>
               Tem certeza que deseja excluir este ativo permanentemente?
             </p>
           </AlertDialogDescription>
-          <p style={{ fontSize: 12, color: "#64748b", fontFamily: "DM Mono, monospace", margin: "0 0 24px" }}>
+          <p style={{ fontSize: FS.meta, color: T.second, fontFamily: FONT.mono, margin: "0 0 24px" }}>
             {asset.displayId} — {asset.name}
           </p>
           {reserva && <AvisoDeReserva reserva={reserva} acao="excluir" />}
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <button onClick={onClose} disabled={isPending} data-testid="button-cancel-delete" style={{
-              minHeight: 44, padding: "0 18px", borderRadius: 10, border: "1px solid #e2e8f0",
-              background: "#f8fafc", color: "#1e293b", fontSize: 13,
-              cursor: isPending ? "not-allowed" : "pointer", opacity: isPending ? 0.6 : 1,
-              fontFamily: "Space Grotesk, sans-serif", fontWeight: 600,
-            }}>Manter</button>
-            <button onClick={onConfirm} disabled={bloqueada} data-testid="button-confirm-delete"
-              title={reserva ? "Peça reservada — libere a reserva antes de excluir" : undefined} style={{
-              minHeight: 44, padding: "0 18px", borderRadius: 10, border: "none",
-              background: bloqueada ? "#fca5a5" : "#b91c1c", color: "#fff", fontSize: 13,
-              cursor: bloqueada ? "not-allowed" : "pointer",
-              fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-            }}>{isPending ? "Excluindo..." : "Sim, Excluir"}</button>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "flex-start" }}>
+            <Botao variante="secundario" tamanho="toque" onClick={onClose} disabled={isPending} data-testid="button-cancel-delete">Manter</Botao>
+            {/* O motivo do bloqueio já está no aviso azul logo acima; aqui ele
+                vira a frase curta sob o botão, e não mais um `title`. */}
+            <Botao variante="perigo" tamanho="toque" onClick={onConfirm} disabled={!!reserva} carregando={isPending}
+              data-testid="button-confirm-delete" alinharMotivo="end"
+              motivo={reserva ? "Peça reservada — libere a reserva antes de excluir" : undefined}>
+              {isPending ? "Excluindo..." : "Sim, Excluir"}
+            </Botao>
           </div>
         </div>
       </AlertDialogContent>
@@ -240,7 +185,7 @@ function AssetModal({ asset, reserva, onClose, onSaved }: {
       isEdit ? apiRequest("PATCH", `/api/inventory/${asset!.id}`, corpoDoFormulario(data)) : apiRequest("POST", "/api/inventory", data),
     // Toast com o NOME do ativo e erro com o motivo do servidor — "Erro ao
     // salvar." sem porquê não dizia se era campo, permissão ou conexão.
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }); toast({ title: isEdit ? "Ativo atualizado" : "Ativo cadastrado", description: form.name.trim() }); onSaved(); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }); toast({ title: isEdit ? "Ativo atualizado" : "Ativo cadastrado", description: form.name.trim(), variant: "success" }); onSaved(); },
     onError: (e: Error) => {
       // 409 de peça reservada: recarrega as reservas para o aviso aparecer.
       queryClient.invalidateQueries({ queryKey: ["/api/estoque/reservas-ativas"] });
@@ -253,14 +198,16 @@ function AssetModal({ asset, reserva, onClose, onSaved }: {
   // o anel de foco global do index.css, então o teclado não mostrava onde
   // estava. 16px no celular: abaixo disso o Safari dá zoom ao focar.
   const INP: React.CSSProperties = {
-    width: "100%", minHeight: 44, padding: "10px 12px", borderRadius: 8, border: "1px solid #d6d3d1",
-    fontSize: isMobile ? 16 : 13, fontFamily: "Plus Jakarta Sans, sans-serif", background: "#fff",
-    color: "#0f172a", boxSizing: "border-box",
+    width: "100%", minHeight: 44, padding: "10px 12px", borderRadius: R.md, border: `1px solid ${T.bdark}`,
+    fontSize: isMobile ? FS.lead : FS.body, fontFamily: FONT.corpo, background: T.surface,
+    color: T.text, boxSizing: "border-box",
   };
   const LBL: React.CSSProperties = {
-    fontSize: 12, fontWeight: 600, color: "#57534e", fontFamily: "Space Grotesk, sans-serif",
+    fontSize: FS.meta, fontWeight: FW.medio, color: T.apoio, fontFamily: FONT.display,
     display: "block", marginBottom: 6,
   };
+  // Legenda sob o campo (o que a escolha quer dizer).
+  const AJUDA: React.CSSProperties = { margin: "5px 0 0", fontSize: FS.small, color: T.second, fontFamily: FONT.corpo, lineHeight: 1.4 };
 
   // Status automático (EM_USO / AGUARDANDO_TRIAGEM) não pode ser trocado à
   // mão — quem o define é o ciclo do evento. Só NO_GALPAO/DESCARTADO são
@@ -269,7 +216,6 @@ function AssetModal({ asset, reserva, onClose, onSaved }: {
   // Manutenção/descarte de peça reservada: o servidor recusa (409); a tela
   // avisa antes e trava o Salvar com o motivo à vista.
   const tiraDoGalpaoReservada = isEdit && !!reserva && form.trackingStatus !== "NO_GALPAO" && form.trackingStatus !== asset?.trackingStatus;
-  const saveDisabled = !form.name.trim() || mutation.isPending || tiraDoGalpaoReservada;
 
   return (
     <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
@@ -289,14 +235,16 @@ function AssetModal({ asset, reserva, onClose, onSaved }: {
             subtítulo "NORTE ASSETS" em caixa alta saiu: não dizia nada. */}
         <ModalHeader
           icon={Archive}
-          tint="#c2410c"
+          tint={T.accentText}
           title={isEdit ? "Editar ativo" : "Cadastrar novo ativo"}
           subtitle={isEdit ? `${asset!.displayId} · acervo do galpão` : "Entra no acervo do galpão"}
           trailing={
+            // Botão redondo sobre o cabeçalho ESCURO: nenhuma variante do
+            // Botao é clara-sobre-escuro, então fica nativo; o realce vem da
+            // .ds-botao e o alvo de 44px no toque, da .modal-fechar.
             <button type="button" onClick={onClose} data-testid="button-close-modal" aria-label="Fechar" title="Fechar (Esc)"
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.16)"; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.08)"; }}
-              style={{ width: isMobile ? 44 : 40, height: isMobile ? 44 : 40, borderRadius: R.pill, flexShrink: 0, border: "1px solid rgba(255,255,255,0.12)", backgroundColor: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.72)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "background-color 0.12s ease" }}>
+              className="modal-fechar ds-botao"
+              style={{ width: isMobile ? 44 : 40, height: isMobile ? 44 : 40, borderRadius: R.pill, flexShrink: 0, border: "1px solid rgba(255,255,255,0.12)", backgroundColor: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.72)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <X size={16} aria-hidden="true" />
             </button>
           }
@@ -336,7 +284,7 @@ function AssetModal({ asset, reserva, onClose, onSaved }: {
               />
               {/* O que a condição escolhida QUER DIZER — sem manual, "Avaria
                   leve" não dizia se a peça ainda serve. */}
-              <p style={{ margin: "5px 0 0", fontSize: 11, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif", lineHeight: 1.4 }}>
+              <p style={AJUDA}>
                 {SIGNIFICADO_DA_CONDICAO[form.condition]}
               </p>
             </div>
@@ -346,8 +294,8 @@ function AssetModal({ asset, reserva, onClose, onSaved }: {
                 <div>
                   <input id="asset-status" data-testid="select-asset-status" readOnly disabled
                     value={STATUS_META[form.trackingStatus]?.label ?? form.trackingStatus}
-                    style={{ ...INP, color: "#64748b", cursor: "not-allowed" }} />
-                  <p style={{ margin: "5px 0 0", fontSize: 11, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+                    style={{ ...INP, color: T.second, cursor: "not-allowed" }} />
+                  <p style={AJUDA}>
                     Status definido pelo ciclo do evento.
                   </p>
                 </div>
@@ -364,7 +312,7 @@ function AssetModal({ asset, reserva, onClose, onSaved }: {
                 />
               )}
               {!lockedStatus && (
-                <p style={{ margin: "5px 0 0", fontSize: 11, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif", lineHeight: 1.4 }}>
+                <p style={AJUDA}>
                   {SIGNIFICADO_DO_STATUS[form.trackingStatus]}
                 </p>
               )}
@@ -378,7 +326,7 @@ function AssetModal({ asset, reserva, onClose, onSaved }: {
           <div>
             <label id="asset-sponsors-label" style={LBL}>Patrocinadores</label>
             {allSponsors.length === 0 ? (
-              <p style={{ margin: 0, fontSize: 12, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif", fontStyle: "italic" }}>
+              <p style={{ margin: 0, fontSize: FS.meta, color: T.second, fontFamily: FONT.corpo, fontStyle: "italic" }}>
                 Nenhum patrocinador cadastrado no sistema.
               </p>
             ) : (
@@ -391,14 +339,16 @@ function AssetModal({ asset, reserva, onClose, onSaved }: {
                       onClick={() => toggleSponsor(sp.id)}
                       // aria-pressed: o estado só existia na cor do botão.
                       aria-pressed={selected}
+                      // Chip de alternar com desenho próprio (preto = marcado):
+                      // fica <button> nativo, com o realce da .ds-botao.
+                      className="ds-botao"
                       style={{
                         display: "inline-flex", alignItems: "center", gap: 5,
-                        minHeight: isMobile ? 44 : 32, padding: "0 12px", borderRadius: 8, cursor: "pointer",
-                        fontSize: 12, fontWeight: 600, fontFamily: "Space Grotesk, sans-serif",
-                        transition: "background-color 0.12s, color 0.12s, border-color 0.12s",
-                        background: selected ? "#0f172a" : "#f1f5f9",
-                        color: selected ? "#fff" : "#475569",
-                        border: selected ? "1px solid #0f172a" : "1px solid #e2e8f0",
+                        minHeight: isMobile ? 44 : 32, padding: "0 12px", borderRadius: R.md, cursor: "pointer",
+                        fontSize: FS.meta, fontWeight: FW.medio, fontFamily: FONT.display,
+                        background: selected ? T.dark : N.n2,
+                        color: selected ? T.surface : T.apoio,
+                        border: `1px solid ${selected ? T.dark : T.border}`,
                       }}>
                       {selected && <CheckCircle2 size={12} aria-hidden="true" />}
                       {sp.name}
@@ -416,21 +366,18 @@ function AssetModal({ asset, reserva, onClose, onSaved }: {
               placeholder="Informações adicionais..." />
           </div>
         </div>
-        <div style={{ flexShrink: 0, padding: isMobile ? "12px 16px" : "16px 24px", borderTop: "1px solid #ebe8e4", display: "flex", justifyContent: "flex-end", gap: 8, background: "#fff" }}>
-          <button onClick={onClose} style={{ minHeight: 44, padding: "0 20px", borderRadius: 10, border: "none", background: "#f1f5f9", color: "#475569", fontSize: 13, cursor: "pointer", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>Cancelar</button>
-          <button data-testid="button-save-asset" disabled={saveDisabled}
-            onClick={() => mutation.mutate(form)} style={{
-              minHeight: 44, padding: "0 24px", borderRadius: 10, border: "none",
-              background: saveDisabled ? "#e2e8f0" : "#c2410c",
-              color: saveDisabled ? "#64748b" : "#fff",
-              fontSize: 13, cursor: saveDisabled ? "not-allowed" : "pointer",
-              fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-              boxShadow: saveDisabled ? "none" : "0 4px 14px rgba(194,65,12,0.30)",
-            }}>
-            {/* "+ SALVAR ATIVO" também na edição, onde o "+" prometia criar
-                outro. O rótulo agora segue o modo do formulário. */}
+        <div style={{ flexShrink: 0, padding: isMobile ? "12px 16px" : "16px 24px", borderTop: `1px solid ${T.border}`, display: "flex", justifyContent: "flex-end", alignItems: "flex-start", gap: 8, background: T.surface }}>
+          <Botao variante="secundario" tamanho="toque" onClick={onClose}>Cancelar</Botao>
+          {/* "+ SALVAR ATIVO" também na edição, onde o "+" prometia criar
+              outro. O rótulo segue o modo do formulário, e o porquê do
+              bloqueio aparece embaixo do botão (não mais só na cor). */}
+          <Botao variante="primario" tamanho="toque" data-testid="button-save-asset"
+            disabled={!form.name.trim() || tiraDoGalpaoReservada} carregando={mutation.isPending}
+            alinharMotivo="end"
+            motivo={!form.name.trim() ? "Preencha o nome do ativo" : tiraDoGalpaoReservada ? "Peça reservada — veja o aviso acima" : undefined}
+            onClick={() => mutation.mutate(form)}>
             {mutation.isPending ? "Salvando..." : isEdit ? "Salvar alterações" : "Cadastrar ativo"}
-          </button>
+          </Botao>
         </div>
       </DialogContent>
     </Dialog>
@@ -536,7 +483,7 @@ export default function Estoque() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiRequest("DELETE", `/api/inventory/${id}`),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }); toast({ title: "Ativo excluído", description: deleting ? `${deleting.displayId} — ${deleting.name}` : undefined }); setDeleting(null); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }); toast({ title: "Ativo excluído", description: deleting ? `${deleting.displayId} — ${deleting.name}` : undefined, variant: "success" }); setDeleting(null); },
     onError: (e: Error) => {
       queryClient.invalidateQueries({ queryKey: ["/api/estoque/reservas-ativas"] });
       toast({ title: "Não foi possível excluir", description: e.message, variant: "destructive" });
@@ -547,7 +494,7 @@ export default function Estoque() {
   // igual para qualquer linha da tabela.
   const patchMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: object; rotulo?: string }) => apiRequest("PATCH", `/api/inventory/${id}`, data),
-    onSuccess: (_r, vars) => { queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }); setQuickEdit(null); toast({ title: "Condição atualizada", description: vars.rotulo }); },
+    onSuccess: (_r, vars) => { queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }); setQuickEdit(null); toast({ title: "Condição atualizada", description: vars.rotulo, variant: "success" }); },
     onError: (e: Error) => toast({ title: "Não foi possível mudar a condição", description: e.message, variant: "destructive" }),
   });
 
@@ -716,52 +663,39 @@ export default function Estoque() {
   // Cabeçalho e célula com o MESMO recuo lateral (24px): eram 20 no th e 24 no
   // td, e todo rótulo de coluna ficava 4px à esquerda do seu conteúdo.
   const TH: React.CSSProperties = {
-    padding: "12px 24px", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em",
-    textTransform: "uppercase", color: "#fff", fontFamily: "Space Grotesk, sans-serif",
-    textAlign: "left", background: "#0f172a", borderBottom: "none",
+    padding: "12px 24px", fontSize: FS.small, fontWeight: FW.forte, letterSpacing: "0.06em",
+    textTransform: "uppercase", color: T.surface, fontFamily: FONT.display,
+    textAlign: "left", background: T.dark, borderBottom: "none",
     whiteSpace: "nowrap",
   };
   const TD: React.CSSProperties = {
     padding: "14px 24px", verticalAlign: "middle",
-    fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 13, color: "#0f172a",
-    borderBottom: "1px solid #f1f5f9",
+    fontFamily: FONT.corpo, fontSize: FS.body, color: T.text,
+    borderBottom: `1px solid ${N.n3}`,
   };
 
+  // Subtítulo = o ESTADO do acervo agora, não uma paráfrase do título.
+  const estadoDoAcervo = isLoading
+    ? "Carregando o acervo…"
+    : isError
+      ? "O acervo não carregou"
+      : `${total.toLocaleString("pt-BR")} ${total === 1 ? "unidade" : "unidades"} no acervo${triageCount > 0 ? ` · ${triageCount} aguardando triagem` : ""}`;
+
   return (
-    <div style={{ padding: isMobile ? "14px 16px" : "32px 36px", background: "#f8fafc", height: "100%", overflowY: "auto" }}>
+    <div style={{ padding: isMobile ? "14px 16px" : "32px 36px", background: T.bg, height: "100%", overflowY: "auto" }}>
 
       {/* ── Header ── */}
-      <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: isMobile ? 20 : 32 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 12 : 16 }}>
-          <div style={{ width: isMobile ? 44 : 48, height: isMobile ? 44 : 48, borderRadius: 12, background: "#c2410c", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 4px 12px rgba(194,65,12,0.22)" }}>
-            <Archive size={22} color="#fff" strokeWidth={2.2} />
-          </div>
-          <div>
-            <h1 style={{ margin: "0 0 3px", fontSize: FS.h1, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif", color: "#1c1917", letterSpacing: "-0.03em", lineHeight: 1.1 }}>
-              Estoque
-            </h1>
-            {/* Subtítulo em texto corrido: 10px em caixa alta com 0.18em era
-                o elemento mais "alto" do cabeçalho e o menos importante. */}
-            <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: "#746e69", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-              Peças guardadas para reaproveitar: situação, condição e se já têm reserva
-            </p>
-          </div>
-        </div>
-        {podeEditar && <button data-testid="button-new-asset" onClick={() => setEditing(null)} style={{
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-          minHeight: 44, padding: "0 20px", borderRadius: 10, border: "none",
-          width: isMobile ? "100%" : undefined,
-          background: "#c2410c", color: "#fff", fontSize: 14, cursor: "pointer",
-          fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-          boxShadow: "0 4px 14px rgba(194,65,12,0.28)",
-          transition: "background-color 0.15s, box-shadow 0.15s",
-        }}
-          onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#9a3412"; }}
-          onMouseLeave={e => { e.currentTarget.style.backgroundColor = "#c2410c"; }}>
-          <span aria-hidden="true" style={{ fontSize: 16, fontWeight: 800, lineHeight: 1 }}>+</span>
-          Novo ativo
-        </button>}
-      </div>
+      <CabecalhoDaPagina
+        titulo="Estoque"
+        icone={Archive}
+        subtitulo={estadoDoAcervo}
+        acoes={podeEditar ? (
+          <Botao variante="primario" tamanho="toque" icone={Plus} larguraCheia={isMobile}
+            data-testid="button-new-asset" onClick={() => setEditing(null)}>
+            Novo ativo
+          </Botao>
+        ) : undefined}
+      />
 
       {/* ── Stat cards ── */}
       {/* minmax(0, ...) pelo mesmo motivo do calendario: `1fr` e
@@ -770,45 +704,47 @@ export default function Estoque() {
           — as tres trilhas estouravam e a PAGINA inteira ganhava rolagem
           lateral. Com o minimo em 0 o texto quebra e a grade fica na largura. */}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, minmax(0, 1fr))" : "repeat(auto-fit, minmax(160px, 1fr))", gap: isMobile ? 8 : 14, marginBottom: isMobile ? 16 : 24 }}>
-        <StatCard compacto={isMobile}
-          label="Total Acervo" value={total} Icon={Package} color="#2563eb"
+        {/* Os cartões FILTRAM a lista: o CartaoKpi com onClick é <button
+            aria-pressed>, então o teclado alcança os seis atalhos. */}
+        <CartaoKpi compacto={isMobile}
+          rotulo="Total Acervo" valor={total.toLocaleString("pt-BR")} icone={Package} tom="info"
           // O cartão LIMPA os filtros ao ser tocado — e nada dizia isso: com
           // filtro ativo, o subtexto vira o convite.
-          subtext={hasFilters ? "Toque para ver tudo (limpa filtros)" : registrosNoTotal !== total ? `${registrosNoTotal} registros · ${total} unidades` : "Unidades no acervo"}
-          active={!hasFilters}
+          sub={hasFilters ? "Toque para ver tudo (limpa filtros)" : registrosNoTotal !== total ? `${registrosNoTotal} registros · ${total} unidades` : "Unidades no acervo"}
+          ativo={!hasFilters}
           onClick={limparFiltros}
         />
-        <StatCard compacto={isMobile}
-          label="Descartados" value={byStatus("DESCARTADO")} Icon={XCircle} color="#6b7280"
-          subtext={byStatus("DESCARTADO") > 0 ? "Ocultos na tabela · ver →" : "Nenhum descartado"}
-          subColor={byStatus("DESCARTADO") > 0 ? "#6b7280" : "#64748b"}
-          active={filterStatus.length === 1 && filterStatus[0] === "DESCARTADO"}
+        <CartaoKpi compacto={isMobile}
+          rotulo="Descartados" valor={byStatus("DESCARTADO").toLocaleString("pt-BR")} icone={XCircle} tom="neutro"
+          sub={byStatus("DESCARTADO") > 0 ? "Ocultos na tabela · ver →" : "Nenhum descartado"}
+          ativo={filterStatus.length === 1 && filterStatus[0] === "DESCARTADO"}
           onClick={() => setFilterStatus(filterStatus.length === 1 && filterStatus[0] === "DESCARTADO" ? [] : ["DESCARTADO"])}
         />
-        <StatCard compacto={isMobile}
-          label="No Galpão" value={byStatus("NO_GALPAO")} Icon={Warehouse} color="#16a34a"
+        <CartaoKpi compacto={isMobile}
+          rotulo="No Galpão" valor={byStatus("NO_GALPAO").toLocaleString("pt-BR")} icone={Warehouse} tom="sucesso"
           // "Disponível" prometia o que a regra de 14/09 nega: no galpão pode
           // estar reservada ou separada para o evento de origem.
-          subtext={reservadasNoGalpao > 0 ? `${reservadasNoGalpao} com reserva` : "Guardadas no depósito"}
-          active={filterStatus.length === 1 && filterStatus[0] === "NO_GALPAO"}
+          sub={reservadasNoGalpao > 0 ? `${reservadasNoGalpao} com reserva` : "Guardadas no depósito"}
+          ativo={filterStatus.length === 1 && filterStatus[0] === "NO_GALPAO"}
           onClick={() => setFilterStatus(filterStatus.length === 1 && filterStatus[0] === "NO_GALPAO" ? [] : ["NO_GALPAO"])}
         />
-        <StatCard compacto={isMobile}
-          label="Em Uso" value={byStatus("EM_USO")} Icon={Truck} color="#c2410c"
-          subtext="Num evento agora"
-          active={filterStatus.length === 1 && filterStatus[0] === "EM_USO"}
+        <CartaoKpi compacto={isMobile}
+          rotulo="Em Uso" valor={byStatus("EM_USO").toLocaleString("pt-BR")} icone={Truck} tom="laranja"
+          sub="Num evento agora"
+          ativo={filterStatus.length === 1 && filterStatus[0] === "EM_USO"}
           onClick={() => setFilterStatus(filterStatus.length === 1 && filterStatus[0] === "EM_USO" ? [] : ["EM_USO"])}
         />
-        <StatCard compacto={isMobile}
-          label="Manutenção" value={byStatus("EM_MANUTENCAO")} Icon={Wrench} color="#92400e"
-          subtext="Fora do estoque até o reparo"
-          active={filterStatus.length === 1 && filterStatus[0] === "EM_MANUTENCAO"}
+        <CartaoKpi compacto={isMobile}
+          rotulo="Manutenção" valor={byStatus("EM_MANUTENCAO").toLocaleString("pt-BR")} icone={Wrench} tom="alerta"
+          sub="Fora do estoque até o reparo"
+          ativo={filterStatus.length === 1 && filterStatus[0] === "EM_MANUTENCAO"}
           onClick={() => setFilterStatus(filterStatus.length === 1 && filterStatus[0] === "EM_MANUTENCAO" ? [] : ["EM_MANUTENCAO"])}
         />
-        <StatCard compacto={isMobile}
-          label="Ag. Triagem" value={triageCount} Icon={ScanSearch} color="#b45309"
-          subtext={triageCount > 0 ? "Ir para triagem ↗" : "Abrir triagem ↗"}
-          subColor={triageCount > 0 ? "#b45309" : "#64748b"}
+        {/* Este não filtra: LEVA à Triagem. O subtexto em âmbar quando há
+            fila é o convite; sem fila, fica no cinza de apoio. */}
+        <CartaoKpi compacto={isMobile}
+          rotulo="Ag. Triagem" valor={triageCount.toLocaleString("pt-BR")} icone={ScanSearch} tom="alerta"
+          sub={<span style={{ color: triageCount > 0 ? TOM.alerta.text : T.second }}>{triageCount > 0 ? "Ir para triagem ↗" : "Abrir triagem ↗"}</span>}
           onClick={() => navigate("/triagem-retorno")}
         />
       </div>
@@ -816,22 +752,22 @@ export default function Estoque() {
       {/* ── Filter bar ── */}
       {(() => {
         const FL: React.CSSProperties = {
-          fontSize: 11, fontWeight: 500, color: "#64748b",
-          fontFamily: "Plus Jakarta Sans, sans-serif", marginBottom: 6, display: "block",
+          fontSize: FS.small, fontWeight: FW.corpo, color: T.second,
+          fontFamily: FONT.corpo, marginBottom: 6, display: "block",
         };
         const SEL = (active: boolean): React.CSSProperties => ({
           height: 44, width: "100%",
-          border: `1.5px solid ${active ? "#c2410c" : "#e2e8f0"}`,
-          borderRadius: 8, fontSize: 13, fontWeight: 500,
-          fontFamily: "Plus Jakarta Sans, sans-serif",
-          padding: "0 12px", background: "#fff",
-          color: active ? "#9a3412" : "#374151",
+          border: `1.5px solid ${active ? T.accentText : T.border}`,
+          borderRadius: R.md, fontSize: FS.body, fontWeight: FW.corpo,
+          fontFamily: FONT.corpo,
+          padding: "0 12px", background: T.surface,
+          color: active ? T.accentText : T.strong,
           cursor: "pointer",
           transition: "border-color 0.15s",
         });
         return (
           <div style={{
-            background: "#fff", borderRadius: 12, border: "1px solid #e2e8f0",
+            background: T.surface, borderRadius: R.lg, border: `1px solid ${T.border}`,
             padding: isMobile ? "12px 14px 14px" : "16px 20px 18px", marginBottom: isMobile ? 16 : 20,
             display: "flex", alignItems: "flex-end", gap: isMobile ? 10 : 14, flexWrap: "wrap",
           }}>
@@ -916,16 +852,16 @@ export default function Estoque() {
             <div style={{ display: "flex", flexDirection: "column", flex: "1 1 160px" }}>
               <label style={FL}>Buscar</label>
               <div style={{ position: "relative" }}>
-                <Search size={14} color="#64748b" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+                <Search size={14} color={T.second} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
                 <input data-testid="input-search-assets" style={{
                   width: "100%", paddingLeft: 34, paddingRight: 12, height: 44,
-                  border: `1.5px solid ${search ? "#c2610c" : "#e2e8f0"}`, borderRadius: 8,
-                  fontSize: isMobile ? 16 : 13, fontWeight: 400, fontFamily: "Plus Jakarta Sans, sans-serif",
-                  background: "#fff", color: "#374151", boxSizing: "border-box",
+                  border: `1.5px solid ${search ? T.accentText : T.border}`, borderRadius: R.md,
+                  fontSize: isMobile ? FS.lead : FS.body, fontWeight: 400, fontFamily: FONT.corpo,
+                  background: T.surface, color: T.strong, boxSizing: "border-box",
                   transition: "border-color 0.15s",
                 }}
-                onFocus={e => (e.target.style.borderColor = "#c2610c")}
-                onBlur={e => (e.target.style.borderColor = search ? "#c2610c" : "#e2e8f0")}
+                onFocus={e => (e.target.style.borderColor = T.accentText)}
+                onBlur={e => (e.target.style.borderColor = search ? T.accentText : T.border)}
                 aria-label="Buscar ativos"
                 placeholder="Nome, ID ou franquia..." value={search} onChange={e => setSearch(e.target.value)} />
               </div>
@@ -936,36 +872,34 @@ export default function Estoque() {
             {(reservasAtivas.length > 0 || soReservadas) && (
               <div style={{ display: "flex", flexDirection: "column", flex: "0 0 auto" }}>
                 <label style={{ ...FL, visibility: "hidden" }} aria-hidden="true">·</label>
+                {/* Chip de filtro com desenho próprio (alterna, com contagem):
+                    fica <button> nativo; o realce vem da .ds-botao. */}
                 <button type="button" data-testid="button-so-reservadas" aria-pressed={soReservadas}
                   onClick={() => setSoReservadas(v => !v)}
                   title="Peças que a Gráfica reservou para outra peça de um evento"
-                  style={{ height: 44, display: "flex", alignItems: "center", gap: 6, padding: "0 14px", borderRadius: 8, border: `1.5px solid ${soReservadas ? "#1d4ed8" : "#e2e8f0"}`, background: soReservadas ? "#eff6ff" : "#fff", color: soReservadas ? "#1d4ed8" : "#374151", fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", transition: "background-color 0.15s, border-color 0.15s, color 0.15s" }}>
-                  <BookmarkCheck size={14} aria-hidden="true" fill={soReservadas ? "#bfdbfe" : "none"} />
+                  className="ds-botao"
+                  style={{ height: 44, display: "flex", alignItems: "center", gap: 6, padding: "0 14px", borderRadius: R.md, border: `1.5px solid ${soReservadas ? TOM.info.text : T.border}`, background: soReservadas ? TOM.info.bg : T.surface, color: soReservadas ? TOM.info.text : T.strong, fontSize: FS.body, fontWeight: FW.medio, fontFamily: FONT.corpo, cursor: "pointer", whiteSpace: "nowrap" }}>
+                  <BookmarkCheck size={14} aria-hidden="true" fill={soReservadas ? TOM.info.border : "none"} />
                   {soReservadas ? "Só reservadas" : "Reservadas"}
-                  <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{reservasAtivas.length}</span>
+                  <span style={{ fontFamily: FONT.display, fontWeight: FW.forte, fontVariantNumeric: "tabular-nums" }}>{reservasAtivas.length}</span>
                 </button>
               </div>
             )}
 
             {/* Limpar */}
-            <div style={{ display: "flex", flexDirection: "column", flex: "0 0 auto" }}>
-              <label style={{ ...FL, visibility: "hidden" }}>·</label>
-              <button
+            {/* alignSelf start: a frase do motivo pendura ABAIXO do botão sem
+                tirá-lo da linha dos outros campos. Limpar não é destrutivo —
+                secundário, e não vermelho. */}
+            <div style={{ display: "flex", flexDirection: "column", flex: "0 0 auto", alignSelf: "flex-start" }}>
+              <label style={{ ...FL, visibility: "hidden" }} aria-hidden="true">·</label>
+              <Botao variante="secundario" tamanho="toque" icone={X}
                 data-testid="button-clear-filters"
                 disabled={!hasFilters}
+                motivo={!hasFilters ? "Nenhum filtro ativo" : undefined}
                 onClick={limparFiltros}
-                style={{
-                  height: 44, display: "flex", alignItems: "center", gap: 5, padding: "0 14px",
-                  borderRadius: 8,
-                  border: `1.5px solid ${hasFilters ? "#fecaca" : "#e2e8f0"}`,
-                  background: hasFilters ? "#fef2f2" : "#f8fafc",
-                  color: hasFilters ? "#b91c1c" : "#94a3b8",
-                  fontSize: 12, cursor: hasFilters ? "pointer" : "not-allowed",
-                  fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-                  transition: "all 0.15s",
-                }}>
-                <X size={12} /> Limpar filtros
-              </button>
+                style={{ height: 44, fontSize: FS.meta }}>
+                Limpar filtros
+              </Botao>
             </div>
           </div>
         );
@@ -974,46 +908,30 @@ export default function Estoque() {
       {/* ── Table ── */}
       {/* `listaRef` mede a ÁREA ÚTIL desta caixa (já sem o padding da página):
           é ela, e não a janela, que decide entre tabela e cartões. */}
-      <div ref={listaRef} style={{ background: "#fff", borderRadius: isMobile ? 12 : 16, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 3px rgba(15,23,42,0.05)" }}>
+      <div ref={listaRef} style={{ background: T.surface, borderRadius: isMobile ? R.lg : R.xl, border: `1px solid ${T.border}`, overflow: "hidden", boxShadow: SHADOW.sm }}>
         {isLoading ? (
-          <div data-testid="skeleton-estoque" aria-busy="true" aria-label="Carregando o estoque" style={{ padding: isMobile ? "4px 14px" : "8px 24px" }}>
-            {[0, 1, 2, 3, 4, 5].map(i => (
-              <div key={i} className="animate-pulse" style={{ display: "flex", alignItems: "center", gap: 18, padding: "16px 0", borderBottom: i < 5 ? "1px solid #f1f5f9" : "none" }}>
-                <div style={{ width: 88, height: 12, borderRadius: 6, background: "#e2e8f0", flexShrink: 0 }} />
-                <div style={{ width: 40, height: 40, borderRadius: 8, background: "#e2e8f0", flexShrink: 0 }} />
-                <div style={{ flex: 1, height: 12, borderRadius: 6, background: "#e2e8f0" }} />
-                {!isMobile && <div style={{ width: 130, height: 12, borderRadius: 6, background: "#e2e8f0", flexShrink: 0 }} />}
-                <div style={{ width: 84, height: 22, borderRadius: 9999, background: "#e2e8f0", flexShrink: 0 }} />
-                {!isMobile && <div style={{ width: 70, height: 12, borderRadius: 6, background: "#e2e8f0", flexShrink: 0 }} />}
-              </div>
-            ))}
+          <div data-testid="skeleton-estoque" style={{ padding: isMobile ? 12 : 16 }}>
+            {/* O esqueleto imita o que vem: cartões na área estreita, tabela na larga. */}
+            <Esqueleto variante={emCards ? "lista" : "tabela"} linhas={6} rotulo="Carregando o estoque" />
           </div>
         ) : isError ? (
-          <div style={{ padding: isMobile ? "40px 20px" : 72, textAlign: "center" }}>
-            <p style={{ fontSize: 15, fontWeight: 700, color: "#b91c1c", margin: "0 0 6px", fontFamily: "Space Grotesk, sans-serif" }}>Não foi possível carregar o estoque</p>
-            <p style={{ fontSize: 12, color: "#64748b", margin: "0 0 16px" }}>Verifique sua conexão e tente novamente.</p>
-            <button onClick={() => refetch()} style={{ minHeight: 44, background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "0 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Tentar novamente</button>
+          <div style={{ padding: isMobile ? 12 : 24 }}>
+            <EstadoErro titulo="Não foi possível carregar o estoque" detalhe="Verifique sua conexão e tente de novo." aoTentarDeNovo={() => refetch()} />
           </div>
         ) : filtered.length === 0 ? (
-          <div style={{ padding: isMobile ? "40px 20px" : 72, textAlign: "center" }}>
-            <div style={{ width: 56, height: 56, borderRadius: 16, background: "#f8fafc", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
-              <Archive size={24} color="#cbd5e1" />
-            </div>
+          <div style={{ padding: isMobile ? 12 : 24 }}>
             {/* Vazio com saída: com filtro ativo, o botão que resolve fica
                 aqui, e não lá em cima na barra (que já rolou para fora). */}
-            <p style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", margin: "0 0 6px", fontFamily: "Space Grotesk, sans-serif" }}>
-              {hasFilters ? "Nenhum ativo neste recorte" : "Nenhum ativo no acervo ainda"}
-            </p>
-            <p style={{ fontSize: 12, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif", margin: 0 }}>
-              {hasFilters ? "Os filtros atuais escondem todo o acervo." : podeEditar ? "Cadastre o primeiro ativo pelo botão Novo ativo." : "As peças entram aqui depois de produzidas e triadas."}
-            </p>
-            {hasFilters && (
-              <button type="button" data-testid="button-clear-filters-vazio"
-                onClick={limparFiltros}
-                style={{ marginTop: 16, minHeight: 44, background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "0 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                Limpar filtros
-              </button>
-            )}
+            <EstadoVazio
+              icone={Archive}
+              titulo={hasFilters ? "Nenhum ativo neste recorte" : "Nenhum ativo no acervo ainda"}
+              descricao={hasFilters ? "Os filtros atuais escondem todo o acervo." : podeEditar ? "Cadastre o primeiro ativo pelo botão Novo ativo." : "As peças entram aqui depois de produzidas e triadas."}
+              acao={hasFilters ? (
+                <Botao variante="primario" tamanho="toque" data-testid="button-clear-filters-vazio" onClick={limparFiltros}>
+                  Limpar filtros
+                </Botao>
+              ) : undefined}
+            />
           </div>
         ) : (
           <div>
@@ -1026,7 +944,10 @@ export default function Estoque() {
               // largura e ficava com 32px em Ver/Editar/Excluir, metade do
               // mínimo para o dedo.
               const alvoAcao = alvo(32, ponteiroGrosso || isMobile);
-              const botaoAcao: React.CSSProperties = { width: alvoAcao, height: alvoAcao, borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center", transition: "color 0.15s, background 0.15s" };
+              // Ícone de ação na linha: Botao fantasma no quadrado do alvo
+              // (o hover vem da classe, não de onMouseEnter trocando cor).
+              const botaoAcao: React.CSSProperties = { width: alvoAcao, height: alvoAcao, minHeight: alvoAcao, padding: 0, color: T.second };
+              const tamanhoDoIcone = ponteiroGrosso || isMobile ? 18 : 15;
               const pecasDe = (asset: InventoryAsset) => {
                 const sm = STATUS_META[asset.trackingStatus ?? "NO_GALPAO"];
                 const cm = conditionMeta(asset.condition);
@@ -1035,10 +956,10 @@ export default function Estoque() {
                 const lado = emCards ? 48 : 40;
 
                 const miniaturaEl = (
-                  <div style={{ width: lado, height: lado, borderRadius: 8, overflow: "hidden", background: "#f1f5f9", border: "1px solid #e2e8f0", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div style={{ width: lado, height: lado, borderRadius: R.md, overflow: "hidden", background: N.n2, border: `1px solid ${T.border}`, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
                     {thumbOk
                       ? <img loading="lazy" decoding="async" src={miniatura(asset.approvalThumbUrl!)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                      : <Package size={16} color="#94a3b8" aria-hidden="true" />
+                      : <Package size={16} color={T.muted} aria-hidden="true" />
                     }
                   </div>
                 );
@@ -1046,37 +967,32 @@ export default function Estoque() {
                 const quantidadeEl = (
                   <span style={{
                     display: "inline-flex", alignItems: "center", justifyContent: "center",
-                    padding: "1px 6px", borderRadius: 4,
-                    background: (asset.quantity ?? 1) > 1 ? "#c2410c" : "#f1f5f9",
-                    color: (asset.quantity ?? 1) > 1 ? "#fff" : "#64748b",
-                    fontSize: 11, fontWeight: 700, fontFamily: "DM Mono, monospace", flexShrink: 0,
+                    padding: "1px 6px", borderRadius: R.sm,
+                    background: (asset.quantity ?? 1) > 1 ? T.accentText : N.n2,
+                    color: (asset.quantity ?? 1) > 1 ? T.surface : T.second,
+                    fontSize: FS.small, fontWeight: FW.forte, fontFamily: FONT.mono, flexShrink: 0,
                   }}>×{asset.quantity ?? 1}</span>
                 );
 
                 const eventoEl = assetEventMap[asset.id] ? (
                   <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3, minWidth: 0 }}>
-                    <CalendarDays size={11} color="#64748b" aria-hidden="true" style={{ flexShrink: 0 }} />
-                    <span style={{ fontSize: 12, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 500, whiteSpace: "normal", overflowWrap: "anywhere" }}>
+                    <CalendarDays size={11} color={T.second} aria-hidden="true" style={{ flexShrink: 0 }} />
+                    <span style={{ fontSize: FS.meta, color: T.second, fontFamily: FONT.corpo, fontWeight: FW.corpo, whiteSpace: "normal", overflowWrap: "anywhere" }}>
                       {assetEventMap[asset.id].name}
                     </span>
                   </div>
                 ) : null;
 
-                // Patrocinador em #9a3412: o #c2610c anterior dava 4,17:1 sobre
-                // o fundo do chip. Caixa alta em 9px saiu — o nome da marca já
+                // Patrocinador no laranja LEGÍVEL (TOM.laranja: #c2410c sobre
+                // o tinte claro). Caixa alta em 9px saiu — o nome da marca já
                 // é o que se lê, não precisa gritar.
                 const patrocinadoresEl = assetSponsors.length > 0 ? (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 5 }}>
                     {assetSponsors.slice(0, 2).map(sp => (
-                      <span key={sp!.id} style={{
-                        padding: "1px 6px", borderRadius: 4,
-                        background: "rgba(194,65,12,0.08)", color: "#9a3412",
-                        fontSize: 11, fontWeight: 600, fontFamily: "Space Grotesk, sans-serif",
-                        whiteSpace: "nowrap",
-                      }}>{sp!.name}</span>
+                      <Selo key={sp!.id} tom="laranja" forma="retangulo" style={{ padding: "1px 6px", fontWeight: FW.medio, fontFamily: FONT.display }}>{sp!.name}</Selo>
                     ))}
                     {assetSponsors.length > 2 && (
-                      <span style={{ fontSize: 11, color: "#64748b", fontFamily: "DM Mono, monospace", alignSelf: "center" }}>+{assetSponsors.length - 2}</span>
+                      <span style={{ fontSize: FS.small, color: T.second, fontFamily: FONT.mono, alignSelf: "center" }}>+{assetSponsors.length - 2}</span>
                     )}
                   </div>
                 ) : null;
@@ -1084,12 +1000,7 @@ export default function Estoque() {
                 const franquiasEl = (asset.franchiseTags ?? []).length > 0 ? (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 5 }}>
                     {(asset.franchiseTags ?? []).map(t => (
-                      <span key={t} style={{
-                        padding: "1px 6px", borderRadius: 4,
-                        background: "#eff6ff", color: "#1d4ed8",
-                        fontSize: 11, fontWeight: 600, fontFamily: "Space Grotesk, sans-serif",
-                        whiteSpace: "nowrap",
-                      }}>{t}</span>
+                      <Selo key={t} tom="info" forma="retangulo" style={{ padding: "1px 6px", fontWeight: FW.medio, fontFamily: FONT.display }}>{t}</Selo>
                     ))}
                   </div>
                 ) : null;
@@ -1104,26 +1015,29 @@ export default function Estoque() {
                     onOpenChange={open => setQuickEdit(open ? { assetId: asset.id, field: "condition" } : null)}
                   >
                     <PopoverTrigger asChild>
+                      {/* Gatilho de Popover (asChild): fica <button> nativo, em
+                          forma de pílula; o realce vem da .ds-botao. */}
                       <button data-testid={`button-quick-condition-${asset.id}`}
                         disabled={!podeEditar}
                         title={podeEditar ? "Mudar a condição" : "Mudar a condição é só do admin"}
                         aria-label={`Condição: ${cm.label}${podeEditar ? " — mudar" : ""}`}
+                        className="ds-botao"
                         style={{
                           display: "inline-flex", alignItems: "center", gap: 4,
-                          minHeight: isMobile ? 36 : 26, padding: "0 10px", borderRadius: 9999, border: "none",
+                          minHeight: isMobile ? 36 : 26, padding: "0 10px", borderRadius: R.pill, border: "none",
                           background: cm.bg, color: cm.color,
-                          fontSize: 12, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
+                          fontSize: FS.meta, fontWeight: FW.forte, fontFamily: FONT.display,
                           cursor: podeEditar ? "pointer" : "default", whiteSpace: "nowrap",
-                          transition: "box-shadow 0.12s",
-                        }}
-                        onMouseEnter={e => { if (podeEditar) e.currentTarget.style.boxShadow = `inset 0 0 0 1px ${cm.border}`; }}
-                        onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; }}>
+                          // Sem edição a pílula é só leitura: não esmaece como
+                          // botão desabilitado (a .ds-botao faria 50%).
+                          opacity: 1,
+                        }}>
                         {cm.label}
                         {podeEditar && <ChevronDown size={12} aria-hidden="true" />}
                       </button>
                     </PopoverTrigger>
                     <PopoverContent align="start" sideOffset={4} className="w-auto p-1.5"
-                      style={{ minWidth: 150, borderRadius: 10, display: "flex", flexDirection: "column", gap: 2, boxShadow: "0 8px 24px rgba(0,0,0,0.12)" }}
+                      style={{ minWidth: 150, borderRadius: R.md, display: "flex", flexDirection: "column", gap: 2, boxShadow: SHADOW.md }}
                       onClick={e => e.stopPropagation()}
                     >
                       {/* Congelado enquanto SAI: o painel fecha e a página
@@ -1133,8 +1047,9 @@ export default function Estoque() {
                         const meta = CONDITION_META[c];
                         return (
                           <button key={c} disabled={patchMutation.isPending}
+                            className="ds-botao ds-botao-fantasma"
                             onClick={e => { e.stopPropagation(); patchMutation.mutate({ id: asset.id, data: { condition: c }, rotulo: `${asset.displayId} → ${meta.label}` }); }}
-                            style={{ display: "flex", alignItems: "center", gap: 6, minHeight: isMobile ? 44 : 32, padding: "0 10px", borderRadius: 7, border: "none", background: asset.condition === c ? meta.bg : "transparent", color: asset.condition === c ? meta.color : "#475569", fontSize: 13, fontWeight: 600, fontFamily: "Space Grotesk, sans-serif", cursor: patchMutation.isPending ? "wait" : "pointer", opacity: patchMutation.isPending ? 0.55 : 1, textAlign: "left" }}>
+                            style={{ display: "flex", alignItems: "center", gap: 6, minHeight: isMobile ? 44 : 32, padding: "0 10px", borderRadius: R.sm, border: "none", background: asset.condition === c ? meta.bg : "transparent", color: asset.condition === c ? meta.color : T.apoio, fontSize: FS.body, fontWeight: FW.medio, fontFamily: FONT.display, cursor: patchMutation.isPending ? "wait" : "pointer", textAlign: "left" }}>
                             {asset.condition === c ? <CheckCircle2 size={13} aria-hidden="true" /> : <span style={{ width: 13 }} />}
                             {meta.label}
                           </button>
@@ -1150,11 +1065,11 @@ export default function Estoque() {
                 // evento que ainda não aconteceu.
                 const reservaEl = (() => {
                   const reserva = reservaPorAtivo.get(asset.id);
-                  const chip: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 4, marginTop: 5, padding: "2px 7px", borderRadius: 6, fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", whiteSpace: "normal", overflowWrap: "anywhere", maxWidth: "100%" };
+                  const chip: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 4, marginTop: 5, padding: "2px 7px", borderRadius: R.sm, fontSize: FS.small, fontWeight: FW.forte, fontFamily: FONT.display, whiteSpace: "normal", overflowWrap: "anywhere", maxWidth: "100%" };
                   if (reserva) {
                     return (
                       <div data-testid={`chip-reservada-${asset.id}`} title={`Reservada para ${reserva.itemDisplayId ?? "uma peça"} de ${reserva.eventName}`}
-                        style={{ ...chip, background: "#eff6ff", color: "#1d4ed8" }}>
+                        style={{ ...chip, background: TOM.info.bg, color: TOM.info.text }}>
                         <BookmarkCheck size={11} aria-hidden="true" style={{ flexShrink: 0 }} /> Reservada · {reserva.eventName}{reserva.saida ? ` · saída ${diaEMes(reserva.saida)}` : ""}
                       </div>
                     );
@@ -1163,7 +1078,7 @@ export default function Estoque() {
                   if (asset.trackingStatus === "NO_GALPAO" && origem && !eventoJaAcabou(origem.startDate, new Date())) {
                     return (
                       <div data-testid={`chip-separada-${asset.id}`} title={`Impressa para ${origem.name}, que ainda não aconteceu`}
-                        style={{ ...chip, background: "#f5f5f4", color: "#57534e" }}>
+                        style={{ ...chip, background: N.n2, color: T.apoio }}>
                         Separada · aguarda {origem.name}
                       </div>
                     );
@@ -1174,41 +1089,34 @@ export default function Estoque() {
                 const statusEl = (
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <div aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", background: sm.color, flexShrink: 0 }} />
-                    <span style={{ fontSize: 12, fontWeight: 700, color: sm.color, fontFamily: "Space Grotesk, sans-serif", whiteSpace: "nowrap" }}>
+                    <span style={{ fontSize: FS.meta, fontWeight: FW.forte, color: sm.color, fontFamily: FONT.display, whiteSpace: "nowrap" }}>
                       {sm.label}
                     </span>
                   </div>
                 );
 
-                // Hover dos ícones: fundo tingido com a cor da ação. Excluir em
-                // #b91c1c (o #ef4444 dava 3,8:1 no ícone sobre o tinte).
-                const tingir = (cor: string, fundo: string) => ({
-                  onMouseEnter: (e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.color = cor; e.currentTarget.style.background = fundo; },
-                  onMouseLeave: (e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.color = "#64748b"; e.currentTarget.style.background = "transparent"; },
-                });
+                // Excluir leva o vermelho legível no próprio ícone (destrutivo
+                // se lê antes do hover); os outros ficam no cinza de apoio.
                 const acoesEl = (
                   <div className="row-actions" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2, transition: "opacity 0.15s" }}>
-                    <button data-testid={`button-view-asset-${asset.id}`}
+                    <Botao variante="fantasma" data-testid={`button-view-asset-${asset.id}`}
                       title="Ver detalhes" aria-label={`Ver detalhes de ${asset.name}`}
                       onClick={e => { e.stopPropagation(); setViewingAsset(asset); }}
-                      {...tingir("#c2410c", "rgba(194,65,12,0.08)")}
                       style={botaoAcao}>
-                      <Eye size={ponteiroGrosso || isMobile ? 18 : 15} aria-hidden="true" />
-                    </button>
-                    {podeEditar && <button data-testid={`button-edit-asset-${asset.id}`}
+                      <Eye size={tamanhoDoIcone} aria-hidden="true" />
+                    </Botao>
+                    {podeEditar && <Botao variante="fantasma" data-testid={`button-edit-asset-${asset.id}`}
                       title="Editar" aria-label={`Editar ${asset.name}`}
                       onClick={e => { e.stopPropagation(); setEditing(asset); }}
-                      {...tingir("#1d4ed8", "rgba(37,99,235,0.08)")}
                       style={botaoAcao}>
-                      <Pencil size={ponteiroGrosso || isMobile ? 18 : 15} aria-hidden="true" />
-                    </button>}
-                    {podeExcluir && <button data-testid={`button-delete-asset-${asset.id}`}
+                      <Pencil size={tamanhoDoIcone} aria-hidden="true" />
+                    </Botao>}
+                    {podeExcluir && <Botao variante="fantasma" data-testid={`button-delete-asset-${asset.id}`}
                       title="Excluir" aria-label={`Excluir ${asset.name}`}
                       onClick={e => { e.stopPropagation(); setDeleting(asset); }}
-                      {...tingir("#b91c1c", "rgba(239,68,68,0.08)")}
-                      style={botaoAcao}>
-                      <Trash2 size={ponteiroGrosso || isMobile ? 18 : 15} aria-hidden="true" />
-                    </button>}
+                      style={{ ...botaoAcao, color: TOM.perigo.text }}>
+                      <Trash2 size={tamanhoDoIcone} aria-hidden="true" />
+                    </Botao>}
                   </div>
                 );
 
@@ -1223,38 +1131,38 @@ export default function Estoque() {
               // "Situação" e "Onde já foi usado".
               const usadoEmEl = (g: GrupoDoAcervo<InventoryAsset>) => {
                 const eventos = eventosDeUso(g.ativos.map(a => usosPorAtivo.get(a.id) ?? []), g.ativos.map(a => a.quantity));
-                if (eventos.length === 0) return <span style={{ fontSize: 12, color: "#64748b" }}>Ainda não saiu</span>;
+                if (eventos.length === 0) return <span style={{ fontSize: FS.meta, color: T.second }}>Ainda não saiu</span>;
                 return (
                   <div data-testid={`usado-em-${g.ativos[0].id}`} style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
                     {eventos.slice(0, 2).map(e => (
                       <span key={e.eventId} title={`${ROTULO_DO_USO[e.situacao]} ${e.eventName} · ${e.unidades} un.`}
-                        style={{ whiteSpace: "normal", overflowWrap: "anywhere", padding: "2px 7px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: e.situacao === "separada" ? "#eff6ff" : "#f1f5f9", color: e.situacao === "separada" ? "#1d4ed8" : "#334155" }}>
+                        style={{ whiteSpace: "normal", overflowWrap: "anywhere", padding: "2px 7px", borderRadius: R.sm, fontSize: FS.small, fontWeight: FW.medio, background: e.situacao === "separada" ? TOM.info.bg : N.n2, color: e.situacao === "separada" ? TOM.info.text : T.strong }}>
                         {e.eventName}
                       </span>
                     ))}
-                    {eventos.length > 2 && <span style={{ fontSize: 11, color: "#64748b", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>+{eventos.length - 2}</span>}
+                    {eventos.length > 2 && <span style={{ fontSize: FS.small, color: T.second, fontFamily: FONT.display, fontWeight: FW.forte }}>+{eventos.length - 2}</span>}
                   </div>
                 );
               };
               const quantidadeDoGrupoEl = (g: GrupoDoAcervo<InventoryAsset>) => (
                 <span data-testid={`unidades-${g.ativos[0].id}`} style={{ whiteSpace: "nowrap" }}>
-                  <span style={{ fontFamily: "Space Grotesk, sans-serif", fontSize: 18, fontWeight: 700, color: "#0f172a", fontVariantNumeric: "tabular-nums" }}>{g.unidades}</span>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginLeft: 3 }}>un.</span>
+                  <span style={{ fontFamily: FONT.display, fontSize: FS.title, fontWeight: FW.forte, color: T.text, fontVariantNumeric: "tabular-nums" }}>{g.unidades}</span>
+                  <span style={{ fontSize: FS.small, fontWeight: FW.medio, color: T.second, marginLeft: 3 }}>un.</span>
                 </span>
               );
               const alternarEl = (g: GrupoDoAcervo<InventoryAsset>, aberto: boolean) => (
-                <button type="button" data-testid={`expandir-${g.ativos[0].id}`} aria-expanded={aberto}
+                <Botao variante="fantasma" data-testid={`expandir-${g.ativos[0].id}`} aria-expanded={aberto}
                   aria-label={`${aberto ? "Recolher" : "Ver"} as ${g.ativos.length} unidades de ${g.nome}`}
                   onClick={e => { e.stopPropagation(); alternarGrupo(g.chave); }}
-                  style={{ ...botaoAcao, width: "auto", padding: "0 8px", gap: 4, fontSize: 12, fontWeight: 700, color: "#334155" }}>
+                  style={{ ...botaoAcao, width: "auto", padding: "0 8px", gap: 4, fontSize: FS.meta, color: T.strong }}>
                   {aberto ? "Recolher" : "Unidades"} <ChevronDown size={14} aria-hidden="true" style={{ transform: aberto ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
-                </button>
+                </Botao>
               );
               const verGrupoEl = (g: GrupoDoAcervo<InventoryAsset>) => (
-                <button data-testid={`button-view-group-${g.ativos[0].id}`} title="Ver o material" aria-label={`Ver detalhes de ${g.nome}`}
+                <Botao variante="fantasma" data-testid={`button-view-group-${g.ativos[0].id}`} title="Ver o material" aria-label={`Ver detalhes de ${g.nome}`}
                   onClick={e => { e.stopPropagation(); setVendo({ chave: g.chave, unidadeId: null }); }} style={botaoAcao}>
-                  <Eye size={ponteiroGrosso || isMobile ? 18 : 15} aria-hidden="true" />
-                </button>
+                  <Eye size={tamanhoDoIcone} aria-hidden="true" />
+                </Botao>
               );
               const LIMITE_DE_UNIDADES = 40;
 
@@ -1268,12 +1176,14 @@ export default function Estoque() {
                       const aberto = abertos.has(g.chave);
                       return (
                         <li key={g.chave} data-testid={unico ? `row-asset-${asset.id}` : `row-group-${asset.id}`}
-                          style={{ padding: "14px 14px 10px", borderBottom: i < gruposVisiveis.length - 1 ? "1px solid #f1f5f9" : "none", display: "flex", flexDirection: "column", gap: 10 }}>
+                          style={{ padding: "14px 14px 10px", borderBottom: i < gruposVisiveis.length - 1 ? `1px solid ${N.n3}` : "none", display: "flex", flexDirection: "column", gap: 10 }}>
+                          {/* Toque no cartão abre o detalhe; o teclado tem o
+                              botão Ver explícito logo abaixo, nas ações. */}
                           <div onClick={() => setVendo({ chave: g.chave, unidadeId: unico ? asset.id : null })} style={{ display: "flex", gap: 12, minWidth: 0, cursor: "pointer" }}>
                             {p.miniaturaEl}
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              {unico && <span style={{ fontFamily: "DM Mono, monospace", fontSize: 12, fontWeight: 600, color: "#9a3412" }}>{asset.displayId}</span>}
-                              <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", lineHeight: 1.3, overflowWrap: "anywhere" }}>{g.nome}</div>
+                              {unico && <span style={{ fontFamily: FONT.mono, fontSize: FS.meta, fontWeight: FW.medio, color: T.accentText }}>{asset.displayId}</span>}
+                              <div style={{ fontSize: FS.read, fontWeight: FW.forte, color: T.text, lineHeight: 1.3, overflowWrap: "anywhere" }}>{g.nome}</div>
                               {p.eventoEl}
                               {p.patrocinadoresEl}
                             </div>
@@ -1282,9 +1192,9 @@ export default function Estoque() {
                           {unico ? (
                             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>{p.condicaoEl}{p.statusEl}{p.reservaEl}</div>
                           ) : (
-                            <div style={{ fontSize: 13, color: "#0f172a", lineHeight: 1.45 }}>
-                              <div data-testid={`situacao-${asset.id}`} style={{ fontWeight: 600 }}>{fraseDaSituacao(g)}</div>
-                              <div style={{ color: "#475569" }}>{fraseDaCondicao(g)}</div>
+                            <div style={{ fontSize: FS.body, color: T.text, lineHeight: 1.45 }}>
+                              <div data-testid={`situacao-${asset.id}`} style={{ fontWeight: FW.medio }}>{fraseDaSituacao(g)}</div>
+                              <div style={{ color: T.apoio }}>{fraseDaCondicao(g)}</div>
                             </div>
                           )}
                           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
@@ -1292,12 +1202,12 @@ export default function Estoque() {
                             <div style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>{unico ? p.acoesEl : <>{alternarEl(g, aberto)}{verGrupoEl(g)}</>}</div>
                           </div>
                           {!unico && aberto && (
-                            <ul data-testid={`unidades-de-${asset.id}`} style={{ listStyle: "none", margin: 0, padding: "4px 0 0", borderTop: "1px dashed #e2e8f0" }}>
+                            <ul data-testid={`unidades-de-${asset.id}`} style={{ listStyle: "none", margin: 0, padding: "4px 0 0", borderTop: `1px dashed ${T.border}` }}>
                               {g.ativos.slice(0, LIMITE_DE_UNIDADES).map(u => {
                                 const pu = pecasDe(u);
                                 return (
-                                  <li key={u.id} data-testid={`row-asset-${u.id}`} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 0", borderBottom: "1px solid #f8fafc" }}>
-                                    <span style={{ fontFamily: "DM Mono, monospace", fontSize: 12, fontWeight: 600, color: "#9a3412", flex: "1 1 120px" }}>{u.displayId}</span>
+                                  <li key={u.id} data-testid={`row-asset-${u.id}`} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 0", borderBottom: `1px solid ${N.n2}` }}>
+                                    <span style={{ fontFamily: FONT.mono, fontSize: FS.meta, fontWeight: FW.medio, color: T.accentText, flex: "1 1 120px" }}>{u.displayId}</span>
                                     {pu.condicaoEl}{pu.statusEl}
                                     <div style={{ marginLeft: "auto" }}>{pu.acoesEl}</div>
                                   </li>
@@ -1316,7 +1226,7 @@ export default function Estoque() {
                 <div style={{ overflowX: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", minWidth: compacto ? 720 : 900 }}>
                     <thead>
-                      <tr style={{ background: "#f8fafc" }}>
+                      <tr style={{ background: T.dark }}>
                         {/* Entre 820 e 1180px de área útil "Onde já foi usado"
                             desce para dentro da célula do material: é a coluna
                             mais larga e a menos consultada, e era ela que
@@ -1341,17 +1251,18 @@ export default function Estoque() {
                         const aberto = abertos.has(g.chave);
                         return (
                           <Fragment key={g.chave}>
-                            <tr data-testid={unico ? `row-asset-${asset.id}` : `row-group-${asset.id}`} className="group"
+                            {/* Clique na linha abre o detalhe (atalho do mouse); o
+                                teclado usa o botão Ver explícito da coluna Ações.
+                                O realce de hover vem do CSS (tr.linha-estoque). */}
+                            <tr data-testid={unico ? `row-asset-${asset.id}` : `row-group-${asset.id}`} className="group linha-estoque"
                               onClick={() => setVendo({ chave: g.chave, unidadeId: unico ? asset.id : null })}
-                              onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = "#f8fafc"}
-                              onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = ""}
                               style={{ transition: "background 0.12s", cursor: "pointer" }}>
                               <td style={{ ...TD, maxWidth: 320 }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
                                   {p.miniaturaEl}
                                   <div style={{ minWidth: 0 }}>
-                                    <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#0f172a", whiteSpace: "normal", overflowWrap: "anywhere", lineHeight: 1.3 }}>{g.nome}</span>
-                                    <span style={{ fontFamily: "DM Mono, monospace", fontSize: 11, fontWeight: 600, color: "#9a3412" }}>
+                                    <span style={{ display: "block", fontSize: FS.body, fontWeight: FW.forte, color: T.text, whiteSpace: "normal", overflowWrap: "anywhere", lineHeight: 1.3 }}>{g.nome}</span>
+                                    <span style={{ fontFamily: FONT.mono, fontSize: FS.small, fontWeight: FW.medio, color: T.accentText }}>
                                       {asset.displayId}{!unico ? ` +${g.ativos.length - 1}` : ""}
                                     </span>
                                     {p.eventoEl}
@@ -1363,10 +1274,10 @@ export default function Estoque() {
                               </td>
                               <td style={TD}>{quantidadeDoGrupoEl(g)}</td>
                               <td style={TD}>
-                                {unico ? <>{p.statusEl}{p.reservaEl}</> : <span data-testid={`situacao-${asset.id}`} style={{ fontSize: 13, fontWeight: 600, color: "#0f172a", lineHeight: 1.4 }}>{fraseDaSituacao(g)}</span>}
+                                {unico ? <>{p.statusEl}{p.reservaEl}</> : <span data-testid={`situacao-${asset.id}`} style={{ fontSize: FS.body, fontWeight: FW.medio, color: T.text, lineHeight: 1.4 }}>{fraseDaSituacao(g)}</span>}
                               </td>
                               <td style={TD} onClick={e => { if (unico) e.stopPropagation(); }}>
-                                {unico ? p.condicaoEl : <span data-testid={`condicao-${asset.id}`} style={{ fontSize: 13, color: "#334155" }}>{fraseDaCondicao(g)}</span>}
+                                {unico ? p.condicaoEl : <span data-testid={`condicao-${asset.id}`} style={{ fontSize: FS.body, color: T.strong }}>{fraseDaCondicao(g)}</span>}
                               </td>
                               {!compacto && <td style={TD}>{usadoEmEl(g)}</td>}
                               <td style={{ ...TD, textAlign: "right", paddingRight: 20 }}>
@@ -1376,8 +1287,8 @@ export default function Estoque() {
                             {!unico && aberto && g.ativos.slice(0, LIMITE_DE_UNIDADES).map(u => {
                               const pu = pecasDe(u);
                               return (
-                                <tr key={u.id} data-testid={`row-asset-${u.id}`} className="group" style={{ background: "#fafaf9" }}>
-                                  <td style={{ ...TD, paddingLeft: 75 }}><span style={{ fontFamily: "DM Mono, monospace", fontSize: 12, fontWeight: 600, color: "#9a3412" }}>{u.displayId}</span></td>
+                                <tr key={u.id} data-testid={`row-asset-${u.id}`} className="group" style={{ background: T.bg }}>
+                                  <td style={{ ...TD, paddingLeft: 75 }}><span style={{ fontFamily: FONT.mono, fontSize: FS.meta, fontWeight: FW.medio, color: T.accentText }}>{u.displayId}</span></td>
                                   <td style={TD}>{pu.quantidadeEl}</td>
                                   <td style={TD}>{pu.statusEl}{pu.reservaEl}</td>
                                   <td style={TD}>{pu.condicaoEl}</td>
@@ -1387,10 +1298,11 @@ export default function Estoque() {
                               );
                             })}
                             {!unico && aberto && g.ativos.length > LIMITE_DE_UNIDADES && (
-                              <tr style={{ background: "#fafaf9" }}>
-                                <td colSpan={compacto ? 5 : 6} style={{ ...TD, paddingLeft: 75, fontSize: 12, color: "#475569" }}>
+                              <tr style={{ background: T.bg }}>
+                                <td colSpan={compacto ? 5 : 6} style={{ ...TD, paddingLeft: 75, fontSize: FS.meta, color: T.apoio }}>
                                   Mostrando {LIMITE_DE_UNIDADES} de {g.ativos.length} unidades —{" "}
-                                  <button type="button" onClick={() => setVendo({ chave: g.chave, unidadeId: null })} style={{ background: "none", border: "none", padding: 0, font: "inherit", fontWeight: 700, color: "#0f172a", textDecoration: "underline", cursor: "pointer" }}>ver todas no detalhe</button>
+                                  {/* Link dentro da frase: nativo, sublinhado. */}
+                                  <button type="button" onClick={() => setVendo({ chave: g.chave, unidadeId: null })} style={{ background: "none", border: "none", padding: 0, font: "inherit", fontWeight: FW.forte, color: T.text, textDecoration: "underline", cursor: "pointer" }}>ver todas no detalhe</button>
                                 </td>
                               </tr>
                             )}
@@ -1406,7 +1318,7 @@ export default function Estoque() {
             {/* Rodapé — "N de M" comparava conjuntos diferentes (o M excluía
                 descartados) e produzia "12 de 8". Agora: total exibido +
                 quantos registros os filtros estão ocultando. */}
-            <div style={{ padding: isMobile ? "12px 14px" : "14px 24px", background: "#f8fafc", borderTop: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ padding: isMobile ? "12px 14px" : "14px 24px", background: T.bg, borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
               {(() => {
                 const baseline = acervoAssets.filter(a => filterStatus.length > 0 || a.trackingStatus !== "DESCARTADO").length;
                 const ocultos = Math.max(0, baseline - filtered.length);
@@ -1418,8 +1330,8 @@ export default function Estoque() {
                       && (!q || a.name.toLowerCase().includes(q) || a.displayId.toLowerCase().includes(q) || a.franchiseTags.some(t => t.toLowerCase().includes(q)))).length
                   : 0;
                 return (
-                  <p role="status" style={{ margin: 0, fontSize: 12, fontWeight: 500, fontFamily: "Plus Jakarta Sans, sans-serif", color: "#64748b" }}>
-                    <span data-testid="contador-da-lista"><span style={{ color: "#0f172a", fontWeight: 700, fontFamily: "Space Grotesk, sans-serif" }}>{gruposVisiveis.length < grupos.length ? `${gruposVisiveis.length} de ${grupos.length}` : grupos.length}</span> {grupos.length === 1 ? "material" : "materiais"} · <span style={{ color: "#0f172a", fontWeight: 700, fontFamily: "Space Grotesk, sans-serif" }}>{unidadesNoRecorte}</span> {unidadesNoRecorte === 1 ? "unidade" : "unidades"}</span>
+                  <p role="status" style={{ margin: 0, fontSize: FS.meta, fontWeight: FW.corpo, fontFamily: FONT.corpo, color: T.second }}>
+                    <span data-testid="contador-da-lista"><span style={{ color: T.text, fontWeight: FW.forte, fontFamily: FONT.display }}>{gruposVisiveis.length < grupos.length ? `${gruposVisiveis.length} de ${grupos.length}` : grupos.length}</span> {grupos.length === 1 ? "material" : "materiais"} · <span style={{ color: T.text, fontWeight: FW.forte, fontFamily: FONT.display }}>{unidadesNoRecorte}</span> {unidadesNoRecorte === 1 ? "unidade" : "unidades"}</span>
                     {ocultos > 0 && <span> ({ocultos} {ocultos === 1 ? "oculto" : "ocultos"} pelos filtros)</span>}
                     {/* "Cadê a peça descartada?" — ela some por padrão e só
                         voltava para quem adivinhasse o filtro. */}
@@ -1429,7 +1341,7 @@ export default function Estoque() {
                       <>
                         {" · "}
                         <button type="button" data-testid="button-ver-descartados-rodape" onClick={() => setFilterStatus(["DESCARTADO"])}
-                          style={{ background: "none", border: "none", padding: 0, minHeight: isMobile ? 32 : undefined, font: "inherit", fontWeight: 700, color: "#0f172a", textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer" }}>
+                          style={{ background: "none", border: "none", padding: 0, minHeight: isMobile ? 32 : undefined, font: "inherit", fontWeight: FW.forte, color: T.text, textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer" }}>
                           {descartadosNoRecorte} {descartadosNoRecorte === 1 ? "descartado oculto" : "descartados ocultos"} · ver
                         </button>
                       </>
@@ -1438,10 +1350,11 @@ export default function Estoque() {
                 );
               })()}
               {grupos.length > gruposVisiveis.length && (
-                <button type="button" data-testid="mostrar-mais-estoque" onClick={() => setMostrando(n => n + LOTE_DO_ESTOQUE)}
-                  style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 44, padding: "0 16px", borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: 13, fontWeight: 700, cursor: "pointer", width: isMobile ? "100%" : undefined }}>
-                  <ChevronDown size={15} aria-hidden="true" /> Mostrar mais {Math.min(LOTE_DO_ESTOQUE, grupos.length - gruposVisiveis.length)}
-                </button>
+                <Botao variante="secundario" tamanho="toque" icone={ChevronDown} larguraCheia={isMobile}
+                  data-testid="mostrar-mais-estoque" onClick={() => setMostrando(n => n + LOTE_DO_ESTOQUE)}
+                  style={{ fontSize: FS.body }}>
+                  Mostrar mais {Math.min(LOTE_DO_ESTOQUE, grupos.length - gruposVisiveis.length)}
+                </Botao>
               )}
             </div>
           </div>
@@ -1455,6 +1368,7 @@ export default function Estoque() {
       <style>{`
         tr.group .row-actions { opacity: 0.7; }
         tr.group:hover .row-actions, tr.group:focus-within .row-actions { opacity: 1; }
+        tr.linha-estoque:hover { background-color: var(--n1); }
         .event-filter-44 > div { width: 100%; }
         .event-filter-44 > div > button { height: 44px !important; width: 100%; }
       `}</style>

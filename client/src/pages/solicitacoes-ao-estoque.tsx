@@ -42,6 +42,7 @@ import { Selo } from "@/components/ui/selo";
 import { Abas } from "@/components/ui/abas";
 import { EstadoErro, EstadoVazio, Esqueleto } from "@/components/ui/estados";
 import { useConfirmar } from "@/components/ui/usar-confirmar";
+import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
 
 type Consulta = {
   id: string; itemId: string; eventId: string; status: StatusDaConsulta;
@@ -117,7 +118,7 @@ function SeloDaConsulta({ status }: { status: StatusDaConsulta }) {
 function Miniatura({ src, alt, lado }: { src: string | null; alt: string; lado: number }) {
   const caixa: React.CSSProperties = { width: lado, height: lado, borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.low, flexShrink: 0, objectFit: "cover", display: "flex", alignItems: "center", justifyContent: "center" };
   if (!src) return <div aria-hidden="true" style={caixa}><PackageSearch style={{ width: lado / 3, height: lado / 3, color: T.muted }} /></div>;
-  return <img src={src} alt={alt} loading="lazy" style={caixa} />;
+  return <img src={src} alt={alt} loading="lazy" decoding="async" style={caixa} />;
 }
 
 function APeca({ c, isMobile }: { c: Consulta; isMobile: boolean }) {
@@ -212,6 +213,7 @@ function Responder({ c, isMobile, onRespondida }: { c: Consulta; isMobile: boole
       toast({
         title: e.resposta === "nao_atender" ? "Respondido: não consigo atender" : `Respondido: atende ${e.quantidade} de ${pedida} un.`,
         description: `${c.pedidoPor ?? "Quem pediu"} foi avisado. Quem confirma e libera a peça é a Revisão Final. A solicitação foi para Respondidas.`,
+        variant: "success",
       });
       onRespondida();
     },
@@ -323,8 +325,8 @@ function Responder({ c, isMobile, onRespondida }: { c: Consulta; isMobile: boole
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         {fotoUrl ? (
           <>
-            <img src={fotoUrl} alt="Foto da peça no estoque" style={{ width: 56, height: 56, objectFit: "cover", borderRadius: R.md, border: `1px solid ${T.border}` }} />
-            <button type="button" onClick={() => setFotoUrl(null)} style={{ minHeight: alvo, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: T.strong, fontSize: FS.body, fontWeight: FW.forte, cursor: "pointer" }}>Tirar a foto</button>
+            <img src={fotoUrl} alt="Foto da peça no estoque" loading="lazy" decoding="async" style={{ width: 56, height: 56, objectFit: "cover", borderRadius: R.md, border: `1px solid ${T.border}` }} />
+            <Botao variante="secundario" tamanho="toque" onClick={() => setFotoUrl(null)} style={{ minHeight: alvo, fontSize: FS.body }}>Tirar a foto</Botao>
           </>
         ) : (
           <ObjectUploader maxFileSize={10485760} buttonVariant="outline" buttonClassName={isMobile ? "min-h-[44px]" : ""}
@@ -438,7 +440,7 @@ function Desfecho({ c }: { c: Consulta }) {
       )}
       {c.fotoUrl && (
         <a href={c.fotoUrl} target="_blank" rel="noreferrer" style={{ alignSelf: "flex-start", minHeight: 44, display: "inline-flex", alignItems: "center", gap: 8, fontSize: FS.body, fontWeight: FW.forte, color: T.accentText }}>
-          <img src={c.fotoUrl} alt="Foto da peça no estoque" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: R.sm, border: `1px solid ${T.border}` }} />
+          <img src={c.fotoUrl} alt="Foto da peça no estoque" loading="lazy" decoding="async" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: R.sm, border: `1px solid ${T.border}` }} />
           Ver a foto
         </a>
       )}
@@ -468,7 +470,7 @@ export default function SolicitacoesAoEstoquePagina() {
 
   const cancelar = useMutation({
     mutationFn: async (id: string) => await apiRequest("POST", `/api/consultas-de-estoque/${id}/cancelar`, {}),
-    onSuccess: () => { atualizarConsultas(); toast({ title: "Solicitação cancelada" }); },
+    onSuccess: () => { atualizarConsultas(); toast({ title: "Solicitação cancelada", variant: "success" }); },
     onError: (e: any) => { atualizarConsultas(); toast({ title: "Não deu para cancelar", description: parseApiError(e).message, variant: "destructive" }); },
   });
 
@@ -479,12 +481,15 @@ export default function SolicitacoesAoEstoquePagina() {
   return (
     <div style={{ padding: isMobile ? 16 : "28px 32px", background: T.bg, minHeight: "100%", boxSizing: "border-box" }}>
       <div style={{ maxWidth: 1180, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
-        <header>
-          <h1 data-testid="title-solicitacoes-ao-estoque" style={{ margin: 0, fontFamily: FONT.display, fontSize: isMobile ? FS.h2 : FS.h1, fontWeight: FW.rotulo, color: T.text, letterSpacing: "-0.03em", lineHeight: 1.1 }}>
-            Solicitações ao estoque
-          </h1>
-          <p style={{ margin: "4px 0 0", fontSize: FS.body, color: T.apoio, maxWidth: 720, lineHeight: 1.5 }}>{explicacao}</p>
-        </header>
+        {/* O cabeçalho da casa traz a própria margem de baixo; o gap da
+            coluna já separa, então ela é anulada aqui. */}
+        <div data-testid="title-solicitacoes-ao-estoque" style={{ marginBottom: -20 }}>
+          <CabecalhoDaPagina
+            titulo="Solicitações ao estoque"
+            icone={PackageSearch}
+            subtitulo={<span style={{ display: "block", maxWidth: 720, color: T.apoio }}>{explicacao}</span>}
+          />
+        </div>
 
         {/* A contagem virou o contador da aba, em vez de ficar colada no rótulo
             entre parênteses: no formato antigo ela só aparecia na aba ABERTA, e

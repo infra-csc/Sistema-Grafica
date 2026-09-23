@@ -28,7 +28,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.afterEach(async ({ page }) => {
-  await limpar(page.request, evento);
+  await limpar(page, evento);
 });
 
 test("a peça com arquivo final aparece na Revisão e é liberada para a Gráfica", async ({ page }) => {
@@ -86,10 +86,13 @@ test("devolver para a Arte exige motivo — e o motivo chega inteiro do outro la
   expect(devolvida.finalFileUrl).toBeNull();
   expect(devolvida.approvalThumbUrl).toBeTruthy();
 
-  // E a Arte vê a peça de volta, com o motivo na tela.
+  // E a Arte vê a peça de volta, com o motivo na tela. A devolvida não fica na
+  // aba que abre primeiro ("Aguardando envio"): o link `?item=` (o mesmo do
+  // sino) abre a ficha já na fase em que a peça está — nas três larguras.
   await entrar(page, "arte");
-  await page.goto("/arte");
-  await expect(page.getByText(peca.displayId).first()).toBeVisible({ timeout: 20_000 });
+  await page.goto(`/arte?item=${peca.id}`);
+  await expect(page.getByText(peca.displayId).first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("A logo do patrocinador está esticada").first()).toBeVisible();
 });
 
 test("Gráfica e Atendimento não liberam nem devolvem na Revisão Final", async ({ page }) => {

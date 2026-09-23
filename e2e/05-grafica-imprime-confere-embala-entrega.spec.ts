@@ -17,7 +17,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { test, expect } from "@playwright/test";
 import { entrar, exigirAlvoDeTeste, esperarStatus, lerPeca, PNG_MINIMO, subirArquivo } from "./apoio";
-import { atéAGrafica, criarEvento, criarPeca, limpar, type Evento, type Peca } from "./cenario";
+import { atéAGrafica, criarEvento, criarPeca, iniciarNumaImpressoraLivre, limpar, type Evento, type Peca } from "./cenario";
 
 test.skip(!process.env.E2E_BASE_URL, "E2E_BASE_URL não definida — veja e2e/README.md");
 test.beforeAll(() => exigirAlvoDeTeste());
@@ -36,7 +36,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.afterEach(async ({ page }) => {
-  await limpar(page.request, evento);
+  await limpar(page, evento);
 });
 
 test("a peça liberada aparece na fila da Gráfica", async ({ page }) => {
@@ -60,11 +60,10 @@ test("iniciar a impressão exige escolher a máquina", async ({ page }) => {
 test("o fluxo inteiro: imprime, informa, confere, embala e entrega o volume", async ({ page }) => {
   await entrar(page, "grafica");
 
-  // ── 1. Inicia na Impressora 1 ──────────────────────────────────────────────
-  const iniciou = await page.request.patch(`/api/items/${peca.id}/start-printing`, { data: { printMachine: "1" } });
-  expect(iniciou.ok(), await iniciou.text()).toBe(true);
+  // ── 1. Inicia numa impressora livre ────────────────────────────────────────
+  const maquina = await iniciarNumaImpressoraLivre(page.request, peca);
   await esperarStatus(page, peca, ["inProduction", "em_producao"]);
-  expect((await lerPeca(page, peca)).printMachine).toBe("1");
+  expect((await lerPeca(page, peca)).printMachine).toBe(maquina);
 
   // ── 2. Informa quantas saíram — o número é ABSOLUTO ───────────────────────
   const parcial = await page.request.patch(`/api/items/${peca.id}/start-production`, { data: { quantityProduced: 6 } });
@@ -88,7 +87,7 @@ test("o fluxo inteiro: imprime, informa, confere, embala e entrega o volume", as
   // ── 4. Embala num volume ─────────────────────────────────────────────────
   const fotoDoTubo = await subirArquivo(page, PNG_MINIMO, "image/png");
   const embalou = await page.request.post(`/api/events/${evento.id}/tubos`, {
-    data: { itens: [{ itemId: peca.id, quantidade: 10 }], fotos: [fotoDoTubo] },
+    data: { itens: [{ id: peca.id, quantidade: 10 }], fotos: [fotoDoTubo] },
   });
   expect(embalou.ok(), await embalou.text()).toBe(true);
   const tubo = await embalou.json();
@@ -107,7 +106,7 @@ test("o fluxo inteiro: imprime, informa, confere, embala e entrega o volume", as
 
 test("conferir sem foto é recusado — a foto é a prova de que alguém olhou", async ({ page }) => {
   await entrar(page, "grafica");
-  await page.request.patch(`/api/items/${peca.id}/start-printing`, { data: { printMachine: "1" } });
+  await iniciarNumaImpressoraLivre(page.request, peca);
   await page.request.patch(`/api/items/${peca.id}/start-production`, { data: { quantityProduced: 10 } });
   await esperarStatus(page, peca, ["produced", "produzido"]);
 
@@ -118,7 +117,7 @@ test("conferir sem foto é recusado — a foto é a prova de que alguém olhou",
 
 test("não se confere mais do que saiu da impressora", async ({ page }) => {
   await entrar(page, "grafica");
-  await page.request.patch(`/api/items/${peca.id}/start-printing`, { data: { printMachine: "1" } });
+  await iniciarNumaImpressoraLivre(page.request, peca);
   await page.request.patch(`/api/items/${peca.id}/start-production`, { data: { quantityProduced: 4 } });
 
   const foto = await subirArquivo(page, PNG_MINIMO, "image/png");
@@ -135,7 +134,7 @@ test("entregar é SEMPRE do volume — a entrega individual está fechada", asyn
   // Este teste pina o comportamento REAL; se o dono reabrir a entrega
   // individual para a peça grande, é aqui que a decisão aparece.
   await entrar(page, "grafica");
-  await page.request.patch(`/api/items/${peca.id}/start-printing`, { data: { printMachine: "1" } });
+  await iniciarNumaImpressoraLivre(page.request, peca);
   await page.request.patch(`/api/items/${peca.id}/start-production`, { data: { quantityProduced: 10 } });
   const foto = await subirArquivo(page, PNG_MINIMO, "image/png");
   await page.request.post(`/api/items/${peca.id}/confer`, { data: { conferencePhotoUrl: foto, qty: 10 } });

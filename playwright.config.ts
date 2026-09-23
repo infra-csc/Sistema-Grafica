@@ -1,11 +1,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // PLAYWRIGHT — os testes de ponta a ponta do NORTE.
 //
-// ESTE ARQUIVO NÃO SOBE BANCO NEM SERVIDOR. Os fluxos de e2e/ mexem em peça,
-// evento e impressão de verdade: rodá-los contra o banco de produção
-// cancelaria peça real. Por isso o alvo é SEMPRE explícito — a variável
-// E2E_BASE_URL — e, sem ela, a suíte inteira é pulada com um aviso em vez de
-// escolher um alvo por conta própria. Ver e2e/README.md para montar o alvo.
+// ESTE ARQUIVO NÃO SOBE BANCO NEM SERVIDOR — quem sobe é `npm run e2e`
+// (scripts/e2e.mjs): banco em memória, storage de mentira e o app, na máquina.
+// Os fluxos de e2e/ mexem em peça, evento e impressão de verdade: rodá-los
+// contra o banco de produção cancelaria peça real. Por isso o alvo é SEMPRE
+// explícito — a variável E2E_BASE_URL, que o scripts/e2e.mjs define para o app
+// local — e, sem ela, a suíte inteira é pulada em vez de escolher um alvo por
+// conta própria. Ver e2e/README.md.
 //
 // TRÊS LARGURAS, porque a Gráfica trabalha no celular (o galpão não tem mesa):
 //   · 390  — iPhone de pé, a largura em que a fila da Gráfica é usada;
@@ -15,8 +17,8 @@
 // some atrás do teclado, e isso só aparece na largura certa.
 //
 // O Playwright NÃO está nas dependências do projeto de propósito (ele baixa
-// navegadores de ~300 MB). `npm run e2e` funciona assim que ele for instalado;
-// a primeira execução baixa o Chromium.
+// navegadores de ~300 MB): mora na pasta de ferramentas, fora do repositório
+// (`npm run ferramentas:instalar`; ver scripts/local/ferramentas.mjs).
 // ─────────────────────────────────────────────────────────────────────────────
 import { defineConfig, devices } from "@playwright/test";
 
@@ -27,7 +29,10 @@ export default defineConfig({
   // Cada fluxo é uma história em ordem (cria → envia → aprova): dentro do
   // arquivo os passos dependem um do outro.
   fullyParallel: false,
-  workers: process.env.CI ? 1 : 2,
+  // UM worker: os fluxos disputam as mesmas impressoras (a regra "uma peça por
+  // impressora" recusa a segunda com 409) e o banco local (PGlite) é uma sessão
+  // só — em paralelo, um teste derrubaria o outro sem defeito nenhum no app.
+  workers: 1,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   timeout: 60_000,

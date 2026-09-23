@@ -17,9 +17,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "e2e": "playwright test",
-    "e2e:ui": "playwright test --ui",
-    "e2e:install": "playwright install --with-deps chromium",
+    "dev:local": "node scripts/dev-local.mjs",
+    "e2e": "node scripts/e2e.mjs",
+    "e2e:ui": "node scripts/e2e.mjs --ui",
     "ferramentas:instalar": "node scripts/local/instalar-ferramentas.mjs"
   },
   "dependencies": {

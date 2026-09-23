@@ -4,123 +4,129 @@ Cinco fluxos, um por arquivo, na ordem em que a peça anda pelo app:
 
 | Arquivo | O que percorre |
 | --- | --- |
-| `01-login.spec.ts` | Entrar, sair, senha errada, rota protegida sem sessão |
-| `02-solicitacao-cria-e-envia.spec.ts` | Criar a peça no lote do evento e enviá-la |
-| `03-arte-envia-thumb-e-final.spec.ts` | Thumb de aprovação e arquivo final |
-| `04-revisao-final-libera.spec.ts` | Liberar para a Gráfica, ou devolver com motivo |
-| `05-grafica-imprime-confere-embala-entrega.spec.ts` | Imprimir → informar impressas → conferir → embalar → entregar o volume |
+| `01-login.spec.ts` | Entrar pelo formulário, senha errada, sair de verdade, rota protegida sem sessão |
+| `02-solicitacao-cria-e-envia.spec.ts` | Digitar a peça no lote do evento (a tela), enviá-la, a Vinculação, evento realizado |
+| `03-arte-envia-thumb-e-final.spec.ts` | Thumb, arquivo final, upload que mente o tipo, a Arte não libera o próprio trabalho |
+| `04-revisao-final-libera.spec.ts` | Liberar para a Gráfica, sem arquivo final não libera, devolver com motivo (e a Arte vê o motivo) |
+| `05-grafica-imprime-confere-embala-entrega.spec.ts` | Imprimir → informar impressas → conferir → embalar → entregar o volume; a fila no celular |
 
 Cada um roda nas três larguras de `playwright.config.ts`: **390** (celular, que é
 onde a Gráfica trabalha), **820** (tablet) e **1280** (desktop).
 
 ---
 
-## Antes de tudo: NUNCA aponte para produção
-
-Estes testes **criam evento, criam peça, iniciam impressão e entregam volume**.
-Rodá-los contra o banco de produção é estrago, não teste.
-
-Por isso:
-
-* sem `E2E_BASE_URL`, **a suíte inteira é pulada** — não existe alvo padrão;
-* `e2e/apoio.ts` recusa qualquer URL cujo hospedeiro pareça de produção
-  (`*.replit.app` do app, `*.nortemkt.com`). Se você criar um alvo novo,
-  acrescente o padrão na lista `PROIBIDOS` desse arquivo.
-
----
-
-## Montando um alvo de teste
-
-### Opção A — o Replit de desenvolvimento (mais simples)
-
-O Repl de dev já tem banco próprio e é o alvo natural.
-
-1. Abra o Repl, **Run**, e copie a URL de preview (algo como
-   `https://<nome>-<usuario>.<região>.replit.dev`).
-2. Crie os usuários de teste (um por perfil) na tela **Usuários**, como admin.
-3. Exporte as variáveis (abaixo) e rode.
-
-### Opção B — Postgres local
+## Rodando (o normal): tudo na sua máquina
 
 ```bash
-# 1. Banco vazio
-createdb norte_e2e
-
-# 2. Estrutura. NUNCA use db:push aqui se quiser o mesmo esquema da produção:
-#    a migração aditiva é a que produção recebeu.
-DATABASE_URL="postgres://localhost:5432/norte_e2e" \
-  npx tsx scripts/migracao-aditiva-producao.mjs
-
-# 3. Confira que não falta nada
-DATABASE_URL="postgres://localhost:5432/norte_e2e" npm run db:drift
-
-# 4. Primeiro admin (só funciona com a tabela users VAZIA — ver o README da raiz)
-DATABASE_URL="postgres://localhost:5432/norte_e2e" \
-SESSION_SECRET="qualquer-coisa-com-32-caracteres-ou-mais" \
-SEED_PASSWORD="umaSenhaDeTeste123" \
-  npm run dev
+npm run ferramentas:instalar   # uma vez: Playwright + Chromium + PGlite, fora do repositório
+npm run e2e                    # sobe banco + app, roda as 3 larguras, derruba tudo
 ```
 
-Com o app de pé em `http://localhost:5000`, entre como `admin@norte.com` com a
-`SEED_PASSWORD`, troque a senha e crie um usuário por perfil.
+`npm run e2e` (`scripts/e2e.mjs`), sem `E2E_BASE_URL`:
 
-> O upload usa o Object Storage do Replit. Sem ele, os passos que sobem thumb e
-> arquivo final falham — no local, a Opção A é a que exercita o fluxo completo.
+1. sobe um Postgres **em memória** (PGlite), aplica as migrações e cria um
+   usuário por perfil (`<perfil>@local.test`, senha `senha-local-123`);
+2. sobe o app (`server/index.ts` com Vite) numa porta local (5199, ou
+   `E2E_PORTA`), com um object storage de mentira — **os uploads funcionam**;
+3. roda cada largura com o servidor reiniciado (os limitadores de login e de
+   escrita são por processo; três larguras seguidas estourariam a cota);
+4. derruba tudo. Nada fica rodando, nada encosta em banco de verdade.
+
+Os argumentos passam para o Playwright:
+
+```bash
+npm run e2e -- --project=celular-390
+npm run e2e -- e2e/05-grafica-imprime-confere-embala-entrega.spec.ts
+npm run e2e -- --headed          # ver o navegador
+npm run e2e:ui                   # modo interativo, para calibrar seletor
+```
+
+Falhou? `test-results/<largura>/` tem trace, vídeo, screenshot e o
+`error-context.md` (a árvore da tela no momento da falha) do passo que quebrou:
+`node ../_ferramentas/node_modules/@playwright/test/cli.js show-trace <trace.zip>`.
+As últimas linhas do servidor saem no console.
+
+Ver as telas sem rodar teste: `npm run dev:local` (README da raiz) sobe o mesmo
+ambiente com dados de exemplo em todas as etapas.
 
 ---
 
-## Variáveis
+## Contra outro alvo (o Replit de dev)
+
+Com `E2E_BASE_URL` definida, `npm run e2e` só roda a suíte contra aquele
+endereço — nada sobe localmente:
 
 ```bash
-export E2E_BASE_URL="https://<seu-repl-de-dev>.replit.dev"   # ou http://localhost:5000
-export E2E_SENHA="umaSenhaDeTeste123"                        # a MESMA para os cinco usuários
+export E2E_BASE_URL="https://<seu-repl-de-dev>.replit.dev"
+export E2E_SENHA="umaSenhaDeTeste123"                  # a MESMA para os cinco usuários
 export E2E_EMAIL_ADMIN="admin.e2e@teste.local"
 export E2E_EMAIL_SOLICITACAO="solicitacao.e2e@teste.local"
 export E2E_EMAIL_ARTE="arte.e2e@teste.local"
 export E2E_EMAIL_GRAFICA="grafica.e2e@teste.local"
 export E2E_EMAIL_ATENDIMENTO="atendimento.e2e@teste.local"
+npm run e2e
 ```
 
-Nenhuma senha mora no repositório. Os usuários de teste **não podem** estar com
-"trocar senha no primeiro acesso" pendente — o login para no `/change-password` e
-o teste falha de propósito, avisando que o usuário foi recriado.
+Os usuários (um por perfil) são criados pela tela **Usuários**, como admin, e
+**não podem** estar com "trocar senha no primeiro acesso" pendente — o login
+para no `/change-password` e o teste falha de propósito.
+
+Cuidado com o limite de login: são **10 por IP e 10 por conta a cada 15 min**.
+No alvo local, cada login usa um IP de mentira (`X-Forwarded-For`, que o
+servidor aceita porque confia em um proxy); atrás do proxy do Replit isso não
+vale. A suíte reaproveita a sessão de cada perfil (`entrar` em `apoio.ts`) e o
+fluxo 1 distribui os perfis pelas larguras, mas duas rodadas seguidas contra o
+Replit podem esbarrar no limite — espere os 15 minutos.
+
+### NUNCA aponte para produção
+
+Estes testes **criam evento, criam peça, iniciam impressão e entregam volume**.
+`e2e/apoio.ts` recusa qualquer hospedeiro que pareça de produção
+(`print-flow-manager*.replit.app`, `*.nortemkt.com`). Alvo novo de produção?
+Acrescente o padrão na lista `PROIBIDOS` desse arquivo.
 
 ---
 
-## Rodando
+## Como os testes entram
 
-O Playwright **não está nas dependências do projeto** (ele baixa navegadores de
-~300 MB, e o build do app não precisa deles). Instale quando for usar:
+* **O fluxo 1 entra pelo formulário em todo teste** — é ele que testa o login.
+  Cada largura usa o perfil que trabalha naquele aparelho (`perfilDaLargura`:
+  Gráfica no celular, Arte no tablet, Solicitação no desktop).
+* **Os fluxos 2 a 5 reaproveitam a sessão**: cada perfil entra UMA vez pelo
+  formulário e o cookie fica num arquivo temporário (por alvo), usado pelos
+  testes seguintes e pelas três larguras. Sessão que não serve mais → entra de
+  novo pelo formulário.
+* **Excluir o evento de teste é do admin**: `limpar` entra como admin antes. (Sem
+  isso, a exclusão levava 403 calada, os eventos de teste se acumulavam e a peça
+  que ficou "em impressão" segurava a impressora dos testes seguintes.)
 
-```bash
-npm i -D @playwright/test
-npm run e2e:install        # baixa o Chromium — só na primeira vez
-```
-
-Depois:
-
-```bash
-npm run e2e                                   # as três larguras
-npm run e2e -- --project=celular-390          # só o celular
-npm run e2e -- e2e/05-grafica-*.spec.ts       # um fluxo
-npm run e2e:ui                                # modo interativo, para calibrar
-```
-
-Falhou? `playwright-report/` tem o HTML, com trace, vídeo e screenshot do passo
-que quebrou (`npx playwright show-report`).
-
----
-
-## A primeira execução é de calibração
-
-Os seletores foram escritos a partir do código das telas (`data-testid`), sem
-uma execução contra o app rodando. Espere ajustar alguns nomes na primeira vez —
-principalmente no fluxo 2, que digita no formulário de lote, onde os campos são
-indexados por linha (`input-description-0`, `input-quantity-0`, …).
+## O cenário vem pela API
 
 Nos pontos em que um fluxo depende de uma etapa anterior, o cenário é montado
 **pela API** (`e2e/cenario.ts`), não clicando pelas telas. É deliberado: se a
 Arte mudar de layout, quem tem de ficar vermelho é o fluxo 3 — não o da Gráfica.
+
+* O "Tipo" do lote lista os **Modelos** cadastrados; num banco novo não há
+  nenhum, então `garantirModelo` cria o "Pórtico E2E".
+* A Gráfica tem **uma peça por impressora** (409 `PRINTER_BUSY`):
+  `iniciarNumaImpressoraLivre` tenta da 1 à 4, para o teste não depender de
+  quem mais está imprimindo no banco-alvo.
+* O servidor grava o arquivo subido como `/objects/uploads/<id>`, não como a URL
+  do bucket que o upload devolve — `comoGravado` faz a mesma conversão.
+* Os testes rodam com **um worker**: os fluxos disputam as mesmas impressoras e
+  o banco local é uma sessão só.
+
+---
+
+## Defeitos conhecidos (marcados com `test.fail`)
+
+`test.fail` mantém a suíte verde **e** a régua certa: quando o defeito for
+corrigido, o teste "passa inesperadamente", o Playwright acusa, e é só tirar a
+marca.
+
+| Teste | Defeito |
+| --- | --- |
+| 01 · senha errada / e-mail inexistente | A tela de login diz **"Sua sessão expirou. Entre novamente para continuar."** para quem errou a senha. O `/api/auth/login` responde 401, e `client/src/lib/queryClient.ts` trata todo 401 fora de `/api/auth/me` como sessão vencida. Cura provável: não tratar o 401 do próprio login como sessão expirada. |
 
 ## O que estes testes NÃO cobrem
 
@@ -130,4 +136,8 @@ Arte mudar de layout, quem tem de ficar vermelho é o fluxo 3 — não o da Grá
   (`skipApproval`), para o fluxo não depender de cadastro de patrocinador. A
   máquina de estados da aprovação tem teste de servidor
   (`server/__tests__/maquina-de-estados-da-peca.test.ts`).
-* **E-mails e digests** — mandam mensagem de verdade; ficam nos testes de servidor.
+* **E-mails e digests** — mandam mensagem de verdade; ficam nos testes de servidor
+  (no app local eles estão desligados).
+* **Corrida entre duas pessoas** (dois cliques na mesma peça ao mesmo tempo): o
+  banco local é uma sessão só — `FOR UPDATE` e advisory locks não disputam nada.
+  Isso é coberto pelos testes de servidor.

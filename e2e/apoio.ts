@@ -12,6 +12,10 @@
 // As credenciais vêm do ambiente (E2E_SENHA e os e-mails por perfil). Nenhuma
 // senha mora aqui.
 // ─────────────────────────────────────────────────────────────────────────────
+import { createHash } from "crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 import { expect, type Page, type Locator } from "@playwright/test";
 
 export const BASE_URL = process.env.E2E_BASE_URL ?? "";
@@ -54,31 +58,113 @@ export function senhaDoTeste(): string {
 }
 
 /**
- * Entra no app com um perfil e espera a casca aparecer.
- *
- * O login por senha é o caminho do formulário de admin: a tela abre no botão
- * do portal (SSO), e `button-toggle-admin-login` revela os campos. O SSO não
- * é exercitável daqui — depende do portal NORTE.
+ * Um IP de mentira por login. O /api/auth/login tem limite de 10 tentativas
+ * por IP em 15 min, e a suíte entra dezenas de vezes da MESMA máquina. O
+ * servidor confia em um proxy (`trust proxy` = 1), então no alvo LOCAL o
+ * X-Forwarded-For vira o IP da requisição. Atrás do proxy do Replit o
+ * cabeçalho não vale (o proxy acrescenta o IP real) — lá o limite aparece se a
+ * suíte rodar duas vezes seguidas; ver e2e/README.md.
+ * O limite POR CONTA (10 em 15 min) continua valendo: por isso as sessões são
+ * reaproveitadas (abaixo) e o fluxo 1 distribui os perfis pelas larguras.
  */
-export async function entrar(page: Page, perfil: Perfil): Promise<void> {
-  await page.goto("/login");
-  const alternar = page.getByTestId("button-toggle-admin-login");
-  if (await alternar.isVisible().catch(() => false)) await alternar.click();
+function ipDeMentira(): string {
+  const n = () => Math.floor(Math.random() * 254) + 1;
+  return `10.${n()}.${n()}.${n()}`;
+}
 
+/**
+ * Abre a tela de login com os campos de e-mail e senha à vista. A tela abre
+ * no botão do portal (SSO); `button-toggle-admin-login` revela os campos. A
+ * espera é longa porque, no servidor de desenvolvimento, a primeira visita
+ * compila as telas.
+ */
+export async function abrirLogin(page: Page): Promise<void> {
+  await page.setExtraHTTPHeaders({ "x-forwarded-for": ipDeMentira() });
+  // Logo depois de sair, a própria tela ainda pode estar indo para o login
+  // sozinha (o 401 manda para /login?sessao=expirada) — e o goto que cruza com
+  // essa navegação volta ERR_ABORTED. Tenta de novo, que a página já parou.
+  for (let tentativa = 1; ; tentativa++) {
+    try {
+      await page.goto("/login");
+      break;
+    } catch (erro) {
+      if (tentativa >= 3 || !String(erro).includes("ERR_ABORTED")) throw erro;
+      await page.waitForTimeout(500);
+    }
+  }
+  const alternar = page.getByTestId("button-toggle-admin-login");
+  const email = page.getByTestId("input-email");
+  await expect(alternar.or(email).first()).toBeVisible({ timeout: 45_000 });
+  if (!(await email.isVisible())) await alternar.click();
+  await expect(email).toBeVisible();
+}
+
+/**
+ * Entra PELO FORMULÁRIO — o caminho que o fluxo 1 testa. O SSO não é
+ * exercitável daqui: depende do portal NORTE.
+ */
+export async function entrarPeloFormulario(page: Page, perfil: Perfil): Promise<void> {
+  await abrirLogin(page);
   await page.getByTestId("input-email").fill(emailDoPerfil(perfil));
   await page.getByTestId("input-password").fill(senhaDoTeste());
   await page.getByTestId("button-login").click();
 
   // A troca de senha no primeiro acesso é um desvio legítimo — e um sinal de
   // que o usuário de teste foi recriado. Falhar aqui é melhor que seguir.
-  await expect(page).not.toHaveURL(/\/change-password/, { timeout: 15_000 });
-  await expect(page).not.toHaveURL(/\/login/, { timeout: 15_000 });
+  await expect(page).not.toHaveURL(/\/login|\/change-password/, { timeout: 30_000 });
+  await expect(page).not.toHaveURL(/\/change-password/);
+}
+
+// ── Sessões reaproveitadas ──────────────────────────────────────────────────
+// Os fluxos 2 a 5 não testam o login: testam o que vem depois. Entrar pelo
+// formulário em cada teste gastaria o limite de 10 logins por conta em 15 min
+// antes da metade da suíte. Cada perfil entra UMA vez pelo formulário e o
+// cookie fica num arquivo temporário (por alvo), reaproveitado pelos testes e
+// pelas três larguras. Se o cookie não servir mais (servidor novo, sessão
+// encerrada), entra de novo pelo formulário.
+const PASTA_DAS_SESSOES = join(
+  tmpdir(),
+  "norte-e2e-sessoes",
+  createHash("sha1").update(BASE_URL).digest("hex").slice(0, 12),
+);
+const comSessaoCompartilhada = new WeakSet<Page>();
+
+/** Entra com um perfil (sessão reaproveitada; o formulário só na primeira vez). */
+export async function entrar(page: Page, perfil: Perfil): Promise<void> {
+  const arquivo = join(PASTA_DAS_SESSOES, `${perfil}.json`);
+  if (existsSync(arquivo)) {
+    await page.context().clearCookies();
+    await page.context().addCookies(JSON.parse(readFileSync(arquivo, "utf8")));
+    const eu = await page.request.get("/api/auth/me");
+    if (eu.ok() && (await eu.json()).role === perfil) {
+      comSessaoCompartilhada.add(page);
+      return;
+    }
+  }
+  await page.context().clearCookies();
+  await entrarPeloFormulario(page, perfil);
+  mkdirSync(PASTA_DAS_SESSOES, { recursive: true });
+  writeFileSync(arquivo, JSON.stringify(await page.context().cookies()));
+  comSessaoCompartilhada.add(page);
 }
 
 export async function sair(page: Page): Promise<void> {
-  // Sem depender do menu (que muda de forma entre celular e desktop).
-  await page.request.post("/api/auth/logout");
+  // Sessão compartilhada não se encerra: os outros testes ainda a usam. Sair
+  // de verdade (logout no servidor) é para a sessão aberta pelo formulário.
+  if (!comSessaoCompartilhada.has(page)) await page.request.post("/api/auth/logout");
+  comSessaoCompartilhada.delete(page);
   await page.context().clearCookies();
+}
+
+/**
+ * O perfil que o fluxo 1 usa em cada largura — cada um entra pelo formulário
+ * no aparelho em que de fato trabalha (a Gráfica no celular, a Arte no tablet,
+ * a Solicitação no desktop), e o limite por conta não estoura.
+ */
+export function perfilDaLargura(projeto: string): Perfil {
+  if (projeto.startsWith("celular")) return "grafica";
+  if (projeto.startsWith("tablet")) return "arte";
+  return "solicitacao";
 }
 
 /** A linha (ou o cartão) de uma peça pelo código #0000 — serve nas três larguras. */
@@ -149,4 +235,15 @@ export async function subirArquivo(page: Page, conteudo: Buffer, contentType: st
   });
   expect(r.ok(), await r.text()).toBe(true);
   return (await r.json()).url as string;
+}
+
+/**
+ * Como o servidor GRAVA um arquivo subido: o upload devolve a URL do bucket
+ * (`https://storage.googleapis.com/<bucket>/.private/uploads/<id>`) e as rotas
+ * de thumb/arquivo guardam o caminho servido pelo app (`/objects/uploads/<id>`)
+ * — a mesma conversão de server/routes/thumb-url.ts.
+ */
+export function comoGravado(url: string): string {
+  const m = /\/\.private\/(.+?)(?:\?|$)/.exec(url);
+  return url.startsWith("https://storage.googleapis.com/") && m ? `/objects/${m[1]}` : url;
 }

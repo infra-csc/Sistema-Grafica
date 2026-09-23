@@ -236,7 +236,8 @@ describe("as duas metades da cura estão no código", () => {
     expect(i).toBeGreaterThan(-1);
     const trecho = EVENTOS.slice(i - 1500, i + 300);
     expect(trecho).toContain('type="checkbox"');
-    expect(trecho).toContain('accentColor: "#fd761a"');
+    // A cor da marcação vem do token legível (accentText), não do #fd761a.
+    expect(trecho).toContain('accentColor: T.accentText');
     expect(trecho).not.toContain("<Checkbox");
   });
 

@@ -3,8 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Copy, Loader2, Search } from "lucide-react";
 import { FilterSelect } from "@/components/filter-select";
 import { getStatusLabel } from "@/lib/status";
-import { Button } from "@/components/ui/button";
-import { T, N, TOM, FONT } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { EstadoVazio, Esqueleto } from "@/components/ui/estados";
+import { T, N, TOM, FONT, FS } from "@/lib/theme";
 import {
   Dialog,
   DialogContent,
@@ -182,14 +183,14 @@ export function CloneItemsDialog({
           </div>
 
           {cloneSourceId && pecasCarregando && (
-            <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: T.second }}>
-              <Loader2 className="animate-spin" style={{ width: 14, height: 14 }} /> Carregando as peças do evento…
+            <div style={{ marginTop: 16 }}>
+              <Esqueleto variante="lista" linhas={3} rotulo="Carregando as peças do evento" />
             </div>
           )}
 
           {cloneSourceId && !pecasCarregando && pecasDaOrigem.length === 0 && (
-            <div style={{ marginTop: 16, fontSize: 12.5, color: T.second, background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, padding: '12px 14px' }}>
-              Este evento não tem peças para clonar.
+            <div style={{ marginTop: 16 }}>
+              <EstadoVazio compacto icone={Copy} titulo="Este evento não tem peças para clonar." />
             </div>
           )}
 
@@ -232,7 +233,7 @@ export function CloneItemsDialog({
 
               <div style={{ maxHeight: 220, overflowY: 'auto', border: `1px solid ${T.border}`, borderRadius: 8 }}>
                 {visiveis.length === 0 && (
-                  <div style={{ padding: '14px 12px', fontSize: 12.5, color: T.second }}>Nenhuma peça bate com a busca.</div>
+                  <div style={{ padding: '14px 12px', fontSize: FS.meta, color: T.second }}>Nenhuma peça bate com a busca.</div>
                 )}
                 {visiveis.map((i: any) => (
                   <label
@@ -286,21 +287,27 @@ export function CloneItemsDialog({
         </div>
 
         <div style={{ flexShrink: 0, padding: '16px 28px 24px', borderTop: `1px solid ${N.n3}`, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-          <Button variant="outline" onClick={() => { onOpenChange(false); setCloneSourceId(""); }}>
+          <Botao variante="fantasma" onClick={() => { onOpenChange(false); setCloneSourceId(""); }}>
             Cancelar
-          </Button>
-          <Button
+          </Botao>
+          <Botao
+            variante="primario"
+            icone={Copy}
+            carregando={isCloning}
             onClick={() => onConfirmClone(Array.from(escolhidas))}
-            disabled={!cloneSourceId || isCloning || pecasCarregando || escolhidas.size === 0}
+            disabled={!cloneSourceId || pecasCarregando || escolhidas.size === 0}
+            motivo={!cloneSourceId
+              ? 'Escolha o evento de origem.'
+              : !pecasCarregando && pecasDaOrigem.length > 0 && escolhidas.size === 0
+                ? 'Marque ao menos uma peça.'
+                : undefined}
+            alinharMotivo="end"
             data-testid="button-confirm-clone"
-            style={{ backgroundColor: TOM.info.text, color: T.surface }}
           >
-            {isCloning ? (
-              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Clonando...</>
-            ) : (
-              <><Copy className="h-4 w-4 mr-2" /> {escolhidas.size > 0 ? `Clonar ${escolhidas.size} ${escolhidas.size === 1 ? "Peça" : "Peças"}` : "Clonar Peças"}</>
-            )}
-          </Button>
+            {isCloning
+              ? "Clonando..."
+              : escolhidas.size > 0 ? `Clonar ${escolhidas.size} ${escolhidas.size === 1 ? "Peça" : "Peças"}` : "Clonar Peças"}
+          </Botao>
         </div>
       </DialogContent>
     </Dialog>

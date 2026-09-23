@@ -9,6 +9,8 @@ import { FilterSelect, type FilterOption } from "@/components/filter-select";
 // sobrando. É ela que reconhece "sanett" e "Sanett" como o mesmo material.
 import { normalizarBusca } from "@/lib/utils";
 import { T, N, TOM, FONT } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { useConfirmar } from "@/components/ui/usar-confirmar";
 
 const materials = ["Adesivo", "Lona", "Madeira", "Sanett", "Tecido", "Tecido Pet"];
 const finishes = ["Dupla Face", "Ilhós", "Impressão UV", "Impresso", "Recorte", "Refile"];
@@ -594,6 +596,7 @@ export function BulkItemEntry({
   const tableRef = useRef<HTMLDivElement>(null);
   const submittedIdsRef = useRef<string[]>([]);
   const { toast } = useToast();
+  const { confirmar, dialogo } = useConfirmar();
 
   // Quando o pai confirma o salvamento, tira do grid só as linhas gravadas.
   // As incompletas ficam, para o usuário terminar sem perder o que digitou.
@@ -723,7 +726,7 @@ export function BulkItemEntry({
       toast({
         title: "Nenhuma peça válida",
         description: "Preencha os campos destacados em vermelho antes de salvar.",
-        variant: "destructive",
+        variant: "warning",
       });
       return;
     }
@@ -1147,39 +1150,20 @@ export function BulkItemEntry({
                 </span>
               </p>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                <button
-                  type="button"
-                  onClick={() => setDuplicateConfirm(null)}
-                  style={{
-                    padding: '9px 20px', background: 'none', border: `1.5px solid ${T.border}`,
-                    borderRadius: '8px', color: T.second, fontSize: '13px', fontWeight: '600',
-                    cursor: 'pointer', fontFamily: FONT.display,
-                    transition: 'border-color 0.15s',
-                  }}
-                >
+                <Botao variante="secundario" onClick={() => setDuplicateConfirm(null)}>
                   Voltar e revisar
-                </button>
-                <button
-                  type="button"
-                  // disabled durante o envio: sem a guarda, dois cliques rápidos
+                </Botao>
+                <Botao
+                  variante="primario"
+                  // carregando durante o envio: sem a guarda, dois cliques rápidos
                   // antes do re-render disparavam onSubmit duas vezes — lote duplicado.
-                  disabled={isPending}
+                  carregando={isPending}
                   onClick={() => { setDuplicateConfirm(null); onSubmit(duplicateConfirm.valid, leftoverCount); }}
-                  style={{
-                    padding: '9px 22px',
-                    background: `linear-gradient(135deg, #2E2A26 0%, ${T.text} 100%)`,
-                    border: 'none', borderRadius: '8px', color: T.surface,
-                    opacity: isPending ? 0.6 : 1,
-                    fontSize: '13px', fontWeight: '800', cursor: isPending ? 'wait' : 'pointer',
-                    fontFamily: FONT.display,
-                    textTransform: 'uppercase', letterSpacing: '0.07em',
-                    display: 'flex', alignItems: 'center', gap: '8px',
-                  }}
                   data-testid="button-confirm-duplicates"
                 >
                   <span>Confirmar Lote</span>
-                  <ArrowRight size={14} />
-                </button>
+                  <ArrowRight size={14} aria-hidden="true" />
+                </Botao>
               </div>
             </div>
 
@@ -1474,26 +1458,9 @@ export function BulkItemEntry({
 
           {/* ── ADICIONAR LINHA ── */}
           <div style={{ marginTop: '10px' }}>
-            <button
-              type="button"
-              onClick={addRow}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: '6px',
-                padding: '6px 16px',
-                border: `1.5px dashed ${T.bdark}`, borderRadius: '6px',
-                backgroundColor: 'transparent', color: T.second,
-                fontSize: '11px', fontWeight: '700',
-                textTransform: 'uppercase', letterSpacing: '0.08em',
-                cursor: 'pointer', fontFamily: FONT.display,
-                transition: 'border-color 0.12s, color 0.12s',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = T.accentText; e.currentTarget.style.color = T.accentText; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = T.bdark; e.currentTarget.style.color = T.second; }}
-              data-testid="button-add-row"
-            >
-              <Plus size={13} />
+            <Botao variante="secundario" tamanho="sm" icone={Plus} onClick={addRow} data-testid="button-add-row">
               Adicionar Linha
-            </button>
+            </Botao>
           </div>
 
         </div>
@@ -1528,55 +1495,44 @@ export function BulkItemEntry({
 
         {/* Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button
-            type="button"
-            onClick={() => {
+          <Botao
+            variante="fantasma"
+            onClick={async () => {
               // Grid com conteúdo digitado: confirmar antes de descartar — o
               // Esc e o clique-fora já são bloqueados; este era o único caminho
               // que jogava o trabalho fora sem perguntar.
-              if (temConteudo && !window.confirm("Descartar as peças digitadas neste lote?")) return;
+              if (temConteudo) {
+                const ok = await confirmar({
+                  titulo: "Descartar as peças digitadas neste lote?",
+                  descricao: "As linhas preenchidas aqui ainda não foram salvas e serão perdidas.",
+                  confirmar: "Descartar",
+                  cancelar: "Continuar editando",
+                  perigo: true,
+                  icone: Trash2,
+                });
+                if (!ok) return;
+              }
               onCancel();
             }}
-            style={{
-              padding: '9px 20px', background: 'none', border: 'none',
-              color: T.second, fontSize: '13px', fontWeight: '600',
-              cursor: 'pointer', transition: 'color 0.12s',
-            }}
-            onMouseEnter={e => (e.currentTarget.style.color = T.text)}
-            onMouseLeave={e => (e.currentTarget.style.color = T.second)}
           >
             Cancelar
-          </button>
-          <button
-            type="button"
+          </Botao>
+          <Botao
+            variante="primario"
             onClick={handleSubmit}
-            disabled={isPending}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '8px',
-              padding: '9px 22px',
-              backgroundColor: isPending ? T.apoio : T.text,
-              color: T.surface, borderRadius: '8px', border: 'none',
-              fontSize: '13px', fontWeight: '900',
-              textTransform: 'uppercase', letterSpacing: '0.06em',
-              cursor: isPending ? 'not-allowed' : 'pointer',
-              fontFamily: FONT.display,
-              transition: 'background-color 0.12s',
-            }}
-            // Hover em #c2410c: branco sobre #f97316 dava 2,8:1 — o rótulo do
-            // botão principal sumia justo quando o mouse chegava nele.
-            onMouseEnter={e => { if (!isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = T.accentText; }}
-            onMouseLeave={e => { if (!isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = T.text; }}
+            carregando={isPending}
             data-testid="button-submit-bulk"
             // "Finalizar Lote" prometia um fim que não existe: o clique abre
             // a revisão, e o lote salvo ainda vira rascunho a enviar.
           >
             {isPending
-              ? <><Loader2 size={15} className="animate-spin" /> Salvando...</>
-              : <>Revisar e salvar <ArrowRight size={15} /></>
+              ? "Salvando..."
+              : <>Revisar e salvar <ArrowRight size={15} aria-hidden="true" /></>
             }
-          </button>
+          </Botao>
         </div>
       </div>
+      {dialogo}
     </div>
   );
 }

@@ -5,7 +5,6 @@ import {
   Upload,
   List,
   Check,
-  Loader2,
   CheckCircle2,
   AlertTriangle,
   FileSpreadsheet,
@@ -19,18 +18,12 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { T, N, TOM, FONT } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { EstadoVazio } from "@/components/ui/estados";
+import { useConfirmar } from "@/components/ui/usar-confirmar";
 
 // Ativa a edição da célula também pelo teclado (Enter/Espaço) — as células
 // eram clicáveis mas invisíveis para quem navega por Tab.
@@ -580,8 +573,9 @@ export function ImportXlsxDialog({
   useEffect(() => { if (!importPreviewItems) setEscolhendoDestino(false); }, [importPreviewItems]);
 
   // Confirmação de descarte no padrão visual da casa — o window.confirm
-  // nativo destoava do produto (flagrado em produção).
-  const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
+  // nativo destoava do produto (flagrado em produção). Agora é a mesma
+  // pergunta de todas as telas (useConfirmar), com o verbo no botão.
+  const { confirmar, dialogo } = useConfirmar();
 
   // ── TRIAGEM ──────────────────────────────────────────────────────────────
   //
@@ -641,9 +635,15 @@ export function ImportXlsxDialog({
       if (!v) {
         // Preview carregado = trabalho de edição/vinculação em andamento.
         // Fechar (X/Esc/clique-fora) descartava tudo sem perguntar; a
-        // confirmação usa o AlertDialog da casa (o confirm() nativo destoava).
+        // confirmação é o useConfirmar da casa (o confirm() nativo destoava).
         if (importPreviewItems && importPreviewItems.length > 0) {
-          setConfirmDiscardOpen(true);
+          void confirmar({
+            titulo: "Descartar importação?",
+            descricao: "As edições e vinculações feitas no preview serão perdidas.",
+            confirmar: "Descartar",
+            cancelar: "Continuar editando",
+            perigo: true,
+          }).then((ok) => { if (ok) onOpenChangeClose(); });
           return;
         }
         onOpenChangeClose();
@@ -707,7 +707,7 @@ export function ImportXlsxDialog({
               if (f && (f.name.endsWith('.xlsx') || f.name.endsWith('.xls'))) {
                 setImportFile(f); setImportPreview(null); setImportPreviewItems(null);
               } else {
-                toast({ title: "Arquivo inválido", description: "Selecione um arquivo .xlsx", variant: "destructive" });
+                toast({ title: "Arquivo inválido", description: "Selecione um arquivo .xlsx", variant: "warning" });
               }
             }}
           >
@@ -853,18 +853,20 @@ export function ImportXlsxDialog({
           {/* PÉ FIXO: o botão de importar — o fim da tarefa — nunca sai de vista. */}
           <div style={{ flexShrink: 0, padding: '12px 18px 18px', borderTop: `1px solid ${N.n3}`, backgroundColor: T.surface }}>
           {!importPreviewItems ? (
-            <button
-              disabled={!importFile || previewXlsxPending}
+            <Botao
+              variante="primario"
+              tamanho="toque"
+              larguraCheia
+              icone={List}
+              disabled={!importFile}
+              carregando={previewXlsxPending}
+              motivo={!importFile ? 'Escolha a planilha acima.' : undefined}
+              alinharMotivo="center"
               onClick={() => { if (importFile) onPreview(importFile); }}
               data-testid="button-preview-import"
-              style={{ width: '100%', padding: '11px 0', backgroundColor: importFile ? TOM.sucesso.text : T.border, color: importFile ? T.surface : T.apoio, border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: importFile ? 'pointer' : 'not-allowed', fontFamily: FONT.display, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
             >
-              {previewXlsxPending ? (
-                <><Loader2 style={{ width: 15, height: 15, animation: 'spin 1s linear infinite' }} /> Processando...</>
-              ) : (
-                <><List style={{ width: 15, height: 15 }} /> Pré-visualizar Peças</>
-              )}
-            </button>
+              {previewXlsxPending ? 'Processando...' : 'Pré-visualizar Peças'}
+            </Botao>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {/* AS LINHAS QUE FICARAM DE FORA. Antes sumiam caladas (linha sem
@@ -918,17 +920,19 @@ export function ImportXlsxDialog({
                     {repetidas.length > 3 ? ` · e mais ${repetidas.length - 3}` : ''}
                   </div>
                   <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                    <button
-                      type="button"
+                    <Botao
+                      variante="secundario"
+                      tamanho="sm"
                       onClick={() => setTriagem(triagem === 'ja-existe' ? null : 'ja-existe')}
                       aria-pressed={triagem === 'ja-existe'}
                       data-testid="button-ver-repetidas"
-                      style={{ flex: 1, padding: '6px 0', background: T.surface, border: `1px solid ${TOM.laranja.border}`, borderRadius: 6, fontSize: 11, fontWeight: 700, color: T.accentText, cursor: 'pointer' }}
+                      style={{ flex: 1 }}
                     >
                       {triagem === 'ja-existe' ? 'Ver todas de novo' : `Ver as ${repetidas.length}`}
-                    </button>
-                    <button
-                      type="button"
+                    </Botao>
+                    <Botao
+                      variante="primario"
+                      tamanho="sm"
                       onClick={() => {
                         const fora = new Set(repetidas.map((r: any) => r._id));
                         setImportPreviewItems(prev => prev ? prev.filter(r => !fora.has(r._id)) : prev);
@@ -936,34 +940,39 @@ export function ImportXlsxDialog({
                         // vazia logo depois da remoção — a lista some junto
                         // com o motivo de ela estar recortada.
                         if (triagem === 'ja-existe') setTriagem(null);
-                        toast({ title: `${fora.size} ${fora.size === 1 ? 'peça repetida removida' : 'peças repetidas removidas'}`, description: 'Elas continuam no evento; só saíram desta importação.' });
+                        toast({ title: `${fora.size} ${fora.size === 1 ? 'peça repetida removida' : 'peças repetidas removidas'}`, description: 'Elas continuam no evento; só saíram desta importação.', variant: 'success' });
                       }}
                       data-testid="button-remover-repetidas"
-                      style={{ flex: 1, padding: '6px 0', background: T.accentText, border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, color: T.surface, cursor: 'pointer' }}
+                      style={{ flex: 1 }}
                     >
                       Remover {repetidas.length === 1 ? 'a repetida' : `as ${repetidas.length}`}
-                    </button>
+                    </Botao>
                   </div>
                 </div>
               )}
-              <button
+              <Botao
+                variante="secundario"
+                larguraCheia
                 onClick={() => { setImportPreviewItems(null); setImportSearch(""); setTriagem(null); }}
-                style={{ width: '100%', padding: '9px 0', backgroundColor: 'transparent', color: T.second, border: `1px solid ${T.border}`, borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: FONT.display }}
               >
                 Trocar arquivo
-              </button>
-              <button
-                disabled={!importPreviewItems.length || confirmImportPending || comQtdInvalida.length > 0}
+              </Botao>
+              {/* O motivo do travamento já aparece logo abaixo, com a linha
+                  (motivo-importar-travado) — por isso sem `motivo` aqui. */}
+              <Botao
+                variante="primario"
+                tamanho="toque"
+                larguraCheia
+                icone={Check}
+                disabled={!importPreviewItems.length || comQtdInvalida.length > 0}
+                carregando={confirmImportPending}
                 onClick={() => { if (importPreviewItems.length > 0 && comQtdInvalida.length === 0) setEscolhendoDestino(true); }}
                 data-testid="button-confirm-import"
-                style={{ width: '100%', padding: '11px 0', backgroundColor: comQtdInvalida.length > 0 ? T.border : T.text, color: comQtdInvalida.length > 0 ? T.apoio : T.surface, border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: comQtdInvalida.length > 0 ? 'not-allowed' : 'pointer', fontFamily: FONT.display, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
               >
-                {confirmImportPending ? (
-                  <><Loader2 style={{ width: 15, height: 15, animation: 'spin 1s linear infinite' }} /> Importando...</>
-                ) : (
-                  <><Check style={{ width: 15, height: 15 }} /> Importar {importPreviewItems.length} {importPreviewItems.length === 1 ? 'peça' : 'peças'}</>
-                )}
-              </button>
+                {confirmImportPending
+                  ? 'Importando...'
+                  : <>Importar {importPreviewItems.length} {importPreviewItems.length === 1 ? 'peça' : 'peças'}</>}
+              </Botao>
               {/* POR QUE O BOTÃO ESTÁ TRAVADO — à vista, com a linha. */}
               {comQtdInvalida.length > 0 && (
                 <p data-testid="motivo-importar-travado" role="status" style={{ margin: 0, fontSize: 11, color: TOM.perigo.text, lineHeight: 1.45, textAlign: 'center', fontWeight: 600 }}>
@@ -1020,8 +1029,9 @@ export function ImportXlsxDialog({
                 </button>
               )}
               {eventSponsorsList.length > 0 && (
-                <button
-                  type="button"
+                <Botao
+                  variante="secundario"
+                  tamanho="sm"
                   title="Vincular todos os patrocinadores do evento a todas as peças listadas"
                   onClick={() => {
                     const allIds = eventSponsorsList.map(s => s.sponsorId);
@@ -1032,10 +1042,10 @@ export function ImportXlsxDialog({
                         : r
                     ) : prev);
                   }}
-                  style={{ fontSize: 11, fontWeight: 700, borderRadius: 8, border: `1px solid ${TOM.sucesso.border}`, backgroundColor: TOM.sucesso.bg, color: TOM.sucesso.text, cursor: 'pointer', padding: '6px 11px', whiteSpace: 'nowrap', flexShrink: 0 }}
+                  style={{ flexShrink: 0 }}
                 >
                   + Todos patrocinadores
-                </button>
+                </Botao>
               )}
             </div>
 
@@ -1111,28 +1121,31 @@ export function ImportXlsxDialog({
                 </tbody>
               </table>
               {importPreviewItems.length === 0 && (
-                <div style={{ padding: 60, textAlign: 'center', color: T.second, fontSize: 13 }}>
-                  <List aria-hidden="true" style={{ width: 32, height: 32, color: T.second, margin: '0 auto 12px' }} />
-                  <div>Nenhuma peça para importar.</div>
+                <div style={{ padding: 24 }}>
+                  <EstadoVazio icone={List} titulo="Nenhuma peça para importar." />
                 </div>
               )}
               {/* Filtro sem resultado: antes a tabela simplesmente sumia,
                   sem dizer o porquê nem oferecer saída. */}
               {importPreviewItems.length > 0 && importPreviewItems.filter(matchesImportFiltros).length === 0 && (
-                <div style={{ padding: 60, textAlign: 'center', color: T.second, fontSize: 13 }}>
-                  <Search aria-hidden="true" style={{ width: 32, height: 32, color: T.second, margin: '0 auto 12px' }} />
-                  <div style={{ fontWeight: 700, color: T.text, marginBottom: 4 }}>Nenhuma peça corresponde ao filtro</div>
-                  <div style={{ marginBottom: 14 }}>Tente outro termo ou limpe o filtro para ver as {importPreviewItems.length} peças.</div>
-                  <button
-                    // Limpa os DOIS recortes: com a triagem ligada, um
-                    // "Limpar filtro" que so apaga a busca deixa a tela
-                    // vazia depois de a pessoa ter pedido para limpar.
-                    onClick={() => { setImportSearch(""); setTriagem(null); }}
-                    data-testid="button-clear-import-search"
-                    style={{ padding: '8px 18px', backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 12, fontWeight: 700, color: T.text, cursor: 'pointer' }}
-                  >
-                    Limpar filtro
-                  </button>
+                <div style={{ padding: 24 }}>
+                  <EstadoVazio
+                    icone={Search}
+                    titulo="Nenhuma peça corresponde ao filtro"
+                    descricao={<>Tente outro termo ou limpe o filtro para ver as {importPreviewItems.length} peças.</>}
+                    acao={
+                      <Botao
+                        variante="secundario"
+                        // Limpa os DOIS recortes: com a triagem ligada, um
+                        // "Limpar filtro" que so apaga a busca deixa a tela
+                        // vazia depois de a pessoa ter pedido para limpar.
+                        onClick={() => { setImportSearch(""); setTriagem(null); }}
+                        data-testid="button-clear-import-search"
+                      >
+                        Limpar filtro
+                      </Botao>
+                    }
+                  />
                 </div>
               )}
             </div>
@@ -1155,26 +1168,7 @@ export function ImportXlsxDialog({
       />
 
       {/* Confirmação de descarte da importação — padrão da casa */}
-      <AlertDialog open={confirmDiscardOpen} onOpenChange={setConfirmDiscardOpen}>
-        <AlertDialogContent style={{ width: '96vw', maxWidth: 420, borderRadius: 16 }}>
-          <AlertDialogTitle style={{ fontFamily: FONT.display, fontSize: 17, fontWeight: 700, color: T.text }}>
-            Descartar importação?
-          </AlertDialogTitle>
-          <AlertDialogDescription style={{ fontSize: 13, color: T.apoio, lineHeight: 1.6 }}>
-            As edições e vinculações feitas no preview serão perdidas.
-          </AlertDialogDescription>
-          <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-keep-import">Continuar editando</AlertDialogCancel>
-            <AlertDialogAction
-              data-testid="button-discard-import"
-              onClick={() => { setConfirmDiscardOpen(false); onOpenChangeClose(); }}
-              style={{ backgroundColor: TOM.perigo.text, color: T.surface }}
-            >
-              Descartar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {dialogo}
     </Dialog>
   );
 }

@@ -24,7 +24,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { parseDateLocal, toUTCDisplayDate, runInBatches } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import {
   Plus, Calendar, Truck, AlertCircle, AlertTriangle, Search, Pencil, Trash2,
   Package, Flag, Building2, CheckCircle, ChevronDown, ChevronUp, Clock,
@@ -42,7 +41,10 @@ import {
   motivoEventoFinalizado, todayBusinessMs,
 } from "@/lib/status";
 import { PHASES, contarPorFaseDoEvento as contarPorFase, FORA_DO_FUNIL } from "@/lib/fases";
-import { T, FS, R, SHADOW, N, TOM, FONT } from "@/lib/theme";
+import { T, FS, R, SHADOW, N, TOM, FONT, FW } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
+import { EstadoVazio, EstadoErro, Esqueleto } from "@/components/ui/estados";
 import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import {
   Dialog,
@@ -60,8 +62,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ptBR } from "date-fns/locale";
 import {
   AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -1560,6 +1560,7 @@ export default function Eventos() {
             Abrir evento
           </ToastAction>
         ),
+        variant: "success",
       });
     },
     onError: (error: Error) => {
@@ -1632,7 +1633,8 @@ export default function Eventos() {
         description: failedSponsors.length > 0
           ? `Não foi possível atualizar: ${failedSponsors.join(", ")}. Reabra o evento para revisar.`
           : soVinculos ? `Patrocinadores e cotas de "${nomeSalvo}" salvos.` : `"${nomeSalvo}" salvo.`,
-        variant: failedSponsors.length > 0 ? "destructive" : undefined,
+        // Evento salvo e só parte dos vínculos não: aviso, não falha — nada se perdeu.
+        variant: failedSponsors.length > 0 ? "warning" : "success",
       });
     },
     onError: (error: Error) => {
@@ -1658,6 +1660,7 @@ export default function Eventos() {
         description: removed > 0
           ? `${removed} ${removed === 1 ? 'peça removida' : 'peças removidas'} em cascata${delivered > 0 ? ` (${delivered} já ${delivered === 1 ? 'entregue' : 'entregues'})` : ''}.`
           : "Não havia peças ligadas a ele.",
+        variant: "success",
       });
     },
     onError: (error: Error) => {
@@ -1698,6 +1701,7 @@ export default function Eventos() {
             Mostrar
           </ToastAction>
         ) : undefined,
+        variant: "success",
       });
     },
     onError: (error: Error) => {
@@ -1724,6 +1728,7 @@ export default function Eventos() {
         description: open > 0
           ? `Voltou para a Gestão de Prazos e para as filas com ${open} ${open === 1 ? 'peça em aberto' : 'peças em aberto'}.`
           : "Voltou para a Gestão de Prazos e para as filas de trabalho.",
+        variant: "success",
       });
     },
     onError: (error: Error) => {
@@ -1749,6 +1754,7 @@ export default function Eventos() {
         description: priority
           ? `${nome ? `"${nome}" ` : ""}travado neste nível — a regra da saída do caminhão não mexe mais nele.`
           : `${nome ? `"${nome}" ` : "O evento "}voltou a seguir a saída do caminhão.`,
+        variant: "success",
       });
     },
     onError: (error: Error) => {
@@ -1777,7 +1783,7 @@ export default function Eventos() {
           description: sponsorsLoading
             ? "Os patrocinadores do evento ainda estão carregando."
             : "Reabra a janela — salvar agora poderia remover os patrocinadores vinculados.",
-          variant: "destructive",
+          variant: sponsorsLoading ? "warning" : "destructive",
         });
         return;
       }
@@ -1785,7 +1791,7 @@ export default function Eventos() {
       return;
     }
     if (!formData.startDate || !formData.truckDepartureDate) {
-      toast({ title: "Datas obrigatórias", description: "Preencha a data de início e a saída do caminhão.", variant: "destructive" });
+      toast({ title: "Datas obrigatórias", description: "Preencha a data de início e a saída do caminhão.", variant: "warning" });
       return;
     }
 
@@ -1796,7 +1802,7 @@ export default function Eventos() {
       toast({
         title: "Horário inválido",
         description: "Confira o horário da saída do caminhão (formato 08:00).",
-        variant: "destructive",
+        variant: "warning",
       });
       setOpenTruckDate(true);
       return;
@@ -1818,7 +1824,7 @@ export default function Eventos() {
       toast({
         title: "Data inválida",
         description: "Confira o ano das datas (ex.: 2026) — valor fora do intervalo aceito.",
-        variant: "destructive",
+        variant: "warning",
       });
       return;
     }
@@ -1827,7 +1833,7 @@ export default function Eventos() {
       toast({
         title: "Data inválida",
         description: "A saída do caminhão deve ser pelo menos 1 dia antes do início do evento.",
-        variant: "destructive",
+        variant: "warning",
       });
       return;
     }
@@ -1838,7 +1844,7 @@ export default function Eventos() {
       toast({
         title: "Prazos fora de ordem",
         description: `"${MARCO_FIELDS[first].label}" está antes de "${MARCO_FIELDS[first - 1].label}". Os ${MARCO_FIELDS.length} marcos seguem uma sequência — ajuste antes de salvar.`,
-        variant: "destructive",
+        variant: "warning",
       });
       return;
     }
@@ -1852,7 +1858,7 @@ export default function Eventos() {
         description: sponsorsLoading
           ? "Os patrocinadores do evento ainda estão carregando."
           : "Reabra o evento para editar com segurança — salvar agora poderia remover os patrocinadores vinculados.",
-        variant: "destructive",
+        variant: sponsorsLoading ? "warning" : "destructive",
       });
       return;
     }
@@ -2380,20 +2386,19 @@ export default function Eventos() {
 
       {/* ── HEADER ── */}
       <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '12px' }}>
-          <div style={{ minWidth: 0 }}>
-            <h1
-              data-testid="title-eventos"
-              style={{ fontFamily: FONT.display, letterSpacing: '-0.03em', fontSize: FS.h1, fontWeight: '700', color: T.dark, margin: 0, lineHeight: 1.1 }}
-            >
-              Eventos
-            </h1>
-            {/* No lugar do subtítulo genérico ("Gerencie todos os eventos de
-                produção gráfica", que não informava nada): três atalhos que
-                também filtram, com contagem calculada sobre os demais filtros.
-                "Saem esta semana" ficou de fora de propósito — duplicaria o
-                toggle "Próximos 10 dias" que já existe na barra. */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', margin: '8px 0 0 0' }}>
+        {/* A margem de baixo do cabeçalho (20) anula-se com esta (-20): a
+            coluna da página já dá o respiro pelo `gap`, e somar os dois
+            dobrava o espaço antes dos filtros. */}
+        <div data-testid="title-eventos" style={{ marginBottom: -20 }}>
+          <CabecalhoDaPagina
+            titulo="Eventos"
+            // No lugar do subtítulo genérico ("Gerencie todos os eventos de
+            // produção gráfica", que não informava nada): atalhos que também
+            // filtram, com contagem calculada sobre os demais filtros. "Saem
+            // esta semana" ficou de fora de propósito — duplicaria o toggle
+            // "Próximos 10 dias" que já existe na barra.
+            subtitulo={
+            <span style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: 4 }}>
               {[
                 { key: 'atrasado', label: 'Marco atrasado', count: focoCounts.atrasado, tone: { text: TOM.perigo.text, bg: TOM.perigo.bg, border: TOM.perigo.border }, active: foco === 'atrasado', toggle: () => setFoco(foco === 'atrasado' ? '' : 'atrasado') },
                 { key: 'sem_prioridade', label: 'Sem prioridade', count: focoCounts.semPrioridade, tone: { text: T.apoio, bg: T.low, border: T.border }, active: selectedPriorities.length === 1 && selectedPriorities[0] === 'sem_prioridade', toggle: () => setSelectedPriorities((prev) => (prev.length === 1 && prev[0] === 'sem_prioridade') ? [] : ['sem_prioridade']) },
@@ -2422,13 +2427,16 @@ export default function Eventos() {
                   }}
                 >
                   {chip.label}
-                  <span style={{ fontWeight: '800' }}>{chip.count}</span>
+                  <span style={{ fontWeight: FW.rotulo }}>{chip.count}</span>
                 </button>
               ))}
-            </div>
-          </div>
-          {canCreate && (
-            <Button
+            </span>
+            }
+            acoes={canCreate ? (
+            <Botao
+              variante="primario"
+              icone={Plus}
+              tamanho={isMobile ? 'toque' : 'md'}
               data-testid="button-create-event"
               onClick={() => {
                 setEditingEvent(null);
@@ -2440,12 +2448,12 @@ export default function Eventos() {
                 setPrazosExpanded(false);
                 setOpen(true);
               }}
-              style={{ flexShrink: 0, backgroundColor: T.accentText, color: T.surface, border: 'none', borderRadius: R.md, fontWeight: '700', fontSize: FS.body, padding: '0 18px', height: isMobile ? 44 : 34, gap: '7px', boxShadow: '0 2px 8px rgba(249,115,22,0.28)', display: 'flex', alignItems: 'center' }}
+              style={{ flexShrink: 0 }}
             >
-              <Plus style={{ width: '14px', height: '14px' }} />
               Novo Evento
-            </Button>
-          )}
+            </Botao>
+            ) : undefined}
+          />
         </div>
 
         {/* ── PEDIDOS DO ATENDIMENTO (dono, 14/09) ──────────────────────────
@@ -2667,7 +2675,7 @@ export default function Eventos() {
                             selected={parseDateStr(formData.startDate)}
                             onSelect={date => { if (date) { setFormData({ ...formData, startDate: toDateStr(date) }); setOpenStartDate(false); } }}
                             locale={ptBR}
-                            classNames={{ day_selected: 'bg-[#f97316] text-white hover:bg-[#ea580c] hover:text-white focus:bg-[#f97316] focus:text-white', day_today: 'bg-orange-50 font-semibold' }}
+                            classNames={{ day_selected: 'bg-[#1c1917] text-white hover:bg-[#44403c] hover:text-white focus:bg-[#1c1917] focus:text-white', day_today: 'bg-orange-50 font-semibold' }}
                           />
                         </FreezeWhileClosing>
                       </PopoverContent>
@@ -2709,7 +2717,7 @@ export default function Eventos() {
                             }
                           }}
                           locale={ptBR}
-                          classNames={{ day_selected: 'bg-[#f97316] text-white hover:bg-[#ea580c] hover:text-white focus:bg-[#f97316] focus:text-white', day_today: 'bg-orange-50 font-semibold' }}
+                          classNames={{ day_selected: 'bg-[#1c1917] text-white hover:bg-[#44403c] hover:text-white focus:bg-[#1c1917] focus:text-white', day_today: 'bg-orange-50 font-semibold' }}
                         />
                         <div style={{ borderTop: `1px solid ${N.n3}`, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
                           <Clock style={{ width: 12, height: 12, color: T.muted, flexShrink: 0 }} />
@@ -2758,13 +2766,14 @@ export default function Eventos() {
                                :focus-visible global (index.css) já cuida. */
                             style={{ width: 68, height: 34, textAlign: 'center', border: `1px solid ${T.border}`, borderRadius: R.sm, fontSize: FS.strong, fontWeight: 700, fontFamily: FONT.corpo, letterSpacing: '0.05em' }}
                           />
-                          <button
-                            type="button"
+                          <Botao
+                            variante="primario"
+                            tamanho={isMobile ? 'toque' : 'sm'}
                             onClick={() => setOpenTruckDate(false)}
-                            style={{ marginLeft: 'auto', height: 34, padding: '0 14px', borderRadius: R.sm, border: 'none', background: T.accentText, color: T.surface, fontSize: FS.small, fontWeight: 700, cursor: 'pointer', fontFamily: FONT.corpo }}
+                            style={{ marginLeft: 'auto' }}
                           >
                             Ok
-                          </button>
+                          </Botao>
                         </div>
                       </FreezeWhileClosing>
                       </PopoverContent>
@@ -2798,14 +2807,14 @@ export default function Eventos() {
                       style={{ height: 40, minWidth: 180, backgroundColor: T.border, border: '1px solid transparent', borderRadius: R.md, padding: '0 12px', fontSize: 16, color: formData.prazoMolde ? T.text : T.second, fontFamily: FONT.corpo }}
                     />
                     {formData.prazoMolde && (
-                      <button
-                        type="button"
+                      <Botao
+                        variante="secundario"
+                        tamanho={isMobile ? 'toque' : 'md'}
                         data-testid="button-limpar-prazo-molde"
                         onClick={() => setFormData({ ...formData, prazoMolde: "" })}
-                        style={{ minHeight: 40, padding: '0 12px', borderRadius: R.md, border: `1px solid ${T.border}`, background: T.surface, color: T.apoio, fontSize: FS.small, fontWeight: 700, cursor: 'pointer' }}
                       >
                         Limpar
-                      </button>
+                      </Botao>
                     )}
                   </div>
                   <p id="ajuda-prazo-molde" style={{ margin: 0, fontSize: FS.small, color: T.second, lineHeight: 1.4 }}>
@@ -2929,7 +2938,7 @@ export default function Eventos() {
                                           }
                                         }}
                                         locale={ptBR}
-                                        classNames={{ day_selected: 'bg-[#f97316] text-white hover:bg-[#ea580c] hover:text-white focus:bg-[#f97316] focus:text-white', day_today: 'bg-orange-50 font-semibold' }}
+                                        classNames={{ day_selected: 'bg-[#1c1917] text-white hover:bg-[#44403c] hover:text-white focus:bg-[#1c1917] focus:text-white', day_today: 'bg-orange-50 font-semibold' }}
                                       />
                                       </FreezeWhileClosing>
                                     </PopoverContent>
@@ -2954,26 +2963,18 @@ export default function Eventos() {
                         );
                       })}
                       <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid rgba(0,0,0,0.05)', paddingTop: '8px' }}>
-                        <button
-                          type="button"
+                        <Botao
+                          variante="fantasma"
+                          tamanho={isMobile ? 'toque' : 'sm'}
+                          icone={RotateCcw}
                           disabled={customDeadlineCount === 0}
+                          motivo={customDeadlineCount === 0 ? 'Os prazos já seguem o padrão.' : undefined}
+                          alinharMotivo="end"
                           onClick={() => setFormData({ ...formData, ...DEFAULT_DEADLINES })}
                           data-testid="button-restore-default-deadlines"
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: 6,
-                            background: 'transparent', border: 'none', padding: '4px 6px',
-                            fontSize: FS.small, fontWeight: '700',
-                            // T.second e não T.muted (#a8a29e): a paleta reserva
-                            // o cinza claro a elementos decorativos — ele nunca
-                            // é cor de TEXTO, nem em estado desabilitado.
-                            color: customDeadlineCount === 0 ? T.second : T.accentText,
-                            cursor: customDeadlineCount === 0 ? 'default' : 'pointer',
-                            fontFamily: 'inherit',
-                          }}
                         >
-                          <RotateCcw style={{ width: 12, height: 12 }} />
                           Restaurar padrão ({DEFAULT_OFFSETS_LABEL})
-                        </button>
+                        </Botao>
                       </div>
                     </div>
                   )}
@@ -3001,25 +3002,20 @@ export default function Eventos() {
                       ))}
                     </div>
                   ) : (sponsorsQueryError || sponsorsError) ? (
-                    <div role="alert" style={{ backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: R.md, padding: '12px 16px', fontSize: FS.body, fontWeight: '600', color: TOM.alerta.text, display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                      <AlertTriangle style={{ width: '15px', height: '15px', flexShrink: 0, marginTop: '1px' }} />
-                      <span style={{ flex: 1 }}>Não foi possível carregar os patrocinadores.</span>
-                      {(editingEvent || duplicateSource) && sponsorsError && (
-                        <button
-                          type="button"
-                          onClick={() => fetchEventSponsors((editingEvent || duplicateSource).id, !!editingEvent)}
-                          data-testid="button-retry-sponsors"
-                          style={{ flexShrink: 0, background: 'transparent', border: 'none', padding: 0, fontSize: FS.body, fontWeight: '700', color: TOM.alerta.text, textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit' }}
-                        >
-                          Tentar novamente
-                        </button>
-                      )}
-                    </div>
+                    <EstadoErro
+                      compacto
+                      titulo="Não foi possível carregar os patrocinadores."
+                      aoTentarDeNovo={(editingEvent || duplicateSource) && sponsorsError
+                        ? () => fetchEventSponsors((editingEvent || duplicateSource).id, !!editingEvent)
+                        : undefined}
+                    />
                   ) : sponsors.length === 0 ? (
-                    <p style={{ fontSize: FS.body, color: T.apoio, backgroundColor: N.n3, borderRadius: R.md, padding: '12px 16px' }}>
-                      Nenhum patrocinador cadastrado.{" "}
-                      <Link href="/patrocinadores" style={{ color: T.accentText, fontWeight: '600' }}>Cadastre agora</Link>
-                    </p>
+                    <EstadoVazio
+                      compacto
+                      icone={Building2}
+                      titulo="Nenhum patrocinador cadastrado."
+                      acao={<Link href="/patrocinadores" style={{ color: T.accentText, fontWeight: FW.medio, fontSize: FS.body }}>Cadastre agora</Link>}
+                    />
                   ) : (
                     <div style={{ backgroundColor: N.n3, borderRadius: R.lg, overflow: 'hidden' }}>
                       <div style={{ padding: '10px 12px', borderBottom: `1px solid ${T.border}`, position: 'relative' }}>
@@ -3215,7 +3211,8 @@ export default function Eventos() {
                                       }}
                                       onClick={e => e.stopPropagation()}
                                       data-testid={`checkbox-sponsor-${sponsor.id}`}
-                                      style={{ width: 18, height: 18, flexShrink: 0, accentColor: T.accent, cursor: "pointer", margin: 0 }}
+                                      // accentText e não accent: o visto branco sobre #f97316 fica em 2,8:1.
+                                      style={{ width: 18, height: 18, flexShrink: 0, accentColor: T.accentText, cursor: "pointer", margin: 0 }}
                                     />
                                   </div>
                                 );
@@ -3239,7 +3236,7 @@ export default function Eventos() {
                       checked={copyItems}
                       onCheckedChange={(v) => setCopyItems(!!v)}
                       data-testid="checkbox-copy-items"
-                      className="border-[#d4cfc9] bg-[#ffffff] data-[state=checked]:bg-[#fd761a] data-[state=checked]:border-[#fd761a] rounded-[4px] flex-shrink-0 h-[18px] w-[18px]"
+                      className="border-[#d4cfc9] bg-[#ffffff] data-[state=checked]:bg-[#c2410c] data-[state=checked]:border-[#c2410c] rounded-[4px] flex-shrink-0 h-[18px] w-[18px]"
                     />
                     <span style={{ minWidth: 0 }}>
                       <span style={{ display: 'block', fontSize: FS.body, fontWeight: 700, color: T.text }}>
@@ -3277,22 +3274,15 @@ export default function Eventos() {
                   ) : null;
                 })()}
                 <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px' }}>
-                  <button
-                    type="button"
-                    onClick={requestCloseDialog}
-                    style={{ fontSize: FS.body, fontWeight: '700', color: T.apoio, background: 'transparent', border: 'none', cursor: 'pointer', padding: '8px 16px', textTransform: 'uppercase', letterSpacing: '0.04em', borderRadius: R.sm, transition: 'background-color 0.15s, color 0.15s', fontFamily: FONT.corpo }}
-                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.border; e.currentTarget.style.color = T.dark; }}
-                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = T.apoio; }}
-                  >
+                  <Botao variante="fantasma" tamanho={isMobile ? 'toque' : 'md'} onClick={requestCloseDialog}>
                     Cancelar
-                  </button>
-                  <button
+                  </Botao>
+                  <Botao
                     type="submit"
-                    disabled={submitPending}
+                    variante="primario"
+                    tamanho={isMobile ? 'toque' : 'md'}
+                    carregando={submitPending}
                     data-testid="button-submit-event"
-                    style={{ backgroundColor: T.dark, color: T.surface, borderRadius: R.md, fontWeight: '700', fontSize: FS.body, padding: '10px 32px', textTransform: 'uppercase', letterSpacing: '0.04em', border: 'none', cursor: submitPending ? 'not-allowed' : 'pointer', opacity: submitPending ? 0.7 : 1, transition: 'filter 0.15s, transform 0.1s', fontFamily: FONT.corpo }}
-                    onMouseEnter={e => { if (!submitPending) e.currentTarget.style.backgroundColor = T.strong; }}
-                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = T.dark; }}
                   >
                     {modalMode === 'edit'
                       ? (updateEventMutation.isPending ? "Salvando..." : soPatrocinadoresNoModal ? "Salvar patrocinadores" : "Salvar Alterações")
@@ -3300,7 +3290,7 @@ export default function Eventos() {
                         ? (createEventMutation.isPending ? "Duplicando..." : "Criar Cópia")
                         : (createEventMutation.isPending ? "Criando..." : "Salvar Evento")
                     }
-                  </button>
+                  </Botao>
                 </div>
               </ModalFooter>
             </form>
@@ -3335,18 +3325,21 @@ export default function Eventos() {
               </AlertDialogDescription>
             </div>
             <AlertDialogFooter style={{ padding: '16px 28px 28px', display: 'flex', flexDirection: 'row', justifyContent: 'flex-end', gap: 10, flexShrink: 0 }}>
-              <AlertDialogCancel
-                style={{ padding: '9px 20px', backgroundColor: 'transparent', border: `1px solid ${TOM.laranja.border}`, borderRadius: R.sm, fontSize: FS.body, fontWeight: '700', color: T.apoio, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: FONT.corpo }}
-              >
+              {/* Botao solto, e não AlertDialogCancel/Action: esses dois trazem
+                  as classes do buttonVariants (altura, raio, hover) que brigam
+                  com o .ds-botao. Fechar passa a ser explícito — é o que o
+                  useConfirmar também faz. handleCloseDialog já fecha esta pergunta. */}
+              <Botao variante="secundario" tamanho={isMobile ? 'toque' : 'md'} onClick={() => setConfirmDiscardOpen(false)}>
                 Continuar editando
-              </AlertDialogCancel>
-              <AlertDialogAction
+              </Botao>
+              <Botao
+                variante="perigo"
+                tamanho={isMobile ? 'toque' : 'md'}
                 onClick={handleCloseDialog}
                 data-testid="button-confirm-discard"
-                style={{ padding: '9px 20px', backgroundColor: TOM.perigo.text, border: 'none', borderRadius: R.sm, fontSize: FS.body, fontWeight: '700', color: T.surface, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: FONT.corpo }}
               >
                 Descartar
-              </AlertDialogAction>
+              </Botao>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
@@ -3648,21 +3641,23 @@ export default function Eventos() {
         /* Sem este ramo, uma falha da API caía no "Nenhum evento criado" com
            botão de criar — mensagem enganosa que podia induzir a recriar
            eventos que já existem. */
-        <div role="alert" style={{ backgroundColor: T.surface, border: `1px solid ${TOM.perigo.border}`, borderRadius: R.lg, padding: '72px 24px', textAlign: 'center' }}>
-          <h3 style={{ color: TOM.perigo.text, fontSize: FS.title, fontWeight: '700', marginBottom: '6px' }}>Não foi possível carregar os eventos</h3>
-          <p style={{ color: T.second, fontSize: FS.body, marginBottom: '20px' }}>Verifique sua conexão e tente novamente.</p>
-          <button onClick={() => refetch()} style={{ fontSize: FS.body, fontWeight: 700, color: T.surface, background: T.dark, border: 'none', borderRadius: R.md, padding: '9px 20px', cursor: 'pointer' }}>
-            Tentar novamente
-          </button>
-        </div>
+        <EstadoErro
+          titulo="Não foi possível carregar os eventos"
+          detalhe="Verifique sua conexão e tente novamente."
+          aoTentarDeNovo={() => refetch()}
+        />
       ) : events.length === 0 ? (
-        <div style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, padding: '72px 24px', textAlign: 'center' }}>
-          <Package style={{ width: '44px', height: '44px', color: T.bdark, margin: '0 auto 16px' }} />
-          <h3 style={{ color: T.dark, fontSize: FS.title, fontWeight: '700', marginBottom: '6px', fontFamily: FONT.display }}>Nenhum evento criado</h3>
-          {canCreate ? (
-            <>
-              <p style={{ color: T.second, fontSize: FS.body, marginBottom: '24px' }}>Comece criando seu primeiro evento de produção</p>
-              <Button
+        <EstadoVazio
+          icone={Package}
+          titulo="Nenhum evento criado"
+          descricao={canCreate
+            ? 'Comece criando seu primeiro evento de produção'
+            : 'Os eventos criados pela equipe aparecerão aqui'}
+          acao={canCreate ? (
+              <Botao
+                variante="primario"
+                icone={Plus}
+                tamanho={isMobile ? 'toque' : 'md'}
                 onClick={() => {
                   setEditingEvent(null);
                   setDuplicateSource(null);
@@ -3677,38 +3672,32 @@ export default function Eventos() {
                   setPrazosExpanded(false);
                   setOpen(true);
                 }}
-                style={{ backgroundColor: T.accentText, color: T.surface, borderRadius: R.md, fontWeight: '700', boxShadow: '0 4px 14px rgba(249,115,22,0.25)' }}
               >
-                <Plus className="h-4 w-4 mr-2" />
                 Criar Primeiro Evento
-              </Button>
-            </>
-          ) : (
-            <p style={{ color: T.second, fontSize: FS.body, margin: 0 }}>Os eventos criados pela equipe aparecerão aqui</p>
-          )}
-        </div>
+              </Botao>
+          ) : undefined}
+        />
       ) : filteredEvents.length === 0 ? (
-        <div style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, padding: '56px 24px', textAlign: 'center' }}>
-          <Search style={{ width: '40px', height: '40px', color: T.bdark, margin: '0 auto 16px' }} />
-          <h3 style={{ color: T.dark, fontSize: FS.title, fontWeight: '700', marginBottom: '6px', fontFamily: FONT.display }}>Nenhum evento encontrado</h3>
-          <p style={{ color: T.second, fontSize: FS.body, marginBottom: '16px' }}>
-            {hasActiveFilters ? 'Nenhum evento corresponde aos filtros ativos.' : 'Nenhum evento na situação escolhida.'}
-          </p>
+        <EstadoVazio
+          icone={Search}
+          titulo="Nenhum evento encontrado"
+          descricao={hasActiveFilters ? 'Nenhum evento corresponde aos filtros ativos.' : 'Nenhum evento na situação escolhida.'}
+          acao={<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           {/* A resposta ao "cadê o evento?": estão fora pela SITUAÇÃO, que o
               "Limpar filtros" não toca. Um clique os traz para a lista. */}
           {foraPorSituacao.total > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginBottom: '18px' }}>
-              <p style={{ color: T.strong, fontSize: FS.body, fontWeight: 600, margin: 0 }}>
+              <p style={{ color: T.strong, fontSize: FS.body, fontWeight: FW.medio, margin: 0 }}>
                 {foraPorSituacao.total} {foraPorSituacao.total === 1 ? 'evento está' : 'eventos estão'} em {nomesDasSituacoesOcultas}, fora da lista.
               </p>
-              <button
-                type="button"
+              <Botao
+                variante="secundario"
+                tamanho={isMobile ? 'toque' : 'md'}
                 onClick={incluirSituacoesOcultas}
                 data-testid="button-incluir-situacoes-ocultas"
-                style={{ fontSize: FS.body, fontWeight: 700, color: T.dark, background: T.surface, border: `1px solid ${T.bdark}`, borderRadius: R.md, padding: '8px 16px', minHeight: isMobile ? 44 : undefined, cursor: 'pointer' }}
               >
                 Mostrar {nomesDasSituacoesOcultas}
-              </button>
+              </Botao>
             </div>
           )}
           {/* Chips removíveis: "Limpar filtros" era tudo-ou-nada, e com
@@ -3733,15 +3722,17 @@ export default function Eventos() {
           {/* Só quando há filtro a limpar: sem nenhum, o botão não fazia nada
               visível — a lista seguia vazia e a pessoa clicava de novo. */}
           {hasActiveFilters && (
-            <button
+            <Botao
+              variante="primario"
+              tamanho={isMobile ? 'toque' : 'md'}
               onClick={clearAllEventFilters}
               data-testid="button-clear-filters-empty"
-              style={{ fontSize: FS.body, fontWeight: 700, color: T.surface, background: T.dark, border: 'none', borderRadius: R.md, padding: '9px 20px', cursor: 'pointer' }}
             >
               Limpar filtros
-            </button>
+            </Botao>
           )}
-        </div>
+          </div>}
+        />
       ) : (
         <>
           {densidade === 'lista' && !isMobile ? (
@@ -3914,28 +3905,33 @@ export default function Eventos() {
           </div>
 
           <AlertDialogFooter style={{ padding: "16px 32px 32px 32px", display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px", flexShrink: 0 }}>
-            <AlertDialogCancel
+            {/* Botao solto (ver o diálogo de descarte). Sem o Action do Radix
+                o diálogo só fecha no onSuccess — o "Excluindo..." fica na tela
+                até a resposta, em vez de o diálogo sumir no clique. */}
+            <Botao
+              variante="secundario"
+              tamanho={isMobile ? 'toque' : 'md'}
               disabled={deleteEventMutation.isPending}
-              style={{ padding: "9px 24px", backgroundColor: "transparent", border: `1px solid ${TOM.laranja.border}`, borderRadius: R.sm, fontSize: FS.body, fontWeight: "700", color: T.apoio, cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: FONT.corpo, transition: "background-color 0.15s" }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = T.low)}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+              onClick={() => { setDeletingEventId(null); setDeleteConfirmText(""); }}
             >
               Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                // Sem o preventDefault o AlertDialog fecha antes de a mutação
-                // responder e o toast com a contagem real se perde.
-                if (!deleteConfirmed) { e.preventDefault(); return; }
+            </Botao>
+            <Botao
+              variante="perigo"
+              icone={Trash2}
+              tamanho={isMobile ? 'toque' : 'md'}
+              carregando={deleteEventMutation.isPending}
+              disabled={!deleteConfirmed}
+              motivo={!deleteConfirmed ? 'Digite o nome do evento acima.' : undefined}
+              alinharMotivo="end"
+              onClick={() => {
+                if (!deleteConfirmed) return;
                 if (deletingEventId) deleteEventMutation.mutate(deletingEventId);
               }}
-              disabled={deleteEventMutation.isPending || !deleteConfirmed}
               data-testid="button-confirm-delete-event"
-              style={{ padding: "9px 24px", backgroundColor: TOM.perigo.text, border: "none", borderRadius: R.sm, fontSize: FS.body, fontWeight: "700", color: T.surface, cursor: deleteEventMutation.isPending ? "wait" : !deleteConfirmed ? "not-allowed" : "pointer", opacity: deleteEventMutation.isPending || !deleteConfirmed ? 0.5 : 1, textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: FONT.corpo, display: "flex", alignItems: "center", gap: "8px", transition: "filter 0.15s" }}
             >
-              <Trash2 style={{ width: "14px", height: "14px" }} />
               {deleteEventMutation.isPending ? "Excluindo..." : "Excluir"}
-            </AlertDialogAction>
+            </Botao>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -4053,23 +4049,21 @@ export default function Eventos() {
           <div style={{ backgroundColor: T.low, borderTop: `1px solid ${T.border}`, padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexShrink: 0 }}>
             {/* Caminho de volta: sem isto, prioridade definida era para sempre. */}
             {selectedEventForPriority?.priority ? (
-              <button
+              <Botao
+                // Fantasma, não perigo: voltar à regra não destrói nada.
+                variante="fantasma"
+                tamanho={isMobile ? 'toque' : 'sm'}
+                icone={RotateCcw}
                 onClick={() => handlePrioritySelect("")}
                 disabled={updatePriorityMutation.isPending}
                 data-testid="button-remove-priority"
-                style={{ fontSize: FS.small, fontWeight: '700', color: TOM.perigo.text, background: 'none', border: 'none', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.08em' }}
               >
                 Voltar à automática (0)
-              </button>
+              </Botao>
             ) : <span style={{ fontSize: FS.small, color: T.second }}>Teclas 1–4 travam · 0 volta à automática</span>}
-            <button
-              onClick={() => setPriorityDialogOpen(false)}
-              style={{ fontSize: FS.small, fontWeight: '700', color: T.second, background: 'none', border: 'none', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.08em', transition: 'color 0.15s' }}
-              onMouseEnter={e => (e.currentTarget.style.color = T.dark)}
-              onMouseLeave={e => (e.currentTarget.style.color = T.second)}
-            >
+            <Botao variante="secundario" tamanho={isMobile ? 'toque' : 'sm'} onClick={() => setPriorityDialogOpen(false)}>
               Cancelar
-            </button>
+            </Botao>
           </div>
           </FreezeWhileClosing>
         </DialogContent>

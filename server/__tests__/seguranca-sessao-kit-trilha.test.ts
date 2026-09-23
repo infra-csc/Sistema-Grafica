@@ -97,6 +97,7 @@ describe("trava do Kit", () => {
     buscarPecas: async (ids: string[]) => ids.map((i) => pecas[i]).filter(Boolean),
     buscarCriadorDoEvento: async (id: string) =>
       id === "meuEvento" ? { existe: true, createdBy: "kit1" } : id === "outro" ? { existe: true, createdBy: "adm" } : { existe: false, createdBy: null },
+    buscarPecasDoVolume: async () => null,
   };
   async function rodar(req: any) {
     const res = resFalso();

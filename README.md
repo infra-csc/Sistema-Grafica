@@ -132,6 +132,12 @@ Preencha as três obrigatórias (as outras têm padrão ou desligam o recurso):
 | `SESSION_SECRET` | Fail-fast em `server/session.ts`. Gere com `openssl rand -base64 48` |
 | `PRIVATE_OBJECT_DIR` | Upload não grava (Object Storage do Replit) |
 
+E uma que **precisa** ser definida em produção, embora o app suba sem ela:
+
+| Variável | Sem ela |
+| --- | --- |
+| `SSO_SECRET` | O login pelo portal NORTE passa a validar o JWT com o `SESSION_SECRET` — funciona, mas o portal fica com o segredo que assina as sessões deste app (quem tem um forja o outro). O boot avisa no log (`[SSO] ATENÇÃO`). Use o **mesmo** valor configurado no portal e **diferente** do `SESSION_SECRET`. |
+
 O `.env.example` explica **cada** variável, uma por linha.
 
 Banco vazio recebe a estrutura pelas **migrações**:

@@ -111,7 +111,7 @@ export const DESTINATARIOS_NOMEADOS = [
 
 async function porFiltro(teste: (u: { email: string; role: string }) => boolean): Promise<string[]> {
   const usuarios = await storage.getAllUsers();
-  return usuarios.filter((u) => !!u.email && teste(u as any)).map((u) => u.email);
+  return usuarios.filter((u) => !!u.email && teste(u)).map((u) => u.email);
 }
 
 /** O time que trabalha com o book. */

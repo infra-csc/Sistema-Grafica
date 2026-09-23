@@ -62,7 +62,7 @@ export function registerRelatorioRoutes(app: Express): void {
       }
 
       // A mesma montagem da Gestão de Prazos — null quando o evento saiu dela.
-      const prazo = buildEventPrazo(event as any, itens as any[], {
+      const prazo = buildEventPrazo(event, itens, {
         today: todayBusinessMs(),
         sponsorNameById,
         openApprovalsByItem,
@@ -94,7 +94,7 @@ export function registerRelatorioRoutes(app: Express): void {
         .map((f) => ({ url: f.photoUrl ?? f.url, kind: f.kind, displayId: f.displayId ?? null }));
 
       // ── Totais que valem mesmo com `prazo: null` ───────────────────────
-      const vivas = itens.filter((i: any) => !OUT_OF_FUNNEL.has(i.status));
+      const vivas = itens.filter((i) => !OUT_OF_FUNNEL.has(i.status));
       // Molde produzido é o fim do fluxo dele — conta como entregue (shared/molde.ts).
       const entregues = vivas.filter((i) => DELIVERED.has(statusParaContagem(i))).length;
 

@@ -63,6 +63,7 @@ vi.mock("../services/consultaDeEstoqueNaLiberacao", () => ({
 import { items } from "@shared/schema";
 import { rotuloDaMaquina } from "@shared/fluxo-peca";
 import { fraseDaTrava } from "@shared/trava-da-peca";
+import { REGUA_DE_PAPEIS } from "@shared/permissoes";
 import { registerItemRoutes } from "../routes/items";
 import { registerMaquinasRoutes } from "../routes/maquinas";
 import { registrarImpressao } from "../routes/itens/comum";
@@ -396,6 +397,23 @@ describe("reservar, tirar e trocar na impressora", () => {
     expect([mundo.itens.p.maquinaPrevista, mundo.itens.q.maquinaPrevista]).toEqual(["1", "2"]);
   });
 
+  it("reservar NUNCA muda status, statusChangedAt, printMachine nem productionStartedAt, nem grava no diário — só a reserva", async () => {
+    // Veio de controle-de-maquinas ("7 · … NUNCA muda status"), que lia o fonte.
+    mundo.itens.p = peca("p", { quantity: 10 });
+    mundo.itens.q = peca("q");
+    await chamar("PATCH /api/items/:id/maquina-prevista", { params: { id: "p" }, body: { maquina: "1", quantidade: 4 }, userRole: "grafica" });
+    await chamar("PATCH /api/items/:id/maquina-prevista", { params: { id: "q" }, body: { maquina: null }, userRole: "grafica" });
+    await chamar("PATCH /api/items/bulk-maquina-prevista", { body: { itemIds: ["q"], maquina: "2" }, userRole: "grafica" });
+    const gravacoes = ops.filter((o) => o.tipo === "update" && o.tabela === "items");
+    expect(gravacoes).toHaveLength(3);
+    for (const g of gravacoes) expect(Object.keys(g.valores).sort()).toEqual(["maquinaPrevista", "reservaPorMaquina", "updatedAt"]);
+    expect(mundo.itens.p).toMatchObject({ status: "ready_for_production", statusChangedAt: null, printMachine: null, productionStartedAt: null, maquinaPrevista: "1" });
+    expect(registros()).toEqual([]);
+    // A trilha é informativa, sem etapa; e as telas recebem item_updated.
+    expect(H.trilha).toEqual([`Reservadas 4 un. para a ${M("1")} (6 na fila geral)`, "Devolvida à fila geral", `Reservada para a ${M("2")}`]);
+    expect(H.broadcast.map((m) => m.type)).toEqual(["item_updated", "item_updated", "item_updated"]);
+  });
+
   it("reservar respeita a trava, o evento finalizado e o molde — mas DEVOLVER À FILA GERAL passa por cima (é recuo)", async () => {
     mundo.itens.t = peca("t", { ...TRAVA, reservaPorMaquina: { "1": 10 }, maquinaPrevista: "1" });
     mundo.itens.f = peca("f", { eventId: "ev-fim", reservaPorMaquina: { "2": 10 }, maquinaPrevista: "2" });
@@ -428,6 +446,33 @@ describe("reservar, tirar e trocar na impressora", () => {
     expect(mundo.itens.z).toMatchObject({ status: "ready_for_production", printMachine: null });
     expect(mundo.itens.a).toMatchObject({ status: "inProduction", printMachine: "1" });
     expect(registros().map((x) => [x.itemId, x.tipo])).toEqual([["z", "pausa"], ["a", "inicio"]]);
+  });
+
+  it("trocar/pausar: só gráfica e admin; a que sai volta liberada com as impressas intactas; 'pausa' sem unidade; trilha diz a quem deu lugar", async () => {
+    // Veio de controle-de-maquinas ("servidor: trocar/pausar"), que lia o fonte.
+    for (const rota of ["trocar", "pausar"]) {
+      const linha = REGUA_DE_PAPEIS.find((r) => r.metodo === "POST" && r.rota === `/api/grafica/maquinas/:maquina/${rota}`);
+      expect(linha?.papeis.slice().sort(), rota).toEqual(["admin", "grafica"]);
+      const r = await chamar(`POST /api/grafica/maquinas/:maquina/${rota}`, { params: { maquina: "1" }, body: { itemId: "z", tirarItemId: "z", colocarItemId: "a" }, userRole: "solicitacao" });
+      expect(r.status, rota).toBe(403);
+    }
+    mundo.itens.z = peca("z", { status: "inProduction", printMachine: "1", quantityProduced: 2 });
+    mundo.itens.a = peca("a");
+    await chamar("POST /api/grafica/maquinas/:maquina/trocar", { params: { maquina: "1" }, body: { tirarItemId: "z", colocarItemId: "a" }, userRole: "grafica" });
+    const saiu = ops.find((o) => o.tipo === "update" && o.ids?.[0] === "z")!;
+    expect(saiu.emTx).toBe(true);
+    expect("quantityProduced" in saiu.valores).toBe(false);
+    expect(mundo.itens.z).toMatchObject({ status: "ready_for_production", quantityProduced: 2, reservaPorMaquina: { "1": expect.anything() } });
+    expect(registros()[0]).toMatchObject({ itemId: "z", maquina: "1", tipo: "pausa", quantidade: 0, totalDepois: 2 });
+    expect(H.trilha[0]).toBe(`Tirada da ${M("1")} para dar lugar à #a (2 de 10 impressas)`);
+  });
+
+  it("a peça que ENTRA não pode ser de evento finalizado (a que sai pode: recuar nunca é barrado)", async () => {
+    mundo.itens.z = peca("z", { status: "inProduction", printMachine: "1", eventId: "ev-fim" });
+    mundo.itens.a = peca("a", { eventId: "ev-fim" });
+    const troca = await chamar("POST /api/grafica/maquinas/:maquina/trocar", { params: { maquina: "1" }, body: { tirarItemId: "z", colocarItemId: "a" }, userRole: "grafica" });
+    expect(troca).toEqual({ status: 409, body: { error: "O evento da peça que entra já foi finalizado" } });
+    expect((await chamar("POST /api/grafica/maquinas/:maquina/pausar", { params: { maquina: "1" }, body: { itemId: "z" }, userRole: "grafica" })).status).toBe(200);
   });
 
   it("a trava segura quem ENTRA, nunca quem SAI (tirar da impressora é recuo)", async () => {

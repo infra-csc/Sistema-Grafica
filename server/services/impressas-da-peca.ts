@@ -57,7 +57,7 @@ export async function lancarImpressas(
     }
     const [updated] = await tx
       .update(itemsTable)
-      .set(plano.set as any)
+      .set(plano.set)
       .where(eq(itemsTable.id, before.id))
       .returning();
     if (!updated) throw falha(404, { error: "Peça não encontrada." });

@@ -150,7 +150,7 @@ const quemVe = (req: Request) => ({ kit: req.userKit === true, userId: req.userI
 // mexem em peça por `adicionar`/`remover` e pela entrega do tubo inteiro, que
 // não cita id nenhum. Por isso a mesma regra é repetida aqui, com a MESMA
 // mensagem — senão a Solicitação da Arena agia na peça do Kit pelo tubo.
-const soVisualizaKit = (req: any): boolean => req.userRole === "solicitacao" && req.userKit !== true;
+const soVisualizaKit = (req: Request): boolean => req.userRole === "solicitacao" && req.userKit !== true;
 const RECADO_SO_VISUALIZA = "Peça do Kit: a Solicitação da Arena só visualiza. Quem age nela é o usuário do Kit.";
 /** Responde 403 quando quem só visualiza tenta agir sobre peça do Kit. */
 const barraPecaDoKit = (req: Request, res: Response, pecas: Array<{ kitRemessaId: string | null }>): boolean => {
@@ -363,9 +363,9 @@ async function colocarNoTubo(req: Request, tubo: TuboCru, planos: Plano[], tx: E
     const existente = jaNoTubo.get(pl.peca.id);
     if (existente) {
       // SOMA RELATIVA: nunca grava um total lido antes.
-      await tx.update(tuboItens).set({ quantidade: sql`${tuboItens.quantidade} + ${pl.quantidade}` } as any).where(eq(tuboItens.id, existente.id));
+      await tx.update(tuboItens).set({ quantidade: sql`${tuboItens.quantidade} + ${pl.quantidade}` }).where(eq(tuboItens.id, existente.id));
     } else {
-      await tx.insert(tuboItens).values({ tuboId: tubo.id, itemId: pl.peca.id, quantidade: pl.quantidade, embaladoEm: agora, embaladoPor: quem } as any);
+      await tx.insert(tuboItens).values({ tuboId: tubo.id, itemId: pl.peca.id, quantidade: pl.quantidade, embaladoEm: agora, embaladoPor: quem });
     }
     // `embaladaQty` foi calculado com a peça TRAVADA nesta transação.
     await tx.update(itemsTable).set({
@@ -530,7 +530,7 @@ const noVolume = (t: Volume) => (t.avulso ? "na embalagem" : `no Tubo ${t.numero
 async function acumularFotos(tubo: { id: string; fotosFechamento?: string[] | null }, novas: string[], quem: string, agora: Date, ex: Ex = db) {
   if (!novas.length) return (tubo.fotosFechamento ?? []).length;
   const todas = Array.from(new Set([...(tubo.fotosFechamento ?? []), ...novas]));
-  await ex.update(tubos).set({ fotosFechamento: todas, fechadoEm: agora, fechadoPor: quem, conteudoAlteradoEm: null } as any)
+  await ex.update(tubos).set({ fotosFechamento: todas, fechadoEm: agora, fechadoPor: quem, conteudoAlteradoEm: null })
     .where(eq(tubos.id, tubo.id));
   return todas.length;
 }
@@ -941,7 +941,7 @@ export function registerTubosRoutes(app: Express): void {
               await tx.update(tubos).set({ avulso: false, numero }).where(eq(tubos.id, travado.id));
               travado.avulso = false; travado.numero = numero; virouTubo = numero;
               // A peça que já estava lá passa a ser "Tubo N": carimba para o delta `?since=`.
-              await tx.update(itemsTable).set({ updatedAt: new Date() } as any).where(inArray(itemsTable.id, Array.from(dentro)));
+              await tx.update(itemsTable).set({ updatedAt: new Date() }).where(inArray(itemsTable.id, Array.from(dentro)));
             }
           }
           await colocarNoTubo(req, travado, planos, tx);
@@ -1037,7 +1037,7 @@ export function registerTubosRoutes(app: Express): void {
         // das que estão nele (abertas), senão o delta `?since=` da Gráfica não
         // as traz e a fila segue com a hora velha (revisão de 22/09).
         const ids = (await linhasDosTubos([travado.id], tx)).filter((l) => !l.entregueEm).map((l) => l.itemId);
-        if (ids.length) await tx.update(itemsTable).set({ updatedAt: agora } as any).where(inArray(itemsTable.id, Array.from(new Set(ids))));
+        if (ids.length) await tx.update(itemsTable).set({ updatedAt: agora }).where(inArray(itemsTable.id, Array.from(new Set(ids))));
         return total;
       });
       const n = fotos.length;
@@ -1099,7 +1099,7 @@ export function registerTubosRoutes(app: Express): void {
 
       for (const { p, l } of aEntregar) {
         const plano = planejarEntrega(p, l.quantidade);
-        await tx.update(tuboItens).set({ entregueEm: agora } as any).where(eq(tuboItens.id, l.id));
+        await tx.update(tuboItens).set({ entregueEm: agora }).where(eq(tuboItens.id, l.id));
         await tx.update(itemsTable).set({
           // RELATIVO e com teto: nunca grava um total lido fora da trava.
           deliveredQty: sql`least(${itemsTable.quantity}, coalesce(${itemsTable.deliveredQty}, 0) + ${l.quantidade})`,

@@ -59,7 +59,7 @@ export function registrarConferencia(app: Express): void {
       // tudo roda numa transação com a peça TRAVADA (`SELECT … FOR UPDATE` — a
       // mesma trava do embalar em routes/tubos.ts) e a conta é refeita lá dentro.
       type Resultado = { erro: { http: number; corpo: Record<string, unknown> } } | { item: Item; trilha: string };
-      const resultado: Resultado = await db.transaction(async (tx: any): Promise<Resultado> => {
+      const resultado: Resultado = await db.transaction(async (tx): Promise<Resultado> => {
       const [current] = await tx.select().from(itemsTable).where(eq(itemsTable.id, req.params.id)).for("update");
       const recusa = (http: number, corpo: Record<string, unknown>): Resultado => ({ erro: { http, corpo } });
       if (!current || current.deletedAt) return recusa(404, { error: "Peça não encontrada." });
@@ -85,7 +85,7 @@ export function registrarConferencia(app: Express): void {
       // acervo (reuso) confere sem nunca passar por "produced".
       // A validação vive aqui e não só na tela porque a mesma rota atende a
       // conferência em LOTE: regra validada só no botão o próximo caller ignora.
-      const plano = planejarConferencia(current as any, qtdPedida);
+      const plano = planejarConferencia(current, qtdPedida);
       if (!plano.ok) return recusa(plano.http, { error: plano.motivo });
 
       const n = plano.quantidade;

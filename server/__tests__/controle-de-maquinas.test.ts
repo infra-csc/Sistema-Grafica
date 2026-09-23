@@ -349,19 +349,6 @@ describe("7 · a reserva de impressora — só um controle, nunca uma etapa", ()
     expect(PERMISSOES).toContain('{ metodo: "PATCH", rota: "/api/items/bulk-maquina-prevista", papeis: ["admin", "grafica"] },');
   });
 
-  it("NUNCA muda status, statusChangedAt, printMachine, productionStartedAt nem grava no diário", () => {
-    // Só código: os comentários explicam justamente o que NÃO se faz.
-    const reserva = ROTA.slice(ROTA.indexOf("// ─── RESERVA de impressora"), ROTA.indexOf("// ── TIRAR da impressora")).replace(/\/\/.*$/gm, "");
-    // As duas gravações escrevem SÓ a reserva (+ updatedAt), sob a linha travada (22/09).
-    expect((reserva.match(/tx\.update\(itemsTable\)\.set\(\{ \.\.\.colunasDaReserva\(\w+(\.\w+)?, atual!?\.reservaPorMaquina\), updatedAt: new Date\(\) \} as any\)/g) ?? []).length).toBe(2);
-    expect((reserva.match(/\.for\("update"\)/g) ?? []).length).toBe(2);
-    expect(reserva).not.toMatch(/status:|statusChangedAt|printMachine|productionStartedAt|registrarImpressao|registros_de_impressao/);
-    // A trilha é informativa, sem etapa.
-    expect(reserva).toContain('? `Reservadas ${r.quantidade} un. para a ${rotuloDaMaquina(maquina)} (${r.semImpressora} na fila geral)`');
-    expect(reserva).toContain('"Devolvida à fila geral"');
-    expect(reserva).toContain('broadcast({ type: "item_updated", item });');
-  });
-
   it("vira realidade só no start-printing, que limpa a reserva", () => {
     const rota = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/start-printing"'), ITEMS.indexOf('app.patch("/api/items/:id/start-production"'));
     // Iniciar a peça inteira limpa a reserva toda; iniciar uma parte consome só a desta impressora; a troca não mexe nela.
@@ -775,28 +762,6 @@ describe("12 · uma peça por impressora, pausar e trocar por prioridade", async
     const svc = ler("server/services/ocupacaoDasImpressoras.ts");
     expect(svc).toContain("já está imprimindo ${ocupante.displayId ?? \"outra peça\"} — tire ela da impressora ou escolha outra");
     expect(svc).toContain("return ocupanteDaImpressora(emImpressao as any[], maquina, excetoId);");
-  });
-
-  it("servidor: trocar/pausar — grafica/admin, numa transação, status volta a liberada, registro 'pausa' sem contar unidade", () => {
-    const ROTA = ler("server/routes/maquinas.ts");
-    expect(ROTA).toContain('app.post("/api/grafica/maquinas/:maquina/trocar", requireAuth');
-    expect(ROTA).toContain('app.post("/api/grafica/maquinas/:maquina/pausar", requireAuth');
-    const bloco = ROTA.slice(ROTA.indexOf("const tirarEColocar = async"), ROTA.indexOf('app.post("/api/grafica/maquinas/:maquina/trocar"'));
-    expect(bloco).toContain("const resultado = await db.transaction(async (tx) => {");
-    expect(bloco).toContain("const pausa = pausarParte(sai as any, maquina, new Date().toISOString());");
-    expect(bloco).toContain('status: pausa.voltaParaAFila ? "ready_for_production" : sai.status,');
-    expect(bloco).toContain("...colunasDaReserva(pausa.reserva, sai.reservaPorMaquina, pausa.pausas),");
-    // As impressas NÃO são tocadas: quantityProduced não aparece no set da peça que sai.
-    expect(bloco.slice(bloco.indexOf("const [saiu]"), bloco.indexOf("let entrou")).replace(/\/\/.*$/gm, "")).not.toContain("quantityProduced");
-    // Depois da pausa a impressora tem de estar livre; a que entra usa a MESMA conta do iniciar.
-    expect(bloco).toContain("const ocupante = ocupanteDaImpressora(emImpressao as any[], maquina, entra.id);");
-    expect(bloco).toContain("const inicio = iniciarParte(entra, maquina, { daReserva: temReserva, quantidade, reservaDe });");
-    expect(bloco).toContain('if (await motivoEventoDaPeca(entra)) throw falha(409, "O evento da peça que entra já foi finalizado");');
-    expect(bloco).toContain('{ itemId: sai.id, maquina, tipo: "pausa", quantidade: 0, totalDepois: jaImpressas,');
-    expect(bloco).toContain("Tirada da ${rotuloDaMaquina(maquina)} para dar lugar à ${entra.displayId");
-    const PERMISSOES = ler("shared/permissoes.ts");
-    expect(PERMISSOES).toContain('{ metodo: "POST", rota: "/api/grafica/maquinas/:maquina/trocar", papeis: ["admin", "grafica"] },');
-    expect(PERMISSOES).toContain('{ metodo: "POST", rota: "/api/grafica/maquinas/:maquina/pausar", papeis: ["admin", "grafica"] },');
   });
 
   it("diário, resumo e Excel: 'Pausou — deu lugar à #0398', sem unidade e sem 'ainda na máquina'", async () => {

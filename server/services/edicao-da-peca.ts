@@ -101,9 +101,9 @@ export async function normalizarReferencias(validatedData: DadosDaEdicao, donoId
       }
     }
     validatedData.referenceUrls = normalizadas;
-    (validatedData as any).referenceUrl = normalizadas[0] ?? null;
+    validatedData.referenceUrl = normalizadas[0] ?? null;
   } else if (validatedData.referenceUrl !== undefined) {
-    (validatedData as any).referenceUrls = validatedData.referenceUrl ? [validatedData.referenceUrl] : null;
+    validatedData.referenceUrls = validatedData.referenceUrl ? [validatedData.referenceUrl] : null;
   }
 }
 
@@ -176,7 +176,7 @@ export function planejarEdicao(
     const reusoAtual = currentItem.reuseQty ?? 0;
     // EMBALADAS também são material físico (a embalagem com quantidade,
     // 21/09): o reaproveitamento antigo embala sem conferir.
-    const piso = Math.max(impressas, currentItem.conferredQty ?? 0, (currentItem as any).embaladaQty ?? 0, currentItem.deliveredQty ?? 0);
+    const piso = Math.max(impressas, currentItem.conferredQty ?? 0, currentItem.embaladaQty ?? 0, currentItem.deliveredQty ?? 0);
     if (nova < piso) {
       return recusa(409, {
         error: `Não é possível reduzir para ${nova}: já há ${piso} un. impressas/conferidas/embaladas/entregues. Mínimo: ${piso}.`,

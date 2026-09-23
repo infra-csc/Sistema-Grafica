@@ -187,7 +187,7 @@ function maquinaDoCorpo(corpo: { maquina?: unknown } | null | undefined): { ok: 
  * liberadas, entra a peça que JÁ está em impressão POR PARTES (iniciou só a
  * parte reservada a uma impressora) — o resto dela continua na fila.
  */
-async function motivoDeNaoReservar(item: any, maquina?: string | null): Promise<string | null> {
+async function motivoDeNaoReservar(item: Peca | undefined, maquina?: string | null): Promise<string | null> {
   if (!item || item.deletedAt) return "Peça não encontrada";
   // DEVOLVER À FILA GERAL é recuo (revisão adversarial, 22/09): tira a peça da
   // fila de uma impressora sem fazer trabalho andar. Nem a trava nem o evento
@@ -255,7 +255,7 @@ export function registerMaquinasRoutes(app: Express): void {
         const r = aplicarPedidoDeReserva(atual, req.body, pedido.maquina);
         if (!r.ok) return { http: 409, erro: r.erro };
         // SÓ a reserva (e o updatedAt). Nada de status.
-        const [item] = await tx.update(itemsTable).set({ ...colunasDaReserva(r.reserva, atual!.reservaPorMaquina), updatedAt: new Date() } as any).where(eq(itemsTable.id, atual!.id)).returning();
+        const [item] = await tx.update(itemsTable).set({ ...colunasDaReserva(r.reserva, atual!.reservaPorMaquina), updatedAt: new Date() }).where(eq(itemsTable.id, atual!.id)).returning();
         return { item, frase: r.frase };
       });
       if ("erro" in feito) return res.status(feito.http).json({ error: feito.erro });
@@ -295,7 +295,7 @@ export function registerMaquinasRoutes(app: Express): void {
           const livre = livreParaReservar(atual);
           const reserva = pedido.maquina && livre > 0 ? { [pedido.maquina]: livre } : null;
           if (pedido.maquina && livre <= 0) return { erro: "Não há unidades fora de impressora para reservar", displayId: atual.displayId ?? null };
-          const [item] = await tx.update(itemsTable).set({ ...colunasDaReserva(reserva, atual.reservaPorMaquina), updatedAt: new Date() } as any).where(eq(itemsTable.id, id)).returning();
+          const [item] = await tx.update(itemsTable).set({ ...colunasDaReserva(reserva, atual.reservaPorMaquina), updatedAt: new Date() }).where(eq(itemsTable.id, id)).returning();
           return { item };
         });
         if ("erro" in r) { erros.push({ itemId: id, displayId: r.displayId, erro: r.erro }); continue; }
@@ -357,7 +357,7 @@ export function registerMaquinasRoutes(app: Express): void {
         // não faz trabalho andar, só recua — e a peça de evento já realizado
         // travaria a impressora para sempre (ela conta como ocupante). A
         // guarda continua valendo para quem ENTRA.
-        const pausa = pausarParte(sai as any, maquina, new Date().toISOString());
+        const pausa = pausarParte(sai, maquina, new Date().toISOString());
         if (!pausa.ok) throw falha(409, pausa.erro);
         const aImprimirSai = aImprimirDaPeca(sai);
         const [saiu] = await tx.update(itemsTable).set({
@@ -389,11 +389,11 @@ export function registerMaquinasRoutes(app: Express): void {
           if (!PODE.includes(entra.status)) throw falha(409, `A peça que entra não pode ir para a máquina no status atual: ${translateStatus(entra.status)}`);
           if (await motivoEventoDaPeca(entra)) throw falha(409, "O evento da peça que entra já foi finalizado");
           // A que ENTRA não pode estar travada; a que SAI pode (recuar nunca é barrado).
-          if (pecaTravada(entra as any)) throw Object.assign(falha(409, fraseDaTrava(entra)), { code: CODIGO_PECA_TRAVADA });
+          if (pecaTravada(entra)) throw Object.assign(falha(409, fraseDaTrava(entra)), { code: CODIGO_PECA_TRAVADA });
           // Depois da pausa a impressora tem de estar LIVRE (outra peça com parte nela barra a troca).
           // Mesma régua de quemOcupaAImpressora: peça de evento arquivado não ocupa.
           const emImpressao = await tx.select().from(itemsTable).where(and(inArray(itemsTable.status, ["inProduction", "em_producao"]), isNull(itemsTable.deletedAt), doEventoNaoArquivado(itemsTable.eventId)));
-          const ocupante = ocupanteDaImpressora(emImpressao as any[], maquina, entra.id);
+          const ocupante = ocupanteDaImpressora(emImpressao, maquina, entra.id);
           if (ocupante) throw falha(409, erroImpressoraOcupada(maquina, ocupante));
           // "Imprimir esta no lugar" com a reserva de OUTRA impressora (o
           // modal abriu da fila da 2 e o operador escolheu a 1): `reservaDe`

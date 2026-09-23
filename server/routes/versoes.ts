@@ -246,7 +246,7 @@ async function carregar(): Promise<DadosDeVersoes> {
   const pecasComCarimbo = new Set<string>();
   const saida: PecaDeVersoes[] = [];
   for (const item of itens) {
-    if ((item as any).deletedAt) continue;
+    if (item.deletedAt) continue;
     const decisoes = aprovPorItem.get(item.id) ?? [];
     let versoes = versoesPorItem.get(item.id) ?? [];
     // O thumb atual entra como versão quando nada o registrou (peça anterior às
@@ -483,7 +483,7 @@ type Recorte = {
   foco: "atencao" | "todas" | "sem-patrocinador";
 };
 
-function lerRecorte(q: any): Recorte {
+function lerRecorte(q: Record<string, unknown>): Recorte {
   const lista = (v: unknown) => String(v ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   const foco = String(q.foco ?? "atencao");
   return {

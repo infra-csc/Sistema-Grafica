@@ -288,7 +288,7 @@ export async function responderConsulta(e: {
       const efeito = efeitoDoAtendimento(peca, e.atendida);
       if (!efeito.ok) throw erro(409, efeito.erro);
       if (pecaJaLiberada(peca.status)) {
-        const r = reescalarReservaEPartes(peca as any, peca.quantity - efeito.reuseQty);
+        const r = reescalarReservaEPartes(peca, peca.quantity - efeito.reuseQty);
         const [atualizada] = await tx.update(itemsTable).set({
           reuseQty: efeito.reuseQty,
           isReuse: efeito.isReuse,

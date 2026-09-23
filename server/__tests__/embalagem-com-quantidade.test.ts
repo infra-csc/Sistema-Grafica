@@ -13,6 +13,7 @@
 // O modal com o campo "Quantas" é MONTADO em tubos-tres-modais.test.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 import {
@@ -25,7 +26,7 @@ import { detalheDaProducao } from "../../client/src/lib/detalhe-producao";
 const RAIZ = path.resolve(__dirname, "../..");
 const ler = (rel: string) => readFileSync(path.resolve(RAIZ, rel), "utf8");
 const ROTAS = ler("server/routes/tubos.ts");
-const ITEMS = ler("server/routes/items.ts");
+const ITEMS = fonteDasRotasDeItens();
 const GRAFICA = ler("client/src/pages/grafica.tsx");
 
 const peca = (extra: Record<string, unknown> = {}) => ({ quantity: 10, quantityProduced: 10, reuseQty: 0, isReuse: false, conferredQty: 10, embaladaQty: 0, deliveredQty: 0, status: "conferred", ...extra });

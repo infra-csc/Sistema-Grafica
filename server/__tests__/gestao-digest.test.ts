@@ -8,6 +8,7 @@
 // terá voltado a ser outra coisa.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
@@ -323,7 +324,7 @@ describe("reprovada e nova versão TAMBÉM são pendência (dono, 31/08)", () =>
 });
 
 describe("o disparo à mão", () => {
-  const ITEMS = ler("server/routes/items.ts");
+  const ITEMS = fonteDasRotasDeItens();
   const TELA = ler("client/src/pages/atendimento.tsx");
 
   it("tem porta própria, só para admin — um clique manda e-mail de verdade", () => {

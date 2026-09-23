@@ -20,13 +20,14 @@
 //      Produção" e "Produzido", segue reconhecida por quem a interpreta.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 import { MAQUINAS_DE_IMPRESSAO, ehMaquinaValida, rotuloDaMaquina } from "@shared/fluxo-peca";
 import { avaliarProducao } from "../../client/src/lib/grafica-producao";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
-const ITEMS = ler("server/routes/items.ts");
+const ITEMS = fonteDasRotasDeItens();
 const SHARED = ler("server/routes/shared.ts");
 const SCHEMA = ler("shared/schema.ts");
 const STATUS = ler("client/src/lib/status.ts");

@@ -21,9 +21,10 @@
 // que o limite de cinco status tinha sumido por engano.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 
-const ITEMS = readFileSync(new URL("../routes/items.ts", import.meta.url), "utf8");
+const ITEMS = fonteDasRotasDeItens();
 const ARTE = readFileSync(new URL("../../client/src/pages/arte.tsx", import.meta.url), "utf8");
 
 /** O corpo da rota, para as asserções não pegarem outra rota por engano. */

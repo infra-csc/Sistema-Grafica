@@ -18,11 +18,13 @@ const TELA = readFileSync(new URL("../../client/src/pages/usuarios.tsx", import.
 
 /** Todo o servidor num string só — as guardas moram em arquivos diferentes. */
 const SERVIDOR = (() => {
+  // As rotas da peça moram em routes/itens/ (items.ts virou índice): entram junto.
   const dir = new URL("../routes/", import.meta.url);
-  return readdirSync(dir)
-    .filter((f) => f.endsWith(".ts"))
-    .map((f) => readFileSync(new URL(f, dir), "utf8"))
-    .join("\n");
+  const sub = new URL("../routes/itens/", import.meta.url);
+  return [
+    ...readdirSync(dir).filter((f) => f.endsWith(".ts")).map((f) => readFileSync(new URL(f, dir), "utf8")),
+    ...readdirSync(sub).filter((f) => f.endsWith(".ts")).map((f) => readFileSync(new URL(f, sub), "utf8")),
+  ].join("\n");
 })();
 
 /**

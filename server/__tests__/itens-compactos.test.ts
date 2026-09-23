@@ -17,6 +17,7 @@
 // (5.128 peças, 68 eventos, 159 patrocinadores, 60% entregues).
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeAll } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
@@ -351,7 +352,7 @@ describe("paridade com o storage", () => {
     const STORAGE = readFileSync(path.resolve(__dirname, "../storage.ts"), "utf8");
     const fn = STORAGE.slice(STORAGE.indexOf("async getApprovedItems"), STORAGE.indexOf("private async generateNextDisplayId"));
     const doSql = Array.from(fn.matchAll(/'([A-Za-z_]+)'/g), (m) => m[1]);
-    const ITEMS = readFileSync(path.resolve(__dirname, "../routes/items.ts"), "utf8");
+    const ITEMS = fonteDasRotasDeItens();
     const bloco = ITEMS.slice(ITEMS.indexOf("const STATUS_DA_FILA_DA_GRAFICA"), ITEMS.indexOf("]);", ITEMS.indexOf("const STATUS_DA_FILA_DA_GRAFICA")));
     const daRota = Array.from(bloco.matchAll(/"([A-Za-z_]+)"/g), (m) => m[1]);
     expect(doSql.length).toBeGreaterThan(5);
@@ -558,7 +559,7 @@ describe("GET /api/items recortado (?status=, ?ids=)", () => {
     H.storage.getItemSponsorsByItemIds = porId;
     await chamar("GET /api/items", { status: REVISAO });
     expect(porId).not.toHaveBeenCalled();
-    const fonte = readFileSync(path.resolve(__dirname, "../routes/items.ts"), "utf8");
+    const fonte = fonteDasRotasDeItens();
     expect(fonte).toContain("const escopado = list.length <= 500 && !carregados?.ordemDoAcervo;");
   });
 

@@ -13,13 +13,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
 const ARTE = ler("client/src/pages/arte.tsx");
 const VERSOES = ler("client/src/pages/versoes.tsx");
-const ITEMS = ler("server/routes/items.ts");
+const ITEMS = fonteDasRotasDeItens();
 
 describe("1 · a Arte vê o que aconteceu com o aviso", () => {
   it("a mutação lê a resposta em vez de descartá-la", () => {

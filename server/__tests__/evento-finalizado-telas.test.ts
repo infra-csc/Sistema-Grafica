@@ -32,6 +32,7 @@
 //      sistema quebrou. O selo é PARTE da feature, não enfeite.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 import { seloPecaEventoFinalizado, motivoAcaoBloqueada } from "@/lib/status";
@@ -41,7 +42,7 @@ const ler = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
 
 const GRAFICA = ler("client/src/pages/grafica.tsx");
 const REVISAO = ler("client/src/pages/solicitacao.tsx");
-const ITEMS = ler("server/routes/items.ts");
+const ITEMS = fonteDasRotasDeItens();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Ferramentas de leitura. Elas existem para que a tabela de rotas seja uma

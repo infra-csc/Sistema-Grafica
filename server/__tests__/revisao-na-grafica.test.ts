@@ -11,6 +11,7 @@
 // não aparecia na Gráfica, isso era inalcançável; agora precisa de gate.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 
 vi.mock("../db", () => ({ db: {} }));
@@ -19,7 +20,7 @@ vi.mock("../storage", () => ({ storage: {} }));
 const { EM_REVISAO } = await import("@shared/fluxo-peca");
 
 const STORAGE = readFileSync(new URL("../storage.ts", import.meta.url), "utf8");
-const ITEMS = readFileSync(new URL("../routes/items.ts", import.meta.url), "utf8");
+const ITEMS = fonteDasRotasDeItens();
 const GRAFICA = readFileSync(new URL("../../client/src/pages/grafica.tsx", import.meta.url), "utf8");
 const FILTROS = readFileSync(new URL("../../client/src/lib/grafica-filtros.ts", import.meta.url), "utf8");
 
@@ -94,7 +95,7 @@ describe("segunda rodada (25/08): os quatro furos que sobraram", () => {
   // Produzir e Reaproveitar, e o + de aumentar quantidade aparecia nos dois
   // layouts. E reaproveitar era ação REAL: o servidor não olhava o status.
   const G = readFileSync(new URL("../../client/src/pages/grafica.tsx", import.meta.url), "utf8");
-  const ITEMS = readFileSync(new URL("../routes/items.ts", import.meta.url), "utf8");
+  const ITEMS = fonteDasRotasDeItens();
 
   it("produzir e reaproveitar da tabela exigem !emRevisao", () => {
     expect(G).toContain("{!bulkOn && !emRevisao && canProduce && !isDelivered(item)");

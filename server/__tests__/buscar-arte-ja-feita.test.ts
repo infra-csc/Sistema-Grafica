@@ -16,6 +16,7 @@
 //     caminho de gravação DE SEMPRE (nenhuma rota nova de escrita).
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 import {
@@ -402,8 +403,8 @@ describe("as rotas que gravam thumb só aceitam objeto do storage", () => {
   });
 
   it("submit-for-approval, update-thumb e resubmit validam e gravam a forma normalizada", () => {
-    const ITEMS = ler("server/routes/items.ts");
-    expect(ITEMS).toContain('import { urlDeThumbValida, ERRO_THUMB_FORA_DO_STORAGE } from "./thumb-url";');
+    const ITEMS = fonteDasRotasDeItens();
+    expect(ITEMS).toContain('import { urlDeThumbValida, ERRO_THUMB_FORA_DO_STORAGE } from "../thumb-url";');
     expect(ITEMS.split("const thumbNormalizado = urlDeThumbValida(").length - 1).toBe(3);
     // 3 rotas de envio + o PATCH genérico (revisão 22/09: a mesma régua lá).
     expect(ITEMS.split("return res.status(400).json({ error: ERRO_THUMB_FORA_DO_STORAGE });").length - 1).toBe(4);
@@ -417,7 +418,7 @@ describe("as rotas que gravam thumb só aceitam objeto do storage", () => {
   });
 
   it("o caminho do arquivo final fica fora da régua — é caminho de rede por regra da casa", () => {
-    const ITEMS = ler("server/routes/items.ts");
+    const ITEMS = fonteDasRotasDeItens();
     expect(ITEMS).not.toContain("urlDeThumbValida(validatedData.finalFileUrl");
     expect(ler("server/routes/thumb-url.ts")).toContain("O CAMINHO DO ARQUIVO FINAL NÃO ENTRA nesta régua");
   });

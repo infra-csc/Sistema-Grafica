@@ -32,6 +32,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync, readdirSync, statSync } from "fs";
 import path from "path";
 
@@ -75,7 +76,7 @@ describe("nenhuma classe de regex perdeu a barra invertida", () => {
     const ler = (rel: string) => readFileSync(path.join(RAIZ, rel), "utf8");
     // `String.raw` para a barra sobreviver a esta própria asserção.
     const CERTO = String.raw`replace(/\s+/g, " ")`;
-    expect(ler("server/routes/items.ts")).toContain(CERTO);
+    expect(fonteDasRotasDeItens()).toContain(CERTO);
     expect(ler("client/src/pages/atendimento.tsx")).toContain(CERTO);
     expect(ler("client/src/pages/solicitacao.tsx")).toContain(CERTO);
   });

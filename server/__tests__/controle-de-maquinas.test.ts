@@ -15,13 +15,14 @@
 //   5. A TELA existe, está no app e a Gráfica chega nela pelo cabeçalho.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync, existsSync } from "fs";
 import path from "path";
 
 const RAIZ = path.resolve(__dirname, "../..");
 const ler = (rel: string) => readFileSync(path.resolve(RAIZ, rel), "utf8");
 const SCHEMA = ler("shared/schema.ts");
-const ITEMS = ler("server/routes/items.ts");
+const ITEMS = fonteDasRotasDeItens();
 const ROTAS = ler("server/routes.ts");
 const APP = ler("client/src/App.tsx");
 const GRAFICA = ler("client/src/pages/grafica.tsx");

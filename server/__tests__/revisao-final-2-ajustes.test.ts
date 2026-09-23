@@ -3,6 +3,7 @@
 //  · reaproveitar anda a peça — a trava da Solicitação segura;
 //  · evento só com moldes produzidos (e entregues) vira Concluído sozinho.
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 
 const ler = (p: string) => readFileSync(new URL(`../../${p}`, import.meta.url), "utf8");
@@ -17,7 +18,7 @@ describe("a trava da Solicitação segura também o molde e o reaproveitar", () 
     expect(b).toContain("title={travada ? fraseDaTrava(item)");
   });
   it("mark-reuse recusa peça travada e a Gráfica não oferece Reaproveitar", () => {
-    const rota = ler("server/routes/items.ts");
+    const rota = fonteDasRotasDeItens();
     const i = rota.indexOf('"/api/items/:id/mark-reuse"');
     expect(rota.slice(i, i + 2500)).toContain("if (pecaTravada(current as any)) return res.status(409)");
     expect(ler("client/src/pages/grafica.tsx")).toContain("const podeReaproveitarPeca = !emRevisao && !pecaTravada(item)");

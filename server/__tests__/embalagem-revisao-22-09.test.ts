@@ -6,6 +6,7 @@
 // peça, peça travada na entrega) estão em tubos-tres-modais.test.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 import { problemaNoVolume, progressoDaEmbalagem } from "@shared/embalagem";
@@ -16,7 +17,7 @@ import { fraseDaTrava } from "@shared/trava-da-peca";
 const RAIZ = path.resolve(__dirname, "../..");
 const ler = (rel: string) => readFileSync(path.resolve(RAIZ, rel), "utf8");
 const ROTAS = ler("server/routes/tubos.ts");
-const ITEMS = ler("server/routes/items.ts");
+const ITEMS = fonteDasRotasDeItens();
 const trecho = (texto: string, de: string, ate: string) => {
   const i = texto.indexOf(de);
   expect(i, `não achei ${de}`).toBeGreaterThan(-1);

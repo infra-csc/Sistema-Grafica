@@ -24,6 +24,7 @@
 // falha que se quer barrar é textual — alguém copiar a linha errada.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import fs from "fs";
 import path from "path";
 
@@ -35,7 +36,8 @@ vi.mock("../storage", () => ({ storage: {} }));
 import { resolveActor, SYSTEM_ACTOR } from "../routes/shared";
 
 const raiz = path.resolve(__dirname, "..", "..");
-const ler = (rel: string) => fs.readFileSync(path.join(raiz, rel), "utf8");
+// server/routes/items.ts virou índice: o texto das rotas da peça vem de fonteDasRotasDeItens().
+const ler = (rel: string) => rel === "server/routes/items.ts" ? fonteDasRotasDeItens() : fs.readFileSync(path.join(raiz, rel), "utf8");
 
 /** Módulos donos da escrita de PEÇA e EVENTO — os que alimentam o Histórico. */
 const FONTES = [

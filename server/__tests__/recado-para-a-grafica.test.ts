@@ -12,6 +12,7 @@
  *   3. ao liberar, o aviso oferece abrir a peça na fila da Gráfica.
  */
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import { join } from "path";
 
@@ -20,7 +21,7 @@ const ler = (p: string) => readFileSync(join(raiz, p), "utf8");
 
 describe("o recado escrito na Revisão Final não se perde", () => {
   it("a trilha grava o texto, não só 'Observações atualizadas'", () => {
-    const rotas = ler("server/routes/items.ts");
+    const rotas = fonteDasRotasDeItens();
     const trecho = rotas.slice(rotas.indexOf("'observations' in validatedData"));
     expect(trecho.slice(0, 900)).toContain("changedParts.push(recado ?");
     expect(trecho.slice(0, 900)).toContain("Observações: \"${");

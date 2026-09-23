@@ -29,10 +29,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
-const rotas = readFileSync(path.resolve(__dirname, "../routes/items.ts"), "utf8");
+const rotas = fonteDasRotasDeItens();
 const arte = readFileSync(path.resolve(__dirname, "../../client/src/pages/arte.tsx"), "utf8");
 
 describe("Correção: a peça devolvida leva as aprovações que tem", () => {

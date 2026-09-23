@@ -17,6 +17,7 @@
 //      caminho, o resumo "ainda na máquina" com a peça dividida e o limbo.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 import { planejarLancamentoDeImpressas, normalizarPartes, aImprimirDaPeca, partesDaPeca } from "@shared/impressao-dividida";
@@ -26,7 +27,7 @@ import { agregarRelatorioDeMaquinas } from "../services/relatorioDeMaquinas";
 import { rotuloDaMaquina } from "@shared/fluxo-peca";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
-const ITEMS = ler("server/routes/items.ts");
+const ITEMS = fonteDasRotasDeItens();
 const MAQ = ler("server/routes/maquinas.ts");
 const trecho = (fonte: string, de: string, ate: string) => fonte.slice(fonte.indexOf(de), fonte.indexOf(ate, fonte.indexOf(de) + 1));
 const PRINTING = trecho(ITEMS, 'app.patch("/api/items/:id/start-printing"', 'app.patch("/api/items/:id/start-production"');

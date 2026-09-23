@@ -15,6 +15,7 @@
 //     andamento dos pedidos.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 import { createElement } from "react";
@@ -162,7 +163,7 @@ describe("o tubo viaja na peça", () => {
   });
 
   it("o enrich das listas chama o select em lote (um por request) — e approved/delta passam por ele", () => {
-    const ROTAS = ler("server/routes/items.ts");
+    const ROTAS = fonteDasRotasDeItens();
     expect(ROTAS).toContain("resumosDeTuboPorIds(list.map((i) => i.tuboId)),");
     expect(ROTAS).toContain("...comTubo(item, tuboPorId),");
     const SERVICO = ler("server/services/tubosDaPeca.ts");

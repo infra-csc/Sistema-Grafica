@@ -13,11 +13,12 @@
 // marcar dezenas.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
-const ROTA = ler("server/routes/items.ts");
+const ROTA = fonteDasRotasDeItens();
 const DIALOG = ler("client/src/components/clone-items-dialog.tsx");
 const HOOK = ler("client/src/hooks/use-event-import.ts");
 const DETALHE = ler("client/src/pages/event-detail.tsx");

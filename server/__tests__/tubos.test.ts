@@ -14,6 +14,7 @@
 //     parcial estão em embalagem-com-quantidade.test.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync, existsSync } from "fs";
 import path from "path";
 import { PODE_IR_PARA_TUBO, podeIrParaTubo, EMBALADO, ehEmbalada, POS_CONFERENCIA, ehPosConferencia, DEPOIS_DA_ARTE } from "@shared/fluxo-peca";
@@ -156,7 +157,7 @@ describe("a etapa Embalado no fluxo da peça", () => {
     expect(ler("server/routes/shared.ts")).toContain('packed: "Embalado",');
     expect(ler("server/services/tempo-etapas.ts")).toContain('packed: "Embalado",');
     expect(ler("server/services/xlsxExport.ts")).toContain('packed: "Embalado"');
-    expect(ler("server/routes/items.ts")).toContain('"Embalado": "packed",');
+    expect(fonteDasRotasDeItens()).toContain('"Embalado": "packed",');
     expect(ler("client/src/lib/painel-rotas.ts")).toContain("packed:                  TELAS.grafica,");
     // A etapa canônica (shared/fluxo-peca) é a fonte; fases e PRODUCED_LIKE derivam dela.
     expect(ler("shared/fluxo-peca.ts")).toContain('packed:                ["packed", "embalado"],');
@@ -166,7 +167,7 @@ describe("a etapa Embalado no fluxo da peça", () => {
 
   it("a fila da Gráfica (storage + delta) serve packed", () => {
     expect(ler("server/storage.ts")).toContain("'produced', 'conferred', 'packed', 'delivered')");
-    expect(ler("server/routes/items.ts")).toContain('"approved", "inProduction", "produced", "conferred", "packed", "delivered",');
+    expect(fonteDasRotasDeItens()).toContain('"approved", "inProduction", "produced", "conferred", "packed", "delivered",');
   });
 });
 
@@ -365,7 +366,7 @@ describe("EMBALADA SOZINHA — volume avulso (dono, 21/09: 'nem sempre vai ser e
 });
 
 describe("ENTREGAR É SÓ DO TUBO (dono, 21/09)", () => {
-  const ITEMS = ler("server/routes/items.ts");
+  const ITEMS = fonteDasRotasDeItens();
   const deliver = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/deliver"'), ITEMS.indexOf('app.patch("/api/items/:id/deliver"') + 5000);
 
 

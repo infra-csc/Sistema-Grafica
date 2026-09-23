@@ -9,12 +9,13 @@
 // mostrando as imagens de antes.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
 const raiz = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
 const SCHEMA = raiz("shared/schema.ts");
-const ROTAS = raiz("server/routes/items.ts");
+const ROTAS = fonteDasRotasDeItens();
 const HELPER = raiz("client/src/lib/refs-da-peca.ts");
 const DETALHE = raiz("client/src/pages/event-detail.tsx");
 const FICHA = raiz("client/src/components/item-details-dialog.tsx");

@@ -19,6 +19,7 @@
 //      filtro "Impressora" (e de volta), com o recorte certo.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import * as React from "react";
 import { readFileSync } from "fs";
 import { resolve } from "path";
@@ -37,7 +38,8 @@ import { semImpressora, reservaDaPeca } from "@shared/reserva-de-impressora";
 
 vi.setConfig({ testTimeout: 40_000 });
 const h = React.createElement;
-const ler = (p: string) => readFileSync(resolve(__dirname, "../..", p), "utf8");
+// server/routes/items.ts virou índice: o texto das rotas da peça vem de fonteDasRotasDeItens().
+const ler = (p: string) => p === "server/routes/items.ts" ? fonteDasRotasDeItens() : readFileSync(resolve(__dirname, "../..", p), "utf8");
 
 vi.mock("@/contexts/auth-context", () => ({
   useAuth: () => ({ user: { id: "u1", name: "Operador", email: "g@g", role: "grafica", mustChangePassword: false }, isLoading: false, logout: () => {} }),

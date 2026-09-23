@@ -17,11 +17,12 @@
 //     do descancelar), só para admin.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
-const ROTA = ler("server/routes/items.ts");
+const ROTA = fonteDasRotasDeItens();
 const FICHA = ler("client/src/components/item-details-dialog.tsx");
 const REGUA = ler("shared/permissoes.ts");
 

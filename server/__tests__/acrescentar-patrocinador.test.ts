@@ -18,6 +18,7 @@
 // até em correção; caso seja aprovada, não pode mais".
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
@@ -91,7 +92,7 @@ describe("até a aprovação fechar — inclusive em correção", () => {
   it("a CORREÇÃO já está coberta pelos mesmos dois estados", () => {
     // Patrocinador reprovou: a PEÇA fica em awaiting_sponsor_approval e só a
     // LINHA dele vai para awaiting_arte (ver a rota de reject em items.ts).
-    const ITEMS = ler("server/routes/items.ts");
+    const ITEMS = fonteDasRotasDeItens();
     expect(ITEMS).toContain("status: 'awaiting_arte',");
     expect(ITEMS).toContain('if (currentItem.status !== "awaiting_sponsor_approval") {');
     // Revisor devolveu à Arte: a peça volta para awaiting_submission.
@@ -127,7 +128,7 @@ describe("até a aprovação fechar — inclusive em correção", () => {
     // o apelido legado da revisão TEM de estar na lista — a peça #3483 foi
     // recusada como "já é da Gráfica" estando em plena revisão por causa dele
     expect(FLUXO).toContain('"awaiting_creator_review",');
-    const ITEMS = ler("server/routes/items.ts");
+    const ITEMS = fonteDasRotasDeItens();
     expect(ITEMS).not.toContain('const POS_APROVACAO = ["sponsor_approved"');
     expect(ler("scripts/reparar-aprovacao-incoerente.ts")).toContain('from "../shared/fluxo-peca"');
   });

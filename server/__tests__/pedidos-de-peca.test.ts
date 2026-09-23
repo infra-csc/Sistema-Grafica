@@ -13,6 +13,7 @@
 //   · aviso para QUEM PEDIU; prazo, andamento, pedida × criada.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 import {
@@ -42,7 +43,7 @@ const RAIZ = path.resolve(__dirname, "../..");
 const ler = (rel: string) => readFileSync(path.resolve(RAIZ, rel), "utf8");
 const SCHEMA = ler("shared/schema.ts");
 const ROTAS = ler("server/routes/pedidos-de-peca.ts");
-const ITEMS = ler("server/routes/items.ts");
+const ITEMS = fonteDasRotasDeItens();
 const NOTIF = ler("server/routes/notifications.ts");
 const STORAGE = ler("server/storage.ts");
 const APP = ler("client/src/App.tsx");
@@ -196,12 +197,12 @@ describe("o servidor", () => {
   });
 
   it("a peça criada sai ligada na mesma requisição, e o cliente não forja o vínculo", () => {
-    expect(ITEMS).toContain('const { vincularPecaALinha } = await import("./pedidos-de-peca");');
+    expect(ITEMS).toContain('const { vincularPecaALinha } = await import("../pedidos-de-peca");');
     expect(SCHEMA).toContain("  pedidoDePecaLinhaId: true,\n");
   });
 
   it("sem desfazer: excluir a peça criada devolve a peça solicitada para aberta", () => {
-    expect(ITEMS).toContain('const { aoExcluirPeca } = await import("./pedidos-de-peca");');
+    expect(ITEMS).toContain('const { aoExcluirPeca } = await import("../pedidos-de-peca");');
     expect(ROTAS).toContain('.where(and(eq(linhasDoPedidoDePeca.id, linhaId), eq(linhasDoPedidoDePeca.status, "atendido")))');
     expect(ROTAS).toContain("Peça atendida não se reabre na mão");
   });

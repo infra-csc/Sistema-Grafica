@@ -57,7 +57,7 @@ describe("a cadeia de rolagem do modal de decisão", () => {
     // A estrutura que a regra de CSS pressupõe. Se alguém trocar o scrollport
     // por um contêiner sem min-height, o CSS acima não salva.
     expect(ATEND).toContain('<div style={{ padding: 24, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>');
-    expect(ATEND).toContain("borderTop: '1px solid #f1f0ef',");
+    expect(ATEND).toContain("borderTop: `1px solid ${N.n3}`,");
     expect(ATEND).toContain("flexShrink: 0,");
   });
 

@@ -6,7 +6,6 @@ import { faseDaArte } from "@/components/prazos/tokens";
 import { getStatusLabel, getStatusMeta, FINAL_STATUSES, PRODUCTION_STATUSES, STATUS, motivoEventoFinalizado, todayBusinessMs } from "@/lib/status";
 import { PHASES, contarPorFase, FORA_DO_FUNIL } from "@/lib/fases";
 import { MARCOS_DO_EVENTO } from "@shared/prazo-dates";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, Building2, Loader2, User, History, Lock, Unlock, Paperclip, ExternalLink, X, RotateCcw, Recycle, Upload, Copy, ChevronDown, CheckCircle2, AlertTriangle, FileSpreadsheet, FileText, Tags, BookOpen, Search, Warehouse, MoreHorizontal } from "lucide-react";
 import { EstoqueSemelhantesDialog } from "@/components/estoque-semelhantes-dialog";
@@ -150,7 +149,11 @@ import {
 } from "@/components/aumentar-quantidade-dialog";
 import { compareDisplayId } from "@/lib/displayId";
 import { miniatura } from "@/lib/miniatura";
-import { T } from "@/lib/theme";
+import { T, N, TOM, FONT, FS, FW, R, SHADOW } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { Selo } from "@/components/ui/selo";
+import { EstadoErro, EstadoVazio } from "@/components/ui/estados";
+import { useConfirmar } from "@/components/ui/usar-confirmar";
 
 // A lista única de tipos (com o Molde, 22/09) mora em shared/molde.ts.
 const itemTypes = [...TIPOS_DE_PECA];
@@ -187,8 +190,8 @@ const EMPTY_ITEM_FORM = {
 type ItemFormData = typeof EMPTY_ITEM_FORM;
 
 // Tipografia e controles do formulário de peça — a MESMA cara nos dois fluxos.
-const FIELD_LABEL: React.CSSProperties = { fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" };
-const FIELD_INPUT: React.CSSProperties = { width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: 8, padding: "12px 16px", fontSize: 15, fontWeight: 500, color: "#1a1c1c", transition: "box-shadow 0.15s" };
+const FIELD_LABEL: React.CSSProperties = { fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: T.second };
+const FIELD_INPUT: React.CSSProperties = { width: "100%", backgroundColor: T.low, border: "none", borderRadius: 8, padding: "12px 16px", fontSize: 15, fontWeight: 500, color: T.text, transition: "box-shadow 0.15s" };
 
 interface ItemFormProps {
   mode: "create" | "edit";
@@ -265,7 +268,7 @@ function ItemForm({
               value={formData.kitRemessaId}
               onChange={(e) => setFormData({ ...formData, kitRemessaId: e.target.value })}
               data-testid="select-item-kit"
-              style={{ ...FIELD_INPUT, cursor: "pointer", color: formData.kitRemessaId ? "#5b21b6" : FIELD_INPUT.color, fontWeight: formData.kitRemessaId ? 700 : 500 }}
+              style={{ ...FIELD_INPUT, cursor: "pointer", color: formData.kitRemessaId ? TOM.roxo.text : FIELD_INPUT.color, fontWeight: formData.kitRemessaId ? 700 : 500 }}
             >
               {kitObrigatorio
                 ? <option value="">— escolha a remessa do Kit —</option>
@@ -273,7 +276,7 @@ function ItemForm({
               {remessasDoKit.map((r) => <option key={r.id} value={r.id}>{rotuloDaRemessa(r)}</option>)}
             </select>
             {kitObrigatorio && remessasDoKit.length === 0 && (
-              <span style={{ fontSize: 12, color: "#92400e" }}>Crie a remessa do Kit neste evento (painel Kit) antes de adicionar peças.</span>
+              <span style={{ fontSize: 12, color: TOM.alerta.text }}>Crie a remessa do Kit neste evento (painel Kit) antes de adicionar peças.</span>
             )}
           </div>
         )}
@@ -317,7 +320,7 @@ function ItemForm({
                   type="button"
                   onClick={() => { setFormData({ ...formData, type: "" }); setCustomType(false); }}
                   data-testid="button-back-to-type-list"
-                  style={{ alignSelf: "flex-start", background: "none", border: "none", padding: 0, fontSize: 11, fontWeight: 700, color: "#c2410c", cursor: "pointer" }}
+                  style={{ alignSelf: "flex-start", background: "none", border: "none", padding: 0, fontSize: 11, fontWeight: 700, color: T.accentText, cursor: "pointer" }}
                 >
                   ← escolher da lista
                 </button>
@@ -413,7 +416,7 @@ function ItemForm({
             />
             {quantityLocked && (
               <>
-                <p id="item-quantity-hint" style={{ margin: 0, fontSize: 10, lineHeight: 1.4, color: "#746e69" }}>
+                <p id="item-quantity-hint" style={{ margin: 0, fontSize: 10, lineHeight: 1.4, color: T.second }}>
                   Em produção: dá para <strong>reduzir</strong> até {quantityFloor}
                   {quantityFloor > 0 ? " (já produzidas/conferidas/entregues)" : ""}. Para <strong>aumentar</strong>, o pedido vira uma peça complementar.
                 </p>
@@ -434,7 +437,7 @@ function ItemForm({
                 : "—"
               }
               // #c2410c: o total é TEXTO de 15px — o #f97316 dava 2,6:1 sobre #f3f4f3.
-              style={{ ...FIELD_INPUT, fontWeight: 700, color: formData.fileWidth && formData.fileHeight ? "#c2410c" : "#746e69", cursor: "default" }}
+              style={{ ...FIELD_INPUT, fontWeight: 700, color: formData.fileWidth && formData.fileHeight ? T.accentText : T.second, cursor: "default" }}
             />
           </div>
         </div>
@@ -447,34 +450,34 @@ function ItemForm({
             style={{
               // #047857 (não #059669): o subtítulo branco precisava de mais
               // contraste sobre o fundo ativo.
-              backgroundColor: formData.isReuse ? "#047857" : "#f3f4f3",
-              border: `2px solid ${formData.isReuse ? "#047857" : "#e5e7eb"}`,
+              backgroundColor: formData.isReuse ? TOM.esmeralda.text : T.low,
+              border: `2px solid ${formData.isReuse ? TOM.esmeralda.text : T.border}`,
               padding: "14px 18px", borderRadius: "12px",
               display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px",
               cursor: "pointer", transition: "all 0.15s",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <div style={{ backgroundColor: formData.isReuse ? "rgba(255,255,255,0.2)" : "#e5e7eb", borderRadius: "8px", padding: "8px", flexShrink: 0 }}>
-                <RotateCcw style={{ width: 18, height: 18, color: formData.isReuse ? "#ffffff" : "#6b7280" }} />
+              <div style={{ backgroundColor: formData.isReuse ? "rgba(255,255,255,0.2)" : T.border, borderRadius: "8px", padding: "8px", flexShrink: 0 }}>
+                <RotateCcw style={{ width: 18, height: 18, color: formData.isReuse ? T.surface : T.second }} />
               </div>
               <div>
-                <p style={{ fontSize: "15px", fontWeight: 700, color: formData.isReuse ? "#ffffff" : "#374151", margin: 0 }}>Reaproveitamento</p>
-                <p style={{ fontSize: "12px", color: formData.isReuse ? "#ffffff" : "#57534e", margin: 0 }}>Gráfica entrega direto — sem etapa de produção</p>
+                <p style={{ fontSize: "15px", fontWeight: 700, color: formData.isReuse ? T.surface : T.strong, margin: 0 }}>Reaproveitamento</p>
+                <p style={{ fontSize: "12px", color: formData.isReuse ? T.surface : T.apoio, margin: 0 }}>Gráfica entrega direto — sem etapa de produção</p>
               </div>
             </div>
             <Checkbox
               checked={formData.isReuse}
               onCheckedChange={(checked) => setFormData({ ...formData, isReuse: !!checked })}
               data-testid="checkbox-is-reuse"
-              style={{ width: "20px", height: "20px", accentColor: "#ffffff", pointerEvents: "none", flexShrink: 0 }}
+              style={{ width: "20px", height: "20px", accentColor: T.surface, pointerEvents: "none", flexShrink: 0 }}
             />
           </div>
         )}
 
         {/* Descrição */}
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <label htmlFor="item-description" style={FIELD_LABEL}>Descrição do Item <span style={{ color: "#746e69", fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: 10 }}>(opcional)</span></label>
+          <label htmlFor="item-description" style={FIELD_LABEL}>Descrição do Item <span style={{ color: T.second, fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: 10 }}>(opcional)</span></label>
           <input
             id="item-description"
             value={formData.description}
@@ -490,7 +493,7 @@ function ItemForm({
         {/* Dimensões — painel bg */}
         <div style={{ backgroundColor: "rgba(243,244,243,0.6)", padding: "24px", borderRadius: "12px" }}>
           <div style={{ ...FIELD_LABEL, marginBottom: "16px", display: "flex", alignItems: "center", gap: "8px" }}>
-            <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "#f97316", display: "inline-block", flexShrink: 0 }}></span>
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: T.accent, display: "inline-block", flexShrink: 0 }}></span>
             Dimensões de Produção
           </div>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: "12px" }}>
@@ -505,8 +508,8 @@ function ItemForm({
               { label: "ARQ. Altura", key: "fileHeight", orange: true, testId: isEdit ? "input-edit-file-height" : "input-file-height" },
             ].map((dim) => (
               <div key={dim.key} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                <label htmlFor={`item-${dim.key}`} style={{ fontSize: 11, fontWeight: 700, color: "#746e69", display: "flex", alignItems: "center", gap: "5px" }}>
-                  <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: dim.orange ? "#f97316" : "#a8a29e", display: "inline-block", flexShrink: 0 }}></span>
+                <label htmlFor={`item-${dim.key}`} style={{ fontSize: 11, fontWeight: 700, color: T.second, display: "flex", alignItems: "center", gap: "5px" }}>
+                  <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: dim.orange ? T.accent : T.muted, display: "inline-block", flexShrink: 0 }}></span>
                   {dim.label}
                 </label>
                 <input
@@ -537,7 +540,7 @@ function ItemForm({
                   }}
                   placeholder="0.00"
                   data-testid={dim.testId}
-                  style={{ width: "100%", backgroundColor: "#ffffff", border: "none", borderRadius: "8px", padding: "8px 12px", fontSize: "15px", fontWeight: 500, color: "#1a1c1c", boxShadow: "0 1px 3px rgba(0,0,0,0.08)", transition: "box-shadow 0.15s" }}
+                  style={{ width: "100%", backgroundColor: T.surface, border: "none", borderRadius: "8px", padding: "8px 12px", fontSize: "15px", fontWeight: 500, color: T.text, boxShadow: "0 1px 3px rgba(0,0,0,0.08)", transition: "box-shadow 0.15s" }}
                   onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.25)")}
                   onBlur={(e) => (e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.08)")}
                 />
@@ -546,9 +549,9 @@ function ItemForm({
           </div>
           {/* A frase que faltava: qual par faz o quê. Sem ela, "Visual" e
               "Arquivo" eram dois pares de números iguais com nomes opacos. */}
-          <p style={{ margin: "12px 0 0", fontSize: 11, lineHeight: 1.5, color: "#746e69" }}>
-            <strong style={{ color: "#b45309" }}>ARQ.</strong> é o que a impressora recebe (com sangria) — o m² e a gráfica usam ele.{" "}
-            <strong style={{ color: "#57534e" }}>VIS.</strong> é o que se vê na peça montada. Digitar o VIS. preenche o ARQ. igual; ajuste o ARQ. só quando houver sangria.
+          <p style={{ margin: "12px 0 0", fontSize: 11, lineHeight: 1.5, color: T.second }}>
+            <strong style={{ color: TOM.alerta.text }}>ARQ.</strong> é o que a impressora recebe (com sangria) — o m² e a gráfica usam ele.{" "}
+            <strong style={{ color: T.apoio }}>VIS.</strong> é o que se vê na peça montada. Digitar o VIS. preenche o ARQ. igual; ajuste o ARQ. só quando houver sangria.
           </p>
         </div>
 
@@ -588,7 +591,7 @@ function ItemForm({
             )}
             {/* O cadastro automático no catálogo só acontece no PATCH de edição. */}
             {isEdit && formData.material.trim() && !materialOptions.some(m => m.toLowerCase() === formData.material.trim().toLowerCase()) && (
-              <span style={{ fontSize: "11px", fontWeight: 600, color: "#b45309", display: "flex", alignItems: "center", gap: "4px", marginTop: "2px" }}>
+              <span style={{ fontSize: "11px", fontWeight: 600, color: TOM.alerta.text, display: "flex", alignItems: "center", gap: "4px", marginTop: "2px" }}>
                 <Plus style={{ width: 12, height: 12, flexShrink: 0 }} /> Novo material — será criado no catálogo ao salvar
               </span>
             )}
@@ -626,7 +629,7 @@ function ItemForm({
               </select>
             )}
             {isEdit && formData.finish.trim() && !finishOptions.some(f => f.toLowerCase() === formData.finish.trim().toLowerCase()) && (
-              <span style={{ fontSize: "11px", fontWeight: 600, color: "#065f46", display: "flex", alignItems: "center", gap: "4px", marginTop: "2px" }}>
+              <span style={{ fontSize: "11px", fontWeight: 600, color: TOM.esmeralda.text, display: "flex", alignItems: "center", gap: "4px", marginTop: "2px" }}>
                 <Plus style={{ width: 12, height: 12, flexShrink: 0 }} /> Novo acabamento — será criado no catálogo ao salvar
               </span>
             )}
@@ -637,12 +640,12 @@ function ItemForm({
         {isEdit && (
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             <label style={FIELD_LABEL}>
-              Referência <span style={{ color: "#746e69", fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: "10px" }}>(opcional — cole um print com Ctrl+V ou anexe uma imagem, em alta qualidade)</span>
+              Referência <span style={{ color: T.second, fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: "10px" }}>(opcional — cole um print com Ctrl+V ou anexe uma imagem, em alta qualidade)</span>
             </label>
             {(localRefPreview || formData.referenceUrl) ? (
               <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
                 {/* Thumbnail preview */}
-                <div style={{ flexShrink: 0, width: 80, height: 80, borderRadius: 8, overflow: "hidden", border: "1px solid #e7e5e4", backgroundColor: "#f5f5f4" }}>
+                <div style={{ flexShrink: 0, width: 80, height: 80, borderRadius: 8, overflow: "hidden", border: `1px solid ${T.border}`, backgroundColor: N.n2 }}>
                   <img loading="lazy" decoding="async" 
                     src={localRefPreview || formData.referenceUrl}
                     style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
@@ -660,16 +663,16 @@ function ItemForm({
                   >
                     <Paperclip className="h-3 w-3 mr-1" /> Trocar imagem
                   </ObjectUploader>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive justify-start px-2"
+                  <Botao
+                    variante="fantasma"
+                    tamanho="sm"
+                    icone={X}
                     onClick={() => { setFormData(f => ({ ...f, referenceUrl: "" })); setLocalRefPreview(""); }}
                     data-testid="button-remove-reference"
+                    style={{ alignSelf: "flex-start", color: TOM.perigo.text }}
                   >
-                    <X className="h-3 w-3 mr-1" /> Remover
-                  </Button>
+                    Remover
+                  </Botao>
                 </div>
               </div>
             ) : (
@@ -687,7 +690,7 @@ function ItemForm({
 
         {/* Observações */}
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          <label htmlFor="item-observations" style={FIELD_LABEL}>Observações Internas <span style={{ color: "#746e69", fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: 10 }}>(opcional)</span></label>
+          <label htmlFor="item-observations" style={FIELD_LABEL}>Observações Internas <span style={{ color: T.second, fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: 10 }}>(opcional)</span></label>
           <textarea
             id="item-observations"
             value={formData.observations}
@@ -704,15 +707,15 @@ function ItemForm({
         {/* Peça PRIORITÁRIA (dono, 27/08) — admin|solicitacao, na criação E na
             edição: fura a fila da Arte, que é avisada na hora. */}
         {podePriorizar && (
-          <div style={{ backgroundColor: "#fff1f2", borderLeft: "4px solid #e11d48", padding: "14px 16px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+          <div style={{ backgroundColor: TOM.perigo.bg, borderLeft: `4px solid ${TOM.perigo.dot}`, padding: "14px 16px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <AlertTriangle style={{ width: 20, height: 20, color: "#e11d48", flexShrink: 0 }} />
+              <AlertTriangle style={{ width: 20, height: 20, color: TOM.perigo.dot, flexShrink: 0 }} />
               {/* <label> ligado ao checkbox: o texto inteiro vira alvo de
                   clique (era só a caixa de 20px) e o leitor de tela lê o que
                   a caixa marca. */}
-              <label htmlFor={isEdit ? "item-priority-edit" : "item-priority-create"} style={{ fontSize: "15px", fontWeight: 500, color: "#9f1239", cursor: "pointer" }}>
+              <label htmlFor={isEdit ? "item-priority-edit" : "item-priority-create"} style={{ fontSize: "15px", fontWeight: 500, color: TOM.perigo.text, cursor: "pointer" }}>
                 Peça prioritária
-                <span style={{ display: "block", fontSize: "12px", color: "#be123c", fontWeight: 400 }}>Sobe para o topo da fila da Arte e avisa a equipe na hora</span>
+                <span style={{ display: "block", fontSize: "12px", color: TOM.perigo.text, fontWeight: 400 }}>Sobe para o topo da fila da Arte e avisa a equipe na hora</span>
               </label>
             </div>
             <Checkbox
@@ -720,52 +723,53 @@ function ItemForm({
               checked={formData.isPriority}
               onCheckedChange={(checked) => setFormData({ ...formData, isPriority: !!checked })}
               data-testid="checkbox-item-priority"
-              style={{ width: "20px", height: "20px", accentColor: "#e11d48" }}
+              style={{ width: "20px", height: "20px", accentColor: TOM.perigo.dot }}
             />
           </div>
         )}
 
         {/* Pular Aprovação — apenas Admin, só na edição */}
         {isEdit && isAdmin && (
-          <div style={{ backgroundColor: "#fffbeb", borderLeft: "4px solid #fbbf24", padding: "14px 16px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+          <div style={{ backgroundColor: TOM.alerta.bg, borderLeft: `4px solid ${TOM.alerta.dot}`, padding: "14px 16px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <AlertTriangle style={{ width: 20, height: 20, color: "#d97706", flexShrink: 0 }} />
-              <label htmlFor="skip-approval-edit" style={{ fontSize: "15px", fontWeight: 500, color: "#92400e", cursor: "pointer" }}>Pular aprovação técnica <span style={{ fontSize: "13px", color: "#b45309" }}>(Apenas Administrativo)</span></label>
+              <AlertTriangle style={{ width: 20, height: 20, color: TOM.alerta.text, flexShrink: 0 }} />
+              <label htmlFor="skip-approval-edit" style={{ fontSize: "15px", fontWeight: 500, color: TOM.alerta.text, cursor: "pointer" }}>Pular aprovação técnica <span style={{ fontSize: "13px", color: TOM.alerta.text }}>(Apenas Administrativo)</span></label>
             </div>
             <Checkbox
               id="skip-approval-edit"
               checked={formData.skipApproval}
               onCheckedChange={(checked) => setFormData({ ...formData, skipApproval: !!checked })}
               data-testid="checkbox-skip-approval"
-              style={{ width: "20px", height: "20px", accentColor: "#d97706" }}
+              style={{ width: "20px", height: "20px", accentColor: TOM.alerta.text }}
             />
           </div>
         )}
       </div>
 
-      {/* Rodapé — primário ÚNICO #c2410c nos dois modos */}
+      {/* Rodapé — o primário é o preto da casa nos dois modos (era #c2410c
+          só aqui); carregando trava o duplo clique que criava peça repetida. */}
       <ModalFooter>
-        <button
+        <Botao
           type="submit"
-          disabled={isPending}
+          variante="primario"
+          tamanho="toque"
+          larguraCheia
+          carregando={isPending}
+          icone={isEdit ? Check : Plus}
           data-testid={isEdit ? "button-save-edit" : "button-submit-item"}
-          style={{ width: "100%", height: 44, borderRadius: 8, border: "none", backgroundColor: "#c2410c", color: "#fff", fontSize: 13, fontWeight: 800, cursor: isPending ? "wait" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, opacity: isPending ? 0.7 : 1, transition: "background-color 0.15s" }}
-          onMouseEnter={(e) => { if (!isPending) e.currentTarget.style.backgroundColor = "#9a3412"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#c2410c"; }}
         >
-          {isEdit ? <Check style={{ width: 15, height: 15 }} /> : <Plus style={{ width: 15, height: 15 }} />}
           {isEdit
             ? (isPending ? "Salvando..." : "Salvar Alterações")
             : (isPending ? "Adicionando..." : "Adicionar Peça")}
-        </button>
-        <button
-          type="button"
+        </Botao>
+        <Botao
+          variante="fantasma"
+          larguraCheia
           onClick={onCancel}
           data-testid={isEdit ? "button-cancel-edit" : "button-cancel-item"}
-          style={{ width: "100%", height: 36, borderRadius: 8, border: "none", background: "none", fontSize: 13, fontWeight: 600, color: "#746e69", cursor: "pointer" }}
         >
           Cancelar
-        </button>
+        </Botao>
       </ModalFooter>
     </form>
   );
@@ -844,6 +848,8 @@ export default function EventDetail() {
   /** Dedo (celular OU tablet do galpão): manda no TAMANHO do alvo, só nele. */
   const dedo = ponteiroGrosso || isMobile;
   const { toast } = useToast();
+  // Confirmação do app (no lugar do window.confirm): hoje, só o X do modo lote.
+  const { confirmar, dialogo } = useConfirmar();
 
   const [formData, setFormData] = useState({ ...EMPTY_ITEM_FORM });
 
@@ -1195,10 +1201,10 @@ export default function EventDetail() {
     if (!est) return null;
     const achadas = est.disponiveis + est.chegamATempo + est.faltaTriagem;
     const tom = est.reservadas > 0
-      ? { fundo: "#ecfdf5", borda: "#a7f3d0", cor: "#065f46" }
+      ? { fundo: TOM.esmeralda.bg, borda: TOM.esmeralda.border, cor: TOM.esmeralda.text }
       : est.disponiveis > 0
-        ? { fundo: "#1c1917", borda: "#1c1917", cor: "#ffffff" }
-        : { fundo: "#eff6ff", borda: "#bfdbfe", cor: "#1d4ed8" };
+        ? { fundo: T.text, borda: T.text, cor: T.surface }
+        : { fundo: TOM.info.bg, borda: TOM.info.border, cor: TOM.info.text };
     const detalhe = [
       est.disponiveis ? `${est.disponiveis} livre(s) no galpão` : null,
       est.chegamATempo ? `${est.chegamATempo} em uso que volta(m) a tempo` : null,
@@ -1298,6 +1304,7 @@ export default function EventDetail() {
         description: abertas > 0
           ? `${abertas} ${abertas === 1 ? 'peça continua' : 'peças continuam'} na lista, sem ser ${abertas === 1 ? 'cobrada' : 'cobradas'} na Gestão de Prazos. Você pode reabrir a qualquer momento.`
           : "Saiu da Gestão de Prazos e das filas de trabalho. Você pode reabrir a qualquer momento.",
+        variant: "success",
       });
     },
     onError: (error: Error) => {
@@ -1323,6 +1330,7 @@ export default function EventDetail() {
       toast({
         title: "Evento reaberto",
         description: "Voltou para a Gestão de Prazos e para as filas de trabalho.",
+        variant: "success",
       });
     },
     onError: (error: Error) => {
@@ -1357,7 +1365,7 @@ export default function EventDetail() {
         const { url: objectUrl } = await put.json() as { url: string };
         setFormData(f => ({ ...f, referenceUrl: objectUrl }));
         setLocalRefPreview("");
-        toast({ title: "Print anexado", description: "Imagem colada como referência em alta qualidade." });
+        toast({ title: "Print anexado", description: "Imagem colada como referência em alta qualidade.", variant: "success" });
       } catch {
         setLocalRefPreview("");
         toast({ title: "Não foi possível colar a imagem", description: "O print não foi anexado — tente de novo ou use “Adicionar referência visual”.", variant: "destructive" });
@@ -1418,13 +1426,15 @@ export default function EventDetail() {
           toast({
             title: "Peça criada e ligada à solicitação",
             description: "Quem solicitou foi avisado. A peça está em Rascunho — envie para a vinculação junto com a lista.",
+            variant: "success",
             action: <ToastAction altText="Ver os rascunhos do evento" onClick={irParaRascunhos}>Ver rascunhos</ToastAction>,
           });
         } else {
           toast({
             title: "Peça criada, mas não ficou ligada à solicitação",
             description: `${vinculo.erro ?? "Erro ao ligar"} — use “Já criei a peça” na solicitação.`,
-            variant: "destructive",
+            // Aviso, não falha: a peça EXISTE; só o vínculo ficou para o botão da solicitação.
+            variant: "warning",
           });
         }
       } else {
@@ -1435,6 +1445,7 @@ export default function EventDetail() {
         toast({
           title: createdItem?.displayId ? `Peça ${createdItem.displayId} adicionada` : "Peça adicionada",
           description: "Está em Rascunho. Quando a lista estiver pronta, envie para a vinculação.",
+          variant: "success",
           action: <ToastAction altText="Ver os rascunhos do evento" onClick={irParaRascunhos}>Ver rascunhos</ToastAction>,
         });
       }
@@ -1487,6 +1498,7 @@ export default function EventDetail() {
         action: sobra === 0
           ? <ToastAction altText="Ver os rascunhos do evento" onClick={irParaRascunhos}>Ver rascunhos</ToastAction>
           : undefined,
+        variant: "success",
       });
 
       // Atualizar com dados reais do servidor (substitui os temporários)
@@ -1591,6 +1603,7 @@ export default function EventDetail() {
         description: criados.length
           ? `Novo ${criados.join(" e ")} cadastrado no catálogo.`
           : "As alterações foram salvas.",
+        variant: "success",
       });
     },
     onError: (error: Error, variables) => {
@@ -1605,6 +1618,7 @@ export default function EventDetail() {
         toast({
           title: "Peça já em produção",
           description: 'A quantidade não sobe por aqui: o aumento vira uma peça complementar, e o pedido é feito na tela da Gráfica.',
+          variant: "warning",
         });
         return;
       }
@@ -1613,7 +1627,8 @@ export default function EventDetail() {
         toast({
           title: "Redução não permitida",
           description: `Já há ${data?.minimum ?? "?"} un. produzidas/conferidas/entregues. Mínimo: ${data?.minimum ?? "?"}.`,
-          variant: "destructive",
+          // O piso barrou o número; nada quebrou — aviso, não falha.
+          variant: "warning",
         });
         return;
       }
@@ -1641,6 +1656,7 @@ export default function EventDetail() {
       toast({
         title: idExcluido ? `Peça ${idExcluido} excluída` : "Peça excluída",
         description: "Foi para Peças Excluídas, de onde pode ser restaurada.",
+        variant: "success",
       });
     },
     onError: (error: Error) => {
@@ -1676,6 +1692,8 @@ export default function EventDetail() {
             Ver na Vinculação
           </ToastAction>
         ),
+        // Envio parcial é aviso: as que ficaram estão nomeadas na descrição.
+        variant: falharam.length > 0 ? "warning" : "success",
       });
     },
     onError: (error: any) => {
@@ -1685,7 +1703,7 @@ export default function EventDetail() {
         toast({
           title: "Nenhuma peça para enviar",
           description: "Não há rascunho que o seu perfil envie neste evento — pode já ter sido enviado por outra pessoa.",
-          variant: "destructive",
+          variant: "warning",
         });
       } else {
         toast({
@@ -1917,10 +1935,10 @@ export default function EventDetail() {
     // espera parece menor porque a página já "está ali".
     // `motion-safe:`: com movimento reduzido, os blocos ficam parados.
     const bloco = (w: number | string, h: number, extra?: React.CSSProperties): React.CSSProperties =>
-      ({ width: w, maxWidth: '100%', height: h, borderRadius: 6, backgroundColor: '#ebe8e4', ...extra });
-    const cartao: React.CSSProperties = { backgroundColor: '#ffffff', border: '1px solid #E7E3DC', borderRadius: 12 };
+      ({ width: w, maxWidth: '100%', height: h, borderRadius: 6, backgroundColor: T.border, ...extra });
+    const cartao: React.CSSProperties = { backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12 };
     return (
-      <div role="status" aria-label="Carregando evento" data-testid="skeleton-evento" style={{ padding: isMobile ? '12px 12px' : '28px 40px', height: '100%', overflowY: 'auto', maxWidth: '1400px', margin: '0 auto', backgroundColor: '#F7F6F3' }}>
+      <div role="status" aria-label="Carregando evento" data-testid="skeleton-evento" style={{ padding: isMobile ? '12px 12px' : '28px 40px', height: '100%', overflowY: 'auto', maxWidth: '1400px', margin: '0 auto', backgroundColor: N.n2 }}>
         <div className="motion-safe:animate-pulse" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={bloco(130, 12, { marginBottom: 12 })} />
           <div style={bloco(110, 10)} />
@@ -1949,48 +1967,43 @@ export default function EventDetail() {
     );
   }
 
+  // Falha de rede e evento inexistente NÃO são a mesma notícia: a primeira
+  // pede "tentar de novo"; a segunda, o caminho de volta para a lista.
   if (!event) {
     return (
-      <div className="p-6">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center py-12">
-              <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              {eventError ? (
-                <>
-                  <p className="text-red-700 font-semibold mb-1">Não foi possível carregar o evento</p>
-                  <p className="text-muted-foreground text-sm mb-4">Verifique sua conexão e tente novamente.</p>
-                  <button onClick={() => refetchEvent()} className="rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800">
-                    Tentar novamente
-                  </button>
-                </>
-              ) : (
-                <>
-                  <p className="font-semibold mb-1" style={{ color: '#1c1917' }}>Evento não encontrado</p>
-                  {/* Link de volta: o evento pode ter sido excluído, ou o link
-                      estava errado — nos dois casos o próximo passo é a lista. */}
-                  <p className="text-muted-foreground text-sm mb-4">Ele pode ter sido excluído, ou o link está incompleto.</p>
-                  <Link href="/eventos" data-testid="link-evento-nao-encontrado" className="inline-flex items-center gap-1.5 rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800">
-                    <ArrowLeft className="h-3.5 w-3.5" /> Ver todos os eventos
-                  </Link>
-                </>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+      <div style={{ padding: 24 }}>
+        {eventError ? (
+          <EstadoErro
+            titulo="Não foi possível carregar o evento"
+            detalhe="Verifique sua conexão e tente novamente."
+            aoTentarDeNovo={() => refetchEvent()}
+          />
+        ) : (
+          <EstadoVazio
+            icone={AlertCircle}
+            titulo="Evento não encontrado"
+            descricao="Ele pode ter sido excluído, ou o link está incompleto."
+            acao={
+              // Link de volta: excluído ou link errado, o próximo passo é a lista.
+              <Link href="/eventos" data-testid="link-evento-nao-encontrado" className="ds-botao" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, minHeight: 36, padding: '0 14px', borderRadius: R.md, backgroundColor: T.dark, color: T.surface, fontSize: FS.body, fontWeight: FW.forte, textDecoration: 'none' }}>
+                <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> Ver todos os eventos
+              </Link>
+            }
+          />
+        )}
       </div>
     );
   }
 
   return (
-    <div style={{ padding: isMobile ? '12px 12px' : '28px 40px', height: '100%', overflowY: 'auto', maxWidth: '1400px', margin: '0 auto', backgroundColor: '#F7F6F3' }}>
+    <div style={{ padding: isMobile ? '12px 12px' : '28px 40px', height: '100%', overflowY: 'auto', maxWidth: '1400px', margin: '0 auto', backgroundColor: N.n2 }}>
       {/* Breadcrumb */}
       <Link href="/eventos">
         <a
           data-testid="button-back"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '13px', fontWeight: '500', color: '#6F6A63', marginBottom: '22px', textDecoration: 'none', transition: 'color 0.15s', letterSpacing: '0.02em' }}
-          onMouseEnter={e => (e.currentTarget.style.color = '#c2410c')}
-          onMouseLeave={e => (e.currentTarget.style.color = '#6F6A63')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '13px', fontWeight: '500', color: T.second, marginBottom: '22px', textDecoration: 'none', transition: 'color 0.15s', letterSpacing: '0.02em' }}
+          onMouseEnter={e => (e.currentTarget.style.color = T.accentText)}
+          onMouseLeave={e => (e.currentTarget.style.color = T.second)}
         >
           <ArrowLeft className="h-3 w-3" />
           Voltar para eventos
@@ -2003,16 +2016,16 @@ export default function EventDetail() {
       {isEventClosed && (
         <div
           data-testid="banner-event-closed"
-          style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 12, padding: '14px 18px', marginBottom: 22, backgroundColor: '#f5f5f4', border: '1px solid #d6d3d1', borderLeft: '4px solid #78716c', borderRadius: 10 }}
+          style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 12, padding: '14px 18px', marginBottom: 22, backgroundColor: N.n2, border: `1px solid ${T.bdark}`, borderLeft: `4px solid ${T.second}`, borderRadius: 10 }}
         >
-          <Lock className="h-4 w-4" style={{ color: '#57534e', flexShrink: 0, marginTop: 2 }} />
+          <Lock className="h-4 w-4" style={{ color: T.apoio, flexShrink: 0, marginTop: 2 }} />
           <div style={{ flex: '1 1 260px', minWidth: 0 }}>
-            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#292524' }}>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: T.strong }}>
               Evento encerrado
               {closureLog?.userName ? ` por ${closureLog.userName}` : ''}
               {closureLog?.createdAt ? ` em ${formatDateTime(closureLog.createdAt)}` : ''}
             </p>
-            <p style={{ margin: '4px 0 0 0', fontSize: 13, color: '#57534e', lineHeight: 1.6 }}>
+            <p style={{ margin: '4px 0 0 0', fontSize: 13, color: T.apoio, lineHeight: 1.6 }}>
               {openWork.abertas > 0
                 ? `${openWork.abertas} ${openWork.abertas === 1 ? 'peça continua' : 'peças continuam'} em aberto${openWork.emProducao > 0 ? ` (${openWork.emProducao} em produção)` : ''} e ${openWork.abertas === 1 ? 'segue listada' : 'seguem listadas'} abaixo — mas o evento não é mais cobrado na Gestão de Prazos nem aparece nas filas de trabalho.`
                 : 'Não é mais cobrado na Gestão de Prazos nem aparece nas filas de trabalho.'}
@@ -2022,15 +2035,17 @@ export default function EventDetail() {
               cabeçalho. Agora a saída fica onde o aviso está — o menu "Mais"
               continua com o mesmo item, para quem já procura lá. */}
           {canCloseEvent && (
-            <button
-              type="button"
+            <Botao
+              variante="secundario"
+              tamanho={isMobile ? 'toque' : 'md'}
+              icone={Unlock}
               data-testid="button-reopen-event-faixa"
               onClick={() => setReopenDialogOpen(true)}
-              style={{ alignSelf: 'center', display: 'inline-flex', alignItems: 'center', gap: 6, height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 8, border: '1px solid #bbf7d0', backgroundColor: '#ffffff', color: '#15803d', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+              // O verde diz "sair do encerramento" — mantido sobre o secundário.
+              style={{ alignSelf: 'center', flexShrink: 0, color: TOM.sucesso.text, borderColor: TOM.sucesso.border }}
             >
-              <Unlock className="h-4 w-4" aria-hidden="true" />
               Reabrir evento
-            </button>
+            </Botao>
           )}
         </div>
       )}
@@ -2042,14 +2057,14 @@ export default function EventDetail() {
       {motivoEventoFim === 'realizado' && (
         <div
           data-testid="banner-event-realizado"
-          style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '14px 18px', marginBottom: 22, backgroundColor: '#f5f5f4', border: '1px solid #d6d3d1', borderLeft: '4px solid #78716c', borderRadius: 10 }}
+          style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '14px 18px', marginBottom: 22, backgroundColor: N.n2, border: `1px solid ${T.bdark}`, borderLeft: `4px solid ${T.second}`, borderRadius: 10 }}
         >
-          <Calendar className="h-4 w-4" style={{ color: '#57534e', flexShrink: 0, marginTop: 2 }} />
+          <Calendar className="h-4 w-4" style={{ color: T.apoio, flexShrink: 0, marginTop: 2 }} />
           <div>
-            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#292524' }}>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: T.strong }}>
               Evento já realizado
             </p>
-            <p style={{ margin: '4px 0 0 0', fontSize: 13, color: '#57534e', lineHeight: 1.6 }}>
+            <p style={{ margin: '4px 0 0 0', fontSize: 13, color: T.apoio, lineHeight: 1.6 }}>
               A data do evento já passou, então a lista fica aqui como registro: as peças não
               avançam mais no fluxo e não aparecem nas filas de trabalho. Conferir e registrar
               entrega continuam liberados — é o que fecha a conta do que já saiu.
@@ -2068,18 +2083,18 @@ export default function EventDetail() {
           <div style={{ flex: '1 1 420px', minWidth: 0 }}>
             {/* Metadado, não título: sem caixa alta, que o fazia disputar a
                 primeira leitura com o nome do evento. */}
-            <p style={{ color: '#6F6A63', fontSize: 12, fontWeight: 500, margin: '0 0 6px 0' }}>
+            <p style={{ color: T.second, fontSize: 12, fontWeight: 500, margin: '0 0 6px 0' }}>
               Criado em {new Date(event.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
             </p>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              {/* Título no padrão de página (Space Grotesk 26/700, sem caixa
-                  alta). O nome do evento é entidade, mas o cartão da lista já o
-                  mostra como foi digitado — em CAIXA ALTA aqui, o mesmo evento
-                  parecia outro ao abrir. overflowWrap: nome longo sem espaço
-                  não estoura 390px. */}
+              {/* Título com os MESMOS tokens do <CabecalhoDaPagina> (display,
+                  FS.h1, FW.rotulo), mas escrito aqui: o componente não comporta
+                  o selo de status ao lado do nome nem a frase/barra/chips
+                  abaixo. Sem caixa alta: o cartão da lista mostra o nome como
+                  foi digitado. overflowWrap: nome longo não estoura 390px. */}
               <h1
                 data-testid="title-event-name"
-                style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', color: '#1F1D1A', lineHeight: 1.15, margin: 0, overflowWrap: 'anywhere' }}
+                style={{ fontFamily: FONT.display, fontSize: FS.h1, fontWeight: FW.rotulo, letterSpacing: '-0.03em', color: T.text, lineHeight: 1.15, margin: 0, overflowWrap: 'anywhere' }}
               >
                 {event.name}
               </h1>
@@ -2094,7 +2109,7 @@ export default function EventDetail() {
                 derivado local. */}
             {fraseResolucao && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginTop: 10 }}>
-                <p data-testid="text-resolucao" style={{ margin: 0, fontSize: 13, color: '#57534e', lineHeight: 1.5 }}>
+                <p data-testid="text-resolucao" style={{ margin: 0, fontSize: 13, color: T.apoio, lineHeight: 1.5 }}>
                   {fraseResolucao}
                 </p>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
@@ -2102,7 +2117,7 @@ export default function EventDetail() {
                     data-testid="bar-fases"
                     role="img"
                     aria-label={PHASES.map((p, i) => `${fases[i]} ${p.noun}`).join(', ')}
-                    style={{ display: 'flex', width: 120, height: 9, borderRadius: 999, overflow: 'hidden', backgroundColor: '#f0efee', flexShrink: 0 }}
+                    style={{ display: 'flex', width: 120, height: 9, borderRadius: 999, overflow: 'hidden', backgroundColor: N.n3, flexShrink: 0 }}
                   >
                     {pecasNaConta.length > 0 && PHASES.map((fase, i) => (
                       fases[i] > 0
@@ -2110,7 +2125,7 @@ export default function EventDetail() {
                         : null
                     ))}
                   </span>
-                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: '#57534e', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontFamily: FONT.mono, fontSize: 12, color: T.apoio, whiteSpace: 'nowrap' }}>
                     {entregues}/{pecasNaConta.length}
                   </span>
                 </span>
@@ -2124,13 +2139,17 @@ export default function EventDetail() {
                     pós-produção é uma peça a mais na contagem. Dizer quantas
                     são complemento evita a pergunta "por que 43 se a lista tinha
                     42?" — o número está certo, e agora explica a si mesmo. */}
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#6F6A63', backgroundColor: '#ffffff', border: '1px solid #E7E3DC', borderRadius: 999, padding: '4px 12px', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', display: 'inline-flex', alignItems: 'center', minHeight: isMobile ? 44 : undefined }}>
+                <Selo
+                  cores={{ bg: T.surface, text: T.second, border: T.border }}
+                  // Mesma altura e corpo dos chips de status ao lado.
+                  style={{ fontSize: FS.meta, padding: '4px 12px', fontVariantNumeric: 'tabular-nums', minHeight: isMobile ? 44 : undefined }}
+                >
                   {pecasNaConta.length} {pecasNaConta.length === 1 ? 'peça' : 'peças'}
                   {complementCount > 0 && ` (${complementCount} ${complementCount === 1 ? 'complemento' : 'complementos'})`}
                   {' · '}{totalM2.toFixed(2)} m²
-                </span>
+                </Selo>
                 {canceladasForaDaConta > 0 && (
-                  <span data-testid="text-canceladas-fora-da-conta" style={{ fontSize: 12, color: '#6F6A63', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                  <span data-testid="text-canceladas-fora-da-conta" style={{ fontSize: 12, color: T.second, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
                     {canceladasForaDaConta} {canceladasForaDaConta === 1 ? 'cancelada' : 'canceladas'} fora da conta
                   </span>
                 )}
@@ -2173,8 +2192,8 @@ export default function EventDetail() {
                     title="Peças criadas que ainda não foram enviadas para a vinculação — clique para ir até elas"
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: 6,
-                      fontSize: 12, fontWeight: 700, color: '#92400e',
-                      backgroundColor: '#fffbeb', border: '1px dashed #d97706',
+                      fontSize: 12, fontWeight: 700, color: TOM.alerta.text,
+                      backgroundColor: TOM.alerta.bg, border: `1px dashed ${TOM.alerta.text}`,
                       borderRadius: 999, padding: '4px 12px', cursor: 'pointer',
                       minHeight: isMobile ? 44 : undefined, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
                     }}
@@ -2200,25 +2219,14 @@ export default function EventDetail() {
                   finalizado do botão que substituiu. */}
           <div data-testid="acoes-do-evento" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', width: isMobile ? '100%' : undefined }}>
             {(() => {
-              // Botão secundário do cabeçalho — um estilo só, em vez de oito
-              // cópias do mesmo objeto inline. 40px no ponteiro, 44 no toque.
-              const secundario = (travado = false): React.CSSProperties => ({
-                backgroundColor: '#ffffff', color: travado ? T.second : '#1a1c1c',
-                height: isMobile ? 44 : 40, padding: '0 16px', borderRadius: 8,
-                fontWeight: 700, fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 7,
-                border: '1px solid #e7e5e4', cursor: travado ? 'not-allowed' : 'pointer',
-                transition: 'background-color 0.15s, border-color 0.15s', whiteSpace: 'nowrap', flexShrink: 0,
-                fontFamily: "'Space Grotesk', sans-serif",
-              });
-              const hoverSecundario = {
-                onMouseEnter: (e: React.MouseEvent<HTMLButtonElement>) => { if (e.currentTarget.disabled) return; e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.borderColor = '#d6d3d1'; },
-                onMouseLeave: (e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#e7e5e4'; },
-              };
+              // Botões do cabeçalho: <Botao> (hover/foco/desabilitado no
+              // .ds-botao); 44px no toque, a altura padrão no ponteiro.
+              const tamanhoAcao = isMobile ? 'toque' as const : 'md' as const;
               // Item do menu: 44px no celular, 36 no ponteiro. O foco padrão do
               // menu pinta #f97316 com texto branco (2,8:1, reprova AA) — aqui o
               // realce é pedra clara com texto escuro.
               const itemDoMenu = "min-h-[44px] md:min-h-[36px] cursor-pointer gap-2.5 px-2.5 text-[13px] font-semibold text-stone-800 focus:bg-stone-100 focus:text-stone-900";
-              const rotuloDoGrupo: React.CSSProperties = { fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69', padding: '8px 10px 4px' };
+              const rotuloDoGrupo: React.CSSProperties = { fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.second, padding: '8px 10px 4px' };
               // Diálogo aberto a partir do menu: a abertura espera o menu
               // TERMINAR de fechar (onCloseAutoFocus). Abrindo no mesmo clique,
               // o menu devolve o foco ao gatilho por cima do diálogo e as duas
@@ -2229,17 +2237,17 @@ export default function EventDetail() {
               const menuMais = (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
+                    <Botao
+                      variante="secundario"
+                      tamanho={tamanhoAcao}
+                      icone={MoreHorizontal}
                       data-testid="button-mais-acoes-evento"
                       aria-label="Mais ações do evento"
-                      style={secundario()}
-                      {...hoverSecundario}
+                      style={{ flexShrink: 0 }}
                     >
-                      <MoreHorizontal className="h-4 w-4" aria-hidden="true" style={{ color: '#57534e' }} />
                       Mais
-                      <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" style={{ color: '#746e69' }} />
-                    </button>
+                      <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" style={{ color: T.second }} />
+                    </Botao>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
                     align="end"
@@ -2264,7 +2272,7 @@ export default function EventDetail() {
                             onSelect={depoisDoMenu(() => setImportDialogOpen(true))}
                             className={itemDoMenu}
                           >
-                            <Upload aria-hidden="true" style={{ color: '#15803d' }} />
+                            <Upload aria-hidden="true" style={{ color: TOM.sucesso.text }} />
                             Importar Excel
                           </DropdownMenuItem>
                         )}
@@ -2276,7 +2284,7 @@ export default function EventDetail() {
                           onSelect={depoisDoMenu(() => setCloneDialogOpen(true))}
                           className={itemDoMenu}
                         >
-                          <Copy aria-hidden="true" style={{ color: '#4f46e5' }} />
+                          <Copy aria-hidden="true" style={{ color: TOM.info.text }} />
                           Clonar peças de outro evento
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
@@ -2287,18 +2295,18 @@ export default function EventDetail() {
                         Montar/prever é para todos; publicar é arte/admin (a
                         página e o servidor validam). */}
                     <DropdownMenuItem data-testid="button-gerar-book" onSelect={() => setLocation(`/eventos/${eventId}/gerar-book`)} className={itemDoMenu}>
-                      <BookOpen aria-hidden="true" style={{ color: '#7e22ce' }} />
+                      <BookOpen aria-hidden="true" style={{ color: TOM.roxo.text }} />
                       Gerar book
                     </DropdownMenuItem>
                     {/* Etiquetas — para colar no material depois da conferência. */}
                     <DropdownMenuItem data-testid="button-etiquetas-evento" onSelect={() => setLocation(`/eventos/${eventId}/etiquetas`)} className={itemDoMenu}>
-                      <Tags aria-hidden="true" style={{ color: '#c2410c' }} />
+                      <Tags aria-hidden="true" style={{ color: T.accentText }} />
                       Etiquetas
                     </DropdownMenuItem>
                     {/* Relatório — o status report de uma página (funil,
                         atrasos, aprovações, fotos); imprime/PDF pelo navegador. */}
                     <DropdownMenuItem data-testid="button-relatorio-evento" onSelect={() => setLocation(`/eventos/${eventId}/relatorio`)} className={itemDoMenu}>
-                      <FileText aria-hidden="true" style={{ color: '#c2410c' }} />
+                      <FileText aria-hidden="true" style={{ color: T.accentText }} />
                       Relatório do evento
                     </DropdownMenuItem>
                     {/* Exportar Excel — leitura, todos os perfis. */}
@@ -2307,7 +2315,7 @@ export default function EventDetail() {
                       onSelect={() => {
                         // Feedback imediato: o download demora alguns segundos e nada
                         // sinaliza que algo começou.
-                        toast({ title: "Gerando Excel...", description: "O download começa em instantes." });
+                        toast({ title: "Gerando Excel...", description: "O download começa em instantes.", variant: "success" });
                         // Âncora com download: não abre aba, não passa pelo bloqueador
                         // de popup. (window.open com 'noopener' retorna null POR
                         // ESPECIFICAÇÃO mesmo quando funciona — a guarda antiga
@@ -2321,7 +2329,7 @@ export default function EventDetail() {
                       }}
                       className={itemDoMenu}
                     >
-                      <FileSpreadsheet aria-hidden="true" style={{ color: '#15803d' }} />
+                      <FileSpreadsheet aria-hidden="true" style={{ color: TOM.sucesso.text }} />
                       Exportar Excel
                     </DropdownMenuItem>
                     {/* Encerrar / Reabrir — só admin (mesmo gate do servidor).
@@ -2337,8 +2345,8 @@ export default function EventDetail() {
                           className={itemDoMenu}
                         >
                           {isEventClosed
-                            ? <Unlock aria-hidden="true" style={{ color: '#15803d' }} />
-                            : <Lock aria-hidden="true" style={{ color: '#57534e' }} />}
+                            ? <Unlock aria-hidden="true" style={{ color: TOM.sucesso.text }} />
+                            : <Lock aria-hidden="true" style={{ color: T.apoio }} />}
                           {isEventClosed ? 'Reabrir evento' : 'Encerrar evento'}
                         </DropdownMenuItem>
                       </>
@@ -2353,38 +2361,38 @@ export default function EventDetail() {
 
                   {/* Importar Excel — só quem edita a lista; visível fora do celular. */}
                   {canEditLists && !isMobile && (
-                    <button
-                      type="button"
+                    // Sem `motivo` aqui: o porquê do bloqueio já aparece VISÍVEL,
+                    // uma vez só, no aviso-evento-finalizado ao lado dos botões.
+                    <Botao
+                      variante="secundario"
+                      tamanho={tamanhoAcao}
                       onClick={() => setImportDialogOpen(true)}
                       data-testid="button-import-xlsx"
                       disabled={eventoFinalizado}
                       title={eventoFinalizado ? avisoEventoFim : undefined}
-                      style={secundario(eventoFinalizado)}
-                      {...hoverSecundario}
+                      style={{ flexShrink: 0 }}
                     >
-                      <Upload className="h-4 w-4" aria-hidden="true" style={{ color: eventoFinalizado ? '#a8a29e' : '#15803d' }} />
+                      <Upload className="h-4 w-4" aria-hidden="true" style={{ color: eventoFinalizado ? T.muted : TOM.sucesso.text }} />
                       Importar Excel
-                    </button>
+                    </Botao>
                   )}
 
                   {canEditLists && (
-                    <button
-                      type="button"
+                    // Primária da tela (o preto da casa, não mais o âmbar). No
+                    // celular ocupa a linha e o "Mais" fica ao lado: um polegar,
+                    // uma ação óbvia.
+                    <Botao
+                      variante="primario"
+                      tamanho={tamanhoAcao}
+                      icone={Plus}
                       onClick={abrirEntradaDePecas}
                       data-testid="button-add-item"
                       disabled={eventoFinalizado}
                       title={eventoFinalizado ? avisoEventoFim : undefined}
-                      // No celular a primária ocupa a linha (flex 1) e o "Mais"
-                      // fica ao lado: um polegar, uma ação óbvia.
-                      style={{ backgroundColor: eventoFinalizado ? '#e7e5e4' : '#b45309', color: eventoFinalizado ? '#57534e' : '#ffffff', height: isMobile ? 44 : 40, padding: '0 20px', borderRadius: 8, fontWeight: 700, fontSize: 13, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, border: 'none', cursor: eventoFinalizado ? 'not-allowed' : 'pointer', transition: 'background-color 0.18s, box-shadow 0.18s, transform 0.1s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flex: isMobile ? '1 1 auto' : '0 0 auto', boxShadow: eventoFinalizado ? 'none' : '0 1px 3px rgba(180,83,9,0.25)', fontFamily: "'Space Grotesk', sans-serif" }}
-                      onMouseEnter={e => { if (eventoFinalizado) return; e.currentTarget.style.backgroundColor = '#9a3412'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(180,83,9,0.30)'; }}
-                      onMouseLeave={e => { if (eventoFinalizado) return; e.currentTarget.style.backgroundColor = '#b45309'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(180,83,9,0.25)'; }}
-                      onMouseDown={e => { if (eventoFinalizado) return; e.currentTarget.style.transform = 'scale(0.97)'; }}
-                      onMouseUp={e => { if (eventoFinalizado) return; e.currentTarget.style.transform = 'scale(1)'; }}
+                      style={{ flex: isMobile ? '1 1 auto' : '0 0 auto' }}
                     >
-                      <Plus className="h-4 w-4" aria-hidden="true" />
                       Adicionar peça
-                    </button>
+                    </Botao>
                   )}
 
                   {isMobile && menuMais}
@@ -2395,7 +2403,7 @@ export default function EventDetail() {
             {/* A explicação fica ao lado dos botões travados: sem ela, botões
                 cinzas em sequência leem como bug de permissão. */}
             {canEditLists && eventoFinalizado && (
-              <span data-testid="aviso-evento-finalizado" style={{ fontSize: 12, color: '#746e69', alignSelf: 'center', maxWidth: isMobile ? '100%' : 260, lineHeight: 1.4 }}>
+              <span data-testid="aviso-evento-finalizado" style={{ fontSize: 12, color: T.second, alignSelf: 'center', maxWidth: isMobile ? '100%' : 260, lineHeight: 1.4 }}>
                 {avisoEventoFim}
               </span>
             )}
@@ -2403,14 +2411,14 @@ export default function EventDetail() {
             {/* PRAZO DO MOLDE (22/09): aviso discreto, sem bloquear nada — o
                 campo é opcional e mora no formulário do evento (Eventos). */}
             {eventoTemMoldeSemPrazo(event, rawItems as any[]) && (
-              <span data-testid="aviso-molde-sem-prazo" title="Cadastre em Eventos → editar o evento → Prazo do molde (opcional). Não entra na Gestão de Prazos." style={{ fontSize: 12, color: '#746e69', alignSelf: 'center', lineHeight: 1.4 }}>
+              <span data-testid="aviso-molde-sem-prazo" title="Cadastre em Eventos → editar o evento → Prazo do molde (opcional). Não entra na Gestão de Prazos." style={{ fontSize: 12, color: T.second, alignSelf: 'center', lineHeight: 1.4 }}>
                 {AVISO_MOLDE_SEM_PRAZO}
               </span>
             )}
 
             {/* Perfil sem edição: em vez de esconder tudo em silêncio, diz o porquê. */}
             {!canEditLists && (
-              <span style={{ fontSize: 12, color: '#746e69', alignSelf: 'center' }}>
+              <span style={{ fontSize: 12, color: T.second, alignSelf: 'center' }}>
                 {MOTIVO_SOMENTE_LEITURA}
               </span>
             )}
@@ -2426,7 +2434,7 @@ export default function EventDetail() {
                 className={`${bulkMode && !editingItem ? "max-w-[95vw] h-[90vh] p-0 gap-0 flex flex-col" : "p-0 gap-0"} ${HIDE_NATIVE_CLOSE}`}
                 style={bulkMode && !editingItem
                   ? { display: 'flex', flexDirection: 'column', overflow: 'hidden' }
-                  : { maxWidth: isMobile ? '95vw' : '800px', width: '100%', padding: 0, backgroundColor: '#ffffff', borderRadius: '16px', overflow: 'hidden', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
+                  : { maxWidth: isMobile ? '95vw' : '800px', width: '100%', padding: 0, backgroundColor: T.surface, borderRadius: '16px', overflow: 'hidden', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
                 // Bloquear ESC/clique-fora SÓ no modo lote (onde há grade com
                 // linhas não salvas). No modo simples o fechamento acidental
                 // não custa nada e o bloqueio só irritava.
@@ -2449,27 +2457,41 @@ export default function EventDetail() {
                 </DialogDescription>
                 {/* Header no padrão ModalHeader. O X do modo lote é a única
                     saída além de salvar: confirma antes de descartar as linhas
-                    não salvas (window.confirm — exceção aprovada ao padrão de
-                    dialogs para não inflar o arquivo com mais um AlertDialog). */}
+                    não salvas — pelo useConfirmar do app (o window.confirm
+                    travava a thread e congelava a grade atrás da pergunta). */}
                 <ModalHeader
                   icon={bulkMode && !editingItem ? List : Plus}
-                  tint="#c2410c"
+                  tint={T.accentText}
                   title={bulkMode && !editingItem ? "Entrada Rápida" : "Adicionar Peça"}
                   subtitle={bulkMode && !editingItem ? "Modo Lote — entrada rápida de peças" : (pedidoEmAtendimento ? `Atendendo solicitação do Atendimento — ${pedidoEmAtendimento.linha.quantidade} un. · ${patrocinadoresDaLinha(pedidoEmAtendimento.linha)}` : (event.name || "Nova peça de produção"))}
                   // Pergunta SÓ se a grade tem algo digitado: com ela vazia, a
                   // confirmação era um clique a mais para não perder nada.
                   onClose={bulkMode && !editingItem
-                    ? () => { if (!bulkTemConteudoRef.current || window.confirm("Descartar linhas não salvas?")) handleCloseDialog(); }
+                    ? async () => {
+                        if (bulkTemConteudoRef.current) {
+                          const ok = await confirmar({
+                            titulo: "Descartar linhas não salvas?",
+                            descricao: "O que foi digitado na grade e ainda não foi salvo se perde ao fechar.",
+                            confirmar: "Descartar",
+                            cancelar: "Continuar editando",
+                            perigo: true,
+                          });
+                          if (!ok) return;
+                        }
+                        handleCloseDialog();
+                      }
                     : handleCloseDialog}
                   // Atendendo um pedido, a Entrada Rápida some: a peça criada em
                   // lote não seria ligada ao pedido.
                   trailing={!editingItem && !pedidoEmAtendimento && !user?.kit ? (
+                    // <button> + .ds-botao, e não <Botao>: as variantes do Botao
+                    // são para fundo claro, e este mora no cabeçalho escuro.
                     <button
+                      type="button"
+                      className="ds-botao"
                       onClick={() => setBulkMode(!bulkMode)}
                       data-testid="button-toggle-mode"
-                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', backgroundColor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', cursor: 'pointer', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0, transition: 'background-color 0.15s' }}
-                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.16)')}
-                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)')}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', backgroundColor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)', borderRadius: R.md, border: '1px solid rgba(255,255,255,0.12)', cursor: 'pointer', fontSize: FS.body, fontWeight: FW.forte, whiteSpace: 'nowrap', flexShrink: 0 }}
                     >
                       {bulkMode ? <Plus className="h-3.5 w-3.5" /> : <List className="h-3.5 w-3.5" />}
                       {bulkMode ? "Modo Simples" : "Entrada Rápida"}
@@ -2529,13 +2551,8 @@ export default function EventDetail() {
 
         {/* ── Agenda Operacional ───────────────────────────────── */}
         {(() => {
-          const TI = {
-            card: '#FFFFFF', border: '#E7E3DC',
-            // label era #9D978F — reprovava contraste em textos ≤13px.
-            title: '#1F1D1A', secondary: '#6F6A63', label: '#6F6A63',
-            dark: '#2E2A26', accent: '#D97A1E',
-            line: '#D8D4CE', attention: '#C97B4B',
-          };
+          // A agenda usa os tokens da casa direto: a paleta e a fonte próprias
+          // que ela tinha (e o apelido local de T que sobrou delas) saíram.
 
           const today = new Date(); today.setHours(0, 0, 0, 0);
           const departure = new Date(event.truckDepartureDate);
@@ -2566,12 +2583,12 @@ export default function EventDetail() {
           const depYear = depDay.getFullYear();
           const depInvalid = depYear < 2000 || depYear > 2100;
           const countdownColor = depInvalid
-            ? '#B84040'
+            ? TOM.perigo.text
             : isHistorical
-            ? TI.secondary
-            // #b45309 e não TI.attention (#C97B4B, 3,2:1): "Faltam 2 dias" é
-            // texto de 13px, e é o aviso que mais importa ler.
-            : countdownDays < 0 ? '#B84040' : countdownDays <= 3 ? '#b45309' : TI.secondary;
+            ? T.second
+            // TOM.alerta.text e não o laranja claro antigo (3,2:1): "Faltam
+            // 2 dias" é texto de 13px, e é o aviso que mais importa ler.
+            : countdownDays < 0 ? TOM.perigo.text : countdownDays <= 3 ? TOM.alerta.text : T.second;
           const countdownText = depInvalid
             ? 'Data de saída inválida — corrija o evento'
             : countdownDays < 0
@@ -2579,9 +2596,6 @@ export default function EventDetail() {
             : countdownDays === 0 ? 'Hoje'
             : `Faltam ${countdownDays} dia${countdownDays !== 1 ? 's' : ''}`;
 
-          const cardHover = (el: HTMLDivElement, on: boolean) => {
-            el.style.boxShadow = on ? '0 6px 20px rgba(0,0,0,0.08)' : '0 1px 4px rgba(0,0,0,0.05)';
-          };
           // DENSIDADE NO CELULAR: os dois cartões tinham 210px de largura
           // mínima e empilhavam — ~200px de altura antes da timeline, que já
           // repete as datas, e a lista de peças ia parar na terceira tela.
@@ -2589,12 +2603,13 @@ export default function EventDetail() {
           // a data a 18px, a agenda cabe numa faixa só. No desktop, igual.
           const cartaoLogistica: React.CSSProperties = {
             flex: isMobile ? '1 1 0' : '0 0 auto', minWidth: isMobile ? 0 : 210,
-            backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: '12px',
+            backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg,
             padding: isMobile ? '12px 14px' : '20px 24px', display: 'flex', alignItems: 'center', gap: isMobile ? 0 : 18,
-            boxShadow: '0 1px 4px rgba(0,0,0,0.05)', transition: 'box-shadow 0.2s',
+            // Sem sombra de hover: o cartão não é clicável, e realce é promessa de clique.
+            boxShadow: SHADOW.sm,
           };
           const ladrilhoLogistica: React.CSSProperties = {
-            width: 50, height: 50, borderRadius: 12, display: isMobile ? 'none' : 'flex',
+            width: 50, height: 50, borderRadius: R.lg, display: isMobile ? 'none' : 'flex',
             alignItems: 'center', justifyContent: 'center', flexShrink: 0,
           };
 
@@ -2603,35 +2618,31 @@ export default function EventDetail() {
 
               {/* Section divider */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '18px' }}>
-                <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.16em', color: TI.label, fontFamily: "'Space Grotesk', sans-serif", whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: FS.micro, fontWeight: FW.forte, textTransform: 'uppercase', letterSpacing: '0.16em', color: T.second, fontFamily: FONT.corpo, whiteSpace: 'nowrap' }}>
                   Agenda Operacional
                 </span>
-                <div style={{ flex: 1, height: '1px', backgroundColor: TI.border }} />
+                <div style={{ flex: 1, height: '1px', backgroundColor: T.border }} />
               </div>
 
               {/* ── Cards de logística ── */}
               <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '16px', alignItems: 'stretch' }}>
 
                 {/* Card: SAÍDA DO CAMINHÃO */}
-                <div
-                  style={cartaoLogistica}
-                  onMouseEnter={e => cardHover(e.currentTarget, true)}
-                  onMouseLeave={e => cardHover(e.currentTarget, false)}
-                >
-                  <div aria-hidden="true" style={{ ...ladrilhoLogistica, backgroundColor: '#FEF3E7' }}>
-                    <Truck size={22} color={TI.accent} />
+                <div style={cartaoLogistica}>
+                  <div aria-hidden="true" style={{ ...ladrilhoLogistica, backgroundColor: TOM.laranja.bg }}>
+                    <Truck size={22} color={T.accent} />
                   </div>
                   <div>
-                    <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: isMobile ? '0.06em' : '0.14em', color: TI.label, marginBottom: '7px', fontFamily: "'Space Grotesk', sans-serif" }}>
+                    <div style={{ fontSize: FS.micro, fontWeight: FW.forte, textTransform: 'uppercase', letterSpacing: isMobile ? '0.06em' : '0.14em', color: T.second, marginBottom: '7px', fontFamily: FONT.corpo }}>
                       Saída do Caminhão
                     </div>
-                    <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: '800', color: TI.title, fontFamily: "'Manrope', sans-serif", lineHeight: 1.1, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>
+                    <div style={{ fontSize: isMobile ? FS.title : FS.h2, fontWeight: FW.rotulo, color: T.text, fontFamily: FONT.display, lineHeight: 1.1, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>
                       {depLabel}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px 8px', marginTop: '6px', flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: '13px', fontWeight: '500', color: TI.secondary, fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '0.01em' }}>{depTime}</span>
-                      <span style={{ width: '3px', height: '3px', borderRadius: '50%', backgroundColor: TI.line, display: 'inline-block', flexShrink: 0 }} />
-                      <span style={{ fontSize: '13px', fontWeight: '600', color: countdownColor, letterSpacing: '0.01em' }}>
+                      <span style={{ fontSize: FS.body, fontWeight: FW.corpo, color: T.second, fontFamily: FONT.corpo, letterSpacing: '0.01em' }}>{depTime}</span>
+                      <span style={{ width: '3px', height: '3px', borderRadius: '50%', backgroundColor: T.bdark, display: 'inline-block', flexShrink: 0 }} />
+                      <span style={{ fontSize: FS.body, fontWeight: FW.medio, color: countdownColor, fontFamily: FONT.corpo, letterSpacing: '0.01em' }}>
                         {countdownText}
                       </span>
                     </div>
@@ -2639,30 +2650,26 @@ export default function EventDetail() {
                 </div>
 
                 {/* Card: INÍCIO DA MONTAGEM */}
-                <div
-                  style={cartaoLogistica}
-                  onMouseEnter={e => cardHover(e.currentTarget, true)}
-                  onMouseLeave={e => cardHover(e.currentTarget, false)}
-                >
-                  <div aria-hidden="true" style={{ ...ladrilhoLogistica, backgroundColor: '#EEF2F7' }}>
-                    <Calendar size={22} color="#7A93AC" />
+                <div style={cartaoLogistica}>
+                  <div aria-hidden="true" style={{ ...ladrilhoLogistica, backgroundColor: N.n3 }}>
+                    <Calendar size={22} color={T.second} />
                   </div>
                   <div>
-                    <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: isMobile ? '0.06em' : '0.14em', color: TI.label, marginBottom: '7px', fontFamily: "'Space Grotesk', sans-serif" }}>
+                    <div style={{ fontSize: FS.micro, fontWeight: FW.forte, textTransform: 'uppercase', letterSpacing: isMobile ? '0.06em' : '0.14em', color: T.second, marginBottom: '7px', fontFamily: FONT.corpo }}>
                       Dia do Evento
                     </div>
-                    <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: '800', color: TI.title, fontFamily: "'Manrope', sans-serif", lineHeight: 1.1, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>
+                    <div style={{ fontSize: isMobile ? FS.title : FS.h2, fontWeight: FW.rotulo, color: T.text, fontFamily: FONT.display, lineHeight: 1.1, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>
                       {startLabel}
                     </div>
                     <div style={{ marginTop: '6px' }}>
-                      <span style={{ fontSize: '13px', fontWeight: '500', color: TI.secondary, fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '0.01em' }}>Início do evento</span>
+                      <span style={{ fontSize: FS.body, fontWeight: FW.corpo, color: T.second, fontFamily: FONT.corpo, letterSpacing: '0.01em' }}>Início do evento</span>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* ── Timeline de Prazos ── */}
-              <div style={{ backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: '12px', padding: isMobile ? '16px 8px 12px' : '22px 28px', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+              <div style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, padding: isMobile ? '16px 8px 12px' : '22px 28px', boxShadow: SHADOW.sm }}>
                 {/* No celular os seis marcos passam da largura e rolam de lado
                     aqui dentro: região rolável precisa ser alcançável pelo
                     teclado (setas), senão os marcos da direita ficam fora. */}
@@ -2679,7 +2686,7 @@ export default function EventDetail() {
                       position: 'absolute', top: '18px',
                       left: `calc(100% / ${milestones.length} / 2)`,
                       right: `calc(100% / ${milestones.length} / 2)`,
-                      height: '1.5px', backgroundColor: TI.line, zIndex: 0,
+                      height: '1.5px', backgroundColor: T.bdark, zIndex: 0,
                     }} />
                     {/* Progress fill */}
                     {progressFrac > 0 && (
@@ -2687,7 +2694,7 @@ export default function EventDetail() {
                         position: 'absolute', top: '18px',
                         left: `calc(100% / ${milestones.length} / 2)`,
                         width: `calc(${progressFrac} * (100% - 100% / ${milestones.length}))`,
-                        height: '1.5px', backgroundColor: '#C3B5A2', zIndex: 1,
+                        height: '1.5px', backgroundColor: T.bdark, zIndex: 1,
                       }} />
                     )}
 
@@ -2701,10 +2708,10 @@ export default function EventDetail() {
                       const selecionado = marcoFiltro === i;
                       const clicavel = atras > 0 && !isHistorical;
                       const tomPilula = isOverdue && atras > 0
-                        ? { color: '#b91c1c', bg: '#fef2f2', border: '#fecaca' }
+                        ? { color: TOM.perigo.text, bg: TOM.perigo.bg, border: TOM.perigo.border }
                         : isNext
-                        ? { color: '#9a3412', bg: '#fff7ed', border: '#fed7aa' }
-                        : { color: '#57534e', bg: '#f5f5f4', border: '#e7e5e4' };
+                        ? { color: T.accentText, bg: TOM.laranja.bg, border: TOM.laranja.border }
+                        : { color: T.apoio, bg: N.n2, border: T.border };
                       const tituloMarco = (() => {
                         const base = adjusted === 'fri' ? `${label} — movido de sáb para sex` : adjusted === 'mon' ? `${label} — movido de dom para seg` : label;
                         if (atras === 0) return `${base} — nenhuma peça atrás deste marco`;
@@ -2717,32 +2724,32 @@ export default function EventDetail() {
                       let glowColor = '';
 
                       if (isNext) {
-                        dotBg = TI.accent; dotBorder = TI.accent; dotSize = 22;
+                        dotBg = T.accent; dotBorder = T.accent; dotSize = 22;
                         // As CORES DE TEXTO da timeline usam os tons escuros
-                        // (AA em 10–11px); os tons claros de TI ficam na
-                        // bolinha e na borda, que são objeto gráfico.
-                        labelCol = TI.dark; dateCol = '#c2410c'; labelW = 700;
-                        glowColor = 'rgba(217,122,30,0.18)';
+                        // (AA em 10–11px); o laranja da marca (T.accent) fica
+                        // na bolinha e no brilho, que são objeto gráfico.
+                        labelCol = T.text; dateCol = T.accentText; labelW = FW.forte;
+                        glowColor = 'rgba(249,115,22,0.18)';
                       } else if (isOverdue) {
-                        dotBg = '#FDF0E8'; dotBorder = TI.attention; dotSize = 14;
-                        labelCol = '#b45309'; dateCol = '#b45309'; labelW = 600;
+                        dotBg = TOM.laranja.bg; dotBorder = TOM.laranja.dot; dotSize = 14;
+                        labelCol = TOM.alerta.text; dateCol = TOM.alerta.text; labelW = FW.medio;
                       } else if (isPast) {
                         // Evento encerrado: prazos passados viram "cumpridos"
                         // (verde suave) em vez de cinza apagado — a agenda de um
                         // evento finalizado conta história, não pendência.
                         if (isHistorical) {
-                          dotBg = '#d1fae5'; dotBorder = '#10b981'; dotSize = 12;
-                          labelCol = '#4f6b5e'; dateCol = '#0f766e'; labelW = 500;
+                          dotBg = TOM.esmeralda.bg; dotBorder = TOM.esmeralda.dot; dotSize = 12;
+                          labelCol = T.apoio; dateCol = TOM.turquesa.text; labelW = FW.corpo;
                         } else {
                           // Passado sem atraso: rebaixado pelo PESO e pela
                           // bolinha pequena, não por um cinza ilegível (#B8B2A8
                           // dava 2,1:1).
-                          dotBg = '#D8D4CE'; dotBorder = '#D8D4CE'; dotSize = 10;
-                          labelCol = T.second; dateCol = T.second; labelW = 500;
+                          dotBg = T.bdark; dotBorder = T.bdark; dotSize = 10;
+                          labelCol = T.second; dateCol = T.second; labelW = FW.corpo;
                         }
                       } else {
-                        dotBg = TI.card; dotBorder = TI.line; dotSize = 12;
-                        labelCol = TI.secondary; dateCol = TI.secondary; labelW = 500;
+                        dotBg = T.surface; dotBorder = T.bdark; dotSize = 12;
+                        labelCol = T.second; dateCol = T.second; labelW = FW.corpo;
                       }
 
                       return (
@@ -2757,9 +2764,9 @@ export default function EventDetail() {
                           onKeyDown={clicavel ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setMarcoFiltro(selecionado ? null : i); } } : undefined}
                           style={{
                             flex: 1, minWidth: 96, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', zIndex: 2,
-                            padding: '4px 4px 8px', borderRadius: 10,
-                            backgroundColor: selecionado ? '#fff7ed' : 'transparent',
-                            boxShadow: selecionado ? 'inset 0 0 0 1px #fed7aa' : 'none',
+                            padding: '4px 4px 8px', borderRadius: R.md,
+                            backgroundColor: selecionado ? TOM.laranja.bg : 'transparent',
+                            boxShadow: selecionado ? `inset 0 0 0 1px ${TOM.laranja.border}` : 'none',
                             cursor: clicavel ? 'pointer' : 'default',
                           }}
                         >
@@ -2772,17 +2779,17 @@ export default function EventDetail() {
                               width: `${dotSize}px`, height: `${dotSize}px`, borderRadius: '50%',
                               backgroundColor: dotBg,
                               border: dotSize <= 10 ? 'none' : `2px solid ${dotBorder}`,
-                              boxShadow: isNext ? `0 0 0 5px rgba(217,122,30,0.12)` : 'none',
+                              boxShadow: isNext ? `0 0 0 5px rgba(249,115,22,0.12)` : 'none',
                               position: 'relative', zIndex: 1,
                             }} />
                           </div>
 
                           {/* Label */}
                           <span style={{
-                            fontSize: '10px', fontWeight: labelW, textTransform: 'uppercase',
+                            fontSize: FS.micro, fontWeight: labelW, textTransform: 'uppercase',
                             letterSpacing: '0.07em', color: labelCol,
                             textAlign: 'center', lineHeight: 1.45,
-                            fontFamily: "'Space Grotesk', sans-serif",
+                            fontFamily: FONT.corpo,
                             maxWidth: '88px', display: 'block',
                           }}>
                             {label}
@@ -2790,8 +2797,8 @@ export default function EventDetail() {
 
                           {/* Date */}
                           <span style={{
-                            fontSize: '11px', fontWeight: isNext ? 700 : 500,
-                            color: dateCol, fontFamily: "'DM Mono', monospace",
+                            fontSize: FS.small, fontWeight: isNext ? FW.forte : FW.corpo,
+                            color: dateCol, fontFamily: FONT.mono,
                             marginTop: '5px', display: 'block', letterSpacing: '0.03em',
                           }}>
                             {dateStr}
@@ -2799,12 +2806,13 @@ export default function EventDetail() {
                           {/* A pílula: quantas peças ainda não passaram por aqui.
                               Sem peça atrás, nenhuma pílula — zero não é notícia. */}
                           {atras > 0 && (
-                            <span
+                            <Selo
                               data-testid={`chip-atras-${marcoKey}`}
-                              style={{ marginTop: 6, fontSize: 11, fontWeight: 800, fontFamily: "'DM Mono', monospace", color: tomPilula.color, backgroundColor: tomPilula.bg, border: `1px solid ${tomPilula.border}`, borderRadius: 999, padding: '1px 8px', whiteSpace: 'nowrap', lineHeight: 1.5 }}
+                              cores={{ bg: tomPilula.bg, text: tomPilula.color, border: tomPilula.border }}
+                              style={{ marginTop: 6, fontWeight: FW.rotulo, fontFamily: FONT.mono, padding: '1px 8px', lineHeight: 1.5 }}
                             >
                               {atras} {plural(atras, 'peça', 'peças')}
-                            </span>
+                            </Selo>
                           )}
                         </div>
                       );
@@ -2815,7 +2823,7 @@ export default function EventDetail() {
                     que era clicável no `title` — ninguém descobria que um
                     clique mostra exatamente as peças atrasadas daquele marco. */}
                 {!isHistorical && milestones.some((_, i) => (atrasDoMarco[i] ?? 0) > 0) && (
-                  <p style={{ margin: '10px 0 0', fontSize: 12, color: TI.secondary, textAlign: 'center' }}>
+                  <p style={{ margin: '10px 0 0', fontSize: FS.meta, color: T.second, textAlign: 'center' }}>
                     {marcoFiltro !== null
                       ? 'Mostrando só as peças atrás do marco escolhido — clique nele de novo para ver todas.'
                       : 'Clique num marco com peças para ver só as que ainda não passaram por ele.'}
@@ -2868,23 +2876,23 @@ export default function EventDetail() {
           SÓ aqui; a listagem principal exclui draft/requested. */}
       {draftItems.length > 0 && (
         <>
-        <div id="rascunhos-do-evento" style={{ backgroundColor: '#fff', border: '1px solid #e7e5e4', borderLeft: '3px solid #b45309', borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.05)', marginBottom: 32, scrollMarginTop: 16 }} data-testid="card-draft-items">
+        <div id="rascunhos-do-evento" style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderLeft: `3px solid ${TOM.alerta.text}`, borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.05)', marginBottom: 32, scrollMarginTop: 16 }} data-testid="card-draft-items">
           <div style={{ padding: '20px 24px 0' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <Package style={{ width: 16, height: 16, color: '#b45309', flexShrink: 0 }} />
-              <span style={{ fontSize: 13, fontWeight: 800, color: '#1F1D1A', fontFamily: "'Space Grotesk', sans-serif", textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              <Package style={{ width: 16, height: 16, color: TOM.alerta.text, flexShrink: 0 }} />
+              <span style={{ fontSize: 13, fontWeight: 800, color: T.text, fontFamily: FONT.display, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 Peças em Rascunho
               </span>
-              <span style={{ backgroundColor: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', borderRadius: 999, padding: '2px 10px', fontSize: 11, fontWeight: 800, whiteSpace: 'nowrap' }}>
+              <Selo tom="alerta">
                 {draftItems.length} {draftItems.length === 1 ? 'peça' : 'peças'}
-              </span>
+              </Selo>
             </div>
             {/* O destino certo: o envio leva à VINCULAÇÃO de patrocinadores
                 (o botão e a confirmação logo abaixo dizem isso), não à Arte.
                 E "peça", a palavra do resto da tela — "item" só vivia aqui. */}
             {/* O QUE É E POR QUE IMPORTA: rascunho não anda sozinho. Quem
                 nunca usou lia "revise e envie" como opcional. */}
-            <p style={{ fontSize: 13, color: '#6F6A63', margin: '8px 0 0', lineHeight: 1.5 }}>
+            <p style={{ fontSize: 13, color: T.second, margin: '8px 0 0', lineHeight: 1.5 }}>
               Enquanto estiverem aqui, as peças não seguem para a vinculação de patrocinadores nem para a Arte. Revise e envie quando a lista estiver pronta — dá para continuar adicionando depois.
             </p>
           </div>
@@ -2915,7 +2923,7 @@ export default function EventDetail() {
                     <div key={groupName || '__sem_grupo__'}>
                       {/* Cabeçalho Grupo Pai */}
                       {groupName && (
-                        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#746e69', marginBottom: 6, paddingLeft: 2 }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.second, marginBottom: 6, paddingLeft: 2 }}>
                           {groupName}
                         </div>
                       )}
@@ -2925,7 +2933,7 @@ export default function EventDetail() {
                           return (
                             <div key={typeName}>
                               {/* Sub-cabeçalho Tipo */}
-                              <div style={{ fontSize: 11, fontWeight: 600, color: '#746e69', marginBottom: 4, paddingLeft: 2 }}>
+                              <div style={{ fontSize: 11, fontWeight: 600, color: T.second, marginBottom: 4, paddingLeft: 2 }}>
                                 {typeName}
                               </div>
                               <div className="space-y-2">
@@ -2941,10 +2949,10 @@ export default function EventDetail() {
                                             A linha de detalhe pula campo vazio em vez de
                                             mostrar "• •". */}
                                         <div className="flex items-center gap-2 min-w-0">
-                                          {item.displayId && <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 12, color: '#c2410c', flexShrink: 0 }}>{item.displayId}</span>}
+                                          {item.displayId && <span style={{ fontFamily: FONT.mono, fontWeight: 700, fontSize: 12, color: T.accentText, flexShrink: 0 }}>{item.displayId}</span>}
                                           <SeloKit peca={item} />
                                           {item.description
-                                            ? <span className="text-sm truncate" style={{ color: '#44403c' }}>{item.description}</span>
+                                            ? <span className="text-sm truncate" style={{ color: T.strong }}>{item.description}</span>
                                             : <span className="text-sm text-muted-foreground">sem descrição</span>}
                                         </div>
                                         <div className="text-xs text-muted-foreground">
@@ -2973,7 +2981,7 @@ export default function EventDetail() {
                                                   aria-label={`Remover referência ${k + 1} de ${item.displayId}`}
                                                   data-testid={k === 0 ? `button-remove-reference-${item.id}` : `button-remove-reference-${item.id}-${k + 1}`}
                                                   onClick={() => salvarReferenciasMutation.mutate({ itemId: item.id, referenceUrls: refs.filter((_, j) => j !== k) })}
-                                                  style={{ position: 'absolute', top: -6, right: -6, width: 16, height: 16, borderRadius: '50%', border: '1px solid #d6d3d1', background: '#fff', color: '#57534e', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+                                                  style={{ position: 'absolute', top: -6, right: -6, width: 16, height: 16, borderRadius: '50%', border: `1px solid ${T.bdark}`, background: T.surface, color: T.apoio, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
                                                 >
                                                   <X style={{ width: 9, height: 9 }} />
                                                 </button>
@@ -3036,13 +3044,16 @@ export default function EventDetail() {
             </div>
             {/* Cap de 50 — padrão da casa, igual à listagem principal. */}
             {!showAllDrafts && draftItems.length > 50 && (
-              <button
+              <Botao
+                variante="secundario"
+                tamanho="toque"
+                larguraCheia
                 onClick={() => setShowAllDrafts(true)}
                 data-testid="button-show-all-drafts"
-                style={{ width: '100%', padding: 13, background: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 10, color: '#1c1917', fontWeight: 700, fontSize: 13, cursor: 'pointer', marginBottom: 16 }}
+                style={{ marginBottom: 16 }}
               >
                 Mostrar todos os {draftItems.length} rascunhos (+{draftItems.length - 50})
-              </button>
+              </Botao>
             )}
             {(() => {
               // POR QUE O BOTÃO ESTÁ TRAVADO — escrito, não só no `title`
@@ -3061,12 +3072,12 @@ export default function EventDetail() {
                         : "Estes rascunhos são do Kit — quem os criou é que envia.")
                     : null;
               return (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', padding: 16, backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', padding: 16, backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 10 }}>
               <div className="flex items-center gap-2" style={{ flex: '1 1 280px', minWidth: 0 }}>
-                <AlertCircle className="h-5 w-5" style={{ color: '#b45309', flexShrink: 0 }} />
+                <AlertCircle className="h-5 w-5" style={{ color: TOM.alerta.text, flexShrink: 0 }} />
                 <div style={{ minWidth: 0 }}>
                   <p className="text-sm font-semibold">{motivoTravado ? 'Envio indisponível' : 'Pronto para enviar?'}</p>
-                  <p id="texto-envio-rascunhos" data-testid="texto-envio-rascunhos" style={{ fontSize: 12, color: '#57534e', margin: 0, lineHeight: 1.5 }}>
+                  <p id="texto-envio-rascunhos" data-testid="texto-envio-rascunhos" style={{ fontSize: 12, color: T.apoio, margin: 0, lineHeight: 1.5 }}>
                     {/* draft + requested: o endpoint de envio abrange os dois —
                         contar só 'draft' subestimava a contagem. */}
                     {motivoTravado
@@ -3078,7 +3089,11 @@ export default function EventDetail() {
                   </p>
                 </div>
               </div>
-              <Button
+              <Botao
+                variante="primario"
+                tamanho="toque"
+                icone={Check}
+                carregando={submitDraftsMutation.isPending}
                 onClick={() => setSubmitConfirmOpen(true)}
                 // Gate: enviar rascunhos para a Arte é ação de admin ou do
                 // papel "solicitação" — mesmo critério do texto acima.
@@ -3086,28 +3101,19 @@ export default function EventDetail() {
                 // trabalho para a fila de vinculação, que já não mostra estas
                 // peças. Sem rascunho no recorte de quem envia, o clique só
                 // devolveria "Nenhum item em rascunho" do servidor.
-                disabled={submitDraftsMutation.isPending || !!motivoTravado}
+                disabled={!!motivoTravado}
                 title={motivoTravado ?? undefined}
-                // O motivo já está escrito ao lado; ligar o botão a ele faz o
-                // leitor de tela dizer POR QUE está travado ao focar.
+                // Sem `motivo`: ele já está escrito VISÍVEL ao lado. Ligar o
+                // botão a ele faz o leitor de tela dizer POR QUE está travado.
                 aria-describedby={motivoTravado ? "texto-envio-rascunhos" : undefined}
-                size="lg"
                 data-testid="button-submit-drafts"
               >
-                {submitDraftsMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Enviando...
-                  </>
-                ) : (
-                  <>
-                    <Check className="h-4 w-4 mr-2" />
-                    {foraDoMeuEnvio > 0 && nEnvio > 0
-                      ? `Enviar ${nEnvio} ${nEnvio === 1 ? 'peça' : 'peças'}`
-                      : 'Enviar todas as peças'}
-                  </>
-                )}
-              </Button>
+                {submitDraftsMutation.isPending
+                  ? 'Enviando...'
+                  : foraDoMeuEnvio > 0 && nEnvio > 0
+                    ? `Enviar ${nEnvio} ${nEnvio === 1 ? 'peça' : 'peças'}`
+                    : 'Enviar todas as peças'}
+              </Botao>
             </div>
               );
             })()}
@@ -3124,7 +3130,7 @@ export default function EventDetail() {
             <ModalHeader
               variant="confirm"
               icon={Check}
-              tint="#c2410c"
+              tint={T.accentText}
               title="Confirmar envio para vinculação"
               subtitle={`${rascunhosQueEuEnvio.length} ${rascunhosQueEuEnvio.length === 1 ? 'peça será enviada' : 'peças serão enviadas'} para a fila de vinculação.`}
               onClose={() => setSubmitConfirmOpen(false)}
@@ -3148,22 +3154,22 @@ export default function EventDetail() {
                 });
                 return Object.entries(byType).sort(([a],[b]) => a.localeCompare(b,'pt-BR')).map(([typeName, typeItems]) => (
                   <div key={typeName} style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#746e69', marginBottom: 6 }}>
+                    <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: T.second, marginBottom: 6 }}>
                       {typeName} · {typeItems.length} {typeItems.length === 1 ? 'peça' : 'peças'}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       {typeItems.map(item => (
-                        <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 8 }}>
+                        <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', backgroundColor: T.bg, border: `1px solid ${T.border}`, borderRadius: 8 }}>
                           {/* displayId já vem com "#" do backend — prefixar de
                               novo mostrava "##0281". */}
-                          <span style={{ fontSize: 11, fontWeight: 700, color: '#c2410c', fontFamily: 'monospace', flexShrink: 0 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: T.accentText, fontFamily: FONT.mono, flexShrink: 0 }}>
                             {item.displayId ?? '—'}
                           </span>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: '#1c1917', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               {item.type}{item.description ? ` — ${item.description}` : ''}
                             </div>
-                            <div style={{ fontSize: 11, color: '#746e69', marginTop: 1 }}>
+                            <div style={{ fontSize: 11, color: T.second, marginTop: 1 }}>
                               {item.quantity} un. · {item.visualWidth && item.visualHeight ? `${item.visualWidth}×${item.visualHeight}m` : item.material}
                             </div>
                           </div>
@@ -3176,31 +3182,30 @@ export default function EventDetail() {
             </div>
 
             {/* Aviso + botões */}
-            <div style={{ padding: '14px 28px 24px', borderTop: '1px solid #e7e5e4', flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, backgroundColor: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8, padding: '10px 12px', marginBottom: 16 }}>
-                <AlertCircle style={{ width: 14, height: 14, color: '#f97316', flexShrink: 0, marginTop: 1 }} />
-                <p style={{ fontSize: 13, color: '#92400e', margin: 0, lineHeight: 1.5 }}>
+            <div style={{ padding: '14px 28px 24px', borderTop: `1px solid ${T.border}`, flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, backgroundColor: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, borderRadius: 8, padding: '10px 12px', marginBottom: 16 }}>
+                <AlertCircle style={{ width: 14, height: 14, color: T.accent, flexShrink: 0, marginTop: 1 }} />
+                <p style={{ fontSize: 13, color: TOM.alerta.text, margin: 0, lineHeight: 1.5 }}>
                   Após o envio, as peças saem de Rascunho e vão para a fila de <strong>Vincular Patrocinadores</strong> — nesta tela passam a aparecer como Aguardando Vinculação. Esta ação não pode ser desfeita por aqui.
                 </p>
               </div>
               <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'flex-end' }}>
-                <Button variant="outline" onClick={() => setSubmitConfirmOpen(false)}>
+                <Botao variante="fantasma" tamanho={dedo ? 'toque' : 'md'} onClick={() => setSubmitConfirmOpen(false)}>
                   Cancelar
-                </Button>
-                <Button
+                </Botao>
+                <Botao
+                  variante="primario"
+                  tamanho={dedo ? 'toque' : 'md'}
+                  icone={Check}
+                  carregando={submitDraftsMutation.isPending}
                   onClick={() => {
                     setSubmitConfirmOpen(false);
                     submitDraftsMutation.mutate();
                   }}
                   data-testid="button-confirm-submit-drafts"
-                  disabled={submitDraftsMutation.isPending}
                 >
-                  {submitDraftsMutation.isPending ? (
-                    <><Loader2 style={{ width: 14, height: 14, marginRight: 6 }} className="animate-spin" /> Enviando...</>
-                  ) : (
-                    <><Check style={{ width: 14, height: 14, marginRight: 6 }} /> Confirmar envio</>
-                  )}
-                </Button>
+                  {submitDraftsMutation.isPending ? 'Enviando...' : 'Confirmar envio'}
+                </Botao>
               </DialogFooter>
             </div>
           </DialogContent>
@@ -3211,7 +3216,7 @@ export default function EventDetail() {
       {/* Indicador de atualização — fora do bloco da lista: também aparece
           quando o evento está vazio ou só tem rascunhos. */}
       {isFetching && !loadingItems && (
-        <div role="status" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#746e69', fontSize: '13px', marginBottom: '16px' }}>
+        <div role="status" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: T.second, fontSize: '13px', marginBottom: '16px' }}>
           <Loader2 aria-hidden="true" className="h-3 w-3 animate-spin" />
           <span>Atualizando...</span>
         </div>
@@ -3223,63 +3228,50 @@ export default function EventDetail() {
           vazio quando não há NADA. Empty-state neutro (Package, não alerta);
           o CTA respeita canEditLists. */}
       {itemsError ? (
-        <div style={{ textAlign: 'center', padding: '48px 0' }}>
-          <AlertCircle className="h-12 w-12 mx-auto mb-4" style={{ color: '#b91c1c' }} />
-          <p className="text-red-700 font-semibold mb-1">Não foi possível carregar as peças</p>
-          <p className="text-muted-foreground text-sm mb-4">Verifique sua conexão e tente novamente.</p>
-          <button onClick={() => refetchItems()} className="rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800">
-            Tentar novamente
-          </button>
-        </div>
+        <EstadoErro
+          titulo="Não foi possível carregar as peças"
+          detalhe="Verifique sua conexão e tente novamente."
+          aoTentarDeNovo={() => refetchItems()}
+        />
       ) : mainItems.length === 0 ? (
         draftItems.length > 0 ? null : (
-          <div style={{ textAlign: 'center', padding: '64px 0' }}>
-            <Package aria-hidden="true" className="h-12 w-12 mx-auto mb-4" style={{ color: T.second }} />
-            <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#1c1917', marginBottom: '8px' }}>Nenhuma peça na lista ainda</h3>
-            {/* OS TRÊS CAMINHOS, CLICÁVEIS. O texto antigo mandava procurar
-                "Importar Excel" e "Clonar peças" no topo — e o clonar agora
-                mora no menu "Mais". No estado vazio a pergunta é "como começo",
-                então os três gestos ficam aqui mesmo, com os MESMOS handlers e
-                o MESMO bloqueio de evento finalizado dos botões do cabeçalho. */}
-            <p style={{ color: '#746e69', marginBottom: '18px', fontSize: '15px', maxWidth: 460, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.5 }}>
-              {canEditLists
-                ? (eventoFinalizado ? avisoEventoFim : 'Adicione peça por peça ou em lote, importe a planilha, ou copie as peças de outro evento.')
-                : 'Quando a lista for montada, as peças aparecem aqui.'}
-            </p>
-            {canEditLists ? (
+          // OS TRÊS CAMINHOS, CLICÁVEIS. No estado vazio a pergunta é "como
+          // começo": os três gestos ficam aqui, com os MESMOS handlers e o
+          // MESMO bloqueio de evento finalizado dos botões do cabeçalho — e o
+          // porquê do bloqueio é a própria descrição, visível.
+          <EstadoVazio
+            icone={Package}
+            titulo="Nenhuma peça na lista ainda"
+            descricao={canEditLists
+              ? (eventoFinalizado ? avisoEventoFim : 'Adicione peça por peça ou em lote, importe a planilha, ou copie as peças de outro evento.')
+              : 'Quando a lista for montada, as peças aparecem aqui.'}
+            acao={canEditLists ? (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
                 {([
                   { chave: 'adicionar', rotulo: 'Adicionar peças', Icone: Plus, acao: abrirEntradaDePecas, primaria: true },
                   { chave: 'importar', rotulo: 'Importar Excel', Icone: Upload, acao: () => setImportDialogOpen(true), primaria: false },
                   { chave: 'clonar', rotulo: 'Clonar de outro evento', Icone: Copy, acao: () => setCloneDialogOpen(true), primaria: false },
                 ] as const).map(({ chave, rotulo, Icone, acao, primaria }) => (
-                  <button
+                  <Botao
                     key={chave}
-                    type="button"
+                    variante={primaria ? 'primario' : 'secundario'}
+                    tamanho="toque"
+                    icone={Icone}
                     data-testid={`button-vazio-${chave}`}
                     onClick={acao}
                     disabled={eventoFinalizado}
                     title={eventoFinalizado ? avisoEventoFim : undefined}
-                    style={{
-                      height: 44, padding: '0 18px', borderRadius: 8, fontWeight: 700, fontSize: 14,
-                      display: 'inline-flex', alignItems: 'center', gap: 8,
-                      cursor: eventoFinalizado ? 'not-allowed' : 'pointer',
-                      ...(primaria
-                        ? { backgroundColor: eventoFinalizado ? '#e7e5e4' : '#b45309', color: eventoFinalizado ? '#57534e' : '#ffffff', border: 'none' }
-                        : { backgroundColor: '#ffffff', color: eventoFinalizado ? T.second : '#1c1917', border: '1px solid #e7e5e4' }),
-                    }}
                   >
-                    <Icone className="h-4 w-4" aria-hidden="true" />
                     {rotulo}
-                  </button>
+                  </Botao>
                 ))}
               </div>
             ) : (
-              <p style={{ fontSize: 12, color: '#746e69', margin: 0 }}>
+              <p style={{ fontSize: FS.meta, color: T.second, margin: 0 }}>
                 {MOTIVO_SOMENTE_LEITURA}
               </p>
             )}
-          </div>
+          />
         )
       ) : (
         /* `listaRef` mede a ÁREA ÚTIL da lista de peças — é ela, e não a
@@ -3297,13 +3289,13 @@ export default function EventDetail() {
                 value={itemSearch}
                 onChange={e => setItemSearch(e.target.value)}
                 data-testid="input-search-event-items"
-                style={{ width: '100%', height: isMobile ? 44 : 34, paddingLeft: 32, paddingRight: 12, border: '1px solid #e7e5e4', borderRadius: 999, backgroundColor: '#ffffff', fontSize: isMobile ? 16 : 13, color: '#1c1917', fontFamily: 'inherit' }}
+                style={{ width: '100%', height: isMobile ? 44 : 34, paddingLeft: 32, paddingRight: 12, border: `1px solid ${T.border}`, borderRadius: 999, backgroundColor: T.surface, fontSize: isMobile ? 16 : 13, color: T.text, fontFamily: 'inherit' }}
               />
             </div>
             {/* AGRUPAR POR TIPO OU POR STATUS. Por tipo é como a produção lê;
                 por status é como se acha o que travou — com 40 peças em seis
                 tipos, procurar "o que está parado" exigia varrer as seções. */}
-            <div role="radiogroup" aria-label="Agrupar a lista por" style={{ display: 'inline-flex', backgroundColor: '#f3f4f3', borderRadius: 8, padding: 3, gap: 2 }}>
+            <div role="radiogroup" aria-label="Agrupar a lista por" style={{ display: 'inline-flex', backgroundColor: T.low, borderRadius: 8, padding: 3, gap: 2 }}>
               {([['tipo', 'Tipo'], ['status', 'Status']] as const).map(([valor, rotulo]) => {
                 const ativo = agrupar === valor;
                 return (
@@ -3323,14 +3315,14 @@ export default function EventDetail() {
                       setAgrupar(outro);
                       (e.currentTarget.parentElement?.querySelector(`[data-testid="toggle-agrupar-${outro}"]`) as HTMLElement | null)?.focus();
                     }}
-                    style={{ height: isMobile ? 44 : 28, padding: '0 14px', borderRadius: 6, border: 'none', fontSize: 12, fontWeight: 700, color: ativo ? '#1c1917' : '#57534e', backgroundColor: ativo ? '#ffffff' : 'transparent', boxShadow: ativo ? '0 1px 3px rgba(0,0,0,0.10)' : 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+                    style={{ height: isMobile ? 44 : 28, padding: '0 14px', borderRadius: 6, border: 'none', fontSize: 12, fontWeight: 700, color: ativo ? T.text : T.apoio, backgroundColor: ativo ? T.surface : 'transparent', boxShadow: ativo ? '0 1px 3px rgba(0,0,0,0.10)' : 'none', cursor: 'pointer', fontFamily: 'inherit' }}
                   >
                     {rotulo}
                   </button>
                 );
               })}
             </div>
-            <span style={{ fontSize: 12, color: '#746e69' }}>
+            <span style={{ fontSize: 12, color: T.second }}>
               {agrupar === 'tipo' ? 'por grupo pai e tipo de peça, como a produção lê' : 'pela etapa em que cada peça está — para achar o que travou'}
             </span>
             {(itemSearchLower || statusFilter.length > 0 || marcoFiltro !== null) && (
@@ -3338,7 +3330,7 @@ export default function EventDetail() {
                 type="button"
                 onClick={() => { setItemSearch(""); setStatusFilter([]); setMarcoFiltro(null); }}
                 data-testid="button-limpar-filtros-pecas"
-                style={{ marginLeft: 'auto', background: 'none', border: 'none', padding: isMobile ? '0 4px' : 0, minHeight: isMobile ? 44 : undefined, fontSize: 12, fontWeight: 700, color: '#c2410c', cursor: 'pointer', fontVariantNumeric: 'tabular-nums' }}
+                style={{ marginLeft: 'auto', background: 'none', border: 'none', padding: isMobile ? '0 4px' : 0, minHeight: isMobile ? 44 : undefined, fontSize: 12, fontWeight: 700, color: T.accentText, cursor: 'pointer', fontVariantNumeric: 'tabular-nums' }}
               >
                 Limpar filtros ({searchedItems.length} de {mainItems.length})
               </button>
@@ -3346,14 +3338,12 @@ export default function EventDetail() {
           </div>
 
           {searchedItems.length === 0 && (
-            <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '40px 24px', textAlign: 'center' }}>
-              <p style={{ color: '#1c1917', fontSize: 14, fontWeight: 700, margin: '0 0 4px' }}>
-                {statusFilter.length > 0 || marcoFiltro !== null ? 'Nenhuma peça corresponde aos filtros' : 'Nenhuma peça corresponde à busca'}
-              </p>
-              <p style={{ color: '#746e69', fontSize: 13, margin: 0 }}>
-                {statusFilter.length > 0 || marcoFiltro !== null ? 'Tente outro termo, ou limpe a busca, o filtro de status ou o marco.' : 'Tente outro termo ou limpe a busca.'}
-              </p>
-            </div>
+            <EstadoVazio
+              compacto
+              icone={Search}
+              titulo={statusFilter.length > 0 || marcoFiltro !== null ? 'Nenhuma peça corresponde aos filtros' : 'Nenhuma peça corresponde à busca'}
+              descricao={statusFilter.length > 0 || marcoFiltro !== null ? 'Tente outro termo, ou limpe a busca, o filtro de status ou o marco.' : 'Tente outro termo ou limpe a busca.'}
+            />
           )}
 
           {/* A LINHA É A MESMA NOS DOIS MODOS: o bloco da tabela (cabeçalho,
@@ -3364,7 +3354,7 @@ export default function EventDetail() {
             const renderTabelaDeItens = (typeItems: typeof visibleEventItems) => (
               <>
                 {/* Tabela do grupo */}
-                <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', overflow: 'hidden' }}>
+                <div style={{ backgroundColor: T.surface, borderRadius: '12px', overflow: 'hidden' }}>
                   {/* CARTÕES pela ÁREA ÚTIL, não pela janela: a tabela tem
                       `minWidth: 960` e a coluna de Ações é a última — no tablet
                       com a barra lateral aberta ela ficava fora da tela. */}
@@ -3378,12 +3368,12 @@ export default function EventDetail() {
                            #f97316 sobre branco dá 2.80:1; o laranja de ação
                            escuro passa e mantém a identidade. */
                         <div key={item.id} onClick={() => setSelectedItemForDetails(item)}
-                          style={{ backgroundColor: '#fff', border: '1px solid #e7e5e4', borderRadius: 8, padding: '12px 12px', marginBottom: 8, cursor: 'pointer' }}>
+                          style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: '12px 12px', marginBottom: 8, cursor: 'pointer' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                             <button
                               onClick={e => { e.stopPropagation(); setSelectedItemForDetails(item); }}
                               aria-label={`Ver detalhes da peça ${item.displayId}`}
-                              style={{ fontFamily: 'monospace', fontWeight: 700, color: '#c2410c', fontSize: 13, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                              style={{ fontFamily: FONT.mono, fontWeight: 700, color: T.accentText, fontSize: 13, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
                             >
                               {item.displayId}
                             </button>
@@ -3393,23 +3383,23 @@ export default function EventDetail() {
                           <DetalheProducao item={item} style={{ marginTop: 0, marginBottom: 6, textAlign: 'right' }} />
                           <SeloKit peca={item} style={{ marginBottom: 4, marginRight: 4 }} />
                           {item.isPriority && (
-                            <div title="Peça prioritária — fura a fila da Arte" data-testid={`tag-prioritaria-card-${item.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, backgroundColor: '#fff1f2', border: '1px solid #fecdd3', color: '#be123c', borderRadius: 6, padding: '2px 7px', fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', marginBottom: 4, marginRight: 4 }}>
-                              <AlertTriangle style={{ width: 9, height: 9 }} /> PRIORITÁRIA
-                            </div>
+                            <Selo tom="perigo" forma="retangulo" tamanho="sm" icone={AlertTriangle} title="Peça prioritária — fura a fila da Arte" data-testid={`tag-prioritaria-card-${item.id}`} style={{ gap: 4, padding: '2px 7px', marginBottom: 4, marginRight: 4 }}>
+                              PRIORITÁRIA
+                            </Selo>
                           )}
                           {item.parentItemId && (
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, backgroundColor: '#fff7ed', border: '1px solid #fed7aa', color: '#c2410c', borderRadius: 6, padding: '2px 7px', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>
-                              <Plus style={{ width: 9, height: 9 }} /> Compl. de {item.parent?.displayId ?? 'peça original'}
-                            </div>
+                            <Selo tom="laranja" forma="retangulo" tamanho="sm" icone={Plus} style={{ gap: 4, padding: '2px 7px', marginBottom: 4 }}>
+                              Compl. de {item.parent?.displayId ?? 'peça original'}
+                            </Selo>
                           )}
-                          <div style={{ fontWeight: 700, fontSize: 13, color: '#1c1917', marginBottom: 2 }}>{item.type}</div>
-                          {item.description && <div style={{ fontSize: 13, color: '#746e69', marginBottom: 4 }}>{item.description}</div>}
+                          <div style={{ fontWeight: 700, fontSize: 13, color: T.text, marginBottom: 2 }}>{item.type}</div>
+                          {item.description && <div style={{ fontSize: 13, color: T.second, marginBottom: 4 }}>{item.description}</div>}
                           {item.parentItemId && item.complementReason && (
-                            <div style={{ fontSize: 11, color: '#7c2d12', marginBottom: 4, lineHeight: 1.4 }}>
+                            <div style={{ fontSize: 11, color: T.accentText, marginBottom: 4, lineHeight: 1.4 }}>
                               {item.complementRequestedBy ? <strong>{item.complementRequestedBy}: </strong> : null}{item.complementReason}
                             </div>
                           )}
-                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11, color: '#746e69' }}>
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11, color: T.second }}>
                             {item.quantity && <span>{item.quantity}×</span>}
                             {item.visualWidth && item.visualHeight && <span>{item.visualWidth}×{item.visualHeight}m</span>}
                             {item.material && <span>{item.material}</span>}
@@ -3425,12 +3415,16 @@ export default function EventDetail() {
                                   handleEditItem: no celular um botão que
                                   aceita o toque e não abre nada lê como app
                                   travado. O title carrega o motivo. */}
-                              <button onClick={() => handleEditItem(item)}
+                              <Botao
+                                variante="secundario"
+                                tamanho="toque"
+                                onClick={() => handleEditItem(item)}
                                 disabled={isEditBlocked(item.status)}
                                 title={motivoEdicaoBloqueada(item.status) ?? undefined}
-                                style={{ flex: 1, minHeight: 44, borderRadius: 6, border: '1px solid #e7e5e4', background: '#fafaf9', fontSize: 13, fontWeight: 700, color: isEditBlocked(item.status) ? T.second : '#44403c', cursor: isEditBlocked(item.status) ? 'not-allowed' : 'pointer' }}>
+                                style={{ flex: 1 }}
+                              >
                                 Editar
-                              </button>
+                              </Botao>
                               {/* Aumentar quantidade NÃO mora aqui: o gatilho
                                   é exclusivo da tela da Gráfica (decisão do dono). */}
                               {/* Mesmos gates do desktop: sem eles, no celular um
@@ -3438,7 +3432,7 @@ export default function EventDetail() {
                               {canDeleteAny && canDeleteItem(item.status) && (
                                 <button onClick={() => setDeletingItem(item)}
                                   aria-label="Excluir peça" title="Excluir peça"
-                                  style={{ minHeight: 44, width: 44, borderRadius: 6, border: '1px solid #fecaca', background: '#fff', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  style={{ minHeight: 44, width: 44, borderRadius: 6, border: `1px solid ${TOM.perigo.border}`, background: T.surface, color: TOM.perigo.text, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                   <Trash2 style={{ width: 14, height: 14 }} />
                                 </button>
                               )}
@@ -3448,7 +3442,7 @@ export default function EventDetail() {
                               `title` nunca aparece (não há hover): o botão cinza
                               sem explicação lia como app quebrado. */}
                           {canEditLists && isEditBlocked(item.status) && (
-                            <p style={{ margin: '6px 0 0', fontSize: 11.5, color: '#57534e', lineHeight: 1.4, display: 'flex', alignItems: 'flex-start', gap: 5 }}>
+                            <p style={{ margin: '6px 0 0', fontSize: 11.5, color: T.apoio, lineHeight: 1.4, display: 'flex', alignItems: 'flex-start', gap: 5 }}>
                               <Lock aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0, marginTop: 2 }} />
                               {motivoEdicaoBloqueada(item.status)}
                             </p>
@@ -3501,12 +3495,12 @@ export default function EventDetail() {
                               padding: '14px 14px',
                               fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em',
                               // #a8a29e em 11px reprova AA (2,5:1 sobre #f9f9f8).
-                              color: '#746e69', whiteSpace: 'nowrap',
+                              color: T.second, whiteSpace: 'nowrap',
                               // Números à direita (Qtd, M²): as casas alinham e a
                               // coluna se lê de cima a baixo sem caçar dígito.
                               textAlign: col === 'Ações' || col === 'Qtd' || col === 'M²' ? 'right' : 'left',
                               width,
-                              backgroundColor: '#fafaf9',
+                              backgroundColor: T.bg,
                             }}>
                             {col}
                           </th>
@@ -3518,8 +3512,8 @@ export default function EventDetail() {
                         <tr
                           key={item.id}
                           className="group"
-                          style={{ borderTop: '1px solid #f5f5f4', cursor: 'pointer', transition: 'background-color 0.1s' }}
-                          onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f9f9f8')}
+                          style={{ borderTop: `1px solid ${N.n2}`, cursor: 'pointer', transition: 'background-color 0.1s' }}
+                          onMouseEnter={e => (e.currentTarget.style.backgroundColor = T.bg)}
                           onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
                           onClick={() => setSelectedItemForDetails(item)}
                           data-testid={`row-item-${item.id}`}
@@ -3535,22 +3529,21 @@ export default function EventDetail() {
                               relação ser lida sem legenda. */}
                           <td style={{ padding: '14px 14px', paddingLeft: item.parentItemId ? 26 : undefined }}>
                             {item.parentItemId && (
-                              <span aria-hidden style={{ display: 'inline-block', width: 9, height: 7, marginRight: 5, marginBottom: 2, borderLeft: '1px solid #fdba74', borderBottom: '1px solid #fdba74', borderBottomLeftRadius: 3, verticalAlign: 'middle' }} />
+                              <span aria-hidden style={{ display: 'inline-block', width: 9, height: 7, marginRight: 5, marginBottom: 2, borderLeft: `1px solid ${TOM.laranja.border}`, borderBottom: `1px solid ${TOM.laranja.border}`, borderBottomLeftRadius: 3, verticalAlign: 'middle' }} />
                             )}
                             <button
                               onClick={e => { e.stopPropagation(); setSelectedItemForDetails(item); }}
                               aria-label={`Ver detalhes da peça ${item.displayId}`}
-                              style={{ fontWeight: 700, color: '#c2410c', fontSize: '13px', fontFamily: 'monospace', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                              style={{ fontWeight: 700, color: T.accentText, fontSize: '13px', fontFamily: FONT.mono, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
                               data-testid={`text-display-id-${item.id}`}
                             >
                               {item.displayId}
                             </button>
                             <SeloKit peca={item} style={{ marginLeft: 6 }} />
                             {item.isPriority && (
-                              <span title="Peça prioritária — fura a fila da Arte" data-testid={`tag-prioritaria-${item.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginLeft: 6, fontSize: 10, fontWeight: 800, color: '#be123c', backgroundColor: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 6, padding: '1px 6px', letterSpacing: '0.04em', verticalAlign: 'middle' }}>
-                                <AlertTriangle style={{ width: 9, height: 9 }} />
+                              <Selo tom="perigo" forma="retangulo" tamanho="sm" icone={AlertTriangle} title="Peça prioritária — fura a fila da Arte" data-testid={`tag-prioritaria-${item.id}`} style={{ gap: 3, marginLeft: 6, padding: '1px 6px', verticalAlign: 'middle' }}>
                                 PRIORITÁRIA
-                              </span>
+                              </Selo>
                             )}
                           </td>
                           {/* Ref. — VÁRIAS por peça (25/08): o clipe ADICIONA em
@@ -3564,7 +3557,7 @@ export default function EventDetail() {
                               {refs.map((url, k) => (
                                 <span key={`${url}-${k}`} style={{ position: 'relative', display: 'inline-flex' }}>
                                   <a href={url} target="_blank" rel="noopener noreferrer" title={refs.length > 1 ? `Ver referência ${k + 1} de ${refs.length}` : "Ver referência"} data-testid={k === 0 ? `link-reference-table-${item.id}` : `link-reference-table-${item.id}-${k + 1}`}>
-                                    <img loading="lazy" decoding="async" src={miniatura(url)} style={{ height: 32, width: 32, objectFit: 'cover', borderRadius: 6, border: '1px solid #e7e5e4' }} alt={`Referência visual ${k + 1}`} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                                    <img loading="lazy" decoding="async" src={miniatura(url)} style={{ height: 32, width: 32, objectFit: 'cover', borderRadius: 6, border: `1px solid ${T.border}` }} alt={`Referência visual ${k + 1}`} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                                   </a>
                                   {podeEditarRef && (
                                     <button
@@ -3573,7 +3566,7 @@ export default function EventDetail() {
                                       aria-label={`Remover referência ${k + 1} de ${item.displayId}`}
                                       data-testid={k === 0 ? `button-remove-reference-table-${item.id}` : `button-remove-reference-table-${item.id}-${k + 1}`}
                                       onClick={() => salvarReferenciasMutation.mutate({ itemId: item.id, referenceUrls: refs.filter((_, j) => j !== k) })}
-                                      style={{ position: 'absolute', top: -6, right: -6, width: 16, height: 16, borderRadius: '50%', border: '1px solid #d6d3d1', background: '#fff', color: '#57534e', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+                                      style={{ position: 'absolute', top: -6, right: -6, width: 16, height: 16, borderRadius: '50%', border: `1px solid ${T.bdark}`, background: T.surface, color: T.apoio, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
                                     >
                                       <X style={{ width: 9, height: 9 }} />
                                     </button>
@@ -3597,12 +3590,12 @@ export default function EventDetail() {
                                     aria-label={refs.length > 0 ? "Adicionar mais uma referência" : "Adicionar referência"}
                                     style={{ display: 'inline-flex' }}
                                   >
-                                    <Paperclip style={{ width: 13, height: 13, color: refs.length > 0 ? '#c2410c' : '#746e69' }} />
+                                    <Paperclip style={{ width: 13, height: 13, color: refs.length > 0 ? T.accentText : T.second }} />
                                   </span>
                                 </ObjectUploader>
                               )}
                               {!podeEditarRef && refs.length === 0 && (
-                                <span style={{ color: '#746e69', fontSize: 13 }}>—</span>
+                                <span style={{ color: T.second, fontSize: 13 }}>—</span>
                               )}
                             </div>
                               );
@@ -3620,36 +3613,44 @@ export default function EventDetail() {
                                 title — a linha da tabela não tem espaço para ele
                                 e a ficha mostra por extenso. */}
                             {item.parentItemId && (
-                              <div
+                              <Selo
+                                tom="laranja" forma="retangulo" tamanho="sm" icone={Plus}
                                 title={item.complementReason ? `Motivo: ${item.complementReason}` : undefined}
                                 data-testid={`badge-complemento-${item.id}`}
-                                style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: "#fff7ed", border: "1px solid #fed7aa", color: "#c2410c", borderRadius: 6, padding: "2px 7px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}
+                                style={{ gap: 4, padding: "2px 7px", marginBottom: 4 }}
                               >
-                                <Plus style={{ width: 9, height: 9 }} /> Compl. de {item.parent?.displayId ?? "peça original"}
-                              </div>
+                                Compl. de {item.parent?.displayId ?? "peça original"}
+                              </Selo>
                             )}
                             {!item.parentItemId && item.complements?.length > 0 && (
-                              <div
+                              <Selo
+                                forma="retangulo" tamanho="sm"
+                                cores={{ bg: T.surface, text: T.accentText, border: TOM.laranja.border }}
                                 title={`Complementos: ${item.complements.map((c: any) => `${c.displayId} (+${c.quantity})`).join(", ")}`}
                                 data-testid={`badge-tem-complemento-${item.id}`}
-                                style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: "#ffffff", border: "1px solid #fed7aa", color: "#c2410c", borderRadius: 6, padding: "2px 7px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}
+                                style={{ padding: "2px 7px", marginBottom: 4 }}
                               >
                                 Tem complemento (+{item.complements.reduce((a: number, c: any) => a + (Number(c.quantity) || 0), 0)})
-                              </div>
+                              </Selo>
                             )}
                             {item.isReuse && !(PRODUCTION_STATUSES as readonly string[]).includes(item.status) && (
-                              <div style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: "#047857", color: "#ffffff", borderRadius: 6, padding: "2px 7px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
-                                <Recycle style={{ width: 9, height: 9 }} /> Reaproveit.
-                              </div>
+                              <Selo
+                                forma="retangulo" tamanho="sm" icone={Recycle}
+                                // Cheio (branco sobre esmeralda escuro): reaproveitamento pula a produção.
+                                cores={{ bg: TOM.esmeralda.text, text: T.surface, border: TOM.esmeralda.text }}
+                                style={{ gap: 4, padding: "2px 7px", marginBottom: 4 }}
+                              >
+                                Reaproveit.
+                              </Selo>
                             )}
                             {seloDoEstoque(item)}
                             {item.description ? (
-                              <div style={{ fontWeight: '500', color: '#1a1c1c', fontSize: '13px' }}>{item.description}</div>
+                              <div style={{ fontWeight: '500', color: T.text, fontSize: '13px' }}>{item.description}</div>
                             ) : (
-                              <div style={{ color: '#746e69', fontSize: '13px' }}>—</div>
+                              <div style={{ color: T.second, fontSize: '13px' }}>—</div>
                             )}
                             {(item.material || item.finish) && (
-                              <div style={{ fontSize: '11px', color: '#746e69', marginTop: 2 }}>
+                              <div style={{ fontSize: '11px', color: T.second, marginTop: 2 }}>
                                 {[item.material, item.finish].filter(Boolean).join(' · ')}
                               </div>
                             )}
@@ -3657,20 +3658,20 @@ export default function EventDetail() {
                                 livre e longo, e era a coluna que mais empurrava
                                 a tabela para fora da tela. */}
                             {compacto && item.sponsors && item.sponsors.length > 0 && (
-                              <div style={{ fontSize: '11px', color: '#57534e', marginTop: 2, overflowWrap: 'anywhere' }}>
+                              <div style={{ fontSize: '11px', color: T.apoio, marginTop: 2, overflowWrap: 'anywhere' }}>
                                 {item.sponsors.map((s: any) => s.name).join(", ")}
                               </div>
                             )}
                           </td>
                           {/* Qtd — sem padStart: "05" parecia código, não quantidade. */}
-                          <td style={{ padding: '14px 14px', fontSize: '13px', color: '#1a1c1c', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                          <td style={{ padding: '14px 14px', fontSize: '13px', color: T.text, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                             {item.quantity}
                           </td>
                           {/* Dimensões */}
                           {/* Coluna SECUNDÁRIA: cinza de apoio e 12px, sem o
                               itálico (que em número só atrapalha a leitura);
                               dígitos tabulares para as medidas alinharem. */}
-                          <td style={{ padding: '14px 14px', fontSize: '12px', color: '#746e69', fontVariantNumeric: 'tabular-nums' }}>
+                          <td style={{ padding: '14px 14px', fontSize: '12px', color: T.second, fontVariantNumeric: 'tabular-nums' }}>
                             {(item.visualWidth && item.visualHeight) ? (
                               <>
                                 {item.visualWidth} × {item.visualHeight}m
@@ -3680,14 +3681,14 @@ export default function EventDetail() {
                             {/* No compacto o m² acompanha a medida, que é de
                                 onde ele sai — não some, muda de lugar. */}
                             {compacto && (
-                              <span style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#1a1c1c' }}>
+                              <span style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: T.text }}>
                                 {parseFloat(item.calculatedM2 || '0').toFixed(2)} m²
                               </span>
                             )}
                           </td>
                           {/* M² */}
                           {!compacto && (
-                            <td style={{ padding: '14px 14px', fontSize: '13px', fontWeight: 700, color: '#1a1c1c', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                            <td style={{ padding: '14px 14px', fontSize: '13px', fontWeight: 700, color: T.text, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                               {parseFloat(item.calculatedM2 || '0').toFixed(2)}
                             </td>
                           )}
@@ -3695,10 +3696,10 @@ export default function EventDetail() {
                           {/* Antes era "—" hardcoded: o vínculo existia no dado
                               (enrich do /api/items/:eventId) e nunca aparecia. */}
                           {!compacto && (
-                            <td style={{ padding: '14px 14px', fontSize: '12px', color: '#57534e', overflowWrap: 'anywhere' }}>
+                            <td style={{ padding: '14px 14px', fontSize: '12px', color: T.apoio, overflowWrap: 'anywhere' }}>
                               {(item.sponsors && item.sponsors.length > 0)
                                 ? item.sponsors.map((s: any) => s.name).join(", ")
-                                : <span style={{ color: '#746e69' }}>—</span>}
+                                : <span style={{ color: T.second }}>—</span>}
                             </td>
                           )}
                           {/* Status — rótulo curto: com tableLayout fixed o
@@ -3769,14 +3770,15 @@ export default function EventDetail() {
                                         onSuccess: () => toast({
                                           title: "Peça atualizada",
                                           description: item.isReuse ? "Marca de reaproveitamento removida" : "Peça marcada como reaproveitamento",
+                                          variant: "success",
                                         }),
                                       },
                                     );
                                   }}
                                   data-testid={`button-reuse-item-${item.id}`}
-                                  style={{ background: item.isReuse ? '#d1fae5' : 'none', border: item.isReuse ? '1px solid #6ee7b7' : 'none', borderRadius: '6px', padding: '6px', cursor: updateItemIsReuseMutation.isPending ? 'wait' : 'pointer', opacity: updateItemIsReuseMutation.isPending ? 0.5 : 1, color: item.isReuse ? '#065f46' : T.second, transition: 'all 0.15s', display: 'flex', alignItems: 'center' }}
-                                  onMouseEnter={e => { if (!item.isReuse) { e.currentTarget.style.color = '#065f46'; e.currentTarget.style.backgroundColor = '#d1fae5'; } }}
-                                  onMouseLeave={e => { if (!item.isReuse) { e.currentTarget.style.color = '#746e69'; e.currentTarget.style.backgroundColor = 'transparent'; } }}
+                                  style={{ background: item.isReuse ? TOM.esmeralda.bg : 'none', border: item.isReuse ? `1px solid ${TOM.esmeralda.border}` : 'none', borderRadius: '6px', padding: '6px', cursor: updateItemIsReuseMutation.isPending ? 'wait' : 'pointer', opacity: updateItemIsReuseMutation.isPending ? 0.5 : 1, color: item.isReuse ? TOM.esmeralda.text : T.second, transition: 'all 0.15s', display: 'flex', alignItems: 'center' }}
+                                  onMouseEnter={e => { if (!item.isReuse) { e.currentTarget.style.color = TOM.esmeralda.text; e.currentTarget.style.backgroundColor = TOM.esmeralda.bg; } }}
+                                  onMouseLeave={e => { if (!item.isReuse) { e.currentTarget.style.color = T.second; e.currentTarget.style.backgroundColor = 'transparent'; } }}
                                 >
                                   <Recycle className="h-4 w-4" />
                                 </button>
@@ -3795,9 +3797,9 @@ export default function EventDetail() {
                                 </button>
                               ) : (
                                 <button
-                                  style={{ color: '#746e69', background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'color 0.15s, background-color 0.15s' }}
-                                  onMouseEnter={e => { e.currentTarget.style.color = '#1a1c1c'; e.currentTarget.style.backgroundColor = '#f0efee'; }}
-                                  onMouseLeave={e => { e.currentTarget.style.color = '#746e69'; e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                  style={{ color: T.second, background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'color 0.15s, background-color 0.15s' }}
+                                  onMouseEnter={e => { e.currentTarget.style.color = T.text; e.currentTarget.style.backgroundColor = N.n3; }}
+                                  onMouseLeave={e => { e.currentTarget.style.color = T.second; e.currentTarget.style.backgroundColor = 'transparent'; }}
                                   onClick={e => { e.stopPropagation(); handleEditItem(item); }}
                                   data-testid={`button-edit-item-${item.id}`}
                                   title="Editar peça" aria-label="Editar peça"
@@ -3808,9 +3810,9 @@ export default function EventDetail() {
                               {canDeleteAny && (
                                 canDeleteItem(item.status) ? (
                                   <button
-                                    style={{ color: '#746e69', background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'color 0.15s, background-color 0.15s' }}
-                                    onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.backgroundColor = '#fef2f2'; }}
-                                    onMouseLeave={e => { e.currentTarget.style.color = '#746e69'; e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                    style={{ color: T.second, background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'color 0.15s, background-color 0.15s' }}
+                                    onMouseEnter={e => { e.currentTarget.style.color = TOM.perigo.dot; e.currentTarget.style.backgroundColor = TOM.perigo.bg; }}
+                                    onMouseLeave={e => { e.currentTarget.style.color = T.second; e.currentTarget.style.backgroundColor = 'transparent'; }}
                                     onClick={e => { e.stopPropagation(); handleDeleteItem(item); }}
                                     data-testid={`button-delete-item-${item.id}`}
                                     title="Excluir peça" aria-label="Excluir peça"
@@ -3848,14 +3850,14 @@ export default function EventDetail() {
                 return (
                   <section key={status} style={{ marginBottom: '40px' }} data-testid={`secao-status-${status}`}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
-                      <h2 style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: "'Space Grotesk', sans-serif", fontSize: '18px', fontWeight: '700', letterSpacing: '-0.02em', color: '#1a1c1c', margin: 0, whiteSpace: 'nowrap' }}>
+                      <h2 style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: FONT.display, fontSize: '18px', fontWeight: '700', letterSpacing: '-0.02em', color: T.text, margin: 0, whiteSpace: 'nowrap' }}>
                         <span aria-hidden="true" style={{ width: 9, height: 9, borderRadius: '50%', backgroundColor: m.dot, flexShrink: 0 }} />
                         {m.label}
                       </h2>
-                      <div style={{ flex: 1, height: '2px', backgroundColor: '#f0efee' }} />
-                      <span style={{ backgroundColor: '#f3f4f3', color: '#746e69', fontSize: '10px', fontWeight: '700', padding: '4px 12px', borderRadius: '999px', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
+                      <div style={{ flex: 1, height: '2px', backgroundColor: N.n3 }} />
+                      <Selo tamanho="sm" cores={{ bg: T.low, text: T.second, border: T.low }} style={{ padding: '4px 12px' }}>
                         {lista.length} {lista.length === 1 ? 'PEÇA' : 'PEÇAS'}
-                      </span>
+                      </Selo>
                     </div>
                     {renderTabelaDeItens(lista)}
                   </section>
@@ -3869,14 +3871,14 @@ export default function EventDetail() {
               {group && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px', marginTop: '8px' }}>
                   <span data-testid={group.startsWith('KIT') ? 'grupo-kit' : undefined} style={{
-                    backgroundColor: group.startsWith('KIT') ? '#f5f3ff' : '#dbeafe', color: group.startsWith('KIT') ? '#5b21b6' : '#1d4ed8',
+                    backgroundColor: group.startsWith('KIT') ? TOM.roxo.bg : TOM.info.border, color: group.startsWith('KIT') ? TOM.roxo.text : TOM.info.text,
                     fontSize: '11px', fontWeight: '900', letterSpacing: '0.12em',
                     textTransform: 'uppercase', padding: '4px 14px', borderRadius: '999px',
-                    fontFamily: "'Space Grotesk', sans-serif", whiteSpace: 'nowrap',
+                    fontFamily: FONT.display, whiteSpace: 'nowrap',
                   }}>
                     {group}
                   </span>
-                  <div style={{ flex: 1, height: '1px', backgroundColor: group.startsWith('KIT') ? '#ddd6fe' : '#bfdbfe' }} />
+                  <div style={{ flex: 1, height: '1px', backgroundColor: group.startsWith('KIT') ? TOM.roxo.border : TOM.info.border }} />
                 </div>
               )}
 
@@ -3887,13 +3889,13 @@ export default function EventDetail() {
                   {/* 18px (degrau de seção), não 22: em caixa alta, 22 competia
                       com o nome do evento (26) pela primeira leitura. Nome de
                       tipo longo quebra em vez de empurrar a contagem para fora. */}
-                  <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: group ? '15px' : '18px', fontWeight: '700', letterSpacing: '-0.02em', color: '#1a1c1c', margin: 0, textTransform: 'uppercase', minWidth: 0, overflowWrap: 'anywhere' }}>
+                  <h2 style={{ fontFamily: FONT.display, fontSize: group ? '15px' : '18px', fontWeight: '700', letterSpacing: '-0.02em', color: T.text, margin: 0, textTransform: 'uppercase', minWidth: 0, overflowWrap: 'anywhere' }}>
                     {type}
                   </h2>
-                  <div style={{ flex: 1, height: '2px', backgroundColor: '#f0efee' }} />
-                  <span style={{ backgroundColor: '#f3f4f3', color: '#746e69', fontSize: '10px', fontWeight: '700', padding: '4px 12px', borderRadius: '999px', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
+                  <div style={{ flex: 1, height: '2px', backgroundColor: N.n3 }} />
+                  <Selo tamanho="sm" cores={{ bg: T.low, text: T.second, border: T.low }} style={{ padding: '4px 12px' }}>
                     {typeItems.length} {typeItems.length === 1 ? 'PEÇA' : 'PEÇAS'}
-                  </span>
+                  </Selo>
                 </div>
 
                 {renderTabelaDeItens(typeItems)}
@@ -3903,13 +3905,15 @@ export default function EventDetail() {
           ));
           })()}
           {hiddenItemCount > 0 && (
-            <button
+            <Botao
+              variante="secundario"
+              tamanho="toque"
+              larguraCheia
               onClick={() => setShowAllItems(true)}
               data-testid="button-show-all-event-items"
-              style={{ width: '100%', padding: 13, background: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 10, color: '#1c1917', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
             >
               Mostrar todas as {searchedItems.length} peças (+{hiddenItemCount})
-            </button>
+            </Botao>
           )}
         </div>
       )}
@@ -3995,14 +3999,14 @@ export default function EventDetail() {
       />
 
       <AlertDialog open={!!deletingItem} onOpenChange={(o) => { if (!o) setDeletingItem(null); }}>
-        <AlertDialogContent style={{ width: "96vw", maxWidth: 400, backgroundColor: "#ffffff", borderRadius: "16px", padding: "32px", border: "none", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
+        <AlertDialogContent style={{ width: "96vw", maxWidth: 400, backgroundColor: T.surface, borderRadius: "16px", padding: "32px", border: "none", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
           <AlertDialogHeader style={{ padding: 0, marginBottom: "24px" }}>
-            <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "18px", fontWeight: 900, letterSpacing: "-0.03em", color: "#1a1c1c" }}>
+            <AlertDialogTitle style={{ fontFamily: FONT.display, fontSize: "18px", fontWeight: 900, letterSpacing: "-0.03em", color: T.text }}>
               Excluir peça
             </AlertDialogTitle>
-            <AlertDialogDescription style={{ fontSize: "15px", color: "#746e69", lineHeight: 1.6, marginTop: "6px" }}>
+            <AlertDialogDescription style={{ fontSize: "15px", color: T.second, lineHeight: 1.6, marginTop: "6px" }}>
               {deletingItem && (
-                <span style={{ display: "block", fontWeight: 700, color: "#1a1c1c", marginBottom: 6 }}>
+                <span style={{ display: "block", fontWeight: 700, color: T.text, marginBottom: 6 }}>
                   Excluir a peça {deletingItem.displayId ?? ""} — {deletingItem.type ?? "sem tipo"}?
                   {deletingItem.description ? ` (${deletingItem.description})` : ""}
                 </span>
@@ -4014,14 +4018,11 @@ export default function EventDetail() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter style={{ padding: 0, display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px" }}>
-            <AlertDialogCancel
-              style={{ padding: "9px 20px", backgroundColor: "transparent", border: "none", borderRadius: "8px", fontSize: "15px", fontWeight: 600, color: "#746e69", cursor: "pointer" }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f3f4f3")}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-            >
-              Cancelar
+            <AlertDialogCancel asChild>
+              <Botao variante="fantasma" tamanho={dedo ? 'toque' : 'md'}>Cancelar</Botao>
             </AlertDialogCancel>
             <AlertDialogAction
+              asChild
               // preventDefault: o AlertDialogAction fecha o diálogo no clique;
               // sem impedir, o "Excluindo…" nunca chegava a aparecer. O
               // fechamento acontece no onSuccess da mutation.
@@ -4029,13 +4030,16 @@ export default function EventDetail() {
                 e.preventDefault();
                 if (deletingItem && !deleteItemMutation.isPending) deleteItemMutation.mutate(deletingItem.id);
               }}
-              disabled={deleteItemMutation.isPending}
-              data-testid="button-confirm-delete-item"
-              style={{ padding: "9px 20px", backgroundColor: "#b91c1c", border: "none", borderRadius: "8px", fontSize: "15px", fontWeight: 700, color: "#ffffff", cursor: deleteItemMutation.isPending ? "wait" : "pointer", opacity: deleteItemMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s" }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#dc2626")}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#b91c1c")}
             >
-              {deleteItemMutation.isPending ? "Excluindo..." : "Excluir"}
+              <Botao
+                variante="perigo"
+                tamanho={dedo ? 'toque' : 'md'}
+                icone={Trash2}
+                carregando={deleteItemMutation.isPending}
+                data-testid="button-confirm-delete-item"
+              >
+                {deleteItemMutation.isPending ? "Excluindo..." : "Excluir"}
+              </Botao>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -4043,7 +4047,7 @@ export default function EventDetail() {
 
       {/* Dialog separado para editar item */}
       <Dialog open={editDialogOpen} onOpenChange={(o) => { if (!o) handleCloseEditDialog(); }}>
-        <DialogContent className={HIDE_NATIVE_CLOSE} style={{ maxWidth: isMobile ? "95vw" : "800px", width: "100%", padding: "0", backgroundColor: "#ffffff", borderRadius: "16px", overflow: "hidden", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
+        <DialogContent className={HIDE_NATIVE_CLOSE} style={{ maxWidth: isMobile ? "95vw" : "800px", width: "100%", padding: "0", backgroundColor: T.surface, borderRadius: "16px", overflow: "hidden", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
           {/* POR QUE congelar aqui: o onSuccess de atualizar peça invalida
               /api/items, fecha este diálogo e faz `setEditingItem(null)` no
               mesmo commit — e é `editingItem` que escreve o título
@@ -4055,7 +4059,7 @@ export default function EventDetail() {
           <DialogDescription className="sr-only">Atualize as informações da peça</DialogDescription>
           <ModalHeader
             icon={Pencil}
-            tint="#c2410c"
+            tint={T.accentText}
             title={editingItem ? `${editingItem.displayId} — ${editingItem.type}` : "Editar Peça"}
             subtitle={editingItem?.description || "Atualize as informações da peça"}
             onClose={handleCloseEditDialog}
@@ -4149,6 +4153,7 @@ export default function EventDetail() {
         onClose={() => setEstoqueDaPeca(null)}
       />
 
+      {dialogo}
     </div>
   );
 }

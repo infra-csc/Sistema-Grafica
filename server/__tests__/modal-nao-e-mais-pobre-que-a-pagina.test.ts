@@ -65,11 +65,13 @@ describe("a confirmação de exclusão tem superfície própria", () => {
 
 describe("um vermelho destrutivo só", () => {
   it("o botão de excluir usa o vermelho do resto do arquivo", () => {
-    expect(blocoDoDialogo()).toContain('backgroundColor: "#b91c1c"');
+    // O vermelho destrutivo do app é TOM.perigo.text (#b91c1c).
+    expect(blocoDoDialogo()).toContain("backgroundColor: TOM.perigo.text");
   });
 
   it("o vermelho concorrente não voltou como cor de fundo", () => {
     expect(painel).not.toContain('backgroundColor: "#dc2626"');
+    expect(painel).not.toContain("backgroundColor: TOM.perigo.dot");
   });
 });
 

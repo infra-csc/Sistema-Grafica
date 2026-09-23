@@ -5,7 +5,6 @@ import {
   Upload,
   List,
   Check,
-  Loader2,
   CheckCircle2,
   AlertTriangle,
   FileSpreadsheet,
@@ -19,18 +18,12 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { T } from "@/lib/theme";
+import { T, N, TOM, FONT } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { EstadoVazio } from "@/components/ui/estados";
+import { useConfirmar } from "@/components/ui/usar-confirmar";
 
 // Ativa a edição da célula também pelo teclado (Enter/Espaço) — as células
 // eram clicáveis mas invisíveis para quem navega por Tab.
@@ -50,12 +43,12 @@ const editableKeyDown = (activate: () => void) => (e: React.KeyboardEvent) => {
 // 3,2:1) reprovavam AA. DÍVIDA: quando QUOTAS virar módulo em `shared`, este
 // mapa e o de eventos.tsx viram um só.
 const IMPORT_QUOTA_COLORS: Record<string, { bg: string; color: string; border: string }> = {
-  MASTER:     { bg: '#fef2f2', color: '#b91c1c', border: '#fecaca' },
-  GOLD:       { bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
-  SILVER:     { bg: '#faf5ff', color: '#7e22ce', border: '#e9d5ff' },
-  APOIO:      { bg: '#f5f5f4', color: '#44403c', border: '#e7e5e4' },
-  MIDIA:      { bg: '#ecfeff', color: '#0e7490', border: '#a5f3fc' },
-  MINISTERIO: { bg: '#ecfdf5', color: '#047857', border: '#a7f3d0' },
+  MASTER:     { bg: TOM.perigo.bg, color: TOM.perigo.text, border: TOM.perigo.border },
+  GOLD:       { bg: TOM.info.bg, color: TOM.info.text, border: TOM.info.border },
+  SILVER:     { bg: TOM.roxo.bg, color: TOM.roxo.text, border: TOM.roxo.border },
+  APOIO:      { bg: N.n2, color: T.strong, border: T.border },
+  MIDIA:      { bg: TOM.ciano.bg, color: TOM.ciano.text, border: TOM.ciano.border },
+  MINISTERIO: { bg: TOM.esmeralda.bg, color: TOM.esmeralda.text, border: TOM.esmeralda.border },
 };
 
 /**
@@ -253,7 +246,7 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
   const cell = (field: string, val: any, opts?: { dim?: boolean; mono?: boolean; wide?: boolean; alerta?: string }) => {
     const isEditing = editField === field;
     const display = val !== null && val !== undefined && val !== '' ? String(val) : '—';
-    const rowBg = hovered ? '#f7f6f4' : (idx % 2 === 0 ? '#fff' : '#fafaf9');
+    const rowBg = hovered ? N.n2 : (idx % 2 === 0 ? T.surface : T.bg);
     return (
       <td
         onClick={() => setEditField(field)}
@@ -266,9 +259,9 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
         aria-label={`${rotuloDoCampo(field)}: ${display}. Editar.`}
         style={{
           padding: '8px 10px',
-          borderBottom: '1px solid #f0efed',
+          borderBottom: `1px solid ${N.n3}`,
           cursor: 'text',
-          backgroundColor: isEditing ? '#fffbeb' : rowBg,
+          backgroundColor: isEditing ? TOM.alerta.bg : rowBg,
           maxWidth: opts?.wide ? 220 : 160,
         }}
       >
@@ -282,15 +275,15 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
               if (e.key === 'Enter') { update(field, (e.target as HTMLInputElement).value); setEditField(null); }
               if (e.key === 'Escape') setEditField(null);
             }}
-            style={{ width: '100%', border: 'none', borderBottom: '2px solid #f97316', padding: '0 2px', fontSize: 13, backgroundColor: 'transparent', fontFamily: opts?.mono ? 'DM Mono, monospace' : 'inherit' }}
+            style={{ width: '100%', border: 'none', borderBottom: `2px solid ${T.accent}`, padding: '0 2px', fontSize: 13, backgroundColor: 'transparent', fontFamily: opts?.mono ? FONT.mono : 'inherit' }}
           />
         ) : (
           <span style={{
             // O traço é INFORMAÇÃO ("a planilha não trouxe"): #78716c, não o
             // #a8a29e de antes, que some sobre o zebrado da tabela.
-            color: display === '—' ? '#78716c' : (opts?.dim ? '#746e69' : '#1a1c1c'),
+            color: display === '—' ? T.second : (opts?.dim ? T.second : T.text),
             fontSize: 13,
-            fontFamily: opts?.mono ? 'DM Mono, monospace' : 'inherit',
+            fontFamily: opts?.mono ? FONT.mono : 'inherit',
             display: 'block',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -311,26 +304,26 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
   };
 
   const dimCell = (fieldW: string, fieldH: string, valW: any, valH: any, dimStyle?: boolean, alerta?: boolean) => {
-    const rowBg = hovered ? '#f7f6f4' : (idx % 2 === 0 ? '#fff' : '#fafaf9');
+    const rowBg = hovered ? N.n2 : (idx % 2 === 0 ? T.surface : T.bg);
     const editingW = editField === fieldW;
     const editingH = editField === fieldH;
     const dispW = valW !== null && valW !== undefined && valW !== '' ? String(valW) : '—';
     const dispH = valH !== null && valH !== undefined && valH !== '' ? String(valH) : '—';
     return (
-      <td style={{ padding: '8px 10px', borderBottom: '1px solid #f0efed', whiteSpace: 'nowrap', backgroundColor: rowBg }}>
+      <td style={{ padding: '8px 10px', borderBottom: `1px solid ${N.n3}`, whiteSpace: 'nowrap', backgroundColor: rowBg }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
           {editingW ? (
             <input autoFocus aria-label={`${rotuloDoCampo(fieldW)} da peça ${idx + 1}`} defaultValue={valW ?? ''} onBlur={e => { update(fieldW, e.target.value); setEditField(null); }} onKeyDown={e => { if (e.key==='Enter'){update(fieldW,(e.target as HTMLInputElement).value);setEditField(null);} if(e.key==='Escape')setEditField(null); }}
-              style={{ width: 44, border: 'none', borderBottom: '2px solid #f97316', fontSize: 11, padding: '0 2px', backgroundColor: 'transparent', fontFamily: 'DM Mono, monospace', color: '#1a1c1c' }} />
+              style={{ width: 44, border: 'none', borderBottom: `2px solid ${T.accent}`, fontSize: 11, padding: '0 2px', backgroundColor: 'transparent', fontFamily: FONT.mono, color: T.text }} />
           ) : (
-            <span onClick={() => setEditField(fieldW)} tabIndex={0} role="button" onKeyDown={editableKeyDown(() => setEditField(fieldW))} aria-label={`${rotuloDoCampo(fieldW)}: ${dispW}. Editar.`} style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', color: alerta ? '#b91c1c' : dimStyle ? '#746e69' : '#1a1c1c', fontWeight: alerta ? 700 : undefined, cursor: 'text', minWidth: 24 }}>{dispW}</span>
+            <span onClick={() => setEditField(fieldW)} tabIndex={0} role="button" onKeyDown={editableKeyDown(() => setEditField(fieldW))} aria-label={`${rotuloDoCampo(fieldW)}: ${dispW}. Editar.`} style={{ fontSize: 11, fontFamily: FONT.mono, color: alerta ? TOM.perigo.text : dimStyle ? T.second : T.text, fontWeight: alerta ? 700 : undefined, cursor: 'text', minWidth: 24 }}>{dispW}</span>
           )}
-          <span style={{ color: '#d0cdc9', fontSize: 10, userSelect: 'none' }}>×</span>
+          <span style={{ color: T.bdark, fontSize: 10, userSelect: 'none' }}>×</span>
           {editingH ? (
             <input autoFocus aria-label={`${rotuloDoCampo(fieldH)} da peça ${idx + 1}`} defaultValue={valH ?? ''} onBlur={e => { update(fieldH, e.target.value); setEditField(null); }} onKeyDown={e => { if (e.key==='Enter'){update(fieldH,(e.target as HTMLInputElement).value);setEditField(null);} if(e.key==='Escape')setEditField(null); }}
-              style={{ width: 44, border: 'none', borderBottom: '2px solid #f97316', fontSize: 11, padding: '0 2px', backgroundColor: 'transparent', fontFamily: 'DM Mono, monospace', color: '#1a1c1c' }} />
+              style={{ width: 44, border: 'none', borderBottom: `2px solid ${T.accent}`, fontSize: 11, padding: '0 2px', backgroundColor: 'transparent', fontFamily: FONT.mono, color: T.text }} />
           ) : (
-            <span onClick={() => setEditField(fieldH)} tabIndex={0} role="button" onKeyDown={editableKeyDown(() => setEditField(fieldH))} aria-label={`${rotuloDoCampo(fieldH)}: ${dispH}. Editar.`} style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', color: alerta ? '#b91c1c' : dimStyle ? '#746e69' : '#1a1c1c', fontWeight: alerta ? 700 : undefined, cursor: 'text', minWidth: 24 }}>{dispH}</span>
+            <span onClick={() => setEditField(fieldH)} tabIndex={0} role="button" onKeyDown={editableKeyDown(() => setEditField(fieldH))} aria-label={`${rotuloDoCampo(fieldH)}: ${dispH}. Editar.`} style={{ fontSize: 11, fontFamily: FONT.mono, color: alerta ? TOM.perigo.text : dimStyle ? T.second : T.text, fontWeight: alerta ? 700 : undefined, cursor: 'text', minWidth: 24 }}>{dispH}</span>
           )}
         </div>
       </td>
@@ -340,7 +333,7 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
   const m2 = parseFloat(row.calculatedM2) || 0;
   // Mesma escala (alto · médio · baixo), nos tons que passam AA em 13px:
   // #ea580c (3,6:1) e #16a34a (3,3:1) viraram #c2410c e #15803d.
-  const m2Color = m2 > 30 ? '#dc2626' : m2 > 10 ? '#c2410c' : m2 > 0 ? '#15803d' : '#78716c';
+  const m2Color = m2 > 30 ? TOM.perigo.text : m2 > 10 ? T.accentText : m2 > 0 ? TOM.sucesso.text : T.second;
 
   const hasSponsors = (row.suggestedSponsorIds ?? []).length > 0;
 
@@ -352,8 +345,8 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
   // evento.
   const defeitos = defeitosDaLinha(row, jaNoEvento, repetidas);
   const grave = defeitos.some(d => DEFEITO_GRAVE.has(d));
-  const corDoDefeito = defeitos.length === 0 ? null : grave ? '#dc2626' : '#d97706';
-  const fundoDoDefeito = defeitos.length === 0 ? null : grave ? '#fffbfa' : '#fffdf7';
+  const corDoDefeito = defeitos.length === 0 ? null : grave ? TOM.perigo.text : TOM.alerta.text;
+  const fundoDoDefeito = defeitos.length === 0 ? null : grave ? T.bg : TOM.alerta.bg;
   const tituloDosDefeitos = defeitos.length === 0
     ? undefined
     : defeitos.map(d => d === 'repetida-na-planilha'
@@ -363,7 +356,7 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
   const semMedida = defeitos.includes('sem-medida');
   const semM2 = defeitos.includes('m2-nao-fecha');
 
-  const rowBg = hovered ? '#f7f6f4' : (fundoDoDefeito ?? (idx % 2 === 0 ? '#fff' : '#fafaf9'));
+  const rowBg = hovered ? N.n2 : (fundoDoDefeito ?? (idx % 2 === 0 ? T.surface : T.bg));
 
   return (
     <tr
@@ -376,17 +369,17 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
       {/* O ponto ao lado da descrição: o defeito se anuncia onde o olho já
           está, sem depender de a faixa lateral entrar no campo de visão. */}
       {cell('description', row.description, { wide: true, alerta: corDoDefeito ?? undefined })}
-      {cell('quantity', row.quantity, { mono: true, alerta: defeitos.includes('qtd-invalida') ? '#dc2626' : undefined })}
+      {cell('quantity', row.quantity, { mono: true, alerta: defeitos.includes('qtd-invalida') ? TOM.perigo.text : undefined })}
       {mostrarVisual && dimCell('visualWidth', 'visualHeight', row.visualWidth, row.visualHeight, true)}
       {/* Só a de ARQUIVO acende: a visual pode faltar sem impedir nada. */}
       {dimCell('fileWidth', 'fileHeight', row.fileWidth, row.fileHeight, false, semMedida)}
 
       {/* M² */}
-      <td style={{ padding: '8px 10px', borderBottom: '1px solid #f0efed', whiteSpace: 'nowrap', backgroundColor: rowBg }}>
+      <td style={{ padding: '8px 10px', borderBottom: `1px solid ${N.n3}`, whiteSpace: 'nowrap', backgroundColor: rowBg }}>
         {/* Zerado, o m² fica VERMELHO e não no cinza da escala: um traço
             cinza se lê como "não se aplica", e aqui se aplica — é orçamento
             que não fecha. A escala de cor do valor positivo continua a mesma. */}
-        <span style={{ fontSize: 13, fontWeight: 700, color: semM2 ? '#b91c1c' : m2Color, fontFamily: 'DM Mono, monospace', letterSpacing: '-0.02em' }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: semM2 ? TOM.perigo.text : m2Color, fontFamily: FONT.mono, letterSpacing: '-0.02em' }}>
           {m2 > 0 ? m2.toFixed(2) : '—'}
         </span>
       </td>
@@ -394,13 +387,13 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
       {cell('material', row.material)}
       {cell('finish', row.finish)}
       {/* Sponsor multi-select cell */}
-      <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0efed', backgroundColor: rowBg, verticalAlign: 'top' }}>
+      <td style={{ padding: '6px 8px', borderBottom: `1px solid ${N.n3}`, backgroundColor: rowBg, verticalAlign: 'top' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, alignItems: 'center' }}>
           {/* Chips for each selected sponsor */}
           {(row.suggestedSponsorIds ?? []).map((sid: string) => {
             const sp = eventSponsorsList.find(s => s.sponsorId === sid);
             if (!sp) return null;
-            const qc = IMPORT_QUOTA_COLORS[sp.quota] ?? { bg: '#f0f9ff', color: '#0369a1', border: '#bae6fd' };
+            const qc = IMPORT_QUOTA_COLORS[sp.quota] ?? { bg: TOM.ceu.bg, color: TOM.ceu.text, border: TOM.ceu.border };
             return (
               <span key={sid} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 6px 2px 7px', borderRadius: 6, border: `1.5px solid ${qc.border}`, backgroundColor: qc.bg, color: qc.color, fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' }}>
                 {sp.name}
@@ -438,7 +431,7 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
                 searchPlaceholder="Buscar patrocinador..."
                 emptyText="Nenhum patrocinador"
                 panelWidth={220}
-                triggerStyle={{ fontSize: 10, height: 'auto', borderRadius: 6, border: '1px dashed #d0cdc9', backgroundColor: 'transparent', color: '#746e69', padding: '2px 4px 2px 5px', maxWidth: 110 }}
+                triggerStyle={{ fontSize: 10, height: 'auto', borderRadius: 6, border: `1px dashed ${T.bdark}`, backgroundColor: 'transparent', color: T.second, padding: '2px 4px 2px 5px', maxWidth: 110 }}
               />
             </div>
           )}
@@ -448,7 +441,7 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
               type="button"
               title="Vincular todos os patrocinadores do evento"
               onClick={e => { e.stopPropagation(); onChange({ ...row, suggestedSponsorIds: eventSponsorsList.map(s => s.sponsorId) }); }}
-              style={{ fontSize: 10, fontWeight: 700, borderRadius: 6, border: '1px solid #bbf7d0', backgroundColor: '#f0fdf4', color: '#15803d', cursor: 'pointer', padding: '2px 7px', whiteSpace: 'nowrap' }}
+              style={{ fontSize: 10, fontWeight: 700, borderRadius: 6, border: `1px solid ${TOM.sucesso.border}`, backgroundColor: TOM.sucesso.bg, color: TOM.sucesso.text, cursor: 'pointer', padding: '2px 7px', whiteSpace: 'nowrap' }}
             >
               Todos
             </button>
@@ -469,15 +462,15 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
         role="button"
         onKeyDown={editField === 'observations' ? undefined : editableKeyDown(() => setEditField('observations'))}
         aria-label={`Observações: ${row.observations || 'vazio'}. Editar.`}
-        style={{ padding: '8px 10px', borderBottom: '1px solid #f0efed', cursor: 'text', backgroundColor: editField === 'observations' ? '#fffbeb' : rowBg, maxWidth: 160 }}
+        style={{ padding: '8px 10px', borderBottom: `1px solid ${N.n3}`, cursor: 'text', backgroundColor: editField === 'observations' ? TOM.alerta.bg : rowBg, maxWidth: 160 }}
       >
         {editField === 'observations' ? (
           <input autoFocus aria-label={`Observações da peça ${idx + 1}`} defaultValue={row.observations ?? ''}
             onBlur={e => { update('observations', e.target.value); setEditField(null); }}
             onKeyDown={e => { if (e.key === 'Enter') { update('observations', (e.target as HTMLInputElement).value); setEditField(null); } if (e.key === 'Escape') setEditField(null); }}
-            style={{ width: '100%', border: 'none', borderBottom: '2px solid #f97316', padding: '0 2px', fontSize: 13, backgroundColor: 'transparent' }} />
+            style={{ width: '100%', border: 'none', borderBottom: `2px solid ${T.accent}`, padding: '0 2px', fontSize: 13, backgroundColor: 'transparent' }} />
         ) : (
-          <span style={{ color: row.observations ? '#746e69' : '#78716c', fontSize: 13, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ color: row.observations ? T.second : T.second, fontSize: 13, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {row.observations || '—'}
           </span>
         )}
@@ -489,9 +482,9 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
           style={{
             marginTop: 3, display: 'block',
             fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 999, cursor: 'pointer',
-            border: `1px solid ${row.reuse ? '#22c55e' : '#e2deda'}`,
-            backgroundColor: row.reuse ? '#f0fdf4' : 'transparent',
-            color: row.reuse ? '#15803d' : '#57534e',
+            border: `1px solid ${row.reuse ? TOM.sucesso.dot : T.border}`,
+            backgroundColor: row.reuse ? TOM.sucesso.bg : 'transparent',
+            color: row.reuse ? TOM.sucesso.text : T.apoio,
             letterSpacing: '0.04em', textTransform: 'uppercase', transition: 'all 0.15s',
           }}
         >
@@ -500,7 +493,7 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
       </td>
 
       {/* Delete */}
-      <td style={{ padding: '6px 6px', borderBottom: '1px solid #f0efed', backgroundColor: rowBg }}>
+      <td style={{ padding: '6px 6px', borderBottom: `1px solid ${N.n3}`, backgroundColor: rowBg }}>
         {/* O X em repouso era #d0cdc9 (1,6:1): só aparecia no hover, então
             no toque e no teclado a linha parecia não ter como sair. */}
         <button
@@ -508,7 +501,7 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
           onClick={onDelete}
           title="Tirar esta peça da importação"
           aria-label={`Tirar ${row.description || row.type || 'esta peça'} da importação`}
-          style={{ width: 26, height: 26, borderRadius: 6, border: 'none', backgroundColor: hovered ? '#fef2f2' : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: hovered ? '#dc2626' : '#78716c', transition: 'all 0.15s' }}
+          style={{ width: 26, height: 26, borderRadius: 6, border: 'none', backgroundColor: hovered ? TOM.perigo.bg : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: hovered ? TOM.perigo.text : T.second, transition: 'all 0.15s' }}
         >
           <X style={{ width: 13, height: 13 }} />
         </button>
@@ -580,8 +573,9 @@ export function ImportXlsxDialog({
   useEffect(() => { if (!importPreviewItems) setEscolhendoDestino(false); }, [importPreviewItems]);
 
   // Confirmação de descarte no padrão visual da casa — o window.confirm
-  // nativo destoava do produto (flagrado em produção).
-  const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
+  // nativo destoava do produto (flagrado em produção). Agora é a mesma
+  // pergunta de todas as telas (useConfirmar), com o verbo no botão.
+  const { confirmar, dialogo } = useConfirmar();
 
   // ── TRIAGEM ──────────────────────────────────────────────────────────────
   //
@@ -641,9 +635,15 @@ export function ImportXlsxDialog({
       if (!v) {
         // Preview carregado = trabalho de edição/vinculação em andamento.
         // Fechar (X/Esc/clique-fora) descartava tudo sem perguntar; a
-        // confirmação usa o AlertDialog da casa (o confirm() nativo destoava).
+        // confirmação é o useConfirmar da casa (o confirm() nativo destoava).
         if (importPreviewItems && importPreviewItems.length > 0) {
-          setConfirmDiscardOpen(true);
+          void confirmar({
+            titulo: "Descartar importação?",
+            descricao: "As edições e vinculações feitas no preview serão perdidas.",
+            confirmar: "Descartar",
+            cancelar: "Continuar editando",
+            perigo: true,
+          }).then((ok) => { if (ok) onOpenChangeClose(); });
           return;
         }
         onOpenChangeClose();
@@ -662,19 +662,19 @@ export function ImportXlsxDialog({
             lado a lado, os 260px fixos esmagavam o preview no celular. */}
         <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', flex: 1, minHeight: 0, overflow: 'hidden', borderRadius: 12 }}>
         {/* ── Left sidebar ── */}
-        <div style={{ width: isMobile ? '100%' : 260, minWidth: isMobile ? 0 : 260, maxHeight: isMobile && importPreviewItems ? '42vh' : undefined, backgroundColor: '#ffffff', borderRight: isMobile ? 'none' : '1px solid #e7e5e4', borderBottom: isMobile ? '1px solid #e7e5e4' : 'none', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}>
+        <div style={{ width: isMobile ? '100%' : 260, minWidth: isMobile ? 0 : 260, maxHeight: isMobile && importPreviewItems ? '42vh' : undefined, backgroundColor: T.surface, borderRight: isMobile ? 'none' : `1px solid ${T.border}`, borderBottom: isMobile ? `1px solid ${T.border}` : 'none', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}>
           {/* TOPO FIXO: título e o cartão do arquivo — o começo da tarefa. */}
           <div style={{ flexShrink: 0, padding: '22px 18px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Title */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <FileSpreadsheet style={{ width: 15, height: 15, color: '#16a34a' }} />
+            <div style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <FileSpreadsheet style={{ width: 15, height: 15, color: TOM.sucesso.text }} />
             </div>
             <div>
-              <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 800, letterSpacing: '-0.02em', color: '#1a1c1c', margin: 0, lineHeight: 1.2 }}>
+              <DialogTitle style={{ fontFamily: FONT.display, fontSize: 15, fontWeight: 800, letterSpacing: '-0.02em', color: T.text, margin: 0, lineHeight: 1.2 }}>
                 Importar Peças
               </DialogTitle>
-              <DialogDescription style={{ fontSize: 10, color: '#746e69', margin: 0, marginTop: 1 }}>
+              <DialogDescription style={{ fontSize: 10, color: T.second, margin: 0, marginTop: 1 }}>
                 {importFileName || 'Formato padrão NORTE'}
               </DialogDescription>
             </div>
@@ -695,43 +695,43 @@ export function ImportXlsxDialog({
             className="peer-focus-visible:ring-2 peer-focus-visible:ring-green-700 peer-focus-visible:ring-offset-2"
             style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-              border: '2px dashed', borderColor: importFile ? '#16a34a' : '#d4d0cc',
+              border: '2px dashed', borderColor: importFile ? TOM.sucesso.text : T.bdark,
               borderRadius: 12, padding: '18px 12px', cursor: 'pointer',
-              backgroundColor: importFile ? '#f0fdf4' : '#fafaf9', transition: 'all 0.2s',
+              backgroundColor: importFile ? TOM.sucesso.bg : T.bg, transition: 'all 0.2s',
             }}
-            onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = '#16a34a'; e.currentTarget.style.backgroundColor = '#f0fdf4'; }}
-            onDragLeave={e => { e.currentTarget.style.borderColor = importFile ? '#16a34a' : '#d4d0cc'; e.currentTarget.style.backgroundColor = importFile ? '#f0fdf4' : '#fafaf9'; }}
+            onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = TOM.sucesso.text; e.currentTarget.style.backgroundColor = TOM.sucesso.bg; }}
+            onDragLeave={e => { e.currentTarget.style.borderColor = importFile ? TOM.sucesso.text : T.bdark; e.currentTarget.style.backgroundColor = importFile ? TOM.sucesso.bg : T.bg; }}
             onDrop={e => {
               e.preventDefault();
               const f = e.dataTransfer.files[0];
               if (f && (f.name.endsWith('.xlsx') || f.name.endsWith('.xls'))) {
                 setImportFile(f); setImportPreview(null); setImportPreviewItems(null);
               } else {
-                toast({ title: "Arquivo inválido", description: "Selecione um arquivo .xlsx", variant: "destructive" });
+                toast({ title: "Arquivo inválido", description: "Selecione um arquivo .xlsx", variant: "warning" });
               }
             }}
           >
             {importFile ? (
               <>
-                <CheckCircle2 style={{ width: 24, height: 24, color: '#16a34a' }} />
+                <CheckCircle2 style={{ width: 24, height: 24, color: TOM.sucesso.text }} />
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#166534', fontFamily: "'Space Grotesk', sans-serif" }}>{importFile.name}</div>
-                  <div style={{ fontSize: 11, color: '#746e69', marginTop: 2 }}>{(importFile.size / 1024).toFixed(1)} KB</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: TOM.sucesso.text, fontFamily: FONT.display }}>{importFile.name}</div>
+                  <div style={{ fontSize: 11, color: T.second, marginTop: 2 }}>{(importFile.size / 1024).toFixed(1)} KB</div>
                 </div>
                 <button
                   type="button"
                   onClick={e => { e.preventDefault(); setImportFile(null); setImportPreview(null); setImportPreviewItems(null); }}
-                  style={{ fontSize: 11, fontWeight: 600, color: '#b91c1c', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3, minHeight: 28, padding: '0 6px' }}
+                  style={{ fontSize: 11, fontWeight: 600, color: TOM.perigo.text, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3, minHeight: 28, padding: '0 6px' }}
                 >
                   <X style={{ width: 10, height: 10 }} /> Remover
                 </button>
               </>
             ) : (
               <>
-                <Upload style={{ width: 20, height: 20, color: '#8a847e' }} />
+                <Upload style={{ width: 20, height: 20, color: T.second }} />
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#44403c' }}>Arraste o .xlsx aqui</div>
-                  <div style={{ fontSize: 11, color: '#746e69', marginTop: 2 }}>ou clique para selecionar</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: T.strong }}>Arraste o .xlsx aqui</div>
+                  <div style={{ fontSize: 11, color: T.second, marginTop: 2 }}>ou clique para selecionar</div>
                 </div>
               </>
             )}
@@ -752,24 +752,24 @@ export function ImportXlsxDialog({
               <>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                   {[
-                    { l: 'Peças',      v: allItems.length,         color: '#1a1c1c', mono: false },
-                    { l: 'Grupos',     v: groups,                  color: '#1a1c1c', mono: false },
-                    { l: 'M² total',   v: `${totalM2.toFixed(0)}`, color: '#b45309', mono: true  },
-                    { l: 'Vinculados', v: `${linkPct}%`,           color: linkPct === 100 ? '#15803d' : '#b45309', mono: false },
+                    { l: 'Peças',      v: allItems.length,         color: T.text, mono: false },
+                    { l: 'Grupos',     v: groups,                  color: T.text, mono: false },
+                    { l: 'M² total',   v: `${totalM2.toFixed(0)}`, color: TOM.alerta.text, mono: true  },
+                    { l: 'Vinculados', v: `${linkPct}%`,           color: linkPct === 100 ? TOM.sucesso.text : TOM.alerta.text, mono: false },
                   ].map(s => (
-                    <div key={s.l} style={{ backgroundColor: '#f5f4f2', border: '1px solid #e7e5e4', borderRadius: 8, padding: '10px 12px' }}>
-                      <div style={{ fontSize: 18, fontWeight: 900, color: s.color, fontFamily: s.mono ? 'DM Mono, monospace' : "'Space Grotesk', sans-serif", lineHeight: 1 }}>{s.v}</div>
-                      <div style={{ fontSize: 10, color: '#746e69', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: 4 }}>{s.l}</div>
+                    <div key={s.l} style={{ backgroundColor: N.n3, border: `1px solid ${T.border}`, borderRadius: 8, padding: '10px 12px' }}>
+                      <div style={{ fontSize: 18, fontWeight: 900, color: s.color, fontFamily: s.mono ? FONT.mono : FONT.display, lineHeight: 1 }}>{s.v}</div>
+                      <div style={{ fontSize: 10, color: T.second, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: 4 }}>{s.l}</div>
                     </div>
                   ))}
                 </div>
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                    <span style={{ fontSize: 11, color: '#746e69', fontWeight: 600 }}>Vinculação</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: linkPct === 100 ? '#15803d' : '#b45309' }}>{linked}/{allItems.length}</span>
+                    <span style={{ fontSize: 11, color: T.second, fontWeight: 600 }}>Vinculação</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: linkPct === 100 ? TOM.sucesso.text : TOM.alerta.text }}>{linked}/{allItems.length}</span>
                   </div>
-                  <div style={{ height: 5, backgroundColor: '#e7e5e4', borderRadius: 999, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${linkPct}%`, backgroundColor: linkPct === 100 ? '#16a34a' : '#d97706', borderRadius: 999, transition: 'width 0.4s' }} />
+                  <div style={{ height: 5, backgroundColor: T.border, borderRadius: 999, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${linkPct}%`, backgroundColor: linkPct === 100 ? TOM.sucesso.text : TOM.alerta.text, borderRadius: 999, transition: 'width 0.4s' }} />
                   </div>
                 </div>
 
@@ -787,17 +787,17 @@ export function ImportXlsxDialog({
                 {(() => {
                   const naBusca = allItems.filter(matchesImportSearch);
                   const baldes: { chave: DefeitoImport; cor: string }[] = [
-                    { chave: 'qtd-invalida', cor: '#dc2626' },
-                    { chave: 'repetida-na-planilha', cor: '#dc2626' },
-                    { chave: 'sem-patrocinador', cor: '#d97706' },
-                    { chave: 'sem-medida', cor: '#dc2626' },
-                    { chave: 'm2-nao-fecha', cor: '#dc2626' },
-                    { chave: 'sem-material', cor: '#d97706' },
-                    { chave: 'ja-existe', cor: '#dc2626' },
+                    { chave: 'qtd-invalida', cor: TOM.perigo.text },
+                    { chave: 'repetida-na-planilha', cor: TOM.perigo.text },
+                    { chave: 'sem-patrocinador', cor: TOM.alerta.text },
+                    { chave: 'sem-medida', cor: TOM.perigo.text },
+                    { chave: 'm2-nao-fecha', cor: TOM.perigo.text },
+                    { chave: 'sem-material', cor: TOM.alerta.text },
+                    { chave: 'ja-existe', cor: TOM.perigo.text },
                   ];
                   return (
                     <div>
-                      <div style={{ fontSize: 11, color: '#746e69', fontWeight: 600, marginBottom: 6 }}>Antes de importar</div>
+                      <div style={{ fontSize: 11, color: T.second, fontWeight: 600, marginBottom: 6 }}>Antes de importar</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                         {baldes.map(({ chave, cor }) => {
                           const n = naBusca.filter(i => defeitosDaLinha(i, chavesDoEvento, repetidasDaPlanilha).includes(chave)).length;
@@ -817,17 +817,17 @@ export function ImportXlsxDialog({
                               style={{
                                 display: 'flex', alignItems: 'center', gap: 7, width: '100%',
                                 padding: '6px 9px', borderRadius: 7, textAlign: 'left',
-                                border: `1px solid ${ligado ? '#1c1917' : '#e7e5e4'}`,
-                                backgroundColor: ligado ? '#1c1917' : '#fff',
-                                color: ligado ? '#fff' : '#44403c',
+                                border: `1px solid ${ligado ? T.text : T.border}`,
+                                backgroundColor: ligado ? T.text : T.surface,
+                                color: ligado ? T.surface : T.strong,
                                 opacity: vazio ? 0.45 : 1,
                                 cursor: vazio ? 'default' : 'pointer',
                                 font: 'inherit', fontSize: 11, fontWeight: 600,
                               }}
                             >
-                              <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: ligado ? '#fff' : cor, flexShrink: 0 }} />
+                              <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: ligado ? T.surface : cor, flexShrink: 0 }} />
                               <span style={{ flex: 1, minWidth: 0 }}>{DEFEITO_LABEL[chave]}</span>
-                              <span style={{ fontFamily: 'DM Mono, monospace', fontWeight: 700 }}>{n}</span>
+                              <span style={{ fontFamily: FONT.mono, fontWeight: 700 }}>{n}</span>
                             </button>
                           );
                         })}
@@ -840,10 +840,10 @@ export function ImportXlsxDialog({
           })()}
 
           {/* Format tip */}
-          <div style={{ padding: '10px 12px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, display: 'flex', gap: 8 }}>
-            <AlertTriangle style={{ width: 13, height: 13, color: '#d97706', flexShrink: 0, marginTop: 1 }} />
-            <div style={{ fontSize: 10, color: '#78350f', lineHeight: 1.6 }}>
-              <strong style={{ color: '#92400e' }}>Formato NORTE:</strong><br />
+          <div style={{ padding: '10px 12px', backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 8, display: 'flex', gap: 8 }}>
+            <AlertTriangle style={{ width: 13, height: 13, color: TOM.alerta.text, flexShrink: 0, marginTop: 1 }} />
+            <div style={{ fontSize: 10, color: TOM.alerta.text, lineHeight: 1.6 }}>
+              <strong style={{ color: TOM.alerta.text }}>Formato NORTE:</strong><br />
               item · qtde · material · acabamento
             </div>
           </div>
@@ -851,20 +851,22 @@ export function ImportXlsxDialog({
           </div>
 
           {/* PÉ FIXO: o botão de importar — o fim da tarefa — nunca sai de vista. */}
-          <div style={{ flexShrink: 0, padding: '12px 18px 18px', borderTop: '1px solid #f0efed', backgroundColor: '#fff' }}>
+          <div style={{ flexShrink: 0, padding: '12px 18px 18px', borderTop: `1px solid ${N.n3}`, backgroundColor: T.surface }}>
           {!importPreviewItems ? (
-            <button
-              disabled={!importFile || previewXlsxPending}
+            <Botao
+              variante="primario"
+              tamanho="toque"
+              larguraCheia
+              icone={List}
+              disabled={!importFile}
+              carregando={previewXlsxPending}
+              motivo={!importFile ? 'Escolha a planilha acima.' : undefined}
+              alinharMotivo="center"
               onClick={() => { if (importFile) onPreview(importFile); }}
               data-testid="button-preview-import"
-              style={{ width: '100%', padding: '11px 0', backgroundColor: importFile ? '#15803d' : '#e7e5e4', color: importFile ? '#fff' : '#57534e', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: importFile ? 'pointer' : 'not-allowed', fontFamily: "'Space Grotesk', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
             >
-              {previewXlsxPending ? (
-                <><Loader2 style={{ width: 15, height: 15, animation: 'spin 1s linear infinite' }} /> Processando...</>
-              ) : (
-                <><List style={{ width: 15, height: 15 }} /> Pré-visualizar Peças</>
-              )}
-            </button>
+              {previewXlsxPending ? 'Processando...' : 'Pré-visualizar Peças'}
+            </Botao>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {/* AS LINHAS QUE FICARAM DE FORA. Antes sumiam caladas (linha sem
@@ -873,10 +875,10 @@ export function ImportXlsxDialog({
               {ignoradas.length > 0 && (
                 <div
                   data-testid="aviso-linhas-ignoradas"
-                  style={{ padding: '10px 12px', borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4', fontSize: 11, color: '#44403c', lineHeight: 1.5 }}
+                  style={{ padding: '10px 12px', borderRadius: 8, background: N.n2, border: `1px solid ${T.border}`, fontSize: 11, color: T.strong, lineHeight: 1.5 }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                    <span style={{ fontWeight: 700, color: '#1c1917' }}>
+                    <span style={{ fontWeight: 700, color: T.text }}>
                       {ignoradas.length} {ignoradas.length === 1 ? 'linha da planilha ficou' : 'linhas da planilha ficaram'} de fora
                     </span>
                     <button
@@ -884,7 +886,7 @@ export function ImportXlsxDialog({
                       onClick={() => setVerIgnoradas(v => !v)}
                       aria-expanded={verIgnoradas}
                       data-testid="button-ver-ignoradas"
-                      style={{ background: 'none', border: 'none', padding: 0, fontSize: 11, fontWeight: 700, color: '#c2410c', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                      style={{ background: 'none', border: 'none', padding: 0, fontSize: 11, fontWeight: 700, color: T.accentText, cursor: 'pointer', whiteSpace: 'nowrap' }}
                     >
                       {verIgnoradas ? 'Esconder' : 'Ver quais'}
                     </button>
@@ -908,9 +910,9 @@ export function ImportXlsxDialog({
               {repetidas.length > 0 && (
                 <div
                   data-testid="aviso-reimportacao"
-                  style={{ padding: '10px 12px', borderRadius: 8, background: '#fff7ed', border: '1px solid #fed7aa', fontSize: 11, color: '#9a3412', lineHeight: 1.5 }}
+                  style={{ padding: '10px 12px', borderRadius: 8, background: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, fontSize: 11, color: T.accentText, lineHeight: 1.5 }}
                 >
-                  <div style={{ fontWeight: 700, marginBottom: 2, color: '#7c2d12' }}>
+                  <div style={{ fontWeight: 700, marginBottom: 2, color: T.accentText }}>
                     {repetidas.length} de {importPreviewItems.length} já {repetidas.length === 1 ? 'está' : 'estão'} neste evento
                   </div>
                   <div>
@@ -918,17 +920,19 @@ export function ImportXlsxDialog({
                     {repetidas.length > 3 ? ` · e mais ${repetidas.length - 3}` : ''}
                   </div>
                   <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                    <button
-                      type="button"
+                    <Botao
+                      variante="secundario"
+                      tamanho="sm"
                       onClick={() => setTriagem(triagem === 'ja-existe' ? null : 'ja-existe')}
                       aria-pressed={triagem === 'ja-existe'}
                       data-testid="button-ver-repetidas"
-                      style={{ flex: 1, padding: '6px 0', background: '#fff', border: '1px solid #fed7aa', borderRadius: 6, fontSize: 11, fontWeight: 700, color: '#9a3412', cursor: 'pointer' }}
+                      style={{ flex: 1 }}
                     >
                       {triagem === 'ja-existe' ? 'Ver todas de novo' : `Ver as ${repetidas.length}`}
-                    </button>
-                    <button
-                      type="button"
+                    </Botao>
+                    <Botao
+                      variante="primario"
+                      tamanho="sm"
                       onClick={() => {
                         const fora = new Set(repetidas.map((r: any) => r._id));
                         setImportPreviewItems(prev => prev ? prev.filter(r => !fora.has(r._id)) : prev);
@@ -936,37 +940,42 @@ export function ImportXlsxDialog({
                         // vazia logo depois da remoção — a lista some junto
                         // com o motivo de ela estar recortada.
                         if (triagem === 'ja-existe') setTriagem(null);
-                        toast({ title: `${fora.size} ${fora.size === 1 ? 'peça repetida removida' : 'peças repetidas removidas'}`, description: 'Elas continuam no evento; só saíram desta importação.' });
+                        toast({ title: `${fora.size} ${fora.size === 1 ? 'peça repetida removida' : 'peças repetidas removidas'}`, description: 'Elas continuam no evento; só saíram desta importação.', variant: 'success' });
                       }}
                       data-testid="button-remover-repetidas"
-                      style={{ flex: 1, padding: '6px 0', background: '#c2410c', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, color: '#fff', cursor: 'pointer' }}
+                      style={{ flex: 1 }}
                     >
                       Remover {repetidas.length === 1 ? 'a repetida' : `as ${repetidas.length}`}
-                    </button>
+                    </Botao>
                   </div>
                 </div>
               )}
-              <button
+              <Botao
+                variante="secundario"
+                larguraCheia
                 onClick={() => { setImportPreviewItems(null); setImportSearch(""); setTriagem(null); }}
-                style={{ width: '100%', padding: '9px 0', backgroundColor: 'transparent', color: '#746e69', border: '1px solid #e7e5e4', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif" }}
               >
                 Trocar arquivo
-              </button>
-              <button
-                disabled={!importPreviewItems.length || confirmImportPending || comQtdInvalida.length > 0}
+              </Botao>
+              {/* O motivo do travamento já aparece logo abaixo, com a linha
+                  (motivo-importar-travado) — por isso sem `motivo` aqui. */}
+              <Botao
+                variante="primario"
+                tamanho="toque"
+                larguraCheia
+                icone={Check}
+                disabled={!importPreviewItems.length || comQtdInvalida.length > 0}
+                carregando={confirmImportPending}
                 onClick={() => { if (importPreviewItems.length > 0 && comQtdInvalida.length === 0) setEscolhendoDestino(true); }}
                 data-testid="button-confirm-import"
-                style={{ width: '100%', padding: '11px 0', backgroundColor: comQtdInvalida.length > 0 ? '#e7e5e4' : '#1c1917', color: comQtdInvalida.length > 0 ? '#57534e' : '#fff', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: comQtdInvalida.length > 0 ? 'not-allowed' : 'pointer', fontFamily: "'Space Grotesk', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
               >
-                {confirmImportPending ? (
-                  <><Loader2 style={{ width: 15, height: 15, animation: 'spin 1s linear infinite' }} /> Importando...</>
-                ) : (
-                  <><Check style={{ width: 15, height: 15 }} /> Importar {importPreviewItems.length} {importPreviewItems.length === 1 ? 'peça' : 'peças'}</>
-                )}
-              </button>
+                {confirmImportPending
+                  ? 'Importando...'
+                  : <>Importar {importPreviewItems.length} {importPreviewItems.length === 1 ? 'peça' : 'peças'}</>}
+              </Botao>
               {/* POR QUE O BOTÃO ESTÁ TRAVADO — à vista, com a linha. */}
               {comQtdInvalida.length > 0 && (
-                <p data-testid="motivo-importar-travado" role="status" style={{ margin: 0, fontSize: 11, color: '#b91c1c', lineHeight: 1.45, textAlign: 'center', fontWeight: 600 }}>
+                <p data-testid="motivo-importar-travado" role="status" style={{ margin: 0, fontSize: 11, color: TOM.perigo.text, lineHeight: 1.45, textAlign: 'center', fontWeight: 600 }}>
                   {comQtdInvalida.slice(0, 3).map((r: any) => `Linha ${r.linha ?? '?'}: quantidade mínima é 1`).join(' · ')}
                   {comQtdInvalida.length > 3 ? ` · e mais ${comQtdInvalida.length - 3}` : ''}
                   {' — corrija a quantidade ou tire a linha.'}
@@ -975,7 +984,7 @@ export function ImportXlsxDialog({
               {/* O QUE ACONTECE DEPOIS — antes de clicar. Importar não é
                   enviar: as peças caem no card de rascunhos do evento e só
                   seguem para a vinculação quando alguém envia. */}
-              <p data-testid="texto-depois-de-importar" style={{ margin: 0, fontSize: 11, color: '#57534e', lineHeight: 1.45, textAlign: 'center' }}>
+              <p data-testid="texto-depois-de-importar" style={{ margin: 0, fontSize: 11, color: T.apoio, lineHeight: 1.45, textAlign: 'center' }}>
                 As peças entram em Rascunho no evento. Depois, envie para a vinculação.
               </p>
             </div>
@@ -989,18 +998,18 @@ export function ImportXlsxDialog({
             {/* Search bar. paddingRight extra: o X nativo do dialog vive em
                 right-4/top-4 e ficava POR CIMA do botão "+ Todos
                 patrocinadores" — colisão flagrada em produção. */}
-            <div style={{ padding: '10px 44px 10px 16px', borderBottom: '1px solid #e7e5e4', backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <div style={{ padding: '10px 44px 10px 16px', borderBottom: `1px solid ${T.border}`, backgroundColor: T.surface, display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
               <div style={{ position: 'relative', flex: 1 }}>
-                <Search style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: '#8a847e', pointerEvents: 'none' }} />
+                <Search style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: T.second, pointerEvents: 'none' }} />
                 <input
                   value={importSearch}
                   onChange={e => setImportSearch(e.target.value)}
                   placeholder="Filtrar peças ou grupos..."
                   aria-label="Filtrar as peças da planilha por descrição ou grupo"
-                  style={{ width: '100%', padding: '7px 12px 7px 28px', backgroundColor: '#f5f4f2', border: '1px solid #e7e5e4', borderRadius: 8, color: '#1a1c1c', fontSize: 13, boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '7px 12px 7px 28px', backgroundColor: N.n3, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontSize: 13, boxSizing: 'border-box' }}
                 />
               </div>
-              <span style={{ fontSize: 11, color: '#746e69', whiteSpace: 'nowrap', fontWeight: 600 }}>
+              <span style={{ fontSize: 11, color: T.second, whiteSpace: 'nowrap', fontWeight: 600 }}>
                 {importSearch || triagem
                   ? `${importPreviewItems.filter(matchesImportFiltros).length} de ${importPreviewItems.length} peças`
                   : `${importPreviewItems.length} peças`
@@ -1014,14 +1023,15 @@ export function ImportXlsxDialog({
                   type="button"
                   onClick={() => setTriagem(null)}
                   data-testid="button-limpar-triagem"
-                  style={{ fontSize: 11, fontWeight: 700, color: '#c2410c', background: 'none', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', padding: 0 }}
+                  style={{ fontSize: 11, fontWeight: 700, color: T.accentText, background: 'none', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', padding: 0 }}
                 >
                   Limpar
                 </button>
               )}
               {eventSponsorsList.length > 0 && (
-                <button
-                  type="button"
+                <Botao
+                  variante="secundario"
+                  tamanho="sm"
                   title="Vincular todos os patrocinadores do evento a todas as peças listadas"
                   onClick={() => {
                     const allIds = eventSponsorsList.map(s => s.sponsorId);
@@ -1032,10 +1042,10 @@ export function ImportXlsxDialog({
                         : r
                     ) : prev);
                   }}
-                  style={{ fontSize: 11, fontWeight: 700, borderRadius: 8, border: '1px solid #bbf7d0', backgroundColor: '#f0fdf4', color: '#15803d', cursor: 'pointer', padding: '6px 11px', whiteSpace: 'nowrap', flexShrink: 0 }}
+                  style={{ flexShrink: 0 }}
                 >
                   + Todos patrocinadores
-                </button>
+                </Botao>
               )}
             </div>
 
@@ -1051,9 +1061,9 @@ export function ImportXlsxDialog({
                   {colunas.map((c, i) => <col key={i} style={{ width: c.w }} />)}
                 </colgroup>
                 <thead>
-                  <tr style={{ backgroundColor: '#f5f4f2', position: 'sticky', top: 0, zIndex: 2, boxShadow: '0 1px 0 #e8e6e3' }}>
+                  <tr style={{ backgroundColor: N.n3, position: 'sticky', top: 0, zIndex: 2, boxShadow: `0 1px 0 ${T.border}` }}>
                     {colunas.map((h, i) => (
-                      <th key={i} title={h.tip} style={{ padding: '9px 10px', textAlign: 'left', fontWeight: 700, fontSize: 10, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.label}</th>
+                      <th key={i} title={h.tip} style={{ padding: '9px 10px', textAlign: 'left', fontWeight: 700, fontSize: 10, color: T.second, textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.label}</th>
                     ))}
                   </tr>
                 </thead>
@@ -1073,18 +1083,18 @@ export function ImportXlsxDialog({
                       return (
                         <Fragment key={type}>
                           <tr>
-                            <td colSpan={colunas.length} style={{ padding: '9px 14px 8px', background: 'linear-gradient(90deg, #F0EEEC 0%, #F5F4F2 100%)', borderTop: gIdx > 0 ? '2px solid #E2DEDA' : undefined, borderBottom: '1px solid #e2deda' }}>
+                            <td colSpan={colunas.length} style={{ padding: '9px 14px 8px', background: `linear-gradient(90deg, ${N.n3} 0%, ${N.n3} 100%)`, borderTop: gIdx > 0 ? `2px solid ${T.border}` : undefined, borderBottom: `1px solid ${T.border}` }}>
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                  <div style={{ width: 3, height: 14, backgroundColor: '#D97A1E', borderRadius: 6 }} />
-                                  <span style={{ fontWeight: 800, fontSize: 13, color: '#1a1c1c', fontFamily: "'Space Grotesk', sans-serif", textTransform: 'uppercase', letterSpacing: '0.04em' }}>{type}</span>
-                                  <span style={{ fontSize: 10, fontWeight: 600, color: '#57534e', backgroundColor: '#e8e6e3', borderRadius: 999, padding: '1px 8px' }}>{groupItems.length}</span>
+                                  <div style={{ width: 3, height: 14, backgroundColor: T.accent, borderRadius: 6 }} />
+                                  <span style={{ fontWeight: 800, fontSize: 13, color: T.text, fontFamily: FONT.display, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{type}</span>
+                                  <span style={{ fontSize: 10, fontWeight: 600, color: T.apoio, backgroundColor: T.border, borderRadius: 999, padding: '1px 8px' }}>{groupItems.length}</span>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                                   {groupM2 > 0 && (
-                                    <span style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', fontWeight: 700, color: '#b45309' }}>{groupM2.toFixed(2)} m²</span>
+                                    <span style={{ fontSize: 11, fontFamily: FONT.mono, fontWeight: 700, color: TOM.alerta.text }}>{groupM2.toFixed(2)} m²</span>
                                   )}
-                                  <span style={{ fontSize: 11, color: groupLinked === groupItems.length ? '#15803d' : '#b45309', fontWeight: 600 }}>
+                                  <span style={{ fontSize: 11, color: groupLinked === groupItems.length ? TOM.sucesso.text : TOM.alerta.text, fontWeight: 600 }}>
                                     {groupLinked}/{groupItems.length} vinculados
                                   </span>
                                 </div>
@@ -1111,28 +1121,31 @@ export function ImportXlsxDialog({
                 </tbody>
               </table>
               {importPreviewItems.length === 0 && (
-                <div style={{ padding: 60, textAlign: 'center', color: '#746e69', fontSize: 13 }}>
-                  <List aria-hidden="true" style={{ width: 32, height: 32, color: T.second, margin: '0 auto 12px' }} />
-                  <div>Nenhuma peça para importar.</div>
+                <div style={{ padding: 24 }}>
+                  <EstadoVazio icone={List} titulo="Nenhuma peça para importar." />
                 </div>
               )}
               {/* Filtro sem resultado: antes a tabela simplesmente sumia,
                   sem dizer o porquê nem oferecer saída. */}
               {importPreviewItems.length > 0 && importPreviewItems.filter(matchesImportFiltros).length === 0 && (
-                <div style={{ padding: 60, textAlign: 'center', color: '#746e69', fontSize: 13 }}>
-                  <Search aria-hidden="true" style={{ width: 32, height: 32, color: T.second, margin: '0 auto 12px' }} />
-                  <div style={{ fontWeight: 700, color: '#1a1c1c', marginBottom: 4 }}>Nenhuma peça corresponde ao filtro</div>
-                  <div style={{ marginBottom: 14 }}>Tente outro termo ou limpe o filtro para ver as {importPreviewItems.length} peças.</div>
-                  <button
-                    // Limpa os DOIS recortes: com a triagem ligada, um
-                    // "Limpar filtro" que so apaga a busca deixa a tela
-                    // vazia depois de a pessoa ter pedido para limpar.
-                    onClick={() => { setImportSearch(""); setTriagem(null); }}
-                    data-testid="button-clear-import-search"
-                    style={{ padding: '8px 18px', backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 8, fontSize: 12, fontWeight: 700, color: '#1a1c1c', cursor: 'pointer' }}
-                  >
-                    Limpar filtro
-                  </button>
+                <div style={{ padding: 24 }}>
+                  <EstadoVazio
+                    icone={Search}
+                    titulo="Nenhuma peça corresponde ao filtro"
+                    descricao={<>Tente outro termo ou limpe o filtro para ver as {importPreviewItems.length} peças.</>}
+                    acao={
+                      <Botao
+                        variante="secundario"
+                        // Limpa os DOIS recortes: com a triagem ligada, um
+                        // "Limpar filtro" que so apaga a busca deixa a tela
+                        // vazia depois de a pessoa ter pedido para limpar.
+                        onClick={() => { setImportSearch(""); setTriagem(null); }}
+                        data-testid="button-clear-import-search"
+                      >
+                        Limpar filtro
+                      </Botao>
+                    }
+                  />
                 </div>
               )}
             </div>
@@ -1155,26 +1168,7 @@ export function ImportXlsxDialog({
       />
 
       {/* Confirmação de descarte da importação — padrão da casa */}
-      <AlertDialog open={confirmDiscardOpen} onOpenChange={setConfirmDiscardOpen}>
-        <AlertDialogContent style={{ width: '96vw', maxWidth: 420, borderRadius: 16 }}>
-          <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 700, color: '#1c1917' }}>
-            Descartar importação?
-          </AlertDialogTitle>
-          <AlertDialogDescription style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6 }}>
-            As edições e vinculações feitas no preview serão perdidas.
-          </AlertDialogDescription>
-          <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-keep-import">Continuar editando</AlertDialogCancel>
-            <AlertDialogAction
-              data-testid="button-discard-import"
-              onClick={() => { setConfirmDiscardOpen(false); onOpenChangeClose(); }}
-              style={{ backgroundColor: '#dc2626', color: '#fff' }}
-            >
-              Descartar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {dialogo}
     </Dialog>
   );
 }

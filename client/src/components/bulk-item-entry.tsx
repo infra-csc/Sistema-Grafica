@@ -8,7 +8,9 @@ import { FilterSelect, type FilterOption } from "@/components/filter-select";
 // Mesma normalização da busca dos menus: sem acento, sem caixa, sem espaço
 // sobrando. É ela que reconhece "sanett" e "Sanett" como o mesmo material.
 import { normalizarBusca } from "@/lib/utils";
-import { T } from "@/lib/theme";
+import { T, N, TOM, FONT } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { useConfirmar } from "@/components/ui/usar-confirmar";
 
 const materials = ["Adesivo", "Lona", "Madeira", "Sanett", "Tecido", "Tecido Pet"];
 const finishes = ["Dupla Face", "Ilhós", "Impressão UV", "Impresso", "Recorte", "Refile"];
@@ -102,14 +104,14 @@ interface BulkItemEntryProps {
 /* ── Styles ─────────────────────────────────────────────────────────── */
 const fieldStyle: React.CSSProperties = {
   width: '100%',
-  backgroundColor: '#f3f4f3',
+  backgroundColor: T.low,
   border: '1.5px solid transparent',
   borderRadius: '6px',
   fontSize: '13px',
   padding: '5px 8px',
  
-  fontFamily: "'Plus Jakarta Sans', sans-serif",
-  color: '#1a1c1c',
+  fontFamily: FONT.corpo,
+  color: T.text,
   boxSizing: 'border-box',
   transition: 'border-color 0.12s',
 };
@@ -124,7 +126,7 @@ const fieldStyle: React.CSSProperties = {
 function makeFocusHandlers(onNav?: () => void) {
   return {
     onFocus: (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
-      e.currentTarget.style.borderColor = '#f97316';
+      e.currentTarget.style.borderColor = T.accent;
     },
     onBlur: (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
       e.currentTarget.style.borderColor = 'transparent';
@@ -178,15 +180,15 @@ function TipoSelect({ value, groupedOptions, onChange, rowIndex, onNavigateNext 
           padding: '7px 10px', borderRadius: 6, fontSize: 13,
           fontWeight: sel ? 700 : 500,
           // #c2410c e não #f97316: o tipo escolhido é TEXTO (2,9:1 reprovava).
-          color: sel ? '#c2410c' : '#1c1917',
-          backgroundColor: sel ? '#fff7ed' : 'transparent',
-          cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", gap: 6,
+          color: sel ? T.accentText : T.text,
+          backgroundColor: sel ? TOM.laranja.bg : 'transparent',
+          cursor: 'pointer', fontFamily: FONT.corpo, gap: 6,
         }}
-        onMouseEnter={e => { if (!sel) (e.currentTarget as HTMLDivElement).style.backgroundColor = '#f5f5f4'; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.backgroundColor = sel ? '#fff7ed' : ''; }}
+        onMouseEnter={e => { if (!sel) (e.currentTarget as HTMLDivElement).style.backgroundColor = N.n2; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.backgroundColor = sel ? TOM.laranja.bg : ''; }}
       >
         <span style={{ flex: 1 }}>{opt}</span>
-        {sel && <Check size={10} color="#c2410c" aria-hidden="true" />}
+        {sel && <Check size={10} color={T.accentText} aria-hidden="true" />}
       </div>
     );
   }
@@ -200,12 +202,12 @@ function TipoSelect({ value, groupedOptions, onChange, rowIndex, onNavigateNext 
       }}
     >
       <div style={{ position: 'relative', display: 'flex' }}>
-        <div style={{ width: '3px', flexShrink: 0, backgroundColor: '#f97316', borderRadius: '6px 0 0 6px', alignSelf: 'stretch' }} />
+        <div style={{ width: '3px', flexShrink: 0, backgroundColor: T.accent, borderRadius: '6px 0 0 6px', alignSelf: 'stretch' }} />
         <input
           ref={inputRef}
           value={open ? search : value}
           onChange={e => { setSearch(e.target.value); if (!open) setOpen(true); }}
-          onFocus={() => { setSearch(""); setOpen(true); inputRef.current!.style.borderColor = '#f97316'; }}
+          onFocus={() => { setSearch(""); setOpen(true); inputRef.current!.style.borderColor = T.accent; }}
           onBlur={e => { e.currentTarget.style.borderColor = 'transparent'; }}
           onKeyDown={handleKeyDown}
           onMouseDown={() => { if (!open) { setSearch(""); setOpen(true); } }}
@@ -214,24 +216,24 @@ function TipoSelect({ value, groupedOptions, onChange, rowIndex, onNavigateNext 
           aria-expanded={open}
           data-nav-row={rowIndex}
           data-nav-field="0"
-          style={{ ...fieldStyle, flex: 1, paddingRight: '24px', paddingLeft: '8px', textOverflow: 'ellipsis', cursor: 'pointer', borderRadius: '0 6px 6px 0', backgroundColor: open ? '#ebe9e7' : '#f3f4f3' }}
+          style={{ ...fieldStyle, flex: 1, paddingRight: '24px', paddingLeft: '8px', textOverflow: 'ellipsis', cursor: 'pointer', borderRadius: '0 6px 6px 0', backgroundColor: open ? T.border : T.low }}
         />
-        <ChevronDown size={10} color="#78716c" aria-hidden="true" style={{ position: 'absolute', right: 7, top: '50%', transform: open ? 'translateY(-50%) rotate(180deg)' : 'translateY(-50%)', transition: 'transform 0.15s', pointerEvents: 'none' }} />
+        <ChevronDown size={10} color={T.second} aria-hidden="true" style={{ position: 'absolute', right: 7, top: '50%', transform: open ? 'translateY(-50%) rotate(180deg)' : 'translateY(-50%)', transition: 'transform 0.15s', pointerEvents: 'none' }} />
       </div>
 
       {open && (
-        <div style={{ position: 'absolute', top: 'calc(100% + 3px)', left: 0, zIndex: 600, backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 8, boxShadow: '0 8px 28px rgba(0,0,0,0.13)', maxHeight: 260, overflowY: 'auto', minWidth: 220, padding: '4px', scrollbarWidth: 'thin', scrollbarColor: '#d6d3d1 #f5f5f4' }}>
+        <div style={{ position: 'absolute', top: 'calc(100% + 3px)', left: 0, zIndex: 600, backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, boxShadow: '0 8px 28px rgba(0,0,0,0.13)', maxHeight: 260, overflowY: 'auto', minWidth: 220, padding: '4px', scrollbarWidth: 'thin', scrollbarColor: `${T.bdark} ${N.n2}` }}>
           {filtered !== null ? (
             filtered.length === 0
-              ? <div style={{ padding: '10px 12px', fontSize: 13, color: '#746e69', textAlign: 'center', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Nenhum resultado</div>
+              ? <div style={{ padding: '10px 12px', fontSize: 13, color: T.second, textAlign: 'center', fontFamily: FONT.corpo }}>Nenhum resultado</div>
               : filtered.map(renderOption)
           ) : (
             groupedOptions.length === 0
-              ? <div style={{ padding: '10px 12px', fontSize: 13, color: '#746e69', textAlign: 'center', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Nenhum modelo cadastrado</div>
+              ? <div style={{ padding: '10px 12px', fontSize: 13, color: T.second, textAlign: 'center', fontFamily: FONT.corpo }}>Nenhum modelo cadastrado</div>
               : groupedOptions.map(({ group, items }) => (
                 <div key={group || '__nogroup'}>
                   {group && (
-                    <div style={{ padding: '5px 10px 3px', fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#0369a1', fontFamily: "'Space Grotesk', sans-serif", backgroundColor: '#f0f9ff', borderRadius: 6, margin: '4px 2px 2px' }}>
+                    <div style={{ padding: '5px 10px 3px', fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: TOM.ceu.text, fontFamily: FONT.display, backgroundColor: TOM.ceu.bg, borderRadius: 6, margin: '4px 2px 2px' }}>
                       {group}
                     </div>
                   )}
@@ -310,8 +312,8 @@ function CampoDaGrade({
         height: 'auto',
         padding: '5px 6px 5px 8px',
         border: '1.5px solid transparent',
-        backgroundColor: invalid ? '#fff5f5' : '#f3f4f3',
-        color: value ? '#1a1c1c' : '#57534e',
+        backgroundColor: invalid ? TOM.perigo.bg : T.low,
+        color: value ? T.text : T.apoio,
         fontWeight: 400,
       }}
     />
@@ -402,8 +404,8 @@ function ExistingItemsPanel({ items, standardItems = [] }: ExistingItemsPanelPro
         style={{
           display: 'flex', alignItems: 'center', gap: '6px',
           padding: '5px 8px',
-          borderBottom: '1px solid #f5f5f4',
-          backgroundColor: hovered ? '#fff7ed' : 'transparent',
+          borderBottom: `1px solid ${N.n2}`,
+          backgroundColor: hovered ? TOM.laranja.bg : 'transparent',
           transition: 'background-color 0.1s',
           minWidth: 0,
         }}
@@ -413,28 +415,28 @@ function ExistingItemsPanel({ items, standardItems = [] }: ExistingItemsPanelPro
           // #c2410c sobre branco = 5,18:1 e sobre o #fff7ed do hover = 4,88:1 ✓
           // (#f97316 dava 2,94:1 — reprovado, e num ID de 10px que se lê para
           // digitar em outra tela.)
-          fontSize: '10px', fontWeight: '700', color: '#c2410c',
-          fontFamily: "'DM Mono', 'JetBrains Mono', monospace",
+          fontSize: '10px', fontWeight: '700', color: T.accentText,
+          fontFamily: FONT.mono,
           minWidth: '52px', flexShrink: 0,
         }}>
           {item.displayId}
         </span>
         {/* Tipo */}
         <span style={{
-          fontSize: '11px', fontWeight: '700', color: '#292524',
-          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          fontSize: '11px', fontWeight: '700', color: T.strong,
+          fontFamily: FONT.corpo,
           minWidth: '110px', flexShrink: 0,
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         }}>
           {item.type}
           {item.quantity > 1 && (
-            <span style={{ fontWeight: '500', color: '#746e69', marginLeft: '3px' }}>×{item.quantity}</span>
+            <span style={{ fontWeight: '500', color: T.second, marginLeft: '3px' }}>×{item.quantity}</span>
           )}
         </span>
         {/* Descrição */}
         <span style={{
-          fontSize: '11px', color: '#746e69',
-          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          fontSize: '11px', color: T.second,
+          fontFamily: FONT.corpo,
           flex: 1, minWidth: 0,
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         }}>
@@ -445,26 +447,26 @@ function ExistingItemsPanel({ items, standardItems = [] }: ExistingItemsPanelPro
   }
 
   return (
-    <div style={{ marginBottom: '24px', border: '1px solid #e7e5e4', borderRadius: '12px', overflow: 'hidden' }}>
+    <div style={{ marginBottom: '24px', border: `1px solid ${T.border}`, borderRadius: '12px', overflow: 'hidden' }}>
       {/* ── Sticky header ── */}
       <div style={{
         position: 'sticky', top: 0, zIndex: 10,
         display: 'flex', alignItems: 'center', gap: '8px',
         padding: '7px 12px',
-        backgroundColor: '#f5f5f4', borderBottom: '1px solid #e7e5e4',
+        backgroundColor: N.n2, borderBottom: `1px solid ${T.border}`,
       }}>
         <span style={{
           fontSize: '10px', fontWeight: '800', textTransform: 'uppercase',
-          letterSpacing: '0.14em', color: '#746e69',
-          fontFamily: "'Space Grotesk', sans-serif", whiteSpace: 'nowrap',
+          letterSpacing: '0.14em', color: T.second,
+          fontFamily: FONT.display, whiteSpace: 'nowrap',
         }}>
           Peças já lançadas
         </span>
         <span style={{
           fontSize: '10px', fontWeight: '800',
-          backgroundColor: '#1c1917', color: '#fff',
+          backgroundColor: T.text, color: T.surface,
           borderRadius: '999px', padding: '1px 7px',
-          fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0,
+          fontFamily: FONT.display, flexShrink: 0,
         }}>
           {items.length}
         </span>
@@ -474,7 +476,7 @@ function ExistingItemsPanel({ items, standardItems = [] }: ExistingItemsPanelPro
 
         {/* Quick search */}
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-          <Search size={11} color="#78716c" aria-hidden="true" style={{ position: 'absolute', left: 7, pointerEvents: 'none' }} />
+          <Search size={11} color={T.second} aria-hidden="true" style={{ position: 'absolute', left: 7, pointerEvents: 'none' }} />
           <input
             type="text"
             value={query}
@@ -482,10 +484,10 @@ function ExistingItemsPanel({ items, standardItems = [] }: ExistingItemsPanelPro
             placeholder="Filtrar..."
             aria-label="Filtrar as peças já lançadas"
             style={{
-              fontSize: '11px', fontFamily: "'Plus Jakarta Sans', sans-serif",
-              backgroundColor: '#ebe9e7', border: 'none',
+              fontSize: '11px', fontFamily: FONT.corpo,
+              backgroundColor: T.border, border: 'none',
               borderRadius: '6px', padding: '4px 24px 4px 24px',
-              color: '#1a1c1c', width: '140px',
+              color: T.text, width: '140px',
             }}
           />
           {query && (
@@ -493,7 +495,7 @@ function ExistingItemsPanel({ items, standardItems = [] }: ExistingItemsPanelPro
               type="button"
               onClick={() => setQuery("")}
               aria-label="Limpar o filtro"
-              style={{ position: 'absolute', right: 6, background: 'none', border: 'none', cursor: 'pointer', lineHeight: 0, padding: 0, color: '#746e69' }}
+              style={{ position: 'absolute', right: 6, background: 'none', border: 'none', cursor: 'pointer', lineHeight: 0, padding: 0, color: T.second }}
             >
               <X size={10} />
             </button>
@@ -504,10 +506,10 @@ function ExistingItemsPanel({ items, standardItems = [] }: ExistingItemsPanelPro
       {/* ── Grouped by type list ── */}
       <div
         className="scrollbar-visible"
-        style={{ maxHeight: '176px', overflowY: 'auto', backgroundColor: '#fafaf9' }}
+        style={{ maxHeight: '176px', overflowY: 'auto', backgroundColor: T.bg }}
       >
         {filtered.length === 0 ? (
-          <div style={{ padding: '12px 16px', fontSize: '11px', color: '#746e69', textAlign: 'center', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          <div style={{ padding: '12px 16px', fontSize: '11px', color: T.second, textAlign: 'center', fontFamily: FONT.corpo }}>
             {query ? 'Nenhum item encontrado para esta busca.' : 'Nenhuma peça lançada ainda.'}
           </div>
         ) : (() => {
@@ -532,8 +534,8 @@ function ExistingItemsPanel({ items, standardItems = [] }: ExistingItemsPanelPro
             <div key={group || '__nogroup'}>
               {/* Grupo Pai header */}
               {group && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '4px 8px', backgroundColor: '#e0f2fe', borderTop: '1px solid #bae6fd', borderBottom: '1px solid #bae6fd' }}>
-                  <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#0369a1', fontFamily: "'Space Grotesk', sans-serif" }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '4px 8px', backgroundColor: TOM.ceu.border, borderTop: `1px solid ${TOM.ceu.border}`, borderBottom: `1px solid ${TOM.ceu.border}` }}>
+                  <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', color: TOM.ceu.text, fontFamily: FONT.display }}>
                     {group}
                   </span>
                 </div>
@@ -541,11 +543,11 @@ function ExistingItemsPanel({ items, standardItems = [] }: ExistingItemsPanelPro
               {Object.entries(groupMap[group]).map(([type, typeItems]) => (
                 <div key={type}>
                   {/* Type sub-header */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '4px 8px', backgroundColor: '#f0ede8', borderTop: '1px solid #e7e3dc', borderBottom: '1px solid #e7e3dc' }}>
-                    <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#6F6A63', fontFamily: "'Space Grotesk', sans-serif", flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '4px 8px', backgroundColor: N.n3, borderTop: `1px solid ${T.border}`, borderBottom: `1px solid ${T.border}` }}>
+                    <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', color: T.second, fontFamily: FONT.display, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {type}
                     </span>
-                    <span style={{ fontSize: '10px', fontWeight: '700', color: '#57534e', backgroundColor: '#e7e3de', borderRadius: 999, padding: '1px 6px', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>
+                    <span style={{ fontSize: '10px', fontWeight: '700', color: T.apoio, backgroundColor: T.border, borderRadius: 999, padding: '1px 6px', fontFamily: FONT.display, flexShrink: 0 }}>
                       {typeItems.length}
                     </span>
                   </div>
@@ -594,6 +596,7 @@ export function BulkItemEntry({
   const tableRef = useRef<HTMLDivElement>(null);
   const submittedIdsRef = useRef<string[]>([]);
   const { toast } = useToast();
+  const { confirmar, dialogo } = useConfirmar();
 
   // Quando o pai confirma o salvamento, tira do grid só as linhas gravadas.
   // As incompletas ficam, para o usuário terminar sem perder o que digitou.
@@ -723,7 +726,7 @@ export function BulkItemEntry({
       toast({
         title: "Nenhuma peça válida",
         description: "Preencha os campos destacados em vermelho antes de salvar.",
-        variant: "destructive",
+        variant: "warning",
       });
       return;
     }
@@ -786,7 +789,7 @@ export function BulkItemEntry({
   /** Retorna estilo com borda vermelha se campo estiver vazio após tentativa de salvar */
   const errStyle = (value: string | number, base: React.CSSProperties, rowHasContent: boolean): React.CSSProperties => {
     if (!submitAttempted || !rowHasContent || value) return base;
-    return { ...base, boxShadow: '0 0 0 1.5px #ef4444', backgroundColor: '#fff5f5' };
+    return { ...base, boxShadow: `0 0 0 1.5px ${TOM.perigo.dot}`, backgroundColor: TOM.perigo.bg };
   };
 
   const groupedTypeOptions = useMemo(() => {
@@ -848,8 +851,8 @@ export function BulkItemEntry({
           display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px',
         }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-            <Loader2 className="h-10 w-10 animate-spin" style={{ color: '#f97316' }} />
-            <span style={{ fontSize: '15px', fontWeight: '700', color: '#1a1c1c', fontFamily: "'Space Grotesk', sans-serif" }}>
+            <Loader2 className="h-10 w-10 animate-spin" style={{ color: T.accent }} />
+            <span style={{ fontSize: '15px', fontWeight: '700', color: T.text, fontFamily: FONT.display }}>
               Salvando peças...
             </span>
           </div>
@@ -865,7 +868,7 @@ export function BulkItemEntry({
       <Dialog open={!!duplicateConfirm} onOpenChange={o => { if (!o) setDuplicateConfirm(null); }}>
         <DialogContent
           className="p-0 gap-0 border-none"
-          style={{ maxWidth: 520, width: '96vw', borderRadius: 12, overflow: 'hidden', backgroundColor: '#F7F6F3', boxShadow: '0 24px 64px rgba(0,0,0,0.28)' }}
+          style={{ maxWidth: 520, width: '96vw', borderRadius: 12, overflow: 'hidden', backgroundColor: N.n2, boxShadow: '0 24px 64px rgba(0,0,0,0.28)' }}
         >
           <DialogTitle className="sr-only">Revisão do lote</DialogTitle>
           <DialogDescription className="sr-only">Confira as peças antes de gravar o lote</DialogDescription>
@@ -880,20 +883,20 @@ export function BulkItemEntry({
             {/* ── CABEÇALHO ── */}
             <div style={{
               padding: '22px 28px 18px',
-              borderBottom: '1px solid #E7E3DC',
-              backgroundColor: '#fff',
+              borderBottom: `1px solid ${T.border}`,
+              backgroundColor: T.surface,
               borderRadius: '12px 12px 0 0',
             }}>
               <p style={{
                 margin: 0, fontSize: '11px', fontWeight: '700', letterSpacing: '0.10em',
-                textTransform: 'uppercase', color: '#746e69',
-                fontFamily: "'Space Grotesk', sans-serif",
+                textTransform: 'uppercase', color: T.second,
+                fontFamily: FONT.display,
               }}>
                 Revisão do Lote
               </p>
               <p style={{
-                margin: '4px 0 0', fontSize: '18px', fontWeight: '800', color: '#1F1D1A',
-                fontFamily: "'Space Grotesk', sans-serif",
+                margin: '4px 0 0', fontSize: '18px', fontWeight: '800', color: T.text,
+                fontFamily: FONT.display,
               }}>
                 Confirmar criação de peças
               </p>
@@ -906,16 +909,16 @@ export function BulkItemEntry({
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                   <div style={{
-                    width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#22c55e', flexShrink: 0,
+                    width: '6px', height: '6px', borderRadius: '50%', backgroundColor: TOM.sucesso.dot, flexShrink: 0,
                   }} />
                   <span style={{
                     fontSize: '10px', fontWeight: '700', letterSpacing: '0.10em', textTransform: 'uppercase',
-                    color: '#6F6A63', fontFamily: "'Space Grotesk', sans-serif",
+                    color: T.second, fontFamily: FONT.display,
                   }}>
                     Será criado — {duplicateConfirm.valid.length} {duplicateConfirm.valid.length === 1 ? 'peça' : 'peças'}
                   </span>
                 </div>
-                <div style={{ maxHeight: '220px', overflowY: 'auto', overflowX: 'hidden', border: '1px solid #E7E3DC', borderRadius: '8px' }}>
+                <div style={{ maxHeight: '220px', overflowY: 'auto', overflowX: 'hidden', border: `1px solid ${T.border}`, borderRadius: '8px' }}>
                   {(() => {
                     const typeToGroup: Record<string, string> = {};
                     for (const s of standardItems) { if (s.group) typeToGroup[s.name] = s.group; }
@@ -930,8 +933,8 @@ export function BulkItemEntry({
                     return sortedGroups.map(group => (
                       <div key={group || '__nogroup'}>
                         {group && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '4px 12px', backgroundColor: '#e0f2fe', borderBottom: '1px solid #bae6fd' }}>
-                            <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#0369a1', fontFamily: "'Space Grotesk', sans-serif" }}>{group}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '4px 12px', backgroundColor: TOM.ceu.border, borderBottom: `1px solid ${TOM.ceu.border}` }}>
+                            <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', color: TOM.ceu.text, fontFamily: FONT.display }}>{group}</span>
                           </div>
                         )}
                         {Object.entries(groupMap[group]).map(([type, typeItems], gi) => (
@@ -940,23 +943,23 @@ export function BulkItemEntry({
                         <div style={{
                           display: 'flex', alignItems: 'center', gap: '7px',
                           padding: '5px 12px',
-                          backgroundColor: '#f0ede8',
-                          borderTop: (!group && gi === 0) ? 'none' : '1px solid #E7E3DC',
-                          borderBottom: '1px solid #E7E3DC',
+                          backgroundColor: N.n3,
+                          borderTop: (!group && gi === 0) ? 'none' : `1px solid ${T.border}`,
+                          borderBottom: `1px solid ${T.border}`,
                         }}>
                           <span style={{
                             fontSize: '10px', fontWeight: '900',
                             textTransform: 'uppercase', letterSpacing: '0.12em',
-                            color: '#6F6A63', fontFamily: "'Space Grotesk', sans-serif",
+                            color: T.second, fontFamily: FONT.display,
                             flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                           }}>
                             {type}
                           </span>
                           <span style={{
                             fontSize: '10px', fontWeight: '700',
-                            color: '#57534e', backgroundColor: '#e7e3de',
+                            color: T.apoio, backgroundColor: T.border,
                             borderRadius: 999, padding: '1px 6px',
-                            fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0,
+                            fontFamily: FONT.display, flexShrink: 0,
                           }}>
                             {typeItems.length}
                           </span>
@@ -967,18 +970,18 @@ export function BulkItemEntry({
                           const isDup = !!dupMatch;
                           return (
                             <div key={i} style={{
-                              backgroundColor: isDup ? '#fef9ec' : '#fff',
-                              borderBottom: '1px solid #E7E3DC',
+                              backgroundColor: isDup ? TOM.alerta.bg : T.surface,
+                              borderBottom: `1px solid ${T.border}`,
                               padding: '9px 12px',
                               display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px',
                             }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                                 {item.isReuse && (
                                   <span style={{
-                                    fontSize: '10px', fontWeight: '800', backgroundColor: '#047857',
-                                    color: '#ffffff', borderRadius: '6px', padding: '1px 6px',
+                                    fontSize: '10px', fontWeight: '800', backgroundColor: TOM.esmeralda.text,
+                                    color: T.surface, borderRadius: '6px', padding: '1px 6px',
                                     textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0,
-                                    fontFamily: "'Space Grotesk', sans-serif",
+                                    fontFamily: FONT.display,
                                     display: 'inline-flex', alignItems: 'center', gap: 3,
                                   }}>
                                     <RotateCcw size={8} /> Reaproveit.
@@ -986,34 +989,34 @@ export function BulkItemEntry({
                                 )}
                                 {isDup && (
                                   <span style={{
-                                    fontSize: '10px', fontWeight: '800', backgroundColor: '#fde68a',
-                                    color: '#92400e', borderRadius: '6px', padding: '1px 5px',
+                                    fontSize: '10px', fontWeight: '800', backgroundColor: TOM.alerta.border,
+                                    color: TOM.alerta.text, borderRadius: '6px', padding: '1px 5px',
                                     textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0,
-                                    fontFamily: "'Space Grotesk', sans-serif",
+                                    fontFamily: FONT.display,
                                   }}>Dup</span>
                                 )}
                                 {isDup && dupMatch?.existingItem.displayId && (
-                                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#b45309', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>
+                                  <span style={{ fontSize: '11px', fontWeight: '700', color: TOM.alerta.text, fontFamily: FONT.display, flexShrink: 0 }}>
                                     {dupMatch.existingItem.displayId}
                                   </span>
                                 )}
-                                <span style={{ fontSize: '13px', fontWeight: '700', color: isDup ? '#92400e' : '#1F1D1A', fontFamily: "'Space Grotesk', sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                <span style={{ fontSize: '13px', fontWeight: '700', color: isDup ? TOM.alerta.text : T.text, fontFamily: FONT.display, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                   {item.type}
                                 </span>
                                 {item.description && (
-                                  <span style={{ fontSize: '11px', color: isDup ? '#b45309' : '#746e69', fontFamily: "'Plus Jakarta Sans', sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  <span style={{ fontSize: '11px', color: isDup ? TOM.alerta.text : T.second, fontFamily: FONT.corpo, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     {item.description}
                                   </span>
                                 )}
                               </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-                                <span style={{ fontSize: '11px', color: '#6F6A63', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                                <span style={{ fontSize: '11px', color: T.second, fontFamily: FONT.corpo }}>
                                   {item.fileWidth} × {item.fileHeight}m
                                 </span>
-                                <span style={{ fontSize: '11px', color: '#6F6A63', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                                <span style={{ fontSize: '11px', color: T.second, fontFamily: FONT.corpo }}>
                                   {item.material}
                                 </span>
-                                <span style={{ fontSize: '11px', fontWeight: '700', color: '#b45309', fontFamily: "'Space Grotesk', sans-serif", backgroundColor: '#FDF3E7', borderRadius: '6px', padding: '2px 7px' }}>
+                                <span style={{ fontSize: '11px', fontWeight: '700', color: TOM.alerta.text, fontFamily: FONT.display, backgroundColor: TOM.laranja.bg, borderRadius: '6px', padding: '2px 7px' }}>
                                   {item.quantity}x
                                 </span>
                               </div>
@@ -1032,12 +1035,12 @@ export function BulkItemEntry({
               {existingItems.length > 0 && (
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#A9B7C8', flexShrink: 0 }} />
-                    <span style={{ fontSize: '10px', fontWeight: '700', letterSpacing: '0.10em', textTransform: 'uppercase', color: '#6F6A63', fontFamily: "'Space Grotesk', sans-serif" }}>
+                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: T.muted, flexShrink: 0 }} />
+                    <span style={{ fontSize: '10px', fontWeight: '700', letterSpacing: '0.10em', textTransform: 'uppercase', color: T.second, fontFamily: FONT.display }}>
                       Já existem no evento — {existingItems.length} {existingItems.length === 1 ? 'peça' : 'peças'}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0px', maxHeight: '220px', overflowY: 'auto', overflowX: 'hidden', border: '1px solid #E7E3DC', borderRadius: '8px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0px', maxHeight: '220px', overflowY: 'auto', overflowX: 'hidden', border: `1px solid ${T.border}`, borderRadius: '8px' }}>
                     {(() => {
                       const typeToGroup2: Record<string, string> = {};
                       for (const s of standardItems) { if (s.group) typeToGroup2[s.name] = s.group; }
@@ -1052,27 +1055,27 @@ export function BulkItemEntry({
                       return sortedG2.map(group => (
                         <div key={group || '__nogroup2'}>
                           {group && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '4px 12px', backgroundColor: '#e0f2fe', borderBottom: '1px solid #bae6fd' }}>
-                              <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#0369a1', fontFamily: "'Space Grotesk', sans-serif" }}>{group}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '4px 12px', backgroundColor: TOM.ceu.border, borderBottom: `1px solid ${TOM.ceu.border}` }}>
+                              <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', color: TOM.ceu.text, fontFamily: FONT.display }}>{group}</span>
                             </div>
                           )}
                           {Object.entries(gMap2[group]).map(([type, typeItems], gi) => (
                             <div key={type}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 12px', backgroundColor: '#f0ede8', borderTop: (!group && gi === 0) ? 'none' : '1px solid #E7E3DC', borderBottom: '1px solid #E7E3DC' }}>
-                                <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#6F6A63', fontFamily: "'Space Grotesk', sans-serif", flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{type}</span>
-                                <span style={{ fontSize: '10px', fontWeight: '700', color: '#57534e', backgroundColor: '#e7e3de', borderRadius: 999, padding: '1px 6px', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>{typeItems.length}</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 12px', backgroundColor: N.n3, borderTop: (!group && gi === 0) ? 'none' : `1px solid ${T.border}`, borderBottom: `1px solid ${T.border}` }}>
+                                <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', color: T.second, fontFamily: FONT.display, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{type}</span>
+                                <span style={{ fontSize: '10px', fontWeight: '700', color: T.apoio, backgroundColor: T.border, borderRadius: 999, padding: '1px 6px', fontFamily: FONT.display, flexShrink: 0 }}>{typeItems.length}</span>
                               </div>
                               {typeItems.map((item) => {
                                 const isConflict = duplicateConfirm.duplicates.some(d => d.existingItem.id === item.id);
                                 return (
-                                  <div key={item.id} style={{ backgroundColor: isConflict ? '#FEF9EC' : '#F7F6F3', borderBottom: '1px solid #E7E3DC', padding: '7px 12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <span style={{ fontSize: '11px', fontWeight: '700', color: '#b45309', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>{item.displayId}</span>
+                                  <div key={item.id} style={{ backgroundColor: isConflict ? TOM.alerta.bg : N.n2, borderBottom: `1px solid ${T.border}`, padding: '7px 12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <span style={{ fontSize: '11px', fontWeight: '700', color: TOM.alerta.text, fontFamily: FONT.display, flexShrink: 0 }}>{item.displayId}</span>
                                     <div style={{ flex: 1, minWidth: 0 }}>
-                                      <span style={{ fontSize: '13px', fontWeight: isConflict ? '700' : '400', color: isConflict ? '#92400e' : '#6F6A63', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.type}</span>
-                                      {item.description && <span style={{ fontSize: '11px', color: isConflict ? '#b45309' : '#746e69', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.description}</span>}
+                                      <span style={{ fontSize: '13px', fontWeight: isConflict ? '700' : '400', color: isConflict ? TOM.alerta.text : T.second, fontFamily: FONT.corpo, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.type}</span>
+                                      {item.description && <span style={{ fontSize: '11px', color: isConflict ? TOM.alerta.text : T.second, fontFamily: FONT.corpo, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.description}</span>}
                                     </div>
-                                    <span style={{ fontSize: '11px', fontWeight: isConflict ? '700' : '400', color: isConflict ? '#b45309' : '#746e69', fontFamily: "'Plus Jakarta Sans', sans-serif", flexShrink: 0 }}>{item.quantity}x</span>
-                                    {isConflict && <span style={{ fontSize: '10px', fontWeight: '800', backgroundColor: '#fde68a', color: '#92400e', borderRadius: '6px', padding: '1px 5px', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}>Dup</span>}
+                                    <span style={{ fontSize: '11px', fontWeight: isConflict ? '700' : '400', color: isConflict ? TOM.alerta.text : T.second, fontFamily: FONT.corpo, flexShrink: 0 }}>{item.quantity}x</span>
+                                    {isConflict && <span style={{ fontSize: '10px', fontWeight: '800', backgroundColor: TOM.alerta.border, color: TOM.alerta.text, borderRadius: '6px', padding: '1px 5px', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0, fontFamily: FONT.display }}>Dup</span>}
                                   </div>
                                 );
                               })}
@@ -1089,38 +1092,38 @@ export function BulkItemEntry({
               {duplicateConfirm.duplicates.length > 0 && (
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#b45309', flexShrink: 0 }} />
-                    <span style={{ fontSize: '10px', fontWeight: '700', letterSpacing: '0.10em', textTransform: 'uppercase', color: '#b45309', fontFamily: "'Space Grotesk', sans-serif" }}>
+                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: TOM.alerta.text, flexShrink: 0 }} />
+                    <span style={{ fontSize: '10px', fontWeight: '700', letterSpacing: '0.10em', textTransform: 'uppercase', color: TOM.alerta.text, fontFamily: FONT.display }}>
                       Duplicatas detectadas — {duplicateConfirm.duplicates.length} {duplicateConfirm.duplicates.length === 1 ? 'conflito' : 'conflitos'}
                     </span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '180px', overflowY: 'auto' }}>
                     {duplicateConfirm.duplicates.map((dup, i) => (
                       <div key={i} style={{
-                        backgroundColor: '#FEF9EC', border: '1px solid #FDE68A',
+                        backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`,
                         borderRadius: '8px', padding: '10px 14px',
                         display: 'flex', alignItems: 'center', gap: '10px',
                       }}>
-                        <span style={{ fontSize: '11px', fontWeight: '700', color: '#b45309', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>
+                        <span style={{ fontSize: '11px', fontWeight: '700', color: TOM.alerta.text, fontFamily: FONT.display, flexShrink: 0 }}>
                           {dup.existingItem.displayId}
                         </span>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <span style={{ fontSize: '13px', fontWeight: '600', color: '#92400e', fontFamily: "'Space Grotesk', sans-serif", display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <span style={{ fontSize: '13px', fontWeight: '600', color: TOM.alerta.text, fontFamily: FONT.display, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {dup.existingItem.type}
                           </span>
                           {dup.existingItem.description && (
-                            <span style={{ fontSize: '11px', color: '#b45309', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <span style={{ fontSize: '11px', color: TOM.alerta.text, fontFamily: FONT.corpo, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {dup.existingItem.description}
                             </span>
                           )}
                         </div>
-                        <span style={{ fontSize: '11px', color: '#b45309', fontFamily: "'Plus Jakarta Sans', sans-serif", flexShrink: 0 }}>
+                        <span style={{ fontSize: '11px', color: TOM.alerta.text, fontFamily: FONT.corpo, flexShrink: 0 }}>
                           {dup.existingItem.quantity}x
                         </span>
                       </div>
                     ))}
                   </div>
-                  <p style={{ fontSize: '13px', color: '#6F6A63', margin: '10px 0 0', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  <p style={{ fontSize: '13px', color: T.second, margin: '10px 0 0', fontFamily: FONT.corpo }}>
                     Você ainda pode confirmar — as peças serão criadas mesmo assim.
                   </p>
                 </div>
@@ -1131,55 +1134,36 @@ export function BulkItemEntry({
             {/* ── RODAPÉ ── */}
             <div style={{
               padding: '16px 28px',
-              borderTop: '1px solid #E7E3DC',
-              backgroundColor: '#fff',
+              borderTop: `1px solid ${T.border}`,
+              backgroundColor: T.surface,
               borderRadius: '0 0 14px 14px',
               display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
             }}>
               {/* O que o "Confirmar" faz, na hora de decidir: grava em
                   RASCUNHO. Quem nunca usou achava que o lote já seguia para a
                   vinculação — e esquecia o envio. */}
-              <p style={{ margin: 0, fontSize: '13px', color: '#746e69', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.45 }}>
+              <p style={{ margin: 0, fontSize: '13px', color: T.second, fontFamily: FONT.corpo, lineHeight: 1.45 }}>
                 {duplicateConfirm.valid.length} {duplicateConfirm.valid.length === 1 ? 'peça nova' : 'peças novas'} ·{' '}
                 {existingItems.length} existentes no evento
-                <span style={{ display: 'block', fontSize: '12px', color: '#57534e' }}>
+                <span style={{ display: 'block', fontSize: '12px', color: T.apoio }}>
                   Entram em Rascunho — depois, envie para a vinculação.
                 </span>
               </p>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                <button
-                  type="button"
-                  onClick={() => setDuplicateConfirm(null)}
-                  style={{
-                    padding: '9px 20px', background: 'none', border: '1.5px solid #E7E3DC',
-                    borderRadius: '8px', color: '#6F6A63', fontSize: '13px', fontWeight: '600',
-                    cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif",
-                    transition: 'border-color 0.15s',
-                  }}
-                >
+                <Botao variante="secundario" onClick={() => setDuplicateConfirm(null)}>
                   Voltar e revisar
-                </button>
-                <button
-                  type="button"
-                  // disabled durante o envio: sem a guarda, dois cliques rápidos
+                </Botao>
+                <Botao
+                  variante="primario"
+                  // carregando durante o envio: sem a guarda, dois cliques rápidos
                   // antes do re-render disparavam onSubmit duas vezes — lote duplicado.
-                  disabled={isPending}
+                  carregando={isPending}
                   onClick={() => { setDuplicateConfirm(null); onSubmit(duplicateConfirm.valid, leftoverCount); }}
-                  style={{
-                    padding: '9px 22px',
-                    background: 'linear-gradient(135deg, #2E2A26 0%, #1F1D1A 100%)',
-                    border: 'none', borderRadius: '8px', color: '#fff',
-                    opacity: isPending ? 0.6 : 1,
-                    fontSize: '13px', fontWeight: '800', cursor: isPending ? 'wait' : 'pointer',
-                    fontFamily: "'Space Grotesk', sans-serif",
-                    textTransform: 'uppercase', letterSpacing: '0.07em',
-                    display: 'flex', alignItems: 'center', gap: '8px',
-                  }}
                   data-testid="button-confirm-duplicates"
                 >
                   <span>Confirmar Lote</span>
-                  <ArrowRight size={14} />
-                </button>
+                  <ArrowRight size={14} aria-hidden="true" />
+                </Botao>
               </div>
             </div>
 
@@ -1212,8 +1196,8 @@ export function BulkItemEntry({
                     textTransform: 'uppercase', letterSpacing: '0.1em',
                     // O laranja marca as colunas de MEDIDA; em texto de 10px ele
                     // precisa ser o escuro (#c2410c) para ser lido.
-                    color: col.orange ? '#c2410c' : '#746e69',
-                    whiteSpace: 'nowrap', fontFamily: "'Space Grotesk', sans-serif",
+                    color: col.orange ? T.accentText : T.second,
+                    whiteSpace: 'nowrap', fontFamily: FONT.display,
                     width: col.w || undefined,
                   }}>
                     {col.label}
@@ -1332,10 +1316,10 @@ export function BulkItemEntry({
                   {/* M² — read-only, no nav index */}
                   <td style={{ padding: '2px 4px' }}>
                     <div style={{
-                      backgroundColor: '#fff7ed', borderRadius: '6px',
+                      backgroundColor: TOM.laranja.bg, borderRadius: '6px',
                       padding: '5px 8px', fontSize: '13px', fontWeight: '800',
-                      color: row.calculatedM2 > 0 ? '#c2410c' : '#78716c',
-                      textAlign: 'center', fontFamily: 'monospace',
+                      color: row.calculatedM2 > 0 ? T.accentText : T.second,
+                      textAlign: 'center', fontFamily: FONT.mono,
                     }}>
                       {row.calculatedM2 > 0 ? row.calculatedM2.toFixed(2) : '—'}
                     </div>
@@ -1401,10 +1385,10 @@ export function BulkItemEntry({
                         data-testid={`input-replicate-count-${ri}`}
                         style={{
                           width: '28px', height: '26px',
-                          backgroundColor: '#f0efee', border: 'none', borderRadius: '6px',
+                          backgroundColor: N.n3, border: 'none', borderRadius: '6px',
                           fontSize: '11px', fontWeight: '700', textAlign: 'center',
-                          color: '#57534e', padding: '0',
-                          fontFamily: "'Plus Jakarta Sans', sans-serif",
+                          color: T.apoio, padding: '0',
+                          fontFamily: FONT.corpo,
                         }}
                       />
                       <button
@@ -1413,8 +1397,8 @@ export function BulkItemEntry({
                         title={`Replicar ${getReplicateCount(row.id)}x`}
                         aria-label={`Replicar a linha ${ri + 1} ${getReplicateCount(row.id)} ${getReplicateCount(row.id) === 1 ? 'vez' : 'vezes'}`}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', borderRadius: '6px', color: T.second, lineHeight: 0 }}
-                        onMouseEnter={e => (e.currentTarget.style.color = '#1a1c1c')}
-                        onMouseLeave={e => (e.currentTarget.style.color = '#78716c')}
+                        onMouseEnter={e => (e.currentTarget.style.color = T.text)}
+                        onMouseLeave={e => (e.currentTarget.style.color = T.second)}
                         data-testid={`button-duplicate-${ri}`}
                       >
                         <Copy size={13} />
@@ -1423,9 +1407,9 @@ export function BulkItemEntry({
                         type="button"
                         onClick={() => setRows(prev => prev.map(r => r.id === row.id ? { ...r, isReuse: !r.isReuse } : r))}
                         title={row.isReuse ? "Reaproveitamento ativo — clique para desativar" : "Marcar como reaproveitamento"}
-                        style={{ background: row.isReuse ? '#dcfce7' : 'none', border: row.isReuse ? '1px solid #86efac' : 'none', cursor: 'pointer', padding: '3px 5px', borderRadius: '6px', color: row.isReuse ? '#15803d' : '#78716c', lineHeight: 0, transition: 'all 0.12s' }}
-                        onMouseEnter={e => { if (!row.isReuse) e.currentTarget.style.color = '#15803d'; }}
-                        onMouseLeave={e => { if (!row.isReuse) e.currentTarget.style.color = '#78716c'; }}
+                        style={{ background: row.isReuse ? TOM.sucesso.bg : 'none', border: row.isReuse ? `1px solid ${TOM.sucesso.border}` : 'none', cursor: 'pointer', padding: '3px 5px', borderRadius: '6px', color: row.isReuse ? TOM.sucesso.text : T.second, lineHeight: 0, transition: 'all 0.12s' }}
+                        onMouseEnter={e => { if (!row.isReuse) e.currentTarget.style.color = TOM.sucesso.text; }}
+                        onMouseLeave={e => { if (!row.isReuse) e.currentTarget.style.color = T.second; }}
                         aria-label={`Reaproveitamento, linha ${ri + 1}`}
                         aria-pressed={row.isReuse}
                         data-testid={`button-reuse-${ri}`}
@@ -1441,9 +1425,9 @@ export function BulkItemEntry({
                           type="button"
                           onClick={() => setRows(prev => prev.map(r => r.id === row.id ? { ...r, isPriority: !r.isPriority } : r))}
                           title={row.isPriority ? "Prioridade ativa — a peça nasce furando a fila da Arte; clique para desativar" : "Marcar como prioritária (fura a fila da Arte)"}
-                          style={{ background: row.isPriority ? '#fff1f2' : 'none', border: row.isPriority ? '1px solid #fecdd3' : 'none', cursor: 'pointer', padding: '3px 5px', borderRadius: '6px', color: row.isPriority ? '#be123c' : '#78716c', lineHeight: 0, transition: 'all 0.12s' }}
-                          onMouseEnter={e => { if (!row.isPriority) e.currentTarget.style.color = '#be123c'; }}
-                          onMouseLeave={e => { if (!row.isPriority) e.currentTarget.style.color = '#78716c'; }}
+                          style={{ background: row.isPriority ? TOM.perigo.bg : 'none', border: row.isPriority ? `1px solid ${TOM.perigo.border}` : 'none', cursor: 'pointer', padding: '3px 5px', borderRadius: '6px', color: row.isPriority ? TOM.perigo.text : T.second, lineHeight: 0, transition: 'all 0.12s' }}
+                          onMouseEnter={e => { if (!row.isPriority) e.currentTarget.style.color = TOM.perigo.text; }}
+                          onMouseLeave={e => { if (!row.isPriority) e.currentTarget.style.color = T.second; }}
                           aria-label={`Peça prioritária, linha ${ri + 1}`}
                           aria-pressed={row.isPriority}
                           data-testid={`button-priority-${ri}`}
@@ -1459,8 +1443,8 @@ export function BulkItemEntry({
                         title={rows.length === 1 ? "A grade precisa de pelo menos uma linha" : "Remover esta linha"}
                         aria-label={`Remover a linha ${ri + 1}`}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', borderRadius: '6px', color: T.second, lineHeight: 0 }}
-                        onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
-                        onMouseLeave={e => (e.currentTarget.style.color = '#78716c')}
+                        onMouseEnter={e => (e.currentTarget.style.color = TOM.perigo.dot)}
+                        onMouseLeave={e => (e.currentTarget.style.color = T.second)}
                         data-testid={`button-remove-${ri}`}
                       >
                         <Trash2 size={13} />
@@ -1474,26 +1458,9 @@ export function BulkItemEntry({
 
           {/* ── ADICIONAR LINHA ── */}
           <div style={{ marginTop: '10px' }}>
-            <button
-              type="button"
-              onClick={addRow}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: '6px',
-                padding: '6px 16px',
-                border: '1.5px dashed #d6d3d1', borderRadius: '6px',
-                backgroundColor: 'transparent', color: '#746e69',
-                fontSize: '11px', fontWeight: '700',
-                textTransform: 'uppercase', letterSpacing: '0.08em',
-                cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif",
-                transition: 'border-color 0.12s, color 0.12s',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#c2410c'; e.currentTarget.style.color = '#c2410c'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#d6d3d1'; e.currentTarget.style.color = '#746e69'; }}
-              data-testid="button-add-row"
-            >
-              <Plus size={13} />
+            <Botao variante="secundario" tamanho="sm" icone={Plus} onClick={addRow} data-testid="button-add-row">
               Adicionar Linha
-            </button>
+            </Botao>
           </div>
 
         </div>
@@ -1502,8 +1469,8 @@ export function BulkItemEntry({
       {/* ── FOOTER ── */}
       <div style={{
         padding: '12px 24px',
-        backgroundColor: '#f5f5f4',
-        borderTop: '1px solid #e7e5e4',
+        backgroundColor: N.n2,
+        borderTop: `1px solid ${T.border}`,
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         flexShrink: 0,
       }}>
@@ -1513,14 +1480,14 @@ export function BulkItemEntry({
               ensinava nada): o atalho que torna a grade rápida. Enter já
               avançava de campo e criava a linha seguinte — só ninguém sabia. */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <kbd style={{ fontSize: '10px', fontWeight: '700', color: '#44403c', backgroundColor: '#ffffff', border: '1px solid #d6d3d1', borderBottomWidth: 2, borderRadius: 4, padding: '0 5px', fontFamily: "'DM Mono', monospace" }}>Enter</kbd>
-            <span style={{ fontSize: '10px', fontWeight: '700', color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Space Grotesk', sans-serif" }}>
+            <kbd style={{ fontSize: '10px', fontWeight: '700', color: T.strong, backgroundColor: T.surface, border: `1px solid ${T.bdark}`, borderBottomWidth: 2, borderRadius: 4, padding: '0 5px', fontFamily: FONT.mono }}>Enter</kbd>
+            <span style={{ fontSize: '10px', fontWeight: '700', color: T.second, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: FONT.display }}>
               próximo campo · nova linha no fim
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <div style={{ width: '7px', height: '7px', borderRadius: '999px', backgroundColor: validCount > 0 ? '#22c55e' : '#d6d3d1' }} />
-            <span style={{ fontSize: '10px', fontWeight: '700', color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Space Grotesk', sans-serif" }}>
+            <div style={{ width: '7px', height: '7px', borderRadius: '999px', backgroundColor: validCount > 0 ? TOM.sucesso.dot : T.bdark }} />
+            <span style={{ fontSize: '10px', fontWeight: '700', color: T.second, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: FONT.display }}>
               {validCount} {validCount === 1 ? 'Peça Válida' : 'Peças Válidas'}
             </span>
           </div>
@@ -1528,55 +1495,44 @@ export function BulkItemEntry({
 
         {/* Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button
-            type="button"
-            onClick={() => {
+          <Botao
+            variante="fantasma"
+            onClick={async () => {
               // Grid com conteúdo digitado: confirmar antes de descartar — o
               // Esc e o clique-fora já são bloqueados; este era o único caminho
               // que jogava o trabalho fora sem perguntar.
-              if (temConteudo && !window.confirm("Descartar as peças digitadas neste lote?")) return;
+              if (temConteudo) {
+                const ok = await confirmar({
+                  titulo: "Descartar as peças digitadas neste lote?",
+                  descricao: "As linhas preenchidas aqui ainda não foram salvas e serão perdidas.",
+                  confirmar: "Descartar",
+                  cancelar: "Continuar editando",
+                  perigo: true,
+                  icone: Trash2,
+                });
+                if (!ok) return;
+              }
               onCancel();
             }}
-            style={{
-              padding: '9px 20px', background: 'none', border: 'none',
-              color: '#746e69', fontSize: '13px', fontWeight: '600',
-              cursor: 'pointer', transition: 'color 0.12s',
-            }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#1a1c1c')}
-            onMouseLeave={e => (e.currentTarget.style.color = '#746e69')}
           >
             Cancelar
-          </button>
-          <button
-            type="button"
+          </Botao>
+          <Botao
+            variante="primario"
             onClick={handleSubmit}
-            disabled={isPending}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '8px',
-              padding: '9px 22px',
-              backgroundColor: isPending ? '#57534e' : '#1c1917',
-              color: '#fff', borderRadius: '8px', border: 'none',
-              fontSize: '13px', fontWeight: '900',
-              textTransform: 'uppercase', letterSpacing: '0.06em',
-              cursor: isPending ? 'not-allowed' : 'pointer',
-              fontFamily: "'Space Grotesk', sans-serif",
-              transition: 'background-color 0.12s',
-            }}
-            // Hover em #c2410c: branco sobre #f97316 dava 2,8:1 — o rótulo do
-            // botão principal sumia justo quando o mouse chegava nele.
-            onMouseEnter={e => { if (!isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#c2410c'; }}
-            onMouseLeave={e => { if (!isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#1c1917'; }}
+            carregando={isPending}
             data-testid="button-submit-bulk"
             // "Finalizar Lote" prometia um fim que não existe: o clique abre
             // a revisão, e o lote salvo ainda vira rascunho a enviar.
           >
             {isPending
-              ? <><Loader2 size={15} className="animate-spin" /> Salvando...</>
-              : <>Revisar e salvar <ArrowRight size={15} /></>
+              ? "Salvando..."
+              : <>Revisar e salvar <ArrowRight size={15} aria-hidden="true" /></>
             }
-          </button>
+          </Botao>
         </div>
       </div>
+      {dialogo}
     </div>
   );
 }

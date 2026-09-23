@@ -37,18 +37,20 @@ function skeleton(): string {
 describe("o skeleton copia a tabela real", () => {
   it("não desenha mais a faixa escura do cabeçalho antigo", () => {
     expect(skeleton()).not.toContain('backgroundColor: "#1c1917"');
+    expect(skeleton()).not.toMatch(/backgroundColor: T\.(text|dark)\b/);
   });
 
   it("o cabeçalho falso usa o mesmo fundo e filete do thead real", () => {
     const s = skeleton();
-    expect(s).toContain('backgroundColor: "#fafaf9"');
-    expect(s).toContain('borderBottom: "1px solid #e7e5e4"');
+    expect(s).toContain('backgroundColor: T.bg');
+    expect(s).toContain('borderBottom: `1px solid ${T.border}`');
   });
 
   it("a zebra falsa usa a mesma cor da zebra real", () => {
-    // A tabela alterna #ffffff e #f6f4f1 (ver .pg-row[data-zebra]).
-    expect(skeleton()).toContain('"#f6f4f1" : "#ffffff"');
-    expect(painel).toContain('.pg-row[data-zebra="1"] { background-color: #f6f4f1; }');
+    // A tabela alterna T.surface e N.n2 (ver .pg-row[data-zebra]); o
+    // skeleton usa os MESMOS tokens, não uma cópia do hex.
+    expect(skeleton()).toContain("i % 2 ? N.n2 : T.surface");
+    expect(painel).toContain('.pg-row[data-zebra="1"] { background-color: ${N.n2}; }');
   });
 
   it("a linha falsa tem a altura da linha real", () => {

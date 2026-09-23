@@ -23,7 +23,8 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { T, FS, R } from "@/lib/theme";
+import { T, FS, R, TOM, FW } from "@/lib/theme";
+import { EstadoErro } from "@/components/ui/estados";
 import { BotaoDoCartao, MotivosDoBloqueio, type AcaoDoCartao } from "@/components/pedidos/cartao-do-pedido";
 import {
   AjusteDaLinha,
@@ -40,13 +41,13 @@ import {
 
 type RegistroDeAuditoria = { id: string; action: string; details: string | null; userName: string | null; createdAt: string };
 
-const TITULO_DA_SECAO: React.CSSProperties = { margin: "0 0 8px", fontSize: FS.small, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "#57534e" };
+const TITULO_DA_SECAO: React.CSSProperties = { margin: "0 0 8px", fontSize: FS.small, fontWeight: FW.rotulo, letterSpacing: "0.08em", textTransform: "uppercase", color: T.apoio };
 
 function Campo({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
   return (
     <div style={{ minWidth: 0 }}>
-      <dt style={{ fontSize: FS.small, fontWeight: 700, color: "#57534e", marginBottom: 2 }}>{rotulo}</dt>
-      <dd style={{ margin: 0, fontSize: FS.body, color: T.text, fontWeight: 600, overflowWrap: "anywhere" }}>{children}</dd>
+      <dt style={{ fontSize: FS.small, fontWeight: FW.forte, color: T.apoio, marginBottom: 2 }}>{rotulo}</dt>
+      <dd style={{ margin: 0, fontSize: FS.body, color: T.text, fontWeight: FW.medio, overflowWrap: "anywhere" }}>{children}</dd>
     </div>
   );
 }
@@ -67,11 +68,11 @@ function PecaDoDetalhe({ linha, numero, agora, selo, acoes }: { linha: LinhaDoPe
   const criadas = unidadesCriadas(pecas);
   const medida = medidaDaLinha(linha);
   return (
-    <section data-testid={`detalhe-linha-${linha.id}`} style={{ border: "1px solid #e7e5e4", borderRadius: R.lg, padding: isMobile ? 12 : 16, display: "flex", flexDirection: "column", gap: 14 }}>
+    <section data-testid={`detalhe-linha-${linha.id}`} style={{ border: `1px solid ${T.border}`, borderRadius: R.lg, padding: isMobile ? 12 : 16, display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <span style={{ fontSize: FS.small, fontWeight: 800, color: "#57534e", letterSpacing: "0.06em", textTransform: "uppercase" }}>Peça {numero}</span>
+        <span style={{ fontSize: FS.small, fontWeight: FW.rotulo, color: T.apoio, letterSpacing: "0.06em", textTransform: "uppercase" }}>Peça {numero}</span>
         <EstadoDoPedido status={linha.status} />
-        <strong style={{ fontSize: 15, color: T.text }}>{quantidadeDoPedido(linha.quantidade)} · {rotuloDaLinha(linha)}</strong>
+        <strong style={{ fontSize: FS.strong, color: T.text }}>{quantidadeDoPedido(linha.quantidade)} · {rotuloDaLinha(linha)}</strong>
       </div>
       <dl style={{ margin: 0, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: "12px 20px" }}>
         <Campo rotulo="Evento">{linha.eventName ?? "Evento removido"}{linha.eventStart ? ` · ${diaDoEvento(linha.eventStart)}` : ""}</Campo>
@@ -79,7 +80,7 @@ function PecaDoDetalhe({ linha, numero, agora, selo, acoes }: { linha: LinhaDoPe
         <Campo rotulo="Quantidade">
           {quantidadeDoPedido(linha.quantidade)}
           {pecas.length > 0 && criadas !== linha.quantidade && (
-            <span style={{ display: "block", fontSize: FS.small, color: "#92400e", fontWeight: 700 }}>criadas {criadas} un.</span>
+            <span style={{ display: "block", fontSize: FS.small, color: TOM.alerta.text, fontWeight: FW.forte }}>criadas {criadas} un.</span>
           )}
         </Campo>
         <Campo rotulo="Precisa até">
@@ -96,7 +97,7 @@ function PecaDoDetalhe({ linha, numero, agora, selo, acoes }: { linha: LinhaDoPe
       {textoDaObservacao(linha.observacao) && (
         <div>
           <h4 style={TITULO_DA_SECAO}>O que precisa</h4>
-          <p style={{ margin: 0, padding: "10px 12px", borderLeft: "3px solid #d6d3d1", background: "#fafaf9", borderRadius: R.sm, fontSize: 14, color: "#44403c", lineHeight: 1.55, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+          <p style={{ margin: 0, padding: "10px 12px", borderLeft: `3px solid ${T.bdark}`, background: T.bg, borderRadius: R.sm, fontSize: FS.read, color: T.strong, lineHeight: 1.55, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
             “{textoDaObservacao(linha.observacao)}”
           </p>
         </div>
@@ -110,10 +111,10 @@ function PecaDoDetalhe({ linha, numero, agora, selo, acoes }: { linha: LinhaDoPe
       <AndamentoDaLinha linha={linha} />
       <AjusteDaLinha linha={linha} />
       {linha.status === "recusado" && (
-        <p style={{ margin: 0, fontSize: 14, color: "#991b1b", lineHeight: 1.5 }}><strong>Motivo da recusa:</strong> {linha.motivoRecusa}</p>
+        <p style={{ margin: 0, fontSize: FS.read, color: TOM.perigo.text, lineHeight: 1.5 }}><strong>Motivo da recusa:</strong> {linha.motivoRecusa}</p>
       )}
       {linha.status === "cancelado" && (
-        <p style={{ margin: 0, fontSize: 14, color: "#44403c", lineHeight: 1.5 }}><strong>Motivo do cancelamento:</strong> {linha.motivoCancelamento ?? "—"}</p>
+        <p style={{ margin: 0, fontSize: FS.read, color: T.strong, lineHeight: 1.5 }}><strong>Motivo do cancelamento:</strong> {linha.motivoCancelamento ?? "—"}</p>
       )}
       <QuemAgeNaLinha linha={linha} />
       {acoes.length > 0 && (
@@ -160,7 +161,7 @@ export function DetalheDoPedido({ pedido, agora, seloDe, acoesDaLinha, acoes = [
         <DialogDescription className="sr-only">Solicitada por {p.pedidoPor ?? "—"}</DialogDescription>
         <ModalHeader
           icon={Inbox}
-          tint="#b45309"
+          tint={TOM.alerta.text}
           title={`Solicitação · ${linhas.length} ${linhas.length === 1 ? "peça" : "peças"}`}
           subtitle={`Solicitada por ${p.pedidoPor ?? "—"} · ${quandoFoi(p.createdAt)}${linhas.length > 1 ? ` · ${resumoDasLinhas(linhas)}` : ""}`}
           onClose={onFechar}
@@ -187,27 +188,29 @@ export function DetalheDoPedido({ pedido, agora, seloDe, acoesDaLinha, acoes = [
                 ("feche e abra a solicitação") mandava perder o lugar para
                 refazer o que um clique faz. */}
             {isLoading ? (
-              <p role="status" style={{ margin: 0, fontSize: FS.body, color: "#57534e" }}>Carregando o histórico…</p>
+              <p role="status" style={{ margin: 0, fontSize: FS.body, color: T.apoio }}>Carregando o histórico…</p>
             ) : isError ? (
-              <p role="alert" style={{ margin: 0, fontSize: FS.body, color: "#b91c1c", lineHeight: 1.45 }}>
-                Não foi possível carregar o histórico.{" "}
-                <button type="button" onClick={() => refetch()} disabled={isFetching} data-testid="button-recarregar-historico"
-                  style={{ border: "none", background: "none", padding: "0 4px", minHeight: isMobile ? 44 : 36, fontSize: FS.body, fontWeight: 800, textDecoration: "underline", color: T.text, cursor: isFetching ? "wait" : "pointer" }}>
-                  {isFetching ? "Tentando…" : "Tentar de novo"}
-                </button>
-              </p>
+              /* O testid antigo do "tentar de novo" fica no invólucro: o
+                 botão do EstadoErro sai com o testid do design system
+                 (botao-tentar-de-novo). Enquanto a nova tentativa roda, o
+                 botão some em vez de ser clicado duas vezes. */
+              <div data-testid="button-recarregar-historico">
+                <EstadoErro compacto titulo="Não foi possível carregar o histórico."
+                  detalhe={isFetching ? "Tentando de novo…" : undefined}
+                  aoTentarDeNovo={isFetching ? undefined : () => refetch()} />
+              </div>
             ) : historico.length === 0 ? (
-              <p style={{ margin: 0, fontSize: FS.body, color: "#57534e" }}>Nenhum registro ainda.</p>
+              <p style={{ margin: 0, fontSize: FS.body, color: T.apoio }}>Nenhum registro ainda.</p>
             ) : (
               <ol style={{ listStyle: "none", margin: 0, padding: 0, position: "relative" }}>
                 {historico.map((r, i) => (
                   <li key={r.id} style={{ position: "relative", paddingLeft: 22, paddingBottom: i < historico.length - 1 ? 16 : 0 }}>
                     {i < historico.length - 1 && (
-                      <span aria-hidden="true" style={{ position: "absolute", left: 5, top: 14, bottom: 0, width: 2, background: "#e7e5e4" }} />
+                      <span aria-hidden="true" style={{ position: "absolute", left: 5, top: 14, bottom: 0, width: 2, background: T.border }} />
                     )}
-                    <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 4, width: 12, height: 12, borderRadius: R.pill, background: i === historico.length - 1 ? "#b45309" : "#d6d3d1", border: "2px solid #fff", boxShadow: "0 0 0 1px #d6d3d1" }} />
-                    <div style={{ fontSize: FS.body, color: T.text, fontWeight: 600, lineHeight: 1.45, overflowWrap: "anywhere" }}>{fraseDoRegistro(r)}</div>
-                    <div style={{ fontSize: FS.small, color: "#57534e", marginTop: 2 }}>
+                    <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 4, width: 12, height: 12, borderRadius: R.pill, background: i === historico.length - 1 ? TOM.alerta.text : T.bdark, border: `2px solid ${T.surface}`, boxShadow: `0 0 0 1px ${T.bdark}` }} />
+                    <div style={{ fontSize: FS.body, color: T.text, fontWeight: FW.medio, lineHeight: 1.45, overflowWrap: "anywhere" }}>{fraseDoRegistro(r)}</div>
+                    <div style={{ fontSize: FS.small, color: T.apoio, marginTop: 2 }}>
                       {r.userName ?? "Sistema"} · {quandoFoi(r.createdAt)}
                     </div>
                   </li>

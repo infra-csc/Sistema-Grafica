@@ -24,7 +24,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { parseDateLocal, toUTCDisplayDate, runInBatches } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import {
   Plus, Calendar, Truck, AlertCircle, AlertTriangle, Search, Pencil, Trash2,
   Package, Flag, Building2, CheckCircle, ChevronDown, ChevronUp, Clock,
@@ -42,7 +41,10 @@ import {
   motivoEventoFinalizado, todayBusinessMs,
 } from "@/lib/status";
 import { PHASES, contarPorFaseDoEvento as contarPorFase, FORA_DO_FUNIL } from "@/lib/fases";
-import { T, FS, R, SHADOW } from "@/lib/theme";
+import { T, FS, R, SHADOW, N, TOM, FONT, FW } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
+import { EstadoVazio, EstadoErro, Esqueleto } from "@/components/ui/estados";
 import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import {
   Dialog,
@@ -60,8 +62,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ptBR } from "date-fns/locale";
 import {
   AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -85,7 +85,7 @@ function SeloDePedidos({ n, eventId }: { n: number; eventId: string }) {
     <span
       data-testid={`selo-pedidos-${eventId}`}
       title={`${n} ${n === 1 ? "peça solicitada pelo Atendimento esperando" : "peças solicitadas pelo Atendimento esperando"} a lista`}
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 800, color: '#92400e', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 999, padding: '2px 8px', whiteSpace: 'nowrap', flexShrink: 0 }}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 800, color: TOM.alerta.text, backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 999, padding: '2px 8px', whiteSpace: 'nowrap', flexShrink: 0 }}
     >
       <Inbox style={{ width: 11, height: 11 }} aria-hidden="true" />
       {n} {n === 1 ? 'peça solicitada' : 'peças solicitadas'}
@@ -143,12 +143,12 @@ const ARCHIVED_LIFECYCLES = new Set<LifecycleKey>(['completed', 'manually_closed
 // (import-xlsx-dialog.tsx:41) mantém um terceiro conjunto — MASTER é #ef4444
 // aqui e #dc2626 lá. Ao mover QUOTAS para `shared`, escolha UM par por cota.
 const QUOTA_OPTIONS = [
-  { value: "MASTER",     label: "Master",     dot: "#ef4444", text: "#b91c1c", bg: "#fef2f2", border: "#fecaca" },
-  { value: "GOLD",       label: "Gold",       dot: "#3b82f6", text: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
-  { value: "SILVER",     label: "Silver",     dot: "#a855f7", text: "#7e22ce", bg: "#faf5ff", border: "#e9d5ff" },
-  { value: "APOIO",      label: "Apoio",      dot: "#78716c", text: "#44403c", bg: "#f5f5f4", border: "#e7e5e4" },
-  { value: "MIDIA",      label: "Mídia",      dot: "#06b6d4", text: "#0e7490", bg: "#ecfeff", border: "#a5f3fc" },
-  { value: "MINISTERIO", label: "Ministério", dot: "#10b981", text: "#047857", bg: "#ecfdf5", border: "#a7f3d0" },
+  { value: "MASTER",     label: "Master",     dot: TOM.perigo.dot, text: TOM.perigo.text, bg: TOM.perigo.bg, border: TOM.perigo.border },
+  { value: "GOLD",       label: "Gold",       dot: TOM.info.dot, text: TOM.info.text, bg: TOM.info.bg, border: TOM.info.border },
+  { value: "SILVER",     label: "Silver",     dot: TOM.roxo.dot, text: TOM.roxo.text, bg: TOM.roxo.bg, border: TOM.roxo.border },
+  { value: "APOIO",      label: "Apoio",      dot: T.second, text: T.strong, bg: N.n2, border: T.border },
+  { value: "MIDIA",      label: "Mídia",      dot: TOM.ciano.dot, text: TOM.ciano.text, bg: TOM.ciano.bg, border: TOM.ciano.border },
+  { value: "MINISTERIO", label: "Ministério", dot: TOM.esmeralda.dot, text: TOM.esmeralda.text, bg: TOM.esmeralda.bg, border: TOM.esmeralda.border },
 ];
 
 // Offsets padrão dos prazos (dias relativos à saída do caminhão).
@@ -343,10 +343,10 @@ function eventPriorityKey(event: any): PriorityLevel {
 // Cores/rótulos derivados de PRIORITY (lib/status) — antes havia mapas hex
 // duplicados aqui. `hex` (saturado) fica para borda/ícone/barra; `text` (tom
 // escuro AA) é o que vai em texto.
-const PRIORITY_FALLBACK = { label: "Sem Prioridade", hex: '#d6d3d1', text: '#57534e' };
+const PRIORITY_FALLBACK = { label: "Sem Prioridade", hex: T.bdark, text: T.apoio };
 function getPriorityConfig(priority: string | null | undefined): { label: string; hex: string; text: string } {
   const meta = getPriorityMeta(priority);
-  return meta ? { label: meta.label, hex: meta.dot, text: meta.text || '#57534e' } : PRIORITY_FALLBACK;
+  return meta ? { label: meta.label, hex: meta.dot, text: meta.text || T.apoio } : PRIORITY_FALLBACK;
 }
 
 // ── Barra de progresso segmentada por FASE ───────────────────────────────────
@@ -406,9 +406,9 @@ function milestoneDueText(ms: NextMilestonePayload): string {
 }
 
 const MILESTONE_TONE = {
-  overdue:  { text: '#b91c1c', bg: '#fef2f2', border: '#fecaca' },
-  warning:  { text: '#b45309', bg: '#fffbeb', border: '#fde68a' },
-  upcoming: { text: '#57534e', bg: '#f5f5f4', border: '#e7e5e4' },
+  overdue:  { text: TOM.perigo.text, bg: TOM.perigo.bg, border: TOM.perigo.border },
+  warning:  { text: TOM.alerta.text, bg: TOM.alerta.bg, border: TOM.alerta.border },
+  upcoming: { text: T.apoio, bg: N.n2, border: T.border },
 } as const;
 
 /**
@@ -438,7 +438,7 @@ const GRADE_LISTA = `4px 1fr 132px 190px 108px 92px ${LARGURA_ACOES}px`;
 
 /** Rótulo de coluna. #7a6154 sobre #fafaf9 dá 5,49. */
 const TH_LISTA: React.CSSProperties = {
-  fontSize: FS.micro, fontWeight: 800, color: '#7a6154',
+  fontSize: FS.micro, fontWeight: 800, color: T.second,
   textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap',
 };
 
@@ -495,8 +495,8 @@ function EventRow({
         - new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()).getTime()) / 86400000)
     : null;
   const corDaSaida = diasAteSaida === null ? T.second
-    : diasAteSaida < 0 ? '#b91c1c'
-    : diasAteSaida <= 7 ? '#9a3412'
+    : diasAteSaida < 0 ? TOM.perigo.text
+    : diasAteSaida <= 7 ? T.accentText
     : T.second;
 
   // A MESMA frase do rodapé do cartão — não uma segunda redação do mesmo
@@ -521,9 +521,9 @@ function EventRow({
       style={{
         display: 'grid', gridTemplateColumns: GRADE_LISTA, gap: 12,
         alignItems: 'center', padding: '0 16px 0 0',
-        borderBottom: '1px solid #f5f4f2', minHeight: 52,
+        borderBottom: `1px solid ${N.n3}`, minHeight: 52,
       }}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = '#fafaf9'; }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.bg; }}
       onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
     >
       {/* ÂNCORA DE VERDADE, com `display: contents`.
@@ -558,7 +558,7 @@ function EventRow({
       </span>
 
       {/* Saída */}
-      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: FS.small, color: corDaSaida, whiteSpace: 'nowrap' }}>
+      <span style={{ fontFamily: FONT.mono, fontSize: FS.small, color: corDaSaida, whiteSpace: 'nowrap' }}>
         {saida
           ? `${saida.toLocaleDateString('pt-BR', saida.getFullYear() === currentYear
               ? { day: '2-digit', month: 'short' }
@@ -570,7 +570,7 @@ function EventRow({
       <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
         {ms ? (
           <>
-            <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: MARCO_COLOR[ms.key] || '#78716c', flexShrink: 0 }} />
+            <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: MARCO_COLOR[ms.key] || T.second, flexShrink: 0 }} />
             <span style={{ fontSize: FS.small, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ms.label}</span>
             <span style={{ fontSize: FS.small, fontWeight: 700, color: msTone.text, whiteSpace: 'nowrap', flexShrink: 0 }}>
               {milestoneDueText(ms)}
@@ -584,14 +584,14 @@ function EventRow({
       {/* Peças — a MESMA barra segmentada por fase do cartão. A barra antiga
           media só `delivered` e mostrava 0% num evento todo conferido. */}
       <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-        <span aria-hidden="true" style={{ display: 'flex', width: 46, height: 6, borderRadius: R.pill, overflow: 'hidden', backgroundColor: '#f0efee', flexShrink: 0 }}>
+        <span aria-hidden="true" style={{ display: 'flex', width: 46, height: 6, borderRadius: R.pill, overflow: 'hidden', backgroundColor: N.n3, flexShrink: 0 }}>
           {stats.activeItemCount > 0 && PHASES.map((fase, i) => (
             fases[i] > 0
               ? <span key={fase.key} title={`${fases[i]} ${fase.noun}`} style={{ width: `${(fases[i] / stats.activeItemCount) * 100}%`, backgroundColor: fase.color }} />
               : null
           ))}
         </span>
-        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: FS.small, color: T.second, whiteSpace: 'nowrap' }}>
+        <span style={{ fontFamily: FONT.mono, fontSize: FS.small, color: T.second, whiteSpace: 'nowrap' }}>
           {stats.activeItemCount > 0 ? `${stats.deliveredCount}/${stats.activeItemCount}` : '—'}
         </span>
       </span>
@@ -599,7 +599,7 @@ function EventRow({
       {/* Situação */}
       <span
         title={situacaoEhRascunho ? `${rascunhos} ${rascunhos === 1 ? 'peça criada e ainda não enviada' : 'peças criadas e ainda não enviadas'} para a vinculação` : undefined}
-        style={{ fontSize: FS.small, color: situacaoEhRascunho ? '#92400e' : T.second, fontWeight: situacaoEhRascunho ? 700 : undefined, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+        style={{ fontSize: FS.small, color: situacaoEhRascunho ? TOM.alerta.text : T.second, fontWeight: situacaoEhRascunho ? 700 : undefined, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
       >
         {situacao}
       </span>
@@ -703,7 +703,7 @@ function EventCardActions({
           title="Definir prioridade"
           aria-label={`Definir prioridade de ${event.name}`}
           data-testid={`button-priority-event-${event.id}`}
-          style={{ ...btnBase, backgroundColor: '#f9f9f8', color: event.priority ? accentHex : T.second }}
+          style={{ ...btnBase, backgroundColor: T.bg, color: event.priority ? accentHex : T.second }}
         >
           <Flag style={{ width: '13px', height: '13px', fill: event.priority ? accentHex : 'none' }} />
         </button>
@@ -711,20 +711,20 @@ function EventCardActions({
       {canDuplicate && (
         <button onClick={(e) => onDuplicate(event, e)} data-testid={`button-duplicate-event-${event.id}`}
           title="Duplicar evento (prazos, patrocinadores e cotas)" aria-label={`Duplicar evento ${event.name}`}
-          style={{ ...btnBase, backgroundColor: '#f9f9f8', color: T.second }}>
+          style={{ ...btnBase, backgroundColor: T.bg, color: T.second }}>
           <Copy style={{ width: '13px', height: '13px' }} />
         </button>
       )}
       {canEdit ? (
         <button onClick={(e) => onEdit(event, e)} data-testid={`button-edit-event-${event.id}`}
           title="Editar evento" aria-label={`Editar evento ${event.name}`}
-          style={{ ...btnBase, backgroundColor: '#f9f9f8', color: T.second }}>
+          style={{ ...btnBase, backgroundColor: T.bg, color: T.second }}>
           <Pencil style={{ width: '13px', height: '13px' }} />
         </button>
       ) : soPatrocinadores && (
         <button onClick={(e) => onEdit(event, e)} data-testid={`button-sponsors-event-${event.id}`}
           title="Vincular patrocinadores" aria-label={`Vincular patrocinadores ao evento ${event.name}`}
-          style={{ ...btnBase, backgroundColor: '#f9f9f8', color: T.second }}>
+          style={{ ...btnBase, backgroundColor: T.bg, color: T.second }}>
           <Building2 style={{ width: '13px', height: '13px' }} />
         </button>
       )}
@@ -734,13 +734,13 @@ function EventCardActions({
         isClosed ? (
           <button onClick={(e) => onReopen(event, e)} data-testid={`button-reopen-event-${event.id}`}
             title="Reabrir evento" aria-label={`Reabrir evento ${event.name}`}
-            style={{ ...btnBase, backgroundColor: '#f0fdf4', color: '#15803d' }}>
+            style={{ ...btnBase, backgroundColor: TOM.sucesso.bg, color: TOM.sucesso.text }}>
             <Unlock style={{ width: '13px', height: '13px' }} />
           </button>
         ) : (
           <button onClick={(e) => onClose(event, e)} data-testid={`button-close-event-${event.id}`}
             title="Encerrar evento" aria-label={`Encerrar evento ${event.name}`}
-            style={{ ...btnBase, backgroundColor: '#f9f9f8', color: '#57534e' }}>
+            style={{ ...btnBase, backgroundColor: T.bg, color: T.apoio }}>
             <Lock style={{ width: '13px', height: '13px' }} />
           </button>
         )
@@ -748,7 +748,7 @@ function EventCardActions({
       {canDelete && (
         <button onClick={(e) => onDelete(event.id, e)} data-testid={`button-delete-event-${event.id}`}
           title="Excluir evento" aria-label={`Excluir evento ${event.name}`}
-          style={{ ...btnBase, backgroundColor: '#fef2f2', color: '#ef4444' }}>
+          style={{ ...btnBase, backgroundColor: TOM.perigo.bg, color: TOM.perigo.text }}>
           <Trash2 style={{ width: '13px', height: '13px' }} />
         </button>
       )}
@@ -814,7 +814,7 @@ function EventCard({
   const priorityConfig = getPriorityConfig(event.priority);
   // Cinza no encerrado manual, de propósito: verde diria "deu tudo certo" e
   // âmbar diria "corre atrás". Encerrado é nenhum dos dois — é fora de jogo.
-  const accentHex = isClosed ? '#78716c' : isDone ? '#10b981' : isRealizado ? '#f59e0b' : priorityConfig.hex;
+  const accentHex = isClosed ? T.second : isDone ? TOM.esmeralda.dot : isRealizado ? TOM.alerta.dot : priorityConfig.hex;
 
   // Urgência da saída pelo MESMO helper que a exibição e os filtros usam.
   // Com `new Date(...)` cru, um caminhão gravado para 08:00 virava o instante
@@ -836,8 +836,8 @@ function EventCard({
   // ser urgência. Pulsar vermelho num evento que alguém fechou é o alarme falso
   // que ensina a ignorar o vermelho de verdade.
   const outOfPlay = isDone || isClosed;
-  const truckIconColor = isDone ? '#10b981' : isClosed ? '#78716c' : truckUrgency === 'urgent' ? '#ef4444' : truckUrgency === 'warning' ? '#f59e0b' : '#78716c';
-  const truckTextColor = !outOfPlay && truckUrgency === 'urgent' ? '#b91c1c' : !outOfPlay && truckUrgency === 'warning' ? '#b45309' : '#1c1917';
+  const truckIconColor = isDone ? TOM.esmeralda.dot : isClosed ? T.second : truckUrgency === 'urgent' ? TOM.perigo.dot : truckUrgency === 'warning' ? TOM.alerta.dot : T.second;
+  const truckTextColor = !outOfPlay && truckUrgency === 'urgent' ? TOM.perigo.text : !outOfPlay && truckUrgency === 'warning' ? TOM.alerta.text : T.text;
 
   const ms: NextMilestonePayload | null = event.nextMilestone ?? null;
   const msTone = MILESTONE_TONE[ms?.state ?? 'upcoming'];
@@ -884,7 +884,7 @@ function EventCard({
     <div
       className="group relative bg-white rounded-xl overflow-hidden"
       style={{
-        border: '1px solid #e7e5e4',
+        border: `1px solid ${T.border}`,
         borderLeft: `4px solid ${accentHex}`,
         boxShadow: SHADOW.sm,
         transition: 'box-shadow 0.25s ease, transform 0.25s ease, border-color 0.25s ease',
@@ -896,20 +896,20 @@ function EventCard({
         const el = e.currentTarget as HTMLDivElement;
         el.style.boxShadow = SHADOW.md;
         el.style.transform = 'translateY(-2px)';
-        el.style.borderColor = '#d6d3d1';
+        el.style.borderColor = T.bdark;
       }}
       onMouseLeave={isMobile ? undefined : (e) => {
         const el = e.currentTarget as HTMLDivElement;
         el.style.boxShadow = SHADOW.sm;
         el.style.transform = 'translateY(0)';
-        el.style.borderColor = '#e7e5e4';
+        el.style.borderColor = T.border;
       }}
       data-testid={`card-event-${event.id}`}
       data-lifecycle={stats.lifecycle}
     >
       {isDone && (
         <div style={{ position: 'absolute', right: '-16px', bottom: '-16px', opacity: 0.03, pointerEvents: 'none' }}>
-          <CheckCircle style={{ width: '120px', height: '120px', color: '#10b981' }} />
+          <CheckCircle style={{ width: '120px', height: '120px', color: TOM.esmeralda.dot }} />
         </div>
       )}
 
@@ -937,9 +937,9 @@ function EventCard({
                     : `O dia do evento passou e ${stats.openCount} ${stats.openCount === 1 ? 'peça continua' : 'peças continuam'} em aberto. Saiu sozinho da Gestão de Prazos e das cinco filas de trabalho — ninguém encerrou este evento, e não há como reabri-lo.`}
               style={{
                 fontSize: FS.micro, fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.06em',
-                color: isClosed ? '#44403c' : isDone ? '#047857' : '#b45309',
-                backgroundColor: isClosed ? '#f5f5f4' : isDone ? '#ecfdf5' : '#fffbeb',
-                border: `1px solid ${isClosed ? '#d6d3d1' : isDone ? '#a7f3d0' : '#fde68a'}`,
+                color: isClosed ? T.strong : isDone ? TOM.esmeralda.text : TOM.alerta.text,
+                backgroundColor: isClosed ? N.n2 : isDone ? TOM.esmeralda.bg : TOM.alerta.bg,
+                border: `1px solid ${isClosed ? T.bdark : isDone ? TOM.esmeralda.border : TOM.alerta.border}`,
                 padding: '3px 8px', borderRadius: R.sm, whiteSpace: 'nowrap',
                 display: 'flex', alignItems: 'center', gap: '4px',
               }}
@@ -952,7 +952,7 @@ function EventCard({
               {stateLabel}
             </span>
           ) : !event.priority ? (
-            <span style={{ fontSize: FS.micro, fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.07em', color: '#746e69', backgroundColor: T.low, padding: '4px 10px', borderRadius: R.sm, display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: FS.micro, fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.07em', color: T.second, backgroundColor: T.low, padding: '4px 10px', borderRadius: R.sm, display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
               <AlertCircle style={{ width: '10px', height: '10px' }} />
               Sem prioridade
             </span>
@@ -963,7 +963,7 @@ function EventCard({
           )}
         </div>
 
-        <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: FS.title, fontWeight: '700', color: T.dark, lineHeight: 1.25, margin: 0 }}>
+        <h3 style={{ fontFamily: FONT.display, fontSize: FS.title, fontWeight: '700', color: T.dark, lineHeight: 1.25, margin: 0 }}>
           {event.name}
         </h3>
         {pedidosAbertos > 0 && (
@@ -989,7 +989,7 @@ function EventCard({
                 {departure ? departure.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''}
               </span>
               {!outOfPlay && truckUrgency === 'departed' && (
-                <span style={{ fontSize: FS.small, fontWeight: '700', color: '#b91c1c' }}>
+                <span style={{ fontSize: FS.small, fontWeight: '700', color: TOM.perigo.text }}>
                   {daysSinceDeparture < 1 ? 'Saiu hoje' : `Saiu há ${daysSinceDeparture}d`}
                 </span>
               )}
@@ -1007,8 +1007,8 @@ function EventCard({
             >
               <p style={{ fontSize: FS.micro, fontWeight: '700', color: T.second, textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Próximo marco</p>
               <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flexWrap: 'wrap' }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: MARCO_COLOR[ms.key] || '#78716c', flexShrink: 0 }} />
-                <span style={{ fontSize: FS.body, fontWeight: '600', color: '#1c1917' }}>{ms.label}</span>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: MARCO_COLOR[ms.key] || T.second, flexShrink: 0 }} />
+                <span style={{ fontSize: FS.body, fontWeight: '600', color: T.text }}>{ms.label}</span>
                 <span style={{
                   fontSize: FS.small, fontWeight: '700', color: msTone.text,
                   backgroundColor: msTone.bg, border: `1px solid ${msTone.border}`,
@@ -1032,10 +1032,10 @@ function EventCard({
           </div>
         </div>
 
-        <div style={{ marginTop: 'auto', paddingTop: '14px', borderTop: '1px solid #f0efee' }}>
+        <div style={{ marginTop: 'auto', paddingTop: '14px', borderTop: `1px solid ${N.n3}` }}>
           {emptyActive ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <span style={{ fontSize: FS.body, fontWeight: '700', color: ms && ms.state !== 'upcoming' ? msTone.text : '#57534e' }}>
+              <span style={{ fontSize: FS.body, fontWeight: '700', color: ms && ms.state !== 'upcoming' ? msTone.text : T.apoio }}>
                 Nenhuma peça criada
                 {ms ? ` — lista ${milestoneDueText(ms)}` : ''}
               </span>
@@ -1051,7 +1051,7 @@ function EventCard({
           ) : (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px', marginBottom: '8px' }}>
-                <span style={{ fontSize: FS.small, fontWeight: '700', color: '#57534e' }}>
+                <span style={{ fontSize: FS.small, fontWeight: '700', color: T.apoio }}>
                   {stats.activeItemCount === 0
                     ? 'Sem peças'
                     : `${stats.deliveredCount} de ${stats.activeItemCount} ${stats.activeItemCount === 1 ? 'peça' : 'peças'}`}
@@ -1066,12 +1066,12 @@ function EventCard({
                   // encerrado: encerrar tira o evento das filas, não apaga o
                   // que ficou para trás.
                   stats.openCount > 0 ? (
-                    <span style={{ fontSize: FS.small, fontWeight: '800', color: '#44403c', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontSize: FS.small, fontWeight: '800', color: T.strong, whiteSpace: 'nowrap' }}>
                       {stats.openCount} em aberto
                     </span>
                   ) : null
                 ) : isDone ? null : isRealizado ? (
-                  <span style={{ fontSize: FS.small, fontWeight: '800', color: '#b45309', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontSize: FS.small, fontWeight: '800', color: TOM.alerta.text, whiteSpace: 'nowrap' }}>
                     {realizadoVazio ? 'Nada criado' : `${stats.openCount} em aberto`}
                   </span>
                 ) : (
@@ -1083,7 +1083,7 @@ function EventCard({
                   antiga só media `delivered` e mostrava 0% para um evento com
                   tudo produzido e conferido. */}
               <div
-                style={{ width: '100%', backgroundColor: '#f0efee', borderRadius: R.pill, height: '8px', overflow: 'hidden', display: 'flex' }}
+                style={{ width: '100%', backgroundColor: N.n3, borderRadius: R.pill, height: '8px', overflow: 'hidden', display: 'flex' }}
                 role="img"
                 aria-label={PHASES.map((p, i) => `${phaseCounts[i]} ${p.noun}`).join(', ')}
               >
@@ -1108,7 +1108,7 @@ function EventCard({
               {rascunhos > 0 && !outOfPlay && !isRealizado && (
                 <span
                   data-testid={`rascunhos-evento-${event.id}`}
-                  style={{ fontSize: FS.small, fontWeight: 700, color: '#92400e', marginTop: '6px', display: 'flex', alignItems: 'center', gap: 5 }}
+                  style={{ fontSize: FS.small, fontWeight: 700, color: TOM.alerta.text, marginTop: '6px', display: 'flex', alignItems: 'center', gap: 5 }}
                 >
                   <Package aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0 }} />
                   {rascunhos} em rascunho — {canEdit ? 'abra e envie para a vinculação' : 'ainda não enviadas'}
@@ -1560,6 +1560,7 @@ export default function Eventos() {
             Abrir evento
           </ToastAction>
         ),
+        variant: "success",
       });
     },
     onError: (error: Error) => {
@@ -1632,7 +1633,8 @@ export default function Eventos() {
         description: failedSponsors.length > 0
           ? `Não foi possível atualizar: ${failedSponsors.join(", ")}. Reabra o evento para revisar.`
           : soVinculos ? `Patrocinadores e cotas de "${nomeSalvo}" salvos.` : `"${nomeSalvo}" salvo.`,
-        variant: failedSponsors.length > 0 ? "destructive" : undefined,
+        // Evento salvo e só parte dos vínculos não: aviso, não falha — nada se perdeu.
+        variant: failedSponsors.length > 0 ? "warning" : "success",
       });
     },
     onError: (error: Error) => {
@@ -1658,6 +1660,7 @@ export default function Eventos() {
         description: removed > 0
           ? `${removed} ${removed === 1 ? 'peça removida' : 'peças removidas'} em cascata${delivered > 0 ? ` (${delivered} já ${delivered === 1 ? 'entregue' : 'entregues'})` : ''}.`
           : "Não havia peças ligadas a ele.",
+        variant: "success",
       });
     },
     onError: (error: Error) => {
@@ -1698,6 +1701,7 @@ export default function Eventos() {
             Mostrar
           </ToastAction>
         ) : undefined,
+        variant: "success",
       });
     },
     onError: (error: Error) => {
@@ -1724,6 +1728,7 @@ export default function Eventos() {
         description: open > 0
           ? `Voltou para a Gestão de Prazos e para as filas com ${open} ${open === 1 ? 'peça em aberto' : 'peças em aberto'}.`
           : "Voltou para a Gestão de Prazos e para as filas de trabalho.",
+        variant: "success",
       });
     },
     onError: (error: Error) => {
@@ -1749,6 +1754,7 @@ export default function Eventos() {
         description: priority
           ? `${nome ? `"${nome}" ` : ""}travado neste nível — a regra da saída do caminhão não mexe mais nele.`
           : `${nome ? `"${nome}" ` : "O evento "}voltou a seguir a saída do caminhão.`,
+        variant: "success",
       });
     },
     onError: (error: Error) => {
@@ -1777,7 +1783,7 @@ export default function Eventos() {
           description: sponsorsLoading
             ? "Os patrocinadores do evento ainda estão carregando."
             : "Reabra a janela — salvar agora poderia remover os patrocinadores vinculados.",
-          variant: "destructive",
+          variant: sponsorsLoading ? "warning" : "destructive",
         });
         return;
       }
@@ -1785,7 +1791,7 @@ export default function Eventos() {
       return;
     }
     if (!formData.startDate || !formData.truckDepartureDate) {
-      toast({ title: "Datas obrigatórias", description: "Preencha a data de início e a saída do caminhão.", variant: "destructive" });
+      toast({ title: "Datas obrigatórias", description: "Preencha a data de início e a saída do caminhão.", variant: "warning" });
       return;
     }
 
@@ -1796,7 +1802,7 @@ export default function Eventos() {
       toast({
         title: "Horário inválido",
         description: "Confira o horário da saída do caminhão (formato 08:00).",
-        variant: "destructive",
+        variant: "warning",
       });
       setOpenTruckDate(true);
       return;
@@ -1818,7 +1824,7 @@ export default function Eventos() {
       toast({
         title: "Data inválida",
         description: "Confira o ano das datas (ex.: 2026) — valor fora do intervalo aceito.",
-        variant: "destructive",
+        variant: "warning",
       });
       return;
     }
@@ -1827,7 +1833,7 @@ export default function Eventos() {
       toast({
         title: "Data inválida",
         description: "A saída do caminhão deve ser pelo menos 1 dia antes do início do evento.",
-        variant: "destructive",
+        variant: "warning",
       });
       return;
     }
@@ -1838,7 +1844,7 @@ export default function Eventos() {
       toast({
         title: "Prazos fora de ordem",
         description: `"${MARCO_FIELDS[first].label}" está antes de "${MARCO_FIELDS[first - 1].label}". Os ${MARCO_FIELDS.length} marcos seguem uma sequência — ajuste antes de salvar.`,
-        variant: "destructive",
+        variant: "warning",
       });
       return;
     }
@@ -1852,7 +1858,7 @@ export default function Eventos() {
         description: sponsorsLoading
           ? "Os patrocinadores do evento ainda estão carregando."
           : "Reabra o evento para editar com segurança — salvar agora poderia remover os patrocinadores vinculados.",
-        variant: "destructive",
+        variant: sponsorsLoading ? "warning" : "destructive",
       });
       return;
     }
@@ -2242,7 +2248,7 @@ export default function Eventos() {
       value, label: meta.label, dotColor: meta.dot, count: priorityCounts[value] || 0, pinned: true,
       group: "Prioridade",
     })),
-    { value: "sem_prioridade", label: "Sem Prioridade", dotColor: "#d6d3d1", count: priorityCounts.sem_prioridade || 0, pinned: true, group: "Prioridade" },
+    { value: "sem_prioridade", label: "Sem Prioridade", dotColor: T.bdark, count: priorityCounts.sem_prioridade || 0, pinned: true, group: "Prioridade" },
     // As três opções de SITUAÇÃO saíram daqui. Elas eram o segundo lugar do
     // mesmo eixo, e é o que obrigava `matchesPriority` a saber de lifecycle e
     // o botão a se desabilitar sozinho.
@@ -2265,7 +2271,7 @@ export default function Eventos() {
       .map((id) => ({
         value: id,
         label: sponsorById.get(id)?.name || "Patrocinador removido",
-        dotColor: (sponsorById.get(id) as any)?.color || "#78716c",
+        dotColor: (sponsorById.get(id) as any)?.color || T.second,
         count: counts.get(id) || 0,
       }))
       .sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
@@ -2376,29 +2382,28 @@ export default function Eventos() {
   const submitPending = createEventMutation.isPending || updateEventMutation.isPending;
 
   return (
-    <div style={{ backgroundColor: '#fafaf9', height: '100%', overflowY: 'auto', padding: isMobile ? '12px' : '32px', display: 'flex', flexDirection: 'column', gap: isMobile ? '14px' : '20px' }}>
+    <div style={{ backgroundColor: T.bg, height: '100%', overflowY: 'auto', padding: isMobile ? '12px' : '32px', display: 'flex', flexDirection: 'column', gap: isMobile ? '14px' : '20px' }}>
 
       {/* ── HEADER ── */}
       <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '12px' }}>
-          <div style={{ minWidth: 0 }}>
-            <h1
-              data-testid="title-eventos"
-              style={{ fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '-0.03em', fontSize: FS.h1, fontWeight: '700', color: T.dark, margin: 0, lineHeight: 1.1 }}
-            >
-              Eventos
-            </h1>
-            {/* No lugar do subtítulo genérico ("Gerencie todos os eventos de
-                produção gráfica", que não informava nada): três atalhos que
-                também filtram, com contagem calculada sobre os demais filtros.
-                "Saem esta semana" ficou de fora de propósito — duplicaria o
-                toggle "Próximos 10 dias" que já existe na barra. */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', margin: '8px 0 0 0' }}>
+        {/* A margem de baixo do cabeçalho (20) anula-se com esta (-20): a
+            coluna da página já dá o respiro pelo `gap`, e somar os dois
+            dobrava o espaço antes dos filtros. */}
+        <div data-testid="title-eventos" style={{ marginBottom: -20 }}>
+          <CabecalhoDaPagina
+            titulo="Eventos"
+            // No lugar do subtítulo genérico ("Gerencie todos os eventos de
+            // produção gráfica", que não informava nada): atalhos que também
+            // filtram, com contagem calculada sobre os demais filtros. "Saem
+            // esta semana" ficou de fora de propósito — duplicaria o toggle
+            // "Próximos 10 dias" que já existe na barra.
+            subtitulo={
+            <span style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: 4 }}>
               {[
-                { key: 'atrasado', label: 'Marco atrasado', count: focoCounts.atrasado, tone: { text: '#b91c1c', bg: '#fef2f2', border: '#fecaca' }, active: foco === 'atrasado', toggle: () => setFoco(foco === 'atrasado' ? '' : 'atrasado') },
-                { key: 'sem_prioridade', label: 'Sem prioridade', count: focoCounts.semPrioridade, tone: { text: '#57534e', bg: T.low, border: '#e7e5e4' }, active: selectedPriorities.length === 1 && selectedPriorities[0] === 'sem_prioridade', toggle: () => setSelectedPriorities((prev) => (prev.length === 1 && prev[0] === 'sem_prioridade') ? [] : ['sem_prioridade']) },
-                { key: 'sem_pecas', label: 'Sem peças', count: focoCounts.semPecas, tone: { text: '#b45309', bg: '#fffbeb', border: '#fde68a' }, active: foco === 'sem_pecas', toggle: () => setFoco(foco === 'sem_pecas' ? '' : 'sem_pecas') },
-                { key: 'pedidos', label: 'Solicitações de peças', count: focoCounts.pedidos, tone: { text: '#92400e', bg: '#fef3c7', border: '#fcd34d' }, active: foco === 'pedidos', toggle: () => setFoco(foco === 'pedidos' ? '' : 'pedidos') },
+                { key: 'atrasado', label: 'Marco atrasado', count: focoCounts.atrasado, tone: { text: TOM.perigo.text, bg: TOM.perigo.bg, border: TOM.perigo.border }, active: foco === 'atrasado', toggle: () => setFoco(foco === 'atrasado' ? '' : 'atrasado') },
+                { key: 'sem_prioridade', label: 'Sem prioridade', count: focoCounts.semPrioridade, tone: { text: T.apoio, bg: T.low, border: T.border }, active: selectedPriorities.length === 1 && selectedPriorities[0] === 'sem_prioridade', toggle: () => setSelectedPriorities((prev) => (prev.length === 1 && prev[0] === 'sem_prioridade') ? [] : ['sem_prioridade']) },
+                { key: 'sem_pecas', label: 'Sem peças', count: focoCounts.semPecas, tone: { text: TOM.alerta.text, bg: TOM.alerta.bg, border: TOM.alerta.border }, active: foco === 'sem_pecas', toggle: () => setFoco(foco === 'sem_pecas' ? '' : 'sem_pecas') },
+                { key: 'pedidos', label: 'Solicitações de peças', count: focoCounts.pedidos, tone: { text: TOM.alerta.text, bg: TOM.alerta.bg, border: TOM.alerta.border }, active: foco === 'pedidos', toggle: () => setFoco(foco === 'pedidos' ? '' : 'pedidos') },
               ].map((chip) => (
                 <button
                   key={chip.key}
@@ -2415,20 +2420,23 @@ export default function Eventos() {
                     fontSize: FS.small, fontWeight: '700',
                     cursor: chip.count === 0 && !chip.active ? 'default' : 'pointer',
                     opacity: chip.count === 0 && !chip.active ? 0.45 : 1,
-                    border: `1px solid ${chip.active ? '#1c1917' : chip.tone.border}`,
+                    border: `1px solid ${chip.active ? T.text : chip.tone.border}`,
                     backgroundColor: chip.active ? T.dark : chip.tone.bg,
-                    color: chip.active ? '#ffffff' : chip.tone.text,
+                    color: chip.active ? T.surface : chip.tone.text,
                     transition: 'all 0.15s',
                   }}
                 >
                   {chip.label}
-                  <span style={{ fontWeight: '800' }}>{chip.count}</span>
+                  <span style={{ fontWeight: FW.rotulo }}>{chip.count}</span>
                 </button>
               ))}
-            </div>
-          </div>
-          {canCreate && (
-            <Button
+            </span>
+            }
+            acoes={canCreate ? (
+            <Botao
+              variante="primario"
+              icone={Plus}
+              tamanho={isMobile ? 'toque' : 'md'}
               data-testid="button-create-event"
               onClick={() => {
                 setEditingEvent(null);
@@ -2440,12 +2448,12 @@ export default function Eventos() {
                 setPrazosExpanded(false);
                 setOpen(true);
               }}
-              style={{ flexShrink: 0, backgroundColor: T.accentText, color: '#ffffff', border: 'none', borderRadius: R.md, fontWeight: '700', fontSize: FS.body, padding: '0 18px', height: isMobile ? 44 : 34, gap: '7px', boxShadow: '0 2px 8px rgba(249,115,22,0.28)', display: 'flex', alignItems: 'center' }}
+              style={{ flexShrink: 0 }}
             >
-              <Plus style={{ width: '14px', height: '14px' }} />
               Novo Evento
-            </Button>
-          )}
+            </Botao>
+            ) : undefined}
+          />
         </div>
 
         {/* ── PEDIDOS DO ATENDIMENTO (dono, 14/09) ──────────────────────────
@@ -2462,45 +2470,45 @@ export default function Eventos() {
             <div
               data-testid="faixa-pedidos-atendimento"
               role="status"
-              style={{ marginTop: 14, display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap', padding: '12px 16px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderLeft: '4px solid #d97706', borderRadius: R.lg }}
+              style={{ marginTop: 14, display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap', padding: '12px 16px', backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderLeft: `4px solid ${TOM.alerta.text}`, borderRadius: R.lg }}
             >
-              <Inbox aria-hidden="true" style={{ width: 18, height: 18, color: '#b45309', flexShrink: 0, marginTop: 2 }} />
+              <Inbox aria-hidden="true" style={{ width: 18, height: 18, color: TOM.alerta.text, flexShrink: 0, marginTop: 2 }} />
               <div style={{ flex: '1 1 320px', minWidth: 0 }}>
-                <div style={{ fontSize: FS.body + 1, fontWeight: 800, color: '#78350f' }}>
+                <div style={{ fontSize: FS.body + 1, fontWeight: 800, color: TOM.alerta.text }}>
                   {n} {n === 1 ? 'peça solicitada pelo Atendimento esperando a lista' : 'peças solicitadas pelo Atendimento esperando a lista'}
                 </div>
                 <ul style={{ listStyle: 'none', margin: '6px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {maisAntigos.slice(0, 3).map(({ pedido: p, linha: l }) => {
                     const idade = idadeDoPedido(p.createdAt, agora);
                     return (
-                      <li key={l.id} style={{ fontSize: FS.body, color: '#78350f', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <li key={l.id} style={{ fontSize: FS.body, color: TOM.alerta.text, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         <Link
                           href={`/eventos/${l.eventId}?pedidos=1`}
                           data-testid={`link-pedido-evento-${l.id}`}
-                          style={{ fontWeight: 800, color: '#78350f', textDecoration: 'underline', textUnderlineOffset: 2 }}
+                          style={{ fontWeight: 800, color: TOM.alerta.text, textDecoration: 'underline', textUnderlineOffset: 2 }}
                         >
                           {l.eventName ?? 'Evento'}
                         </Link>
                         {' · '}{rotuloDaLinha(l)} · {patrocinadoresDaLinha(l)} · {quantidadeDoPedido(l.quantidade)} ·{' '}
-                        <span style={{ fontWeight: idade.nivel === 'normal' ? 600 : 800, color: idade.nivel === 'parado' ? '#b91c1c' : '#78350f' }}>{idade.texto}</span>
+                        <span style={{ fontWeight: idade.nivel === 'normal' ? 600 : 800, color: idade.nivel === 'parado' ? TOM.perigo.text : TOM.alerta.text }}>{idade.texto}</span>
                       </li>
                     );
                   })}
                 </ul>
-                {n > 3 && <span style={{ display: 'block', marginTop: 4, fontSize: FS.small, color: '#78350f' }}>e mais {n - 3}</span>}
+                {n > 3 && <span style={{ display: 'block', marginTop: 4, fontSize: FS.small, color: TOM.alerta.text }}>e mais {n - 3}</span>}
               </div>
               <button
                 type="button"
                 data-testid="button-filtrar-pedidos"
                 onClick={() => setFoco(foco === 'pedidos' ? '' : 'pedidos')}
-                style={{ height: alvo(34, dedo), padding: '0 14px', borderRadius: R.md, border: '1px solid #fcd34d', backgroundColor: foco === 'pedidos' ? '#78350f' : '#ffffff', color: foco === 'pedidos' ? '#ffffff' : '#78350f', fontSize: FS.body, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                style={{ height: alvo(34, dedo), padding: '0 14px', borderRadius: R.md, border: `1px solid ${TOM.alerta.border}`, backgroundColor: foco === 'pedidos' ? TOM.alerta.text : T.surface, color: foco === 'pedidos' ? T.surface : TOM.alerta.text, fontSize: FS.body, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}
               >
                 {foco === 'pedidos' ? 'Mostrar todos os eventos' : 'Ver só eventos com solicitação'}
               </button>
               <Link
                 href="/pedidos-de-peca"
                 data-testid="link-caixa-pedidos"
-                style={{ display: 'inline-flex', alignItems: 'center', height: alvo(34, dedo), padding: '0 14px', borderRadius: R.md, border: '1px solid #fcd34d', backgroundColor: '#ffffff', color: '#78350f', fontSize: FS.body, fontWeight: 800, textDecoration: 'none', whiteSpace: 'nowrap' }}
+                style={{ display: 'inline-flex', alignItems: 'center', height: alvo(34, dedo), padding: '0 14px', borderRadius: R.md, border: `1px solid ${TOM.alerta.border}`, backgroundColor: T.surface, color: TOM.alerta.text, fontSize: FS.body, fontWeight: 800, textDecoration: 'none', whiteSpace: 'nowrap' }}
               >
                 Abrir as solicitações de peças
               </Link>
@@ -2552,7 +2560,7 @@ export default function Eventos() {
             <ModalHeader
               icon={CalendarPlus}
               variant="work"
-              tint="#c2410c"
+              tint={T.accentText}
               title={soPatrocinadoresNoModal ? 'Vincular Patrocinadores' : modalMode === 'edit' ? 'Editar Evento' : modalMode === 'duplicate' ? 'Duplicar Evento' : 'Novo Evento'}
               subtitle={
                 soPatrocinadoresNoModal
@@ -2574,7 +2582,7 @@ export default function Eventos() {
                 {/* Nome + Prioridade */}
                 <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(240px, 1fr) auto', gap: '16px', alignItems: 'end' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0 }}>
-                    <label htmlFor="event-name" style={{ fontSize: FS.micro, fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+                    <label htmlFor="event-name" style={{ fontSize: FS.micro, fontWeight: '700', color: T.apoio, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
                       Nome do Evento
                     </label>
                     <input
@@ -2584,7 +2592,7 @@ export default function Eventos() {
                       placeholder="Ex: Circuito Estações — Etapa 2"
                       required
                       data-testid="input-event-name"
-                      style={{ width: '100%', backgroundColor: T.border, border: 'none', borderRadius: R.md, padding: '12px 16px', fontSize: FS.strong, color: T.text, fontFamily: "'Plus Jakarta Sans', sans-serif", transition: 'box-shadow 0.15s, background-color 0.15s' }}
+                      style={{ width: '100%', backgroundColor: T.border, border: 'none', borderRadius: R.md, padding: '12px 16px', fontSize: FS.strong, color: T.text, fontFamily: FONT.corpo, transition: 'box-shadow 0.15s, background-color 0.15s' }}
                     />
                   </div>
                   {/* Prioridade na CRIAÇÃO: o schema já a aceitava, mas o
@@ -2593,14 +2601,14 @@ export default function Eventos() {
                       Resultado: "Sem prioridade" era o badge mais comum da
                       grade, esvaziando o filtro e a ordenação. */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <span style={{ fontSize: FS.micro, fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+                    <span style={{ fontSize: FS.micro, fontWeight: '700', color: T.apoio, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
                       Prioridade
                     </span>
                     <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
                       {/* '' = AUTOMÁTICA (25/08): no salvar, o vazio destrava o
                           evento e a regra da saída do caminhão volta a mandar
                           na hora. Escolher um nível TRAVA (a regra não mexe). */}
-                      {[{ value: '', label: 'Automática', dot: '#a8a29e', text: '#57534e', bg: T.low, border: '#e7e5e4' },
+                      {[{ value: '', label: 'Automática', dot: T.muted, text: T.apoio, bg: T.low, border: T.border },
                         ...(['baixa', 'media', 'alta', 'urgente'] as const).map((k) => ({
                           value: k, label: PRIORITY[k].label, dot: PRIORITY[k].dot, text: PRIORITY[k].text, bg: PRIORITY[k].bg, border: PRIORITY[k].border,
                         }))].map((opt) => {
@@ -2618,11 +2626,11 @@ export default function Eventos() {
                             style={{
                               display: 'flex', alignItems: 'center', gap: '5px',
                               height: isMobile ? 44 : 34, padding: '0 10px', borderRadius: R.md,
-                              border: `1.5px solid ${active ? opt.dot : '#e7e5e4'}`,
-                              backgroundColor: active ? opt.bg : '#ffffff',
-                              color: active ? opt.text : '#57534e',
+                              border: `1.5px solid ${active ? opt.dot : T.border}`,
+                              backgroundColor: active ? opt.bg : T.surface,
+                              color: active ? opt.text : T.apoio,
                               fontSize: FS.small, fontWeight: '700', cursor: 'pointer',
-                              fontFamily: "'Plus Jakarta Sans', sans-serif",
+                              fontFamily: FONT.corpo,
                             }}
                           >
                             <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: opt.dot, flexShrink: 0 }} />
@@ -2639,7 +2647,7 @@ export default function Eventos() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {/* htmlFor → id do gatilho: sem o vínculo, o leitor de tela
                         anunciava só "Selecionar data, botão", sem dizer QUAL. */}
-                    <label htmlFor="event-start-date" style={{ fontSize: FS.micro, fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+                    <label htmlFor="event-start-date" style={{ fontSize: FS.micro, fontWeight: '700', color: T.apoio, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
                       Data de Início
                     </label>
                     <Popover open={openStartDate} onOpenChange={setOpenStartDate}>
@@ -2648,7 +2656,7 @@ export default function Eventos() {
                           id="event-start-date"
                           type="button"
                           data-testid="input-start-date"
-                          style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 40, backgroundColor: openStartDate ? '#ffffff' : T.border, border: openStartDate ? '1px solid #f97316' : '1px solid transparent', borderRadius: R.md, padding: '0 12px', fontSize: FS.body, color: formData.startDate ? T.text : T.second, fontFamily: "'Plus Jakarta Sans', sans-serif", cursor: 'pointer', textAlign: 'left' as const, boxShadow: openStartDate ? '0 0 0 2px rgba(249,115,22,0.18)' : 'none', transition: 'all 0.15s' }}
+                          style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 40, backgroundColor: openStartDate ? T.surface : T.border, border: openStartDate ? `1px solid ${T.accent}` : '1px solid transparent', borderRadius: R.md, padding: '0 12px', fontSize: FS.body, color: formData.startDate ? T.text : T.second, fontFamily: FONT.corpo, cursor: 'pointer', textAlign: 'left' as const, boxShadow: openStartDate ? '0 0 0 2px rgba(249,115,22,0.18)' : 'none', transition: 'all 0.15s' }}
                         >
                           <Calendar style={{ width: 14, height: 14, color: T.muted, flexShrink: 0 }} />
                           {formData.startDate ? fmtDateBR(formData.startDate) : <span style={{ color: T.second }}>Selecionar data</span>}
@@ -2667,14 +2675,14 @@ export default function Eventos() {
                             selected={parseDateStr(formData.startDate)}
                             onSelect={date => { if (date) { setFormData({ ...formData, startDate: toDateStr(date) }); setOpenStartDate(false); } }}
                             locale={ptBR}
-                            classNames={{ day_selected: 'bg-[#f97316] text-white hover:bg-[#ea580c] hover:text-white focus:bg-[#f97316] focus:text-white', day_today: 'bg-orange-50 font-semibold' }}
+                            classNames={{ day_selected: 'bg-[#1c1917] text-white hover:bg-[#44403c] hover:text-white focus:bg-[#1c1917] focus:text-white', day_today: 'bg-orange-50 font-semibold' }}
                           />
                         </FreezeWhileClosing>
                       </PopoverContent>
                     </Popover>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <label htmlFor="event-truck-date" style={{ fontSize: FS.micro, fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+                    <label htmlFor="event-truck-date" style={{ fontSize: FS.micro, fontWeight: '700', color: T.apoio, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
                       Saída do Caminhão
                     </label>
                     <Popover open={openTruckDate} onOpenChange={setOpenTruckDate}>
@@ -2683,7 +2691,7 @@ export default function Eventos() {
                           id="event-truck-date"
                           type="button"
                           data-testid="input-truck-date"
-                          style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 40, backgroundColor: openTruckDate ? '#ffffff' : T.border, border: openTruckDate ? '1px solid #f97316' : '1px solid transparent', borderRadius: R.md, padding: '0 12px', fontSize: FS.body, color: formData.truckDepartureDate ? T.text : T.second, fontFamily: "'Plus Jakarta Sans', sans-serif", cursor: 'pointer', textAlign: 'left' as const, boxShadow: openTruckDate ? '0 0 0 2px rgba(249,115,22,0.18)' : 'none', transition: 'all 0.15s' }}
+                          style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 40, backgroundColor: openTruckDate ? T.surface : T.border, border: openTruckDate ? `1px solid ${T.accent}` : '1px solid transparent', borderRadius: R.md, padding: '0 12px', fontSize: FS.body, color: formData.truckDepartureDate ? T.text : T.second, fontFamily: FONT.corpo, cursor: 'pointer', textAlign: 'left' as const, boxShadow: openTruckDate ? '0 0 0 2px rgba(249,115,22,0.18)' : 'none', transition: 'all 0.15s' }}
                         >
                           <Truck style={{ width: 14, height: 14, color: T.muted, flexShrink: 0 }} />
                           {formData.truckDepartureDate
@@ -2709,9 +2717,9 @@ export default function Eventos() {
                             }
                           }}
                           locale={ptBR}
-                          classNames={{ day_selected: 'bg-[#f97316] text-white hover:bg-[#ea580c] hover:text-white focus:bg-[#f97316] focus:text-white', day_today: 'bg-orange-50 font-semibold' }}
+                          classNames={{ day_selected: 'bg-[#1c1917] text-white hover:bg-[#44403c] hover:text-white focus:bg-[#1c1917] focus:text-white', day_today: 'bg-orange-50 font-semibold' }}
                         />
-                        <div style={{ borderTop: '1px solid #f0efee', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ borderTop: `1px solid ${N.n3}`, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
                           <Clock style={{ width: 12, height: 12, color: T.muted, flexShrink: 0 }} />
                           <label htmlFor="truck-time" style={{ fontSize: FS.small, color: T.second, fontWeight: 600, flexShrink: 0 }}>Horário:</label>
                           <input
@@ -2756,15 +2764,16 @@ export default function Eventos() {
                                nunca era removido no blur, deixando o campo
                                permanentemente com cara de ativo. O
                                :focus-visible global (index.css) já cuida. */
-                            style={{ width: 68, height: 34, textAlign: 'center', border: '1px solid #e7e5e4', borderRadius: R.sm, fontSize: FS.strong, fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '0.05em' }}
+                            style={{ width: 68, height: 34, textAlign: 'center', border: `1px solid ${T.border}`, borderRadius: R.sm, fontSize: FS.strong, fontWeight: 700, fontFamily: FONT.corpo, letterSpacing: '0.05em' }}
                           />
-                          <button
-                            type="button"
+                          <Botao
+                            variante="primario"
+                            tamanho={isMobile ? 'toque' : 'sm'}
                             onClick={() => setOpenTruckDate(false)}
-                            style={{ marginLeft: 'auto', height: 34, padding: '0 14px', borderRadius: R.sm, border: 'none', background: T.accentText, color: '#ffffff', fontSize: FS.small, fontWeight: 700, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                            style={{ marginLeft: 'auto' }}
                           >
                             Ok
-                          </button>
+                          </Botao>
                         </div>
                       </FreezeWhileClosing>
                       </PopoverContent>
@@ -2773,7 +2782,7 @@ export default function Eventos() {
                       const s = formData.startDate;
                       const t = formData.truckDepartureDate?.substring(0, 10);
                       if (s && t && t >= s) {
-                        return <p role="alert" style={{ margin: 0, fontSize: FS.small, color: '#b91c1c', fontWeight: 600 }}>Deve ser pelo menos 1 dia antes do início do evento.</p>;
+                        return <p role="alert" style={{ margin: 0, fontSize: FS.small, color: TOM.perigo.text, fontWeight: 600 }}>Deve ser pelo menos 1 dia antes do início do evento.</p>;
                       }
                       return null;
                     })()}
@@ -2784,7 +2793,7 @@ export default function Eventos() {
                     molde. Usado no fluxo do molde (Arte, Revisão Final,
                     Gráfica) — NÃO entra na Gestão de Prazos. Um dia, sem hora. */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label htmlFor="event-prazo-molde" style={{ fontSize: FS.micro, fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+                  <label htmlFor="event-prazo-molde" style={{ fontSize: FS.micro, fontWeight: '700', color: T.apoio, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
                     Prazo do molde (opcional)
                   </label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -2795,20 +2804,20 @@ export default function Eventos() {
                       value={formData.prazoMolde}
                       onChange={(e) => setFormData({ ...formData, prazoMolde: e.target.value })}
                       aria-describedby="ajuda-prazo-molde"
-                      style={{ height: 40, minWidth: 180, backgroundColor: T.border, border: '1px solid transparent', borderRadius: R.md, padding: '0 12px', fontSize: 16, color: formData.prazoMolde ? T.text : T.second, fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                      style={{ height: 40, minWidth: 180, backgroundColor: T.border, border: '1px solid transparent', borderRadius: R.md, padding: '0 12px', fontSize: 16, color: formData.prazoMolde ? T.text : T.second, fontFamily: FONT.corpo }}
                     />
                     {formData.prazoMolde && (
-                      <button
-                        type="button"
+                      <Botao
+                        variante="secundario"
+                        tamanho={isMobile ? 'toque' : 'md'}
                         data-testid="button-limpar-prazo-molde"
                         onClick={() => setFormData({ ...formData, prazoMolde: "" })}
-                        style={{ minHeight: 40, padding: '0 12px', borderRadius: R.md, border: '1px solid #e7e5e4', background: '#ffffff', color: '#57534e', fontSize: FS.small, fontWeight: 700, cursor: 'pointer' }}
                       >
                         Limpar
-                      </button>
+                      </Botao>
                     )}
                   </div>
-                  <p id="ajuda-prazo-molde" style={{ margin: 0, fontSize: FS.small, color: '#746e69', lineHeight: 1.4 }}>
+                  <p id="ajuda-prazo-molde" style={{ margin: 0, fontSize: FS.small, color: T.second, lineHeight: 1.4 }}>
                     {AJUDA_PRAZO_MOLDE}
                   </p>
                 </div>
@@ -2819,14 +2828,14 @@ export default function Eventos() {
                     type="button"
                     onClick={() => setPrazosExpanded(!prazosExpanded)}
                     data-testid="button-toggle-prazos"
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', width: '100%', backgroundColor: '#f0efee', border: 'none', borderRadius: prazosExpanded ? `${R.md}px ${R.md}px 0 0` : R.md, padding: '10px 14px', cursor: 'pointer', transition: 'background-color 0.15s' }}
-                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#e8e7e6'; }}
-                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f0efee'; }}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', width: '100%', backgroundColor: N.n3, border: 'none', borderRadius: prazosExpanded ? `${R.md}px ${R.md}px 0 0` : R.md, padding: '10px 14px', cursor: 'pointer', transition: 'background-color 0.15s' }}
+                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.border; }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = N.n3; }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 }}>
-                      <Clock style={{ width: '13px', height: '13px', color: '#f97316', flexShrink: 0 }} />
+                      <Clock style={{ width: '13px', height: '13px', color: T.accent, flexShrink: 0 }} />
                       <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontSize: FS.micro, fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em' }}>Prazos</span>
+                        <span style={{ fontSize: FS.micro, fontWeight: '700', color: T.apoio, textTransform: 'uppercase', letterSpacing: '0.12em' }}>Prazos</span>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             {/* A ÚNICA explicação de por que a data escolhida
@@ -2856,7 +2865,7 @@ export default function Eventos() {
                         </Tooltip>
                       </span>
                       {customDeadlineCount > 0 && (
-                        <span style={{ fontSize: FS.micro, fontWeight: '700', color: T.accentText, background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: R.pill, padding: '1px 8px', whiteSpace: 'nowrap' }}>
+                        <span style={{ fontSize: FS.micro, fontWeight: '700', color: T.accentText, background: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, borderRadius: R.pill, padding: '1px 8px', whiteSpace: 'nowrap' }}>
                           {customDeadlineCount} personalizado{customDeadlineCount > 1 ? 's' : ''}
                         </span>
                       )}
@@ -2868,7 +2877,7 @@ export default function Eventos() {
                     }
                   </button>
                   {prazosExpanded && (
-                    <div style={{ backgroundColor: '#f0efee', borderRadius: `0 0 ${R.md}px ${R.md}px`, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
+                    <div style={{ backgroundColor: N.n3, borderRadius: `0 0 ${R.md}px ${R.md}px`, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
                       {MARCO_FIELDS.map(({ field, key, label, desc, color, allDays }, idx) => {
                         const currentDays = Number(formData[field]);
                         const dateVal = offsetToDateStr(currentDays, allDays);
@@ -2887,8 +2896,8 @@ export default function Eventos() {
                               justifyContent: 'space-between',
                               gap: isMobile ? '6px' : '12px',
                               padding: outOfOrder ? '8px 10px' : 0,
-                              border: outOfOrder ? '1px solid #fbbf24' : '1px solid transparent',
-                              backgroundColor: outOfOrder ? '#fffbeb' : 'transparent',
+                              border: outOfOrder ? `1px solid ${TOM.alerta.dot}` : '1px solid transparent',
+                              backgroundColor: outOfOrder ? TOM.alerta.bg : 'transparent',
                               borderRadius: R.sm,
                             }}
                           >
@@ -2907,9 +2916,9 @@ export default function Eventos() {
                                       type="button"
                                       data-testid={`input-${field}`}
                                       disabled={noStart}
-                                      style={{ display: 'flex', alignItems: 'center', gap: 5, height: alvo(30, dedo), padding: '0 10px', borderRadius: R.sm, border: openPrazoKey === key ? '1px solid #f97316' : '1px solid transparent', backgroundColor: noStart ? '#f0efee' : (openPrazoKey === key ? '#ffffff' : T.border), fontSize: FS.body, fontWeight: '600', color: noStart ? T.second : (dateVal ? T.text : T.second), cursor: noStart ? 'not-allowed' : 'pointer', boxShadow: openPrazoKey === key ? '0 0 0 2px rgba(249,115,22,0.18)' : 'none', transition: 'all 0.15s', fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: 'nowrap' as const }}
+                                      style={{ display: 'flex', alignItems: 'center', gap: 5, height: alvo(30, dedo), padding: '0 10px', borderRadius: R.sm, border: openPrazoKey === key ? `1px solid ${T.accent}` : '1px solid transparent', backgroundColor: noStart ? N.n3 : (openPrazoKey === key ? T.surface : T.border), fontSize: FS.body, fontWeight: '600', color: noStart ? T.second : (dateVal ? T.text : T.second), cursor: noStart ? 'not-allowed' : 'pointer', boxShadow: openPrazoKey === key ? '0 0 0 2px rgba(249,115,22,0.18)' : 'none', transition: 'all 0.15s', fontFamily: FONT.corpo, whiteSpace: 'nowrap' as const }}
                                     >
-                                      <Calendar style={{ width: 11, height: 11, color: noStart ? '#c4bfbb' : T.muted, flexShrink: 0 }} />
+                                      <Calendar style={{ width: 11, height: 11, color: noStart ? T.bdark : T.muted, flexShrink: 0 }} />
                                       {dateVal ? fmtDateBR(dateVal) : (noStart ? '—' : 'Selecionar')}
                                     </button>
                                   </PopoverTrigger>
@@ -2929,7 +2938,7 @@ export default function Eventos() {
                                           }
                                         }}
                                         locale={ptBR}
-                                        classNames={{ day_selected: 'bg-[#f97316] text-white hover:bg-[#ea580c] hover:text-white focus:bg-[#f97316] focus:text-white', day_today: 'bg-orange-50 font-semibold' }}
+                                        classNames={{ day_selected: 'bg-[#1c1917] text-white hover:bg-[#44403c] hover:text-white focus:bg-[#1c1917] focus:text-white', day_today: 'bg-orange-50 font-semibold' }}
                                       />
                                       </FreezeWhileClosing>
                                     </PopoverContent>
@@ -2945,7 +2954,7 @@ export default function Eventos() {
                                 </span>
                               )}
                               {outOfOrder && (
-                                <span style={{ fontSize: FS.micro, color: '#b45309', fontWeight: '700' }}>
+                                <span style={{ fontSize: FS.micro, color: TOM.alerta.text, fontWeight: '700' }}>
                                   Deve vir depois de {MARCO_FIELDS[idx - 1].label} — confira a ordem
                                 </span>
                               )}
@@ -2954,26 +2963,18 @@ export default function Eventos() {
                         );
                       })}
                       <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid rgba(0,0,0,0.05)', paddingTop: '8px' }}>
-                        <button
-                          type="button"
+                        <Botao
+                          variante="fantasma"
+                          tamanho={isMobile ? 'toque' : 'sm'}
+                          icone={RotateCcw}
                           disabled={customDeadlineCount === 0}
+                          motivo={customDeadlineCount === 0 ? 'Os prazos já seguem o padrão.' : undefined}
+                          alinharMotivo="end"
                           onClick={() => setFormData({ ...formData, ...DEFAULT_DEADLINES })}
                           data-testid="button-restore-default-deadlines"
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: 6,
-                            background: 'transparent', border: 'none', padding: '4px 6px',
-                            fontSize: FS.small, fontWeight: '700',
-                            // T.second e não T.muted (#a8a29e): a paleta reserva
-                            // o cinza claro a elementos decorativos — ele nunca
-                            // é cor de TEXTO, nem em estado desabilitado.
-                            color: customDeadlineCount === 0 ? T.second : T.accentText,
-                            cursor: customDeadlineCount === 0 ? 'default' : 'pointer',
-                            fontFamily: 'inherit',
-                          }}
                         >
-                          <RotateCcw style={{ width: 12, height: 12 }} />
                           Restaurar padrão ({DEFAULT_OFFSETS_LABEL})
-                        </button>
+                        </Botao>
                       </div>
                     </div>
                   )}
@@ -2983,46 +2984,41 @@ export default function Eventos() {
 
                 {/* Patrocinadores */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <label style={{ fontSize: FS.micro, fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Building2 style={{ width: '12px', height: '12px', color: '#f97316' }} />
+                  <label style={{ fontSize: FS.micro, fontWeight: '700', color: T.apoio, textTransform: 'uppercase', letterSpacing: '0.12em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Building2 style={{ width: '12px', height: '12px', color: T.accent }} />
                     Patrocinadores
                     <span style={{ color: T.second, fontWeight: '400', textTransform: 'none', letterSpacing: 0 }}>(opcional)</span>
                     {selectedSponsorIds.length > 0 && (
-                      <span style={{ marginLeft: 'auto', fontSize: FS.micro, fontWeight: '700', color: T.accentText, background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: R.pill, padding: '1px 8px', letterSpacing: 0, textTransform: 'none' }}>
+                      <span style={{ marginLeft: 'auto', fontSize: FS.micro, fontWeight: '700', color: T.accentText, background: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, borderRadius: R.pill, padding: '1px 8px', letterSpacing: 0, textTransform: 'none' }}>
                         {selectedSponsorIds.length} selecionado{selectedSponsorIds.length > 1 ? 's' : ''}
                       </span>
                     )}
                   </label>
 
                   {(sponsorsQueryLoading || sponsorsLoading) ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: '#ffffff', border: '1px solid #f0efee', borderRadius: R.md, padding: '14px 16px' }} aria-busy="true" aria-label="Carregando patrocinadores">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: T.surface, border: `1px solid ${N.n3}`, borderRadius: R.md, padding: '14px 16px' }} aria-busy="true" aria-label="Carregando patrocinadores">
                       {[0, 1, 2, 3, 4].map((i) => (
-                        <div key={i} className="animate-pulse" style={{ height: '14px', borderRadius: '4px', backgroundColor: '#f5f5f4', width: `${88 - i * 9}%` }} />
+                        <div key={i} className="animate-pulse" style={{ height: '14px', borderRadius: '4px', backgroundColor: N.n2, width: `${88 - i * 9}%` }} />
                       ))}
                     </div>
                   ) : (sponsorsQueryError || sponsorsError) ? (
-                    <div role="alert" style={{ backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: R.md, padding: '12px 16px', fontSize: FS.body, fontWeight: '600', color: '#b45309', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                      <AlertTriangle style={{ width: '15px', height: '15px', flexShrink: 0, marginTop: '1px' }} />
-                      <span style={{ flex: 1 }}>Não foi possível carregar os patrocinadores.</span>
-                      {(editingEvent || duplicateSource) && sponsorsError && (
-                        <button
-                          type="button"
-                          onClick={() => fetchEventSponsors((editingEvent || duplicateSource).id, !!editingEvent)}
-                          data-testid="button-retry-sponsors"
-                          style={{ flexShrink: 0, background: 'transparent', border: 'none', padding: 0, fontSize: FS.body, fontWeight: '700', color: '#b45309', textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit' }}
-                        >
-                          Tentar novamente
-                        </button>
-                      )}
-                    </div>
+                    <EstadoErro
+                      compacto
+                      titulo="Não foi possível carregar os patrocinadores."
+                      aoTentarDeNovo={(editingEvent || duplicateSource) && sponsorsError
+                        ? () => fetchEventSponsors((editingEvent || duplicateSource).id, !!editingEvent)
+                        : undefined}
+                    />
                   ) : sponsors.length === 0 ? (
-                    <p style={{ fontSize: FS.body, color: '#57534e', backgroundColor: '#f0efee', borderRadius: R.md, padding: '12px 16px' }}>
-                      Nenhum patrocinador cadastrado.{" "}
-                      <Link href="/patrocinadores" style={{ color: T.accentText, fontWeight: '600' }}>Cadastre agora</Link>
-                    </p>
+                    <EstadoVazio
+                      compacto
+                      icone={Building2}
+                      titulo="Nenhum patrocinador cadastrado."
+                      acao={<Link href="/patrocinadores" style={{ color: T.accentText, fontWeight: FW.medio, fontSize: FS.body }}>Cadastre agora</Link>}
+                    />
                   ) : (
-                    <div style={{ backgroundColor: '#f0efee', borderRadius: R.lg, overflow: 'hidden' }}>
-                      <div style={{ padding: '10px 12px', borderBottom: '1px solid #e7e5e4', position: 'relative' }}>
+                    <div style={{ backgroundColor: N.n3, borderRadius: R.lg, overflow: 'hidden' }}>
+                      <div style={{ padding: '10px 12px', borderBottom: `1px solid ${T.border}`, position: 'relative' }}>
                         <Search style={{ position: 'absolute', left: 22, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: T.muted, pointerEvents: 'none' }} />
                         <input
                           type="text"
@@ -3033,7 +3029,7 @@ export default function Eventos() {
                           data-testid="input-sponsor-search"
                           style={{
                             width: '100%', paddingLeft: 28, paddingRight: 10, paddingTop: 7, paddingBottom: 7,
-                            backgroundColor: '#ffffff', border: 'none', borderRadius: R.sm,
+                            backgroundColor: T.surface, border: 'none', borderRadius: R.sm,
                             fontSize: FS.body, color: T.text, boxSizing: 'border-box',
                           }}
                         />
@@ -3085,7 +3081,7 @@ export default function Eventos() {
                               )}
                               {filtered.map((sponsor) => {
                                 const isSelected = selectedSponsorIds.includes(sponsor.id);
-                                const color = (sponsor as any).color || '#3b82f6';
+                                const color = (sponsor as any).color || TOM.info.dot;
                                 const currentQuota = sponsorQuotaMap[sponsor.id] || '';
                                 const quotaOpt = QUOTA_OPTIONS.find(q => q.value === currentQuota);
                                 return (
@@ -3094,13 +3090,13 @@ export default function Eventos() {
                                     style={{
                                       display: 'flex', alignItems: 'center', gap: 10,
                                       padding: '9px 14px',
-                                      borderBottom: '1px solid #f0efed',
-                                      backgroundColor: isSelected ? '#fff8f2' : 'transparent',
+                                      borderBottom: `1px solid ${N.n3}`,
+                                      backgroundColor: isSelected ? TOM.laranja.bg : 'transparent',
                                       transition: 'background-color 0.12s',
                                       cursor: 'pointer',
                                     }}
-                                    onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.backgroundColor = '#f5f4f2'; }}
-                                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = isSelected ? '#fff8f2' : 'transparent'; }}
+                                    onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.backgroundColor = N.n3; }}
+                                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = isSelected ? TOM.laranja.bg : 'transparent'; }}
                                     onClick={() => {
                                       if (isSelected) {
                                         setSelectedSponsorIds(prev => prev.filter(id => id !== sponsor.id));
@@ -3169,15 +3165,15 @@ export default function Eventos() {
                                             // paleta. Antes o texto usava o hex
                                             // saturado sobre 9% dele mesmo — 4
                                             // das 6 cotas reprovavam AA em 11px.
-                                            border: `1.5px solid ${quotaOpt ? quotaOpt.dot : '#d8d5d2'}`,
-                                            backgroundColor: quotaOpt ? quotaOpt.bg : '#f0efee',
-                                            color: quotaOpt ? quotaOpt.text : '#44403c',
+                                            border: `1.5px solid ${quotaOpt ? quotaOpt.dot : T.bdark}`,
+                                            backgroundColor: quotaOpt ? quotaOpt.bg : N.n3,
+                                            color: quotaOpt ? quotaOpt.text : T.strong,
                                             height: '28px',
                                             // Direita maior: a seta desenhada
                                             // ao lado ocupa esse espaço.
                                             padding: '0 26px 0 10px',
                                             minWidth: '96px',
-                                            fontFamily: "'Plus Jakarta Sans', sans-serif",
+                                            fontFamily: FONT.corpo,
                                             boxShadow: 'none',
                                             cursor: 'pointer',
                                           }}
@@ -3189,7 +3185,7 @@ export default function Eventos() {
                                         </select>
                                         <ChevronDown
                                           aria-hidden="true"
-                                          style={{ position: 'absolute', right: 8, width: 12, height: 12, pointerEvents: 'none', color: quotaOpt ? quotaOpt.text : '#44403c' }}
+                                          style={{ position: 'absolute', right: 8, width: 12, height: 12, pointerEvents: 'none', color: quotaOpt ? quotaOpt.text : T.strong }}
                                         />
                                       </div>
                                     )}
@@ -3215,7 +3211,8 @@ export default function Eventos() {
                                       }}
                                       onClick={e => e.stopPropagation()}
                                       data-testid={`checkbox-sponsor-${sponsor.id}`}
-                                      style={{ width: 18, height: 18, flexShrink: 0, accentColor: "#fd761a", cursor: "pointer", margin: 0 }}
+                                      // accentText e não accent: o visto branco sobre #f97316 fica em 2,8:1.
+                                      style={{ width: 18, height: 18, flexShrink: 0, accentColor: T.accentText, cursor: "pointer", margin: 0 }}
                                     />
                                   </div>
                                 );
@@ -3232,14 +3229,14 @@ export default function Eventos() {
                 {modalMode === 'duplicate' && readEventStats(duplicateSource).itemCount > 0 && (
                   <label
                     htmlFor="copy-items"
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, backgroundColor: '#f0efee', borderRadius: R.md, padding: '12px 14px', cursor: 'pointer' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, backgroundColor: N.n3, borderRadius: R.md, padding: '12px 14px', cursor: 'pointer' }}
                   >
                     <Checkbox
                       id="copy-items"
                       checked={copyItems}
                       onCheckedChange={(v) => setCopyItems(!!v)}
                       data-testid="checkbox-copy-items"
-                      className="border-[#d4cfc9] bg-[#ffffff] data-[state=checked]:bg-[#fd761a] data-[state=checked]:border-[#fd761a] rounded-[4px] flex-shrink-0 h-[18px] w-[18px]"
+                      className="border-[#d4cfc9] bg-[#ffffff] data-[state=checked]:bg-[#c2410c] data-[state=checked]:border-[#c2410c] rounded-[4px] flex-shrink-0 h-[18px] w-[18px]"
                     />
                     <span style={{ minWidth: 0 }}>
                       <span style={{ display: 'block', fontSize: FS.body, fontWeight: 700, color: T.text }}>
@@ -3271,28 +3268,21 @@ export default function Eventos() {
                       ? 'Há prazos fora de ordem — confira a seção Prazos.'
                       : null;
                   return frase ? (
-                    <p aria-live="polite" data-testid="texto-falta-no-evento" style={{ margin: 0, fontSize: FS.small, fontWeight: 600, color: '#92400e', textAlign: 'right' }}>
+                    <p aria-live="polite" data-testid="texto-falta-no-evento" style={{ margin: 0, fontSize: FS.small, fontWeight: 600, color: TOM.alerta.text, textAlign: 'right' }}>
                       {frase}
                     </p>
                   ) : null;
                 })()}
                 <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px' }}>
-                  <button
-                    type="button"
-                    onClick={requestCloseDialog}
-                    style={{ fontSize: FS.body, fontWeight: '700', color: '#625d5b', background: 'transparent', border: 'none', cursor: 'pointer', padding: '8px 16px', textTransform: 'uppercase', letterSpacing: '0.04em', borderRadius: R.sm, transition: 'background-color 0.15s, color 0.15s', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.border; e.currentTarget.style.color = T.dark; }}
-                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#625d5b'; }}
-                  >
+                  <Botao variante="fantasma" tamanho={isMobile ? 'toque' : 'md'} onClick={requestCloseDialog}>
                     Cancelar
-                  </button>
-                  <button
+                  </Botao>
+                  <Botao
                     type="submit"
-                    disabled={submitPending}
+                    variante="primario"
+                    tamanho={isMobile ? 'toque' : 'md'}
+                    carregando={submitPending}
                     data-testid="button-submit-event"
-                    style={{ backgroundColor: T.dark, color: '#ffffff', borderRadius: R.md, fontWeight: '700', fontSize: FS.body, padding: '10px 32px', textTransform: 'uppercase', letterSpacing: '0.04em', border: 'none', cursor: submitPending ? 'not-allowed' : 'pointer', opacity: submitPending ? 0.7 : 1, transition: 'filter 0.15s, transform 0.1s', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-                    onMouseEnter={e => { if (!submitPending) e.currentTarget.style.backgroundColor = '#292524'; }}
-                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = T.dark; }}
                   >
                     {modalMode === 'edit'
                       ? (updateEventMutation.isPending ? "Salvando..." : soPatrocinadoresNoModal ? "Salvar patrocinadores" : "Salvar Alterações")
@@ -3300,7 +3290,7 @@ export default function Eventos() {
                         ? (createEventMutation.isPending ? "Duplicando..." : "Criar Cópia")
                         : (createEventMutation.isPending ? "Criando..." : "Salvar Evento")
                     }
-                  </button>
+                  </Botao>
                 </div>
               </ModalFooter>
             </form>
@@ -3327,7 +3317,7 @@ export default function Eventos() {
               corpo vira o único item que rola e o rodapé leva `flexShrink: 0`. */}
           <AlertDialogContent style={{ maxWidth: 420, borderRadius: R.xl, padding: 0, border: 'none', boxShadow: SHADOW.lg, overflow: 'hidden', maxHeight: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '28px 28px 8px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
-              <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: FS.title, fontWeight: '700', letterSpacing: '-0.02em', color: T.dark, margin: 0 }}>
+              <AlertDialogTitle style={{ fontFamily: FONT.display, fontSize: FS.title, fontWeight: '700', letterSpacing: '-0.02em', color: T.dark, margin: 0 }}>
                 Descartar alterações?
               </AlertDialogTitle>
               <AlertDialogDescription style={{ fontSize: FS.body, color: T.second, lineHeight: 1.6, marginTop: 10 }}>
@@ -3335,25 +3325,28 @@ export default function Eventos() {
               </AlertDialogDescription>
             </div>
             <AlertDialogFooter style={{ padding: '16px 28px 28px', display: 'flex', flexDirection: 'row', justifyContent: 'flex-end', gap: 10, flexShrink: 0 }}>
-              <AlertDialogCancel
-                style={{ padding: '9px 20px', backgroundColor: 'transparent', border: '1px solid #e0c0b1', borderRadius: R.sm, fontSize: FS.body, fontWeight: '700', color: '#625d5b', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-              >
+              {/* Botao solto, e não AlertDialogCancel/Action: esses dois trazem
+                  as classes do buttonVariants (altura, raio, hover) que brigam
+                  com o .ds-botao. Fechar passa a ser explícito — é o que o
+                  useConfirmar também faz. handleCloseDialog já fecha esta pergunta. */}
+              <Botao variante="secundario" tamanho={isMobile ? 'toque' : 'md'} onClick={() => setConfirmDiscardOpen(false)}>
                 Continuar editando
-              </AlertDialogCancel>
-              <AlertDialogAction
+              </Botao>
+              <Botao
+                variante="perigo"
+                tamanho={isMobile ? 'toque' : 'md'}
                 onClick={handleCloseDialog}
                 data-testid="button-confirm-discard"
-                style={{ padding: '9px 20px', backgroundColor: '#ba1a1a', border: 'none', borderRadius: R.sm, fontSize: FS.body, fontWeight: '700', color: '#ffffff', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
               >
                 Descartar
-              </AlertDialogAction>
+              </Botao>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
       </div>
 
       {/* ── FILTROS inline ── */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', paddingBottom: isMobile ? '10px' : '16px', borderBottom: '1px solid #e7e5e4' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', paddingBottom: isMobile ? '10px' : '16px', borderBottom: `1px solid ${T.border}` }}>
 
         <div style={{ position: 'relative', flexShrink: 0, width: isMobile ? '100%' : undefined }}>
           <Search style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', color: T.muted, width: '13px', height: '13px', pointerEvents: 'none' }} />
@@ -3365,15 +3358,15 @@ export default function Eventos() {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             data-testid="input-search-events"
-            style={{ paddingLeft: '32px', paddingRight: '12px', height: alvo(32, dedo), width: isMobile ? '100%' : '230px', border: '1px solid #e7e5e4', borderRadius: R.pill, backgroundColor: '#ffffff', fontSize: FS.body, color: T.dark, fontFamily: 'inherit' }}
-            onFocus={e => { e.currentTarget.style.borderColor = '#fd761a'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(253,118,26,0.12)'; }}
-            onBlur={e => { e.currentTarget.style.borderColor = '#e7e5e4'; e.currentTarget.style.boxShadow = 'none'; }}
+            style={{ paddingLeft: '32px', paddingRight: '12px', height: alvo(32, dedo), width: isMobile ? '100%' : '230px', border: `1px solid ${T.border}`, borderRadius: R.pill, backgroundColor: T.surface, fontSize: FS.body, color: T.dark, fontFamily: 'inherit' }}
+            onFocus={e => { e.currentTarget.style.borderColor = T.accent; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(253,118,26,0.12)'; }}
+            onBlur={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = 'none'; }}
           />
         </div>
 
         {/* Divisor — só no desktop; no mobile a busca ocupa a linha inteira e o traço ficava órfão */}
         {!isMobile && (
-          <div style={{ width: '1px', height: '20px', backgroundColor: '#e7e5e4', flexShrink: 0 }} />
+          <div style={{ width: '1px', height: '20px', backgroundColor: T.border, flexShrink: 0 }} />
         )}
 
         {/* O rótulo diz as DUAS dimensões que o menu recorta. "Todas as
@@ -3442,9 +3435,9 @@ export default function Eventos() {
               que se trata de evento que já aconteceu com peça em aberto, e
               "Arquivados" escondia que ali mora o encerrado à mão. */}
           {([
-            { chave: 'ativos', rotulo: 'Ativos', cor: '#22c55e', significado: 'em andamento — o dia do evento ainda não passou' },
-            { chave: 'pendencias', rotulo: 'Pendências', cor: '#f59e0b', significado: 'o dia do evento passou e ainda há peça em aberto' },
-            { chave: 'arquivados', rotulo: 'Arquivados', cor: '#78716c', significado: 'concluídos (tudo entregue) e encerrados manualmente' },
+            { chave: 'ativos', rotulo: 'Ativos', cor: TOM.sucesso.dot, significado: 'em andamento — o dia do evento ainda não passou' },
+            { chave: 'pendencias', rotulo: 'Pendências', cor: TOM.alerta.dot, significado: 'o dia do evento passou e ainda há peça em aberto' },
+            { chave: 'arquivados', rotulo: 'Arquivados', cor: T.second, significado: 'concluídos (tudo entregue) e encerrados manualmente' },
           ] as const).map(({ chave, rotulo, cor, significado }) => {
             const ligado = situacoes.has(chave);
             return (
@@ -3458,16 +3451,16 @@ export default function Eventos() {
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 7,
                   height: alvo(30, dedo), padding: '0 12px', borderRadius: R.pill,
-                  border: `1px solid ${ligado ? T.dark : '#e8e8e7'}`,
-                  backgroundColor: ligado ? T.dark : '#ffffff',
-                  color: ligado ? '#ffffff' : '#44403c',
+                  border: `1px solid ${ligado ? T.dark : T.border}`,
+                  backgroundColor: ligado ? T.dark : T.surface,
+                  color: ligado ? T.surface : T.strong,
                   font: 'inherit', fontSize: FS.body, fontWeight: 600,
                   cursor: 'pointer', whiteSpace: 'nowrap',
                 }}
               >
-                <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: ligado ? '#ffffff' : cor, flexShrink: 0 }} />
+                <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: ligado ? T.surface : cor, flexShrink: 0 }} />
                 {rotulo}
-                <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, opacity: ligado ? 1 : 0.75 }}>
+                <span style={{ fontFamily: FONT.mono, fontWeight: 700, opacity: ligado ? 1 : 0.75 }}>
                   {contagemPorSituacao[chave]}
                 </span>
               </button>
@@ -3515,7 +3508,7 @@ export default function Eventos() {
               <div
                 role="radiogroup"
                 aria-label="Densidade da lista"
-                style={{ display: 'flex', backgroundColor: '#f3f4f3', padding: 2, borderRadius: R.md }}
+                style={{ display: 'flex', backgroundColor: T.low, padding: 2, borderRadius: R.md }}
               >
                 {([
                   ['cartoes', 'Cartões', LayoutGrid],
@@ -3539,7 +3532,7 @@ export default function Eventos() {
                       style={{
                         display: 'inline-flex', alignItems: 'center', gap: 6,
                         height: alvo(30, dedo), padding: '0 12px', borderRadius: 6, border: 'none',
-                        backgroundColor: ativo ? '#ffffff' : 'transparent',
+                        backgroundColor: ativo ? T.surface : 'transparent',
                         boxShadow: ativo ? '0 1px 3px rgba(0,0,0,0.10)' : 'none',
                         color: ativo ? T.text : T.second,
                         font: 'inherit', fontSize: FS.body, fontWeight: ativo ? 700 : 600,
@@ -3605,9 +3598,9 @@ export default function Eventos() {
                   data-testid={`toggle-ordem-${valor}`}
                   style={{
                     height: alvo(30, dedo), padding: '0 12px', borderRadius: R.pill,
-                    border: `1px solid ${ativo ? '#fdba74' : '#e8e8e7'}`,
-                    backgroundColor: ativo ? '#fff7ed' : '#ffffff',
-                    color: ativo ? '#9a3412' : '#44403c',
+                    border: `1px solid ${ativo ? TOM.laranja.border : T.border}`,
+                    backgroundColor: ativo ? TOM.laranja.bg : T.surface,
+                    color: ativo ? T.accentText : T.strong,
                     font: 'inherit', fontSize: FS.body, fontWeight: ativo ? 700 : 600,
                     cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
                   }}
@@ -3632,15 +3625,15 @@ export default function Eventos() {
            layout shift. */
         <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-6" aria-busy="true" aria-label="Carregando eventos">
           {[0, 1, 2, 3, 4, 5].map((i) => (
-            <div key={i} style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderLeft: '4px solid #e7e5e4', borderRadius: R.lg, padding: '20px 22px' }}>
-              <div className="animate-pulse" style={{ width: 110, height: 22, borderRadius: R.pill, backgroundColor: '#f5f5f4', marginBottom: 14 }} />
-              <div className="animate-pulse" style={{ width: '55%', height: 18, borderRadius: 4, backgroundColor: '#e7e5e4', marginBottom: 18 }} />
+            <div key={i} style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderLeft: `4px solid ${T.border}`, borderRadius: R.lg, padding: '20px 22px' }}>
+              <div className="animate-pulse" style={{ width: 110, height: 22, borderRadius: R.pill, backgroundColor: N.n2, marginBottom: 14 }} />
+              <div className="animate-pulse" style={{ width: '55%', height: 18, borderRadius: 4, backgroundColor: T.border, marginBottom: 18 }} />
               <div style={{ display: 'flex', gap: 32, marginBottom: 14 }}>
-                <div className="animate-pulse" style={{ width: 90, height: 12, borderRadius: 4, backgroundColor: '#f0efee' }} />
-                <div className="animate-pulse" style={{ width: 110, height: 12, borderRadius: 4, backgroundColor: '#f0efee' }} />
+                <div className="animate-pulse" style={{ width: 90, height: 12, borderRadius: 4, backgroundColor: N.n3 }} />
+                <div className="animate-pulse" style={{ width: 110, height: 12, borderRadius: 4, backgroundColor: N.n3 }} />
               </div>
-              <div className="animate-pulse" style={{ width: '65%', height: 12, borderRadius: 4, backgroundColor: '#f0efee', marginBottom: 18 }} />
-              <div className="animate-pulse" style={{ width: '100%', height: 8, borderRadius: R.pill, backgroundColor: '#f0efee' }} />
+              <div className="animate-pulse" style={{ width: '65%', height: 12, borderRadius: 4, backgroundColor: N.n3, marginBottom: 18 }} />
+              <div className="animate-pulse" style={{ width: '100%', height: 8, borderRadius: R.pill, backgroundColor: N.n3 }} />
             </div>
           ))}
         </div>
@@ -3648,21 +3641,23 @@ export default function Eventos() {
         /* Sem este ramo, uma falha da API caía no "Nenhum evento criado" com
            botão de criar — mensagem enganosa que podia induzir a recriar
            eventos que já existem. */
-        <div role="alert" style={{ backgroundColor: '#ffffff', border: '1px solid #fecaca', borderRadius: R.lg, padding: '72px 24px', textAlign: 'center' }}>
-          <h3 style={{ color: '#b91c1c', fontSize: FS.title, fontWeight: '700', marginBottom: '6px' }}>Não foi possível carregar os eventos</h3>
-          <p style={{ color: T.second, fontSize: FS.body, marginBottom: '20px' }}>Verifique sua conexão e tente novamente.</p>
-          <button onClick={() => refetch()} style={{ fontSize: FS.body, fontWeight: 700, color: '#fff', background: T.dark, border: 'none', borderRadius: R.md, padding: '9px 20px', cursor: 'pointer' }}>
-            Tentar novamente
-          </button>
-        </div>
+        <EstadoErro
+          titulo="Não foi possível carregar os eventos"
+          detalhe="Verifique sua conexão e tente novamente."
+          aoTentarDeNovo={() => refetch()}
+        />
       ) : events.length === 0 ? (
-        <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: R.lg, padding: '72px 24px', textAlign: 'center' }}>
-          <Package style={{ width: '44px', height: '44px', color: '#d4d0cb', margin: '0 auto 16px' }} />
-          <h3 style={{ color: T.dark, fontSize: FS.title, fontWeight: '700', marginBottom: '6px', fontFamily: "'Space Grotesk', sans-serif" }}>Nenhum evento criado</h3>
-          {canCreate ? (
-            <>
-              <p style={{ color: T.second, fontSize: FS.body, marginBottom: '24px' }}>Comece criando seu primeiro evento de produção</p>
-              <Button
+        <EstadoVazio
+          icone={Package}
+          titulo="Nenhum evento criado"
+          descricao={canCreate
+            ? 'Comece criando seu primeiro evento de produção'
+            : 'Os eventos criados pela equipe aparecerão aqui'}
+          acao={canCreate ? (
+              <Botao
+                variante="primario"
+                icone={Plus}
+                tamanho={isMobile ? 'toque' : 'md'}
                 onClick={() => {
                   setEditingEvent(null);
                   setDuplicateSource(null);
@@ -3677,38 +3672,32 @@ export default function Eventos() {
                   setPrazosExpanded(false);
                   setOpen(true);
                 }}
-                style={{ backgroundColor: T.accentText, color: '#ffffff', borderRadius: R.md, fontWeight: '700', boxShadow: '0 4px 14px rgba(249,115,22,0.25)' }}
               >
-                <Plus className="h-4 w-4 mr-2" />
                 Criar Primeiro Evento
-              </Button>
-            </>
-          ) : (
-            <p style={{ color: T.second, fontSize: FS.body, margin: 0 }}>Os eventos criados pela equipe aparecerão aqui</p>
-          )}
-        </div>
+              </Botao>
+          ) : undefined}
+        />
       ) : filteredEvents.length === 0 ? (
-        <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: R.lg, padding: '56px 24px', textAlign: 'center' }}>
-          <Search style={{ width: '40px', height: '40px', color: '#d4d0cb', margin: '0 auto 16px' }} />
-          <h3 style={{ color: T.dark, fontSize: FS.title, fontWeight: '700', marginBottom: '6px', fontFamily: "'Space Grotesk', sans-serif" }}>Nenhum evento encontrado</h3>
-          <p style={{ color: T.second, fontSize: FS.body, marginBottom: '16px' }}>
-            {hasActiveFilters ? 'Nenhum evento corresponde aos filtros ativos.' : 'Nenhum evento na situação escolhida.'}
-          </p>
+        <EstadoVazio
+          icone={Search}
+          titulo="Nenhum evento encontrado"
+          descricao={hasActiveFilters ? 'Nenhum evento corresponde aos filtros ativos.' : 'Nenhum evento na situação escolhida.'}
+          acao={<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           {/* A resposta ao "cadê o evento?": estão fora pela SITUAÇÃO, que o
               "Limpar filtros" não toca. Um clique os traz para a lista. */}
           {foraPorSituacao.total > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginBottom: '18px' }}>
-              <p style={{ color: '#44403c', fontSize: FS.body, fontWeight: 600, margin: 0 }}>
+              <p style={{ color: T.strong, fontSize: FS.body, fontWeight: FW.medio, margin: 0 }}>
                 {foraPorSituacao.total} {foraPorSituacao.total === 1 ? 'evento está' : 'eventos estão'} em {nomesDasSituacoesOcultas}, fora da lista.
               </p>
-              <button
-                type="button"
+              <Botao
+                variante="secundario"
+                tamanho={isMobile ? 'toque' : 'md'}
                 onClick={incluirSituacoesOcultas}
                 data-testid="button-incluir-situacoes-ocultas"
-                style={{ fontSize: FS.body, fontWeight: 700, color: T.dark, background: '#ffffff', border: '1px solid #d6d3d1', borderRadius: R.md, padding: '8px 16px', minHeight: isMobile ? 44 : undefined, cursor: 'pointer' }}
               >
                 Mostrar {nomesDasSituacoesOcultas}
-              </button>
+              </Botao>
             </div>
           )}
           {/* Chips removíveis: "Limpar filtros" era tudo-ou-nada, e com
@@ -3723,7 +3712,7 @@ export default function Eventos() {
                 onClick={chip.clear}
                 aria-label={`Remover o filtro ${chip.label}`}
                 data-testid={`chip-remove-${chip.key}`}
-                style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: R.pill, fontSize: FS.small, fontWeight: '700', border: '1px solid #e7e5e4', backgroundColor: '#f5f5f4', color: '#44403c', cursor: 'pointer' }}
+                style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: R.pill, fontSize: FS.small, fontWeight: '700', border: `1px solid ${T.border}`, backgroundColor: N.n2, color: T.strong, cursor: 'pointer' }}
               >
                 {chip.label}
                 <X style={{ width: 11, height: 11 }} />
@@ -3733,15 +3722,17 @@ export default function Eventos() {
           {/* Só quando há filtro a limpar: sem nenhum, o botão não fazia nada
               visível — a lista seguia vazia e a pessoa clicava de novo. */}
           {hasActiveFilters && (
-            <button
+            <Botao
+              variante="primario"
+              tamanho={isMobile ? 'toque' : 'md'}
               onClick={clearAllEventFilters}
               data-testid="button-clear-filters-empty"
-              style={{ fontSize: FS.body, fontWeight: 700, color: '#fff', background: T.dark, border: 'none', borderRadius: R.md, padding: '9px 20px', cursor: 'pointer' }}
             >
               Limpar filtros
-            </button>
+            </Botao>
           )}
-        </div>
+          </div>}
+        />
       ) : (
         <>
           {densidade === 'lista' && !isMobile ? (
@@ -3758,11 +3749,11 @@ export default function Eventos() {
                são o jeito de comparar dois eventos, e um `div role="link"`
                tira os três de uma vez.
             ══════════════════════════════════════════════════════════════ */
-            <div style={{ border: '1px solid #e7e5e4', borderRadius: R.lg, overflow: 'hidden', backgroundColor: '#ffffff' }}>
+            <div style={{ border: `1px solid ${T.border}`, borderRadius: R.lg, overflow: 'hidden', backgroundColor: T.surface }}>
               <div style={{
                 display: 'grid', gridTemplateColumns: GRADE_LISTA, gap: 12,
                 alignItems: 'center', padding: '10px 16px 10px 0',
-                backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4',
+                backgroundColor: T.bg, borderBottom: `1px solid ${T.border}`,
               }}>
                 <span aria-hidden="true" />
                 <span style={TH_LISTA}>Evento</span>
@@ -3837,7 +3828,7 @@ export default function Eventos() {
             <button
               onClick={() => setVisibleCount(filteredEvents.length)}
               data-testid="button-show-all-events"
-              style={{ alignSelf: 'center', fontSize: FS.body, fontWeight: 700, color: '#44403c', background: '#ffffff', border: '1px solid #e7e5e4', borderRadius: R.pill, padding: '9px 22px', cursor: 'pointer', boxShadow: SHADOW.sm }}
+              style={{ alignSelf: 'center', fontSize: FS.body, fontWeight: 700, color: T.strong, background: T.surface, border: `1px solid ${T.border}`, borderRadius: R.pill, padding: '9px 22px', cursor: 'pointer', boxShadow: SHADOW.sm }}
             >
               Mostrar todos os {filteredEvents.length} eventos (+{hiddenCount})
             </button>
@@ -3861,9 +3852,9 @@ export default function Eventos() {
               inline vence classe — sem a coluna flex e sem um scrollport o teto
               só trocaria o corte simétrico por um corte embaixo. Por isso o
               corpo vira o único item que rola e o rodapé leva `flexShrink: 0`. */}
-          <AlertDialogContent style={{ maxWidth: "460px", backgroundColor: "#ffffff", borderRadius: R.xl, padding: "0", border: "none", boxShadow: SHADOW.lg, overflow: "hidden", maxHeight: "calc(100vh - 48px)", display: "flex", flexDirection: "column" }}>
+          <AlertDialogContent style={{ maxWidth: "460px", backgroundColor: T.surface, borderRadius: R.xl, padding: "0", border: "none", boxShadow: SHADOW.lg, overflow: "hidden", maxHeight: "calc(100vh - 48px)", display: "flex", flexDirection: "column" }}>
           <div style={{ padding: "32px 32px 8px 32px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
-            <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: FS.title, fontWeight: "700", letterSpacing: "-0.02em", color: T.dark, margin: 0 }}>
+            <AlertDialogTitle style={{ fontFamily: FONT.display, fontSize: FS.title, fontWeight: "700", letterSpacing: "-0.02em", color: T.dark, margin: 0 }}>
               Excluir evento
             </AlertDialogTitle>
 
@@ -3871,9 +3862,9 @@ export default function Eventos() {
                 não fazia ninguém parar; "e 128 peças, 96 já entregues" faz. O
                 cascade do banco leva junto fotos de entrega, comentários,
                 aprovações de patrocinador e os vínculos do acervo. */}
-            <div style={{ marginTop: "20px", padding: "16px", backgroundColor: "#fff7ed", borderLeft: "4px solid #f97316", borderRadius: `0 ${R.md}px ${R.md}px 0`, display: "flex", alignItems: "flex-start", gap: "12px" }}>
-              <AlertTriangle style={{ width: "18px", height: "18px", color: "#f97316", flexShrink: 0, marginTop: "1px" }} />
-              <p style={{ fontSize: FS.body, fontWeight: "600", color: "#783200", margin: 0, lineHeight: 1.6 }}>
+            <div style={{ marginTop: "20px", padding: "16px", backgroundColor: TOM.laranja.bg, borderLeft: `4px solid ${T.accent}`, borderRadius: `0 ${R.md}px ${R.md}px 0`, display: "flex", alignItems: "flex-start", gap: "12px" }}>
+              <AlertTriangle style={{ width: "18px", height: "18px", color: T.accent, flexShrink: 0, marginTop: "1px" }} />
+              <p style={{ fontSize: FS.body, fontWeight: "600", color: T.accentText, margin: 0, lineHeight: 1.6 }}>
                 {deletingStats && deletingStats.itemCount > 0 ? (
                   <>
                     Isto remove permanentemente{" "}
@@ -3898,7 +3889,7 @@ export default function Eventos() {
 
             {deleteNeedsTyping && (
               <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label htmlFor="delete-confirm" style={{ fontSize: FS.small, fontWeight: 700, color: '#57534e' }}>
+                <label htmlFor="delete-confirm" style={{ fontSize: FS.small, fontWeight: 700, color: T.apoio }}>
                   Há trabalho entregue ou em produção. Digite <strong style={{ color: T.text }}>{deletingEvent?.name}</strong> para liberar a exclusão:
                 </label>
                 <input
@@ -3907,35 +3898,40 @@ export default function Eventos() {
                   onChange={(e) => setDeleteConfirmText(e.target.value)}
                   autoComplete="off"
                   data-testid="input-delete-confirm"
-                  style={{ width: '100%', height: 38, border: '1px solid #e7e5e4', borderRadius: R.md, padding: '0 12px', fontSize: FS.body, fontFamily: 'inherit', color: T.text }}
+                  style={{ width: '100%', height: 38, border: `1px solid ${T.border}`, borderRadius: R.md, padding: '0 12px', fontSize: FS.body, fontFamily: 'inherit', color: T.text }}
                 />
               </div>
             )}
           </div>
 
           <AlertDialogFooter style={{ padding: "16px 32px 32px 32px", display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px", flexShrink: 0 }}>
-            <AlertDialogCancel
+            {/* Botao solto (ver o diálogo de descarte). Sem o Action do Radix
+                o diálogo só fecha no onSuccess — o "Excluindo..." fica na tela
+                até a resposta, em vez de o diálogo sumir no clique. */}
+            <Botao
+              variante="secundario"
+              tamanho={isMobile ? 'toque' : 'md'}
               disabled={deleteEventMutation.isPending}
-              style={{ padding: "9px 24px", backgroundColor: "transparent", border: "1px solid #e0c0b1", borderRadius: R.sm, fontSize: FS.body, fontWeight: "700", color: "#625d5b", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Plus Jakarta Sans', sans-serif", transition: "background-color 0.15s" }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = T.low)}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+              onClick={() => { setDeletingEventId(null); setDeleteConfirmText(""); }}
             >
               Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                // Sem o preventDefault o AlertDialog fecha antes de a mutação
-                // responder e o toast com a contagem real se perde.
-                if (!deleteConfirmed) { e.preventDefault(); return; }
+            </Botao>
+            <Botao
+              variante="perigo"
+              icone={Trash2}
+              tamanho={isMobile ? 'toque' : 'md'}
+              carregando={deleteEventMutation.isPending}
+              disabled={!deleteConfirmed}
+              motivo={!deleteConfirmed ? 'Digite o nome do evento acima.' : undefined}
+              alinharMotivo="end"
+              onClick={() => {
+                if (!deleteConfirmed) return;
                 if (deletingEventId) deleteEventMutation.mutate(deletingEventId);
               }}
-              disabled={deleteEventMutation.isPending || !deleteConfirmed}
               data-testid="button-confirm-delete-event"
-              style={{ padding: "9px 24px", backgroundColor: "#ba1a1a", border: "none", borderRadius: R.sm, fontSize: FS.body, fontWeight: "700", color: "#ffffff", cursor: deleteEventMutation.isPending ? "wait" : !deleteConfirmed ? "not-allowed" : "pointer", opacity: deleteEventMutation.isPending || !deleteConfirmed ? 0.5 : 1, textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Plus Jakarta Sans', sans-serif", display: "flex", alignItems: "center", gap: "8px", transition: "filter 0.15s" }}
             >
-              <Trash2 style={{ width: "14px", height: "14px" }} />
               {deleteEventMutation.isPending ? "Excluindo..." : "Excluir"}
-            </AlertDialogAction>
+            </Botao>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -3981,7 +3977,7 @@ export default function Eventos() {
           <ModalHeader
             variant="confirm"
             icon={Flag}
-            tint="#c2410c"
+            tint={T.accentText}
             title="Definir Prioridade"
             subtitle={selectedEventForPriority?.name}
             onClose={() => setPriorityDialogOpen(false)}
@@ -3989,7 +3985,7 @@ export default function Eventos() {
           {/* A REGRA (25/08): a prioridade é AUTOMÁTICA pela saída do caminhão
               (≤3 dias urgente, ≤7 alta, ≤15 média, >15 baixa). Definir aqui
               TRAVA este evento — a regra para de mexer até voltar à automática. */}
-          <p style={{ margin: 0, padding: "10px 24px 0", fontSize: FS.small, color: "#57534e", lineHeight: 1.45 }}>
+          <p style={{ margin: 0, padding: "10px 24px 0", fontSize: FS.small, color: T.apoio, lineHeight: 1.45 }}>
             A prioridade é <strong>automática pela saída do caminhão</strong> (≤3 dias urgente · ≤7 alta · ≤15 média). Escolher um nível aqui <strong>trava</strong> este evento; “Voltar à automática” devolve à regra.
           </p>
 
@@ -4016,8 +4012,8 @@ export default function Eventos() {
                     display: 'flex', alignItems: 'center', gap: '12px',
                     padding: '0 16px',
                     borderRadius: R.lg,
-                    border: isSelected ? `2px solid ${meta.dot}` : '2px solid #e7e5e4',
-                    backgroundColor: isSelected ? meta.bg : '#ffffff',
+                    border: isSelected ? `2px solid ${meta.dot}` : `2px solid ${T.border}`,
+                    backgroundColor: isSelected ? meta.bg : T.surface,
                     cursor: isPending ? 'wait' : 'pointer',
                     opacity: isPending ? 0.5 : 1,
                     transition: 'all 0.15s ease',
@@ -4031,18 +4027,18 @@ export default function Eventos() {
                   }}
                   onMouseLeave={e => {
                     if (!isSelected) {
-                      (e.currentTarget as HTMLButtonElement).style.borderColor = '#e7e5e4';
-                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#ffffff';
-                      (e.currentTarget.querySelector('.prio-label') as HTMLElement).style.color = '#44403c';
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = T.border;
+                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = T.surface;
+                      (e.currentTarget.querySelector('.prio-label') as HTMLElement).style.color = T.strong;
                     }
                   }}
                   data-testid={`button-priority-${key}`}
                 >
                   <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: meta.dot, flexShrink: 0 }} />
-                  <span className="prio-label" style={{ fontWeight: '700', fontSize: FS.body, color: isSelected ? meta.text : '#44403c', transition: 'color 0.15s' }}>
+                  <span className="prio-label" style={{ fontWeight: '700', fontSize: FS.body, color: isSelected ? meta.text : T.strong, transition: 'color 0.15s' }}>
                     {meta.label}
                   </span>
-                  <span style={{ marginLeft: 'auto', fontSize: FS.micro, fontWeight: 700, color: T.second, border: '1px solid #e7e5e4', borderRadius: 4, padding: '1px 5px' }}>
+                  <span style={{ marginLeft: 'auto', fontSize: FS.micro, fontWeight: 700, color: T.second, border: `1px solid ${T.border}`, borderRadius: 4, padding: '1px 5px' }}>
                     {i + 1}
                   </span>
                 </button>
@@ -4050,26 +4046,24 @@ export default function Eventos() {
             })}
           </div>
 
-          <div style={{ backgroundColor: T.low, borderTop: '1px solid #e7e5e4', padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <div style={{ backgroundColor: T.low, borderTop: `1px solid ${T.border}`, padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexShrink: 0 }}>
             {/* Caminho de volta: sem isto, prioridade definida era para sempre. */}
             {selectedEventForPriority?.priority ? (
-              <button
+              <Botao
+                // Fantasma, não perigo: voltar à regra não destrói nada.
+                variante="fantasma"
+                tamanho={isMobile ? 'toque' : 'sm'}
+                icone={RotateCcw}
                 onClick={() => handlePrioritySelect("")}
                 disabled={updatePriorityMutation.isPending}
                 data-testid="button-remove-priority"
-                style={{ fontSize: FS.small, fontWeight: '700', color: '#b91c1c', background: 'none', border: 'none', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.08em' }}
               >
                 Voltar à automática (0)
-              </button>
+              </Botao>
             ) : <span style={{ fontSize: FS.small, color: T.second }}>Teclas 1–4 travam · 0 volta à automática</span>}
-            <button
-              onClick={() => setPriorityDialogOpen(false)}
-              style={{ fontSize: FS.small, fontWeight: '700', color: T.second, background: 'none', border: 'none', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.08em', transition: 'color 0.15s' }}
-              onMouseEnter={e => (e.currentTarget.style.color = T.dark)}
-              onMouseLeave={e => (e.currentTarget.style.color = T.second)}
-            >
+            <Botao variante="secundario" tamanho={isMobile ? 'toque' : 'sm'} onClick={() => setPriorityDialogOpen(false)}>
               Cancelar
-            </button>
+            </Botao>
           </div>
           </FreezeWhileClosing>
         </DialogContent>

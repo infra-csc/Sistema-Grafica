@@ -32,7 +32,9 @@ import { alvo, useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { queryClient } from "@/lib/queryClient";
 import { HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { hrefSeguro } from "@shared/url-segura";
-import { T } from "@/lib/theme";
+import { T, N, TOM, FONT, FS, FW, R } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { Selo } from "@/components/ui/selo";
 
 interface ItemDetailsDialogProps {
   item: any | null;
@@ -80,7 +82,7 @@ function SubTrilhaDaProducao({ item, isMobile }: { item: any; isMobile: boolean 
             <span style={{
               fontSize: 12, whiteSpace: "nowrap",
               fontWeight: p.estado === "atual" ? 800 : 500,
-              color: p.estado === "atual" ? "#ffffff" : p.estado === "feita" ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.55)",
+              color: p.estado === "atual" ? T.surface : p.estado === "feita" ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.55)",
               textDecoration: naoSeAplica ? "line-through" : "none",
             }}>
               {p.label}
@@ -124,24 +126,24 @@ const STATUS_STEP: Record<string, number> = {
 // teste `a-ficha-da-peca-e-legivel`. #8c7164 sobre #fafaf9 dá 4,31 e por isso
 // não aparece em lugar nenhum: o título de seção usa #7a6154 (5,49).
 // ─────────────────────────────────────────────────────────────────────────────
-const TOM = {
-  espera:    { bg: "#fff7ed", borda: "#fed7aa", frase: "#9a3412", detalhe: "#7c2d12", ladrilho: "#fed7aa" },
-  reprovado: { bg: "#fef2f2", borda: "#fecaca", frase: "#b91c1c", detalhe: "#991b1b", ladrilho: "#fecaca" },
-  ok:        { bg: "#f0fdf4", borda: "#bbf7d0", frase: "#15803d", detalhe: "#166534", ladrilho: "#bbf7d0" },
-  neutro:    { bg: "#fafaf9", borda: "#e7e5e4", frase: "#44403c", detalhe: "#57534e", ladrilho: "#e7e5e4" },
+const TONS_DA_FICHA = {
+  espera:    { bg: TOM.laranja.bg, borda: TOM.laranja.border, frase: T.accentText, detalhe: T.accentText, ladrilho: TOM.laranja.border },
+  reprovado: { bg: TOM.perigo.bg, borda: TOM.perigo.border, frase: TOM.perigo.text, detalhe: TOM.perigo.text, ladrilho: TOM.perigo.border },
+  ok:        { bg: TOM.sucesso.bg, borda: TOM.sucesso.border, frase: TOM.sucesso.text, detalhe: TOM.sucesso.text, ladrilho: TOM.sucesso.border },
+  neutro:    { bg: T.bg, borda: T.border, frase: T.strong, detalhe: T.apoio, ladrilho: T.border },
 } as const;
-type NomeDoTom = keyof typeof TOM;
+type NomeDoTom = keyof typeof TONS_DA_FICHA;
 
 /** Título de seção — fora do card, como uma legenda do bloco que vem abaixo. */
 const TITULO_SECAO: React.CSSProperties = {
-  fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10,
-  textTransform: "uppercase", letterSpacing: "0.12em", color: "#7a6154",
+  fontFamily: FONT.display, fontWeight: 900, fontSize: 10,
+  textTransform: "uppercase", letterSpacing: "0.12em", color: T.second,
   margin: 0,
 };
 
 /** Bloco branco que recebe o conteúdo de uma seção. */
 const CARTAO: React.CSSProperties = {
-  backgroundColor: "#ffffff", border: "1px solid #ebe8e4", borderRadius: 12,
+  backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12,
 };
 
 const DIA_MS = 86_400_000;
@@ -209,7 +211,7 @@ function PhotoLightbox({
         style={{
           position: "absolute", top: 16, right: 16,
           background: "rgba(255,255,255,0.15)", border: "none", cursor: "pointer",
-          color: "#ffffff", width: 40, height: 40, borderRadius: 999,
+          color: T.surface, width: 40, height: 40, borderRadius: 999,
           display: "flex", alignItems: "center", justifyContent: "center",
           transition: "background 0.15s",
         }}
@@ -241,7 +243,7 @@ function PhotoLightbox({
             padding: "8px 14px", borderRadius: 8, backgroundColor: "rgba(255,255,255,0.12)",
             transition: "color 0.15s, background 0.15s",
           }}
-          onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#fff"; (e.currentTarget as HTMLAnchorElement).style.backgroundColor = "rgba(255,255,255,0.2)"; }}
+          onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = T.surface; (e.currentTarget as HTMLAnchorElement).style.backgroundColor = "rgba(255,255,255,0.2)"; }}
           onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "rgba(255,255,255,0.75)"; (e.currentTarget as HTMLAnchorElement).style.backgroundColor = "rgba(255,255,255,0.12)"; }}
         >
           <ExternalLink style={{ width: 12, height: 12 }} />
@@ -274,8 +276,8 @@ function PhotoGrid({ urls, alt }: { urls: string[]; alt: string }) {
             title="Ampliar foto"
             style={{
               display: "block", position: "relative", width: "100%", aspectRatio: "1",
-              borderRadius: 8, overflow: "hidden", border: "1px solid #ebe8e4",
-              backgroundColor: "#f5f4f1", cursor: "zoom-in", padding: 0, appearance: "none",
+              borderRadius: 8, overflow: "hidden", border: `1px solid ${T.border}`,
+              backgroundColor: N.n2, cursor: "zoom-in", padding: 0, appearance: "none",
             }}
           >
             <img loading="lazy" decoding="async" src={url} alt={alt}
@@ -290,11 +292,11 @@ function PhotoGrid({ urls, alt }: { urls: string[]; alt: string }) {
                   span.textContent = "Imagem indisponível";
                   // #78716c sobre #f5f4f1 dá 4,36 — abaixo da régua. Sobre o
                   // branco do fallback, 4,80.
-                  span.style.cssText = "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:8px;font-size:11px;background:#ffffff;color:#78716c";
+                  span.style.cssText = `position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:8px;font-size:11px;background:${T.surface};color:${T.second}`;
                   parent.appendChild(span);
                 }
               }} />
-            <span style={{ position: "absolute", bottom: 6, right: 6, backgroundColor: "rgba(0,0,0,0.6)", color: "#ffffff", padding: 5, borderRadius: 999, display: "flex" }}>
+            <span style={{ position: "absolute", bottom: 6, right: 6, backgroundColor: "rgba(0,0,0,0.6)", color: T.surface, padding: 5, borderRadius: 999, display: "flex" }}>
               <Eye style={{ width: 11, height: 11 }} />
             </span>
           </button>
@@ -403,7 +405,7 @@ export function ItemDetailsDialog({
       // as listas que dependem de /api/items (Painel Geral, Atendimento etc.)
       // precisam refletir isso sem exigir um refresh manual da página.
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      toast({ title: "Aprovação revertida", description: `"${sponsorName}" volta a aguardar aprovação.` });
+      toast({ title: "Aprovação revertida", description: `"${sponsorName}" volta a aguardar aprovação.`, variant: "success" });
     } catch (error: any) {
       toast({ title: "Erro ao reverter", description: error.message, variant: "destructive" });
     } finally {
@@ -427,7 +429,7 @@ export function ItemDetailsDialog({
       if (!res.ok) throw new Error(data?.error || "Não foi possível descancelar a peça");
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items", item.eventId] });
-      toast({ title: "Peça descancelada", description: `Voltou para "${getStatusLabel(data?.status) || "o fluxo"}".` });
+      toast({ title: "Peça descancelada", description: `Voltou para "${getStatusLabel(data?.status) || "o fluxo"}".`, variant: "success" });
       onOpenChange(false);
     } catch (error: any) {
       toast({ title: "Erro ao descancelar", description: error.message, variant: "destructive" });
@@ -459,6 +461,7 @@ export function ItemDetailsDialog({
       toast({
         title: "Peça transferida",
         description: [`Agora pertence a "${nomeDestino}" — status mantido.`, ...avisos].join(" "),
+        variant: "success",
         ...(avisos.length ? { duration: 12000 } : {}),
       });
       setTransferOpen(false);
@@ -612,21 +615,21 @@ export function ItemDetailsDialog({
   const conferLog = stageLogs.get("Conferido");
 
   const CORES_ACAO: Record<string, string> = {
-    created: "#3b82f6",
-    rejected: "#dc2626",
-    deleted: "#dc2626",
-    approved: "#16a34a",
-    delivered: "#10b981",
-    produced: "#a855f7",
-    production: "#eab308",
-    restored: "#0ea5e9",
-    complement_created: "#f97316",
-    complement_canceled: "#f97316",
+    created: TOM.info.dot,
+    rejected: TOM.perigo.text,
+    deleted: TOM.perigo.text,
+    approved: TOM.sucesso.text,
+    delivered: TOM.esmeralda.dot,
+    produced: TOM.roxo.dot,
+    production: TOM.alerta.dot,
+    restored: TOM.ceu.dot,
+    complement_created: T.accent,
+    complement_canceled: T.accent,
   };
   // Cinza para o que não tem família própria — `updated` é a maioria. #78716c e
   // não o #a8a29e de antes: o ponto é o único código de cor da linha, então vale
   // por ele o mínimo de 3:1 de elemento gráfico, e 2,52 não chegava lá.
-  const corDaAcao = (a: string) => CORES_ACAO[a] ?? "#78716c";
+  const corDaAcao = (a: string) => CORES_ACAO[a] ?? T.second;
 
   /** Fallback de texto: log antigo sem `details` ainda precisa dizer algo. */
   const textoDoLog = (l: any) =>
@@ -668,16 +671,16 @@ export function ItemDetailsDialog({
 
   // Só carimbos do PRÓPRIO item: colunas de data que existem no registro.
   const carimbosDoItem = [
-    { label: "Solicitada",                 valor: item.createdAt,            por: createdBy,             cor: "#3b82f6" },
-    { label: "Aprovada pelo patrocinador", valor: item.sponsorApprovedAt,    por: item.sponsorApprovedBy, cor: "#16a34a" },
-    { label: "Revisada pela Solicitação",  valor: item.creatorReviewedAt,    por: null,                  cor: "#d946ef" },
-    { label: "Liberada para produção",     valor: item.approvedAt,           por: null,                  cor: "#f97316" },
+    { label: "Solicitada",                 valor: item.createdAt,            por: createdBy,             cor: TOM.info.dot },
+    { label: "Aprovada pelo patrocinador", valor: item.sponsorApprovedAt,    por: item.sponsorApprovedBy, cor: TOM.sucesso.text },
+    { label: "Revisada pela Solicitação",  valor: item.creatorReviewedAt,    por: null,                  cor: TOM.roxo.dot },
+    { label: "Liberada para produção",     valor: item.approvedAt,           por: null,                  cor: T.accent },
     // 21/09: o vocabulário do selo — "Em Impressão" / "Impresso". "Produção
     // iniciada"/"Produzida" eram os nomes antigos das mesmas duas etapas.
-    { label: "Impressão iniciada",         valor: item.productionStartedAt,  por: null,                  cor: "#eab308" },
-    { label: "Impressão concluída",        valor: item.producedAt,           por: null,                  cor: "#a855f7" },
-    { label: "Conferida",                  valor: item.conferredAt,          por: logBy(conferLog),      cor: "#06b6d4" },
-    { label: "Entregue",                   valor: item.deliveredAt,          por: item.receivedBy,       cor: "#10b981" },
+    { label: "Impressão iniciada",         valor: item.productionStartedAt,  por: null,                  cor: TOM.alerta.dot },
+    { label: "Impressão concluída",        valor: item.producedAt,           por: null,                  cor: TOM.roxo.dot },
+    { label: "Conferida",                  valor: item.conferredAt,          por: logBy(conferLog),      cor: TOM.ciano.dot },
+    { label: "Entregue",                   valor: item.deliveredAt,          por: item.receivedBy,       cor: TOM.esmeralda.dot },
   ].filter(c => !!c.valor);
 
   const eventosPercurso: EventoDoPercurso[] = [...eventosDeLog];
@@ -850,7 +853,7 @@ export function ItemDetailsDialog({
     return `Quem age agora: ${g.quemAge}${g.onde ? ` — ${g.onde}` : ""}.`;
   })();
 
-  const tom = TOM[bloqueio.tom];
+  const tom = TONS_DA_FICHA[bloqueio.tom];
   const IconeDoBloqueio = bloqueio.tom === "ok" ? CheckCircle2 : bloqueio.tom === "reprovado" ? AlertTriangle : Clock;
 
   // ── ESTA FICHA NÃO AGE, SÓ CONTA ──────────────────────────────────────────
@@ -900,10 +903,10 @@ export function ItemDetailsDialog({
 
   // ── Andamento na gráfica ──────────────────────────────────────────────────
   const andamentoGrafica = ([
-    ["Reaproveitado", item.reuseQty,        "#047857"],
-    ["Impresso",      item.quantityProduced,"#7e22ce"],
-    ["Conferido",     item.conferredQty,    "#0e7490"],
-    ["Entregue",      item.deliveredQty,    "#047857"],
+    ["Reaproveitado", item.reuseQty,        TOM.esmeralda.text],
+    ["Impresso",      item.quantityProduced,TOM.roxo.text],
+    ["Conferido",     item.conferredQty,    TOM.ciano.text],
+    ["Entregue",      item.deliveredQty,    TOM.esmeralda.text],
   ] as const).filter(([, v]) => v > 0);
 
   const isDeliveredItem  = ["delivered", "entregue"].includes(rawStatus);
@@ -934,7 +937,7 @@ export function ItemDetailsDialog({
            `dvh` no mobile: `vh` conta a barra do navegador que se esconde, e o
            rodapé ficava embaixo dela. */
         style={{
-          backgroundColor: "#f9f9f8", borderRadius: 16,
+          backgroundColor: T.bg, borderRadius: 16,
           boxShadow: "0 25px 50px -12px rgba(0,0,0,0.3)",
           maxHeight: isMobile ? "calc(100dvh - 24px)" : "calc(100vh - 48px)",
           display: "flex", flexDirection: "column", overflow: "hidden",
@@ -958,8 +961,8 @@ export function ItemDetailsDialog({
         <header
           style={{
             flexShrink: 0,
-            background: "linear-gradient(135deg, #1c1917 0%, #2d2926 100%)",
-            color: "#ffffff",
+            background: `linear-gradient(135deg, ${T.text} 0%, #2d2926 100%)`,
+            color: T.surface,
             padding: isMobile ? "16px 16px 0" : "22px 32px 0",
           }}
         >
@@ -967,7 +970,7 @@ export function ItemDetailsDialog({
             <div style={{ minWidth: 0, flex: "1 1 auto" }}>
               {/* Linha de identificação */}
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.5)", letterSpacing: "0.06em" }}>
+                <span style={{ fontFamily: FONT.mono, fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.5)", letterSpacing: "0.06em" }}>
                   {item.displayId}
                 </span>
                 <span aria-hidden="true" style={{ width: 1, height: 12, backgroundColor: "rgba(255,255,255,0.18)" }} />
@@ -1006,9 +1009,9 @@ export function ItemDetailsDialog({
 
               {/* O TÍTULO É A DESCRIÇÃO DA PEÇA. */}
               <h1 style={{
-                fontFamily: "'Space Grotesk', sans-serif",
+                fontFamily: FONT.display,
                 fontSize: isMobile ? 22 : 30, fontWeight: 800,
-                letterSpacing: "-0.03em", color: "#ffffff", margin: 0, lineHeight: 1.12,
+                letterSpacing: "-0.03em", color: T.surface, margin: 0, lineHeight: 1.12,
               }}>
                 {item.description || item.type || item.displayId}
               </h1>
@@ -1027,11 +1030,11 @@ export function ItemDetailsDialog({
                     <Truck aria-hidden="true" style={{ width: 11, height: 11 }} />
                     Saída do caminhão
                   </p>
-                  <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 17, fontWeight: 700, color: "#fdba74", margin: 0, whiteSpace: "nowrap" }}>
+                  <p style={{ fontFamily: FONT.mono, fontSize: 17, fontWeight: 700, color: TOM.laranja.border, margin: 0, whiteSpace: "nowrap" }}>
                     {format(saida, "dd/MM 'às' HH:mm", { locale: ptBR })}
                   </p>
                   {textoDoPrazo && (
-                    <p style={{ fontSize: 11, fontWeight: 600, color: prazoApertado ? "#fca5a5" : "rgba(255,255,255,0.6)", margin: "2px 0 0", whiteSpace: "nowrap" }}>
+                    <p style={{ fontSize: 11, fontWeight: 600, color: prazoApertado ? TOM.perigo.border : "rgba(255,255,255,0.6)", margin: "2px 0 0", whiteSpace: "nowrap" }}>
                       {textoDoPrazo}
                     </p>
                   )}
@@ -1044,7 +1047,7 @@ export function ItemDetailsDialog({
                 style={{
                   width: 36, height: 36, borderRadius: 999, flexShrink: 0,
                   backgroundColor: "rgba(255,255,255,0.08)", border: "none", cursor: "pointer",
-                  color: "#ffffff", display: "flex", alignItems: "center", justifyContent: "center",
+                  color: T.surface, display: "flex", alignItems: "center", justifyContent: "center",
                   transition: "background 0.15s",
                 }}
                 onMouseEnter={e => { e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.18)"; }}
@@ -1059,11 +1062,11 @@ export function ItemDetailsDialog({
           {saida && isMobile && (
             <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 12 }}>
               <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "rgba(255,255,255,0.5)" }}>Saída</span>
-              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 15, fontWeight: 700, color: "#fdba74" }}>
+              <span style={{ fontFamily: FONT.mono, fontSize: 15, fontWeight: 700, color: TOM.laranja.border }}>
                 {format(saida, "dd/MM 'às' HH:mm", { locale: ptBR })}
               </span>
               {textoDoPrazo && (
-                <span style={{ fontSize: 11, fontWeight: 600, color: prazoApertado ? "#fca5a5" : "rgba(255,255,255,0.6)" }}>{textoDoPrazo}</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: prazoApertado ? TOM.perigo.border : "rgba(255,255,255,0.6)" }}>{textoDoPrazo}</span>
               )}
             </div>
           )}
@@ -1088,10 +1091,10 @@ export function ItemDetailsDialog({
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 7, minWidth: 0 }}>
                     <span style={{
                       width: 18, height: 18, borderRadius: "50%", flexShrink: 0,
-                      backgroundColor: (done || current) ? "#c2410c" : "rgba(255,255,255,0.09)",
+                      backgroundColor: (done || current) ? T.accentText : "rgba(255,255,255,0.09)",
                       boxShadow: current ? "0 0 0 3px rgba(251,146,60,0.25)" : "none",
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      color: (done || current) ? "#ffffff" : "rgba(255,255,255,0.55)",
+                      color: (done || current) ? T.surface : "rgba(255,255,255,0.55)",
                       fontSize: 9, fontWeight: 800,
                     }}>
                       {done ? <Check style={{ width: 10, height: 10, strokeWidth: 3 }} /> : s.idx + 1}
@@ -1100,13 +1103,13 @@ export function ItemDetailsDialog({
                         3,11 e reprova em texto pequeno. */}
                     <span style={{
                       fontSize: 11, fontWeight: current ? 700 : 500,
-                      color: current ? "#ffffff" : "rgba(255,255,255,0.55)",
+                      color: current ? T.surface : "rgba(255,255,255,0.55)",
                       overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0,
                     }}>
                       {s.label}
                     </span>
                   </div>
-                  <div style={{ height: 3, borderRadius: 999, backgroundColor: (done || current) ? "#c2410c" : "rgba(255,255,255,0.09)" }} />
+                  <div style={{ height: 3, borderRadius: 999, backgroundColor: (done || current) ? T.accentText : "rgba(255,255,255,0.09)" }} />
                 </div>
               );
             })}
@@ -1114,7 +1117,7 @@ export function ItemDetailsDialog({
           {!ehMolde(item) && <SubTrilhaDaProducao item={item} isMobile={isMobile} />}
           {/* Travada pela Solicitação (21/09): texto discreto, com o motivo e quem travou. */}
           {pecaTravada(item) && (
-            <div data-testid="selo-travada-ficha" title={fraseDaTrava(item)} style={{ marginTop: 8, fontSize: 12, fontWeight: 700, color: "#fecaca", overflowWrap: "anywhere" }}>{seloDaTrava(item)}</div>
+            <div data-testid="selo-travada-ficha" title={fraseDaTrava(item)} style={{ marginTop: 8, fontSize: 12, fontWeight: 700, color: TOM.perigo.border, overflowWrap: "anywhere" }}>{seloDaTrava(item)}</div>
           )}
           {/* PRAZO DO MOLDE (22/09): só no molde de evento que tem o prazo; não entra na Gestão de Prazos. */}
           {prazoDoMolde(item, item.event, new Date()) && (
@@ -1159,28 +1162,23 @@ export function ItemDetailsDialog({
           {/* Descancelar — só admin, só cancelada. Volta para onde estava
               (o servidor sabe: coluna do cancelamento ou trilha). */}
           {rawStatus === "canceled" && user?.role === "admin" && (
-            <button
-              type="button"
+            <Botao
+              variante="primario"
+              icone={Undo2}
+              carregando={descancelando}
               onClick={handleUncancel}
-              disabled={descancelando}
               data-testid="button-descancelar"
-              style={{
-                flexShrink: 0, alignSelf: "center", display: "inline-flex", alignItems: "center", gap: 6,
-                padding: "8px 14px", borderRadius: 8, border: "1px solid #d6d3d1",
-                backgroundColor: "#1c1917", color: "#ffffff", fontSize: 12.5, fontWeight: 700,
-                cursor: descancelando ? "default" : "pointer", opacity: descancelando ? 0.6 : 1,
-              }}
+              style={{ flexShrink: 0, alignSelf: "center", fontSize: FS.meta }}
             >
-              <Undo2 style={{ width: 13, height: 13 }} />
               {descancelando ? "Descancelando…" : "Descancelar"}
-            </button>
+            </Botao>
           )}
         </div>
 
         {/* ══════════════════════════════════════════════════════════════════
             MIOLO — a única parte que rola.
         ══════════════════════════════════════════════════════════════════ */}
-        <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", backgroundColor: "#f9f9f8" }}>
+        <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", backgroundColor: T.bg }}>
 
           {/* O bloco de trabalho que a tela hospedeira mandou (a finalização de
               layout, na Arte) abre o miolo: é a tarefa por que a ficha foi
@@ -1211,7 +1209,7 @@ export function ItemDetailsDialog({
                       style={{
                         background: "none", border: "none", cursor: "pointer", padding: 0,
                         display: "flex", alignItems: "center", gap: 5,
-                        font: "inherit", fontSize: 11, fontWeight: 700, color: "#c2410c",
+                        font: "inherit", fontSize: 11, fontWeight: 700, color: T.accentText,
                         textTransform: "uppercase", letterSpacing: "0.06em",
                       }}
                     >
@@ -1229,7 +1227,7 @@ export function ItemDetailsDialog({
                         { label: "Acabamento", field: "finish" },
                       ].map(({ label, field }) => (
                         <div key={field}>
-                          <label htmlFor={`detail-edit-${field}`} style={{ fontSize: 11, color: "#57534e", display: "block", marginBottom: 4 }}>{label}</label>
+                          <label htmlFor={`detail-edit-${field}`} style={{ fontSize: 11, color: T.apoio, display: "block", marginBottom: 4 }}>{label}</label>
                           <Input id={`detail-edit-${field}`} value={editedItem?.[field] || ""} onChange={(e) => handleEditChange(field, e.target.value)} className="h-9 text-sm" />
                         </div>
                       ))}
@@ -1246,45 +1244,45 @@ export function ItemDetailsDialog({
                       <div style={{
                         display: "grid",
                         gridTemplateColumns: `repeat(${colunasEspec}, minmax(0,1fr))`,
-                        gap: 1, backgroundColor: "#ebe8e4",
+                        gap: 1, backgroundColor: T.border,
                       }}>
                         {dadosEspec.map(({ label, value }) => (
-                          <div key={label} style={{ backgroundColor: "#ffffff", padding: "11px 14px", minWidth: 0 }}>
-                            <p style={{ fontSize: 10, fontWeight: 700, color: "#7a6154", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 3px" }}>{label}</p>
-                            <p title={String(value)} style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 15, color: "#1c1917", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</p>
+                          <div key={label} style={{ backgroundColor: T.surface, padding: "11px 14px", minWidth: 0 }}>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 3px" }}>{label}</p>
+                            <p title={String(value)} style={{ fontFamily: FONT.display, fontWeight: 700, fontSize: 15, color: T.text, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</p>
                           </div>
                         ))}
                         {Array.from({ length: vagasVazias }).map((_, i) => (
-                          <div key={`vaga-${i}`} aria-hidden="true" style={{ backgroundColor: "#ffffff" }} />
+                          <div key={`vaga-${i}`} aria-hidden="true" style={{ backgroundColor: T.surface }} />
                         ))}
                       </div>
                       {/* A data que importa — a saída do caminhão — já está no
                           cabeçalho. Aqui fica o contexto, numa linha só, onde
                           antes havia dois blocos de 32px de respiro. */}
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 16px", padding: "10px 14px", borderTop: "1px solid #ebe8e4", fontSize: 12, color: "#57534e" }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 16px", padding: "10px 14px", borderTop: `1px solid ${T.border}`, fontSize: 12, color: T.apoio }}>
                         <span>
                           Evento em{" "}
-                          <strong style={{ color: "#1c1917", fontWeight: 700 }}>
+                          <strong style={{ color: T.text, fontWeight: 700 }}>
                             {item.event?.startDate ? format(parseDateLocal(item.event.startDate), "dd/MM/yyyy", { locale: ptBR }) : "—"}
                           </strong>
                         </span>
-                        {item.printShop && <span>Gráfica: <strong style={{ color: "#1c1917", fontWeight: 700 }}>{item.printShop}</strong></span>}
-                        {createdBy && <span>Solicitada por <strong style={{ color: "#1c1917", fontWeight: 700 }}>{createdBy}</strong></span>}
+                        {item.printShop && <span>Gráfica: <strong style={{ color: T.text, fontWeight: 700 }}>{item.printShop}</strong></span>}
+                        {createdBy && <span>Solicitada por <strong style={{ color: T.text, fontWeight: 700 }}>{createdBy}</strong></span>}
                       </div>
                     </>
                   )}
                 </div>
 
                 {rawStatus === "canceled" && item.motivoCancelamento && (
-                  <div data-testid="text-motivo-cancelamento" style={{ ...CARTAO, marginTop: 10, padding: "12px 14px", borderColor: "#fecaca", backgroundColor: "#fef2f2" }}>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: "#991b1b", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px" }}>Motivo do cancelamento</p>
-                    <p style={{ fontSize: 13, color: "#7f1d1d", lineHeight: 1.55, margin: 0 }}>{item.motivoCancelamento}</p>
+                  <div data-testid="text-motivo-cancelamento" style={{ ...CARTAO, marginTop: 10, padding: "12px 14px", borderColor: TOM.perigo.border, backgroundColor: TOM.perigo.bg }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: TOM.perigo.text, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px" }}>Motivo do cancelamento</p>
+                    <p style={{ fontSize: 13, color: TOM.perigo.text, lineHeight: 1.55, margin: 0 }}>{item.motivoCancelamento}</p>
                   </div>
                 )}
                 {item.observations && (
                   <div style={{ ...CARTAO, marginTop: 10, padding: "12px 14px" }}>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: "#7a6154", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px" }}>Recado para a Gráfica</p>
-                    <p style={{ fontSize: 13, color: "#57534e", fontStyle: "italic", lineHeight: 1.55, margin: 0 }}>"{item.observations}"</p>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px" }}>Recado para a Gráfica</p>
+                    <p style={{ fontSize: 13, color: T.apoio, fontStyle: "italic", lineHeight: 1.55, margin: 0 }}>"{item.observations}"</p>
                   </div>
                 )}
               </section>
@@ -1294,7 +1292,7 @@ export function ItemDetailsDialog({
                 <section data-testid="section-patrocinadores">
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
                     <h3 style={TITULO_SECAO}>Patrocinadores</h3>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: aprovados.length === linhasPatrocinador.length ? "#15803d" : "#c2410c" }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: aprovados.length === linhasPatrocinador.length ? TOM.sucesso.text : T.accentText }}>
                       {aprovados.length} de {linhasPatrocinador.length} aprovaram
                     </span>
                   </div>
@@ -1317,44 +1315,38 @@ export function ItemDetailsDialog({
                           data-testid={`linha-patrocinador-${s.id}`}
                           style={{
                             ...CARTAO,
-                            border: `1px solid ${pendente || meta.isRejection ? meta.border : "#ebe8e4"}`,
+                            border: `1px solid ${pendente || meta.isRejection ? meta.border : T.border}`,
                             padding: 12,
                             display: "flex", alignItems: "flex-start", gap: 12,
                           }}
                         >
                           <span aria-hidden="true" style={{
                             width: 36, height: 36, borderRadius: 8, flexShrink: 0,
-                            backgroundColor: "#f5f4f1",
+                            backgroundColor: N.n2,
                             display: "flex", alignItems: "center", justifyContent: "center",
-                            fontSize: 15, fontWeight: 700, color: s.color || "#1c1917",
+                            fontSize: 15, fontWeight: 700, color: s.color || T.text,
                           }}>
                             {(s.name || "?")[0].toUpperCase()}
                           </span>
 
                           <div style={{ minWidth: 0, flex: "1 1 auto" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                              <span style={{ fontWeight: 700, fontSize: 15, color: "#1c1917" }}>{s.name}</span>
-                              <span
+                              <span style={{ fontWeight: 700, fontSize: 15, color: T.text }}>{s.name}</span>
+                              <Selo
+                                cores={meta}
+                                ponto
                                 title={meta.hint}
                                 data-testid={`chip-aprovacao-${s.id}`}
-                                style={{
-                                  display: "inline-flex", alignItems: "center", gap: 6,
-                                  padding: "3px 10px", borderRadius: 999,
-                                  backgroundColor: meta.bg, color: meta.text,
-                                  border: `1px solid ${meta.border}`,
-                                  fontSize: 11, fontWeight: 700, whiteSpace: "nowrap",
-                                }}
                               >
-                                <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: meta.dot, flexShrink: 0 }} />
                                 {meta.short}
-                              </span>
+                              </Selo>
                             </div>
                             {detalhe && (
-                              <p style={{ fontSize: 12, color: "#57534e", margin: "4px 0 0", lineHeight: 1.45 }}>{detalhe}</p>
+                              <p style={{ fontSize: 12, color: T.apoio, margin: "4px 0 0", lineHeight: 1.45 }}>{detalhe}</p>
                             )}
                             {/* O pedido de ajuste, entre aspas e por extenso. */}
                             {approval?.rejectionReason && (
-                              <p style={{ fontSize: 12, color: "#991b1b", margin: "4px 0 0", lineHeight: 1.5, fontStyle: "italic" }}>
+                              <p style={{ fontSize: 12, color: TOM.perigo.text, margin: "4px 0 0", lineHeight: 1.5, fontStyle: "italic" }}>
                                 "{String(approval.rejectionReason).trim()}"
                               </p>
                             )}
@@ -1394,8 +1386,8 @@ export function ItemDetailsDialog({
                                 data-testid={`button-revert-approval-${s.id}`}
                                 style={{
                                   display: "flex", alignItems: "center", justifyContent: "center",
-                                  width: ALVO, height: ALVO, borderRadius: 8, border: "1px solid #e7e5e4",
-                                  backgroundColor: "#ffffff", color: "#57534e",
+                                  width: ALVO, height: ALVO, borderRadius: 8, border: `1px solid ${T.border}`,
+                                  backgroundColor: T.surface, color: T.apoio,
                                   cursor: revertingSponsorId === s.id ? "default" : "pointer",
                                   opacity: revertingSponsorId === s.id ? 0.5 : 1, flexShrink: 0,
                                 }}
@@ -1415,12 +1407,12 @@ export function ItemDetailsDialog({
               <section data-testid="section-percurso">
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
                   <h3 style={TITULO_SECAO}>Percurso</h3>
-                  <span style={{ fontSize: 12, color: "#57534e" }}>{eventosPercurso.length} registro{eventosPercurso.length === 1 ? "" : "s"}</span>
+                  <span style={{ fontSize: 12, color: T.apoio }}>{eventosPercurso.length} registro{eventosPercurso.length === 1 ? "" : "s"}</span>
                 </div>
 
                 <div style={{ ...CARTAO, padding: "4px 14px" }}>
                   {marcoEvento && (
-                    <div title={marcoEvento.hint} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 0", borderBottom: eventosPercurso.length ? "1px solid #f5f4f1" : "none" }}>
+                    <div title={marcoEvento.hint} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 0", borderBottom: eventosPercurso.length ? `1px solid ${N.n2}` : "none" }}>
                       <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: marcoEvento.dot, marginTop: 6, flexShrink: 0 }} />
                       <div style={{ minWidth: 0, flex: "1 1 auto" }}>
                         <p style={{ fontSize: 13, fontWeight: 700, color: marcoEvento.text, margin: 0, lineHeight: 1.4 }}>{marcoEvento.label}</p>
@@ -1434,20 +1426,20 @@ export function ItemDetailsDialog({
                   )}
 
                   {eventosPercurso.length === 0 && !marcoEvento && (
-                    <p style={{ fontSize: 13, color: "#57534e", margin: 0, padding: "12px 0" }}>Sem registros para esta peça.</p>
+                    <p style={{ fontSize: 13, color: T.apoio, margin: 0, padding: "12px 0" }}>Sem registros para esta peça.</p>
                   )}
 
                   {percursoVisivel.map((e, i) => (
                     <div key={e.chave} style={{
                       display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 0",
-                      borderBottom: i < percursoVisivel.length - 1 ? "1px solid #f5f4f1" : "none",
+                      borderBottom: i < percursoVisivel.length - 1 ? `1px solid ${N.n2}` : "none",
                     }}>
                       <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: e.cor, marginTop: 6, flexShrink: 0 }} />
                       <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-                        <p style={{ fontSize: 13, fontWeight: 600, color: "#1c1917", margin: 0, lineHeight: 1.45 }}>{e.texto}</p>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: T.text, margin: 0, lineHeight: 1.45 }}>{e.texto}</p>
                         {e.autor && <p style={{ fontSize: 11, color: T.second, margin: "2px 0 0" }}>{e.autor}</p>}
                       </div>
-                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: T.second, flexShrink: 0, marginTop: 2 }}>
+                      <span style={{ fontFamily: FONT.mono, fontSize: 11, color: T.second, flexShrink: 0, marginTop: 2 }}>
                         {fmtShort(new Date(e.ts).toISOString())}
                       </span>
                     </div>
@@ -1461,8 +1453,8 @@ export function ItemDetailsDialog({
                       style={{
                         width: "100%", height: ALVO, marginBottom: 4,
                         display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                        border: "none", borderTop: "1px solid #f5f4f1", background: "none",
-                        cursor: "pointer", font: "inherit", fontSize: 12, fontWeight: 700, color: "#c2410c",
+                        border: "none", borderTop: `1px solid ${N.n2}`, background: "none",
+                        cursor: "pointer", font: "inherit", fontSize: 12, fontWeight: 700, color: T.accentText,
                       }}
                     >
                       <ChevronDown aria-hidden="true" style={{ width: 13, height: 13, transform: percursoAberto ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
@@ -1510,7 +1502,7 @@ export function ItemDetailsDialog({
                         href={hrefSeguro(refs[0])} target="_blank" rel="noopener noreferrer"
                         title="Abrir a referência do solicitante"
                         data-testid="link-referencia"
-                        style={{ display: "block", position: "relative", aspectRatio: "16/9", borderRadius: 10, overflow: "hidden", border: "2px solid #fed7aa", backgroundColor: "#fff7ed" }}
+                        style={{ display: "block", position: "relative", aspectRatio: "16/9", borderRadius: 10, overflow: "hidden", border: `2px solid ${TOM.laranja.border}`, backgroundColor: TOM.laranja.bg }}
                       >
                         <img loading="lazy" decoding="async" 
                           src={refs[0]} alt="Referência do solicitante"
@@ -1524,7 +1516,7 @@ export function ItemDetailsDialog({
                             <a key={`${u}-${k}`} href={hrefSeguro(u)} target="_blank" rel="noopener noreferrer"
                               title={`Abrir referência ${k + 2} de ${refs.length}`}
                               data-testid={`link-referencia-${k + 2}`}
-                              style={{ display: "block", width: 56, height: 42, borderRadius: 6, overflow: "hidden", border: "1px solid #fed7aa", backgroundColor: "#fff7ed" }}>
+                              style={{ display: "block", width: 56, height: 42, borderRadius: 6, overflow: "hidden", border: `1px solid ${TOM.laranja.border}`, backgroundColor: TOM.laranja.bg }}>
                               <img loading="lazy" decoding="async" src={miniatura(u)} alt={`Referência ${k + 2} do solicitante`}
                                 style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                                 onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
@@ -1532,7 +1524,7 @@ export function ItemDetailsDialog({
                           ))}
                         </div>
                       )}
-                      <p style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "#9a3412", margin: "6px 0 0" }}>
+                      <p style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: T.accentText, margin: "6px 0 0" }}>
                         <Paperclip aria-hidden="true" style={{ width: 11, height: 11 }} />
                         {refs.length > 1 ? `Referências do solicitante (${refs.length})` : "Referência do solicitante"}
                       </p>
@@ -1541,17 +1533,17 @@ export function ItemDetailsDialog({
 
                   {thumbUrl ? (
                     <div>
-                      <div style={{ position: "relative", aspectRatio: "16/9", borderRadius: 10, overflow: "hidden", border: "1px solid #ebe8e4", backgroundColor: "#f5f4f1" }}>
+                      <div style={{ position: "relative", aspectRatio: "16/9", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.border}`, backgroundColor: N.n2 }}>
                         <FilePreview url={thumbUrl} linkUrl={thumbUrl} objectFit="cover" />
                       </div>
-                      <p style={{ fontSize: 11, fontWeight: 700, color: "#57534e", margin: "6px 0 0" }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: T.apoio, margin: "6px 0 0" }}>
                         Arte enviada{item.approvalThumbUpdatedAt ? ` · ${fmtShort(item.approvalThumbUpdatedAt)}` : ""}
                       </p>
                     </div>
                   ) : (
-                    <div style={{ aspectRatio: "16/9", borderRadius: 10, border: "1px dashed #d6d3d1", backgroundColor: "#ffffff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                      <FileImage aria-hidden="true" style={{ width: 24, height: 24, color: "#a8a29e" }} />
-                      <p style={{ fontSize: 12, color: "#57534e", margin: 0 }}>A Arte ainda não enviou</p>
+                    <div style={{ aspectRatio: "16/9", borderRadius: 10, border: `1px dashed ${T.bdark}`, backgroundColor: T.surface, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                      <FileImage aria-hidden="true" style={{ width: 24, height: 24, color: T.muted }} />
+                      <p style={{ fontSize: 12, color: T.apoio, margin: 0 }}>A Arte ainda não enviou</p>
                     </div>
                   )}
 
@@ -1564,7 +1556,7 @@ export function ItemDetailsDialog({
                         href={conferencePhotos[0]} target="_blank" rel="noopener noreferrer"
                         title="Abrir a foto da conferência"
                         data-testid="link-conferencia"
-                        style={{ display: "block", position: "relative", aspectRatio: "16/9", borderRadius: 10, overflow: "hidden", border: "1px solid #a5f3fc", backgroundColor: "#ecfeff" }}
+                        style={{ display: "block", position: "relative", aspectRatio: "16/9", borderRadius: 10, overflow: "hidden", border: `1px solid ${TOM.ciano.border}`, backgroundColor: TOM.ciano.bg }}
                       >
                         <img loading="lazy" decoding="async" 
                           src={conferencePhotos[0]} alt="Foto da conferência da gráfica"
@@ -1572,12 +1564,12 @@ export function ItemDetailsDialog({
                           onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                         />
                         {conferencePhotos.length > 1 && (
-                          <span style={{ position: "absolute", bottom: 6, right: 6, backgroundColor: "rgba(14,116,144,0.92)", color: "#fff", fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 999 }}>
+                          <span style={{ position: "absolute", bottom: 6, right: 6, backgroundColor: "rgba(14,116,144,0.92)", color: T.surface, fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 999 }}>
                             +{conferencePhotos.length - 1}
                           </span>
                         )}
                       </a>
-                      <p style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "#0e7490", margin: "6px 0 0" }}>
+                      <p style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: TOM.ciano.text, margin: "6px 0 0" }}>
                         <Camera aria-hidden="true" style={{ width: 11, height: 11 }} />
                         Conferido pela gráfica
                       </p>
@@ -1589,11 +1581,11 @@ export function ItemDetailsDialog({
 
                 {thumbUrl && (
                   <div style={{ display: "flex", gap: 14, marginTop: 8, flexWrap: "wrap" }}>
-                    <a href={thumbUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600, color: "#c2410c" }}>
+                    <a href={thumbUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600, color: T.accentText }}>
                       <ExternalLink style={{ width: 11, height: 11 }} /> {friendlyFileName(thumbUrl)}
                     </a>
                     {item.previousApprovalThumbUrl && (
-                      <a href={item.previousApprovalThumbUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600, color: "#57534e" }}>
+                      <a href={item.previousApprovalThumbUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600, color: T.apoio }}>
                         <ExternalLink style={{ width: 11, height: 11 }} /> Versão anterior
                       </a>
                     )}
@@ -1609,18 +1601,18 @@ export function ItemDetailsDialog({
                       um card vazio de 100px: até a arte ser aprovada não existe
                       arquivo final, e a ficha dizia isso com uma caixa
                       tracejada do tamanho de um erro. */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 12, borderBottom: "1px solid #f5f4f1" }}>
-                    <span aria-hidden="true" style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, backgroundColor: item.finalFileUrl ? "#ecfeff" : "#f5f4f1", color: item.finalFileUrl ? "#0e7490" : "#78716c", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 12, borderBottom: `1px solid ${N.n2}` }}>
+                    <span aria-hidden="true" style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, backgroundColor: item.finalFileUrl ? TOM.ciano.bg : N.n2, color: item.finalFileUrl ? TOM.ciano.text : T.second, display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <FolderOpen style={{ width: 15, height: 15 }} />
                     </span>
                     <div style={{ minWidth: 0, flex: "1 1 auto" }}>
                       {/* O caminho completo no title: a linha corta em elipse,
                           e \\10.100.1.7\TTKGrafica\PROVAS 2026\… é longo por
                           natureza. */}
-                      <p title={item.finalFileUrl || undefined} style={{ fontSize: 13, fontWeight: 700, color: "#1c1917", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <p title={item.finalFileUrl || undefined} style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {item.finalFileUrl ? (item.finalFileName || item.finalFileUrl) : "Arquivo final"}
                       </p>
-                      <p style={{ fontSize: 12, color: "#57534e", margin: "2px 0 0" }}>
+                      <p style={{ fontSize: 12, color: T.apoio, margin: "2px 0 0" }}>
                         {item.finalFileUrl
                           ? `Pronto para impressão${item.finalFileUpdatedAt ? ` · ${fmtShort(item.finalFileUpdatedAt)}` : ""}`
                           : "Fica pronto quando a Arte finalizar o layout aprovado"}
@@ -1633,46 +1625,46 @@ export function ItemDetailsDialog({
                             não abre, e a linha cortada em elipse não deixava
                             nem selecionar o texto. Sem este botão, o caminho
                             estava na tela e fora do alcance. */}
-                        <button
-                          type="button"
+                        <Botao
+                          variante="secundario"
+                          icone={Copy}
                           data-testid="button-copiar-caminho-final"
                           title={`Copiar caminho: ${item.finalFileUrl}`}
                           aria-label="Copiar caminho do arquivo final"
                           onClick={() => {
                             navigator.clipboard.writeText(item.finalFileUrl!)
-                              .then(() => toast({ title: "Caminho copiado", description: isWebUrl(item.finalFileUrl!) ? "Cole no navegador para abrir." : "Cole no Explorer para abrir o arquivo." }))
-                              .catch(() => toast({ title: "Não foi possível copiar", description: "Selecione o caminho e copie manualmente.", variant: "destructive" }));
+                              .then(() => toast({ title: "Caminho copiado", description: isWebUrl(item.finalFileUrl!) ? "Cole no navegador para abrir." : "Cole no Explorer para abrir o arquivo.", variant: "success" }))
+                              .catch(() => toast({ title: "Não foi possível copiar", description: "Selecione o caminho e copie manualmente.", variant: "warning" }));
                           }}
-                          style={{ display: "inline-flex", alignItems: "center", gap: 6, height: ALVO, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", backgroundColor: "#ffffff", color: "#1c1917", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                          style={{ minHeight: ALVO, padding: "0 12px", color: T.text, fontSize: FS.meta }}
                         >
-                          <Copy aria-hidden="true" style={{ width: 13, height: 13 }} />
                           Copiar
-                        </button>
+                        </Botao>
                         {/* "Abrir" só quando o navegador consegue abrir. */}
                         {isWebUrl(item.finalFileUrl) && (
                           <a
                             href={hrefSeguro(item.finalFileUrl)} target="_blank" rel="noopener noreferrer"
-                            style={{ display: "inline-flex", alignItems: "center", height: ALVO, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", backgroundColor: "#ffffff", color: "#1c1917", fontSize: 12, fontWeight: 700, textDecoration: "none" }}
+                            style={{ display: "inline-flex", alignItems: "center", height: ALVO, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.surface, color: T.text, fontSize: FS.meta, fontWeight: FW.forte, textDecoration: "none" }}
                           >
                             Abrir
                           </a>
                         )}
                       </div>
                     ) : (
-                      <span style={{ padding: "4px 10px", borderRadius: 999, backgroundColor: "#f5f4f1", border: "1px solid #e7e5e4", color: "#44403c", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+                      <Selo tom="neutro" style={{ flexShrink: 0 }}>
                         Pendente
-                      </span>
+                      </Selo>
                     )}
                   </div>
 
                   {/* Book do evento */}
                   <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 12 }}>
-                    <span aria-hidden="true" style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, backgroundColor: item.bookUrl ? "#faf5ff" : "#f5f4f1", color: item.bookUrl ? "#7e22ce" : "#78716c", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <span aria-hidden="true" style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, backgroundColor: item.bookUrl ? TOM.roxo.bg : N.n2, color: item.bookUrl ? TOM.roxo.text : T.second, display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <FileImage style={{ width: 15, height: 15 }} />
                     </span>
                     <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: "#1c1917", margin: 0 }}>Book de aprovação</p>
-                      <p style={{ fontSize: 12, color: "#57534e", margin: "2px 0 0" }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: 0 }}>Book de aprovação</p>
+                      <p style={{ fontSize: 12, color: T.apoio, margin: "2px 0 0" }}>
                         {item.bookUrl
                           ? (item.bookPage ? `Esta peça está na página ${item.bookPage}` : "Cobre esta peça")
                           : "A peça não entrou em nenhum book"}
@@ -1681,7 +1673,7 @@ export function ItemDetailsDialog({
                     {item.bookUrl && (
                       <a
                         href={hrefSeguro(item.bookUrl)} target="_blank" rel="noopener noreferrer"
-                        style={{ display: "inline-flex", alignItems: "center", height: ALVO, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", backgroundColor: "#ffffff", color: "#1c1917", fontSize: 12, fontWeight: 700, textDecoration: "none", flexShrink: 0 }}
+                        style={{ display: "inline-flex", alignItems: "center", height: ALVO, padding: "0 12px", borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: T.surface, color: T.text, fontSize: 12, fontWeight: 700, textDecoration: "none", flexShrink: 0 }}
                       >
                         Abrir
                       </a>
@@ -1689,10 +1681,10 @@ export function ItemDetailsDialog({
                   </div>
 
                   {item.previousFinalFileUrl && (
-                    <div style={{ padding: "10px 12px", borderTop: "1px solid #f5f4f1", backgroundColor: "#fffbeb" }}>
-                      <p style={{ fontSize: 12, color: "#92400e", margin: 0, lineHeight: 1.45 }}>
+                    <div style={{ padding: "10px 12px", borderTop: `1px solid ${N.n2}`, backgroundColor: TOM.alerta.bg }}>
+                      <p style={{ fontSize: 12, color: TOM.alerta.text, margin: 0, lineHeight: 1.45 }}>
                         Substituiu <strong>{item.previousFinalFileName || "a versão anterior"}</strong> —{" "}
-                        <a href={hrefSeguro(item.previousFinalFileUrl)} target="_blank" rel="noopener noreferrer" style={{ color: "#92400e", fontWeight: 700 }}>ver anterior</a>
+                        <a href={hrefSeguro(item.previousFinalFileUrl)} target="_blank" rel="noopener noreferrer" style={{ color: TOM.alerta.text, fontWeight: 700 }}>ver anterior</a>
                       </p>
                     </div>
                   )}
@@ -1705,7 +1697,7 @@ export function ItemDetailsDialog({
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
                     <h3 style={TITULO_SECAO}>Registros da gráfica</h3>
                     {item.deliveredQty > 0 && item.quantity > 0 && (
-                      <span style={{ fontSize: 12, fontWeight: 700, color: item.deliveredQty < item.quantity ? "#c2410c" : "#15803d" }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: item.deliveredQty < item.quantity ? T.accentText : TOM.sucesso.text }}>
                         {item.deliveredQty} de {item.quantity} entregues
                       </span>
                     )}
@@ -1719,16 +1711,16 @@ export function ItemDetailsDialog({
                       <div style={{ display: "flex", flexWrap: "wrap", gap: "10px 22px" }}>
                         {andamentoGrafica.map(([label, valor, cor]) => (
                           <div key={label}>
-                            <p style={{ fontSize: 10, fontWeight: 700, color: "#7a6154", textTransform: "uppercase", letterSpacing: "0.07em", margin: 0 }}>{label}</p>
-                            <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 15, fontWeight: 700, color: cor, margin: "2px 0 0" }}>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.07em", margin: 0 }}>{label}</p>
+                            <p style={{ fontFamily: FONT.mono, fontSize: 15, fontWeight: 700, color: cor, margin: "2px 0 0" }}>
                               {valor}<span style={{ color: T.second, fontWeight: 400 }}>/{item.quantity}</span>
                             </p>
                           </div>
                         ))}
                         {item.receivedBy && (
                           <div>
-                            <p style={{ fontSize: 10, fontWeight: 700, color: "#7a6154", textTransform: "uppercase", letterSpacing: "0.07em", margin: 0 }}>Recebido por</p>
-                            <p style={{ fontSize: 15, fontWeight: 700, color: "#1c1917", margin: "2px 0 0" }}>{item.receivedBy}</p>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.07em", margin: 0 }}>Recebido por</p>
+                            <p style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: "2px 0 0" }}>{item.receivedBy}</p>
                           </div>
                         )}
                       </div>
@@ -1743,36 +1735,36 @@ export function ItemDetailsDialog({
                         diante, que a faixa resume como "+N") e a observação. */}
                     {(conferencePhotos.length > 1 || item.conferenceNotes) && (
                       <div>
-                        <p style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "#0e7490", margin: "0 0 8px" }}>
+                        <p style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: TOM.ciano.text, margin: "0 0 8px" }}>
                           <Camera aria-hidden="true" style={{ width: 12, height: 12 }} />
                           Conferência{conferencePhotos.length > 1 ? ` · mais ${conferencePhotos.length - 1} ${conferencePhotos.length - 1 === 1 ? "foto" : "fotos"}` : ""}
                         </p>
                         {conferencePhotos.length > 1 && <PhotoGrid urls={conferencePhotos.slice(1)} alt="Foto da conferência" />}
                         {item.conferenceNotes && (
-                          <p style={{ fontSize: 12, color: "#57534e", fontStyle: "italic", lineHeight: 1.5, margin: "8px 0 0" }}>"{item.conferenceNotes}"</p>
+                          <p style={{ fontSize: 12, color: T.apoio, fontStyle: "italic", lineHeight: 1.5, margin: "8px 0 0" }}>"{item.conferenceNotes}"</p>
                         )}
                       </div>
                     )}
 
                     {(deliveryPhotos.length > 0 || item.deliveryNotes) && (
                       <div>
-                        <p style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "#047857", margin: "0 0 8px" }}>
+                        <p style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: TOM.esmeralda.text, margin: "0 0 8px" }}>
                           <Camera aria-hidden="true" style={{ width: 12, height: 12 }} />
                           Entrega{deliveryPhotos.length > 1 ? ` · ${deliveryPhotos.length} fotos` : ""}
                         </p>
                         {deliveryPhotos.length > 0 && <PhotoGrid urls={deliveryPhotos} alt="Foto da entrega" />}
                         {item.deliveryNotes && (
-                          <p style={{ fontSize: 12, color: "#57534e", fontStyle: "italic", lineHeight: 1.5, margin: "8px 0 0" }}>"{item.deliveryNotes}"</p>
+                          <p style={{ fontSize: 12, color: T.apoio, fontStyle: "italic", lineHeight: 1.5, margin: "8px 0 0" }}>"{item.deliveryNotes}"</p>
                         )}
                       </div>
                     )}
 
                     {missingDeliveryProof && (
-                      <div style={{ display: "flex", alignItems: "flex-start", gap: 8, backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "10px 12px" }}>
-                        <AlertTriangle aria-hidden="true" style={{ width: 14, height: 14, color: "#92400e", flexShrink: 0, marginTop: 1 }} />
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: 8, backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 8, padding: "10px 12px" }}>
+                        <AlertTriangle aria-hidden="true" style={{ width: 14, height: 14, color: TOM.alerta.text, flexShrink: 0, marginTop: 1 }} />
                         <div>
-                          <p style={{ fontSize: 12, fontWeight: 700, color: "#92400e", margin: 0 }}>Entregue sem comprovante fotográfico</p>
-                          <p style={{ fontSize: 12, color: "#92400e", margin: "2px 0 0", lineHeight: 1.45 }}>
+                          <p style={{ fontSize: 12, fontWeight: 700, color: TOM.alerta.text, margin: 0 }}>Entregue sem comprovante fotográfico</p>
+                          <p style={{ fontSize: 12, color: TOM.alerta.text, margin: "2px 0 0", lineHeight: 1.45 }}>
                             A foto da entrega é opcional{item.receivedBy ? ` — consta apenas o recebimento por ${item.receivedBy}` : ""}.
                           </p>
                         </div>
@@ -1794,33 +1786,28 @@ export function ItemDetailsDialog({
         ══════════════════════════════════════════════════════════════════ */}
         <footer style={{
           flexShrink: 0, padding: isMobile ? "12px 16px" : "14px 32px",
-          borderTop: "1px solid #ebe8e4",
+          borderTop: `1px solid ${T.border}`,
           /* Branco, e não o #f5f4f1 de antes: sobre ele o #78716c da linha
              "Atualizado" dá 4,36 e reprova em 11px. Sobre branco, 4,80. */
-          backgroundColor: "#ffffff",
+          backgroundColor: T.surface,
           display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 12,
         }}>
-          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: T.second }}>
+          <span style={{ fontFamily: FONT.mono, fontSize: 11, color: T.second }}>
             {item.updatedAt
               ? `Atualizado ${format(new Date(item.updatedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`
               : item.displayId}
           </span>
 
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <button
-              type="button"
+            <Botao
+              variante="primario"
+              tamanho="toque"
               onClick={() => onOpenChange(false)}
               data-testid="button-fechar-rodape"
-              style={{
-                height: 44, padding: "0 24px", borderRadius: 8, border: "none",
-                backgroundColor: "#1c1917", color: "#ffffff", cursor: "pointer",
-                font: "inherit", fontSize: 13, fontWeight: 700,
-              }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#292524"; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = "#1c1917"; }}
+              style={{ padding: "0 24px", fontSize: FS.body }}
             >
               Fechar
-            </button>
+            </Botao>
           </div>
         </footer>
       </DialogContent>
@@ -1830,20 +1817,20 @@ export function ItemDetailsDialog({
           o eventId muda: nada de status, aprovações ou fotos aqui. */}
       <Dialog open={transferOpen} onOpenChange={(v) => { if (!transferindo) { setTransferOpen(v); if (!v) setTransferDestino(""); } }}>
         <DialogContent style={{ maxWidth: 440, padding: 0, gap: 0, borderRadius: 12, overflow: "hidden" }}>
-          <div style={{ padding: "22px 24px 18px", borderBottom: "1px solid #f0efed" }}>
+          <div style={{ padding: "22px 24px 18px", borderBottom: `1px solid ${N.n3}` }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-              <ArrowLeftRight style={{ width: 17, height: 17, color: "#6366f1" }} />
-              <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 800, letterSpacing: "-0.03em", color: "#1c1917", margin: 0 }}>
+              <ArrowLeftRight style={{ width: 17, height: 17, color: TOM.info.dot }} />
+              <DialogTitle style={{ fontFamily: FONT.display, fontSize: 17, fontWeight: 800, letterSpacing: "-0.03em", color: T.text, margin: 0 }}>
                 Transferir peça de evento
               </DialogTitle>
             </div>
-            <DialogDescription style={{ fontSize: 12.5, color: "#746e69", margin: 0, paddingLeft: 27 }}>
+            <DialogDescription style={{ fontSize: 12.5, color: T.second, margin: 0, paddingLeft: 27 }}>
               {item.displayId} · atualmente em "{item.event?.name || "Sem evento"}" — o status não muda.
             </DialogDescription>
           </div>
 
           <div style={{ padding: "20px 24px" }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 8 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 8 }}>
               Evento de destino
             </label>
             <FilterSelect
@@ -1862,41 +1849,38 @@ export function ItemDetailsDialog({
               testId="select-transfer-destino"
               triggerStyle={{
                 width: "100%", padding: "10px 12px 10px 14px", height: "auto", borderRadius: 8,
-                border: "1.5px solid #e7e5e4", fontSize: 15,
-                fontFamily: "'Space Grotesk', sans-serif", backgroundColor: "#ffffff",
+                border: `1.5px solid ${T.border}`, fontSize: 15,
+                fontFamily: FONT.display, backgroundColor: T.surface,
                 cursor: eventosCarregando ? "wait" : "pointer",
               }}
             />
           </div>
 
-          <div style={{ padding: "16px 24px", borderTop: "1px solid #f0efed", display: "flex", justifyContent: "flex-end", gap: 8 }}>
-            <button
-              type="button"
+          <div style={{ padding: "16px 24px", borderTop: `1px solid ${N.n3}`, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <Botao
+              variante="fantasma"
               onClick={() => { setTransferOpen(false); setTransferDestino(""); }}
               disabled={transferindo}
               data-testid="button-cancelar-transferencia"
-              style={{
-                height: 40, padding: "0 18px", borderRadius: 8, border: "1px solid #e7e5e4",
-                backgroundColor: "#ffffff", color: "#44403c", cursor: transferindo ? "default" : "pointer",
-                font: "inherit", fontSize: 13, fontWeight: 700,
-              }}
+              style={{ minHeight: 40, padding: "0 18px" }}
             >
               Cancelar
-            </button>
-            <button
-              type="button"
+            </Botao>
+            {/* Primário preto, como o resto do app — o azul de antes era a
+                única ação principal da ficha com cor própria. O motivo do
+                desabilitado fica visível: sem destino não há o que transferir. */}
+            <Botao
+              variante="primario"
               onClick={handleTransferEvent}
-              disabled={!transferDestino || transferindo}
+              disabled={!transferDestino}
+              carregando={transferindo}
+              motivo={!transferDestino ? "Escolha o evento de destino." : undefined}
+              alinharMotivo="end"
               data-testid="button-confirmar-transferencia"
-              style={{
-                height: 40, padding: "0 18px", borderRadius: 8, border: "none",
-                backgroundColor: !transferDestino || transferindo ? "#a5b4fc" : "#4f46e5",
-                color: "#ffffff", cursor: !transferDestino || transferindo ? "default" : "pointer",
-                font: "inherit", fontSize: 13, fontWeight: 700,
-              }}
+              style={{ minHeight: 40, padding: "0 18px" }}
             >
               {transferindo ? "Transferindo…" : "Transferir"}
-            </button>
+            </Botao>
           </div>
         </DialogContent>
       </Dialog>

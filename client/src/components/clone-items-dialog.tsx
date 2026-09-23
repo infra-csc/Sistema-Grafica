@@ -3,8 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Copy, Loader2, Search } from "lucide-react";
 import { FilterSelect } from "@/components/filter-select";
 import { getStatusLabel } from "@/lib/status";
-import { Button } from "@/components/ui/button";
-import { T } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { EstadoVazio, Esqueleto } from "@/components/ui/estados";
+import { T, N, TOM, FONT, FS } from "@/lib/theme";
 import {
   Dialog,
   DialogContent,
@@ -131,20 +132,20 @@ export function CloneItemsDialog({
         // 480px dão ~250px de painel abaixo do gatilho; o min() protege
         // janelas baixas.
         style={{ maxWidth: 520, padding: 0, gap: 0, borderRadius: 12, overflow: 'hidden', minHeight: 'min(480px, calc(100vh - 48px))', maxHeight: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '24px 28px 20px', borderBottom: '1px solid #f0efed', flexShrink: 0 }}>
+        <div style={{ padding: '24px 28px 20px', borderBottom: `1px solid ${N.n3}`, flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-            <Copy style={{ width: 18, height: 18, color: '#6366f1' }} />
-            <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 800, letterSpacing: '-0.03em', color: '#1a1c1c', margin: 0 }}>
+            <Copy style={{ width: 18, height: 18, color: TOM.info.dot }} />
+            <DialogTitle style={{ fontFamily: FONT.display, fontSize: 18, fontWeight: 800, letterSpacing: '-0.03em', color: T.text, margin: 0 }}>
               Clonar Peças de Outro Evento
             </DialogTitle>
           </div>
-          <DialogDescription style={{ fontSize: 13, color: '#746e69', margin: 0, paddingLeft: 28 }}>
+          <DialogDescription style={{ fontSize: 13, color: T.second, margin: 0, paddingLeft: 28 }}>
             Copia as peças que você escolher de um evento anterior para este evento
           </DialogDescription>
         </div>
 
         <div style={{ padding: '24px 28px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
-          <label style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 8 }}>
+          <label style={{ fontSize: 11, fontWeight: 700, color: T.second, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 8 }}>
             Selecionar evento de origem
           </label>
           {/* kind="field" — escolher o evento de ORIGEM preenche um dado da
@@ -171,32 +172,32 @@ export function CloneItemsDialog({
               testId="select-clone-source"
               triggerStyle={{
                 width: '100%', padding: '10px 12px 10px 14px', height: 'auto', borderRadius: 8,
-                border: '1.5px solid #e7e5e4',
-                fontSize: 15, fontFamily: "'Space Grotesk', sans-serif",
-                backgroundColor: '#ffffff', cursor: eventsLoading ? 'wait' : 'pointer',
+                border: `1.5px solid ${T.border}`,
+                fontSize: 15, fontFamily: FONT.display,
+                backgroundColor: T.surface, cursor: eventsLoading ? 'wait' : 'pointer',
               }}
             />
             {eventsLoading && (
-              <Loader2 className="animate-spin" style={{ position: 'absolute', right: 34, top: '50%', transform: 'translateY(-50%)', width: 15, height: 15, color: '#746e69', pointerEvents: 'none' }} />
+              <Loader2 className="animate-spin" style={{ position: 'absolute', right: 34, top: '50%', transform: 'translateY(-50%)', width: 15, height: 15, color: T.second, pointerEvents: 'none' }} />
             )}
           </div>
 
           {cloneSourceId && pecasCarregando && (
-            <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: '#746e69' }}>
-              <Loader2 className="animate-spin" style={{ width: 14, height: 14 }} /> Carregando as peças do evento…
+            <div style={{ marginTop: 16 }}>
+              <Esqueleto variante="lista" linhas={3} rotulo="Carregando as peças do evento" />
             </div>
           )}
 
           {cloneSourceId && !pecasCarregando && pecasDaOrigem.length === 0 && (
-            <div style={{ marginTop: 16, fontSize: 12.5, color: '#746e69', background: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 8, padding: '12px 14px' }}>
-              Este evento não tem peças para clonar.
+            <div style={{ marginTop: 16 }}>
+              <EstadoVazio compacto icone={Copy} titulo="Este evento não tem peças para clonar." />
             </div>
           )}
 
           {cloneSourceId && !pecasCarregando && pecasDaOrigem.length > 0 && (
             <div style={{ marginTop: 16 }} data-testid="lista-pecas-clone">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: T.second, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                   Escolher as peças · {escolhidas.size} de {pecasDaOrigem.length}
                 </span>
                 <button
@@ -205,7 +206,7 @@ export function CloneItemsDialog({
                   data-testid="button-alternar-todas"
                   // minHeight 32 + respiro lateral: era um alvo do tamanho do
                   // texto (16px) colado na borda da lista.
-                  style={{ border: 'none', background: 'transparent', fontSize: 12, fontWeight: 700, color: '#4f46e5', cursor: 'pointer', padding: '0 6px', minHeight: 32, borderRadius: 6 }}
+                  style={{ border: 'none', background: 'transparent', fontSize: 12, fontWeight: 700, color: TOM.info.text, cursor: 'pointer', padding: '0 6px', minHeight: 32, borderRadius: 6 }}
                 >
                   {visiveisMarcadas === visiveis.length ? "Desmarcar todas" : "Marcar todas"}
                 </button>
@@ -223,40 +224,40 @@ export function CloneItemsDialog({
                     // `outline: none` SEM substituto tirava o único sinal de
                     // "o cursor está aqui" para quem chega de Tab. A borda
                     // escura + o anel de 3px devolvem o foco à vista.
-                    style={{ width: '100%', padding: '7px 10px 7px 30px', borderRadius: 8, border: '1.5px solid #e7e5e4', fontSize: 13, outline: 'none' }}
-                    onFocus={e => { e.currentTarget.style.border = '1.5px solid #1c1917'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(28,25,23,0.16)'; }}
-                    onBlur={e => { e.currentTarget.style.border = '1.5px solid #e7e5e4'; e.currentTarget.style.boxShadow = 'none'; }}
+                    style={{ width: '100%', padding: '7px 10px 7px 30px', borderRadius: 8, border: `1.5px solid ${T.border}`, fontSize: 13, outline: 'none' }}
+                    onFocus={e => { e.currentTarget.style.border = `1.5px solid ${T.text}`; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(28,25,23,0.16)'; }}
+                    onBlur={e => { e.currentTarget.style.border = `1.5px solid ${T.border}`; e.currentTarget.style.boxShadow = 'none'; }}
                   />
                 </div>
               )}
 
-              <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid #e7e5e4', borderRadius: 8 }}>
+              <div style={{ maxHeight: 220, overflowY: 'auto', border: `1px solid ${T.border}`, borderRadius: 8 }}>
                 {visiveis.length === 0 && (
-                  <div style={{ padding: '14px 12px', fontSize: 12.5, color: '#746e69' }}>Nenhuma peça bate com a busca.</div>
+                  <div style={{ padding: '14px 12px', fontSize: FS.meta, color: T.second }}>Nenhuma peça bate com a busca.</div>
                 )}
                 {visiveis.map((i: any) => (
                   <label
                     key={i.id}
                     data-testid={`linha-peca-clone-${i.id}`}
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderBottom: '1px solid #f5f4f2', cursor: 'pointer', backgroundColor: escolhidas.has(i.id) ? '#ffffff' : '#fafaf9' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderBottom: `1px solid ${N.n3}`, cursor: 'pointer', backgroundColor: escolhidas.has(i.id) ? T.surface : T.bg }}
                   >
                     <input
                       type="checkbox"
                       checked={escolhidas.has(i.id)}
                       onChange={() => alternarUma(i.id)}
-                      style={{ width: 15, height: 15, accentColor: '#4f46e5', flexShrink: 0, cursor: 'pointer' }}
+                      style={{ width: 15, height: 15, accentColor: TOM.info.text, flexShrink: 0, cursor: 'pointer' }}
                     />
                     {/* Desmarcada fica mais QUIETA, não ilegível: o #a8a29e /
                         #c4beb8 de antes (2,5:1 e 1,8:1) escondia justamente a
                         peça que a pessoa pode querer remarcar. A diferença
                         agora é o peso e o fundo da linha, e o checkbox. */}
-                    <span style={{ fontSize: 13, color: escolhidas.has(i.id) ? '#1a1c1c' : '#746e69', fontWeight: escolhidas.has(i.id) ? 500 : 400, lineHeight: 1.4, minWidth: 0 }}>
+                    <span style={{ fontSize: 13, color: escolhidas.has(i.id) ? T.text : T.second, fontWeight: escolhidas.has(i.id) ? 500 : 400, lineHeight: 1.4, minWidth: 0 }}>
                       {/* displayId já vem com a cerquilha do backend ("#0281");
                           prefixar de novo mostrava "##0281". */}
                       {i.displayId != null && <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{i.displayId}</strong>}{i.displayId != null ? " " : ""}{i.type}
-                      {i.description ? <span style={{ color: '#746e69' }}> · {i.description}</span> : null}
-                      <span style={{ color: '#746e69', whiteSpace: 'nowrap' }}> · {i.quantity} un.</span>
-                      {i.status === "canceled" && <span style={{ color: '#b91c1c', fontWeight: 700, whiteSpace: 'nowrap' }}> · cancelada</span>}
+                      {i.description ? <span style={{ color: T.second }}> · {i.description}</span> : null}
+                      <span style={{ color: T.second, whiteSpace: 'nowrap' }}> · {i.quantity} un.</span>
+                      {i.status === "canceled" && <span style={{ color: TOM.perigo.text, fontWeight: 700, whiteSpace: 'nowrap' }}> · cancelada</span>}
                     </span>
                   </label>
                 ))}
@@ -265,11 +266,11 @@ export function CloneItemsDialog({
           )}
 
           {cloneSourceId && !pecasCarregando && pecasDaOrigem.length > 0 && (
-            <div style={{ marginTop: 12, backgroundColor: '#f0f0ff', border: '1px solid #c7d2fe', borderRadius: 8, padding: '12px 14px', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-              <Copy style={{ width: 14, height: 14, color: '#6366f1', flexShrink: 0, marginTop: 1 }} />
+            <div style={{ marginTop: 12, backgroundColor: TOM.info.bg, border: `1px solid ${TOM.info.border}`, borderRadius: 8, padding: '12px 14px', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              <Copy style={{ width: 14, height: 14, color: TOM.info.dot, flexShrink: 0, marginTop: 1 }} />
               <div>
-                <p style={{ fontSize: 11, fontWeight: 700, color: '#3730a3', margin: '0 0 2px' }}>O que será copiado</p>
-                <p style={{ fontSize: 11, color: '#4338ca', margin: 0, lineHeight: 1.5 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: TOM.info.text, margin: '0 0 2px' }}>O que será copiado</p>
+                <p style={{ fontSize: 11, color: TOM.info.text, margin: 0, lineHeight: 1.5 }}>
                   {escolhidas.size === pecasDaOrigem.length
                     ? <>Todas as <strong>{pecasDaOrigem.length}</strong> peças do evento serão adicionadas a <strong>{eventName}</strong>.</>
                     : <>As <strong>{escolhidas.size}</strong> peças selecionadas (de {pecasDaOrigem.length}) serão adicionadas a <strong>{eventName}</strong>.</>}<br />
@@ -285,22 +286,28 @@ export function CloneItemsDialog({
           )}
         </div>
 
-        <div style={{ flexShrink: 0, padding: '16px 28px 24px', borderTop: '1px solid #f0efed', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-          <Button variant="outline" onClick={() => { onOpenChange(false); setCloneSourceId(""); }}>
+        <div style={{ flexShrink: 0, padding: '16px 28px 24px', borderTop: `1px solid ${N.n3}`, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+          <Botao variante="fantasma" onClick={() => { onOpenChange(false); setCloneSourceId(""); }}>
             Cancelar
-          </Button>
-          <Button
+          </Botao>
+          <Botao
+            variante="primario"
+            icone={Copy}
+            carregando={isCloning}
             onClick={() => onConfirmClone(Array.from(escolhidas))}
-            disabled={!cloneSourceId || isCloning || pecasCarregando || escolhidas.size === 0}
+            disabled={!cloneSourceId || pecasCarregando || escolhidas.size === 0}
+            motivo={!cloneSourceId
+              ? 'Escolha o evento de origem.'
+              : !pecasCarregando && pecasDaOrigem.length > 0 && escolhidas.size === 0
+                ? 'Marque ao menos uma peça.'
+                : undefined}
+            alinharMotivo="end"
             data-testid="button-confirm-clone"
-            style={{ backgroundColor: '#4f46e5', color: '#ffffff' }}
           >
-            {isCloning ? (
-              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Clonando...</>
-            ) : (
-              <><Copy className="h-4 w-4 mr-2" /> {escolhidas.size > 0 ? `Clonar ${escolhidas.size} ${escolhidas.size === 1 ? "Peça" : "Peças"}` : "Clonar Peças"}</>
-            )}
-          </Button>
+            {isCloning
+              ? "Clonando..."
+              : escolhidas.size > 0 ? `Clonar ${escolhidas.size} ${escolhidas.size === 1 ? "Peça" : "Peças"}` : "Clonar Peças"}
+          </Botao>
         </div>
       </DialogContent>
     </Dialog>

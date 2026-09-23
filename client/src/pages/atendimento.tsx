@@ -47,10 +47,14 @@ import {
 import { useCallback, useState, useMemo, Fragment, useEffect, useRef, useDeferredValue } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile, useDensidadeDoConteudo, usePonteiroGrosso, alvo } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
 import { Undo2, Play, Hourglass } from "lucide-react";
-import { FS } from "@/lib/theme";
+import { FS, FW, R, T, N, TOM, FONT } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { Segmentado } from "@/components/ui/abas";
+import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
+import { EstadoErro, EstadoVazio } from "@/components/ui/estados";
 import { ehMolde, etapaDoMolde, statusDeExibicao, ETAPAS_DO_MOLDE } from "@shared/molde";
 import { STATUS_DA_ETAPA, statusDasEtapas, type EtapaDaPeca } from "@shared/fluxo-peca";
 import { EsqueletoDeFila } from "@/components/esqueleto-de-fila";
@@ -120,9 +124,9 @@ const CHAVE_DO_HISTORICO = ["/api/items", `?status=${statusDasEtapas(...ATENDIME
  */
 const KBD: React.CSSProperties = {
   display: 'inline-block', minWidth: 18, padding: '0 5px', margin: '0 1px',
-  borderRadius: 4, border: '1px solid #d6d3d1', borderBottomWidth: 2,
-  background: '#fafaf9', color: '#44403c',
-  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 10.5, fontWeight: 600,
+  borderRadius: 4, border: `1px solid ${T.bdark}`, borderBottomWidth: 2,
+  background: T.bg, color: T.strong,
+  fontFamily: FONT.mono, fontSize: 10.5, fontWeight: 600,
   lineHeight: '16px', textAlign: 'center',
 };
 
@@ -142,10 +146,10 @@ const approvalVisual = (status?: string | null) => {
     isApproved, isRejected, isNewVersion, isAwaitingArte,
     chip: (isApproved ? 'approved' : (isRejected || isAwaitingArte) ? 'rejected' : 'pending') as 'approved' | 'rejected' | 'pending',
     label:  isApproved ? 'Aprovado' : isRejected ? 'Reprovado' : isAwaitingArte ? 'Reprovado · aguardando Arte' : isNewVersion ? 'Nova versão' : 'Aguardando',
-    bg:     isApproved ? '#f0fdf4' : isRejected ? '#fef2f2' : isAwaitingArte ? '#fffbeb' : isNewVersion ? '#fffbeb' : '#f5f5f4',
-    border: isApproved ? '#bbf7d0' : isRejected ? '#fecaca' : isAwaitingArte ? '#fde68a' : isNewVersion ? '#fde68a' : '#e7e5e4',
-    text:   isApproved ? '#15803d' : isRejected ? '#b91c1c' : isAwaitingArte ? '#b91c1c' : isNewVersion ? '#92400e' : '#57534e',
-    dot:    isApproved ? '#22c55e' : isRejected ? '#ef4444' : isAwaitingArte ? '#f59e0b' : isNewVersion ? '#f59e0b' : '#d1d5db',
+    bg:     isApproved ? TOM.sucesso.bg : isRejected ? TOM.perigo.bg : isAwaitingArte ? TOM.alerta.bg : isNewVersion ? TOM.alerta.bg : N.n2,
+    border: isApproved ? TOM.sucesso.border : isRejected ? TOM.perigo.border : isAwaitingArte ? TOM.alerta.border : isNewVersion ? TOM.alerta.border : T.border,
+    text:   isApproved ? TOM.sucesso.text : isRejected ? TOM.perigo.text : isAwaitingArte ? TOM.perigo.text : isNewVersion ? TOM.alerta.text : T.apoio,
+    dot:    isApproved ? TOM.sucesso.dot : isRejected ? TOM.perigo.dot : isAwaitingArte ? TOM.alerta.dot : isNewVersion ? TOM.alerta.dot : T.bdark,
   };
 };
 
@@ -244,7 +248,7 @@ const DIA_MS = 86400000;
 
 /** Tom do intervalo: uma semana é normal, duas já é o assunto da reunião. */
 function tomDoIntervalo(dias: number): string {
-  return dias >= 14 ? '#b91c1c' : dias >= 7 ? '#b45309' : '#57534e';
+  return dias >= 14 ? TOM.perigo.text : dias >= 7 ? TOM.alerta.text : T.apoio;
 }
 
 /**
@@ -348,23 +352,23 @@ const isPastApproval = (item: any): boolean => POST_APPROVAL_STATUSES.includes(i
 // ── Config das ações do log de auditoria (modal de revisão) ────────────────
 // Const de módulo: antes era recriada a cada LINHA do histórico renderizada.
 const ACTION_CONFIG: Record<string, { label: string; bg: string; iconColor: string; icon: any }> = {
-  created:          { label: 'Criado',                bg: '#dbeafe', iconColor: '#1d4ed8', icon: Plus },
-  updated:          { label: 'Atualizado',            bg: '#ffedd5', iconColor: '#c2410c', icon: Pencil },
-  deleted:          { label: 'Excluído',              bg: '#fee2e2', iconColor: '#dc2626', icon: Trash2 },
-  approved:         { label: 'Aprovado',              bg: '#dcfce7', iconColor: '#15803d', icon: CheckCircle },
-  rejected:         { label: 'Reprovado',             bg: '#fee2e2', iconColor: '#dc2626', icon: XCircle },
-  canceled:         { label: 'Cancelado',             bg: '#fee2e2', iconColor: '#dc2626', icon: XCircle },
+  created:          { label: 'Criado',                bg: TOM.info.border, iconColor: TOM.info.text, icon: Plus },
+  updated:          { label: 'Atualizado',            bg: TOM.laranja.bg, iconColor: T.accentText, icon: Pencil },
+  deleted:          { label: 'Excluído',              bg: TOM.perigo.bg, iconColor: TOM.perigo.text, icon: Trash2 },
+  approved:         { label: 'Aprovado',              bg: TOM.sucesso.bg, iconColor: TOM.sucesso.text, icon: CheckCircle },
+  rejected:         { label: 'Reprovado',             bg: TOM.perigo.bg, iconColor: TOM.perigo.text, icon: XCircle },
+  canceled:         { label: 'Cancelado',             bg: TOM.perigo.bg, iconColor: TOM.perigo.text, icon: XCircle },
   // Entregue na cor do resto do app (esmeralda de lib/status) — era roxo só aqui.
-  delivered:        { label: 'Entregue',              bg: '#ecfdf5', iconColor: '#047857', icon: Truck },
-  produced:         { label: 'Impressão concluída',   bg: '#e0e7ff', iconColor: '#4338ca', icon: Cog },
-  submitted:        { label: 'Enviado',               bg: '#cffafe', iconColor: '#0e7490', icon: Send },
-  linked:           { label: 'Vinculado',             bg: '#ccfbf1', iconColor: '#0f766e', icon: Link2 },
-  released:         { label: 'Liberado',              bg: '#dbeafe', iconColor: '#1d4ed8', icon: Unlock },
-  status_changed:   { label: 'Status alterado',       bg: '#ffedd5', iconColor: '#c2410c', icon: ArrowRightLeft },
-  sponsor_approved: { label: 'Patrocinador aprovado', bg: '#dcfce7', iconColor: '#15803d', icon: CheckCircle },
-  sponsor_rejected: { label: 'Patrocinador reprovou', bg: '#fee2e2', iconColor: '#dc2626', icon: XCircle },
-  file_uploaded:    { label: 'Arquivo enviado',       bg: '#f3e8ff', iconColor: '#7e22ce', icon: Upload },
-  thumb_uploaded:   { label: 'Thumb enviado',         bg: '#f3e8ff', iconColor: '#7e22ce', icon: ImageIcon },
+  delivered:        { label: 'Entregue',              bg: TOM.esmeralda.bg, iconColor: TOM.esmeralda.text, icon: Truck },
+  produced:         { label: 'Impressão concluída',   bg: TOM.info.bg, iconColor: TOM.info.text, icon: Cog },
+  submitted:        { label: 'Enviado',               bg: TOM.ciano.bg, iconColor: TOM.ciano.text, icon: Send },
+  linked:           { label: 'Vinculado',             bg: TOM.turquesa.bg, iconColor: TOM.turquesa.text, icon: Link2 },
+  released:         { label: 'Liberado',              bg: TOM.info.border, iconColor: TOM.info.text, icon: Unlock },
+  status_changed:   { label: 'Status alterado',       bg: TOM.laranja.bg, iconColor: T.accentText, icon: ArrowRightLeft },
+  sponsor_approved: { label: 'Patrocinador aprovado', bg: TOM.sucesso.bg, iconColor: TOM.sucesso.text, icon: CheckCircle },
+  sponsor_rejected: { label: 'Patrocinador reprovou', bg: TOM.perigo.bg, iconColor: TOM.perigo.text, icon: XCircle },
+  file_uploaded:    { label: 'Arquivo enviado',       bg: TOM.roxo.bg, iconColor: TOM.roxo.text, icon: Upload },
+  thumb_uploaded:   { label: 'Thumb enviado',         bg: TOM.roxo.bg, iconColor: TOM.roxo.text, icon: ImageIcon },
 };
 
 export default function Atendimento() {
@@ -603,7 +607,7 @@ export default function Atendimento() {
       }));
       setSponsorApprovals(prev => [...prev, { itemId: selectedItem.id, sponsorId: sp.id, status: "pending" } as any]);
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      toast({ title: "Patrocinador adicionado", description: `"${sp.name}" entrou na rodada como Aguardando decisão.` });
+      toast({ title: "Patrocinador adicionado", description: `"${sp.name}" entrou na rodada como Aguardando decisão.`, variant: "success" });
     } catch (e: any) {
       toast({ title: "Não foi possível adicionar", description: e?.message ?? String(e), variant: "destructive" });
     } finally {
@@ -618,6 +622,16 @@ export default function Atendimento() {
   const [confirmApproveBatch, setConfirmApproveBatch] = useState(false);
 
   const isMobile = useIsMobile();
+  // Régua de ÁREA ÚTIL para o layout da lista (placar, cards, histórico): com
+  // a sidebar aberta, uma janela de 1000px deixa ~700px de conteúdo, e o corte
+  // pela janela mantinha o layout largo espremido ali. `isMobile` continua
+  // valendo para o que é de celular: filtros recolhidos, padding da página,
+  // modais. O padding descontado é o da raiz (12 ou 32 de cada lado).
+  const { ref: refConteudo, cards } = useDensidadeDoConteudo<HTMLDivElement>(isMobile ? 24 : 64);
+  // Alvo de 44px pelo PONTEIRO (dedo), não pela largura: o tablet do galpão
+  // tem janela larga e é usado com o dedo.
+  const dedo = usePonteiroGrosso();
+  const tamBotao = dedo ? "toque" as const : "md" as const;
   // Filtros recolhidos no celular (mesma cura da Arte): quatro menus e o
   // "Atrasados" em 44px cada somavam três linhas de controles entre o placar e
   // a primeira peça. A busca fica sempre à vista; o recorte ativo continua
@@ -905,11 +919,11 @@ export default function Atendimento() {
         const next = idx >= 0 ? reviewQueue[idx + 1] : undefined;
         if (next) {
           seguirParaPeca(next);
-          toast({ title: "Peça aprovada", description: `Seguindo para ${next.displayId} · ${next.type}` });
+          toast({ title: "Peça aprovada", description: `Seguindo para ${next.displayId} · ${next.type}`, variant: "success" });
         } else {
           setDialogOpen(false);
           setSelectedItem(null);
-          toast({ title: "Todos patrocinadores aprovaram", description: "Você revisou a última peça da fila." });
+          toast({ title: "Todos patrocinadores aprovaram", description: "Você revisou a última peça da fila.", variant: "success" });
         }
       } else {
         // Decisão parcial: o item não mudou de status; só o log ficou defasado.
@@ -934,6 +948,7 @@ export default function Atendimento() {
             : next
               ? `Nada mais a decidir nesta peça — seguindo para ${next.displayId} · ${next.type}`
               : "A decisão foi registrada. Nada mais a decidir nesta peça.",
+          variant: "success",
         });
       }
     },
@@ -972,16 +987,16 @@ export default function Atendimento() {
         const next = idx >= 0 ? reviewQueue[idx + 1] : undefined;
         if (next) {
           seguirParaPeca(next);
-          toast({ title: quemReprovou ? `Reprovação de ${quemReprovou} registrada` : "Peça devolvida para a Arte", description: `A Arte recebe o motivo. Nada mais a decidir nesta peça — seguindo para ${next.displayId} · ${next.type}` });
+          toast({ title: quemReprovou ? `Reprovação de ${quemReprovou} registrada` : "Peça devolvida para a Arte", description: `A Arte recebe o motivo. Nada mais a decidir nesta peça — seguindo para ${next.displayId} · ${next.type}`, variant: "success" });
         } else {
           setDialogOpen(false);
           setSelectedItem(null);
-          toast({ title: quemReprovou ? `Reprovação de ${quemReprovou} registrada` : "Todos patrocinadores decidiram", description: "A Arte recebe o motivo e refaz a arte. Era a última peça da fila." });
+          toast({ title: quemReprovou ? `Reprovação de ${quemReprovou} registrada` : "Todos patrocinadores decidiram", description: "A Arte recebe o motivo e refaz a arte. Era a última peça da fila.", variant: "success" });
         }
       } else {
         // Diz QUEM reprovou e o que acontece com os demais — a pergunta
         // seguinte de quem acabou de reprovar é "e os outros patrocinadores?".
-        toast({ title: quemReprovou ? `Reprovação de ${quemReprovou} registrada` : "Reprovação registrada", description: `A Arte recebe o motivo e prepara a nova versão. ${aindaFaltam === 0 ? "Nada mais a decidir nesta peça." : `${aindaFaltam === 1 ? "Falta 1 patrocinador" : `Faltam ${aindaFaltam} patrocinadores`} decidir nesta peça.`}` });
+        toast({ title: quemReprovou ? `Reprovação de ${quemReprovou} registrada` : "Reprovação registrada", description: `A Arte recebe o motivo e prepara a nova versão. ${aindaFaltam === 0 ? "Nada mais a decidir nesta peça." : `${aindaFaltam === 1 ? "Falta 1 patrocinador" : `Faltam ${aindaFaltam} patrocinadores`} decidir nesta peça.`}`, variant: "success" });
       }
     },
     onError: (error: any) => {
@@ -1000,7 +1015,7 @@ export default function Atendimento() {
       // A resposta traz { approval, item }: remenda os caches localmente.
       applyApprovalToCache(variables.itemId, data.approval);
       applyItemDecisionToCache(data.item);
-      toast({ title: "Aprovação revertida", description: "O patrocinador volta a aguardar decisão." });
+      toast({ title: "Aprovação revertida", description: "O patrocinador volta a aguardar decisão.", variant: "success" });
     },
     onError: (error: any) => {
       toast({ title: "Erro ao reverter", description: error.message || "Não foi possível reverter a aprovação", variant: "destructive" });
@@ -1030,7 +1045,9 @@ export default function Atendimento() {
       toast({
         title: r?.status === "enviado" ? "Aviso enviado" : "Aviso não enviado",
         description: r?.mensagem ?? "Sem resposta do servidor.",
-        variant: r?.status === "enviado" ? undefined : "destructive",
+        // Só "falhou" é falha de verdade; fila vazia ou ambiente desligado é
+        // aviso — nada quebrou, só não havia o que mandar.
+        variant: r?.status === "enviado" ? "success" : r?.status === "falhou" ? "destructive" : "warning",
       });
     },
     onError: (error: any) => toast({ title: "Erro ao disparar o aviso", description: error.message, variant: "destructive" }),
@@ -1082,11 +1099,11 @@ export default function Atendimento() {
       const next = idx >= 0 ? reviewQueue[idx + 1] : undefined;
       if (next) {
         seguirParaPeca(next);
-        toast({ title: "Peça aprovada para todos os patrocinadores", description: `Seguindo para ${next.displayId} · ${next.type}` });
+        toast({ title: "Peça aprovada para todos os patrocinadores", description: `Seguindo para ${next.displayId} · ${next.type}`, variant: "success" });
       } else {
         setDialogOpen(false);
         setSelectedItem(null);
-        toast({ title: "Peça aprovada para todos os patrocinadores", description: "Era a última peça da fila." });
+        toast({ title: "Peça aprovada para todos os patrocinadores", description: "Era a última peça da fila.", variant: "success" });
       }
     },
     onError: (error: any) => {
@@ -1134,6 +1151,7 @@ export default function Atendimento() {
         toast({
           title: "Nenhuma peça elegível",
           description: "As peças selecionadas já foram decididas para este patrocinador.",
+          variant: "warning",
         });
         return;
       }
@@ -1175,6 +1193,7 @@ export default function Atendimento() {
         description: `${vars.action === "approve"
           ? `Aprovação de ${nomePorPatrocinador.get(vars.sponsorId) ?? "o patrocinador"} registrada.`
           : "As peças voltaram para a Arte com o motivo informado."}`,
+        variant: "success",
       });
     },
     onError: (error: any) => {
@@ -1252,7 +1271,7 @@ export default function Atendimento() {
     });
 
   const eventFilterOptions = useMemo(() => {
-    const DOT: Record<string, string> = { urgente: '#ef4444', urgent: '#ef4444', alta: '#f97316', media: '#eab308', baixa: '#3b82f6' };
+    const DOT: Record<string, string> = { urgente: TOM.perigo.dot, urgent: TOM.perigo.dot, alta: T.accent, media: TOM.alerta.dot, baixa: TOM.info.dot };
     const byId = new Map((events as any[]).map((e: any) => [e.id, e]));
     const map = new Map<string, { value: string; label: string; count: number; dotColor?: string }>();
     facetPool('event').forEach((i: any) => {
@@ -1319,7 +1338,7 @@ export default function Atendimento() {
     facetPool('sponsor').forEach((i: any) => (itemSponsorsMap[i.id] ?? []).forEach((s: any) => {
       const cur = map.get(s.id);
       if (cur) cur.count++;
-      else map.set(s.id, { value: s.id, label: s.name, count: 1, dotColor: s.color || '#a8a29e' });
+      else map.set(s.id, { value: s.id, label: s.name, count: 1, dotColor: s.color || T.muted });
     }));
     return Array.from(map.values());
   }, [pendingItems, eventFilter, itemTypeFilter, sponsorFilter, itemSponsorsMap, loadingSponsors, sponsors, atrasadosFilter, eventoPorId, hoje]);
@@ -1640,7 +1659,7 @@ export default function Atendimento() {
     if (loadingSponsors) return [] as { value: string; label: string; count: number; dotColor?: string }[];
     // Mesma razão do historyItems: menu da aba Histórico, só com ela aberta.
     if (activeTab !== "history") return [] as { value: string; label: string; count: number; dotColor?: string }[];
-    const C: Record<string, string> = { urgente: '#ef4444', urgent: '#ef4444', alta: '#f97316', media: '#eab308', baixa: '#3b82f6' };
+    const C: Record<string, string> = { urgente: TOM.perigo.dot, urgent: TOM.perigo.dot, alta: T.accent, media: TOM.alerta.dot, baixa: TOM.info.dot };
     const byId = new Map((events as any[]).map((e: any) => [e.id, e]));
     const map = new Map<string, { value: string; label: string; count: number; dotColor?: string }>();
     (items as any[]).filter(i => casaHistorico(i, 'evento')).forEach((i: any) => {
@@ -1814,10 +1833,8 @@ export default function Atendimento() {
     // carregando da Arte e da Gráfica, e já desenha o lugar do conteúdo —
     // a tela "aparece" antes dos dados, em vez de piscar de vazio para cheio.
     return (
-      <div className="bg-stone-50" style={{ height: "100%", overflowY: "auto", padding: isMobile ? "12px 12px" : "32px" }}>
-        <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: FS.h1, fontWeight: 700, letterSpacing: '-0.03em', color: '#1c1917', lineHeight: 1.1, margin: '0 0 20px' }}>
-          Atendimento
-        </h1>
+      <div ref={refConteudo} className="bg-stone-50" style={{ height: "100%", overflowY: "auto", padding: isMobile ? "12px 12px" : "32px" }}>
+        <CabecalhoDaPagina titulo="Atendimento" />
         <EsqueletoDeFila linhas={6} />
       </div>
     );
@@ -1825,90 +1842,68 @@ export default function Atendimento() {
 
   if (itemsError) {
     return (
-      // role="alert": a troca da tela inteira por esta mensagem precisa ser
-      // anunciada — e o título diz QUE fila falhou, não "os itens".
-      // A MESMA caixa de erro da Arte (ícone de conexão âmbar, título 15/700,
-      // botão em tinta): texto vermelho solto no meio da página lia como um
-      // vazio, e as duas filas irmãs falhavam com dois desenhos diferentes.
-      <div className="bg-stone-50" style={{ height: '100%', overflowY: 'auto', padding: isMobile ? '12px' : '32px' }}>
-        <div role="alert" style={{ textAlign: 'center', padding: '32px 24px', margin: '24px auto', maxWidth: 460, background: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 12 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 12, background: '#fffbeb', border: '1px solid #fde68a', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
-            <AlertCircle aria-hidden="true" style={{ width: 18, height: 18, color: '#b45309' }} />
-          </div>
-          <p style={{ fontSize: 15, fontWeight: 700, color: '#1c1917', margin: '0 0 6px', fontFamily: "'Space Grotesk', sans-serif" }}>Não foi possível carregar a fila de aprovação</p>
-          <p style={{ fontSize: 13, color: '#746e69', lineHeight: 1.55, margin: '0 0 16px' }}>Nenhuma decisão foi perdida. Verifique sua conexão e tente novamente.</p>
-          <button onClick={() => refetchItems()} style={{ height: 40, padding: '0 16px', borderRadius: 9, background: '#1c1917', color: '#ffffff', border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-            <RotateCcw aria-hidden="true" style={{ width: 14, height: 14 }} /> Tentar novamente
-          </button>
+      // O estado de erro da casa (role="alert" já vem nele): a troca da tela
+      // inteira por esta mensagem é anunciada, e o título diz QUE fila falhou,
+      // não "os itens". Erro não é vazio — por isso a caixa de falha, e não
+      // um texto solto que leria como "nada a fazer".
+      <div ref={refConteudo} className="bg-stone-50" style={{ height: '100%', overflowY: 'auto', padding: isMobile ? '12px' : '32px' }}>
+        <CabecalhoDaPagina titulo="Atendimento" />
+        <div style={{ maxWidth: 520, margin: '24px auto' }}>
+          <EstadoErro
+            titulo="Não foi possível carregar a fila de aprovação"
+            detalhe="Nenhuma decisão foi perdida. Verifique sua conexão e tente novamente."
+            aoTentarDeNovo={() => refetchItems()}
+          />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-stone-50" style={{ height: "100%", overflowY: "auto", padding: isMobile ? "12px 12px" : "32px" }}>
+    <div ref={refConteudo} className="bg-stone-50" style={{ height: "100%", overflowY: "auto", padding: isMobile ? "12px 12px" : "32px" }}>
 
       {/* ─── CABEÇALHO ───────────────────────────────────────────── */}
-      <header className="mb-5 flex flex-col md:flex-row md:items-end justify-between gap-3 md:gap-6">
-        <div className="max-w-2xl">
-          {/* O TÍTULO É O NOME DO MENU, como nas outras telas desde a 2ª
-              rodada ("Arte", "Painel Geral"): quem clicou em "Atendimento" na
-              barra lateral caía numa página chamada "Aprovação do
-              Patrocinador", com um sobretítulo laranja em versalete fazendo a
-              ponte — dois nomes para o mesmo lugar. O que a tela FAZ desce para
-              a linha de apoio, em 13px como nas demais. */}
-          <h1 style={{
-            fontFamily: "'Space Grotesk', sans-serif",
-            // 26/700, a mesma escala da Gestão de Prazos. O `clamp` com peso
-            // 900 fazia o título mudar de tamanho conforme a largura da
-            // janela e o deixava mais pesado que qualquer número da tela.
-            fontSize: FS.h1, fontWeight: 700,
-            letterSpacing: '-0.03em', color: '#1c1917',
-            lineHeight: 1.1, margin: '0 0 6px',
-          }}>
-            Atendimento
-          </h1>
-          <p style={{ color: '#746e69', fontSize: 13, fontWeight: 500, lineHeight: 1.5, maxWidth: 660, margin: 0 }}>
-            Aprovação do patrocinador — decida cada arte com a marca e veja quem ainda falta responder.
-          </p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          {/* O badge "Aguardam Aprovação" saiu daqui: era UM número para uma
-              tela que responde a quatro perguntas, e virou o placar abaixo.
+      {/* O TÍTULO É O NOME DO MENU, como nas outras telas desde a 2ª rodada
+          ("Arte", "Painel Geral"): quem clicou em "Atendimento" na barra
+          lateral caía numa página chamada "Aprovação do Patrocinador" — dois
+          nomes para o mesmo lugar. O que a tela FAZ desce para o subtítulo.
 
-              No lugar dele, a idade do dado. Sem isto, uma aba aberta o dia
-              inteiro nunca dizia de quando são os números que mostra. */}
-          {!itemsLoading && !itemsError && (
-            <span
-              data-testid="selo-atualizado"
-              title={new Date(dataUpdatedAt).toLocaleString("pt-BR")}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#746e69', whiteSpace: 'nowrap' }}
-            >
-              {isFetchingItems && <RotateCcw aria-hidden="true" className="animate-spin" style={{ width: 11, height: 11 }} />}
-              Atualizado {fmtRelative(new Date(dataUpdatedAt).toISOString(), agora)}
-            </span>
-          )}
-          {/* Exportar PDF — desabilita enquanto os dados de aprovação carregam:
-              o pool de exportação depende deles e sairia vazio/incompleto. */}
-          <button
+          O badge "Aguardam Aprovação" saiu daqui: era UM número para uma tela
+          que responde a quatro perguntas, e virou o placar abaixo. No lugar
+          dele, a idade do dado (frescor) — sem isto, uma aba aberta o dia
+          inteiro nunca dizia de quando são os números que mostra. */}
+      <CabecalhoDaPagina
+        titulo="Atendimento"
+        subtitulo="Aprovação do patrocinador — decida cada arte com a marca e veja quem ainda falta responder."
+        frescor={!itemsLoading && !itemsError ? (
+          <span
+            data-testid="selo-atualizado"
+            title={new Date(dataUpdatedAt).toLocaleString("pt-BR")}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: FS.small, color: T.second, whiteSpace: 'nowrap' }}
+          >
+            {isFetchingItems && <RotateCcw aria-hidden="true" className="animate-spin" style={{ width: 11, height: 11 }} />}
+            Atualizado {fmtRelative(new Date(dataUpdatedAt).toISOString(), agora)}
+          </span>
+        ) : undefined}
+        acoes={
+          // Exportar PDF — desabilita enquanto os dados de aprovação carregam:
+          // o pool de exportação depende deles e sairia vazio/incompleto. O
+          // porquê fica À VISTA (motivo), não só no hover.
+          <Botao
+            variante="secundario"
+            tamanho={tamBotao}
+            icone={FileText}
             onClick={() => setShowExportPDFModal(true)}
             disabled={loadingSponsors}
+            motivo={loadingSponsors ? "Carregando os dados de aprovação" : undefined}
+            alinharMotivo="end"
             data-testid="button-export-pdf"
             title={loadingSponsors ? "Aguarde: carregando os dados de aprovação das peças" : "Exportar peças em PDF"}
-            style={{
-              height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 9,
-              backgroundColor: '#ffffff', border: '1px solid #e7e5e4',
-              color: '#57534e', cursor: loadingSponsors ? 'not-allowed' : 'pointer',
-              opacity: loadingSponsors ? 0.5 : 1,
-              display: 'flex', alignItems: 'center', gap: 6,
-              fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
-            }}
           >
-            <FileText aria-hidden="true" style={{ width: 15, height: 15 }} />
             Exportar PDF
-          </button>
-        </div>
-      </header>
+          </Botao>
+        }
+      />
 
       {/* ─── PLACAR POR SITUAÇÃO ─────────────────────────────────── */}
       {/* A tela mostrava UM número no cabeçalho ("Aguardam Aprovação") e a
@@ -1926,28 +1921,28 @@ export default function Atendimento() {
       {activeTab === 'pending' && (
         <div style={{
           display: 'grid', marginBottom: 14,
-          gridTemplateColumns: isMobile ? 'repeat(2, minmax(0,1fr))' : 'repeat(4, minmax(0,1fr))',
-          backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 12,
+          gridTemplateColumns: cards ? 'repeat(2, minmax(0,1fr))' : 'repeat(4, minmax(0,1fr))',
+          backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg,
           overflow: 'hidden', boxShadow: '0 1px 2px rgba(28,25,23,0.06)',
         }}>
           {[
             { k: 'nova_versao', titulo: 'Sua decisão', n: contagemSituacao.get('nova_versao') ?? 0,
-              cor: '#92400e', anel: '#b45309', hint: SITUACAO_META.nova_versao.hint,
+              cor: TOM.alerta.text, anel: TOM.alerta.text, hint: SITUACAO_META.nova_versao.hint,
               testId: 'placar-nova-versao', cruzada: false,
               ativo: situacaoFilter.length === 1 && situacaoFilter[0] === 'nova_versao',
               onClick: () => alternarSituacao('nova_versao') },
             { k: 'aguardando', titulo: 'Aguardam patrocinador', n: contagemSituacao.get('aguardando') ?? 0,
-              cor: '#c2410c', anel: '#c2410c', hint: SITUACAO_META.aguardando.hint,
+              cor: T.accentText, anel: T.accentText, hint: SITUACAO_META.aguardando.hint,
               testId: 'placar-aguardando', cruzada: false,
               ativo: situacaoFilter.length === 1 && situacaoFilter[0] === 'aguardando',
               onClick: () => alternarSituacao('aguardando') },
             { k: 'aguardando_arte', titulo: 'Arte refazendo', n: contagemSituacao.get('aguardando_arte') ?? 0,
-              cor: '#57534e', anel: '#57534e', hint: SITUACAO_META.aguardando_arte.hint,
+              cor: T.apoio, anel: T.apoio, hint: SITUACAO_META.aguardando_arte.hint,
               testId: 'placar-arte-refazendo', cruzada: false,
               ativo: situacaoFilter.length === 1 && situacaoFilter[0] === 'aguardando_arte',
               onClick: () => alternarSituacao('aguardando_arte') },
             { k: 'atrasados', titulo: 'Passaram do prazo', n: atrasadosNaBase.length,
-              cor: '#b91c1c', anel: '#b91c1c',
+              cor: TOM.perigo.text, anel: TOM.perigo.text,
               hint: 'O prazo de Aprovação de Layout do evento já venceu — cruza com as outras três',
               testId: 'placar-atrasados', cruzada: true,
               ativo: atrasadosFilter,
@@ -1959,32 +1954,32 @@ export default function Atendimento() {
               onClick={c.onClick}
               aria-pressed={c.ativo}
               data-testid={c.testId}
-              title={isMobile ? c.hint : undefined}
+              title={cards ? c.hint : undefined}
               style={{
                 textAlign: 'left', cursor: 'pointer', minWidth: 0,
-                padding: isMobile ? '12px 14px' : '14px 16px', border: 'none',
+                padding: cards ? '12px 14px' : '14px 16px', border: 'none',
                 // A quarta célula é de OUTRA dimensão. A régua mais forte
                 // antes dela é o que impede o olho de somar as quatro.
-                borderLeft: c.cruzada && !isMobile ? '1px solid #e7e5e4' : undefined,
-                borderRight: (i + 1) % (isMobile ? 2 : 4) !== 0 ? '1px solid #f1f0ef' : undefined,
-                borderBottom: isMobile && i < 2 ? '1px solid #f1f0ef' : undefined,
-                backgroundColor: c.ativo ? '#fafaf9' : '#ffffff',
+                borderLeft: c.cruzada && !cards ? `1px solid ${T.border}` : undefined,
+                borderRight: (i + 1) % (cards ? 2 : 4) !== 0 ? `1px solid ${N.n3}` : undefined,
+                borderBottom: cards && i < 2 ? `1px solid ${N.n3}` : undefined,
+                backgroundColor: c.ativo ? T.bg : T.surface,
                 boxShadow: c.ativo ? `inset 0 -2px 0 ${c.anel}` : 'none',
               }}
             >
               <span style={{
-                display: 'block', fontSize: 10, fontWeight: 800, letterSpacing: '0.12em',
-                textTransform: 'uppercase', color: '#746e69', marginBottom: 6,
+                display: 'block', fontSize: FS.micro, fontWeight: FW.rotulo, letterSpacing: '0.12em',
+                textTransform: 'uppercase', color: T.second, marginBottom: 6,
               }}>
                 {c.titulo}
               </span>
               <span style={{
-                display: 'block', fontFamily: "'Space Grotesk', sans-serif",
-                fontSize: isMobile ? 28 : 34, fontWeight: 700, lineHeight: 1,
+                display: 'block', fontFamily: FONT.display,
+                fontSize: cards ? 28 : 34, fontWeight: FW.forte, lineHeight: 1,
                 fontVariantNumeric: 'tabular-nums',
                 // Zero é neutro: um "0" pintado de vermelho afirmaria o
                 // contrário do que o número diz.
-                color: c.n === 0 ? '#746e69' : c.cor,
+                color: c.n === 0 ? T.second : c.cor,
               }}>
                 {loadingSponsors ? '—' : c.n}
               </span>
@@ -1996,7 +1991,7 @@ export default function Atendimento() {
                   linhas, o placar passava de 400px de altura e empurrava a
                   primeira peça para a segunda tela. O título da célula já diz
                   o essencial ("Sua decisão", "Arte refazendo"). */}
-              <span className={isMobile ? 'sr-only' : undefined} style={isMobile ? undefined : { display: 'block', marginTop: 6, fontSize: 12, lineHeight: 1.45, color: '#746e69' }}>
+              <span className={cards ? 'sr-only' : undefined} style={cards ? undefined : { display: 'block', marginTop: 6, fontSize: FS.meta, lineHeight: 1.45, color: T.second }}>
                 {c.hint}
               </span>
             </button>
@@ -2011,58 +2006,35 @@ export default function Atendimento() {
           baixo da dobra numa tela de notebook. Os controles moram agora na
           mesma linha das abas, que é onde já se olha para trocar de recorte. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-        {/* Segmentado sobre trilho. O ativo era sublinhado laranja de 2px num
-            rodapé de 1px — o mesmo traço que a borda da faixa, e por isso
-            fácil de perder. Padding só na horizontal: com 3px em cima e
-            embaixo os botões cairiam para 30px, abaixo da régua de 36. */}
-        {/* Setas ←/→ com roving tabindex: o contrato ARIA de tablist, o mesmo
-            que a barra de fases da Arte já cumpre. Sem ele o Tab parava nas
-            duas abas, uma a uma, antes de chegar à busca. */}
-        <div role="tablist" aria-label="Abas de aprovação"
-          onKeyDown={e => {
-            if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-            e.preventDefault();
-            const prox = activeTab === 'pending' ? 'history' : 'pending';
-            setActiveTab(prox);
-            (e.currentTarget.querySelector(`#tab-${prox}`) as HTMLElement | null)?.focus();
+        {/* O segmentado da casa: setas/Home/End e roving tabindex moram no
+            componente (o contrato ARIA de tablist, uma vez só). Os botões
+            saem como `tab-pending` / `tab-history` — o mesmo nome que o `id`
+            deles tinha. A contagem de Pendentes é a mesma de antes
+            (actionableCount): a aba diz quantas peças pedem ação, o placar
+            diz de que TIPO é cada uma. */}
+        <div
+          style={{ flexShrink: 0 }}
+          // O Segmentado não aceita `id`/`aria-controls` por item: sem eles o
+          // painel perde o `aria-labelledby` e a ligação aba→painel do
+          // contrato ARIA. Recoloca aqui os mesmos nomes de antes.
+          ref={el => {
+            if (!el) return;
+            for (const aba of ['pending', 'history']) {
+              const b = el.querySelector(`[data-testid="tab-${aba}"]`);
+              if (b) { b.id = `tab-${aba}`; b.setAttribute('aria-controls', `tabpanel-${aba}`); }
+            }
           }}
-          style={{
-          display: 'inline-flex', gap: 2, borderRadius: 10,
-          backgroundColor: '#f0efee', padding: '0 3px', boxSizing: 'border-box',
-          height: isMobile ? 44 : 36, flexShrink: 0,
-        }}>
-          {([
-            // Mesma conta de antes (actionableCount): a aba e o placar contam
-            // conjuntos diferentes de propósito — a aba diz quantas peças
-            // pedem ação, o placar diz de que TIPO é cada uma.
-            { key: 'pending', label: 'Pendentes', count: actionableCount },
-            { key: 'history', label: 'Histórico', count: null },
-          ] as const).map(tab => (
-            <button
-              key={tab.key}
-              role="tab"
-              id={`tab-${tab.key}`}
-              aria-selected={activeTab === tab.key}
-              aria-controls={`tabpanel-${tab.key}`}
-              tabIndex={activeTab === tab.key ? 0 : -1}
-              onClick={() => setActiveTab(tab.key)}
-              style={{
-                padding: '0 14px', border: 'none', cursor: 'pointer', borderRadius: 8,
-                backgroundColor: activeTab === tab.key ? '#ffffff' : 'transparent',
-                color: activeTab === tab.key ? '#1c1917' : '#746e69',
-                boxShadow: activeTab === tab.key ? '0 1px 2px rgba(28,25,23,0.08)' : 'none',
-                fontSize: 13, fontWeight: 700,
-                display: 'flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap',
-              }}
-            >
-              {tab.label}
-              {tab.count != null && (
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#746e69', fontVariantNumeric: 'tabular-nums' }}>
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          ))}
+        >
+          <Segmentado
+            rotuloDaLista="Abas de aprovação"
+            prefixoDeTestId="tab"
+            ativo={activeTab}
+            aoTrocar={(id) => setActiveTab(id as typeof activeTab)}
+            itens={[
+              { id: 'pending', rotulo: 'Pendentes', contador: actionableCount ?? undefined },
+              { id: 'history', rotulo: 'Histórico' },
+            ]}
+          />
         </div>
 
         {activeTab === 'pending' && (
@@ -2070,7 +2042,7 @@ export default function Atendimento() {
             {/* No celular a busca divide a linha com o botão "Filtros" (mínimo
                 de 160px, e o que sobrar é dela) em vez de ocupar uma linha só. */}
             <div style={{ position: 'relative', flex: isMobile ? '1 1 160px' : '0 1 240px', minWidth: isMobile ? 160 : undefined }}>
-              <Search aria-hidden="true" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: '#746e69', pointerEvents: 'none' }} />
+              <Search aria-hidden="true" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: T.second, pointerEvents: 'none' }} />
               <input
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
@@ -2082,16 +2054,17 @@ export default function Atendimento() {
                   // A busca não tinha borda: ela era um retângulo branco sobre
                   // o cinza da <section>. Sem a <section>, branco sobre branco
                   // deixaria de parecer campo.
-                  height: isMobile ? 44 : 36, padding: '0 30px 0 32px', borderRadius: 9,
-                  border: '1px solid #e7e5e4', backgroundColor: '#ffffff',
-                  fontSize: 13, color: '#1c1917', outlineOffset: 2,
+                  height: alvo(36, dedo), padding: '0 30px 0 32px', borderRadius: R.md,
+                  border: `1px solid ${T.border}`, backgroundColor: T.surface,
+                  // 16px no celular: abaixo disso o iOS dá zoom no campo ao focar.
+                  fontSize: isMobile ? FS.lead : FS.body, color: T.text, outlineOffset: 2,
                 }}
               />
               {searchTerm && (
                 <button
                   onClick={() => setSearchTerm("")}
                   aria-label="Limpar busca"
-                  style={{ position: 'absolute', right: 2, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#746e69', width: isMobile ? 40 : 28, height: isMobile ? 40 : 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  style={{ position: 'absolute', right: 2, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: T.second, width: dedo ? 40 : 28, height: dedo ? 40 : 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 >
                   <X aria-hidden="true" style={{ width: 14, height: 14 }} />
                 </button>
@@ -2106,7 +2079,7 @@ export default function Atendimento() {
                   onClick={() => setFiltrosAbertosMobile(v => !v)}
                   aria-expanded={filtrosAbertosMobile}
                   data-testid="button-toggle-filtros-mobile"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 44, padding: '0 14px', borderRadius: 9, border: `1px solid ${n > 0 ? '#fdba74' : '#e7e5e4'}`, background: n > 0 ? '#fff7ed' : '#ffffff', color: n > 0 ? '#9a3412' : '#1c1917', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 44, padding: '0 14px', borderRadius: 9, border: `1px solid ${n > 0 ? TOM.laranja.border : T.border}`, background: n > 0 ? TOM.laranja.bg : T.surface, color: n > 0 ? T.accentText : T.text, fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
                 >
                   Filtros{n > 0 ? ` · ${n}` : ''}
                   <ChevronDown aria-hidden="true" style={{ width: 14, height: 14, transform: filtrosAbertosMobile ? 'rotate(180deg)' : undefined, transition: 'transform 0.15s' }} />
@@ -2162,10 +2135,10 @@ export default function Atendimento() {
               title="Só peças cujo evento já passou do prazo de Aprovação de Layout"
               style={{
                 display: 'flex', alignItems: 'center', gap: 7,
-                height: isMobile ? 44 : 36, padding: '0 12px', borderRadius: 9,
-                backgroundColor: atrasadosFilter ? '#991b1b' : '#ffffff',
-                border: atrasadosFilter ? '1.5px solid #991b1b' : '1px solid #e7e5e4',
-                color: atrasadosFilter ? '#ffffff' : '#1c1917',
+                height: alvo(36, dedo), padding: '0 12px', borderRadius: R.md,
+                backgroundColor: atrasadosFilter ? TOM.perigo.text : T.surface,
+                border: atrasadosFilter ? `1.5px solid ${TOM.perigo.text}` : `1px solid ${T.border}`,
+                color: atrasadosFilter ? T.surface : T.text,
                 fontSize: 13, fontWeight: atrasadosFilter ? 600 : 400,
                 cursor: 'pointer', whiteSpace: 'nowrap',
               }}
@@ -2180,8 +2153,8 @@ export default function Atendimento() {
                 style={{
                   padding: '1px 7px', borderRadius: 99, fontSize: 11, fontWeight: 700,
                   fontVariantNumeric: 'tabular-nums',
-                  backgroundColor: atrasadosFilter ? 'rgba(255,255,255,0.22)' : atrasadosNaBase.length > 0 ? '#fef2f2' : '#f5f5f4',
-                  color: atrasadosFilter ? '#ffffff' : atrasadosNaBase.length > 0 ? '#991b1b' : '#57534e',
+                  backgroundColor: atrasadosFilter ? 'rgba(255,255,255,0.22)' : atrasadosNaBase.length > 0 ? TOM.perigo.bg : N.n2,
+                  color: atrasadosFilter ? T.surface : atrasadosNaBase.length > 0 ? TOM.perigo.text : T.apoio,
                 }}
               >
                 {atrasadosNaBase.length}
@@ -2196,9 +2169,9 @@ export default function Atendimento() {
                 onClick={limparFiltros}
                 data-testid="button-clear-filters"
                 style={{
-                  height: isMobile ? 44 : 36, padding: '0 8px',
+                  height: alvo(36, dedo), padding: '0 8px',
                   background: 'none', border: 'none', cursor: 'pointer',
-                  color: '#c2410c', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
+                  color: T.accentText, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
                 }}
               >
                 Limpar
@@ -2211,7 +2184,7 @@ export default function Atendimento() {
               data-testid="contador-pecas"
               aria-live="polite"
               style={{
-                marginLeft: 'auto', fontSize: 12, color: '#746e69',
+                marginLeft: 'auto', fontSize: 12, color: T.second,
                 fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
               }}
             >
@@ -2237,10 +2210,10 @@ export default function Atendimento() {
       {!loadingSponsors && batchEligibleSponsors.length > 0 && !canDecide && (
         <section
           data-testid="section-batch-readonly"
-          style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 12 }}
+          style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', backgroundColor: T.bg, border: `1px solid ${T.border}`, borderRadius: 12 }}
         >
-          <Eye style={{ width: 16, height: 16, color: '#746e69', flexShrink: 0 }} />
-          <p style={{ fontSize: 13, fontWeight: 600, color: '#57534e', margin: 0 }}>
+          <Eye style={{ width: 16, height: 16, color: T.second, flexShrink: 0 }} />
+          <p style={{ fontSize: 13, fontWeight: 600, color: T.apoio, margin: 0 }}>
             Somente leitura — as decisões de aprovação são do Atendimento.
           </p>
         </section>
@@ -2254,7 +2227,7 @@ export default function Atendimento() {
           data-testid="button-batch-panel-expand"
           style={{
             width: '100%', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12,
-            padding: '14px 18px', backgroundColor: '#ffffff', border: '1px solid #e7e5e4',
+            padding: '14px 18px', backgroundColor: T.surface, border: `1px solid ${T.border}`,
             borderRadius: 12, cursor: 'pointer', textAlign: 'left',
           }}
         >
@@ -2262,22 +2235,22 @@ export default function Atendimento() {
               anterior; tinta ainda era o segundo bloco mais escuro da tela,
               logo acima do "Decidir em fila" — que é a ação do dia. Um atalho
               recolhido não pode pesar mais que ela. */}
-          <div style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <Zap aria-hidden="true" style={{ width: 14, height: 14, color: '#57534e' }} />
+          <div style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: N.n2, border: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Zap aria-hidden="true" style={{ width: 14, height: 14, color: T.apoio }} />
           </div>
-          <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 800, letterSpacing: '-0.01em', color: '#1c1917', whiteSpace: 'nowrap' }}>
+          <span style={{ fontFamily: FONT.display, fontSize: 14, fontWeight: 800, letterSpacing: '-0.01em', color: T.text, whiteSpace: 'nowrap' }}>
             Aprovação em lote
           </span>
-          <span style={{ fontSize: 13, color: '#746e69', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: 13, color: T.second, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             — {batchEligibleSponsors.length} {batchEligibleSponsors.length === 1 ? 'patrocinador com pendências' : 'patrocinadores com pendências'}
           </span>
-          <ChevronRight style={{ width: 16, height: 16, color: '#a8a29e', marginLeft: 'auto', flexShrink: 0 }} />
+          <ChevronRight style={{ width: 16, height: 16, color: T.muted, marginLeft: 'auto', flexShrink: 0 }} />
         </button>
       )}
       {!loadingSponsors && batchEligibleSponsors.length > 0 && canDecide && batchPanelOpen && (
         <section
           data-testid="section-batch-sponsor"
-          style={{ marginBottom: 20, backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 12 }}
+          style={{ marginBottom: 20, backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12 }}
         >
           {/* ── Header do painel — clique recolhe de volta para a barra ── */}
           <div
@@ -2297,17 +2270,17 @@ export default function Atendimento() {
                um ladrilho laranja com sombra colorida e três bolinhas — a coisa
                mais pesada da página, para um painel auxiliar que fica ACIMA da
                lista de peças que a tela existe para mostrar. */
-            style={{ backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4', padding: isMobile ? '14px 16px' : '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, borderRadius: '12px 12px 0 0', flexWrap: isMobile ? 'wrap' : 'nowrap', cursor: 'pointer' }}
+            style={{ backgroundColor: T.bg, borderBottom: `1px solid ${T.border}`, padding: cards ? '14px 16px' : '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, borderRadius: '12px 12px 0 0', flexWrap: cards ? 'wrap' : 'nowrap', cursor: 'pointer' }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: '#1c1917', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Zap style={{ width: 14, height: 14, color: '#ffffff' }} />
+              <div style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: T.text, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Zap style={{ width: 14, height: 14, color: T.surface }} />
               </div>
               <div>
-                <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 700, letterSpacing: '-0.01em', margin: 0, color: '#1c1917' }}>
+                <h3 style={{ fontFamily: FONT.display, fontSize: 14, fontWeight: 700, letterSpacing: '-0.01em', margin: 0, color: T.text }}>
                   Aprovação em lote
                 </h3>
-                <p style={{ color: '#746e69', fontSize: 12, margin: 0 }}>
+                <p style={{ color: T.second, fontSize: 12, margin: 0 }}>
                   {batchEligibleSponsors.length} {batchEligibleSponsors.length === 1 ? 'patrocinador com' : 'patrocinadores com'} itens pendentes
                 </p>
               </div>
@@ -2328,23 +2301,23 @@ export default function Atendimento() {
                       display: 'inline-flex', alignItems: 'center', gap: 5,
                       height: 24, padding: '0 9px', borderRadius: 999,
                       fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
-                      backgroundColor: step.done ? '#f0fdf4' : active ? '#fff7ed' : '#f5f5f4',
-                      color: step.done ? '#15803d' : active ? '#c2410c' : '#746e69',
+                      backgroundColor: step.done ? TOM.sucesso.bg : active ? TOM.laranja.bg : N.n2,
+                      color: step.done ? TOM.sucesso.text : active ? T.accentText : T.second,
                     }}>
                       {step.done
                         ? <Check aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0 }} />
                         : <span style={{ fontVariantNumeric: 'tabular-nums' }}>{step.n}</span>}
                       {step.label}
                     </span>
-                    {idx < 2 && <div style={{ width: 16, height: 1, background: step.done ? '#86efac' : '#e7e5e4' }} />}
+                    {idx < 2 && <div style={{ width: 16, height: 1, background: step.done ? TOM.sucesso.border : T.border }} />}
                   </Fragment>
                 );
               })}
-              <ChevronDown style={{ width: 16, height: 16, color: '#746e69', marginLeft: 10, flexShrink: 0 }} />
+              <ChevronDown style={{ width: 16, height: 16, color: T.second, marginLeft: 10, flexShrink: 0 }} />
             </div>
           </div>
 
-          <div style={{ padding: isMobile ? '16px 14px' : '20px 28px', background: '#fafaf9' }}>
+          <div style={{ padding: cards ? '16px 14px' : '20px 28px', background: T.bg }}>
             {/* ── Seletores: Patrocinador + Evento — usando FilterSelect idêntico aos filtros do topo ── */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
               <FilterSelect
@@ -2360,7 +2333,7 @@ export default function Atendimento() {
                 }}
                 options={[...batchEligibleSponsors]
                   .sort((a: any, b: any) => a.name.localeCompare(b.name, 'pt-BR'))
-                  .map((s: any) => ({ value: s.id, label: s.name, dotColor: s.color || '#a8a29e' }))}
+                  .map((s: any) => ({ value: s.id, label: s.name, dotColor: s.color || T.muted }))}
                 searchPlaceholder="Buscar patrocinador..."
                 emptyText="Nenhum patrocinador encontrado."
                 hideWhenEmpty={false}
@@ -2396,20 +2369,17 @@ export default function Atendimento() {
             {/* ── Área de itens ── */}
             {batchSponsorId && batchEventId ? (
               batchItemCount === 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '36px 0', gap: 10, backgroundColor: '#f9f9f8', borderRadius: 12, border: '1px dashed #e7e5e4' }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 12, background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <CheckCircle style={{ width: 22, height: 22, color: '#16a34a' }} />
-                  </div>
-                  <div style={{ textAlign: 'center' }}>
-                    <p style={{ fontSize: 15, fontWeight: 700, color: '#1c1917', margin: '0 0 4px' }}>Tudo aprovado</p>
-                    <p style={{ fontSize: 13, color: '#746e69', margin: 0 }}>Nenhuma peça pendente para esta combinação</p>
-                  </div>
-                </div>
+                <EstadoVazio
+                  compacto
+                  icone={CheckCircle}
+                  titulo="Tudo aprovado"
+                  descricao="Nenhuma peça pendente para esta combinação"
+                />
               ) : (
                 <>
                   {/* Barra de seleção + contadores */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, padding: '10px 14px', backgroundColor: '#fafaf9', borderRadius: 8, border: '1px solid #f0ede8' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 13, fontWeight: 700, color: '#1c1917', cursor: 'pointer', userSelect: 'none' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, padding: '10px 14px', backgroundColor: T.bg, borderRadius: 8, border: `1px solid ${N.n3}` }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 13, fontWeight: 700, color: T.text, cursor: 'pointer', userSelect: 'none' }}>
                       <input
                         type="checkbox"
                         checked={batchSelectedItemIds.size === batchItemCount && batchItemCount > 0}
@@ -2417,18 +2387,18 @@ export default function Atendimento() {
                           if (e.target.checked) setBatchSelectedItemIds(new Set(batchEligibleItems.map((i: any) => i.id)));
                           else setBatchSelectedItemIds(new Set());
                         }}
-                        style={{ accentColor: '#ea580c', width: 15, height: 15, cursor: 'pointer' }}
+                        style={{ accentColor: T.accentText, width: 15, height: 15, cursor: 'pointer' }}
                       />
                       Selecionar todos
                     </label>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       {batchEligibleItems.filter((i: any) => !i.approvalThumbUrl).length > 0 && (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#b45309', fontWeight: 600, background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 999, padding: '2px 10px' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: TOM.alerta.text, fontWeight: 600, background: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 999, padding: '2px 10px' }}>
                           <AlertCircle style={{ width: 11, height: 11 }} />
                           {batchEligibleItems.filter((i: any) => !i.approvalThumbUrl).length} sem arte
                         </span>
                       )}
-                      <span style={{ fontSize: 13, fontWeight: 700, color: batchSelectedItemIds.size > 0 ? '#ea580c' : '#746e69' }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: batchSelectedItemIds.size > 0 ? T.accentText : T.second }}>
                         {batchSelectedItemIds.size} / {batchItemCount} selecionadas
                       </span>
                     </div>
@@ -2452,8 +2422,8 @@ export default function Atendimento() {
                           style={{
                             display: 'flex', alignItems: 'center', gap: 12,
                             padding: '10px 14px',
-                            backgroundColor: isChecked ? '#fff7ed' : '#ffffff',
-                            border: `1.5px solid ${isChecked ? '#fb923c' : '#f0ede8'}`,
+                            backgroundColor: isChecked ? TOM.laranja.bg : T.surface,
+                            border: `1.5px solid ${isChecked ? TOM.laranja.dot : N.n3}`,
                             borderRadius: 12, cursor: 'pointer',
                             transition: 'border-color 0.12s, background-color 0.12s',
                           }}
@@ -2472,7 +2442,7 @@ export default function Atendimento() {
                               else next.add(item.id);
                               return next;
                             })}
-                            style={{ accentColor: '#ea580c', width: 15, height: 15, cursor: 'pointer', flexShrink: 0 }}
+                            style={{ accentColor: T.accentText, width: 15, height: 15, cursor: 'pointer', flexShrink: 0 }}
                           />
                           {/* Thumbnail — clique abre a arte em tamanho grande */}
                           <div
@@ -2480,7 +2450,7 @@ export default function Atendimento() {
                             data-testid={`batch-thumb-${item.id}`}
                             title={hasThumb ? 'Clique para ver a arte' : 'Sem arte enviada'}
                             className={hasThumb ? 'group' : undefined}
-                            style={{ width: 52, height: 52, borderRadius: 8, backgroundColor: hasThumb ? '#f0ede8' : '#f4f4f3', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${hasThumb ? 'rgba(0,0,0,0.06)' : '#e7e5e4'}`, position: 'relative', cursor: hasThumb ? 'zoom-in' : 'default' }}
+                            style={{ width: 52, height: 52, borderRadius: 8, backgroundColor: hasThumb ? N.n3 : N.n2, flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${hasThumb ? 'rgba(0,0,0,0.06)' : T.border}`, position: 'relative', cursor: hasThumb ? 'zoom-in' : 'default' }}
                           >
                             {hasThumb ? (
                               <>
@@ -2496,22 +2466,22 @@ export default function Atendimento() {
                                     if (fb?.dataset.fallback) fb.style.display = 'flex';
                                   }}
                                 />
-                                <div data-fallback="1" style={{ display: 'none', position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', background: '#f4f4f3', flexDirection: 'column', gap: 2 }}>
-                                  <Package style={{ width: 16, height: 16, color: '#c4bfbb' }} />
-                                  <span style={{ fontSize: 11, color: '#746e69', fontWeight: 600, letterSpacing: '0.03em' }}>SEM ARTE</span>
+                                <div data-fallback="1" style={{ display: 'none', position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', background: N.n2, flexDirection: 'column', gap: 2 }}>
+                                  <Package style={{ width: 16, height: 16, color: T.bdark }} />
+                                  <span style={{ fontSize: 11, color: T.second, fontWeight: 600, letterSpacing: '0.03em' }}>SEM ARTE</span>
                                 </div>
                                 <span
                                   style={{ position: 'absolute', inset: 0, background: 'rgba(28,25,23,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transition: 'opacity 0.12s' }}
                                   onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
                                   onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '0'}
                                 >
-                                  <Eye style={{ width: 16, height: 16, color: '#fff' }} />
+                                  <Eye style={{ width: 16, height: 16, color: T.surface }} />
                                 </span>
                               </>
                             ) : (
                               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                                <Package style={{ width: 18, height: 18, color: '#c4bfbb' }} />
-                                <span style={{ fontSize: 11, color: '#746e69', fontWeight: 600, letterSpacing: '0.03em' }}>SEM ARTE</span>
+                                <Package style={{ width: 18, height: 18, color: T.bdark }} />
+                                <span style={{ fontSize: 11, color: T.second, fontWeight: 600, letterSpacing: '0.03em' }}>SEM ARTE</span>
                               </div>
                             )}
                           </div>
@@ -2521,16 +2491,16 @@ export default function Atendimento() {
                               {/* Código em cinza mono, como no card da fila: o selo
                                   laranja repetido em cada linha do lote gastava a
                                   cor de atenção num dado que só identifica. */}
-                              <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12, fontWeight: 700, color: '#746e69', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+                              <span style={{ fontFamily: FONT.mono, fontSize: 12, fontWeight: 700, color: T.second, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
                                 {item.displayId}
                               </span>
                               <SeloKit peca={item} style={{ flexShrink: 0 }} />
-                              <span style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {item.type}
                               </span>
                             </div>
                             {item.description && (
-                              <p style={{ fontSize: 11, color: '#746e69', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <p style={{ fontSize: 11, color: T.second, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {item.description}
                               </p>
                             )}
@@ -2540,7 +2510,7 @@ export default function Atendimento() {
                               exceção — e a miniatura ao lado já mostra a arte. */}
                           {!hasThumb && (
                             <div style={{ flexShrink: 0 }}>
-                              <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#92400e', fontWeight: 700, background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 999, padding: '2px 8px' }}>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: TOM.alerta.text, fontWeight: 700, background: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 999, padding: '2px 8px' }}>
                                 <AlertCircle aria-hidden="true" style={{ width: 11, height: 11 }} /> Sem arte
                               </span>
                             </div>
@@ -2552,84 +2522,64 @@ export default function Atendimento() {
 
                   {/* ── Ações ── */}
                   {!batchShowRejectForm ? (
-                    <div style={{ display: 'flex', alignItems: isMobile ? 'stretch' : 'center', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', padding: '14px 16px', background: '#fafaf9', borderRadius: 12, border: '1px solid #f0ede8', gap: isMobile ? 10 : 0 }}>
-                      <p style={{ fontSize: 13, color: '#746e69', margin: 0 }}>
+                    <div style={{ display: 'flex', alignItems: cards ? 'stretch' : 'center', flexDirection: cards ? 'column' : 'row', justifyContent: 'space-between', padding: '14px 16px', background: T.bg, borderRadius: 12, border: `1px solid ${N.n3}`, gap: cards ? 10 : 0 }}>
+                      <p style={{ fontSize: 13, color: T.second, margin: 0 }}>
                         {batchSelectedItemIds.size > 0
-                          ? <><strong style={{ color: '#1c1917' }}>{batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'peça' : 'peças'}</strong> prontas para decisão</>
+                          ? <><strong style={{ color: T.text }}>{batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'peça' : 'peças'}</strong> prontas para decisão</>
                           : 'Selecione peças para aprovar ou reprovar'}
                       </p>
-                      <div style={{ display: 'flex', gap: 10, flexDirection: isMobile ? 'column' : 'row' }}>
-                        <button
+                      <div style={{ display: 'flex', gap: 10, flexDirection: cards ? 'column' : 'row' }}>
+                        {/* "Reprovar", não "Recusar": é a palavra do modal de
+                            decisão, do placar e do toast desta mesma ação — o
+                            lote era o único lugar da tela que dizia "recusa".
+                            Secundário, não perigo: ele só ABRE o campo do
+                            motivo; quem reprova é o botão de lá. */}
+                        <Botao
+                          variante="secundario"
+                          tamanho={tamBotao}
+                          larguraCheia={cards}
+                          icone={XCircle}
                           onClick={() => setBatchShowRejectForm(true)}
                           disabled={batchSponsorMutation.isPending || batchSelectedItemIds.size === 0 || !canDecide}
                           title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : undefined}
                           data-testid="button-batch-reject"
-                          // "Reprovar", não "Recusar": é a palavra do modal de
-                          // decisão, do placar e do toast desta mesma ação — o
-                          // lote era o único lugar da tela que dizia "recusa".
-                          // Mesma altura do "Aprovar" ao lado (40 × 36 antes),
-                          // e #b91c1c no rótulo (#dc2626 fica abaixo de AA).
-                          style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                            backgroundColor: '#ffffff', color: '#b91c1c',
-                            border: '1px solid #fca5a5', borderRadius: 9,
-                            height: isMobile ? 44 : 36, padding: '0 16px', fontSize: 13, fontWeight: 700,
-                            cursor: batchSelectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
-                            opacity: batchSelectedItemIds.size === 0 ? 0.5 : 1,
-                            transition: 'filter 0.15s',
-                          }}
-                          onMouseEnter={e => { if (batchSelectedItemIds.size > 0) e.currentTarget.style.filter = 'brightness(0.96)'; }}
-                          onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
+                          style={{ color: TOM.perigo.text, border: `1px solid ${TOM.perigo.border}` }}
                         >
-                          <XCircle style={{ width: 15, height: 15 }} />
                           Reprovar
-                        </button>
-                        <button
+                        </Botao>
+                        {/* TINTA, não verde: nesta tela verde é o ESTADO
+                            'aprovado', o que a peça vira depois. Pintar de verde
+                            o botão que ainda vai decidir usa a cor do resultado
+                            para o pedido. O motivo de estar travado fica à
+                            vista (sem papel de decisão / nada selecionado). */}
+                        <Botao
+                          variante="primario"
+                          tamanho={tamBotao}
+                          larguraCheia={cards}
+                          icone={CheckCircle}
+                          carregando={batchSponsorMutation.isPending}
                           onClick={() => setConfirmApproveBatch(true)}
-                          disabled={batchSponsorMutation.isPending || batchSelectedItemIds.size === 0 || !canDecide}
+                          disabled={batchSelectedItemIds.size === 0 || !canDecide}
+                          motivo={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : undefined}
+                          alinharMotivo="end"
                           title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : undefined}
                           data-testid="button-batch-approve"
-                          style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                            // TINTA, não verde.
-                            //
-                            // O botão era um gradiente verde com sombra verde —
-                            // e nesta tela verde é o ESTADO 'aprovado', o que a
-                            // peça vira depois. Pintar de verde o botão que
-                            // ainda vai decidir usa a cor do resultado para o
-                            // pedido, e deixa a ação mais chamativa que o
-                            // próprio dado da lista.
-                            background: batchSelectedItemIds.size === 0 ? '#f5f5f4' : '#1c1917',
-                            // O branco era fixo: sobre o fundo do estado
-                            // desabilitado o rótulo simplesmente sumia.
-                            color: batchSelectedItemIds.size === 0 ? '#57534e' : '#ffffff',
-                            border: 'none', borderRadius: 9,
-                            height: isMobile ? 44 : 36, padding: '0 18px', fontSize: 13, fontWeight: 700,
-                            cursor: batchSelectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
-                            letterSpacing: '-0.01em', fontFamily: "'Space Grotesk', sans-serif",
-                            transition: 'filter 0.15s',
-                          }}
-                          onMouseEnter={e => { if (batchSelectedItemIds.size > 0) e.currentTarget.style.filter = 'brightness(0.9)'; }}
-                          onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
                         >
-                          {batchSponsorMutation.isPending
-                            ? <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" />
-                            : <CheckCircle style={{ width: 14, height: 14 }} />}
                           Aprovar {batchSelectedItemIds.size > 0 ? `${batchSelectedItemIds.size} ${batchSelectedItemIds.size === 1 ? 'peça' : 'peças'}` : ''}
-                        </button>
+                        </Botao>
                       </div>
                     </div>
                   ) : (
-                    <div style={{ backgroundColor: '#fef2f2', border: '1.5px solid #fca5a5', borderRadius: 12, padding: '18px 20px' }}>
+                    <div style={{ backgroundColor: TOM.perigo.bg, border: `1.5px solid ${TOM.perigo.border}`, borderRadius: 12, padding: '18px 20px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                        <div style={{ width: 32, height: 32, borderRadius: 8, background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <XCircle style={{ width: 16, height: 16, color: '#dc2626' }} />
+                        <div style={{ width: 32, height: 32, borderRadius: 8, background: TOM.perigo.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <XCircle style={{ width: 16, height: 16, color: TOM.perigo.text }} />
                         </div>
                         <div>
                           {/* PARA QUEM, no título (rodada 4) — e #b91c1c no
                               texto: #dc2626 fica abaixo de AA sobre o rosa. */}
-                          <p style={{ fontSize: 13, fontWeight: 800, color: '#b91c1c', margin: 0 }}>Reprovar {batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'peça' : 'peças'} para {batchSponsorNome}</p>
-                          <p style={{ fontSize: 11, color: '#991b1b', margin: 0 }}>O mesmo motivo vai para todas; a Arte refaz e {batchSponsorNome} e os patrocinadores com aprovação estrita esperam a nova versão</p>
+                          <p style={{ fontSize: 13, fontWeight: 800, color: TOM.perigo.text, margin: 0 }}>Reprovar {batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'peça' : 'peças'} para {batchSponsorNome}</p>
+                          <p style={{ fontSize: 11, color: TOM.perigo.text, margin: 0 }}>O mesmo motivo vai para todas; a Arte refaz e {batchSponsorNome} e os patrocinadores com aprovação estrita esperam a nova versão</p>
                         </div>
                       </div>
                       {/* autoFocus: quem clicou "Reprovar" vai escrever o motivo —
@@ -2654,17 +2604,17 @@ export default function Atendimento() {
                         aria-describedby="falta-motivo-lote"
                         rows={3}
                         style={{
-                          width: '100%', backgroundColor: '#ffffff',
-                          border: `1.5px solid ${motivoCurto(batchRejectReason) ? '#e7e5e4' : '#dc2626'}`,
-                          color: '#1c1917', borderRadius: 8, padding: '10px 12px',
-                          fontSize: 13, resize: 'vertical',
+                          width: '100%', backgroundColor: T.surface,
+                          border: `1.5px solid ${motivoCurto(batchRejectReason) ? T.border : TOM.perigo.text}`,
+                          color: T.text, borderRadius: 8, padding: '10px 12px',
+                          fontSize: isMobile ? FS.lead : FS.body, resize: 'vertical',
                           boxSizing: 'border-box', lineHeight: 1.5,
                         }}
                       />
                       {/* Quanto falta, à vista — a régua só existia no `title`
                           do botão (hover, só no desktop). Mesma frase do motivo
                           individual no modal de decisão. */}
-                      <p id="falta-motivo-lote" style={{ margin: '5px 0 0', fontSize: 11.5, color: motivoCurto(batchRejectReason) ? '#746e69' : '#57534e' }}>
+                      <p id="falta-motivo-lote" style={{ margin: '5px 0 0', fontSize: 11.5, color: motivoCurto(batchRejectReason) ? T.second : T.apoio }}>
                         {motivoCurto(batchRejectReason)
                           ? (batchRejectReason.trim()
                               ? `Faltam ${Math.max(0, MOTIVO_MIN - batchRejectReason.trim().replace(/\s+/g, " ").length)} caracteres — a Arte precisa saber o que refazer.`
@@ -2672,37 +2622,29 @@ export default function Atendimento() {
                           : <>Pronto. <kbd style={KBD}>Ctrl</kbd>+<kbd style={KBD}>Enter</kbd> confirma.</>}
                       </p>
                       <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                        <button
+                        <Botao
+                          variante="fantasma"
+                          tamanho={tamBotao}
                           onClick={() => { setBatchShowRejectForm(false); setBatchRejectReason(""); }}
-                          style={{ backgroundColor: '#ffffff', color: '#57534e', border: '1px solid #e7e5e4', borderRadius: 9, height: isMobile ? 44 : 36, padding: '0 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
                         >
                           Cancelar
-                        </button>
-                        <button
+                        </Botao>
+                        {/* Perigo: devolve as peças à Arte. Travado pela MESMA
+                            régua do Ctrl+Enter (motivoCurto); o quanto falta já
+                            está escrito logo acima, à vista. */}
+                        <Botao
+                          variante="perigo"
+                          tamanho={tamBotao}
+                          icone={XCircle}
+                          carregando={batchSponsorMutation.isPending}
                           onClick={() => batchSponsorMutation.mutate({ sponsorId: batchSponsorId, eventId: batchEventId, action: "reject", reason: batchRejectReason })}
-                          disabled={batchSponsorMutation.isPending || motivoCurto(batchRejectReason) || !canDecide}
+                          disabled={motivoCurto(batchRejectReason) || !canDecide}
                           title={!canDecide ? "Somente Atendimento e administradores decidem aprovações"
                             : motivoCurto(batchRejectReason) ? `Explique em pelo menos ${MOTIVO_MIN} caracteres — a Arte precisa saber o que refazer.` : undefined}
                           data-testid="button-batch-confirm-reject"
-                          // A aparência segue a MESMA régua do `disabled`
-                          // (motivoCurto) — o mesmo conserto que o motivo
-                          // individual recebeu na 1ª rodada. Olhava só "vazio":
-                          // com 1 a 9 caracteres o botão ficava vermelho, parecia
-                          // pronto e não respondia; e desabilitado tinha letra
-                          // BRANCA sobre #e7e5e4 (1,2:1).
-                          style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                            backgroundColor: motivoCurto(batchRejectReason) ? '#e7e5e4' : '#b91c1c',
-                            color: motivoCurto(batchRejectReason) ? '#57534e' : '#ffffff', border: 'none', borderRadius: 9,
-                            height: isMobile ? 44 : 36, padding: '0 18px', fontSize: 13, fontWeight: 700,
-                            cursor: motivoCurto(batchRejectReason) ? 'not-allowed' : 'pointer',
-                          }}
                         >
-                          {batchSponsorMutation.isPending
-                            ? <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" />
-                            : <XCircle style={{ width: 13, height: 13 }} />}
                           Reprovar e devolver à Arte
-                        </button>
+                        </Botao>
                       </div>
                     </div>
                   )}
@@ -2710,15 +2652,15 @@ export default function Atendimento() {
               )
             ) : (
               /* Estado vazio — orientação de uso */
-              <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '20px 24px', backgroundColor: '#fff7ed', borderRadius: 12, border: '1px solid #fed7aa' }}>
-                <div style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: '#ffffff', border: '1px solid #fed7aa', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <Zap aria-hidden="true" style={{ width: 16, height: 16, color: '#c2410c' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '20px 24px', backgroundColor: TOM.laranja.bg, borderRadius: 12, border: `1px solid ${TOM.laranja.border}` }}>
+                <div style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: T.surface, border: `1px solid ${TOM.laranja.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Zap aria-hidden="true" style={{ width: 16, height: 16, color: T.accentText }} />
                 </div>
                 <div>
-                  <p style={{ fontSize: 15, fontWeight: 700, color: '#9a3412', margin: '0 0 3px' }}>
+                  <p style={{ fontSize: 15, fontWeight: 700, color: T.accentText, margin: '0 0 3px' }}>
                     {batchSponsorId ? 'Selecione o evento' : 'Selecione o patrocinador'}
                   </p>
-                  <p style={{ fontSize: 13, color: '#c2410c', margin: 0, lineHeight: 1.5, opacity: 0.8 }}>
+                  <p style={{ fontSize: 13, color: T.accentText, margin: 0, lineHeight: 1.5, opacity: 0.8 }}>
                     {batchSponsorId
                       ? `${batchEligibleEvents.length} evento${batchEligibleEvents.length !== 1 ? 's' : ''} com peças pendentes para o patrocinador selecionado.`
                       : `${batchEligibleSponsors.length} patrocinador${batchEligibleSponsors.length !== 1 ? 'es' : ''} aguardam decisão — escolha um para iniciar o lote.`}
@@ -2732,52 +2674,37 @@ export default function Atendimento() {
 
       {/* ─── GRID DE CARDS (bento-style) ─────────────────────────── */}
       {filteredItems.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '64px 0' }} data-testid="empty-atendimento">
-          {/* Regua dos vazios da casa: icone 28, titulo 15/700, frase 13. Era
-              48/18/15 — um vazio desenhado com mais peso visual que qualquer
-              card de peca da lista cheia. */}
-          {/* Ícone por MOTIVO do vazio: o check verde dizia "tudo certo"
-              também quando eram os filtros escondendo a fila inteira. */}
-          {pendingItems.length > 0 && !atrasadosFilter
-            ? <Search aria-hidden="true" style={{ width: 28, height: 28, color: '#746e69', margin: '0 auto 12px' }} />
-            : <CheckCircle aria-hidden="true" style={{ width: 28, height: 28, color: '#15803d', margin: '0 auto 12px' }} />}
-          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1c1917', margin: '0 0 6px' }}>
-            {atrasadosFilter
+        // O vazio da casa, com o ícone pelo MOTIVO: o check dizia "tudo certo"
+        // também quando eram os filtros escondendo a fila inteira. O vazio pelo
+        // recorte de atrasados tem texto próprio — com o filtro ligado,
+        // "Nenhuma peça pendente" leria como "nada a fazer" enquanto a fila
+        // continua ali, dentro do prazo — e o vazio por filtro diz QUANTAS
+        // peças ficaram de fora. A saída mora ao lado do problema.
+        <div data-testid="empty-atendimento">
+          <EstadoVazio
+            icone={pendingItems.length > 0 && !atrasadosFilter ? Search : CheckCircle}
+            titulo={atrasadosFilter
               ? "Nada atrasado neste recorte"
               : pendingItems.length === 0 ? "Nenhuma peça pendente" : "Nenhuma peça neste recorte"}
-          </h3>
-          {/* Vazio por causa do recorte de atrasados tem texto próprio: com o
-              filtro ligado, "Nenhuma peça pendente" leria como "nada a fazer"
-              enquanto a fila inteira continua ali, dentro do prazo. E o vazio
-              por filtro diz QUANTAS peças ficaram de fora, em vez do genérico
-              "tente ajustar os filtros". */}
-          <p style={{ color: '#746e69', fontSize: 13, lineHeight: 1.5, maxWidth: 520, margin: '0 auto' }} data-testid="empty-atendimento-motivo">
-            {atrasadosFilter
-              ? `A lista está vazia pelo FILTRO "Atrasados" — ${filteredItemsBase.length === 0 ? 'os demais filtros já não devolvem nenhuma peça' : `as ${filteredItemsBase.length} peças deste recorte estão todas dentro do prazo de Aprovação de Layout`}.`
-              : pendingItems.length === 0
-              ? "Nenhuma peça aguarda aprovação do patrocinador agora."
-              : `${pendingItems.length} ${pendingItems.length === 1 ? 'peça pendente ficou' : 'peças pendentes ficaram'} fora ${chipsAtivos.length === 1 ? 'do filtro ativo' : `dos ${chipsAtivos.length} filtros ativos`}.`}
-          </p>
-          {/* O texto apontava para os filtros, mas o "Limpar" morava lá em
-              cima, na faixa das abas — a saída fica ao lado do problema. */}
-          {!atrasadosFilter && pendingItems.length > 0 && chipsAtivos.length > 0 && (
-            <button
-              onClick={limparFiltros}
-              data-testid="button-clear-filters-empty"
-              style={{ marginTop: 16, height: 40, padding: '0 18px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#1c1917', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
-            >
-              Limpar {chipsAtivos.length === 1 ? 'o filtro' : `os ${chipsAtivos.length} filtros`}
-            </button>
-          )}
-          {atrasadosFilter && (
-            <button
-              onClick={() => setAtrasadosFilter(false)}
-              data-testid="button-clear-atrasados-empty"
-              style={{ marginTop: 16, height: 40, padding: '0 18px', borderRadius: 8, border: 'none', background: '#0c0a09', color: '#ffffff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
-            >
-              Mostrar todas as peças
-            </button>
-          )}
+            descricao={
+              <span data-testid="empty-atendimento-motivo">
+                {atrasadosFilter
+                  ? `A lista está vazia pelo FILTRO "Atrasados" — ${filteredItemsBase.length === 0 ? 'os demais filtros já não devolvem nenhuma peça' : `as ${filteredItemsBase.length} peças deste recorte estão todas dentro do prazo de Aprovação de Layout`}.`
+                  : pendingItems.length === 0
+                  ? "Nenhuma peça aguarda aprovação do patrocinador agora."
+                  : `${pendingItems.length} ${pendingItems.length === 1 ? 'peça pendente ficou' : 'peças pendentes ficaram'} fora ${chipsAtivos.length === 1 ? 'do filtro ativo' : `dos ${chipsAtivos.length} filtros ativos`}.`}
+              </span>
+            }
+            acao={atrasadosFilter ? (
+              <Botao variante="primario" tamanho={tamBotao} onClick={() => setAtrasadosFilter(false)} data-testid="button-clear-atrasados-empty">
+                Mostrar todas as peças
+              </Botao>
+            ) : pendingItems.length > 0 && chipsAtivos.length > 0 ? (
+              <Botao variante="secundario" tamanho={tamBotao} onClick={limparFiltros} data-testid="button-clear-filters-empty">
+                Limpar {chipsAtivos.length === 1 ? 'o filtro' : `os ${chipsAtivos.length} filtros`}
+              </Botao>
+            ) : undefined}
+          />
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
@@ -2791,7 +2718,7 @@ export default function Atendimento() {
               alternadores, não escondida num tooltip. */}
           {pendingGroup.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69', flexShrink: 0 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.second, flexShrink: 0 }}>
                 Ordem
               </span>
               <div role="group" aria-label="Ordem da lista" style={{ display: 'flex', gap: 6, overflowX: 'auto', maxWidth: '100%', paddingBottom: 2 }}>
@@ -2805,11 +2732,11 @@ export default function Atendimento() {
                       data-testid={`toggle-ordem-${valor}`}
                       onClick={() => setOrdemPendentes(valor)}
                       style={{
-                        height: isMobile ? 44 : 30, padding: '0 12px', borderRadius: 8, cursor: 'pointer',
+                        height: alvo(30, dedo), padding: '0 12px', borderRadius: R.md, cursor: 'pointer',
                         fontFamily: 'inherit', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0,
-                        border: `1px solid ${ativo ? '#fdba74' : '#e7e5e4'}`,
-                        backgroundColor: ativo ? '#fff7ed' : '#ffffff',
-                        color: ativo ? '#9a3412' : '#57534e',
+                        border: `1px solid ${ativo ? TOM.laranja.border : T.border}`,
+                        backgroundColor: ativo ? TOM.laranja.bg : T.surface,
+                        color: ativo ? T.accentText : T.apoio,
                       }}
                     >
                       {rotulo}
@@ -2817,36 +2744,30 @@ export default function Atendimento() {
                   );
                 })}
               </div>
-              <span style={{ fontSize: 12, color: '#57534e' }}>{ORDEM_REGRA[ordemPendentes]}</span>
+              <span style={{ fontSize: 12, color: T.apoio }}>{ORDEM_REGRA[ordemPendentes]}</span>
 
               {/* UM grupo à direita. Os dois botões tinham `marginLeft: auto`
                   cada um: com os dois na tela (admin) o espaço livre se dividia
                   entre eles e "Decidir em fila" — a ação do dia — boiava no
                   meio da linha, longe da borda onde o olho a procura. */}
-              <div style={{ marginLeft: isMobile ? 0 : 'auto', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', width: isMobile ? '100%' : undefined }}>
+              <div style={{ marginLeft: cards ? 0 : 'auto', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', width: cards ? '100%' : undefined }}>
               {/* O DISPARO À MÃO DO AVISO DA GESTÃO. Discreto de propósito e
                   encostado à direita: é ferramenta de manutenção, não parte do
                   trabalho de decidir — quem entra aqui para aprovar não deve
                   tropeçar nele. */}
               {user?.role === "admin" && (
-                <button
-                  type="button"
+                <Botao
+                  variante="secundario"
+                  tamanho={tamBotao}
+                  icone={Send}
+                  carregando={avisarGestaoMutation.isPending}
                   data-testid="button-avisar-gestao"
                   onClick={() => avisarGestaoMutation.mutate()}
-                  disabled={avisarGestaoMutation.isPending}
                   title="Manda agora o resumo das aprovações pendentes para quem recebe o aviso das 10h, 15h e 18h. Se não houver pendência, nada é enviado."
-                  style={{
-                    height: isMobile ? 44 : 36, padding: '0 12px', borderRadius: 8,
-                    border: '1px solid #e7e5e4', backgroundColor: '#ffffff', color: '#57534e',
-                    cursor: avisarGestaoMutation.isPending ? 'wait' : 'pointer',
-                    fontFamily: 'inherit', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
-                    display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0,
-                    opacity: avisarGestaoMutation.isPending ? 0.6 : 1,
-                  }}
+                  style={{ flexShrink: 0 }}
                 >
-                  <Send style={{ width: 13, height: 13 }} />
                   {avisarGestaoMutation.isPending ? 'Enviando…' : 'Avisar a gestão'}
-                </button>
+                </Botao>
               )}
 
               {/* ── A FILA, ALCANÇÁVEL ────────────────────────────────────────
@@ -2856,24 +2777,19 @@ export default function Atendimento() {
                   Some quando não há nada esperando por você — botão que não faz
                   nada é ruído. */}
               {filaDaSuaMesa.length > 0 && (
-                <button
-                  type="button"
+                // A régua dos primários da casa e largura cheia quando a área
+                // aperta: é a porta da fila.
+                <Botao
+                  variante="primario"
+                  tamanho={tamBotao}
+                  icone={Play}
                   data-testid="button-fila-decisao"
                   onClick={() => { setSelectedItem(filaDaSuaMesa[0]); setDialogOpen(true); }}
                   title="Abre a primeira peça que espera decisão sua; do modal dá para seguir para a próxima"
-                  // 36px, a régua dos primários da casa (era 32), e largura
-                  // inteira no celular: é a porta da fila.
-                  style={{
-                    height: isMobile ? 44 : 36, padding: '0 16px', borderRadius: 9,
-                    border: 'none', backgroundColor: '#1c1917', color: '#ffffff', cursor: 'pointer',
-                    fontFamily: 'inherit', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, flexShrink: 0,
-                    flex: isMobile ? '1 1 auto' : undefined,
-                  }}
+                  style={{ flexShrink: 0, flex: cards ? '1 1 auto' : undefined }}
                 >
-                  <Play aria-hidden="true" style={{ width: 13, height: 13 }} />
                   Decidir {filaDaSuaMesa.length === 1 ? 'a peça' : `as ${filaDaSuaMesa.length}`} em fila
-                </button>
+                </Botao>
               )}
               {/* A FILA INTEIRA (rodada 4). A porta acima só existe para "nova
                   versão"; as peças que aguardam patrocinador — a maior parte do
@@ -2882,24 +2798,17 @@ export default function Atendimento() {
                   da tela, e o modal segue com "Próxima peça". Quando há peça na
                   sua mesa ela é secundária (contorno); sem, é a ação do dia. */}
               {reviewQueue.length > filaDaSuaMesa.length && (
-                <button
-                  type="button"
+                <Botao
+                  variante={filaDaSuaMesa.length > 0 ? "secundario" : "primario"}
+                  tamanho={tamBotao}
+                  icone={Play}
                   data-testid="button-fila-inteira"
                   onClick={() => { setSelectedItem(reviewQueue[0]); setDialogOpen(true); }}
                   title="Abre a primeira peça da lista, na ordem escolhida; do modal dá para seguir peça a peça sem voltar"
-                  style={{
-                    height: isMobile ? 44 : 36, padding: '0 16px', borderRadius: 9,
-                    border: filaDaSuaMesa.length > 0 ? '1px solid #e7e5e4' : 'none',
-                    backgroundColor: filaDaSuaMesa.length > 0 ? '#ffffff' : '#1c1917',
-                    color: filaDaSuaMesa.length > 0 ? '#1c1917' : '#ffffff', cursor: 'pointer',
-                    fontFamily: 'inherit', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, flexShrink: 0,
-                    flex: isMobile ? '1 1 auto' : undefined,
-                  }}
+                  style={{ flexShrink: 0, flex: cards ? '1 1 auto' : undefined }}
                 >
-                  <Play aria-hidden="true" style={{ width: 13, height: 13 }} />
                   {filaDaSuaMesa.length > 0 ? `Toda a fila (${reviewQueue.length})` : reviewQueue.length === 1 ? 'Revisar a peça' : `Revisar as ${reviewQueue.length} em fila`}
-                </button>
+                </Botao>
               )}
               </div>
             </div>
@@ -2910,7 +2819,7 @@ export default function Atendimento() {
               neste componente — sem ela cada tecla no modal refazia todos os
               grupos e cards da fila. `deps` = tudo o que os grupos leem. */}
           <SoQuandoMudar
-            deps={[pendingGroup, itemsByEvent, events, expandedEvents, isMobile, hoje, agora, itemApprovalsMap, itemSponsorsMap, typeToGroup, loadingSponsors]}
+            deps={[pendingGroup, itemsByEvent, events, expandedEvents, isMobile, cards, dedo, hoje, agora, itemApprovalsMap, itemSponsorsMap, typeToGroup, loadingSponsors]}
             render={() => (<>
           {pendingGroup.length > 0 && Array.from(itemsByEvent.entries()).map(([eventId, eventItems]) => {
             const ev = getEventInfo(eventId);
@@ -2960,18 +2869,18 @@ export default function Atendimento() {
                   // encolhia a zero e o resto vazava para a direita, com rolagem
                   // lateral na página inteira.
                   style={{
-                    display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 16,
-                    flexWrap: isMobile ? 'wrap' : 'nowrap',
-                    paddingBottom: isMobile ? 12 : 16, marginBottom: isMobile ? 12 : 16,
+                    display: 'flex', alignItems: 'center', gap: cards ? 8 : 16,
+                    flexWrap: cards ? 'wrap' : 'nowrap',
+                    paddingBottom: cards ? 12 : 16, marginBottom: cards ? 12 : 16,
                     minHeight: 44,
-                    borderBottom: '1px solid #e7e5e4',
+                    borderBottom: `1px solid ${T.border}`,
                     cursor: 'pointer', userSelect: 'none',
                   }}
                 >
                   <ChevronDown
                     aria-hidden="true"
                     style={{
-                      width: 16, height: 16, color: '#746e69', flexShrink: 0,
+                      width: 16, height: 16, color: T.second, flexShrink: 0,
                       transform: eventoAberto(eventId) ? 'none' : 'rotate(-90deg)',
                       transition: 'transform 0.15s',
                     }}
@@ -2983,18 +2892,18 @@ export default function Atendimento() {
                       o nível 4, o que faz o leitor de tela anunciar dois níveis
                       que não existem. O card da peça abaixo é <h3>. */}
                   <h2 title={ev?.name || undefined} style={{
-                    fontFamily: "'Space Grotesk', sans-serif",
+                    fontFamily: FONT.display,
                     // 16/700: o nome do evento estava em 18/800, mais pesado
                     // que o próprio <h1> da tela em peso e a um ponto dele em
                     // tamanho — e ele se repete a cada grupo da lista.
                     fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em',
-                    color: '#1c1917', margin: 0, minWidth: 0,
-                    flex: isMobile ? '1 1 calc(100% - 32px)' : '0 1 auto',
+                    color: T.text, margin: 0, minWidth: 0,
+                    flex: cards ? '1 1 calc(100% - 32px)' : '0 1 auto',
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                   }}>
                     {ev?.name || 'Sem Evento'}
                     {ev?.startDate && (
-                      <span style={{ color: '#746e69', fontWeight: 500, marginLeft: 10, fontSize: 12 }}>
+                      <span style={{ color: T.second, fontWeight: 500, marginLeft: 10, fontSize: 12 }}>
                         {format(parseDateLocal(ev.startDate), "MMMM yyyy", { locale: ptBR })}
                       </span>
                     )}
@@ -3013,12 +2922,12 @@ export default function Atendimento() {
                     // leitura: "vence hoje" (#D97A1E sobre #FEF3E7 ≈ 2,9:1) e
                     // "vence em até 3 dias" (#C97B4B sobre #FDF0E8 ≈ 3,2:1).
                     const s = diff < 0
-                      ? { bg: '#fee2e2', border: '#fca5a5', text: '#991b1b' }
+                      ? { bg: TOM.perigo.bg, border: TOM.perigo.border, text: TOM.perigo.text }
                       : diff === 0
-                      ? { bg: '#fef3c7', border: '#fcd34d', text: '#92400e' }
+                      ? { bg: TOM.alerta.bg, border: TOM.alerta.border, text: TOM.alerta.text }
                       : diff <= 3
-                      ? { bg: '#ffedd5', border: '#fdba74', text: '#9a3412' }
-                      : { bg: '#f5f5f4', border: '#e7e5e4', text: '#57534e' };
+                      ? { bg: TOM.laranja.bg, border: TOM.laranja.border, text: T.accentText }
+                      : { bg: N.n2, border: T.border, text: T.apoio };
                     // POR EXTENSO. O selo dizia "Aprovação de Layout · 06/08
                     // (13d)" e deixava a leitura mais importante — se já venceu
                     // ou ainda falta — só no TOM DA COR. Quem não distingue o
@@ -3044,8 +2953,8 @@ export default function Atendimento() {
                       indistinguível de outra pilha de 14 quando o que importa
                       é quantas dependem de VOCÊ agora. É a mesma conta da
                       primeira célula do placar, no grão do evento. */}
-                  <span style={{ marginLeft: isMobile ? 0 : 'auto', display: 'flex', alignItems: 'baseline', gap: 6, flexShrink: 0, whiteSpace: 'nowrap' }}>
-                    <span style={{ fontSize: 12, color: '#746e69', fontVariantNumeric: 'tabular-nums' }}>
+                  <span style={{ marginLeft: cards ? 0 : 'auto', display: 'flex', alignItems: 'baseline', gap: 6, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                    <span style={{ fontSize: 12, color: T.second, fontVariantNumeric: 'tabular-nums' }}>
                       {eventItems.length} {eventItems.length === 1 ? 'peça' : 'peças'}
                     </span>
                     {(() => {
@@ -3054,7 +2963,7 @@ export default function Atendimento() {
                       return (
                         <span
                           data-testid={`grupo-na-sua-mesa-${eventId}`}
-                          style={{ fontSize: 12, fontWeight: 700, color: '#92400e', fontVariantNumeric: 'tabular-nums' }}
+                          style={{ fontSize: 12, fontWeight: 700, color: TOM.alerta.text, fontVariantNumeric: 'tabular-nums' }}
                         >
                           · {naMesa} na sua mesa
                         </span>
@@ -3101,10 +3010,10 @@ export default function Atendimento() {
                             condição do tipo cobre as duas. */}
                         {showTypeHeader && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0 2px' }}>
-                            <span style={{ fontSize: 10, fontWeight: 800, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.12em', whiteSpace: 'nowrap' }}>
+                            <span style={{ fontSize: 10, fontWeight: 800, color: T.second, textTransform: 'uppercase', letterSpacing: '0.12em', whiteSpace: 'nowrap' }}>
                               {[itemGroupName, item.type].filter(Boolean).join(" · ")}
                             </span>
-                            <div style={{ flex: 1, height: 1, background: '#f1f0ef' }} />
+                            <div style={{ flex: 1, height: 1, background: N.n3 }} />
                           </div>
                         )}
                       {/* O CARD.
@@ -3124,14 +3033,14 @@ export default function Atendimento() {
                         data-testid={`row-item-${item.id}`}
                         className="group"
                         style={{
-                          backgroundColor: hasArteBlock ? '#fafaf9' : '#ffffff',
+                          backgroundColor: hasArteBlock ? T.bg : T.surface,
                           borderRadius: 12,
-                          border: '1px solid #e7e5e4',
-                          borderLeft: `3px solid ${isFullyApproved ? "#d6d3d1" : hasArteBlock ? "#a8a29e" : temNovaVersao ? "#b45309" : "#f97316"}`,
+                          border: `1px solid ${T.border}`,
+                          borderLeft: `3px solid ${isFullyApproved ? T.bdark : hasArteBlock ? T.muted : temNovaVersao ? TOM.alerta.text : T.accent}`,
                           overflow: 'hidden',
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', padding: isMobile ? 14 : 18, gap: isMobile ? 12 : 20, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+                        <div style={{ display: 'flex', alignItems: cards ? 'flex-start' : 'center', padding: cards ? 14 : 18, gap: cards ? 12 : 20, flexWrap: cards ? 'wrap' : 'nowrap' }}>
 
                           {/* Thumb 72 e não 80: o card ganhou uma terceira
                               linha de texto e a miniatura passou a ser o
@@ -3145,9 +3054,9 @@ export default function Atendimento() {
                             aria-hidden="true"
                             onClick={() => handleViewDetails(item)}
                             style={{
-                            width: isMobile ? 52 : 72, height: isMobile ? 52 : 72, flexShrink: 0, borderRadius: 10,
-                            overflow: 'hidden', backgroundColor: '#f5f5f4', position: 'relative',
-                            border: '1px solid #e7e5e4', cursor: 'pointer',
+                            width: cards ? 52 : 72, height: cards ? 52 : 72, flexShrink: 0, borderRadius: 10,
+                            overflow: 'hidden', backgroundColor: N.n2, position: 'relative',
+                            border: `1px solid ${T.border}`, cursor: 'pointer',
                           }}>
                             {hasThumb ? (
                               <>
@@ -3166,9 +3075,9 @@ export default function Atendimento() {
                                     if (fb?.dataset.fallback) fb.style.display = "flex";
                                   }}
                                 />
-                                <div data-fallback="1" style={{ display: 'none', position: 'absolute', inset: 0, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, background: '#f5f5f4' }}>
-                                  <ImageIcon aria-hidden="true" style={{ width: 18, height: 18, color: '#a8a29e' }} />
-                                  <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: '#746e69' }}>SEM ARTE</span>
+                                <div data-fallback="1" style={{ display: 'none', position: 'absolute', inset: 0, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, background: N.n2 }}>
+                                  <ImageIcon aria-hidden="true" style={{ width: 18, height: 18, color: T.muted }} />
+                                  <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: T.second }}>SEM ARTE</span>
                                 </div>
                                 {!isFullyApproved && (
                                   <div style={{
@@ -3179,7 +3088,7 @@ export default function Atendimento() {
                                   }}
                                     className="group-hover:opacity-100"
                                   >
-                                    <Eye style={{ width: 18, height: 18, color: '#fff' }} />
+                                    <Eye style={{ width: 18, height: 18, color: T.surface }} />
                                   </div>
                                 )}
                               </>
@@ -3188,13 +3097,13 @@ export default function Atendimento() {
                               // não dava para saber se a arte não existe ou se
                               // a imagem falhou ao carregar. Agora ele diz.
                               <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
-                                <ImageIcon aria-hidden="true" style={{ width: 18, height: 18, color: '#a8a29e' }} />
-                                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: '#746e69' }}>SEM ARTE</span>
+                                <ImageIcon aria-hidden="true" style={{ width: 18, height: 18, color: T.muted }} />
+                                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: T.second }}>SEM ARTE</span>
                               </div>
                             )}
                           </div>
 
-                          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0,2fr) minmax(0,1.4fr) auto', gap: isMobile ? 10 : 18, alignItems: isMobile ? 'stretch' : 'center', minWidth: 0 }}>
+                          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: cards ? '1fr' : 'minmax(0,2fr) minmax(0,1.4fr) auto', gap: cards ? 10 : 18, alignItems: cards ? 'stretch' : 'center', minWidth: 0 }}>
 
                             {/* IDENTIDADE em três linhas: o que é, o que diz o
                                 pedido, e quem tem de aprovar. Antes o código e
@@ -3204,18 +3113,18 @@ export default function Atendimento() {
                             <div style={{ minWidth: 0 }}>
                               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
                                 <span style={{
-                                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                                  fontSize: 12, fontWeight: 700, color: '#746e69',
+                                  fontFamily: FONT.mono,
+                                  fontSize: 12, fontWeight: 700, color: T.second,
                                   fontVariantNumeric: 'tabular-nums', flexShrink: 0,
                                 }}>
                                   {item.displayId}
                                 </span>
                                 <SeloKit peca={item} style={{ flexShrink: 0, alignSelf: 'center' }} />
-                                <h3 title={item.type} style={{ fontSize: 14, fontWeight: 700, color: '#1c1917', margin: 0, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                <h3 title={item.type} style={{ fontSize: 14, fontWeight: 700, color: T.text, margin: 0, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                   {item.type}
                                 </h3>
                                 {item.isReuse && (
-                                  <span title="Peça de reaproveitamento" style={{ fontSize: 11, fontWeight: 600, backgroundColor: '#dcfce7', color: '#166534', borderRadius: 999, padding: '1px 8px', flexShrink: 0 }}>
+                                  <span title="Peça de reaproveitamento" style={{ fontSize: 11, fontWeight: 600, backgroundColor: TOM.sucesso.bg, color: TOM.sucesso.text, borderRadius: 999, padding: '1px 8px', flexShrink: 0 }}>
                                     Reaproveitamento
                                   </span>
                                 )}
@@ -3244,10 +3153,10 @@ export default function Atendimento() {
                                   const d = diasNaFase(item, new Date());
                                   if (d === null || d < 1) return null;
                                   const tom = tomDaIdade(d);
-                                  return <span title={`Está neste status há ${d} dia(s)`} style={{ flexShrink: 0, fontSize: 10.5, fontFamily: "'DM Mono', monospace", fontWeight: tom.peso, color: tom.cor }}>há {d}d</span>;
+                                  return <span title={`Está neste status há ${d} dia(s)`} style={{ flexShrink: 0, fontSize: 10.5, fontFamily: FONT.mono, fontWeight: tom.peso, color: tom.cor }}>há {d}d</span>;
                                 })()}
                               </div>
-                              <p title={item.description || undefined} style={{ fontSize: 12, color: '#746e69', margin: '3px 0 0', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <p title={item.description || undefined} style={{ fontSize: 12, color: T.second, margin: '3px 0 0', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {item.description || 'Sem descrição'}
                                 {item.quantity != null && (
                                   <span style={{ fontVariantNumeric: 'tabular-nums' }}>{' · '}{item.quantity} un.</span>
@@ -3266,7 +3175,7 @@ export default function Atendimento() {
                                       onClick={e => e.stopPropagation()}
                                       title="Ver referência visual do solicitante"
                                       data-testid={`link-reference-atendimento-${item.id}`}
-                                      style={{ color: '#c2410c', fontWeight: 600, textDecoration: 'underline' }}
+                                      style={{ color: T.accentText, fontWeight: 600, textDecoration: 'underline' }}
                                     >
                                       ref. visual
                                     </a>
@@ -3275,7 +3184,7 @@ export default function Atendimento() {
                               </p>
                               <div style={{ marginTop: 6, minWidth: 0, overflow: 'hidden' }}>
                                 {loadingSponsors ? (
-                                  <span style={{ fontSize: 12, color: '#746e69' }}>carregando patrocinadores…</span>
+                                  <span style={{ fontSize: 12, color: T.second }}>carregando patrocinadores…</span>
                                 ) : (
                                   <SponsorChips sponsors={sponsorsWithStatus(item)} variant="colored" size="sm" max={2} />
                                 )}
@@ -3299,11 +3208,11 @@ export default function Atendimento() {
                             <div style={{ minWidth: 0 }}>
                               {(() => {
                                 const sit = situacaoDaPeca(approvals);
-                                const tom = isFullyApproved ? "#57534e"
-                                  : sit === "nova_versao" ? "#92400e"
-                                  : sit === "aguardando_arte" ? "#57534e"
-                                  : sit === "reprovado" ? "#b91c1c"
-                                  : "#c2410c";
+                                const tom = isFullyApproved ? T.apoio
+                                  : sit === "nova_versao" ? TOM.alerta.text
+                                  : sit === "aguardando_arte" ? T.apoio
+                                  : sit === "reprovado" ? TOM.perigo.text
+                                  : T.accentText;
                                 const desde = item.approvalThumbUpdatedAt
                                   ? fmtRelative(new Date(item.approvalThumbUpdatedAt).toISOString(), agora)
                                   : null;
@@ -3329,7 +3238,7 @@ export default function Atendimento() {
                                     >
                                       {isFullyApproved ? "Aprovado" : SITUACAO_META[sit].label}
                                     </span>
-                                    <span style={{ display: "block", marginTop: 3, fontSize: 12, color: "#746e69", lineHeight: 1.4 }}>
+                                    <span style={{ display: "block", marginTop: 3, fontSize: 12, color: T.second, lineHeight: 1.4 }}>
                                       {relogio}
                                     </span>
                                   </>
@@ -3344,7 +3253,7 @@ export default function Atendimento() {
                                 espera você e a peça que não depende de você
                                 convidavam com a mesma força, e a força era a de
                                 uma ação primária. */}
-                            <div style={{ display: 'flex', justifyContent: isMobile ? 'stretch' : 'flex-end' }}>
+                            <div style={{ display: 'flex', justifyContent: cards ? 'stretch' : 'flex-end' }}>
                               {(() => {
                                 const primaria = temNovaVersao && !isFullyApproved;
                                 // Com a Arte também é 'Revisar' (31/08): lá dentro
@@ -3352,24 +3261,16 @@ export default function Atendimento() {
                                 const rotulo = isFullyApproved ? "Ver histórico"
                                   : primaria ? "Revisar agora" : "Revisar";
                                 return (
-                                  <button
+                                  <Botao
+                                    variante={primaria ? "primario" : "secundario"}
+                                    tamanho={tamBotao}
+                                    icone={Eye}
+                                    larguraCheia={cards}
                                     onClick={() => handleViewDetails(item)}
                                     data-testid={isFullyApproved ? `button-history-${item.id}` : `button-view-${item.id}`}
-                                    style={{
-                                      height: isMobile ? 44 : 36, padding: "0 16px", borderRadius: 9,
-                                      backgroundColor: primaria ? "#1c1917" : "#ffffff",
-                                      border: primaria ? "1px solid #1c1917" : "1px solid #e7e5e4",
-                                      color: primaria ? "#ffffff" : "#1c1917",
-                                      fontSize: 12, fontWeight: 700, cursor: "pointer",
-                                      display: "flex", alignItems: "center", gap: 6,
-                                      width: isMobile ? "100%" : undefined,
-                                      justifyContent: isMobile ? "center" : undefined,
-                                      whiteSpace: "nowrap",
-                                    }}
                                   >
                                     {rotulo}
-                                    <Eye aria-hidden="true" style={{ width: 13, height: 13 }} />
-                                  </button>
+                                  </Botao>
                                 );
                               })()}
                             </div>
@@ -3404,11 +3305,11 @@ export default function Atendimento() {
       {/* ─── ABA HISTÓRICO ──────────────────────────────────────── */}
       {activeTab === "history" && (() => {
         const evById = new Map((events as any[]).map((e: any) => [e.id, e]));
-        const FL: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 };
+        const FL: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: T.second, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 };
         const SEL = (active: boolean): React.CSSProperties => ({
-          height: 38, border: `1.5px solid ${active ? '#c2610c' : '#e7e5e4'}`,
-          borderRadius: 8, fontSize: 13, fontWeight: 500, background: '#fff',
-          color: active ? '#c2610c' : '#374151', cursor: 'pointer',
+          height: 38, border: `1.5px solid ${active ? T.accentText : T.border}`,
+          borderRadius: 8, fontSize: 13, fontWeight: 500, background: T.surface,
+          color: active ? T.accentText : T.strong, cursor: 'pointer',
         });
         const periodOptions = [
           { value: '7d',  label: 'Últimos 7 dias' },
@@ -3426,7 +3327,7 @@ export default function Atendimento() {
                 a única ordem possível era por data. A regra fica escrita ao
                 lado, como na aba Pendentes. */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69', flexShrink: 0 }}>Ordem</span>
+              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.second, flexShrink: 0 }}>Ordem</span>
               <div role="group" aria-label="Ordem do histórico" style={{ display: 'flex', gap: 6, overflowX: 'auto', maxWidth: '100%', paddingBottom: 2 }}>
                 {([['recentes', 'Mais recentes'], ['demoradas', 'Mais demoradas'], ['evento', 'Nome do evento']] as const).map(([valor, rotulo]) => {
                   const ativo = ordemHistorico === valor;
@@ -3434,30 +3335,30 @@ export default function Atendimento() {
                     <button key={valor} type="button" aria-pressed={ativo} data-testid={`toggle-ordem-hist-${valor}`}
                       onClick={() => setOrdemHistorico(valor)}
                       style={{
-                        height: isMobile ? 44 : 30, padding: '0 12px', borderRadius: 8, cursor: 'pointer',
+                        height: alvo(30, dedo), padding: '0 12px', borderRadius: R.md, cursor: 'pointer',
                         fontFamily: 'inherit', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0,
-                        border: `1px solid ${ativo ? '#fdba74' : '#e7e5e4'}`,
-                        backgroundColor: ativo ? '#fff7ed' : '#ffffff',
-                        color: ativo ? '#9a3412' : '#57534e',
+                        border: `1px solid ${ativo ? TOM.laranja.border : T.border}`,
+                        backgroundColor: ativo ? TOM.laranja.bg : T.surface,
+                        color: ativo ? T.accentText : T.apoio,
                       }}>
                       {rotulo}
                     </button>
                   );
                 })}
               </div>
-              <span style={{ fontSize: 12, color: '#57534e' }}>{ORDEM_HIST_REGRA[ordemHistorico]}</span>
+              <span style={{ fontSize: 12, color: T.apoio }}>{ORDEM_HIST_REGRA[ordemHistorico]}</span>
             </div>
 
             {/* ── Barra de filtros ── */}
             <div style={{
-              background: '#fafaf9', borderRadius: 12,
-              border: '1px solid #ece9e6',
+              background: T.bg, borderRadius: 12,
+              border: `1px solid ${T.border}`,
               padding: '12px 16px', marginBottom: 20,
               display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
             }}>
               {/* Busca */}
               <div style={{ flex: '1 1 180px', minWidth: 160, position: 'relative' }}>
-                <Search style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 15, height: 15, color: '#a8a29e' }} />
+                <Search style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 15, height: 15, color: T.muted }} />
                 <input
                   value={histSearchTerm}
                   onChange={e => setHistSearchTerm(e.target.value)}
@@ -3465,18 +3366,18 @@ export default function Atendimento() {
                   aria-label="Buscar no histórico por ID, tipo ou descrição"
                   style={{
                     width: '100%', paddingLeft: 36, paddingRight: histSearchTerm ? 32 : 12, paddingTop: 9, paddingBottom: 9,
-                    backgroundColor: '#ffffff', borderRadius: 8, border: '1px solid #e7e5e4',
-                    fontSize: 13, fontWeight: 500, color: '#1c1917',
+                    backgroundColor: T.surface, borderRadius: 8, border: `1px solid ${T.border}`,
+                    fontSize: isMobile ? FS.lead : FS.body, fontWeight: FW.corpo, color: T.text,
                     boxSizing: 'border-box',
                   }}
                 />
                 {histSearchTerm && (
-                  <button onClick={() => setHistSearchTerm("")} aria-label="Limpar busca" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#746e69' }}>
+                  <button onClick={() => setHistSearchTerm("")} aria-label="Limpar busca" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: T.second }}>
                     <X style={{ width: 13, height: 13 }} />
                   </button>
                 )}
               </div>
-              <div style={{ width: 1, height: 24, background: '#e7e5e4', flexShrink: 0 }} />
+              <div style={{ width: 1, height: 24, background: T.border, flexShrink: 0 }} />
               <EventFilterDropdown values={histEventFilter} onValuesChange={setHistEventFilter} options={histEventOptions} />
               <FilterSelect showAllLabelWhenEmpty label="Patrocinador" allLabel="Todos os patrocinadores"
                 values={histSponsorFilter} onValuesChange={setHistSponsorFilter}
@@ -3485,25 +3386,22 @@ export default function Atendimento() {
                 value={histPeriodFilter} onChange={setHistPeriodFilter}
                 options={periodOptions} />
               {(hasHistFilters || histSearchTerm) && (
-                <button
+                // Contorno, não bloco preto: é a mesma regra do "Limpar" da aba
+                // Pendentes — desfazer filtro não é ação primária, e o bloco
+                // cheio era o objeto mais escuro da aba de auditoria.
+                <Botao
+                  variante="secundario"
+                  tamanho={tamBotao}
+                  icone={X}
                   onClick={() => { setHistEventFilter([]); setHistSponsorFilter([]); setHistPeriodFilter("all"); setHistSearchTerm(""); }}
-                  // Contorno, não bloco preto: é a mesma regra do "Limpar" da aba
-                  // Pendentes — desfazer filtro não é ação primária, e o bloco
-                  // cheio era o objeto mais escuro da aba de auditoria.
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 5,
-                    height: isMobile ? 44 : 36, padding: '0 12px',
-                    backgroundColor: '#ffffff', color: '#1c1917',
-                    border: '1px solid #e7e5e4', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600,
-                  }}
                 >
-                  <X aria-hidden="true" style={{ width: 13, height: 13 }} /> Limpar filtros
-                </button>
+                  Limpar filtros
+                </Botao>
               )}
               <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
                 {loadingSponsors
-                  ? <Loader2 style={{ width: 14, height: 14, color: '#a8a29e' }} className="animate-spin" />
-                  : <span style={{ fontSize: 13, color: '#746e69', fontWeight: 600 }}>
+                  ? <Loader2 style={{ width: 14, height: 14, color: T.muted }} className="animate-spin" />
+                  : <span style={{ fontSize: 13, color: T.second, fontWeight: 600 }}>
                       {historyItems.length} {historyItems.length === 1 ? 'resultado' : 'resultados'}
                     </span>}
               </div>
@@ -3515,31 +3413,26 @@ export default function Atendimento() {
               // 32px não dizia o que carregava nem onde o conteúdo ia aparecer.
               <EsqueletoDeFila linhas={6} comCabecalho={false} />
             ) : historyItems.length === 0 ? (
-              // A régua dos vazios da casa (ícone 28, título 15, frase 13) e o
+              // O vazio da casa (EstadoVazio) e o
               // ícone pelo MOTIVO: o check verde afirmava "tudo certo" também
               // quando eram os filtros escondendo o histórico. A saída mora ao
               // lado do problema, não só na barra de cima.
-              <div style={{ textAlign: 'center', padding: '56px 0' }}>
-                {(hasHistFilters || histSearchTerm)
-                  ? <Search aria-hidden="true" style={{ width: 28, height: 28, color: '#746e69', margin: '0 auto 12px' }} />
-                  : <Clock aria-hidden="true" style={{ width: 28, height: 28, color: '#746e69', margin: '0 auto 12px' }} />}
-                <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1c1917', margin: '0 0 6px' }}>
-                  {(hasHistFilters || histSearchTerm) ? 'Nenhuma peça neste recorte' : 'Ainda não há histórico'}
-                </h3>
-                <p style={{ color: '#746e69', fontSize: 13, lineHeight: 1.5, margin: '0 auto', maxWidth: 460 }}>
-                  {(hasHistFilters || histSearchTerm)
-                    ? 'Nenhuma peça aprovada combina com a busca e os filtros atuais.'
-                    : 'As peças aparecem aqui assim que algum patrocinador aprovar.'}
-                </p>
-                {(hasHistFilters || histSearchTerm) && (
-                  <button
+              <EstadoVazio
+                icone={(hasHistFilters || histSearchTerm) ? Search : Clock}
+                titulo={(hasHistFilters || histSearchTerm) ? 'Nenhuma peça neste recorte' : 'Ainda não há histórico'}
+                descricao={(hasHistFilters || histSearchTerm)
+                  ? 'Nenhuma peça aprovada combina com a busca e os filtros atuais.'
+                  : 'As peças aparecem aqui assim que algum patrocinador aprovar.'}
+                acao={(hasHistFilters || histSearchTerm) ? (
+                  <Botao
+                    variante="secundario"
+                    tamanho={tamBotao}
                     onClick={() => { setHistEventFilter([]); setHistSponsorFilter([]); setHistPeriodFilter("all"); setHistSearchTerm(""); }}
-                    style={{ marginTop: 16, height: 40, padding: '0 18px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#1c1917', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
                   >
                     Limpar filtros
-                  </button>
-                )}
-              </div>
+                  </Botao>
+                ) : undefined}
+              />
             ) : (
               // UMA superfície com linhas, no lugar de N cards soltos.
               //
@@ -3549,7 +3442,7 @@ export default function Atendimento() {
               // lida de cima para baixo. O que distingue uma linha da outra é
               // o TRILHO do estado, não a moldura.
               <div style={{
-                backgroundColor: '#ffffff', border: '1px solid #e7e5e4',
+                backgroundColor: T.surface, border: `1px solid ${T.border}`,
                 borderRadius: 12, overflow: 'hidden',
               }}>
                 {historyItems.slice(0, histVisible).map((item: any, iLinha: number) => {
@@ -3591,10 +3484,10 @@ export default function Atendimento() {
                       })[0]?.appr?.approvedBy : null;
 
                   // acento lateral por status
-                  const accentColor = allApproved ? '#22c55e'
+                  const accentColor = allApproved ? TOM.sucesso.dot
                     : (PRODUCTION_STATUSES as readonly string[]).includes(item.status) ? statusCfg.dot
-                    : item.status === 'ready_for_production' ? '#2563eb'
-                    : '#e7e5e4';
+                    : item.status === 'ready_for_production' ? TOM.info.text
+                    : T.border;
 
                   // Pipeline de fluxo (12 etapas) — const de módulo PIPELINE_STAGES
                   const pipelineIdx = PIPELINE_STAGES.findIndex(s => s.statuses.includes(item.status));
@@ -3634,11 +3527,11 @@ export default function Atendimento() {
                         }
                       }}
                       style={{
-                        backgroundColor: '#ffffff',
+                        backgroundColor: T.surface,
                         // A régua entre linhas some na última: a borda da
                         // superfície já fecha embaixo.
                         borderBottom: iLinha < historyItems.slice(0, histVisible).length - 1
-                          ? '1px solid #f1f0ef' : undefined,
+                          ? `1px solid ${N.n3}` : undefined,
                         display: 'flex', cursor: 'pointer',
                         // Herdado por toda a linha: a trilha de datas, o
                         // contador 2/2 e o codigo da peca. Uma declaracao no
@@ -3647,8 +3540,8 @@ export default function Atendimento() {
                         fontVariantNumeric: 'tabular-nums',
                         transition: 'background-color 0.12s',
                       }}
-                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#fafaf9')}
-                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#ffffff')}
+                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = T.bg)}
+                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = T.surface)}
                     >
                       {/* Trilho do estado — 3px, o mesmo vocabulário do card do
                           quadro da Gestão de Prazos e do card da peça aqui em
@@ -3658,12 +3551,12 @@ export default function Atendimento() {
 
                       <div style={{ flex: 1, minWidth: 0 }}>
                         {/* ── Cabeçalho — empilha no mobile para não estourar a largura ── */}
-                        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: 12, padding: '14px 16px 12px' }}>
+                        <div style={{ display: 'flex', flexDirection: cards ? 'column' : 'row', alignItems: cards ? 'stretch' : 'center', gap: 12, padding: '14px 16px 12px' }}>
                           {/* Thumb */}
                           <div style={{
                             width: 44, height: 44, borderRadius: 8, overflow: 'hidden',
-                            background: '#f5f5f4', flexShrink: 0,
-                            border: '1px solid #e7e5e4',
+                            background: N.n2, flexShrink: 0,
+                            border: `1px solid ${T.border}`,
                             boxShadow: '0 1px 3px rgba(0,0,0,0.06)', position: 'relative',
                           }}>
                             {(item.approvalThumbUrl || item.finalPreviewUrl)
@@ -3680,24 +3573,24 @@ export default function Atendimento() {
                                       if (fb?.dataset.fallback) fb.style.display = 'flex';
                                     }}
                                   />
-                                  <div data-fallback="1" style={{ display: 'none', position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', background: '#f5f5f4' }}>
-                                    <FileText style={{ width: 16, height: 16, color: '#c4bfbb' }} />
+                                  <div data-fallback="1" style={{ display: 'none', position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', background: N.n2 }}>
+                                    <FileText style={{ width: 16, height: 16, color: T.bdark }} />
                                   </div>
                                 </>
                               : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                  <FileText style={{ width: 16, height: 16, color: '#c4bfbb' }} />
+                                  <FileText style={{ width: 16, height: 16, color: T.bdark }} />
                                 </div>}
                           </div>
 
                           {/* Identidade */}
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
-                              <span style={{ fontSize: 15, fontWeight: 700, color: '#1c1917', lineHeight: 1.2 }}>{item.type}</span>
-                              <span style={{ fontSize: 11, color: '#746e69', fontWeight: 500 }}>{item.displayId}</span>
+                              <span style={{ fontSize: 15, fontWeight: 700, color: T.text, lineHeight: 1.2 }}>{item.type}</span>
+                              <span style={{ fontSize: 11, color: T.second, fontWeight: 500 }}>{item.displayId}</span>
                               <SeloKit peca={item} />
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
-                              <span style={{ fontSize: 11, color: '#746e69', fontWeight: 500 }}>{ev?.name || '—'}</span>
+                              <span style={{ fontSize: 11, color: T.second, fontWeight: 500 }}>{ev?.name || '—'}</span>
                               {/* `title` com o significado: o selo traz só o rótulo, e
                                   no histórico a pergunta é o que quer dizer a peça
                                   estar ali e quem age agora. */}
@@ -3705,7 +3598,7 @@ export default function Atendimento() {
                                 fontSize: 11, fontWeight: 700,
                                 backgroundColor: statusCfg.bg, color: statusCfg.text, border: `1px solid ${statusCfg.border}`,
                                 padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap', lineHeight: 1.5,
-                              }}>{isMobile ? getStatusShort(item.status) : getStatusLabel(item.status)}</span>
+                              }}>{cards ? getStatusShort(item.status) : getStatusLabel(item.status)}</span>
                               <DetalheProducao item={item} style={{ marginTop: 0 }} />
                               {/* ARQUIVO CORRIGIDO. O estado "nova versão" é o único
                                   em que a bola está com o ATENDIMENTO: a Arte já
@@ -3724,7 +3617,7 @@ export default function Atendimento() {
                                   style={{
                                     display: 'inline-flex', alignItems: 'center', gap: 4,
                                     fontSize: 11, fontWeight: 700,
-                                    backgroundColor: '#fffbeb', color: '#92400e', border: '1px solid #fde68a',
+                                    backgroundColor: TOM.alerta.bg, color: TOM.alerta.text, border: `1px solid ${TOM.alerta.border}`,
                                     padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap', lineHeight: 1.5,
                                   }}
                                 >
@@ -3736,7 +3629,7 @@ export default function Atendimento() {
                           </div>
 
                           {/* Resumo + detalhes — empilha no mobile */}
-                          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'flex-start' : 'center', gap: 10, flexShrink: 0 }}>
+                          <div style={{ display: 'flex', flexDirection: cards ? 'column' : 'row', alignItems: cards ? 'flex-start' : 'center', gap: 10, flexShrink: 0 }}>
                             {/* Afordância REAL (decisão do item 24 do backlog): parecia
                                 botão mas era um <div> decorativo — agora é um <button>
                                 com a mesma ação do card, utilizável também por teclado
@@ -3747,22 +3640,22 @@ export default function Atendimento() {
                               // 32px de alvo (44 no celular): com padding de 4px o
                               // botão tinha ~22 — o menor controle da aba, e é a
                               // única porta do cartão que não depende do card todo.
-                              style={{ display: 'flex', alignItems: 'center', gap: 5, minHeight: isMobile ? 44 : 32, padding: '0 12px', borderRadius: 8, background: '#ffffff', border: '1px solid #e7e5e4', cursor: 'pointer' }}
+                              style={{ display: 'flex', alignItems: 'center', gap: 5, minHeight: alvo(32, dedo), padding: '0 12px', borderRadius: 8, background: T.surface, border: `1px solid ${T.border}`, cursor: 'pointer' }}
                             >
-                              <Eye aria-hidden="true" style={{ width: 12, height: 12, color: '#57534e' }} />
-                              <span style={{ fontSize: 12, fontWeight: 600, color: '#44403c', whiteSpace: 'nowrap' }}>Ver detalhes</span>
+                              <Eye aria-hidden="true" style={{ width: 12, height: 12, color: T.apoio }} />
+                              <span style={{ fontSize: 12, fontWeight: 600, color: T.strong, whiteSpace: 'nowrap' }}>Ver detalhes</span>
                             </button>
                             {sponsorApprovals.length > 0 && (
                               <div style={{
                                 display: 'flex', flexDirection: 'column', alignItems: 'center',
-                                background: allApproved ? '#f0fdf4' : '#fafaf9',
-                                border: `1px solid ${allApproved ? '#bbf7d0' : '#e7e5e4'}`,
+                                background: allApproved ? TOM.sucesso.bg : T.bg,
+                                border: `1px solid ${allApproved ? TOM.sucesso.border : T.border}`,
                                 borderRadius: 8, padding: '4px 10px', minWidth: 48,
                               }}>
-                                <span style={{ fontSize: 15, fontWeight: 800, color: allApproved ? '#15803d' : '#44403c', lineHeight: 1 }}>
+                                <span style={{ fontSize: 15, fontWeight: 800, color: allApproved ? TOM.sucesso.text : T.strong, lineHeight: 1 }}>
                                   {approvedOnes.length} <span style={{ fontSize: 11, fontWeight: 500 }}>de</span> {sponsorApprovals.length}
                                 </span>
-                                <span style={{ fontSize: 11, color: allApproved ? '#15803d' : '#57534e', fontWeight: 700, marginTop: 2 }}>
+                                <span style={{ fontSize: 11, color: allApproved ? TOM.sucesso.text : T.apoio, fontWeight: 700, marginTop: 2 }}>
                                   {allApproved ? 'todos' : 'aprovaram'}
                                 </span>
                               </div>
@@ -3780,14 +3673,14 @@ export default function Atendimento() {
                           const j = jornadaDaPeca(item, hoje instanceof Date ? hoje.getTime() : Number(hoje));
                           if (j.atual < 0) return null;
                           return (
-                            <div data-testid={`faixa-jornada-${item.id}`} style={{ borderTop: '1px solid #f5f5f4', padding: '10px 16px 12px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                            <div data-testid={`faixa-jornada-${item.id}`} style={{ borderTop: `1px solid ${N.n2}`, padding: '10px 16px 12px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                               <div className="pipeline-scroll" style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ display: 'flex', alignItems: 'flex-start', minWidth: isMobile ? 620 : 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'flex-start', minWidth: cards ? 620 : 0 }}>
                                   {j.etapas.map((e, i) => (
                                     <Fragment key={e.key}>
                                       {i > 0 && (
                                         <span style={{ flex: 1, minWidth: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 3 }}>
-                                          <span style={{ display: 'block', width: '100%', height: 2, borderRadius: 999, background: e.cumprida || e.ehAtual || e.pulada ? '#c2410c' : '#e7e5e4' }} />
+                                          <span style={{ display: 'block', width: '100%', height: 2, borderRadius: 999, background: e.cumprida || e.ehAtual || e.pulada ? T.accentText : T.border }} />
                                           {/* O TEMPO DO TRECHO. "Criado 04/08 → Todos aprovaram
                                               13/08" obrigava a contar nove dias de cabeça. */}
                                           {e.desdeAnterior !== null && (
@@ -3801,18 +3694,18 @@ export default function Atendimento() {
                                         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0, maxWidth: 78 }}>
                                         <span aria-hidden="true" style={{
                                           width: e.ehAtual ? 11 : 8, height: e.ehAtual ? 11 : 8, borderRadius: '50%', flexShrink: 0,
-                                          background: e.cumprida || e.ehAtual ? '#c2410c' : '#e7e5e4',
+                                          background: e.cumprida || e.ehAtual ? T.accentText : T.border,
                                           // Embalado que NÃO SE APLICA (entregue sem tubo): oco e tracejado.
-                                          ...(e.pulada ? { background: '#ffffff', border: '1.5px dashed #d6d3d1', boxSizing: 'border-box' as const } : null),
+                                          ...(e.pulada ? { background: T.surface, border: `1.5px dashed ${T.bdark}`, boxSizing: 'border-box' as const } : null),
                                           boxShadow: e.ehAtual ? '0 0 0 3px rgba(251,146,60,0.25)' : 'none',
                                         }} />
                                         {(e.ehAtual || e.ms) && (
-                                          <span style={{ fontSize: 10, fontWeight: e.ehAtual ? 800 : 600, color: e.ehAtual ? '#9a3412' : '#57534e', lineHeight: 1.2, textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                          <span style={{ fontSize: 10, fontWeight: e.ehAtual ? 800 : 600, color: e.ehAtual ? T.accentText : T.apoio, lineHeight: 1.2, textAlign: 'center', whiteSpace: 'nowrap' }}>
                                             {e.label}
                                           </span>
                                         )}
                                         {e.ms && (
-                                          <span style={{ fontSize: 10, color: '#746e69', fontVariantNumeric: 'tabular-nums', lineHeight: 1.2, whiteSpace: 'nowrap' }}>
+                                          <span style={{ fontSize: 10, color: T.second, fontVariantNumeric: 'tabular-nums', lineHeight: 1.2, whiteSpace: 'nowrap' }}>
                                             {fmtDt(new Date(e.ms), true)}
                                           </span>
                                         )}
@@ -3828,10 +3721,10 @@ export default function Atendimento() {
                                 <span data-testid={`text-duracao-${item.id}`}
                                   title={j.concluida ? 'Da solicitação ao último carimbo' : 'Tempo desde o último carimbo desta peça'}
                                   style={{ flexShrink: 0, textAlign: 'right', lineHeight: 1.25 }}>
-                                  <span style={{ display: 'block', fontSize: 15, fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: j.concluida ? '#57534e' : tomDoIntervalo(j.duracao) }}>
+                                  <span style={{ display: 'block', fontSize: 15, fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: j.concluida ? T.apoio : tomDoIntervalo(j.duracao) }}>
                                     {j.duracao}d
                                   </span>
-                                  <span style={{ display: 'block', fontSize: 10, color: '#746e69', whiteSpace: 'nowrap' }}>
+                                  <span style={{ display: 'block', fontSize: 10, color: T.second, whiteSpace: 'nowrap' }}>
                                     {j.concluida ? 'no total' : 'nesta etapa'}
                                   </span>
                                 </span>
@@ -3843,7 +3736,7 @@ export default function Atendimento() {
                         {/* ── Chips de patrocinadores ── */}
                         {sortedApprovals.length > 0 && (
                           <div style={{
-                            borderTop: '1px solid #f5f5f4',
+                            borderTop: `1px solid ${N.n2}`,
                             padding: '8px 16px 12px',
                             display: 'flex', flexWrap: 'wrap', gap: 4,
                           }}>
@@ -3863,15 +3756,15 @@ export default function Atendimento() {
                                     {sponsor.name}
                                   </span>
                                   {v.isApproved && appr?.approvedAt && (
-                                    <span style={{ fontSize: 11, color: '#15803d', fontWeight: 500, whiteSpace: 'nowrap', lineHeight: 1 }}>
+                                    <span style={{ fontSize: 11, color: TOM.sucesso.text, fontWeight: 500, whiteSpace: 'nowrap', lineHeight: 1 }}>
                                       {fmtDt(appr.approvedAt, true)}
                                     </span>
                                   )}
                                   {!v.isApproved && !v.isRejected && !v.isNewVersion && !v.isAwaitingArte && (
-                                    <span style={{ fontSize: 11, color: '#57534e', fontWeight: 600, lineHeight: 1, textTransform: 'uppercase', letterSpacing: '0.03em' }}>Ag.</span>
+                                    <span style={{ fontSize: 11, color: T.apoio, fontWeight: 600, lineHeight: 1, textTransform: 'uppercase', letterSpacing: '0.03em' }}>Ag.</span>
                                   )}
-                                  {(v.isRejected || v.isAwaitingArte) && <span style={{ fontSize: 11, color: '#b91c1c', fontWeight: 700, lineHeight: 1 }}>✕</span>}
-                                  {v.isNewVersion && <span style={{ fontSize: 11, color: '#92400e', fontWeight: 700, lineHeight: 1 }}>↻</span>}
+                                  {(v.isRejected || v.isAwaitingArte) && <span style={{ fontSize: 11, color: TOM.perigo.text, fontWeight: 700, lineHeight: 1 }}>✕</span>}
+                                  {v.isNewVersion && <span style={{ fontSize: 11, color: TOM.alerta.text, fontWeight: 700, lineHeight: 1 }}>↻</span>}
                                 </div>
                               );
                             })}
@@ -3882,13 +3775,16 @@ export default function Atendimento() {
                   );
                 })}
                 {historyItems.length > histVisible && (
-                  <button
+                  <Botao
+                    variante="fantasma"
+                    tamanho={tamBotao}
+                    larguraCheia
                     onClick={() => setHistVisible(v => v + PAGE_SIZE)}
                     data-testid="button-load-more-history"
-                    style={{ marginTop: 8, padding: '12px 0', width: '100%', borderRadius: 12, border: '1px solid #e7e5e4', background: '#ffffff', color: '#c2410c', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                    style={{ borderRadius: 0, boxShadow: `inset 0 1px 0 ${N.n3}` }}
                   >
                     Carregar mais ({historyItems.length - histVisible} restantes)
-                  </button>
+                  </Botao>
                 )}
               </div>
             )}
@@ -3924,8 +3820,8 @@ export default function Atendimento() {
                     56x56 no corpo, com o número, a fração e a palavra 'parcial'
                     em três alturas — e a frase ao lado já dizia a mesma coisa
                     por extenso. */}
-                <div style={{ padding: '16px 20px', backgroundColor: '#fdfcfb', borderBottom: '1px solid #f1f0ef', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-                  <div style={{ width: 38, height: 38, borderRadius: 10, overflow: 'hidden', flexShrink: 0, backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ padding: '16px 20px', backgroundColor: T.bg, borderBottom: `1px solid ${N.n3}`, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 10, overflow: 'hidden', flexShrink: 0, backgroundColor: N.n2, border: `1px solid ${T.border}`, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {(di.approvalThumbUrl || di.finalPreviewUrl)
                       ? <>
                           <img
@@ -3940,17 +3836,17 @@ export default function Atendimento() {
                             }}
                           />
                           <div data-fallback="1" style={{ display: 'none', position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center' }}>
-                            <span style={{ fontSize: 12, fontWeight: 800, color: '#746e69', letterSpacing: '-0.01em' }}>{di.type?.slice(0,2).toUpperCase()}</span>
+                            <span style={{ fontSize: 12, fontWeight: 800, color: T.second, letterSpacing: '-0.01em' }}>{di.type?.slice(0,2).toUpperCase()}</span>
                           </div>
                         </>
-                      : <span style={{ fontSize: 12, fontWeight: 800, color: '#746e69', letterSpacing: '-0.01em' }}>{di.type?.slice(0,2).toUpperCase()}</span>}
+                      : <span style={{ fontSize: 12, fontWeight: 800, color: T.second, letterSpacing: '-0.01em' }}>{di.type?.slice(0,2).toUpperCase()}</span>}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                      <h2 title={di.type} style={{ fontSize: 15, fontWeight: 700, color: '#1c1917', margin: 0, letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'capitalize' }}>{di.type}</h2>
-                      <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 11, color: '#746e69', fontWeight: 700, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{di.displayId}</span>
+                      <h2 title={di.type} style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: 0, letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'capitalize' }}>{di.type}</h2>
+                      <span style={{ fontFamily: FONT.mono, fontSize: 11, color: T.second, fontWeight: 700, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{di.displayId}</span>
                     </div>
-                    <span title={ev?.name || undefined} style={{ display: 'block', fontSize: 12, color: '#746e69', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev?.name || '—'}</span>
+                    <span title={ev?.name || undefined} style={{ display: 'block', fontSize: 12, color: T.second, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev?.name || '—'}</span>
                   </div>
                   <span
                     data-testid="hist-contador-aprovacoes"
@@ -3958,12 +3854,12 @@ export default function Atendimento() {
                     style={{
                       flexShrink: 0, fontSize: 13, fontWeight: 700,
                       fontVariantNumeric: 'tabular-nums',
-                      color: allApp ? '#15803d' : '#57534e',
+                      color: allApp ? TOM.sucesso.text : T.apoio,
                     }}
                   >
                     {approvedCount}/{diSps.length}
                   </span>
-                  <button onClick={() => setHistDetailItem(null)} aria-label="Fechar" style={{ width: 36, height: 36, borderRadius: 9, backgroundColor: '#ffffff', border: '1px solid #e7e5e4', cursor: 'pointer', color: '#57534e', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <button onClick={() => setHistDetailItem(null)} aria-label="Fechar" style={{ width: 36, height: 36, borderRadius: 9, backgroundColor: T.surface, border: `1px solid ${T.border}`, cursor: 'pointer', color: T.apoio, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <X style={{ width: 15, height: 15 }} />
                   </button>
                 </div>
@@ -3977,46 +3873,46 @@ export default function Atendimento() {
                 <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', flex: '0 1 auto', minHeight: 0 }}>
                 <div style={{ maxHeight: 440, overflowY: 'auto', flex: '0 1 auto', minHeight: 0 }}>
                   {/* Resumo compacto no topo do body */}
-                  <div style={{ padding: '14px 24px 12px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: `1px solid ${allApp ? '#d1fae5' : '#f0ede8'}`, background: allApp ? '#f6fef9' : '#fff' }}>
+                  <div style={{ padding: '14px 24px 12px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: `1px solid ${allApp ? TOM.esmeralda.bg : N.n3}`, background: allApp ? TOM.sucesso.bg : T.surface }}>
                     {/* A pílula de 56x56 saiu: ela dizia "2", "/2" e "TODOS" em
                         três alturas, ao lado de uma frase que já dizia "Todos os
                         patrocinadores aprovaram". A fração ficou no cabeçalho. */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                        {allApp && <CheckCircle style={{ width: 14, height: 14, color: '#15803d', flexShrink: 0 }} />}
-                        <span style={{ fontSize: 13, fontWeight: 600, color: allApp ? '#15803d' : '#1c1917' }}>
+                        {allApp && <CheckCircle style={{ width: 14, height: 14, color: TOM.sucesso.text, flexShrink: 0 }} />}
+                        <span style={{ fontSize: 13, fontWeight: 600, color: allApp ? TOM.sucesso.text : T.text }}>
                           {allApp
                             ? (diSps.length === 1 ? 'Patrocinador aprovou' : 'Todos os patrocinadores aprovaram')
                             : `${approvedCount} de ${diSps.length} aprovaram`}
                         </span>
                       </div>
-                      {di.createdAt && <div style={{ fontSize: 11, color: '#746e69' }}>Criado em {fmtFull(di.createdAt)}</div>}
+                      {di.createdAt && <div style={{ fontSize: 11, color: T.second }}>Criado em {fmtFull(di.createdAt)}</div>}
                     </div>
                   </div>
                   {diSps.length === 0
-                    ? <div style={{ padding: '32px 24px', textAlign: 'center', color: '#746e69', fontSize: 13 }}>Nenhum patrocinador vinculado</div>
+                    ? <div style={{ padding: '32px 24px', textAlign: 'center', color: T.second, fontSize: 13 }}>Nenhum patrocinador vinculado</div>
                     : diSps.map((sp: any, si: number) => {
                         const appr = diApprovals.find(a => a.sponsorId === sp.id);
                         const v = approvalVisual(appr?.status);
                         const { isApproved, isNewVersion } = v;
                         return (
-                          <div key={sp.id} style={{ padding: '12px 24px', borderBottom: si < diSps.length - 1 ? '1px solid #f5f5f4' : 'none', display: 'flex', alignItems: 'center', gap: 12, borderLeft: sp.color ? `3px solid ${sp.color}` : 'none', paddingLeft: sp.color ? '24px' : '27px' }}>
+                          <div key={sp.id} style={{ padding: '12px 24px', borderBottom: si < diSps.length - 1 ? `1px solid ${N.n2}` : 'none', display: 'flex', alignItems: 'center', gap: 12, borderLeft: sp.color ? `3px solid ${sp.color}` : 'none', paddingLeft: sp.color ? '24px' : '27px' }}>
                             <div style={{ width: 10, height: 10, borderRadius: '50%', background: v.dot, flexShrink: 0, alignSelf: 'flex-start', marginTop: 3, boxShadow: `0 0 0 3px ${v.dot}33` }} />
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                                <span style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', textTransform: 'capitalize' }}>{sp.name}</span>
+                                <span style={{ fontSize: 13, fontWeight: 700, color: T.text, textTransform: 'capitalize' }}>{sp.name}</span>
                                 <span style={{ fontSize: 11, fontWeight: 600, color: v.text, background: v.bg, border: `1px solid ${v.border}`, borderRadius: 6, padding: '2px 8px', whiteSpace: 'nowrap' }}>{v.label}</span>
                               </div>
                               {isApproved && appr?.approvedAt && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                  <CheckCircle style={{ width: 12, height: 12, color: '#15803d', flexShrink: 0 }} />
-                                  <span style={{ fontSize: 11, color: '#57534e' }}>
+                                  <CheckCircle style={{ width: 12, height: 12, color: TOM.sucesso.text, flexShrink: 0 }} />
+                                  <span style={{ fontSize: 11, color: T.apoio }}>
                                     Aprovado em <strong style={{ fontWeight: 700 }}>{fmtFull(appr.approvedAt)}</strong>
-                                    {appr.approvedBy && <> por <strong style={{ fontWeight: 700, color: '#1c1917' }}>{appr.approvedBy}</strong></>}
+                                    {appr.approvedBy && <> por <strong style={{ fontWeight: 700, color: T.text }}>{appr.approvedBy}</strong></>}
                                   </span>
                                 </div>
                               )}
-                              {isApproved && !appr?.approvedAt && <span style={{ fontSize: 11, color: '#746e69' }}>Data não registrada</span>}
+                              {isApproved && !appr?.approvedAt && <span style={{ fontSize: 11, color: T.second }}>Data não registrada</span>}
                               {/* Gate pelos DADOS da reprovação, não pelo status: o
                                   servidor grava 'awaiting_arte' na reprovação (nunca
                                   'rejected'), então isRejected jamais ligava aqui e o
@@ -4025,22 +3921,22 @@ export default function Atendimento() {
                                 <>
                                   {appr?.rejectedAt && (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: appr.rejectionReason ? 6 : 0 }}>
-                                      <X style={{ width: 12, height: 12, color: '#ef4444', flexShrink: 0 }} />
-                                      <span style={{ fontSize: 11, color: '#57534e' }}>
+                                      <X style={{ width: 12, height: 12, color: TOM.perigo.dot, flexShrink: 0 }} />
+                                      <span style={{ fontSize: 11, color: T.apoio }}>
                                         Reprovado em <strong style={{ fontWeight: 700 }}>{fmtFull(appr.rejectedAt)}</strong>
-                                        {appr.rejectedBy && <> por <strong style={{ fontWeight: 700, color: '#1c1917' }}>{appr.rejectedBy}</strong></>}
+                                        {appr.rejectedBy && <> por <strong style={{ fontWeight: 700, color: T.text }}>{appr.rejectedBy}</strong></>}
                                       </span>
                                     </div>
                                   )}
                                   {appr?.rejectionReason && (
-                                    <div style={{ padding: '6px 10px', background: '#fef2f2', borderRadius: 6, border: '1px solid #fecaca' }}>
-                                      <span style={{ fontSize: 11, color: '#7f1d1d', lineHeight: 1.5 }}>"{appr.rejectionReason}"</span>
+                                    <div style={{ padding: '6px 10px', background: TOM.perigo.bg, borderRadius: 6, border: `1px solid ${TOM.perigo.border}` }}>
+                                      <span style={{ fontSize: 11, color: TOM.perigo.text, lineHeight: 1.5 }}>"{appr.rejectionReason}"</span>
                                     </div>
                                   )}
                                 </>
                               )}
-                              {isNewVersion && <span style={{ fontSize: 11, color: '#92400e' }}>Nova versão de arte solicitada</span>}
-                              {!appr && <span style={{ fontSize: 11, color: '#746e69' }}>Aguardando resposta do patrocinador</span>}
+                              {isNewVersion && <span style={{ fontSize: 11, color: TOM.alerta.text }}>Nova versão de arte solicitada</span>}
+                              {!appr && <span style={{ fontSize: 11, color: T.second }}>Aguardando resposta do patrocinador</span>}
                             </div>
                           </div>
                         );
@@ -4091,15 +3987,15 @@ export default function Atendimento() {
                     as duas setas e o fechar, o X saía da tela em 390px — o modal
                     ficava sem saída visível além do Esc. */}
                 <div style={{
-                  padding: isMobile ? '14px 16px' : '20px 24px', borderBottom: '1px solid #f1f0ef',
+                  padding: isMobile ? '14px 16px' : '20px 24px', borderBottom: `1px solid ${N.n3}`,
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                   flexWrap: isMobile ? 'wrap' : 'nowrap', gap: isMobile ? 10 : 16,
-                  backgroundColor: '#fafaf9', flexShrink: 0,
+                  backgroundColor: T.bg, flexShrink: 0,
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 16, minWidth: 0, flex: '1 1 auto' }}>
                     <div style={{
                       width: 38, height: 38, borderRadius: 10, overflow: 'hidden', flexShrink: 0,
-                      backgroundColor: '#1c1917', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      backgroundColor: T.text, display: 'flex', alignItems: 'center', justifyContent: 'center',
                       position: 'relative',
                     }}>
                       {thumbUrl
@@ -4118,10 +4014,10 @@ export default function Atendimento() {
                               }}
                             />
                             <div data-fallback="1" style={{ display: 'none', position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center' }}>
-                              <FileText style={{ width: 20, height: 20, color: '#ffffff' }} />
+                              <FileText style={{ width: 20, height: 20, color: T.surface }} />
                             </div>
                           </>
-                        : <FileText style={{ width: 20, height: 20, color: '#ffffff' }} />}
+                        : <FileText style={{ width: 20, height: 20, color: T.surface }} />}
                     </div>
                     <div style={{ minWidth: 0 }}>
                       {/* O TÍTULO diz o que é a peça.
@@ -4132,17 +4028,17 @@ export default function Atendimento() {
                           com o código ao lado em mono para o olho achar o número
                           sem ler a frase. */}
                       <h2 title={selectedItem.type || undefined} style={{
-                        fontFamily: "'Space Grotesk', sans-serif",
+                        fontFamily: FONT.display,
                         fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em',
-                        color: '#1c1917', margin: 0, lineHeight: 1.2,
+                        color: T.text, margin: 0, lineHeight: 1.2,
                         display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0,
                       }}>
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {selectedItem.type || 'Peça'}
                         </span>
                         <span style={{
-                          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 13, fontWeight: 700,
-                          color: '#746e69', fontVariantNumeric: 'tabular-nums', flexShrink: 0,
+                          fontFamily: FONT.mono, fontSize: 13, fontWeight: 700,
+                          color: T.second, fontVariantNumeric: 'tabular-nums', flexShrink: 0,
                         }}>
                           {selectedItem.displayId}
                         </span>
@@ -4152,7 +4048,7 @@ export default function Atendimento() {
                           linha de contexto gritava tanto quanto o título, e o
                           nome do evento, que pode ser longo, não quebrava. */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap', rowGap: 2 }}>
-                        <span title={ev?.name || undefined} style={{ fontSize: 12, fontWeight: 600, color: '#746e69', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
+                        <span title={ev?.name || undefined} style={{ fontSize: 12, fontWeight: 600, color: T.second, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
                           {ev?.name || 'Sem evento'}
                         </span>
                         {(() => {
@@ -4173,10 +4069,10 @@ export default function Atendimento() {
                           const venceu = p.diff < 0;
                           return (
                             <>
-                              <span aria-hidden="true" style={{ width: 4, height: 4, borderRadius: '50%', backgroundColor: '#d6d3d1' }} />
+                              <span aria-hidden="true" style={{ width: 4, height: 4, borderRadius: '50%', backgroundColor: T.bdark }} />
                               <span style={{
                                 fontSize: 12, fontWeight: venceu ? 700 : 600,
-                                color: venceu ? '#b91c1c' : '#746e69',
+                                color: venceu ? TOM.perigo.text : T.second,
                                 fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
                               }}>
                                 Aprovação até {format(toUTCDisplayDate(limite.toISOString()), "dd/MM HH:mm")}
@@ -4198,19 +4094,19 @@ export default function Atendimento() {
                     // 40 sem borda ao lado de dois quadrados de 40 com borda —
                     // três controles vizinhos, três desenhos.
                     const navBtn = (enabled: boolean): React.CSSProperties => ({
-                      width: isMobile ? 44 : 36, height: isMobile ? 44 : 36, borderRadius: 9,
-                      border: '1px solid #e7e5e4',
-                      backgroundColor: '#ffffff',
+                      width: alvo(36, dedo), height: alvo(36, dedo), borderRadius: R.md,
+                      border: `1px solid ${T.border}`,
+                      backgroundColor: T.surface,
                       cursor: enabled ? 'pointer' : 'not-allowed',
                       opacity: enabled ? 1 : 0.4,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: '#57534e',
+                      color: T.apoio,
                     });
                     return (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto', flexShrink: 0 }}>
                         {qIdx >= 0 && reviewQueue.length > 1 && (
                           <>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: '#746e69', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: T.second, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
                               Peça {qIdx + 1} de {reviewQueue.length}
                             </span>
                             {/* aria-label: só com `title` o leitor de tela lia
@@ -4262,16 +4158,16 @@ export default function Atendimento() {
                     <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 24 }}>
                         {/* Preview de imagem */}
                         <div style={{
-                          aspectRatio: '16/9', backgroundColor: '#f5f5f4',
+                          aspectRatio: '16/9', backgroundColor: N.n2,
                           borderRadius: 12, overflow: 'hidden',
-                          border: '1px solid #e7e5e4', position: 'relative',
+                          border: `1px solid ${T.border}`, position: 'relative',
                         }}>
                           {thumbUrl ? (
                             <FilePreview url={thumbUrl} linkUrl={finalUrl || thumbUrl} objectFit="contain" />
                           ) : (
                             <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                              <Package style={{ width: 40, height: 40, color: '#a8a29e' }} />
-                              <p style={{ fontSize: 13, color: '#746e69', margin: 0 }}>Sem thumb de aprovação</p>
+                              <Package style={{ width: 40, height: 40, color: T.muted }} />
+                              <p style={{ fontSize: 13, color: T.second, margin: 0 }}>Sem thumb de aprovação</p>
                             </div>
                           )}
                         </div>
@@ -4286,7 +4182,7 @@ export default function Atendimento() {
                       display: 'flex', flexDirection: 'column', gap: 24,
                     }}>
                       <div>
-                        <h4 style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 16px' }}>
+                        <h4 style={{ fontSize: 11, fontWeight: 700, color: T.second, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 16px' }}>
                           Especificações
                         </h4>
                         {/* GRADE de quatro células, não quatro caixas empilhadas.
@@ -4298,7 +4194,7 @@ export default function Atendimento() {
                             foram. */}
                         <div style={{
                           display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0,1fr))',
-                          backgroundColor: '#ffffff', border: '1px solid #f1f0ef',
+                          backgroundColor: T.surface, border: `1px solid ${N.n3}`,
                           borderRadius: 8, overflow: 'hidden',
                         }}>
                           {[
@@ -4318,12 +4214,12 @@ export default function Atendimento() {
                               // Hairline de grade: a borda de baixo some na
                               // última linha e a da direita na última coluna,
                               // senão a superfície ganha uma moldura dupla.
-                              borderBottom: i < 2 ? '1px solid #f1f0ef' : undefined,
-                              borderRight: !isMobile && i % 2 === 0 ? '1px solid #f1f0ef' : undefined,
+                              borderBottom: i < 2 ? `1px solid ${N.n3}` : undefined,
+                              borderRight: !isMobile && i % 2 === 0 ? `1px solid ${N.n3}` : undefined,
                               minWidth: 0,
                             }}>
-                              <p style={{ fontSize: 10, color: '#746e69', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 4px' }}>{label}</p>
-                              <p title={String(value)} style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</p>
+                              <p style={{ fontSize: 10, color: T.second, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 4px' }}>{label}</p>
+                              <p title={String(value)} style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</p>
                             </div>
                           ))}
                         </div>
@@ -4331,7 +4227,7 @@ export default function Atendimento() {
 
                       {/* Links para arquivos */}
                       <div>
-                        <h4 style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 12px' }}>
+                        <h4 style={{ fontSize: 11, fontWeight: 700, color: T.second, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 12px' }}>
                           Arquivos
                         </h4>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -4345,7 +4241,7 @@ export default function Atendimento() {
                                 padding: '10px 12px', borderRadius: 8,
                                 backgroundColor: 'rgba(253,118,26,0.05)',
                                 border: '1px solid rgba(253,118,26,0.15)',
-                                color: '#9d4300', textDecoration: 'none',
+                                color: T.accentText, textDecoration: 'none',
                                 fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
                               }}
                             >
@@ -4363,7 +4259,7 @@ export default function Atendimento() {
                                 padding: '10px 12px', borderRadius: 8,
                                 backgroundColor: 'rgba(0,99,152,0.05)',
                                 border: '1px solid rgba(0,99,152,0.15)',
-                                color: '#006398', textDecoration: 'none',
+                                color: TOM.ceu.text, textDecoration: 'none',
                                 fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
                               }}
                             >
@@ -4372,7 +4268,7 @@ export default function Atendimento() {
                             </a>
                           )}
                           {!thumbUrl && !finalUrl && (
-                            <p style={{ fontSize: 13, color: '#746e69' }}>Nenhum arquivo disponível</p>
+                            <p style={{ fontSize: 13, color: T.second }}>Nenhum arquivo disponível</p>
                           )}
                         </div>
                       </div>
@@ -4382,25 +4278,25 @@ export default function Atendimento() {
                         coluna de leitura e rola junto com o resto. */}
                     <div style={{
                       padding: '0 24px 24px',
-                      borderTop: '1px solid #f1f0ef', paddingTop: 24,
+                      borderTop: `1px solid ${N.n3}`, paddingTop: 24,
                     }}>
-                      <h4 style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 24px' }}>
+                      <h4 style={{ fontSize: 11, fontWeight: 700, color: T.second, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 24px' }}>
                         Histórico de Alterações
                       </h4>
 
                       {itemLogs.length === 0 ? (
-                        <p style={{ fontSize: 13, color: '#746e69' }}>Sem registros de histórico</p>
+                        <p style={{ fontSize: 13, color: T.second }}>Sem registros de histórico</p>
                       ) : (
                         <div style={{ position: 'relative' }}>
                           {/* Linha vertical */}
                           <div style={{
                             position: 'absolute', left: 10, top: 8, bottom: 8,
-                            width: 1, backgroundColor: '#e7e5e4',
+                            width: 1, backgroundColor: T.border,
                           }} />
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                             {itemLogs.slice(0, 10).map((log, i) => {
                               // ACTION_CONFIG é const de módulo (topo do arquivo).
-                              const cfg = ACTION_CONFIG[log.action] ?? { label: log.action?.replace(/_/g, ' ') ?? 'Ação', bg: '#e7e5e4', iconColor: '#a8a29e', icon: Clock };
+                              const cfg = ACTION_CONFIG[log.action] ?? { label: log.action?.replace(/_/g, ' ') ?? 'Ação', bg: T.border, iconColor: T.muted, icon: Clock };
                               const IconComp = cfg.icon;
                               const isSystemLog = ['updated', 'status_changed', 'file_uploaded', 'thumb_uploaded'].includes(log.action);
                               return (
@@ -4419,19 +4315,19 @@ export default function Atendimento() {
                                   }}>
                                     <IconComp style={{ width: 10, height: 10, color: cfg.iconColor }} />
                                   </div>
-                                  <p style={{ fontSize: 12, fontWeight: isSystemLog ? 600 : 700, color: isSystemLog ? '#57534e' : '#1c1917', margin: 0 }}>
+                                  <p style={{ fontSize: 12, fontWeight: isSystemLog ? 600 : 700, color: isSystemLog ? T.apoio : T.text, margin: 0 }}>
                                     {cfg.label}
                                   </p>
-                                  <p style={{ fontSize: 11, color: '#746e69', margin: '2px 0 0' }}>
-                                    {log.userName && <><span style={{ fontWeight: 600, color: '#746e69' }}>{log.userName}</span> · </>}
+                                  <p style={{ fontSize: 11, color: T.second, margin: '2px 0 0' }}>
+                                    {log.userName && <><span style={{ fontWeight: 600, color: T.second }}>{log.userName}</span> · </>}
                                     {format(new Date(log.createdAt), "dd MMM, yyyy 'às' HH:mm", { locale: ptBR })}
                                   </p>
                                   {log.details && (
                                     <p style={{
                                       fontSize: 11, margin: '6px 0 0',
-                                      backgroundColor: '#ffffff', border: `1px solid ${cfg.bg}`,
+                                      backgroundColor: T.surface, border: `1px solid ${cfg.bg}`,
                                       padding: '6px 10px', borderRadius: 6,
-                                      color: '#57534e', fontStyle: 'italic',
+                                      color: T.apoio, fontStyle: 'italic',
                                     }}>
                                       "{typeof log.details === 'string' ? log.details : JSON.stringify(log.details)}"
                                     </p>
@@ -4447,14 +4343,14 @@ export default function Atendimento() {
 
                   {/* ─── DIREITA: o que se DECIDE ──────────────────────── */}
                   <div style={{
-                    borderLeft: "1px solid #f1f0ef",
+                    borderLeft: `1px solid ${N.n3}`,
                     backgroundColor: "rgba(250,250,249,0.5)",
                     display: "flex", flexDirection: "column", minWidth: 0,
                   }}>
                     <div style={{ padding: 24, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
                         {/* Aprovações por Patrocinador */}
                         <div>
-                          <h4 style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 16px' }}>
+                          <h4 style={{ fontSize: 11, fontWeight: 700, color: T.second, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 16px' }}>
                             Decisão
                           </h4>
 
@@ -4462,7 +4358,7 @@ export default function Atendimento() {
                               esmaecidos e o porquê morava no `title` de cada um —
                               no celular, em lugar nenhum. */}
                           {!canDecide && (
-                            <p data-testid="decisao-modo-consulta" style={{ margin: '0 0 14px', padding: '10px 14px', borderRadius: 8, backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', fontSize: 12.5, color: '#44403c', lineHeight: 1.5 }}>
+                            <p data-testid="decisao-modo-consulta" style={{ margin: '0 0 14px', padding: '10px 14px', borderRadius: 8, backgroundColor: N.n2, border: `1px solid ${T.border}`, fontSize: 12.5, color: T.strong, lineHeight: 1.5 }}>
                               <b style={{ fontWeight: 700 }}>Modo consulta.</b> Aprovar e reprovar é do Atendimento e dos administradores — aqui você acompanha quem já decidiu.
                             </p>
                           )}
@@ -4471,10 +4367,10 @@ export default function Atendimento() {
                             <div style={{
                               display: 'flex', alignItems: 'center', gap: 10,
                               padding: '10px 14px', borderRadius: 8, marginBottom: 16,
-                              backgroundColor: '#fafaf9', border: '1px solid #e7e5e4',
+                              backgroundColor: T.bg, border: `1px solid ${T.border}`,
                             }}>
-                              <RotateCcw style={{ width: 14, height: 14, color: '#746e69', flexShrink: 0 }} />
-                              <p style={{ fontSize: 13, color: '#57534e', margin: 0, fontWeight: 500 }}>
+                              <RotateCcw style={{ width: 14, height: 14, color: T.second, flexShrink: 0 }} />
+                              <p style={{ fontSize: 13, color: T.apoio, margin: 0, fontWeight: 500 }}>
                                 {/* "E agora?" respondido (rodada 4): a peça não pede
                                     nada de você até a nova arte chegar. */}
                                 Nada a decidir nesta peça agora — a Arte está preparando a nova versão e você é avisado quando ela chegar.
@@ -4485,10 +4381,10 @@ export default function Atendimento() {
                             <div style={{
                               display: 'flex', alignItems: 'center', gap: 10,
                               padding: '10px 14px', borderRadius: 8, marginBottom: 16,
-                              backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0',
+                              backgroundColor: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}`,
                             }}>
-                              <CheckCircle style={{ width: 14, height: 14, color: '#15803d', flexShrink: 0 }} />
-                              <p style={{ fontSize: 13, color: '#15803d', margin: 0, fontWeight: 600 }}>
+                              <CheckCircle style={{ width: 14, height: 14, color: TOM.sucesso.text, flexShrink: 0 }} />
+                              <p style={{ fontSize: 13, color: TOM.sucesso.text, margin: 0, fontWeight: 600 }}>
                                 Todos os patrocinadores aprovaram este ativo.
                               </p>
                             </div>
@@ -4496,10 +4392,10 @@ export default function Atendimento() {
 
                           {loadingSponsorApprovals ? (
                             <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
-                              <Loader2 style={{ width: 20, height: 20, color: '#a8a29e' }} className="animate-spin" />
+                              <Loader2 style={{ width: 20, height: 20, color: T.muted }} className="animate-spin" />
                             </div>
                           ) : dialogSponsors.length === 0 ? (
-                            <p style={{ fontSize: 13, color: '#746e69' }}>Nenhum patrocinador vinculado</p>
+                            <p style={{ fontSize: 13, color: T.second }}>Nenhum patrocinador vinculado</p>
                           ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                               {dialogSponsors.map((sponsor: any) => {
@@ -4524,8 +4420,8 @@ export default function Atendimento() {
                                     style={{
                                       padding: '14px 16px', borderRadius: 12,
                                       border: '1.5px solid',
-                                      borderColor: isApproved ? '#86efac' : isRejected ? '#fecaca' : '#e7e5e4',
-                                      backgroundColor: isApproved ? '#f0fdf4' : isRejected ? '#fef2f2' : '#fafaf9',
+                                      borderColor: isApproved ? TOM.sucesso.border : isRejected ? TOM.perigo.border : T.border,
+                                      backgroundColor: isApproved ? TOM.sucesso.bg : isRejected ? TOM.perigo.bg : T.bg,
                                     }}
                                   >
                                     {/* flexWrap (31/08, print 'cortando ainda'): com 3 botões
@@ -4535,18 +4431,18 @@ export default function Atendimento() {
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                         <div style={{
                                           width: 32, height: 32, borderRadius: '50%',
-                                          backgroundColor: isApproved ? '#86efac' : isRejected ? '#fecaca' : '#fff7ed',
+                                          backgroundColor: isApproved ? TOM.sucesso.border : isRejected ? TOM.perigo.border : TOM.laranja.bg,
                                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                          border: isPending ? '1.5px solid #fed7aa' : 'none',
+                                          border: isPending ? `1.5px solid ${TOM.laranja.border}` : 'none',
                                         }}>
                                           {isApproved
-                                            ? <CheckCircle style={{ width: 14, height: 14, color: '#15803d' }} />
+                                            ? <CheckCircle style={{ width: 14, height: 14, color: TOM.sucesso.text }} />
                                             : isRejected
-                                            ? <XCircle style={{ width: 14, height: 14, color: '#dc2626' }} />
-                                            : <Clock style={{ width: 14, height: 14, color: '#f97316' }} />}
+                                            ? <XCircle style={{ width: 14, height: 14, color: TOM.perigo.text }} />
+                                            : <Clock style={{ width: 14, height: 14, color: T.accent }} />}
                                         </div>
                                         <div>
-                                          <p style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', margin: 0 }}>{sponsor.name}</p>
+                                          <p style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: 0 }}>{sponsor.name}</p>
                                           {/* Cores de `approvalVisual`, a fonte da tela:
                                               "Nova versão" era AZUL só aqui (#0369a1)
                                               e âmbar em todo o resto — o mesmo estado
@@ -4554,7 +4450,7 @@ export default function Atendimento() {
                                               #dc2626 fica abaixo de AA sobre o rosa. */}
                                           <p style={{
                                             fontSize: 12, margin: '2px 0 0', fontWeight: 700,
-                                            color: isApproved ? '#15803d' : isRejected ? '#b91c1c' : isNewVersion ? '#92400e' : '#b45309',
+                                            color: isApproved ? TOM.sucesso.text : isRejected ? TOM.perigo.text : isNewVersion ? TOM.alerta.text : TOM.alerta.text,
                                           }}>
                                             {isApproved ? 'Aprovado' : isRejected ? 'Reprovado' : isNewVersion ? 'Nova versão para decidir' : 'Aguardando decisão'}
                                           </p>
@@ -4570,11 +4466,11 @@ export default function Atendimento() {
                                             title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : `Abre o campo do motivo. A Arte refaz a arte por causa de ${sponsor.name}; os patrocinadores com aprovação estrita também esperam a nova versão, e os demais pendentes seguem podendo aprovar.`}
                                             style={{
                                               padding: '8px 16px', borderRadius: 8,
-                                              backgroundColor: '#fef2f2', border: '1px solid #fecaca',
-                                              color: '#b91c1c', fontSize: 13, fontWeight: 700,
+                                              backgroundColor: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}`,
+                                              color: TOM.perigo.text, fontSize: 13, fontWeight: 700,
                                               cursor: canDecide ? 'pointer' : 'not-allowed', transition: 'all 0.15s',
                                               opacity: canDecide && !pecaRecemAberta ? 1 : 0.5,
-                                              minHeight: isMobile ? 44 : 36,
+                                              minHeight: alvo(36, dedo),
                                               width: isMobile ? '100%' : undefined,
                                             }}
                                             aria-label={`Reprovar para ${sponsor.name}`}
@@ -4588,12 +4484,12 @@ export default function Atendimento() {
                                             data-testid={`button-approve-sponsor-${sponsor.id}`}
                                             style={{
                                               padding: '8px 16px', borderRadius: 8,
-                                              backgroundColor: '#f0fdf4', border: '1px solid #86efac',
-                                              color: '#15803d', fontSize: 13, fontWeight: 700,
+                                              backgroundColor: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}`,
+                                              color: TOM.sucesso.text, fontSize: 13, fontWeight: 700,
                                               cursor: canDecide ? 'pointer' : 'not-allowed', transition: 'all 0.15s',
                                               opacity: canDecide && !pecaRecemAberta ? 1 : 0.5,
                                               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                                              minHeight: isMobile ? 44 : 36,
+                                              minHeight: alvo(36, dedo),
                                               width: isMobile ? '100%' : undefined,
                                             }}
                                             aria-label={`Aprovar para ${sponsor.name}`}
@@ -4607,22 +4503,17 @@ export default function Atendimento() {
                                               peça — sai, e a pendência dele deixa de contar.
                                               Se era o único que faltava, a peça segue. */}
                                           {user?.role === "admin" && (
-                                            <button
+                                            <Botao
+                                              variante="secundario"
+                                              tamanho={tamBotao}
+                                              larguraCheia={isMobile}
                                               onClick={() => setDesvincularAlvo({ itemId: selectedItem.id, sponsorId: sponsor.id, sponsorName: sponsor.name || "Patrocinador" })}
                                               disabled={desvincularSponsorMutation.isPending}
                                               title="Desvincular este patrocinador da peça — a aprovação pendente dele deixa de contar (admin)"
                                               data-testid={`button-desvincular-sponsor-${sponsor.id}`}
-                                              style={{
-                                                padding: '8px 12px', borderRadius: 8,
-                                                backgroundColor: '#ffffff', border: '1px solid #e7e5e4',
-                                                color: '#57534e', fontSize: 13, fontWeight: 700,
-                                                cursor: 'pointer', transition: 'all 0.15s',
-                                                minHeight: 36,
-                                                width: isMobile ? '100%' : undefined,
-                                              }}
                                             >
                                               Desvincular
-                                            </button>
+                                            </Botao>
                                           )}
                                         </div>
                                       )}
@@ -4631,26 +4522,17 @@ export default function Atendimento() {
                                           aguardar decisão. Se a peça já estava "aprovada por
                                           todos", ela volta para a aprovação e a Arte é avisada. */}
                                       {!isPending && !isRejectingThis && podeRevogar && (
-                                        <button
+                                        <Botao
+                                          variante="secundario"
+                                          tamanho={tamBotao}
+                                          icone={Undo2}
+                                          carregando={revertApprovalMutation.isPending}
                                           onClick={() => revertApprovalMutation.mutate({ itemId: selectedItem.id, sponsorId: sponsor.id })}
-                                          disabled={revertApprovalMutation.isPending}
                                           title={`${isApproved ? 'Revogar a aprovação' : 'Reverter a reprovação'} — volta a aguardar decisão${selectedItem.status === 'sponsor_approved' ? '; a peça volta para a aprovação e a Arte é avisada' : ''}`}
                                           data-testid={`button-revert-approval-${sponsor.id}`}
-                                          style={{
-                                            display: 'flex', alignItems: 'center', gap: 6,
-                                            padding: '8px 14px', borderRadius: 8,
-                                            backgroundColor: '#fff', border: '1px solid #e7e5e4',
-                                            color: '#746e69', fontSize: 13, fontWeight: 700,
-                                            cursor: revertApprovalMutation.isPending ? 'default' : 'pointer',
-                                            opacity: revertApprovalMutation.isPending ? 0.5 : 1,
-                                            minHeight: 36, transition: 'all 0.15s',
-                                          }}
                                         >
-                                          {revertApprovalMutation.isPending
-                                            ? <Loader2 style={{ width: 12, height: 12 }} className="animate-spin" />
-                                            : <Undo2 style={{ width: 12, height: 12 }} />}
                                           {isApproved ? 'Revogar' : 'Reverter'}
-                                        </button>
+                                        </Botao>
                                       )}
                                     </div>
 
@@ -4660,16 +4542,16 @@ export default function Atendimento() {
                                         Largura total, fora do cabeçalho flex (a 1ª versão
                                         nasceu dentro dele e virava uma coluna espremida). */}
                                     {v.isAwaitingArte && (
-                                      <div data-testid={`aviso-refazendo-${sponsor.id}`} style={{ marginTop: 10, padding: '10px 12px', background: '#fffbeb', border: '1px solid #fde68a', borderLeft: '3px solid #f59e0b', borderRadius: 8, fontSize: 12.5, color: '#92400e', lineHeight: 1.55 }}>
+                                      <div data-testid={`aviso-refazendo-${sponsor.id}`} style={{ marginTop: 10, padding: '10px 12px', background: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderLeft: `3px solid ${TOM.alerta.dot}`, borderRadius: 8, fontSize: 12.5, color: TOM.alerta.text, lineHeight: 1.55 }}>
                                         A <strong>Arte está refazendo uma nova versão</strong> por causa da reprovação de <strong>{sponsor.name}</strong>{approval?.rejectionReason ? <>: <em>“{approval.rejectionReason}”</em></> : null}. Ele só volta a decidir quando a nova arte chegar — os demais patrocinadores seguem aprovando normalmente.
                                       </div>
                                     )}
                                     {/* Motivo de reprovação existente (o aviso acima já o
                                         cita quando a linha está com a Arte) */}
                                     {isRejected && !v.isAwaitingArte && approval?.rejectionReason && (
-                                      <div style={{ marginTop: 10, padding: '10px 12px', backgroundColor: '#fff', borderRadius: 8, border: '1px solid #fecaca', borderLeft: '3px solid #dc2626' }}>
-                                        <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#b91c1c', margin: '0 0 4px' }}>Motivo</p>
-                                        <p style={{ fontSize: 13, fontStyle: 'italic', color: '#57534e', margin: 0, lineHeight: 1.5 }}>
+                                      <div style={{ marginTop: 10, padding: '10px 12px', backgroundColor: T.surface, borderRadius: 8, border: `1px solid ${TOM.perigo.border}`, borderLeft: `3px solid ${TOM.perigo.text}` }}>
+                                        <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: TOM.perigo.text, margin: '0 0 4px' }}>Motivo</p>
+                                        <p style={{ fontSize: 13, fontStyle: 'italic', color: T.apoio, margin: 0, lineHeight: 1.5 }}>
                                           "<TextoComLinks texto={approval.rejectionReason} />"
                                         </p>
                                       </div>
@@ -4680,15 +4562,15 @@ export default function Atendimento() {
                                       <div style={{ marginTop: 12 }}>
                                         {/* Label */}
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 }}>
-                                          <div style={{ width: 2, height: 12, borderRadius: 999, backgroundColor: '#dc2626', flexShrink: 0 }} />
-                                          <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#dc2626' }}>Motivo da reprovação</span>
-                                          <span style={{ fontSize: 11, color: '#b91c1c', fontWeight: 700, lineHeight: 1 }}>*</span>
+                                          <div style={{ width: 2, height: 12, borderRadius: 999, backgroundColor: TOM.perigo.text, flexShrink: 0 }} />
+                                          <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: TOM.perigo.text }}>Motivo da reprovação</span>
+                                          <span style={{ fontSize: 11, color: TOM.perigo.text, fontWeight: 700, lineHeight: 1 }}>*</span>
                                         </div>
                                         {/* O EFEITO, antes de escrever (rodada 4): a dúvida
                                             "reprovar trava a peça inteira?" segurava o
                                             clique. Não trava — só esta marca espera a
                                             nova arte. */}
-                                        <p style={{ margin: '0 0 7px', fontSize: 12, color: '#57534e', lineHeight: 1.45 }}>
+                                        <p style={{ margin: '0 0 7px', fontSize: 12, color: T.apoio, lineHeight: 1.45 }}>
                                           A Arte recebe este motivo e refaz a arte. {sponsor.name} e os patrocinadores com aprovação estrita (que perdem a aprovação já dada) esperam a nova versão; os demais pendentes seguem podendo aprovar.
                                         </p>
 
@@ -4712,15 +4594,15 @@ export default function Atendimento() {
                                           data-testid={`textarea-reject-reason-${sponsor.id}`}
                                           style={{
                                             width: '100%', boxSizing: 'border-box',
-                                            padding: '10px 12px', fontSize: 13,
-                                            fontFamily: 'inherit', color: '#1c1917',
-                                            backgroundColor: '#fff',
-                                            border: `1.5px solid ${rejectionReason.trim() ? '#dc2626' : '#e7e5e4'}`,
+                                            padding: '10px 12px', fontSize: isMobile ? FS.lead : FS.body,
+                                            fontFamily: 'inherit', color: T.text,
+                                            backgroundColor: T.surface,
+                                            border: `1.5px solid ${rejectionReason.trim() ? TOM.perigo.text : T.border}`,
                                             borderRadius: 8, resize: 'none', lineHeight: 1.5,
                                             transition: 'border-color 0.15s, box-shadow 0.15s',
                                           }}
-                                          onFocus={e => { e.currentTarget.style.borderColor = '#dc2626'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(220,38,38,0.08)'; }}
-                                          onBlur={e => { e.currentTarget.style.borderColor = rejectionReason.trim() ? '#dc2626' : '#e7e5e4'; e.currentTarget.style.boxShadow = 'none'; }}
+                                          onFocus={e => { e.currentTarget.style.borderColor = TOM.perigo.text; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(220,38,38,0.08)'; }}
+                                          onBlur={e => { e.currentTarget.style.borderColor = rejectionReason.trim() ? TOM.perigo.text : T.border; e.currentTarget.style.boxShadow = 'none'; }}
                                           aria-label={`Motivo da reprovação de ${sponsor.name}`}
                                           aria-required="true"
                                           aria-describedby={motivoCurto(rejectionReason) ? `falta-motivo-${sponsor.id}` : undefined}
@@ -4729,59 +4611,43 @@ export default function Atendimento() {
                                             (hover, e só no desktop). Dizer quanto falta, à vista,
                                             é o mesmo que o "Devolver" da Arte já faz. */}
                                         {motivoCurto(rejectionReason) ? (
-                                          <p id={`falta-motivo-${sponsor.id}`} style={{ margin: '5px 0 0', fontSize: 11.5, color: '#746e69' }}>
+                                          <p id={`falta-motivo-${sponsor.id}`} style={{ margin: '5px 0 0', fontSize: 11.5, color: T.second }}>
                                             {rejectionReason.trim()
                                               ? `Faltam ${Math.max(0, MOTIVO_MIN - rejectionReason.trim().replace(/\s+/g, " ").length)} caracteres — a Arte precisa saber o que refazer.`
                                               : `Mínimo de ${MOTIVO_MIN} caracteres — a Arte precisa saber o que refazer.`}
                                           </p>
                                         ) : (
-                                          <p style={{ margin: '5px 0 0', fontSize: 11.5, color: '#57534e' }}>
+                                          <p style={{ margin: '5px 0 0', fontSize: 11.5, color: T.apoio }}>
                                             Pronto. <kbd style={KBD}>Ctrl</kbd>+<kbd style={KBD}>Enter</kbd> confirma.
                                           </p>
                                         )}
 
                                         {/* Botões */}
                                         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                                          <button
+                                          <Botao
+                                            variante="secundario"
+                                            tamanho={tamBotao}
                                             onClick={() => { setRejectingSponsorId(null); setRejectionReason(""); }}
-                                            style={{
-                                              flex: 1, height: isMobile ? 44 : 36, borderRadius: 8,
-                                              background: '#fff', border: '1px solid #e7e5e4',
-                                              color: '#57534e', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                                              transition: 'background 0.12s',
-                                            }}
-                                            onMouseEnter={e => { e.currentTarget.style.background = '#f5f5f4'; }}
-                                            onMouseLeave={e => { e.currentTarget.style.background = '#fff'; }}
+                                            style={{ flex: 1 }}
                                           >
                                             Cancelar
-                                          </button>
-                                          <button
+                                          </Botao>
+                                          {/* Travado pela MESMA régua do Ctrl+Enter
+                                              (motivoCurto); o quanto falta está escrito
+                                              logo acima do botão. */}
+                                          <Botao
+                                            variante="perigo"
+                                            tamanho={tamBotao}
+                                            icone={XCircle}
+                                            carregando={individualRejectMutation.isPending}
                                             onClick={() => individualRejectMutation.mutate({ itemId: selectedItem.id, sponsorId: sponsor.id, reason: rejectionReason })}
-                                            disabled={individualRejectMutation.isPending || motivoCurto(rejectionReason)}
+                                            disabled={motivoCurto(rejectionReason)}
                                             title={motivoCurto(rejectionReason) ? `Explique em pelo menos ${MOTIVO_MIN} caracteres — a Arte precisa saber o que refazer.` : undefined}
                                             data-testid={`button-confirm-reject-${sponsor.id}`}
-                                            style={{
-                                              flex: 2, height: isMobile ? 44 : 36, borderRadius: 8, border: 'none',
-                                              // A aparência segue a MESMA régua do `disabled`
-                                              // (motivoCurto). Olhava só para "vazio": com 1 a 9
-                                              // caracteres o botão ficava vermelho, parecia pronto
-                                              // e não respondia ao clique.
-                                              backgroundColor: motivoCurto(rejectionReason) ? '#e7e5e4' : '#dc2626',
-                                              color: motivoCurto(rejectionReason) ? '#57534e' : '#fff',
-                                              fontSize: 13, fontWeight: 800,
-                                              cursor: motivoCurto(rejectionReason) ? 'not-allowed' : 'pointer',
-                                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                                              transition: 'background-color 0.15s, box-shadow 0.15s',
-                                              boxShadow: motivoCurto(rejectionReason) ? 'none' : '0 2px 8px rgba(220,38,38,0.25)',
-                                            }}
-                                            onMouseEnter={e => { if (!motivoCurto(rejectionReason)) e.currentTarget.style.backgroundColor = '#b91c1c'; }}
-                                            onMouseLeave={e => { if (!motivoCurto(rejectionReason)) e.currentTarget.style.backgroundColor = '#dc2626'; }}
+                                            style={{ flex: 2 }}
                                           >
-                                            {individualRejectMutation.isPending
-                                              ? <><Loader2 style={{ width: 13, height: 13 }} className="animate-spin" />Registrando…</>
-                                              : <><XCircle style={{ width: 13, height: 13 }} />Reprovar e devolver à Arte</>
-                                            }
-                                          </button>
+                                            {individualRejectMutation.isPending ? 'Registrando…' : 'Reprovar e devolver à Arte'}
+                                          </Botao>
                                         </div>
                                       </div>
                                     )}
@@ -4816,20 +4682,20 @@ export default function Atendimento() {
                               ...doCatalogo.map((s: any) => ({ ...s, foraDoEvento: true })),
                             ];
                             return (
-                              <div style={{ marginTop: 14, borderTop: "1px dashed #e7e5e4", paddingTop: 12 }}>
+                              <div style={{ marginTop: 14, borderTop: `1px dashed ${T.border}`, paddingTop: 12 }}>
                                 <button
                                   type="button"
                                   onClick={() => setAddPatrocinadorAberto(v => !v)}
                                   aria-expanded={addPatrocinadorAberto}
                                   data-testid="button-add-patrocinador"
-                                  style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "none", border: "none", padding: 0, fontSize: 12, fontWeight: 700, color: "#78716c", cursor: "pointer" }}
+                                  style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "none", border: "none", padding: 0, fontSize: 12, fontWeight: 700, color: T.second, cursor: "pointer" }}
                                 >
                                   <PlusCircle style={{ width: 13, height: 13 }} />
                                   Adicionar patrocinador{doEvento.length > 0 ? ` (${doEvento.length} do evento)` : " — buscar no catálogo"} · admin
                                 </button>
                                 {addPatrocinadorAberto && (
                                   <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
-                                    <p style={{ margin: 0, fontSize: 11, color: "#78716c", lineHeight: 1.45 }}>
+                                    <p style={{ margin: 0, fontSize: 11, color: T.second, lineHeight: 1.45 }}>
                                       Para quando a arte carrega uma marca que não foi vinculada. O patrocinador entra como "Aguardando decisão"; um de fora do evento é vinculado ao evento junto.
                                     </p>
                                     <input
@@ -4838,23 +4704,23 @@ export default function Atendimento() {
                                       placeholder="Buscar no catálogo (ex.: Crystal)…"
                                       aria-label="Buscar patrocinador no catálogo"
                                       data-testid="input-busca-patrocinador"
-                                      style={{ height: 34, borderRadius: 8, border: "1px solid #d6d3d1", padding: "0 10px", fontSize: 13, fontFamily: "inherit", color: "#1c1917", backgroundColor: "#fff" }}
+                                      style={{ height: alvo(34, dedo), borderRadius: R.md, border: `1px solid ${T.bdark}`, padding: "0 10px", fontSize: isMobile ? FS.lead : FS.body, fontFamily: "inherit", color: T.text, backgroundColor: T.surface }}
                                     />
                                     {termo.length >= 2 && doCatalogo.length === 0 && (
-                                      <p style={{ margin: 0, fontSize: 11.5, color: "#78716c" }}>Nada no catálogo com "{buscaPatrocinador.trim()}" fora desta rodada.</p>
+                                      <p style={{ margin: 0, fontSize: 11.5, color: T.second }}>Nada no catálogo com "{buscaPatrocinador.trim()}" fora desta rodada.</p>
                                     )}
                                     {candidatos.map((sp: any) => (
-                                      <div key={sp.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 8, backgroundColor: "#fff", border: "1px solid #e7e5e4" }}>
-                                        <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: "#1c1917", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                      <div key={sp.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 8, backgroundColor: T.surface, border: `1px solid ${T.border}` }}>
+                                        <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                           {sp.name}
-                                          {sp.foraDoEvento && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: "#b45309", textTransform: "uppercase" }}>fora do evento</span>}
+                                          {sp.foraDoEvento && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: TOM.alerta.text, textTransform: "uppercase" }}>fora do evento</span>}
                                         </span>
                                         <button
                                           type="button"
                                           onClick={() => adicionarPatrocinador(sp)}
                                           disabled={!!addingPatrocinadorId}
                                           data-testid={`button-add-patrocinador-${sp.id}`}
-                                          style={{ height: 30, padding: "0 12px", borderRadius: 7, border: "none", backgroundColor: addingPatrocinadorId === sp.id ? "#e7e5e4" : "#1c1917", color: addingPatrocinadorId === sp.id ? "#57534e" : "#fff", fontSize: 12, fontWeight: 700, cursor: addingPatrocinadorId ? "wait" : "pointer", whiteSpace: "nowrap" }}
+                                          style={{ height: 30, padding: "0 12px", borderRadius: 7, border: "none", backgroundColor: addingPatrocinadorId === sp.id ? T.border : T.text, color: addingPatrocinadorId === sp.id ? T.apoio : T.surface, fontSize: 12, fontWeight: 700, cursor: addingPatrocinadorId ? "wait" : "pointer", whiteSpace: "nowrap" }}
                                         >
                                           {addingPatrocinadorId === sp.id ? "Adicionando…" : "Adicionar"}
                                         </button>
@@ -4886,21 +4752,18 @@ export default function Atendimento() {
                         estava mais convidativo que as decisões por patrocinador
                         logo acima, que são o caminho normal. */}
                     <div style={{
-                      padding: '12px 24px', borderTop: '1px solid #f1f0ef',
-                      backgroundColor: '#ffffff', flexShrink: 0,
+                      padding: '12px 24px', borderTop: `1px solid ${N.n3}`,
+                      backgroundColor: T.surface, flexShrink: 0,
                       display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
                     }}>
-                      <button
+                      <Botao
+                        variante="fantasma"
+                        tamanho={tamBotao}
                         onClick={() => setDialogOpen(false)}
-                        style={{
-                          height: 36, padding: '0 14px', borderRadius: 9,
-                          border: '1px solid #e7e5e4', backgroundColor: '#ffffff',
-                          color: '#57534e', fontSize: 13, fontWeight: 600,
-                          cursor: 'pointer', marginRight: 'auto', whiteSpace: 'nowrap',
-                        }}
+                        style={{ marginRight: 'auto' }}
                       >
                         Fechar
-                      </button>
+                      </Botao>
 
                       {/* Atalho de peça inteira: só enquanto há decisões em
                           aberto. Antes aparecia justamente quando allApproved — e
@@ -4917,25 +4780,18 @@ export default function Atendimento() {
                           entre RETRABALHO e trabalho novo — foi assim que a #1527
                           se escondeu. */}
                       {dialogSponsors.length > 0 && !allApproved && !allDecided && (
-                        <button
+                        <Botao
+                          variante="secundario"
+                          tamanho={tamBotao}
+                          icone={CheckCircle}
+                          carregando={sponsorApproveMutation.isPending}
                           onClick={() => { if (!decisaoTravada()) sponsorApproveMutation.mutate(selectedItem.id); }}
-                          disabled={sponsorApproveMutation.isPending || !canDecide || pecaRecemAberta}
+                          disabled={!canDecide || pecaRecemAberta}
                           title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : `Aprova ${selectedItem.displayId} para TODOS os patrocinadores de uma vez`}
                           data-testid="button-approve-item"
-                          style={{
-                            height: 36, padding: '0 14px', borderRadius: 9,
-                            border: '1px solid #e7e5e4', backgroundColor: '#ffffff',
-                            color: '#1c1917', fontSize: 13, fontWeight: 700,
-                            cursor: canDecide ? 'pointer' : 'not-allowed',
-                            display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
-                            opacity: sponsorApproveMutation.isPending || !canDecide || pecaRecemAberta ? 0.5 : 1,
-                          }}
                         >
-                          {sponsorApproveMutation.isPending
-                            ? <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" />
-                            : <CheckCircle style={{ width: 14, height: 14 }} />}
                           Aprovar para todos
-                        </button>
+                        </Botao>
                       )}
 
                       {(() => {
@@ -4943,21 +4799,16 @@ export default function Atendimento() {
                         const hasNext = qIdx >= 0 && qIdx < reviewQueue.length - 1;
                         if (!hasNext) return null;
                         return (
-                          <button
+                          <Botao
+                            variante="primario"
+                            tamanho={tamBotao}
                             onClick={() => goToAdjacentItem(1)}
                             data-testid="button-next-item-footer"
                             title="Abrir a próxima peça da fila sem voltar para a lista"
-                            style={{
-                              height: 36, padding: '0 16px', borderRadius: 9,
-                              border: '1px solid #1c1917', backgroundColor: '#1c1917',
-                              color: '#ffffff', fontSize: 13, fontWeight: 700,
-                              cursor: 'pointer',
-                              display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
-                            }}
                           >
                             Próxima peça
                             <ChevronRight aria-hidden="true" style={{ width: 14, height: 14 }} />
-                          </button>
+                          </Botao>
                         );
                       })()}
                     </div>
@@ -4981,26 +4832,29 @@ export default function Atendimento() {
           <ModalHeader
             variant="confirm"
             icon={XCircle}
-            tint="#b91c1c"
+            tint={TOM.perigo.text}
             title="Desvincular patrocinador"
             onClose={() => setDesvincularAlvo(null)}
           />
           <div style={{ padding: '20px 24px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
-            <DialogDescription style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6, margin: 0 }}>
-              Tirar <strong style={{ color: '#1c1917' }}>{desvincularAlvo?.sponsorName}</strong> desta peça?
+            <DialogDescription style={{ fontSize: 13, color: T.apoio, lineHeight: 1.6, margin: 0 }}>
+              Tirar <strong style={{ color: T.text }}>{desvincularAlvo?.sponsorName}</strong> desta peça?
               A aprovação <strong>pendente</strong> dele deixa de contar — e, se ele for o único que falta, a rodada fecha e a peça segue para a finalização da Arte. Aprovações já dadas por outros permanecem no histórico.
             </DialogDescription>
           </div>
           <ModalFooter>
-            <button
+            {/* Perigo: tira o patrocinador da peça e a pendência dele deixa
+                de contar. */}
+            <Botao
+              variante="perigo"
+              tamanho="toque"
+              larguraCheia
+              carregando={desvincularSponsorMutation.isPending}
               onClick={() => { if (desvincularAlvo) desvincularSponsorMutation.mutate({ itemId: desvincularAlvo.itemId, sponsorId: desvincularAlvo.sponsorId }); }}
-              disabled={desvincularSponsorMutation.isPending}
               data-testid="button-confirm-desvincular"
-              style={{ width: '100%', height: 44, borderRadius: 9, backgroundColor: '#1c1917', border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
             >
-              {desvincularSponsorMutation.isPending && <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" />}
               Desvincular
-            </button>
+            </Botao>
           </ModalFooter>
         </DialogContent>
       </Dialog>
@@ -5022,7 +4876,7 @@ export default function Atendimento() {
           <ModalHeader
             variant="confirm"
             icon={CheckCircle}
-            tint="#15803d"
+            tint={TOM.sucesso.text}
             title="Confirmar aprovação"
             onClose={() => setConfirmApproveIndividual(null)}
           />
@@ -5033,36 +4887,34 @@ export default function Atendimento() {
               patrocinador longo (a única parte elástica) seria recortado em
               silêncio se não houvesse scrollport. */}
           <div style={{ padding: '20px 24px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
-            <DialogDescription style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6, margin: 0 }}>
-              Aprovar a arte para o patrocinador <strong style={{ color: '#1c1917' }}>{confirmApproveIndividual?.sponsorName}</strong>?
+            <DialogDescription style={{ fontSize: 13, color: T.apoio, lineHeight: 1.6, margin: 0 }}>
+              Aprovar a arte para o patrocinador <strong style={{ color: T.text }}>{confirmApproveIndividual?.sponsorName}</strong>?
  Dá para revogar depois, enquanto a peça estiver em aprovação ou na finalização da Arte.
             </DialogDescription>
           </div>
           <ModalFooter>
-            <button
+            {/* TINTA, não verde: verde é o ESTADO 'aprovado' nesta tela — o
+                que a peça vira DEPOIS da decisão. O CTA diz o resultado e
+                para quem (rodada 4). */}
+            <Botao
+              variante="primario"
+              tamanho="toque"
+              larguraCheia
+              icone={CheckCircle}
+              carregando={individualApproveMutation.isPending}
               onClick={() => {
                 if (confirmApproveIndividual) {
                   individualApproveMutation.mutate({ itemId: confirmApproveIndividual.itemId, sponsorId: confirmApproveIndividual.sponsorId });
                   setConfirmApproveIndividual(null);
                 }
               }}
-              disabled={individualApproveMutation.isPending}
               data-testid="button-confirm-approve-individual"
-              // TINTA. Verde e o ESTADO 'aprovado' nesta tela — o que a peca
-              // vira DEPOIS da decisao. Pintar de verde o botao que ainda vai
-              // decidir usa a cor do resultado para fazer o pedido.
-              style={{ width: '100%', height: 44, borderRadius: 9, backgroundColor: '#1c1917', border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
             >
-              <CheckCircle style={{ width: 15, height: 15 }} />
-              {/* O CTA diz o resultado e para quem (rodada 4). */}
               {`Aprovar para ${confirmApproveIndividual?.sponsorName ?? 'o patrocinador'}`}
-            </button>
-            <button
-              onClick={() => setConfirmApproveIndividual(null)}
-              style={{ width: '100%', height: 36, borderRadius: 8, background: 'none', border: 'none', color: '#746e69', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-            >
+            </Botao>
+            <Botao variante="fantasma" larguraCheia onClick={() => setConfirmApproveIndividual(null)}>
               Cancelar
-            </button>
+            </Botao>
           </ModalFooter>
         </DialogContent>
       </Dialog>
@@ -5082,7 +4934,7 @@ export default function Atendimento() {
           <ModalHeader
             variant="confirm"
             icon={CheckCircle}
-            tint="#15803d"
+            tint={TOM.sucesso.text}
             title="Confirmar aprovação em lote"
             onClose={() => setConfirmApproveBatch(false)}
           />
@@ -5090,33 +4942,31 @@ export default function Atendimento() {
               disponíveis em 445 de altura — NÃO cortava. Scrollport preventivo
               pelo teto que o `modalSurface` passou a impor. */}
           <div style={{ padding: '20px 24px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
-            <DialogDescription style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6, margin: 0 }}>
-              Aprovar <strong style={{ color: '#1c1917' }}>{batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'peça' : 'peças'}</strong> para <strong style={{ color: '#1c1917' }}>{batchSponsorNome}</strong>{batchEventoNome ? <> em {batchEventoNome}</> : null}?
+            <DialogDescription style={{ fontSize: 13, color: T.apoio, lineHeight: 1.6, margin: 0 }}>
+              Aprovar <strong style={{ color: T.text }}>{batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'peça' : 'peças'}</strong> para <strong style={{ color: T.text }}>{batchSponsorNome}</strong>{batchEventoNome ? <> em {batchEventoNome}</> : null}?
               Dá para revogar depois, enquanto a peça estiver em aprovação ou na finalização da Arte.
             </DialogDescription>
           </div>
           <ModalFooter>
-            <button
+            {/* TINTA, não verde: verde é o ESTADO 'aprovado' nesta tela — o
+                que a peça vira DEPOIS da decisão. */}
+            <Botao
+              variante="primario"
+              tamanho="toque"
+              larguraCheia
+              icone={CheckCircle}
+              carregando={batchSponsorMutation.isPending}
               onClick={() => {
                 batchSponsorMutation.mutate({ sponsorId: batchSponsorId, eventId: batchEventId, action: "approve" });
                 setConfirmApproveBatch(false);
               }}
-              disabled={batchSponsorMutation.isPending}
               data-testid="button-confirm-batch-approve"
-              // TINTA. Verde e o ESTADO 'aprovado' nesta tela — o que a peca
-              // vira DEPOIS da decisao. Pintar de verde o botao que ainda vai
-              // decidir usa a cor do resultado para fazer o pedido.
-              style={{ width: '100%', height: 44, borderRadius: 9, backgroundColor: '#1c1917', border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
             >
-              <CheckCircle style={{ width: 15, height: 15 }} />
               {`Aprovar ${batchSelectedItemIds.size} ${batchSelectedItemIds.size === 1 ? 'peça' : 'peças'} para ${batchSponsorNome}`}
-            </button>
-            <button
-              onClick={() => setConfirmApproveBatch(false)}
-              style={{ width: '100%', height: 36, borderRadius: 8, background: 'none', border: 'none', color: '#746e69', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-            >
+            </Botao>
+            <Botao variante="fantasma" larguraCheia onClick={() => setConfirmApproveBatch(false)}>
               Cancelar
-            </button>
+            </Botao>
           </ModalFooter>
         </DialogContent>
       </Dialog>
@@ -5141,24 +4991,24 @@ export default function Atendimento() {
           // A CONTA certa é `100vh − 48` no Content (24px de respiro em cima e
           // 24 embaixo, simétrico porque o Radix centra), com coluna flex: o
           // cabeçalho não encolhe e a área da imagem fica com o que sobrar.
-          style={{ maxWidth: 900, width: '95vw', borderRadius: 12, overflow: 'hidden', maxHeight: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column' }}
+          style={{ width: 'min(900px, calc(100vw - 32px))', maxWidth: 'none', borderRadius: 12, overflow: 'hidden', maxHeight: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column' }}
         >
           <DialogTitle className="sr-only">Arte da peça</DialogTitle>
           <DialogDescription className="sr-only">Visualização ampliada da arte enviada</DialogDescription>
           {batchPreviewItem && (
             <>
-              <div style={{ padding: '16px 20px', borderBottom: '1px solid #f0ede8', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 800, color: '#9a3412', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 6, padding: '2px 6px' }}>
+              <div style={{ padding: '16px 20px', borderBottom: `1px solid ${N.n3}`, display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                <span style={{ fontFamily: FONT.mono, fontSize: 11, fontWeight: 800, color: T.accentText, background: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, borderRadius: 6, padding: '2px 6px' }}>
                   {batchPreviewItem.displayId}
                 </span>
                 <div style={{ minWidth: 0 }}>
-                  <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#1c1917', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{batchPreviewItem.type}</p>
+                  <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{batchPreviewItem.type}</p>
                   {batchPreviewItem.description && (
-                    <p style={{ margin: 0, fontSize: 13, color: '#746e69', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{batchPreviewItem.description}</p>
+                    <p style={{ margin: 0, fontSize: 13, color: T.second, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{batchPreviewItem.description}</p>
                   )}
                 </div>
               </div>
-              <div style={{ background: '#f7f8fa', overflow: 'auto', flex: '1 1 auto', minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, position: 'relative' }}>
+              <div style={{ background: T.bg, overflow: 'auto', flex: '1 1 auto', minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, position: 'relative' }}>
                 <img
                   src={batchPreviewItem.approvalThumbUrl}
                   alt={batchPreviewItem.type}
@@ -5173,8 +5023,8 @@ export default function Atendimento() {
                   }}
                 />
                 <div data-fallback="1" style={{ display: 'none', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '48px 0' }}>
-                  <FileText style={{ width: 32, height: 32, color: '#a8a29e' }} />
-                  <p style={{ fontSize: 13, color: '#746e69', margin: 0 }}>Não foi possível carregar a arte</p>
+                  <FileText style={{ width: 32, height: 32, color: T.muted }} />
+                  <p style={{ fontSize: 13, color: T.second, margin: 0 }}>Não foi possível carregar a arte</p>
                 </div>
               </div>
             </>

@@ -46,6 +46,10 @@ export default defineConfig({
           include: ["server/__tests__/**/*.test.ts"],
           exclude: ["**/node_modules/**", ...TESTES_DE_TELA],
           sequence: { groupOrder: 0 },
+          // 5s (padrão) estourava em rota que importa o servidor inteiro e em
+          // varredura de fonte, com a máquina ocupada ou no CI — falha de
+          // relógio, não de código. Teste lento de verdade continua acusando.
+          testTimeout: 20_000,
         },
       },
       {

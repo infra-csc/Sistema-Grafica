@@ -6,6 +6,7 @@
 // evento, remessa do Kit) entram só com os campos que a tela usa. Quem
 // precisar de outro campo acrescenta aqui — e o tsc aponta onde ele faltar.
 // ─────────────────────────────────────────────────────────────────────────────
+import type { QueryKey } from "@tanstack/react-query";
 import type { Event, EventSponsor, Item, Sponsor, StandardItem } from "@shared/schema";
 import type { RemessaDoKit } from "@shared/kit";
 
@@ -71,7 +72,8 @@ export type ResultadoDoSalvamento = { savedIds: string[]; failed: FalhaDaPeca[] 
 export type FotoDoSalvamento = {
   itemSponsorsMap: Record<string, string[]>;
   originalSponsorsMap: Record<string, string[]>;
-  itemsCache: PecaDaVinculacao[] | undefined;
+  /** Cada consulta sob o prefixo ["/api/items"] como estava antes do otimista. */
+  itemsCache: Array<[QueryKey, unknown]>;
 };
 
 /** Resposta de POST /api/items/send-to-arte. */

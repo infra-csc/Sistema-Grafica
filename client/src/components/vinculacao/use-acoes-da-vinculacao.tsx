@@ -177,7 +177,9 @@ export function useAcoesDaVinculacao(v: Vinculacao) {
       const snapshot = {
         itemSponsorsMap: { ...itemSponsorsMap },
         originalSponsorsMap: { ...originalSponsorsMap },
-        itemsCache: queryClient.getQueryData<PecaDaVinculacao[]>(["/api/items"]),
+        // TODAS as consultas sob o prefixo — a lista que a tela lê é a
+        // recortada (["/api/items", "?status=…&eventId=…"]), nunca a chave nua.
+        itemsCache: queryClient.getQueriesData({ queryKey: ["/api/items"] }),
       };
       // Atualização otimista: sponsors locais
       payloads.forEach(({ itemId, sponsorIds }) => {
@@ -185,14 +187,23 @@ export function useAcoesDaVinculacao(v: Vinculacao) {
         setOriginalSponsorsMap(prev => ({ ...prev, [itemId]: sponsorIds }));
       });
       // Atualização otimista: skipApproval no cache do React Query
-      // (necessário para getItemUIStatus ler item.skipApproval correto antes do refetch)
-      queryClient.setQueryData<PecaDaVinculacao[]>(["/api/items"], (old) => {
-        if (!old) return old;
-        return old.map(item => {
-          const p = payloads.find(pl => pl.itemId === item.id);
-          if (!p) return item;
-          return { ...item, skipApproval: p.skipApproval };
+      // (necessário para getItemUIStatus ler item.skipApproval correto antes do refetch).
+      // PREFIXO, não chave exata: a chave exata ["/api/items"] não tem ninguém
+      // olhando — a tela lê a lista recortada — e a marca "sem patrocinador"
+      // salva sumia da linha até o próximo recarregamento. Só as LISTAS (já
+      // expandidas pelo queryClient) são tocadas; outra forma passa intacta, e
+      // a lista sem peça do lote volta a MESMA referência (sem re-render à toa).
+      const porId = new Map(payloads.map(p => [p.itemId, p.skipApproval]));
+      queryClient.setQueriesData<PecaDaVinculacao[]>({ queryKey: ["/api/items"] }, (old) => {
+        if (!Array.isArray(old)) return old;
+        let mudou = false;
+        const next = old.map(item => {
+          const skip = porId.get(item.id);
+          if (skip === undefined || item.skipApproval === skip) return item;
+          mudou = true;
+          return { ...item, skipApproval: skip };
         });
+        return mudou ? next : old;
       });
       return snapshot;
     },
@@ -258,9 +269,7 @@ export function useAcoesDaVinculacao(v: Vinculacao) {
         setItemSponsorsMap(snapshot.itemSponsorsMap);
         setOriginalSponsorsMap(snapshot.originalSponsorsMap);
         // Reverter cache do React Query
-        if (snapshot.itemsCache) {
-          queryClient.setQueryData(["/api/items"], snapshot.itemsCache);
-        }
+        snapshot.itemsCache.forEach(([chave, dados]) => queryClient.setQueryData<unknown>(chave, dados));
       }
       console.error("[vincular] save draft error:", _error);
       const motivo = _error?.message || "Não foi possível salvar. Tente novamente.";

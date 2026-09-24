@@ -39,15 +39,6 @@ export function CabecalhoDaGrafica({ fila, lote, podeConferir, isMobile, ponteir
   // botão sólido por peça), e os lotes são modos, não o gesto do dia inteiro.
   // Tamanho pelo PONTEIRO, não pela largura: o tablet do galpão é dedo.
   const tamanhoDoTopo = isMobile || ponteiroGrosso ? "toque" : "md";
-  const exportDesabilitado = isExporting || filteredItems.length === 0;
-  // Máquinas é um <Link> (navegação), não um <button>: veste a MESMA pele do
-  // Botao secundário pela classe .ds-botao, que dá hover e foco sem handlers.
-  const linkSecundario: React.CSSProperties = {
-    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7,
-    minHeight: alvoDeToque(36, isMobile || ponteiroGrosso), padding: "0 14px",
-    backgroundColor: T.surface, color: T.strong, border: `1px solid ${T.border}`, borderRadius: R.md,
-    fontFamily: FONT.corpo, fontSize: FS.body, fontWeight: FW.forte, whiteSpace: "nowrap", textDecoration: "none",
-  };
 
   // O wrapper leva o testid antigo do título (os testes medem a ordem da
   // primeira dobra a partir dele) e devolve a margem que o gap já dá.
@@ -56,7 +47,7 @@ export function CabecalhoDaGrafica({ fila, lote, podeConferir, isMobile, ponteir
       <CabecalhoDaPagina
         titulo="Gráfica"
         subtitulo={isLoading || isError ? undefined
-          : `${stats.total} peça${stats.total !== 1 ? "s" : ""} na fila · a ordem segue a saída do caminhão`}
+          : `${stats.total} peça${stats.total !== 1 ? "s" : ""} na fila${isMobile ? "" : " · a ordem segue a saída do caminhão"}`}
         frescor={!isLoading && !isError ? (
           <span
             data-testid="selo-atualizado"
@@ -97,11 +88,11 @@ export function CabecalhoDaGrafica({ fila, lote, podeConferir, isMobile, ponteir
             {podeConferir && conferableInFilter.length > 0 && (
               <Botao
                 tamanho={tamanhoDoTopo}
-                icone={ListChecks}
+                icone={isMobile ? undefined : ListChecks}
                 onClick={() => { setBulkConferMode(true); setBulkSelectedIds(new Set()); }}
                 data-testid="button-bulk-confer"
                 title="Selecionar várias peças e conferir com uma foto só"
-                style={{ flex: isMobile ? "1 1 0" : undefined }}
+                style={{ flex: isMobile ? "1 1 0%" : undefined }}
               >
                 Conferir em lote
                 {/* No celular a contagem já está na fila logo acima. */}
@@ -112,55 +103,87 @@ export function CabecalhoDaGrafica({ fila, lote, podeConferir, isMobile, ponteir
             {podeConferir && packableInFilter.length > 0 && (
               <Botao
                 tamanho={tamanhoDoTopo}
-                icone={Package}
+                icone={isMobile ? undefined : Package}
                 onClick={() => { setBulkPackMode(true); setBulkSelectedIds(new Set()); }}
                 data-testid="button-bulk-pack"
                 title="Marcar várias peças conferidas e pôr todas num tubo"
-                style={{ flex: isMobile ? "1 1 0" : undefined }}
+                style={{ flex: isMobile ? "1 1 0%" : undefined }}
               >
                 Embalar em lote
                 {!isMobile && <span style={{ color: T.second, fontVariantNumeric: "tabular-nums" }}>{packableInFilter.length}</span>}
               </Botao>
             )}
-            {/* A aba MÁQUINAS (dono, 14/09). Recortada numa impressora só,
-                a ida leva ao CARTÃO dela em Máquinas. No celular vira só o
-                ícone; o chunk começa a descer no hover/foco/toque. */}
-            <Link
-              href={filtros.impressora.length === 1 && filtros.impressora[0] !== SEM_IMPRESSORA ? linkDaImpressoraEmMaquinas(filtros.impressora[0]) : "/grafica/maquinas"}
-              data-testid="link-maquinas"
-              className="ds-botao"
-              aria-label={isMobile ? "Máquinas: o que cada impressora imprime agora e o histórico do dia" : undefined}
-              title={filtros.impressora.length === 1 && filtros.impressora[0] !== SEM_IMPRESSORA ? `Ver a ${rotuloDaMaquina(filtros.impressora[0])} em Máquinas` : "O que cada impressora imprime agora e o histórico do dia"}
-              onMouseEnter={() => prefetchRota("/grafica/maquinas")}
-              onFocus={() => prefetchRota("/grafica/maquinas")}
-              onTouchStart={() => prefetchRota("/grafica/maquinas")}
-              style={{ ...linkSecundario, ...(isMobile ? { width: 44, padding: 0, flex: "0 0 44px" } : null) }}
-            >
-              <Printer aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0 }} />
-              {!isMobile && "Máquinas"}
-            </Link>
-            {/* Exportar Excel — só um download; no celular vira só o ícone
-                (o rótulo vai no aria-label). O motivo do desabilitado fica
-                VISÍVEL no desktop; no celular o botão de 44px não tem onde
-                pôr a frase e ela vai no aria-label. */}
-            <Botao
-              tamanho={tamanhoDoTopo}
-              icone={FileSpreadsheet}
-              carregando={isExporting}
-              disabled={exportDesabilitado}
-              motivo={!isMobile && !isExporting && filteredItems.length === 0 ? "Nada para exportar" : undefined}
-              alinharMotivo="end"
-              onClick={handleExportXlsx}
-              data-testid="button-export-xlsx"
-              aria-label={isMobile ? (filteredItems.length ? `Exportar ${filteredItems.length} peça(s) em Excel` : "Nada para exportar") : undefined}
-              title={filteredItems.length ? `Exportar ${filteredItems.length} peça(s) em Excel` : "Nada para exportar"}
-              style={isMobile ? { width: 44, padding: 0, flex: "0 0 44px" } : undefined}
-            >
-              {!isMobile && (isExporting ? "Gerando…" : "Exportar Excel")}
-            </Botao>
+            {!isMobile && <AtalhosDaGrafica fila={fila} isMobile={false} ponteiroGrosso={ponteiroGrosso} isExporting={isExporting} handleExportXlsx={handleExportXlsx} />}
           </div>
         )}
       />
     </div>
+  );
+}
+
+/**
+ * MÁQUINAS + EXCEL — os dois atalhos do topo. No desktop moram no cabeçalho,
+ * ao lado dos lotes; no CELULAR sobem para a linha das abas (Fila | Tubos), à
+ * direita (revisão de celular, 24/09): a linha deles no cabeçalho custava 52px
+ * antes da primeira peça, e a das abas tinha 200px livres. Continuam antes dos
+ * cartões de etapa na ordem do documento (a primeira dobra do teste).
+ */
+export function AtalhosDaGrafica({ fila, isMobile, ponteiroGrosso, isExporting, handleExportXlsx }: {
+  fila: FilaDaGrafica;
+  isMobile: boolean;
+  ponteiroGrosso: boolean;
+  isExporting: boolean;
+  handleExportXlsx: () => void;
+}) {
+  const { filtros, filteredItems } = fila;
+  const tamanhoDoTopo = isMobile || ponteiroGrosso ? "toque" : "md";
+  const exportDesabilitado = isExporting || filteredItems.length === 0;
+  // Máquinas é um <Link> (navegação), não um <button>: veste a MESMA pele do
+  // Botao secundário pela classe .ds-botao, que dá hover e foco sem handlers.
+  const linkSecundario: React.CSSProperties = {
+    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7,
+    minHeight: alvoDeToque(36, isMobile || ponteiroGrosso), padding: "0 14px",
+    backgroundColor: T.surface, color: T.strong, border: `1px solid ${T.border}`, borderRadius: R.md,
+    fontFamily: FONT.corpo, fontSize: FS.body, fontWeight: FW.forte, whiteSpace: "nowrap", textDecoration: "none",
+  };
+  return (
+    <>
+    {/* A aba MÁQUINAS (dono, 14/09). Recortada numa impressora só,
+        a ida leva ao CARTÃO dela em Máquinas. No celular vira só o
+        ícone; o chunk começa a descer no hover/foco/toque. */}
+    <Link
+      href={filtros.impressora.length === 1 && filtros.impressora[0] !== SEM_IMPRESSORA ? linkDaImpressoraEmMaquinas(filtros.impressora[0]) : "/grafica/maquinas"}
+      data-testid="link-maquinas"
+      className="ds-botao"
+      aria-label={isMobile ? "Máquinas: o que cada impressora imprime agora e o histórico do dia" : undefined}
+      title={filtros.impressora.length === 1 && filtros.impressora[0] !== SEM_IMPRESSORA ? `Ver a ${rotuloDaMaquina(filtros.impressora[0])} em Máquinas` : "O que cada impressora imprime agora e o histórico do dia"}
+      onMouseEnter={() => prefetchRota("/grafica/maquinas")}
+      onFocus={() => prefetchRota("/grafica/maquinas")}
+      onTouchStart={() => prefetchRota("/grafica/maquinas")}
+      style={{ ...linkSecundario, ...(isMobile ? { width: 44, padding: 0, flex: "0 0 44px" } : null) }}
+    >
+      <Printer aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0 }} />
+      {!isMobile && "Máquinas"}
+    </Link>
+    {/* Exportar Excel — só um download; no celular vira só o ícone
+        (o rótulo vai no aria-label). O motivo do desabilitado fica
+        VISÍVEL no desktop; no celular o botão de 44px não tem onde
+        pôr a frase e ela vai no aria-label. */}
+    <Botao
+      tamanho={tamanhoDoTopo}
+      icone={FileSpreadsheet}
+      carregando={isExporting}
+      disabled={exportDesabilitado}
+      motivo={!isMobile && !isExporting && filteredItems.length === 0 ? "Nada para exportar" : undefined}
+      alinharMotivo="end"
+      onClick={handleExportXlsx}
+      data-testid="button-export-xlsx"
+      aria-label={isMobile ? (filteredItems.length ? `Exportar ${filteredItems.length} peça(s) em Excel` : "Nada para exportar") : undefined}
+      title={filteredItems.length ? `Exportar ${filteredItems.length} peça(s) em Excel` : "Nada para exportar"}
+      style={isMobile ? { width: 44, padding: 0, flex: "0 0 44px" } : undefined}
+    >
+      {!isMobile && (isExporting ? "Gerando…" : "Exportar Excel")}
+    </Botao>
+    </>
   );
 }

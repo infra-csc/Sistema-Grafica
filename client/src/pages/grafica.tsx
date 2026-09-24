@@ -48,7 +48,7 @@ import { useModalDaPeca } from "@/components/grafica/hooks/use-modal-da-peca";
 import { useComplementoCriado } from "@/components/grafica/hooks/use-complemento-criado";
 import { gatesDaGrafica } from "@/components/grafica/fila/regras";
 import type { ContextoDaLinha } from "@/components/grafica/fila/contexto-da-linha";
-import { CabecalhoDaGrafica } from "@/components/grafica/fila/cabecalho-da-grafica";
+import { AtalhosDaGrafica, CabecalhoDaGrafica } from "@/components/grafica/fila/cabecalho-da-grafica";
 import { CartoesDeEtapa } from "@/components/grafica/fila/cartoes-de-etapa";
 import { BarraDeFiltros } from "@/components/grafica/fila/barra-de-filtros";
 import { ResumoDaLista, BannerDoComplemento } from "@/components/grafica/fila/resumo-da-lista";
@@ -339,7 +339,11 @@ export default function Grafica() {
           contador da aba. `?aba=tubos` na URL; cada aba monta SÓ o próprio
           painel. */}
       <div data-testid="abas-grafica">
+        {/* No celular, Máquinas e Excel (só ícones) moram à direita das abas —
+            ver AtalhosDaGrafica. A linha das abas já existia; a deles não. */}
+        <div style={isMobile ? { display: "flex", alignItems: "center", gap: 8 } : undefined}>
         <Abas
+          style={isMobile ? { flex: "1 1 auto", minWidth: 0 } : undefined}
           rotuloDaLista="Seções da Gráfica"
           prefixoDeTestId="aba-grafica"
           ativo={abaDaTela}
@@ -349,6 +353,10 @@ export default function Grafica() {
             { id: "tubos", rotulo: "Tubos", contador: tubos.tubosAbertosNaTela > 0 ? tubos.tubosAbertosNaTela : undefined, tom: "info" },
           ]}
         />
+        {isMobile && !lote.bulkOn && (
+          <AtalhosDaGrafica fila={fila} isMobile ponteiroGrosso={ponteiroGrosso} isExporting={isExporting} handleExportXlsx={handleExportXlsx} />
+        )}
+        </div>
       </div>
 
       {abaDaTela === "tubos" && (

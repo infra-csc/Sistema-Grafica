@@ -469,4 +469,47 @@ describe.each([360, 390])("Gráfica em %ipx de largura", (largura) => {
     expect(folhaR.vizinhos).toEqual([]);
     expect(folhaR.letras).toEqual([]);
   }, 60_000);
+
+  // REVISÃO DE CELULAR (24/09): a primeira peça estava abaixo da dobra, o "+"
+  // caía sozinho numa linha e "Tirar Foto" pedia rolagem na conferência.
+  it("topo enxuto, ações do cartão sem órfão e a foto antes da ficha na conferência", async () => {
+    await montar(largura);
+    // Máquinas e Excel moram na linha das abas (a linha própria deles saiu).
+    const abas = $('[data-testid="abas-grafica"]')!;
+    expect(abas.contains($('[data-testid="button-export-xlsx"]')), "Excel na linha das abas").toBe(true);
+    expect(abas.contains($('[data-testid="link-maquinas"]')), "Máquinas na linha das abas").toBe(true);
+    // Conferir em lote e Embalar em lote dividem uma linha (sem ícone no celular).
+    const lotes = ["button-bulk-confer", "button-bulk-pack"].map((t) => $(`[data-testid="${t}"]`)!);
+    expect(lotes[0].parentElement).toBe(lotes[1].parentElement);
+    lotes.forEach((b) => expect(b.style.flex, "lote divide a linha").toMatch(/^1 1 0/));
+    // Evento e atalhos numa linha só, que rola para o lado.
+    const linha = $('[data-testid="linha-atalhos-mobile"]')!;
+    expect(linha.style.overflowX).toBe("auto");
+    expect(linha.contains($('[data-testid="filtro-evento-mobile"]'))).toBe(true);
+    expect(linha.contains($('[data-testid="button-next-10-days-filter"]'))).toBe(true);
+    // Subtítulo curto: "N peças na fila", o frescor cabe na mesma linha.
+    expect($('[data-testid="title-grafica"]')!.textContent).not.toContain("a ordem segue a saída do caminhão");
+
+    // O "+" do Aumentar nunca fica sozinho: sempre há um botão de largura
+    // flexível (base 0) dividindo a linha com ele.
+    const mais = Array.from(document.querySelectorAll<HTMLElement>('[data-testid^="button-aumentar-quantidade-mobile-"]'));
+    expect(mais.length, "há cartões com o +").toBeGreaterThan(0);
+    for (const b of mais) {
+      const vizinhos = Array.from(b.parentElement!.children) as HTMLElement[];
+      const divideALinha = vizinhos.some((v) => v !== b && v.tagName === "BUTTON" && /^1 1 0(px|%)?$/.test(v.style.flex));
+      expect(divideALinha, `o + de ${b.getAttribute("data-testid")} tem com quem dividir a linha`).toBe(true);
+    }
+
+    // Conferência: no celular a foto vem ANTES da ficha da peça (Material…).
+    const conferir = Array.from(document.querySelectorAll<HTMLElement>("[data-item-row] button"))
+      .find((b) => /^Conferir( \d+)?$/.test((b.textContent ?? "").trim()) && !(b as HTMLButtonElement).disabled)!;
+    await clicar(conferir);
+    const dialogo = $('[role="dialog"]')!;
+    const foto = Array.from(dialogo.querySelectorAll("button")).find((b) => /Tirar Foto/.test(b.textContent ?? ""))!;
+    const material = Array.from(dialogo.querySelectorAll("div")).find((d) => d.textContent === "Material")!;
+    expect(foto && material, "foto e ficha no diálogo").toBeTruthy();
+    expect(foto.compareDocumentPosition(material) & Node.DOCUMENT_POSITION_FOLLOWING, "a ficha vem depois da foto").toBeTruthy();
+    // E quem é a peça continua no topo: o subtítulo leva o código.
+    expect(dialogo.textContent).toMatch(/#\d{4}[^ ]* ·.+ — compare com a arte e tire a foto/);
+  }, 60_000);
 });

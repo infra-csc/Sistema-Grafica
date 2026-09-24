@@ -21,7 +21,7 @@ import { AcoesDoMolde } from "@/components/grafica/acoes-do-molde";
 import type { PecaDaFila } from "@/components/grafica/tipos";
 import type { ContextoDaLinha } from "./contexto-da-linha";
 import { corDaAcao, corTintada } from "./aparencia";
-import { complementUntouched, podeDevolverParaRevisao, rotuloAcaoImpressao, tituloAcaoImpressao } from "./regras";
+import { complementUntouched, podeDevolverParaRevisao, rotuloAcaoImpressao, rotuloDoConferir, tituloAcaoImpressao } from "./regras";
 import { TirarDaImpressoraBloqueada, bloqueioDaTrava } from "./trava-da-peca";
 
 export function AcoesDaLinha({ ctx, item, selo, emRevisao, isSelected, bulkEligible, ehComplemento, podeEmbalarPeca }: {
@@ -420,7 +420,7 @@ export function AcoesDaLinha({ ctx, item, selo, emRevisao, isSelected, bulkEligi
             {...bloqueioDaTrava(item)}
             style={corDaAcao(TOM.ciano.text)}
           >
-            {conferredOf(item) > 0 ? `Conferir ${remainingConfer(item)}` : "Conferir"}
+            {rotuloDoConferir(item)}
           </Botao>
         )}
 

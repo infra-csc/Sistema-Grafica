@@ -44,6 +44,15 @@ export const complementUntouched = (item: PecaDaFila) =>
 // "Mandar p/ acabamento" quando todas saíram. A frase inteira fica no `title`
 // (tituloAcaoImpressao). Peça antiga, que entrou "Em Impressão" antes de
 // existir a escolha, não tem máquina — aí o título só diz a ação.
+/**
+ * O rótulo do Conferir: quando dá para conferir MENOS que a peça inteira — parte
+ * ainda na máquina (conferência parcial) ou parte já conferida —, o botão diz
+ * QUANTO ("Conferir 6"). Antes só contava a parte já conferida: a peça com 6
+ * de 12 impressas oferecia "Conferir" e o modal abria com 6.
+ */
+export const rotuloDoConferir = (item: PecaDaFila) =>
+  remainingConfer(item) < qtyOf(item) ? `Conferir ${remainingConfer(item)}` : "Conferir";
+
 export const rotuloAcaoImpressao = (item: PecaDaFila) => rotuloCurtoDaAcao(producedOf(item), tetoDeProducao(item));
 export const tituloAcaoImpressao = (item: PecaDaFila) =>
   producedOf(item) >= tetoDeProducao(item) && tetoDeProducao(item) > 0

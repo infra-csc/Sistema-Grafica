@@ -5,24 +5,25 @@
 // cada botão ganha largura de dedo (≥ 112px, 44 de altura). Some em QUALQUER
 // modo de lote (senão os botões disputariam o toque com a seleção).
 //
-// ORDEM VISUAL (CSS order, o DOM segue o da tabela): a ação PRINCIPAL da etapa
-// — Produzir/Continuar, Conferir, Entregar — vem primeiro e mais larga
-// (2 1 150px); as secundárias (Reaproveitar, Corrigir, Devolver) dividem a
-// linha de baixo; contrato (Aumentar, Cancelar) por último. 8px entre botões:
+// ORDEM VISUAL (CSS order, o DOM segue o da tabela): cada ação PRINCIPAL da
+// etapa — Produzir/Continuar, Conferir, Embalar, Entregar — ocupa a linha
+// inteira; as secundárias (Reaproveitar, Corrigir, Devolver, Tirar do tubo)
+// dividem a última linha com o contrato (Aumentar, Cancelar). 8px entre botões:
 // com 6 o dedo de luva pegava o vizinho.
 // ─────────────────────────────────────────────────────────────────────────────
+import type React from "react";
 import { Check, CheckCircle, Package, Play, PlusCircle, Recycle, RotateCcw, Trash2, Truck, Undo2, X } from "lucide-react";
 import { Botao } from "@/components/ui/botao";
 import { motivoAcaoBloqueada } from "@/lib/status";
 import type { SeloPecaEventoFinalizado } from "@/lib/status";
 import { FS, FW, T, TOM } from "@/lib/theme";
 import { ehMolde } from "@shared/molde";
-import { isDelivered, isProduced, isInProd, qtyOf, conferredOf, reusedTotalOf, remainingProduce, remainingConfer, remainingReuse } from "@/lib/saldo";
+import { isDelivered, isProduced, isInProd, qtyOf, reusedTotalOf, remainingProduce, remainingReuse } from "@/lib/saldo";
 import { AcoesDoMolde } from "@/components/grafica/acoes-do-molde";
 import type { PecaDaFila } from "@/components/grafica/tipos";
 import type { ContextoDaLinha } from "./contexto-da-linha";
 import { CO, corDaAcao, corTintada } from "./aparencia";
-import { rotuloAcaoImpressao, tituloAcaoImpressao } from "./regras";
+import { rotuloAcaoImpressao, rotuloDoConferir, tituloAcaoImpressao } from "./regras";
 import { TirarDaImpressoraBloqueada, bloqueioDaTrava } from "./trava-da-peca";
 
 /** Os gates da peça que o cartão já calculou (os mesmos da coluna de Ações da tabela). */
@@ -53,6 +54,29 @@ export function AcoesDoCartao({ ctx, item, selo, gates }: {
     canConferItem, podeEmbalarPeca, mostraAumentar, podeProduzirAqui, podeCancelarCompl, podeProduzirPeca,
     podeReaproveitarPeca, podeCorrigirReaprov, podeDevolverPeca, temGrupoFluxo, temGrupoContrato,
   } = gates;
+  // LINHAS PREVISÍVEIS (revisão de celular, 24/09). Antes cada botão tinha uma
+  // base (150/100/130px) e o flex-wrap decidia a quebra: o mesmo card saía em
+  // três arranjos, e o "+" do Aumentar caía SOZINHO numa linha, com o divisor
+  // solto. Agora: cada PRINCIPAL ocupa a linha inteira (o dedo acha sempre no
+  // mesmo lugar); as SECUNDÁRIAS dividem a última linha com o "+", que nunca
+  // fica órfão. Sem secundária, a última principal divide a linha com o "+".
+  const entregaTubo = podeConferir && !soVisualizaKit(item) && temVolumeAberto(item) && !!item.eventId;
+  const principais = [
+    podeProduzirAqui && "produzirAqui",
+    podeProduzirPeca && !podeProduzirAqui && "produzir",
+    podeConferir && canConferItem && "conferir",
+    podeEmbalarPeca && "embalar",
+    entregaTubo && "entregar",
+  ].filter(Boolean) as string[];
+  const temSecundaria = (podeReaproveitarPeca && reuseConfirmItemId !== item.id)
+    || (podeCorrigirReaprov && correctReuseItemId !== item.id)
+    || podeDevolverPeca || podeCancelarCompl
+    || (podeConferir && !soVisualizaKit(item) && temVolumeAberto(item));
+  const dividePeloContrato = (qual: string) => !temSecundaria && mostraAumentar && qual === principais[principais.length - 1];
+  const flexPrincipal = (qual: string): React.CSSProperties =>
+    ({ order: 0, flex: dividePeloContrato(qual) ? "1 1 0%" : "1 1 100%", minWidth: 0 });
+  // Secundária: base zero e quebra de linha no rótulo — dividem a linha por igual.
+  const flexSecundaria: React.CSSProperties = { order: 1, flex: "1 1 0%", minWidth: 0, whiteSpace: "normal", lineHeight: 1.15, textAlign: "center" };
   return (
     <>
       {/* MOLDE (22/09): uma ação só — "Marcar como produzido" (ou desfazer). */}
@@ -83,7 +107,7 @@ export function AcoesDoCartao({ ctx, item, selo, gates }: {
               // Laranja sólido do complemento: é trabalho NOVO. A
               // quebra de linha é permitida (o rótulo com a
               // impressora não cabe numa linha em 360px).
-              style={{ ...corDaAcao(CO.solidBg), order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', whiteSpace: 'normal', textAlign: 'center', lineHeight: 1.15 }}
+              style={{ ...corDaAcao(CO.solidBg), ...flexPrincipal("produzirAqui"), minHeight: 48, padding: '0 12px', whiteSpace: 'normal', textAlign: 'center', lineHeight: 1.15 }}
             >
               {isInProd(item) ? rotuloAcaoImpressao(item) : `Imprimir ${remainingProduce(item)}`}
             </Botao>
@@ -104,7 +128,7 @@ export function AcoesDoCartao({ ctx, item, selo, gates }: {
                 : isInProd(item) ? tituloAcaoImpressao(item) : "Escolher a máquina e iniciar a impressão"}
               data-testid={`button-production-card-${item.id}`}
               {...bloqueioDaTrava(item)}
-              style={{ order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', whiteSpace: 'normal', textAlign: 'center', lineHeight: 1.15 }}
+              style={{ ...flexPrincipal("produzir"), minHeight: 48, padding: '0 12px', whiteSpace: 'normal', textAlign: 'center', lineHeight: 1.15 }}
             >
               {isInProd(item) ? rotuloAcaoImpressao(item) : 'Imprimir'}
             </Botao>
@@ -171,7 +195,7 @@ export function AcoesDoCartao({ ctx, item, selo, gates }: {
                     ? `Ajustar reaproveitamento (0 a ${qtyOf(item)}) — converte entre produzidas e reaproveitadas, nas duas direções`
                     : `Reaproveitar (pula produção) — até ${remainingReuse(item)} un.`}
                 data-testid={`button-reuse-card-${item.id}`}
-                style={{ ...corTintada(TOM.esmeralda), order: 1, flex: '1 1 100px', padding: '0 10px', fontSize: FS.body }}
+                style={{ ...corTintada(TOM.esmeralda), ...flexSecundaria, padding: '0 10px', fontSize: FS.body }}
               >
                 {isProduced(item) ? 'Ajustar reaprov.' : 'Reaproveitar'}
               </Botao>
@@ -225,7 +249,7 @@ export function AcoesDoCartao({ ctx, item, selo, gates }: {
                   ? motivoAcaoBloqueada(selo.motivo, "corrigir o reaproveitamento")
                   : "Corrigir a quantidade reaproveitada desta peça"}
                 data-testid={`button-correct-reuse-card-${item.id}`}
-                style={{ ...corTintada(TOM.alerta), order: 1, flex: '1 1 100px', padding: '0 10px', fontSize: FS.body }}
+                style={{ ...corTintada(TOM.alerta), ...flexSecundaria, padding: '0 10px', fontSize: FS.body }}
               >
                 Corrigir reaprov.
               </Botao>
@@ -243,7 +267,7 @@ export function AcoesDoCartao({ ctx, item, selo, gates }: {
               title="Devolver para a Revisão Final — a peça sai da fila da Gráfica"
               aria-label={`Devolver ${item.displayId} para a Revisão Final`}
               data-testid={`button-devolver-revisao-card-${item.id}`}
-              style={{ order: 1, flex: '1 1 100px', padding: '0 10px', fontSize: FS.body, color: TOM.perigo.text, borderColor: TOM.perigo.border }}
+              style={{ ...flexSecundaria, padding: '0 10px', fontSize: FS.body, color: TOM.perigo.text, borderColor: TOM.perigo.border }}
             >
               Devolver
             </Botao>
@@ -258,10 +282,9 @@ export function AcoesDoCartao({ ctx, item, selo, gates }: {
               {...bloqueioDaTrava(item)}
               // Ciano da etapa (TOM.ciano.text, 5,36:1 com branco) —
               // o mesmo do desktop, do lote e do modal.
-              style={{ ...corDaAcao(TOM.ciano.text), order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px' }}
+              style={{ ...corDaAcao(TOM.ciano.text), ...flexPrincipal("conferir"), minHeight: 48, padding: '0 12px' }}
             >
-              {/* Na conferência parcial o botão diz QUANTO falta. */}
-              {conferredOf(item) > 0 ? `Conferir ${remainingConfer(item)}` : 'Conferir'}
+                            {rotuloDoConferir(item)}
             </Botao>
           )}
           {/* EMBALAR (dono, 21/09): a principal da peça CONFERIDA — abre
@@ -277,7 +300,7 @@ export function AcoesDoCartao({ ctx, item, selo, gates }: {
               onClick={e => { e.stopPropagation(); abrirEmbalar([item]); }}
               data-testid={`button-embalar-card-${item.id}`}
               {...bloqueioDaTrava(item)}
-              style={{ ...corDaAcao(TOM.info.text), order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px' }}
+              style={{ ...corDaAcao(TOM.info.text), ...flexPrincipal("embalar"), minHeight: 48, padding: '0 12px' }}
             >
               {rotuloEmbalar(item)}
             </Botao>
@@ -286,7 +309,7 @@ export function AcoesDoCartao({ ctx, item, selo, gates }: {
               formulário daquele tubo (quem recebeu). É a PRINCIPAL da
               embalada (sólida, azul do Embalado, primeira no DOM e na
               tela — Tab e dedo chegam nela antes do "Tirar"). */}
-          {podeConferir && !soVisualizaKit(item) && temVolumeAberto(item) && item.eventId && (
+          {entregaTubo && (
             <Botao
               variante="primario"
               tamanho="toque"
@@ -294,7 +317,7 @@ export function AcoesDoCartao({ ctx, item, selo, gates }: {
               onClick={e => { e.stopPropagation(); setTubosDoEvento({ id: String(item.eventId), name: item.event?.name ?? "Evento", entregarTubo: item.tuboId }); }}
               data-testid={`button-entregar-tubo-card-${item.id}`}
               {...bloqueioDaTrava(item)}
-              style={{ ...corDaAcao(TOM.info.text), order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px' }}
+              style={{ ...corDaAcao(TOM.info.text), ...flexPrincipal("entregar"), minHeight: 48, padding: '0 12px' }}
             >
               {ehAvulsa(item) ? "Entregar" : "Entregar tubo"}
             </Botao>
@@ -308,7 +331,7 @@ export function AcoesDoCartao({ ctx, item, selo, gates }: {
               onClick={e => { e.stopPropagation(); tirarDoTuboMutation.mutate({ itemId: item.id, tuboId: item.tuboId, displayId: item.displayId }); }}
               carregando={tirarDoTuboMutation.isPending && tirarDoTuboMutation.variables?.itemId === item.id}
               data-testid={`button-tirar-do-tubo-card-${item.id}`}
-              style={{ order: 0, flex: '1 1 130px', minHeight: 48, padding: '0 12px' }}
+              style={{ ...flexSecundaria, minHeight: 48, padding: '0 12px' }}
             >
               {ehAvulsa(item) ? "Desfazer embalagem" : "Tirar do tubo"}
             </Botao>
@@ -363,7 +386,7 @@ export function AcoesDoCartao({ ctx, item, selo, gates }: {
               }}
               title={`Cancelar ${item.displayId} — só enquanto nada foi produzido`}
               data-testid={`button-cancel-complement-mobile-${item.id}`}
-              style={{ order: 3, flex: '1 1 100px', padding: '0 10px', fontSize: FS.body, ...(cancelComplementId === item.id ? null : { color: TOM.perigo.text }) }}
+              style={{ ...flexSecundaria, order: 3, padding: '0 10px', fontSize: FS.body, ...(cancelComplementId === item.id ? null : { color: TOM.perigo.text }) }}
             >
               {cancelComplementMutation.isPending ? 'Cancelando…' : cancelComplementId === item.id ? 'Confirmar?' : 'Cancelar'}
             </Botao>

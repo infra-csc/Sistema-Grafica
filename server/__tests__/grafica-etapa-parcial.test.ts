@@ -91,3 +91,12 @@ describe("cartão, clique e menu de status usam a MESMA régua", () => {
     expect(ler("client/src/components/grafica/hooks/use-facetas-da-fila.ts")).toContain("casaEtapa(i, s.value)");
   });
 });
+
+describe("o botão Conferir diz QUANTO quando é parcial (cartão e tabela)", () => {
+  it("6 de 12 impressas, nada conferido → 'Conferir 6' (antes dizia só 'Conferir')", async () => {
+    const { rotuloDoConferir } = await import("@/components/grafica/fila/regras");
+    expect(rotuloDoConferir(peca({ status: "inProduction", quantity: 12, quantityProduced: 6, conferredQty: 0 }) as any)).toBe("Conferir 6");
+    expect(rotuloDoConferir(peca({ status: "produced", quantity: 8, quantityProduced: 8, conferredQty: 2 }) as any)).toBe("Conferir 6");
+    expect(rotuloDoConferir(peca({ status: "produced", quantity: 8, quantityProduced: 8, conferredQty: 0 }) as any)).toBe("Conferir");
+  });
+});

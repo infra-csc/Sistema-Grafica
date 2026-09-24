@@ -79,7 +79,8 @@ describe("a peça conferida na fila", () => {
   it("cartão: mesma coisa, com 48px de alvo e Entregar de contorno", () => {
     expect(CARTOES).toContain("data-testid={`button-embalar-card-${item.id}`}");
     expect(CARTOES).toContain("onClick={e => { e.stopPropagation(); abrirEmbalar([item]); }}");
-    expect(CARTOES).toContain("style={{ ...corDaAcao(TOM.info.text), order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px' }}");
+    // Principal da etapa: linha inteira, 48px (revisão de celular 24/09 — ver flexPrincipal).
+    expect(CARTOES).toContain("style={{ ...corDaAcao(TOM.info.text), ...flexPrincipal(\"embalar\"), minHeight: 48, padding: '0 12px' }}");
     // a entrega por peça saiu do cartão também — a embalada sai pelo "Entregar tubo"
     expect(CARTOES).not.toContain("button-entregar-card-");
     expect(CARTOES).toContain("data-testid={`button-entregar-tubo-card-${item.id}`}");

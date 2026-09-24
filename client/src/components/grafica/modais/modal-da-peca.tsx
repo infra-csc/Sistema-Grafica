@@ -79,6 +79,129 @@ export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMo
     </div>
   );
 
+  // CONFERIR NO CELULAR (revisão de 24/09): arte (240px) + ficha (~300px)
+  // empurravam "Tirar Foto" para baixo da dobra — o passo de quem está com a
+  // peça na mão pedia rolagem. No celular, na conferência, a ficha desce para
+  // DENTRO do formulário, depois das fotos e antes do rodapé fixo (que precisa
+  // ser a última peça do formulário para seguir colado embaixo). Quem é a peça
+  // continua no topo: o subtítulo do cabeçalho leva o código e o tipo.
+  const fichaDepoisDasFotos = isMobile && modalType === "conference";
+  const fichaDaPeca = selectedItem ? (
+    <div style={{ backgroundColor: N.n2, borderRadius: 12, padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+        <div style={{ backgroundColor: T.surface, borderRadius: 8, padding: 8, boxShadow: "0 1px 4px rgba(0,0,0,0.08)", flexShrink: 0 }}>
+          {modalType === "production"
+            ? <Printer style={{ width: 20, height: 20, color: T.accent }} />
+            : <CheckCircle style={{ width: 20, height: 20, color: TOM.ciano.text }} />}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 3 }}>
+            <span style={{ display: "inline-flex", alignItems: "center", flexWrap: "wrap", gap: 6, minWidth: 0 }}>
+              <span style={{ fontFamily: FONT.display, fontWeight: 700, fontSize: isMobile ? 16 : 13, color: selectedItem.isReuse ? TOM.esmeralda.text : T.accentText }}>{selectedItem.displayId}</span>
+              <SeloKit peca={selectedItem} style={{ flexShrink: 0 }} />
+              <AvisoDoEstoqueNaPeca peca={selectedItem} style={{ flexShrink: 0 }} />
+              {/* Produzir/conferir/entregar um complemento é registrar
+                  um LOTE SEPARADO: o modal precisa dizer isso, senão
+                  o operador acha que está lançando na peça original. */}
+              {isComplement(selectedItem) && (
+                <span style={{ backgroundColor: CO.solidBg, color: CO.solidText, borderRadius: R.sm, padding: "1px 6px", fontSize: fsMin(FS.micro), fontWeight: FW.rotulo, whiteSpace: "nowrap" }}>
+                  Compl. de {parentDisplayIdOf(selectedItem)}
+                </span>
+              )}
+            </span>
+            <StatusPill status={statusDeExibicao(selectedItem)} size="sm" showDot={false} />
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>{selectedItem.type}</div>
+          {selectedItem.description && selectedItem.description !== selectedItem.type && (
+            <div style={{ fontSize: 13, color: T.second, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{selectedItem.description}</div>
+          )}
+          {selectedItem.event?.name && (
+            <div style={{ fontSize: 13, color: T.second, marginTop: 4, display: "flex", alignItems: "center", gap: 5 }}>
+              <Calendar style={{ width: 11, height: 11, flexShrink: 0 }} />
+              {selectedItem.event.name}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Grade de specs */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        <div style={{ background: T.surface, borderRadius: 8, padding: '8px 10px' }}>
+          <div style={{ fontSize: fsMin(FS.small), fontWeight: FW.forte, color: T.apoio, marginBottom: 3 }}>Material</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{selectedItem.material || '—'}</div>
+          {selectedItem.visualWidth && (
+            <div style={{ fontSize: fsMin(11), color: T.second, marginTop: 1 }}>{selectedItem.visualWidth} × {selectedItem.visualHeight}m</div>
+          )}
+        </div>
+        <div style={{ background: T.surface, borderRadius: 8, padding: '8px 10px' }}>
+          <div style={{ fontSize: fsMin(FS.small), fontWeight: FW.forte, color: T.apoio, marginBottom: 3 }}>Acabamento</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{selectedItem.finish || '—'}</div>
+          {Number(selectedItem.calculatedM2) > 0 && (
+            <div style={{ fontSize: fsMin(11), color: T.second, marginTop: 1 }}>{m2ToProduce(selectedItem).toFixed(2)} m²</div>
+          )}
+        </div>
+        <div style={{ background: T.surface, borderRadius: 8, padding: '8px 10px' }}>
+          <div style={{ fontSize: fsMin(FS.small), fontWeight: FW.forte, color: T.apoio, marginBottom: 2 }}>Quantidade</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: T.text, fontFamily: FONT.display, lineHeight: 1 }}>{qtyOf(selectedItem)}<span style={{ fontSize: fsMin(11), fontWeight: 500, color: T.second, marginLeft: 3 }}>un.</span></div>
+          {selectedItem.isReuse && <div style={{ fontSize: fsMin(FS.small), color: TOM.esmeralda.text, marginTop: 2, fontWeight: FW.medio }}>Reaproveitado</div>}
+        </div>
+        {/* Tile de contexto — nos dois tipos. A produção era o
+            único modal que nunca dizia quanto já foi produzido, e é
+            justamente o único cujo campo é ABSOLUTO: sem este número
+            na tela, quem digitava "o que fez hoje" apagava o resto e
+            não havia nada, em lugar nenhum, mostrando o valor
+            anterior. Ciano único #0e7490 (5,36:1); #0891b2 dava
+            3,68:1 em 18px/800. */}
+        {(modalType === "conference" || modalType === "production") && (
+          <div style={{
+            background: modalType === "conference" ? TOM.ciano.bg : N.n2,
+            borderRadius: 8, padding: '8px 10px',
+            border: `1px solid ${modalType === "conference" ? TOM.ciano.border : T.bdark}`,
+          }}>
+            <div style={{ fontSize: fsMin(FS.small), fontWeight: FW.forte, color: modalType === "conference" ? TOM.ciano.text : T.apoio, marginBottom: 2 }}>
+              {modalType === "conference" ? "A Conferir" : (isInProd(selectedItem) && !iniciandoResto ? "Na impressora" : "A imprimir")}
+            </div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: modalType === "conference" ? TOM.ciano.text : T.text, fontFamily: FONT.display, lineHeight: 1 }}>
+              {modalType === "conference" ? remainingConfer(selectedItem)
+                : iniciandoResto ? semImpressora(selectedItem) : remainingProduce(selectedItem)}<span style={{ fontSize: fsMin(11), fontWeight: 500, marginLeft: 3 }}>un.</span>
+            </div>
+            {modalType === "conference" && conferredOf(selectedItem) > 0 && (
+              <div style={{ fontSize: fsMin(FS.small), color: TOM.ciano.text, marginTop: 2 }}>{conferredOf(selectedItem)} já conferida{conferredOf(selectedItem) !== 1 ? 's' : ''}</div>
+            )}
+            {modalType === "production" && (
+              <div data-testid="text-ja-produzidas" style={{ fontSize: fsMin(FS.small), color: T.apoio, marginTop: 2 }}>
+                {producedOf(selectedItem)} já impressa{producedOf(selectedItem) !== 1 ? 's' : ''} de {qtyOf(selectedItem)}
+                {reusedTotalOf(selectedItem) > 0 && ` · ${reusedTotalOf(selectedItem)} reaproveitada${reusedTotalOf(selectedItem) !== 1 ? 's' : ''}`}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Motivo do aumento — quem está com a peça na mão lê aqui por
+          que este lote existe, antes de mandar para a impressora. */}
+      {isComplement(selectedItem) && selectedItem.complementReason && (
+        <div style={{ background: CO.bg, border: `1px solid ${CO.border}`, borderRadius: 8, padding: '8px 10px', display: 'flex', gap: 7, alignItems: 'flex-start' }}>
+          <PlusCircle aria-hidden="true" style={{ width: 12, height: 12, color: CO.text, flexShrink: 0, marginTop: 2 }} />
+          <span style={{ fontSize: 13, color: CO.textStrong, lineHeight: 1.4 }}>
+            <strong>
+              Aumento pedido{selectedItem.complementRequestedBy ? ` por ${selectedItem.complementRequestedBy}` : ""}
+            </strong>
+            {selectedItem.complementRequestedAt ? ` (${fmtDataHora(selectedItem.complementRequestedAt)})` : ""}: {selectedItem.complementReason}
+          </span>
+        </div>
+      )}
+
+      {/* Observações */}
+      {selectedItem.observations && (
+        <div style={{ background: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 8, padding: '8px 10px', display: 'flex', gap: 7, alignItems: 'flex-start' }}>
+          <AlertCircle style={{ width: 12, height: 12, color: TOM.alerta.text, flexShrink: 0, marginTop: 1 }} />
+          <span style={{ fontSize: 13, color: TOM.alerta.text, lineHeight: 1.4 }}>{selectedItem.observations}</span>
+        </div>
+      )}
+    </div>
+  ) : null;
+
   return (
     <Dialog open={!!selectedItem && !!modalType} onOpenChange={open => { if (!open) { setSelectedItem(null); setModalType(null); } }}>
       <DialogContent ref={modalPecaRef} className={HIDE_NATIVE_CLOSE} style={modalSurface(468)}>
@@ -106,7 +229,9 @@ export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMo
             : "Conferir peça"}
           subtitle={modalType === "production"
             ? cabecalhoDoModalDeImpressao(selectedItem).subtitle
-            : "Compare a peça pronta com a arte e tire a foto"}
+            : fichaDepoisDasFotos && selectedItem
+              ? `${selectedItem.displayId} · ${selectedItem.type} — compare com a arte e tire a foto`
+              : "Compare a peça pronta com a arte e tire a foto"}
           onClose={() => { setSelectedItem(null); setModalType(null); }}
         />
 
@@ -158,122 +283,9 @@ export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMo
             </a>
           )}
 
-          {/* Card de identificação */}
-          {selectedItem && (
-            <div style={{ backgroundColor: N.n2, borderRadius: 12, padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                <div style={{ backgroundColor: T.surface, borderRadius: 8, padding: 8, boxShadow: "0 1px 4px rgba(0,0,0,0.08)", flexShrink: 0 }}>
-                  {modalType === "production"
-                    ? <Printer style={{ width: 20, height: 20, color: T.accent }} />
-                    : <CheckCircle style={{ width: 20, height: 20, color: TOM.ciano.text }} />}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 3 }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", flexWrap: "wrap", gap: 6, minWidth: 0 }}>
-                      <span style={{ fontFamily: FONT.display, fontWeight: 700, fontSize: isMobile ? 16 : 13, color: selectedItem.isReuse ? TOM.esmeralda.text : T.accentText }}>{selectedItem.displayId}</span>
-                      <SeloKit peca={selectedItem} style={{ flexShrink: 0 }} />
-                      <AvisoDoEstoqueNaPeca peca={selectedItem} style={{ flexShrink: 0 }} />
-                      {/* Produzir/conferir/entregar um complemento é registrar
-                          um LOTE SEPARADO: o modal precisa dizer isso, senão
-                          o operador acha que está lançando na peça original. */}
-                      {isComplement(selectedItem) && (
-                        <span style={{ backgroundColor: CO.solidBg, color: CO.solidText, borderRadius: R.sm, padding: "1px 6px", fontSize: fsMin(FS.micro), fontWeight: FW.rotulo, whiteSpace: "nowrap" }}>
-                          Compl. de {parentDisplayIdOf(selectedItem)}
-                        </span>
-                      )}
-                    </span>
-                    <StatusPill status={statusDeExibicao(selectedItem)} size="sm" showDot={false} />
-                  </div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>{selectedItem.type}</div>
-                  {selectedItem.description && selectedItem.description !== selectedItem.type && (
-                    <div style={{ fontSize: 13, color: T.second, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{selectedItem.description}</div>
-                  )}
-                  {selectedItem.event?.name && (
-                    <div style={{ fontSize: 13, color: T.second, marginTop: 4, display: "flex", alignItems: "center", gap: 5 }}>
-                      <Calendar style={{ width: 11, height: 11, flexShrink: 0 }} />
-                      {selectedItem.event.name}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Grade de specs */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                <div style={{ background: T.surface, borderRadius: 8, padding: '8px 10px' }}>
-                  <div style={{ fontSize: fsMin(FS.small), fontWeight: FW.forte, color: T.apoio, marginBottom: 3 }}>Material</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{selectedItem.material || '—'}</div>
-                  {selectedItem.visualWidth && (
-                    <div style={{ fontSize: fsMin(11), color: T.second, marginTop: 1 }}>{selectedItem.visualWidth} × {selectedItem.visualHeight}m</div>
-                  )}
-                </div>
-                <div style={{ background: T.surface, borderRadius: 8, padding: '8px 10px' }}>
-                  <div style={{ fontSize: fsMin(FS.small), fontWeight: FW.forte, color: T.apoio, marginBottom: 3 }}>Acabamento</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{selectedItem.finish || '—'}</div>
-                  {Number(selectedItem.calculatedM2) > 0 && (
-                    <div style={{ fontSize: fsMin(11), color: T.second, marginTop: 1 }}>{m2ToProduce(selectedItem).toFixed(2)} m²</div>
-                  )}
-                </div>
-                <div style={{ background: T.surface, borderRadius: 8, padding: '8px 10px' }}>
-                  <div style={{ fontSize: fsMin(FS.small), fontWeight: FW.forte, color: T.apoio, marginBottom: 2 }}>Quantidade</div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: T.text, fontFamily: FONT.display, lineHeight: 1 }}>{qtyOf(selectedItem)}<span style={{ fontSize: fsMin(11), fontWeight: 500, color: T.second, marginLeft: 3 }}>un.</span></div>
-                  {selectedItem.isReuse && <div style={{ fontSize: fsMin(FS.small), color: TOM.esmeralda.text, marginTop: 2, fontWeight: FW.medio }}>Reaproveitado</div>}
-                </div>
-                {/* Tile de contexto — nos dois tipos. A produção era o
-                    único modal que nunca dizia quanto já foi produzido, e é
-                    justamente o único cujo campo é ABSOLUTO: sem este número
-                    na tela, quem digitava "o que fez hoje" apagava o resto e
-                    não havia nada, em lugar nenhum, mostrando o valor
-                    anterior. Ciano único #0e7490 (5,36:1); #0891b2 dava
-                    3,68:1 em 18px/800. */}
-                {(modalType === "conference" || modalType === "production") && (
-                  <div style={{
-                    background: modalType === "conference" ? TOM.ciano.bg : N.n2,
-                    borderRadius: 8, padding: '8px 10px',
-                    border: `1px solid ${modalType === "conference" ? TOM.ciano.border : T.bdark}`,
-                  }}>
-                    <div style={{ fontSize: fsMin(FS.small), fontWeight: FW.forte, color: modalType === "conference" ? TOM.ciano.text : T.apoio, marginBottom: 2 }}>
-                      {modalType === "conference" ? "A Conferir" : (isInProd(selectedItem) && !iniciandoResto ? "Na impressora" : "A imprimir")}
-                    </div>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: modalType === "conference" ? TOM.ciano.text : T.text, fontFamily: FONT.display, lineHeight: 1 }}>
-                      {modalType === "conference" ? remainingConfer(selectedItem)
-                        : iniciandoResto ? semImpressora(selectedItem) : remainingProduce(selectedItem)}<span style={{ fontSize: fsMin(11), fontWeight: 500, marginLeft: 3 }}>un.</span>
-                    </div>
-                    {modalType === "conference" && conferredOf(selectedItem) > 0 && (
-                      <div style={{ fontSize: fsMin(FS.small), color: TOM.ciano.text, marginTop: 2 }}>{conferredOf(selectedItem)} já conferida{conferredOf(selectedItem) !== 1 ? 's' : ''}</div>
-                    )}
-                    {modalType === "production" && (
-                      <div data-testid="text-ja-produzidas" style={{ fontSize: fsMin(FS.small), color: T.apoio, marginTop: 2 }}>
-                        {producedOf(selectedItem)} já impressa{producedOf(selectedItem) !== 1 ? 's' : ''} de {qtyOf(selectedItem)}
-                        {reusedTotalOf(selectedItem) > 0 && ` · ${reusedTotalOf(selectedItem)} reaproveitada${reusedTotalOf(selectedItem) !== 1 ? 's' : ''}`}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Motivo do aumento — quem está com a peça na mão lê aqui por
-                  que este lote existe, antes de mandar para a impressora. */}
-              {isComplement(selectedItem) && selectedItem.complementReason && (
-                <div style={{ background: CO.bg, border: `1px solid ${CO.border}`, borderRadius: 8, padding: '8px 10px', display: 'flex', gap: 7, alignItems: 'flex-start' }}>
-                  <PlusCircle aria-hidden="true" style={{ width: 12, height: 12, color: CO.text, flexShrink: 0, marginTop: 2 }} />
-                  <span style={{ fontSize: 13, color: CO.textStrong, lineHeight: 1.4 }}>
-                    <strong>
-                      Aumento pedido{selectedItem.complementRequestedBy ? ` por ${selectedItem.complementRequestedBy}` : ""}
-                    </strong>
-                    {selectedItem.complementRequestedAt ? ` (${fmtDataHora(selectedItem.complementRequestedAt)})` : ""}: {selectedItem.complementReason}
-                  </span>
-                </div>
-              )}
-
-              {/* Observações */}
-              {selectedItem.observations && (
-                <div style={{ background: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 8, padding: '8px 10px', display: 'flex', gap: 7, alignItems: 'flex-start' }}>
-                  <AlertCircle style={{ width: 12, height: 12, color: TOM.alerta.text, flexShrink: 0, marginTop: 1 }} />
-                  <span style={{ fontSize: 13, color: TOM.alerta.text, lineHeight: 1.4 }}>{selectedItem.observations}</span>
-                </div>
-              )}
-            </div>
-          )}
+          {/* Card de identificação — no celular, na conferência, desce para
+              depois das fotos (ver `fichaDepoisDasFotos`). */}
+          {selectedItem && !fichaDepoisDasFotos && fichaDaPeca}
 
           {/* ── FORM: IMPRESSÃO — compartilhado com a aba Máquinas ── */}
           {/* key={id}: a máquina e a quantidade nascem da peça dentro do
@@ -310,11 +322,13 @@ export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMo
               : embalarJunto && jaEmbalar ? `Conferir e embalar ${conferQty} un.` : `Conferir ${conferQty} un.`;
             return (
             <form onSubmit={handleSubmitConference} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-              <p style={{ fontSize: 13, color: T.apoio, margin: 0 }}>
-                Confira a peça e anexe a foto. Pode conferir parcialmente — depois é só conferir o restante.
-              </p>
+              {!fichaDepoisDasFotos && (
+                <p style={{ fontSize: 13, color: T.apoio, margin: 0 }}>
+                  Confira a peça e anexe a foto. Pode conferir parcialmente — depois é só conferir o restante.
+                </p>
+              )}
               {aindaNaImpressora > 0 && (
-                <p data-testid="aviso-conferir-so-impressas" style={{ fontSize: 13, color: TOM.ciano.text, margin: "-8px 0 0", lineHeight: 1.4 }}>
+                <p data-testid="aviso-conferir-so-impressas" style={{ fontSize: 13, color: TOM.ciano.text, margin: fichaDepoisDasFotos ? 0 : "-8px 0 0", lineHeight: 1.4 }}>
                   Só dá para conferir o que já saiu da impressora: {aindaNaImpressora} un. ainda não {aindaNaImpressora !== 1 ? "foram impressas" : "foi impressa"}.
                 </p>
               )}
@@ -343,6 +357,7 @@ export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMo
                 </label>
               )}
 
+              {fichaDepoisDasFotos && fichaDaPeca}
               {renderNotesField("Ex.: cor puxando para o escuro, ilhós faltando…")}
               <div style={modalActionsStyle}>
                 <Botao tamanho="toque" onClick={() => { setSelectedItem(null); setModalType(null); }}

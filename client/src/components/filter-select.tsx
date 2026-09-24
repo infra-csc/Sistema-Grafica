@@ -965,7 +965,9 @@ export function FilterSelect({
         {triggerDot && (
           <span style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: triggerDot, flexShrink: 0 }} />
         )}
-        <span style={{ overflow: "hidden", textOverflow: "ellipsis", flex: fullWidth ? 1 : undefined }}>
+        {/* textAlign: o <button> centraliza o texto por padrão — com largura
+            cheia (folha de filtros do celular) o rótulo flutuava no meio. */}
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", flex: fullWidth ? 1 : undefined, textAlign: fullWidth ? "left" : undefined }}>
           {triggerText}
         </span>
 

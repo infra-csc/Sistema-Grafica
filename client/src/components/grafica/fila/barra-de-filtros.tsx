@@ -262,27 +262,31 @@ export function BarraDeFiltros({ fila, isMobile, usaCards, ponteiroGrosso, showA
             componente, estado e URL da folha — só mudou de lugar: linha
             própria, largura total, logo abaixo da busca. O X limpa só o
             evento; o resto da folha fica como está. */}
-        <div data-testid="filtro-evento-mobile" style={{ display: "flex", gap: 8, alignItems: "center", width: "100%" }}>
-          <div style={{ flex: "1 1 0", minWidth: 0 }}>
+        {/* UMA LINHA QUE ROLA PARA O LADO (revisão de celular, 24/09): evento
+            e atalhos eram duas linhas — 52px a mais antes da primeira peça.
+            A linha sangra até a borda da tela (margens negativas iguais ao
+            respiro da página), então o chip cortado na borda direita diz
+            "tem mais para o lado". O menu do evento abre em portal: a rolagem
+            não o corta. */}
+        <div data-testid="linha-atalhos-mobile" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "nowrap", overflowX: "auto", marginLeft: -12, marginRight: -12, paddingLeft: 12, paddingRight: 12, scrollbarWidth: "none", overscrollBehaviorX: "contain" }}>
+          <div data-testid="filtro-evento-mobile" style={{ display: "flex", gap: 8, alignItems: "center", flex: "0 0 auto" }}>
             <EventFilterDropdown
               values={filtros.evento}
               onValuesChange={v => patchFiltros({ evento: v })}
               options={eventFilterOptions}
             />
+            {filtros.evento.length > 0 && (
+              <Botao tamanho="toque" icone={X} onClick={() => patchFiltros({ evento: [] })} data-testid="button-limpar-evento-mobile"
+                aria-label="Limpar o filtro de evento" title="Limpar o filtro de evento"
+                style={{ flex: "0 0 44px", width: 44, padding: 0 }} />
+            )}
           </div>
-          {filtros.evento.length > 0 && (
-            <Botao tamanho="toque" icone={X} onClick={() => patchFiltros({ evento: [] })} data-testid="button-limpar-evento-mobile"
-              aria-label="Limpar o filtro de evento" title="Limpar o filtro de evento"
-              style={{ flex: "0 0 44px", width: 44, padding: 0 }} />
-          )}
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           {/* "Próximos 10 dias" é o recorte do dia a dia do galpão (o
               caminhão que sai já): morava DENTRO da folha, a três toques
               (abrir, ligar, ver). Aqui fica a um. */}
-          {pillProximos}
-          {pillTravadas}
-          {botaoLimpar}
+          <span style={{ flex: "0 0 auto", display: "inline-flex" }}>{pillProximos}</span>
+          {pillTravadas && <span style={{ flex: "0 0 auto", display: "inline-flex" }}>{pillTravadas}</span>}
+          {botaoLimpar && <span style={{ flex: "0 0 auto", display: "inline-flex" }}>{botaoLimpar}</span>}
         </div>
       </div>
 

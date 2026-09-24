@@ -545,7 +545,10 @@ export default function GraficaMaquinas() {
                 </div>
               )}
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 12 }}>
+              {/* alignItems start: a grade esticava TODOS os cartões até a altura do
+                  mais comprido — uma impressora com fila grande deixava as livres
+                  como colunas brancas da altura da tela (relato do dono, 24/09). */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 12, alignItems: "start" }}>
                 {maquinas.map((m) => (
                   <CartaoDaImpressora key={m.codigo} m={m} maquinaEmFoco={maquinaEmFoco} itemEmFoco={itemEmFoco} agora={agora} hojeMs={hojeMs} isMobile={isMobile} toque={toque} podeAgir={podeAgir} ocupacao={ocupacao} mexendo={mexerNaImpressora.isPending} filasAbertas={filasAbertas} dia={dia} hoje={hoje} botaoNeutro={botaoNeutro} setSeletorDaMaquina={setSeletorDaMaquina} abrirModal={abrirModal} mexer={mexer} iniciarDaFila={iniciarDaFila} reservar={reservar} setFilasAbertas={setFilasAbertas} escreverURL={escreverURL} />
                 ))}

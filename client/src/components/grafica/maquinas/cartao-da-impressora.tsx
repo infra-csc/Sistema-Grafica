@@ -75,6 +75,19 @@ export function PecaNaFilaDoCartao({ p, podeAgir, hojeMs, isMobile, proxima = fa
       )}
       {podeAgir && (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          {/* IMPRESSORA OCUPADA (relato do dono, 24/09: "quando a fila está
+              grande de uma impressora, está puxando todas"): cada peça da fila
+              repetia o aviso "a impressora está com #X…" + um Iniciar
+              desabilitado + "Imprimir esta no lugar" — três linhas por peça, e a
+              fila virava parede. Agora o aviso sai UMA vez no topo da fila
+              (CartaoDaImpressora) e a ação da peça é a que ela TEM: trocar. */}
+          {ocupado && onTrocar && !selo ? (
+            <Botao variante="secundario" icone={ArrowLeftRight} disabled={mexendo || confirmandoTroca} onClick={() => setConfirmandoTroca(true)} data-testid={`button-imprimir-no-lugar-fila-${p.id}`}
+              title={`${motivoImpressoraOcupada(ocupante?.displayId ?? null)}. Tira a peça atual (as impressas ficam anotadas) e imprime esta no lugar.`}
+              style={{ flex: isMobile ? "1 1 100%" : "1 1 130px", minHeight: alvo, padding: "0 12px", border: `1px solid ${T.text}`, color: T.text, fontSize: letra }}>
+              Imprimir esta no lugar
+            </Botao>
+          ) : (
           <Botao
             // A PRÓXIMA da impressora livre é a ação do cartão (sólida); as outras, contorno escuro.
             variante={proxima && !selo ? "primario" : "secundario"}
@@ -90,6 +103,7 @@ export function PecaNaFilaDoCartao({ p, podeAgir, hojeMs, isMobile, proxima = fa
               ? `Próxima: ${p.displayId ?? "peça"} · Iniciar ${reservadas} un.`
               : p.reservadas != null && reservadas < p.aImprimir ? `Iniciar ${reservadas} un.` : "Iniciar impressão"}
           </Botao>
+          )}
           {isMobile && (
             <Botao
               variante="secundario"
@@ -138,16 +152,6 @@ export function PecaNaFilaDoCartao({ p, podeAgir, hojeMs, isMobile, proxima = fa
       {/* Travada pela Solicitação: o MESMO selo da Gráfica, à vista (não só no title). */}
       {selo?.motivo === "travada" && (
         <div data-testid={`fila-travada-${p.id}`} title={fraseDaTrava(p)} style={{ fontSize: isMobile ? 12 : FS.small, fontWeight: FW.forte, color: selo.text, overflowWrap: "anywhere" }}>{selo.label}</div>
-      )}
-      {podeAgir && ocupante && !selo && (
-        <div data-testid={`fila-ocupada-${p.id}`} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <span role="status" style={{ flex: "1 1 180px", fontSize: FS.meta, color: AMBAR.text, fontWeight: FW.forte, lineHeight: 1.4 }}>{motivoImpressoraOcupada(ocupante.displayId)}</span>
-          {onTrocar && !confirmandoTroca && (
-            <Botao variante="secundario" disabled={mexendo} onClick={() => setConfirmandoTroca(true)} data-testid={`button-imprimir-no-lugar-fila-${p.id}`} style={{ minHeight: alvo, padding: "0 12px", border: `1px solid ${T.text}`, color: T.text, fontSize: letra, ...(isMobile ? { flex: "1 1 100%" } : {}) }}>
-              Imprimir esta no lugar
-            </Botao>
-          )}
-        </div>
       )}
       {confirmandoTroca && ocupante && onTrocar && (
         <div role="alertdialog" aria-label="Trocar a peça da impressora" data-testid={`confirmar-troca-fila-${p.id}`} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "8px 10px", borderRadius: R.md, background: AMBAR.bg, border: `1px solid ${AMBAR.border}`, color: AMBAR.text, fontSize: isMobile ? 13 : 12, lineHeight: 1.45 }}>
@@ -370,12 +374,22 @@ export function CartaoDaImpressora({ m, maquinaEmFoco, itemEmFoco, agora, hojeMs
       {naFila.length > 0 && (
         <div data-testid={`fila-maquina-${m.codigo}`} style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 2 }}>
           <div style={{ ...ROTULO_MICRO, fontSize: isMobile ? 12 : FS.micro, paddingTop: 6 }}>Na fila desta impressora · {naFila.length}</div>
+          {ocupada && podeAgir && (
+            <p role="status" data-testid={`fila-ocupada-maquina-${m.codigo}`} style={{ margin: "2px 0 4px", fontSize: isMobile ? 12 : FS.meta, color: AMBAR.text, fontWeight: FW.forte, lineHeight: 1.4 }}>
+              {motivoImpressoraOcupada(ocupacao[m.codigo]?.atual?.displayId ?? m.imprimindo[0]?.displayId ?? null)}
+            </p>
+          )}
           {(!filasAbertas.has(m.codigo) ? naFila.slice(0, isMobile ? FILA_DO_CARTAO_NO_CELULAR : FILA_DO_CARTAO_NO_DESKTOP) : naFila).map((p) => (
             <PecaNaFilaDoCartao key={p.id} p={p} proxima={!ocupada && p.id === idDaProxima} ocupante={ocupada ? ocupacao[m.codigo]?.atual ?? null : null} mexendo={mexendo} onTrocar={(entra, sai) => mexer({ maquina: m.codigo, sai, entra, quantidade: entra.reservadas ?? null })} podeAgir={podeAgir} hojeMs={hojeMs} isMobile={isMobile} onIniciar={iniciarDaFila} onReservar={(peca, maquina, quantidade) => reservar([peca.id], maquina, quantidade ?? (peca.reservadas != null ? peca.reservadas : null), peca.reservadas != null ? m.codigo : null)} />
           ))}
           {!filasAbertas.has(m.codigo) && naFila.length > (isMobile ? FILA_DO_CARTAO_NO_CELULAR : FILA_DO_CARTAO_NO_DESKTOP) && (
             <Botao variante="secundario" onClick={() => setFilasAbertas((s) => new Set(s).add(m.codigo))} data-testid={`fila-maquina-ver-todas-${m.codigo}`} style={{ ...botaoNeutro, width: "100%", fontSize: 13 }}>
               Ver as {naFila.length} da fila <ChevronDown aria-hidden="true" style={{ width: 13, height: 13 }} />
+            </Botao>
+          )}
+          {filasAbertas.has(m.codigo) && naFila.length > (isMobile ? FILA_DO_CARTAO_NO_CELULAR : FILA_DO_CARTAO_NO_DESKTOP) && (
+            <Botao variante="secundario" onClick={() => setFilasAbertas((s) => { const n = new Set(s); n.delete(m.codigo); return n; })} data-testid={`fila-maquina-recolher-${m.codigo}`} style={{ ...botaoNeutro, width: "100%", fontSize: 13 }}>
+              Mostrar só as {isMobile ? FILA_DO_CARTAO_NO_CELULAR : FILA_DO_CARTAO_NO_DESKTOP} primeiras <ChevronDown aria-hidden="true" style={{ width: 13, height: 13, transform: "rotate(180deg)" }} />
             </Botao>
           )}
         </div>

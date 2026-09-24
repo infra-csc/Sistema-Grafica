@@ -914,18 +914,21 @@ describe("fila geral: Imprimir agora, sem modal", () => {
     expect(posts).toEqual([{ url: "/api/grafica/maquinas/1/trocar", body: { tirarItemId: "p1", colocarItemId: "f1", quantidade: 10 } }]);
   });
 
-  it("CARTÃO ocupado: a fila NÃO inicia — botão desabilitado, motivo em 12px e 'Imprimir esta no lugar'; 'Tirar da impressora' libera", async () => {
+  // RELATO DO DONO (24/09): com a fila grande, cada peça repetia o aviso + um
+  // Iniciar desabilitado + "Imprimir esta no lugar" — a fila virava parede.
+  // Agora o aviso sai UMA vez no topo da fila e a peça tem a ação que tem.
+  it("CARTÃO ocupado: a fila NÃO inicia — o aviso sai UMA vez no topo, cada peça só tem 'Imprimir esta no lugar'; 'Tirar da impressora' libera", async () => {
     const r = retrato({ fila: true });
     // A #0204 e a #0205 estão na fila da Impressora 1, que imprime a #0101.
     (r.maquinas[0] as any).naFila = (r.maquinas[1] as any).naFila.map((x: any) => ({ ...x, maquinaPrevista: "1", reservadas: 10 }));
     (r.maquinas[1] as any).naFila = [];
     await montar(1280, r);
-    const iniciar = $('[data-testid="button-iniciar-fila-f4"]') as HTMLButtonElement;
-    expect(iniciar.disabled).toBe(true);
-    expect(iniciar.getAttribute("data-proxima")).toBeNull(); // ocupada não tem "Próxima"
-    const motivo = $('[data-testid="fila-ocupada-f4"] [role="status"]') as HTMLElement;
-    expect(motivo.textContent).toBe("A impressora está com #0101 — tire-a, troque-a de máquina ou espere acabar");
-    expect(px(motivo.style.fontSize)).toBe(12);
+    expect($('[data-testid="button-iniciar-fila-f4"]'), "sem Iniciar desabilitado na peça").toBeNull();
+    const motivos = $$('[data-testid="fila-maquina-1"] [role="status"]');
+    expect(motivos.length, "o aviso aparece uma vez só").toBe(1);
+    expect(motivos[0].textContent).toBe("A impressora está com #0101 — tire-a, troque-a de máquina ou espere acabar");
+    expect(px((motivos[0] as HTMLElement).style.fontSize)).toBe(12);
+    expect($$('[data-testid="fila-maquina-1"] [data-testid^="button-imprimir-no-lugar-fila-"]').length, "uma troca por peça").toBe((r.maquinas[0] as any).naFila.length);
     expect($('[data-testid="mover-fila-f4"]')).toBeTruthy(); // a outra saída continua ali
     fetchPorUrl();
     await act(async () => { fireEvent.click($('[data-testid="button-imprimir-no-lugar-fila-f4"]')!); });

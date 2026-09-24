@@ -218,7 +218,9 @@ describe("MÁQUINAS a 390px", () => {
     expect($('[data-testid="nome-peca-p1"]')!.style.webkitLineClamp || ($('[data-testid="nome-peca-p1"]')!.style as any).WebkitLineClamp).toBe("2");
     // "Escolher peça" e a fila reservada do cartão 2.
     expect($('[data-testid="link-escolher-peca-3"]')!.style.width).toBe("100%");
-    expect($('[data-testid="button-iniciar-fila-f4"]')).toBeTruthy();
+    // O cartão 2 está OCUPADO (a parte da p1): a ação da peça da fila é a troca
+    // (24/09 — o Iniciar desabilitado saiu da impressora ocupada).
+    expect($('[data-testid="button-imprimir-no-lugar-fila-f4"]')).toBeTruthy();
     // Fila geral: o select nativo a 16px ocupa a linha inteira (alvo de 44 sem mirar).
     const sel = $('[data-testid="reservar-fila-f1"]') as HTMLSelectElement;
     expect(px(sel.style.fontSize)).toBe(16);

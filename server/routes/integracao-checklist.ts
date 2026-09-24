@@ -5,7 +5,9 @@
 // peça o que a Gráfica entregou. Ele precisa de duas perguntas respondidas:
 //   1. quais eventos recentes têm peça da Arena entregue;
 //   2. dentro de um evento, quais peças foram entregues, quantas, e em quais
-//      volumes (tubos) elas saíram.
+//      volumes (tubos) elas saíram — com a quantidade de cada peça EM CADA
+//      volume, para a conferência em dois passos da arena: (a) quais tubos
+//      chegaram; (b) aberto o tubo, conta-se o que a Gráfica pôs nele.
 // E, para o montador reconhecer a peça no chão, a ARTE dela (a miniatura),
 // pedida peça a peça pelo id.
 // A regra do que conta como "entregue" mora em shared/integracao-checklist.ts.
@@ -120,6 +122,35 @@ export const temImagemDaPeca = (approvalThumbUrl: string | null | undefined): bo
 const tipoLimpo = (ct: unknown): string => String(ct ?? "").split(";")[0].trim().toLowerCase();
 const tipoDaArteAceito = (ct: string): boolean => (TIPOS_DA_ARTE as readonly string[]).includes(ct);
 
+// ── Os volumes (tubos e avulsos) na lista de entregues ──────────────────────
+/** Uma linha de volume da peça: quantas unidades dela foram NAQUELE volume. */
+export type TuboDaPeca = { tuboId: string; numero: number; quantidade: number };
+/** O cabeçalho de um volume entregue, com o que ele leva de peças listadas. */
+export type TuboDoEvento = {
+  id: string;
+  numero: number;
+  avulso: boolean;
+  entregueEm: string | null;
+  recebidoPor: string | null;
+  /** Linhas (peças) entregues dentro dele. */
+  linhas: number;
+  /** Soma das quantidades dessas linhas. */
+  unidades: number;
+  /** Quantas fotos de fechamento o volume tem. */
+  fotos: number;
+};
+
+/**
+ * Ordem dos volumes: tubos (número positivo) em ordem crescente, depois os
+ * avulsos (número negativo) por valor absoluto — Tubo 1, 2, 3, Avulso 1, 2.
+ */
+export function compararVolumes(a: { numero: number }, b: { numero: number }): number {
+  const avulsoA = a.numero < 0 ? 1 : 0;
+  const avulsoB = b.numero < 0 ? 1 : 0;
+  if (avulsoA !== avulsoB) return avulsoA - avulsoB;
+  return Math.abs(a.numero) - Math.abs(b.numero);
+}
+
 export function registerIntegracaoChecklistRoutes(app: Express): void {
   // Um `use` no prefixo, e não o middleware rota a rota: uma rota nova aqui
   // embaixo nasce protegida, sem depender de alguém lembrar.
@@ -222,9 +253,23 @@ export function registerIntegracaoChecklistRoutes(app: Express): void {
       const ids = entregues.map((x) => x.p.id);
       const tipos = Array.from(new Set(entregues.map((x) => x.p.type)));
 
+      // UMA consulta traz as linhas entregues (peça × volume × quantidade) E o
+      // cabeçalho do volume de cada linha: dela saem `volumes`, os `tubos` da
+      // peça e a lista `tubos` do topo — sem uma consulta por tubo.
       const [linhasDeVolume, modelos] = await Promise.all([
         ids.length === 0 ? Promise.resolve([]) : db
-          .select({ itemId: tuboItens.itemId, numero: tubos.numero })
+          .select({
+            itemId: tuboItens.itemId,
+            tuboId: tubos.id,
+            numero: tubos.numero,
+            quantidade: tuboItens.quantidade,
+            linhaEntregueEm: tuboItens.entregueEm,
+            avulso: tubos.avulso,
+            tuboEntregueEm: tubos.entregueEm,
+            tuboRecebidoPor: tubos.recebidoPor,
+            // Só a contagem: as fotos em si não saem por esta integração.
+            fotos: sql<number>`coalesce(cardinality(${tubos.fotosFechamento}), 0)::int`,
+          })
           .from(tuboItens)
           .innerJoin(tubos, eq(tubos.id, tuboItens.tuboId))
           .where(and(inArray(tuboItens.itemId, ids), isNotNull(tuboItens.entregueEm)))
@@ -236,9 +281,35 @@ export function registerIntegracaoChecklistRoutes(app: Express): void {
       ]);
 
       const volumesDaPeca = new Map<string, Set<number>>();
+      const tubosDaPeca = new Map<string, TuboDaPeca[]>();
+      const tubosDoEvento = new Map<string, TuboDoEvento>();
+      const listadas = new Set(ids);
       for (const v of linhasDeVolume) {
+        // O banco já recorta; a guarda repete a regra aqui para que um tubo
+        // nunca apareça por linha não entregue ou de peça fora de `itens`.
+        if (!v.linhaEntregueEm || !listadas.has(v.itemId)) continue;
+        const numero = Number(v.numero);
+        const quantidade = Number(v.quantidade);
         if (!volumesDaPeca.has(v.itemId)) volumesDaPeca.set(v.itemId, new Set());
-        volumesDaPeca.get(v.itemId)!.add(Number(v.numero));
+        volumesDaPeca.get(v.itemId)!.add(numero);
+        if (!tubosDaPeca.has(v.itemId)) tubosDaPeca.set(v.itemId, []);
+        tubosDaPeca.get(v.itemId)!.push({ tuboId: v.tuboId, numero, quantidade });
+        let t = tubosDoEvento.get(v.tuboId);
+        if (!t) {
+          t = {
+            id: v.tuboId,
+            numero,
+            avulso: Boolean(v.avulso),
+            entregueEm: iso(v.tuboEntregueEm),
+            recebidoPor: v.tuboRecebidoPor ?? null,
+            linhas: 0,
+            unidades: 0,
+            fotos: Number(v.fotos ?? 0),
+          };
+          tubosDoEvento.set(v.tuboId, t);
+        }
+        t.linhas += 1;
+        t.unidades += quantidade;
       }
       const grupos = grupoPorTipo(modelos);
 
@@ -258,6 +329,9 @@ export function registerIntegracaoChecklistRoutes(app: Express): void {
         recebidoPor: p.receivedBy ?? null,
         // Número do volume; avulso tem número NEGATIVO (−1, −2: ver tubos).
         volumes: Array.from(volumesDaPeca.get(p.id) ?? []).sort((a, b) => a - b),
+        // Em qual volume, e QUANTAS unidades dela em cada um (a contagem do
+        // tubo aberto na arena). Sem linha de volume entregue: [] ("Sem tubo").
+        tubos: (tubosDaPeca.get(p.id) ?? []).sort(compararVolumes),
         // A arte vem por GET /api/integracao/checklist/itens/:itemId/thumb.
         temImagem: temImagemDaPeca(p.approvalThumbUrl),
       }));
@@ -273,6 +347,9 @@ export function registerIntegracaoChecklistRoutes(app: Express): void {
         },
         geradoEm: new Date().toISOString(),
         itens,
+        // Os volumes com ao menos uma linha entregue de peça listada em
+        // `itens` — o Checklist nunca mostra tubo vazio.
+        tubos: Array.from(tubosDoEvento.values()).sort(compararVolumes),
       });
     } catch (error) {
       console.error("[integracao-checklist] falha ao listar peças entregues:", error);

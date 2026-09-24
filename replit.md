@@ -45,7 +45,8 @@ declara — a sequência do `displayId`, os índices criados por script e a tabe
   **Checklist de Arena**, que só LÊ as peças da Arena entregues por token
   (`CHECKLIST_INTEGRACAO_TOKEN`, sem ele a integração fica desligada):
   `GET /api/integracao/checklist/eventos`,
-  `GET /api/integracao/checklist/eventos/:id/entregues` e
+  `GET /api/integracao/checklist/eventos/:id/entregues` (com os tubos e a
+  quantidade de cada peça em cada tubo) e
   `GET /api/integracao/checklist/itens/:itemId/thumb` (a arte) — contrato em
   docs/arquitetura.md → "Integração com o Checklist de Arena".
 * **`[postMerge]`** roda `scripts/post-merge.sh` a cada merge. Ele **não toca no

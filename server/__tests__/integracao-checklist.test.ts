@@ -12,7 +12,11 @@
 //   · a rota nasce protegida: o middleware vem ANTES de qualquer GET do prefixo;
 //   · a ARTE da peça: `temImagem` na lista e GET /itens/:itemId/thumb — só
 //     por id de peça entregue, só imagem, com cache privado (o único lugar do
-//     prefixo sem no-store).
+//     prefixo sem no-store);
+//   · os VOLUMES na lista de entregues (24/09): `tubos` de cada peça com a
+//     quantidade dela EM CADA tubo, e `tubos` no topo com linhas/unidades —
+//     a conferência em dois passos da arena (quais tubos chegaram; aberto o
+//     tubo, quantas peças). Avulso depois dos tubos; linha não entregue fora.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { readFileSync } from "fs";
@@ -353,6 +357,91 @@ describe("a arte da peça", () => {
       expect(porCodigo).toEqual({ "0001": true, "0002": false, "0003": false, "0004": false });
       // O caminho no storage não vaza para o Checklist: só o booleano.
       expect(JSON.stringify(res._body)).not.toContain("/objects/");
+    });
+  });
+
+  describe("os volumes (tubos) na lista de entregues", () => {
+    const EVENTO = [{ id: "ev-1", nome: "Evento", inicio: null, saidaCaminhao: null, status: "active" }];
+    const ENTREGUE = new Date("2026-09-20T12:00:00Z");
+    /** Uma linha peça × volume, como a consulta de volumes devolve. */
+    const linha = (l: Record<string, unknown>) => ({
+      quantidade: 1, linhaEntregueEm: ENTREGUE, avulso: false,
+      tuboEntregueEm: ENTREGUE, tuboRecebidoPor: "Carlos", fotos: 0, ...l,
+    });
+
+    it("peça dividida em dois tubos (7 + 3), avulso depois dos tubos, peça sem tubo com []", async () => {
+      H.respostas = [
+        EVENTO,
+        [
+          { ...pecaDoBanco({ id: "p-div", quantity: 10, deliveredQty: 10 }), displayId: "0001" },
+          { ...pecaDoBanco({ id: "p-av", quantity: 1, deliveredQty: 1 }), displayId: "0002" },
+          { ...pecaDoBanco({ id: "p-sem", quantity: 4, deliveredQty: 4 }), displayId: "0003" },
+          { ...pecaDoBanco({ id: "p-t2", quantity: 5, deliveredQty: 5 }), displayId: "0004" },
+        ],
+        [
+          // Fora de ordem de propósito: o avulso vem primeiro (número −1).
+          linha({ itemId: "p-av", tuboId: "av-1", numero: -1, quantidade: 1, avulso: true, fotos: 1, tuboRecebidoPor: null }),
+          linha({ itemId: "p-div", tuboId: "tubo-2", numero: 2, quantidade: 3, fotos: 0 }),
+          linha({ itemId: "p-div", tuboId: "tubo-1", numero: 1, quantidade: 7, fotos: 2 }),
+          linha({ itemId: "p-t2", tuboId: "tubo-2", numero: 2, quantidade: 5, fotos: 0 }),
+          // Linha ainda não entregue: não conta (nem tubo, nem peça).
+          linha({ itemId: "p-t2", tuboId: "tubo-3", numero: 3, quantidade: 5, linhaEntregueEm: null, tuboEntregueEm: null }),
+          // Linha de peça que não está em `itens`: o tubo não aparece por ela.
+          linha({ itemId: "p-fora", tuboId: "tubo-4", numero: 4, quantidade: 2 }),
+        ],
+        [], // modelos
+      ];
+      const res = await chamar(ROTA_ENTREGUES, { id: "ev-1" });
+      expect(res._status).toBe(200);
+      expect(res._headers["Cache-Control"]).toBe("no-store");
+      const porCodigo = Object.fromEntries(res._body.itens.map((i: any) => [i.codigo, i]));
+
+      expect(porCodigo["0001"].tubos).toEqual([
+        { tuboId: "tubo-1", numero: 1, quantidade: 7 },
+        { tuboId: "tubo-2", numero: 2, quantidade: 3 },
+      ]);
+      // `volumes` continua como antes (compatibilidade).
+      expect(porCodigo["0001"].volumes).toEqual([1, 2]);
+      expect(porCodigo["0002"].tubos).toEqual([{ tuboId: "av-1", numero: -1, quantidade: 1 }]);
+      expect(porCodigo["0002"].volumes).toEqual([-1]);
+      expect(porCodigo["0003"].tubos).toEqual([]);
+      expect(porCodigo["0003"].volumes).toEqual([]);
+      expect(porCodigo["0004"].tubos).toEqual([{ tuboId: "tubo-2", numero: 2, quantidade: 5 }]);
+      expect(porCodigo["0004"].volumes).toEqual([2]);
+
+      expect(res._body.tubos).toEqual([
+        { id: "tubo-1", numero: 1, avulso: false, entregueEm: ENTREGUE.toISOString(), recebidoPor: "Carlos", linhas: 1, unidades: 7, fotos: 2 },
+        { id: "tubo-2", numero: 2, avulso: false, entregueEm: ENTREGUE.toISOString(), recebidoPor: "Carlos", linhas: 2, unidades: 8, fotos: 0 },
+        { id: "av-1", numero: -1, avulso: true, entregueEm: ENTREGUE.toISOString(), recebidoPor: null, linhas: 1, unidades: 1, fotos: 1 },
+      ]);
+    });
+
+    it("avulsos ordenam por valor absoluto, depois de todos os tubos", async () => {
+      H.respostas = [
+        EVENTO,
+        [{ ...pecaDoBanco({ id: "p1", quantity: 9, deliveredQty: 9 }), displayId: "0001" }],
+        [
+          linha({ itemId: "p1", tuboId: "av-2", numero: -2, avulso: true }),
+          linha({ itemId: "p1", tuboId: "t-10", numero: 10 }),
+          linha({ itemId: "p1", tuboId: "av-1", numero: -1, avulso: true }),
+          linha({ itemId: "p1", tuboId: "t-3", numero: 3 }),
+        ],
+        [],
+      ];
+      const res = await chamar(ROTA_ENTREGUES, { id: "ev-1" });
+      expect(res._body.tubos.map((t: any) => t.numero)).toEqual([3, 10, -1, -2]);
+      expect(res._body.itens[0].tubos.map((t: any) => t.numero)).toEqual([3, 10, -1, -2]);
+      // `volumes` segue a ordem numérica de sempre.
+      expect(res._body.itens[0].volumes).toEqual([-2, -1, 3, 10]);
+    });
+
+    it("sem peça entregue, sem tubos — e sem consultar volumes", async () => {
+      H.respostas = [EVENTO, [], [["não deveria ser lida"]]];
+      const res = await chamar(ROTA_ENTREGUES, { id: "ev-1" });
+      expect(res._status).toBe(200);
+      expect(res._body.itens).toEqual([]);
+      expect(res._body.tubos).toEqual([]);
+      expect(H.respostas).toHaveLength(1);
     });
   });
 

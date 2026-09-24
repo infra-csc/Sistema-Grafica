@@ -75,11 +75,36 @@ export function FaixaTravando({
     return { bg: T.surface, borda: T.border, texto: T.strong, barra: T.muted, trilho: N.n3, sub: T.second };
   };
   const teto = Math.max(1, ...travando.map(t => t.pecas));
+  const fraseCompleta = `${travando.length} ${travando.length === 1 ? 'marca segura' : 'marcas seguram'} ${pendencias} ${pendencias === 1 ? 'aprovação' : 'aprovações'}${travando[0].espera > 0 ? ` — a mais antiga espera há ${travando[0].espera}d` : ''}`;
   // Com uma marca ligada no filtro o ranking fica aberto: é nele que
   // mora o caminho de volta ("mostrar todas as peças de novo").
   const rankingAberto = travandoAberto || (sponsorFilter.length === 1 && travando.some(t => t.id === sponsorFilter[0]));
   return (
     <div data-testid="faixa-travando" style={{ borderRadius: 12, background: T.surface, border: `1px solid ${T.border}`, overflow: 'hidden' }}>
+      {emCartoes ? (
+        // NO CELULAR, UMA LINHA (revisão de 24/09): a faixa ocupava duas
+        // linhas (rótulo + frase longa + "Ver quem" quebrando) antes da
+        // primeira peça. A linha inteira é o botão que abre o ranking, com o
+        // resumo curto; a frase por extenso abre junto do ranking — nada some.
+        <button
+          type="button"
+          onClick={() => setTravandoAberto(v => !v)}
+          aria-expanded={rankingAberto}
+          aria-controls="ranking-travando"
+          data-testid="button-travando-ranking"
+          title={fraseCompleta}
+          style={{ font: 'inherit', width: '100%', display: 'flex', alignItems: 'center', gap: 8, minHeight: 44, padding: '0 12px', border: 'none', background: T.bg, borderBottom: rankingAberto ? `1px solid ${N.n3}` : 'none', cursor: 'pointer', textAlign: 'left' }}
+        >
+          <span style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: T.apoio, whiteSpace: 'nowrap' }}>Travando</span>
+          <span data-testid="travando-resumo" style={{ fontSize: 12, color: T.strong, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flex: 1 }}>
+            <b style={{ fontWeight: 700 }}>{travando.length}</b> {travando.length === 1 ? 'marca' : 'marcas'} · <b style={{ fontWeight: 700 }}>{pendencias}</b> {pendencias === 1 ? 'aprovação' : 'aprovações'}{travando[0].espera > 0 ? ` · +${travando[0].espera}d` : ''}
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, color: T.strong, whiteSpace: 'nowrap' }}>
+            {rankingAberto ? 'Recolher' : 'Ver quem'}
+            <ChevronDown aria-hidden="true" style={{ width: 12, height: 12, transform: rankingAberto ? 'rotate(180deg)' : undefined, transition: 'transform 0.15s' }} />
+          </span>
+        </button>
+      ) : (
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', padding: '10px 14px', background: T.bg, borderBottom: `1px solid ${N.n3}` }}>
         <span style={{ fontSize: fsToque(11, dedo), fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: T.apoio, whiteSpace: 'nowrap' }}>Quem está travando</span>
         <span data-testid="travando-resumo" style={{ fontSize: 12, color: T.second }}>
@@ -109,6 +134,18 @@ export function FaixaTravando({
           </button>
         )}
       </div>
+      )}
+      {emCartoes && rankingAberto && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '8px 12px 0' }}>
+          <span style={{ fontSize: 12, color: T.second, flex: '1 1 200px' }}>{fraseCompleta}</span>
+          {(ocultas > 0 || showAllTravando) && (
+            <button type="button" onClick={() => setShowAllTravando(v => !v)} data-testid="button-travando-todas"
+              style={{ font: 'inherit', border: 'none', background: 'transparent', padding: 0, minHeight: 44, color: T.accentText, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', textDecoration: 'underline', textUnderlineOffset: 3, textDecorationColor: TOM.laranja.border }}>
+              {showAllTravando ? 'Mostrar menos' : `Ver as ${ocultas} outra${ocultas !== 1 ? 's' : ''}`}
+            </button>
+          )}
+        </div>
+      )}
       {rankingAberto && (
       <div id="ranking-travando" style={{ display: 'grid', gridTemplateColumns: emCartoes ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))', columnGap: 18, padding: '4px 14px 8px' }}>
         {visiveis.map(t => {

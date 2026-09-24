@@ -8,6 +8,7 @@ import { P } from "@/lib/status";
 import { T, TOM, R } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import type { PecaDaArte } from "./tipos";
+import { fsToque } from "./constantes";
 import type { AcoesDaArte } from "./use-acoes-da-arte";
 
 /** "Direto para finalização": a peça pula a aprovação do Atendimento, com motivo. */
@@ -62,14 +63,14 @@ export function DialogoDispensar({ dispenseItem, setDispenseItem, dispenseReason
               <FastForward style={{ width: 16, height: 16, color: P.amber.text, flexShrink: 0, marginTop: 2 }} />
               <div>
                 <p style={{ fontSize: 12, fontWeight: 700, color: TOM.alerta.text, margin: '0 0 2px' }}>{dispenseItem.displayId} — {dispenseItem.type}</p>
-                <p style={{ fontSize: 11, color: P.amber.text, margin: 0 }}>A peça vai direto para a <strong>finalização da arte</strong>, sem passar pela aprovação do Atendimento. Você ainda sobe o arquivo final, e a Revisão confere antes da Gráfica.</p>
+                <p style={{ fontSize: fsToque(11, dedo), color: P.amber.text, margin: 0 }}>A peça vai direto para a <strong>finalização da arte</strong>, sem passar pela aprovação do Atendimento. Você ainda sobe o arquivo final, e a Revisão confere antes da Gráfica.</p>
               </div>
             </div>
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
             {/* Motivo OBRIGATÓRIO: pular a aprovação sem dizer por quê
                 deixava a Revisão e o Atendimento sem saber se foi combinado. */}
-            <label htmlFor="motivo-dispensa-arte" style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio }}>
+            <label htmlFor="motivo-dispensa-arte" style={{ fontSize: fsToque(11, dedo), fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio }}>
               Motivo <span style={{ color: P.red.text }}>*</span>
             </label>
             <textarea
@@ -78,10 +79,10 @@ export function DialogoDispensar({ dispenseItem, setDispenseItem, dispenseReason
               onChange={e => setDispenseReason(e.target.value)}
               placeholder="Ex: patrocinador já aprovou por fora; peça sem marca..."
               data-testid="textarea-dispense-reason"
-              style={{ width: '100%', backgroundColor: T.bg, border: `1px solid ${faltamNoMotivo(dispenseReason, MOTIVO_DISPENSA_MIN) > 0 ? T.border : TOM.sucesso.text}`, borderRadius: 8, padding: '10px 12px', fontSize: 12, resize: 'none', height: 72, fontFamily: 'inherit', color: T.text, boxSizing: 'border-box' }}
+              style={{ width: '100%', backgroundColor: T.bg, border: `1px solid ${faltamNoMotivo(dispenseReason, MOTIVO_DISPENSA_MIN) > 0 ? T.border : TOM.sucesso.text}`, borderRadius: 8, padding: '10px 12px', fontSize: dedo ? 16 : 12, resize: 'none', height: 72, fontFamily: 'inherit', color: T.text, boxSizing: 'border-box' }}
             />
             {faltamNoMotivo(dispenseReason, MOTIVO_DISPENSA_MIN) > 0 && (
-              <p data-testid="dispense-faltam" style={{ margin: 0, fontSize: 11, color: P.amber.text }}>
+              <p data-testid="dispense-faltam" style={{ margin: 0, fontSize: fsToque(11, dedo), color: P.amber.text }}>
                 {fraseFaltamCaracteres(faltamNoMotivo(dispenseReason, MOTIVO_DISPENSA_MIN))} — diga por que a peça pula a aprovação do Atendimento.
               </p>
             )}

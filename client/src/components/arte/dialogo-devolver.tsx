@@ -8,6 +8,7 @@ import { T, TOM, R } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { DEPOIS_DA_ARTE } from "@shared/fluxo-peca";
 import type { PecaDaArte } from "./tipos";
+import { fsToque } from "./constantes";
 import type { AcoesDaArte } from "./use-acoes-da-arte";
 
 /** Mesma régua do servidor (lerMotivoDevolucao, routes/items.ts). */
@@ -55,7 +56,7 @@ export function DialogoDevolver({ devolverItem, setDevolverItem, devolverMotivo,
               <RotateCcw style={{ width: 16, height: 16, color: P.amber.text, flexShrink: 0, marginTop: 2 }} />
               <div>
                 <p style={{ fontSize: 12, fontWeight: 700, color: TOM.alerta.text, margin: '0 0 2px' }}>{devolverItem.displayId} — {devolverItem.type}</p>
-                <p style={{ fontSize: 11, color: TOM.alerta.text, margin: 0 }}>
+                <p style={{ fontSize: fsToque(11, dedo), color: TOM.alerta.text, margin: 0 }}>
                   {DEPOIS_DA_ARTE.has(devolverItem.status)
                     ? `Atenção: esta peça está em "${getStatusLabel(devolverItem.status)}" — ela já saiu da mesa da Arte. Devolver tira a linha da fila de quem está com ela agora, e o que já foi produzido continua produzido. O thumb e o arquivo final ficam guardados.`
                     : "Ela sai da fila da Arte e reaparece como rascunho no evento. O thumb e o arquivo final que você já subiu ficam guardados."}
@@ -64,7 +65,7 @@ export function DialogoDevolver({ devolverItem, setDevolverItem, devolverMotivo,
             </div>
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
-            <label htmlFor="motivo-devolucao-arte" style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio }}>
+            <label htmlFor="motivo-devolucao-arte" style={{ fontSize: fsToque(11, dedo), fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio }}>
               Motivo <span style={{ color: P.red.text }}>*</span>
             </label>
             <textarea
@@ -74,11 +75,11 @@ export function DialogoDevolver({ devolverItem, setDevolverItem, devolverMotivo,
               onChange={e => setDevolverMotivo(e.target.value)}
               placeholder="Ex: a medida não fecha com o layout enviado — confirmar largura antes de refazer."
               data-testid="textarea-devolver-motivo"
-              style={{ width: '100%', backgroundColor: T.bg, border: `1px solid ${motivoCurto(devolverMotivo) ? T.border : TOM.sucesso.text}`, borderRadius: R.md, padding: '10px 12px', fontSize: 12, resize: 'none', height: 84, fontFamily: 'inherit', color: T.text, boxSizing: 'border-box' }}
+              style={{ width: '100%', backgroundColor: T.bg, border: `1px solid ${motivoCurto(devolverMotivo) ? T.border : TOM.sucesso.text}`, borderRadius: R.md, padding: '10px 12px', fontSize: dedo ? 16 : 12, resize: 'none', height: 84, fontFamily: 'inherit', color: T.text, boxSizing: 'border-box' }}
             />
             {/* #b45309 sobre #fafaf9 = 4,79:1 ✓ nos 11px */}
             {motivoCurto(devolverMotivo) && (
-              <p style={{ margin: 0, fontSize: 11, color: P.amber.text }}>
+              <p style={{ margin: 0, fontSize: fsToque(11, dedo), color: P.amber.text }}>
                 Faltam {Math.max(0, MOTIVO_MIN - devolverMotivo.trim().replace(/\s+/g, " ").length)} caracteres — sem motivo, quem recebe a peça de volta não sabe o que fazer com ela.
               </p>
             )}

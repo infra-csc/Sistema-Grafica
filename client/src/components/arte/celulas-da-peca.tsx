@@ -261,7 +261,8 @@ export function BotaoPrimario({ item, tabId, largura, podeEditar, dedo, enviando
  * mesma da faixa de diagnóstico, do filtro "Prazo: atrasados" e da Gestão de
  * Prazos, com o marco da Finalização (−10) e o ajuste de fim de semana.
  */
-export function PrazoDaPeca({ item, tabId, hoje, dedo = false }: { item: PecaDaArte; tabId: string; hoje: Date; dedo?: boolean }) {
+/** `emLinha`: prazo e idade na MESMA linha (cartão do celular — uma linha a menos por peça). */
+export function PrazoDaPeca({ item, tabId, hoje, dedo = false, emLinha = false }: { item: PecaDaArte; tabId: string; hoje: Date; dedo?: boolean; emLinha?: boolean }) {
   // PRAZO DO MOLDE (22/09): no molde de evento com prazo do molde, é ele
   // que a coluna mostra; sem ele (ou peça comum), o marco da fase de sempre.
   const p = prazoDoMolde(item, item.event, hoje) ?? phaseDeadline(item.event, tabId, hoje);
@@ -272,7 +273,7 @@ export function PrazoDaPeca({ item, tabId, hoje, dedo = false }: { item: PecaDaA
   const dias = diasNaFase(item, hoje);
   const tom = dias !== null ? tomDaIdade(dias) : null;
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+    <div style={emLinha ? { display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 10, rowGap: 1 } : { display: 'flex', flexDirection: 'column', gap: 1 }}>
       <PrazoInline
         diff={p?.diff ?? null}
         date={p?.date ?? null}

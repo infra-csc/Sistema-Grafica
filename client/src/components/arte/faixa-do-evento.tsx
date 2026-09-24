@@ -44,10 +44,10 @@ export function FaixaDoEvento({ bloco, prog, evTotal, tabId, hoje, emCartoes, de
   // eram exatamente o que a faixa escura estava sufocando.
   return (
     <div style={{
-      padding: emCartoes ? '10px 12px' : '12px 18px',
+      padding: emCartoes ? '8px 12px' : '12px 18px',
       backgroundColor: T.bg,
       borderBottom: `1px solid ${N.n3}`,
-      display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+      display: 'flex', justifyContent: 'space-between', alignItems: 'center', columnGap: 12, rowGap: emCartoes ? 4 : 12, flexWrap: 'wrap',
     }}>
       <div style={{ display: 'flex', alignItems: emCartoes ? 'baseline' : 'center', columnGap: 10, rowGap: 2, minWidth: 0, flexWrap: emCartoes ? 'wrap' : 'nowrap' }}>
         {/* A ESTRELA LARANJA CHEIA SAIU, e a caixa alta do nome

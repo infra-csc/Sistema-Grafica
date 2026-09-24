@@ -153,13 +153,16 @@ async function montarArte(pecas: any[], opts: { abrir?: string; resposta?: (u: U
 describe("Arte montada — trocar o arquivo final", () => {
   it("com material produzido: sem campo nem botão, e o motivo escrito", async () => {
     await montarArte([peca("p1", { status: "inProduction", quantityProduced: 1 })], { abrir: "p1" });
-    await esperar(() => !!tid("final-troca-bloqueada"), "a ficha abre com o bloqueio escrito");
-    expect(tid("final-troca-bloqueada")!.textContent).toContain(ERRO_JA_PRODUZIDO);
+    // Decisão do dono (24/09): quando a regra nega a troca do thumb E a do
+    // arquivo final, a ficha mostra UMA linha neutra com o motivo da regra,
+    // em vez do bloco de troca inteiro dizendo "não" duas vezes.
+    await esperar(() => !!tid("material-troca-bloqueada"), "a ficha abre com o bloqueio escrito");
+    expect(tid("material-troca-bloqueada")!.textContent).toContain("Material não pode mais ser trocado");
+    expect(tid("material-troca-bloqueada")!.textContent).toContain(ERRO_JA_PRODUZIDO);
     expect(tid("input-final-file-path")).toBeNull();
     expect(tid("button-submit-final")).toBeNull();
-    // o thumb de uma peça liberada também não troca — e diz por quê
     expect(tid("uploader-update-thumb")).toBeNull();
-    expect(tid("texto-troca-thumb")!.textContent).toMatch(/já foi liberada/);
+    expect(tid("painel-da-ficha-arte")).toBeNull();
   });
 
   it("liberada sem impressas: avisa antes e o toast diz que voltou para a Revisão Final", async () => {

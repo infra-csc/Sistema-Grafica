@@ -50,6 +50,8 @@ const PECAS = [
   base(2, { status: "sponsor_approved", approvalThumbUrl: "/objects/t2.png" }),
   base(3, { status: "awaiting_sponsor_approval", approvalThumbUrl: "/objects/t3.png" }),
   base(4, { status: "ready_for_production", approvalThumbUrl: "/objects/t4.png", finalFileUrl: "\\\\srv\\artes\\p4.pdf" }),
+  // Descrição IGUAL ao tipo: o subtítulo da ficha não pode repetir o título.
+  base(5, { status: "sponsor_approved", approvalThumbUrl: "/objects/t5.png", description: "Backdrop" }),
 ];
 
 let largura = 390;
@@ -198,7 +200,7 @@ describe.each([360, 390])("Arte em %ipx — primeira dobra do celular", { timeou
   it("modo consulta: faixa de UMA frase no celular", async () => {
     await montar(larg, "?fase=criar-aprovacoes", "atendimento");
     await esperar(() => !!tid("banner-modo-consulta"));
-    expect(tid("banner-modo-consulta")!.textContent).toBe("Modo consulta. Só a equipe de Arte altera as peças.");
+    expect(tid("banner-modo-consulta")!.textContent).toBe("Modo consulta. Só a Arte altera peças.");
   });
 });
 
@@ -277,5 +279,64 @@ describe("Arte — trocar o que já foi enviado", { timeout: 60_000 }, () => {
       await clicar(tid("button-trocar-thumb-p3"));
       await esperar(() => !!tid("painel-da-ficha-arte"), "abre a ficha com a troca");
     }
+  });
+});
+
+describe("A FICHA no celular (compartilhada — rodada final, 24/09)", { timeout: 60_000 }, () => {
+  it("390px: X de 44, trilha só com números e a etapa ATUAL por extenso, nada abaixo de 12px", async () => {
+    await montar(390, "?item=p2");
+    await esperar(() => !!tid("etapa-atual-da-ficha"), "a ficha abre com a etapa atual escrita");
+    expect(tid("etapa-atual-da-ficha")!.textContent).toBe("Etapa 4 de 6 · Finalização");
+    const fechar = tid("button-fechar-ficha")!;
+    expect(fechar.style.width).toBe("44px");
+    expect(fechar.style.height).toBe("44px");
+    // Nenhum rótulo de etapa na trilha do celular (eram "Vín…", "Ap…").
+    expect(tid("trilha-da-ficha")!.textContent).not.toMatch(/Vincula|Aprova/);
+    const dialogo = $('[role="dialog"]')!;
+    expect(letrasMiudas(dialogo), "letra < 12px na ficha do celular").toEqual([]);
+    // A ação da fase no RODAPÉ FIXO (no corpo ela ficava abaixo da dobra);
+    // "Fechar" vira secundário ao lado dela.
+    const envio = tid("button-submit-final")!;
+    expect(envio.closest("footer"), "o envio mora no rodapé no celular").not.toBeNull();
+    expect(envio.textContent).toContain("Enviar arquivo final");
+    expect(document.querySelectorAll('[data-testid="button-submit-final"]').length, "um botão só").toBe(1);
+    expect(tid("rodape-atualizado")!.style.fontSize).toBe("12px");
+    expect(tid("rodape-atualizado")!.style.fontFamily).not.toMatch(/Mono/);
+  });
+
+  it("desktop: a trilha continua com os seis nomes e sem a linha extra", async () => {
+    await montar(1280, "?item=p2");
+    await esperar(() => !!tid("trilha-da-ficha"));
+    expect(tid("trilha-da-ficha")!.textContent).toContain("Vinculação");
+    expect(tid("etapa-atual-da-ficha")).toBeNull();
+  });
+
+  it("o subtítulo não repete o título quando descrição = tipo", async () => {
+    await montar(1280, "?item=p5");
+    await esperar(() => !!tid("subtitulo-da-ficha"));
+    expect(tid("subtitulo-da-ficha")!.textContent).toBe("LONA");
+  });
+
+  it("Finalizar: o campo e o envio vêm ANTES da troca do thumb aprovado", async () => {
+    await montar(1280, "?item=p2");
+    await esperar(() => !!tid("button-submit-final"));
+    const troca = tid("texto-troca-thumb");
+    if (troca) expect(antes(tid("button-submit-final")!, troca)).toBe(true);
+    expect(antes(tid("input-final-file-path")!, tid("lembrete-arquivo-final")!)).toBe(true);
+    // A faixa da ficha já diz "aprovada — falta o arquivo final": sem subtítulo repetido.
+    expect(tid("painel-da-ficha-arte")!.textContent).not.toContain("arte aprovada — falta o arquivo final");
+  });
+});
+
+describe("Faixas do celular em UMA linha", { timeout: 60_000 }, () => {
+  it("'Quem está travando' é um botão de 44px com o resumo curto; abrir mostra a frase inteira", async () => {
+    await montar(390, "?fase=aguardando-patrocinador");
+    await esperar(() => !!tid("button-travando-ranking"));
+    const botao = tid("button-travando-ranking")!;
+    expect(botao.style.minHeight).toBe("44px");
+    expect(botao.contains(tid("travando-resumo"))).toBe(true);
+    expect(tid("travando-resumo")!.textContent).toMatch(/1 marca · 1 aprovação/);
+    await clicar(botao);
+    expect(tid("faixa-travando")!.textContent).toMatch(/1 marca segura 1 aprovação/);
   });
 });

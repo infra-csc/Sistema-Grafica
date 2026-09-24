@@ -9,6 +9,7 @@ import { T, TOM } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { CartaoThumbEmLote } from "./cartao-thumb-em-lote";
 import type { EventoDaPeca, PecaDaArte, PecaDaCorrecao } from "./tipos";
+import { fsToque } from "./constantes";
 import type { LoteDeThumbs } from "./use-lote-de-thumbs";
 
 /** "Envio de thumbs em lote": o vínculo é automático pelo número no nome do arquivo. */
@@ -122,7 +123,7 @@ export function DialogoThumbsEmLote({ lote, itemPorId, correcaoItems, events, gr
                   <p style={{ fontSize: 12, fontWeight: 700, color: isDragOverBulk ? TOM.sucesso.text : T.text, margin: '0 0 2px' }}>
                     {isDragOverBulk ? 'Solte aqui' : 'Arrastar ou clicar'}
                   </p>
-                  <p style={{ fontSize: 11, color: T.apoio, margin: 0, letterSpacing: '0.03em' }}>JPG · PNG · WEBP · SVG</p>
+                  <p style={{ fontSize: fsToque(11, dedo), color: T.apoio, margin: 0, letterSpacing: '0.03em' }}>JPG · PNG · WEBP · SVG</p>
                 </div>
               </div>
             </div>
@@ -132,7 +133,7 @@ export function DialogoThumbsEmLote({ lote, itemPorId, correcaoItems, events, gr
 
             {/* ── Event filter ── */}
             <div style={{ padding: '14px 18px 0' }}>
-              <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio, margin: '0 0 6px' }}>Evento</p>
+              <p style={{ fontSize: fsToque(11, dedo), fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio, margin: '0 0 6px' }}>Evento</p>
               <div style={{ width: '100%' }}>
                 <EventFilterDropdown
                   value={bulkThumbEventFilter}
@@ -154,7 +155,7 @@ export function DialogoThumbsEmLote({ lote, itemPorId, correcaoItems, events, gr
               if (rows.length === 0) return null;
               return (
                 <div style={{ padding: '14px 18px 0' }}>
-                  <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio, margin: '0 0 8px' }}>Resumo</p>
+                  <p style={{ fontSize: fsToque(11, dedo), fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio, margin: '0 0 8px' }}>Resumo</p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {rows.map(s => (
                       <div key={s.label} style={{
@@ -165,7 +166,7 @@ export function DialogoThumbsEmLote({ lote, itemPorId, correcaoItems, events, gr
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                           <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: s.dot, flexShrink: 0 }} />
-                          <span style={{ fontSize: 11, fontWeight: 600, color: s.color }}>{s.label}</span>
+                          <span style={{ fontSize: fsToque(11, dedo), fontWeight: 600, color: s.color }}>{s.label}</span>
                         </div>
                         <span style={{ fontSize: 14, fontWeight: 800, color: s.color, fontFamily: '"Space Grotesk", sans-serif', lineHeight: 1 }}>{s.count}</span>
                       </div>

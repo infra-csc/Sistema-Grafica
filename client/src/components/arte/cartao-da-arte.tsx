@@ -4,7 +4,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { SponsorChips } from "@/components/sponsor-chips";
 import { miniatura } from "@/lib/miniatura";
 import { T, TOM, TOM_FORTE, N, R } from "@/lib/theme";
-import { BotaoPrimario, MenuDeAcoes, MetaDaPeca, PrazoDaPeca, SelosDaPeca, TagsDaPeca } from "./celulas-da-peca";
+import { acaoPrimaria, BotaoPrimario, MenuDeAcoes, MetaDaPeca, PrazoDaPeca, SelosDaPeca, TagsDaPeca } from "./celulas-da-peca";
 import { fsToque } from "./constantes";
 import type { PropsDaLinha } from "./linha-da-arte";
 
@@ -27,6 +27,10 @@ export const CartaoDaArte = memo(function CartaoDaArte({
   // Mesma regra da tabela (fila-agrupada: `selecionaveis`): em "Aguardando
   // envio" só a peça aguardando envio entra no lote; em Finalizados, todas.
   const marcavel = comSelecao && (tabId === "finalizados" || item.status === "awaiting_submission");
+  // Sem ação primária (Aguardando patrocinador, Finalizados, modo consulta), o
+  // "⋯" vai para a coluna da direita, em cima da miniatura.
+  const temAcao = !!acaoPrimaria(item, tabId, podeEditar);
+  const imagem = !!item.approvalThumbUrl && (/.(png|jpg|jpeg|gif|webp)/i.test(item.approvalThumbUrl) || item.approvalThumbUrl.startsWith('/objects/'));
   return (
     <div
       role="button"
@@ -36,34 +40,34 @@ export const CartaoDaArte = memo(function CartaoDaArte({
       style={{ backgroundColor: selecionada ? TOM_FORTE.laranja.bg : T.surface, border: `1px solid ${selecionada ? TOM_FORTE.laranja.border : T.border}`, borderRadius: R.md, padding: 12, cursor: 'pointer', minWidth: 0 }}
       onClick={() => acoes.verDetalhes(item)}
       onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); acoes.verDetalhes(item); } }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
-        {marcavel && (
-          // O toque na caixinha marca — não abre a peça. 44×44 de alvo, com a
-          // caixinha de 16 dentro; a margem negativa devolve o respiro do cartão.
-          <label
-            onClick={e => e.stopPropagation()}
-            onKeyDown={e => e.stopPropagation()}
-            data-testid={`alvo-selecao-${item.id}`}
-            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, margin: '-10px -4px -10px -12px', cursor: 'pointer', flexShrink: 0 }}
-          >
-            <Checkbox
-              checked={selecionada}
-              aria-label={`Selecionar a peça ${item.displayId}${item.type ? ` — ${item.type}` : ''}`}
-              onCheckedChange={() => acoes.alternarSelecao(item.id)}
-              data-testid={`checkbox-item-${item.id}`}
-              // O alvo de 44px é a <label> em volta; a caixinha fica com 16.
-              data-alvo-natural=""
-            />
-          </label>
-        )}
-        <span style={{ fontFamily: '"DM Mono", monospace', fontWeight: 600, color: T.apoio, fontSize: 12 }}>{item.displayId}</span>
-        <SelosDaPeca item={item} tabId={tabId} dedo={dedo} />
-      </div>
       <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 3 }}>
+            {marcavel && (
+              // O toque na caixinha marca — não abre a peça. 44×44 de alvo, com a
+              // caixinha de 16 dentro; a margem negativa devolve o respiro do cartão.
+              <label
+                onClick={e => e.stopPropagation()}
+                onKeyDown={e => e.stopPropagation()}
+                data-testid={`alvo-selecao-${item.id}`}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, margin: '-10px -4px -10px -12px', cursor: 'pointer', flexShrink: 0 }}
+              >
+                <Checkbox
+                  checked={selecionada}
+                  aria-label={`Selecionar a peça ${item.displayId}${item.type ? ` — ${item.type}` : ''}`}
+                  onCheckedChange={() => acoes.alternarSelecao(item.id)}
+                  data-testid={`checkbox-item-${item.id}`}
+                  // O alvo de 44px é a <label> em volta; a caixinha fica com 16.
+                  data-alvo-natural=""
+                />
+              </label>
+            )}
+            <span style={{ fontFamily: '"DM Mono", monospace', fontWeight: 600, color: T.apoio, fontSize: 12 }}>{item.displayId}</span>
+            <SelosDaPeca item={item} tabId={tabId} dedo={dedo} />
+          </div>
           <div style={{ fontWeight: 700, fontSize: 14, color: T.text, overflowWrap: 'anywhere' }}>{item.type || item.description}</div>
           {item.type && item.description && <div style={{ fontSize: 12, color: T.apoio, overflowWrap: 'anywhere' }}>{item.description}</div>}
-          <PrazoDaPeca item={item} tabId={tabId} hoje={hoje} dedo={dedo} />
+          <PrazoDaPeca item={item} tabId={tabId} hoje={hoje} dedo={dedo} emLinha />
           <MetaDaPeca item={item} comQtd dedo={dedo} />
           {item.observations && (
             <span style={{ fontSize: fsToque(11.5, dedo), color: TOM.alerta.text, display: 'flex', alignItems: 'flex-start', gap: 4, overflowWrap: 'anywhere' }}>
@@ -72,11 +76,24 @@ export const CartaoDaArte = memo(function CartaoDaArte({
           )}
           <TagsDaPeca item={item} eventoTemBook={eventoTemBook} dedo={dedo} />
         </div>
-        {/* Mesmo teste isImage do card de correção: thumb em PDF virava um
-            <img> quebrado aqui. À direita, pequena: é a arte da própria
-            pessoa, e reconhecer a peça pela imagem é mais rápido que ler. */}
-        {item.approvalThumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(item.approvalThumbUrl) || item.approvalThumbUrl.startsWith('/objects/')) && (
-          <img loading="lazy" decoding="async" src={miniatura(item.approvalThumbUrl)} alt="" style={{ width: 56, height: 44, borderRadius: 6, objectFit: 'cover', flexShrink: 0, border: `1px solid ${N.n3}` }} />
+        {/* COLUNA DA DIREITA (revisão de celular, 24/09): o "⋯" — quando a
+            fase não tem ação primária (Aguardando patrocinador, Finalizados,
+            modo consulta) — em cima da miniatura. Numa linha própria ele
+            gastava 54px por cartão e empurrava a peça seguinte para fora da
+            tela. A miniatura (mesmo teste isImage do card de correção: thumb
+            em PDF virava <img> quebrado) é a arte da própria pessoa:
+            reconhecer a peça pela imagem é mais rápido que ler. */}
+        {(!temAcao || imagem) && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+            {!temAcao && (
+              <span style={{ display: 'inline-flex', margin: '-6px -6px 0 0' }} onClick={e => e.stopPropagation()}>
+                <MenuDeAcoes item={item} podeEditar={podeEditar} dedo={dedo} acoes={acoes} />
+              </span>
+            )}
+            {imagem && (
+              <img loading="lazy" decoding="async" src={miniatura(item.approvalThumbUrl!)} alt="" style={{ width: 56, height: 44, borderRadius: 6, objectFit: 'cover', flexShrink: 0, border: `1px solid ${N.n3}` }} />
+            )}
+          </div>
         )}
       </div>
       {tabId === "aguardando-patrocinador" && (
@@ -84,14 +101,14 @@ export const CartaoDaArte = memo(function CartaoDaArte({
           <SponsorChips sponsors={item.sponsors ?? []} variant="colored" size={dedo ? "md" : "sm"} max={3} destacarPendencia={tabId === "aguardando-patrocinador"} />
         </div>
       )}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }} onClick={e => e.stopPropagation()}>
-        <BotaoPrimario item={item} tabId={tabId} largura="100%" podeEditar={podeEditar} dedo={dedo} enviando={enviando} algumEnviando={algumEnviando} acoes={acoes} />
-        {/* Sem ação primária (Aguardando patrocinador, Finalizados), o "⋯"
-            vai para a direita — sozinho à esquerda ele parecia um resto. */}
-        <span style={{ marginLeft: 'auto', display: 'inline-flex' }}>
-          <MenuDeAcoes item={item} podeEditar={podeEditar} dedo={dedo} acoes={acoes} />
-        </span>
-      </div>
+      {temAcao && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }} onClick={e => e.stopPropagation()}>
+          <BotaoPrimario item={item} tabId={tabId} largura="100%" podeEditar={podeEditar} dedo={dedo} enviando={enviando} algumEnviando={algumEnviando} acoes={acoes} />
+          <span style={{ marginLeft: 'auto', display: 'inline-flex' }}>
+            <MenuDeAcoes item={item} podeEditar={podeEditar} dedo={dedo} acoes={acoes} />
+          </span>
+        </div>
+      )}
     </div>
   );
 });

@@ -46,7 +46,7 @@ import { ErroDeCarga } from "@/components/arte/erro-de-carga";
 import { DialogoDispensar } from "@/components/arte/dialogo-dispensar";
 import { DialogoDevolver } from "@/components/arte/dialogo-devolver";
 import { DialogoCorrecao } from "@/components/arte/dialogo-correcao";
-import { PainelDeFinalizacao, useSugestaoDoArquivoFinal } from "@/components/arte/painel-finalizacao";
+import { BotaoDoArquivoFinal, PainelDeFinalizacao, useSugestaoDoArquivoFinal } from "@/components/arte/painel-finalizacao";
 import { PainelDoThumbDeAprovacao } from "@/components/arte/painel-thumb-aprovacao";
 import { DialogoPdfCompartilhado } from "@/components/arte/dialogo-pdf-compartilhado";
 import { DialogoBook } from "@/components/arte/dialogo-book";
@@ -593,6 +593,15 @@ export default function Arte() {
     : ['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) ? 'finalizacao'
     : (selectedItem.approvalThumbUrl || selectedItem.finalFileUrl) ? 'troca'
     : null;
+  // A REGRA NEGA TUDO (dono, 24/09): peça entregue/produzida, em que nem o
+  // thumb nem o arquivo final podem mais mudar. Em vez do bloco de troca
+  // inteiro dizendo "não" duas vezes, UMA linha neutra com o motivo da regra.
+  const trocaTodaNegada = painelDaFicha === 'troca' && !regraThumbSel?.pode && !regraFinalSel?.pode;
+  // O envio do arquivo final aparece (1º envio ou troca permitida)? No celular ele vai para o rodapé.
+  const ctaDoFinalNoRodape = isMobile && !trocaTodaNegada
+    && (painelDaFicha === 'finalizacao' || (painelDaFicha === 'troca' && !!regraFinalSel?.pode));
+  const motivoDaTrocaNegada = (regraFinalSel && !regraFinalSel.pode ? regraFinalSel.motivo : null)
+    ?? (regraThumbSel && !regraThumbSel.pode ? regraThumbSel.motivo : null) ?? "";
 
   return (
     // ALTURA: `position: absolute; inset: 0` prende a tela na casca em vez de
@@ -679,7 +688,7 @@ export default function Arte() {
         id="painel-arte"
         role="tabpanel"
         aria-label={tabs.find(t => t.id === activeTab)?.label}
-        style={{ flex: isMobile ? 'none' : 1, overflowY: isMobile ? 'visible' : 'auto', padding: isMobile ? '12px 12px 24px' : '24px 32px', maxWidth: 1600, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}
+        style={{ flex: isMobile ? 'none' : 1, overflowY: isMobile ? 'visible' : 'auto', padding: isMobile ? '8px 12px 24px' : '24px 32px', maxWidth: 1600, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}
       >
       {/* O QUE SE FAZ NESTA FASE (GUIA_DA_FASE) mora no "?" ao lado do título. */}
       {isLoading ? (
@@ -803,6 +812,12 @@ export default function Arte() {
         auditLogs={selectedItem ? auditLogs.filter((log) => log.entityType === 'item' && log.entityId === selectedItem.id) : []}
         open={!!selectedItem}
         onOpenChange={(open) => !open && setSelectedItemId(null)}
+        // No celular o envio do arquivo final vai para o rodapé fixo da ficha:
+        // no corpo ele ficava abaixo da dobra (medido: 765px numa tela de 780).
+        acaoNoRodape={ctaDoFinalNoRodape && selectedItem ? (
+          <BotaoDoArquivoFinal selectedItem={selectedItem} finalFileUrl={finalFileUrl} finalDirty={finalDirty}
+            submitFinalFileMutation={submitFinalFileMutation} handleSubmitFinalFile={handleSubmitFinalFile} curto />
+        ) : undefined}
         // O BLOCO DE AÇÃO DA FASE VEM NO TOPO — nas três situações.
         // Subir o thumb (o gesto nº 1 da Arte, 2.582 em 30 dias) morava em
         // `customActions`, no FIM da ficha: abaixo da especificação e do
@@ -838,6 +853,11 @@ export default function Arte() {
             isMobile={isMobile}
             dedo={dedo}
           />
+        ) : trocaTodaNegada ? (
+          <p data-testid="material-troca-bloqueada" style={{ display: 'flex', alignItems: 'flex-start', gap: 8, margin: 0, padding: '10px 14px', borderRadius: 10, background: N.n2, border: `1px solid ${T.border}`, fontSize: isMobile ? 13 : 12.5, color: T.strong, lineHeight: 1.5 }}>
+            <Lock aria-hidden="true" style={{ width: 14, height: 14, color: T.apoio, flexShrink: 0, marginTop: 2 }} />
+            <span><b style={{ fontWeight: 700 }}>Material não pode mais ser trocado</b> — {motivoDaTrocaNegada}</span>
+          </p>
         ) : (painelDaFicha === 'finalizacao' || painelDaFicha === 'troca') && selectedItem ? (
           <PainelDeFinalizacao
             selectedItem={selectedItem}
@@ -860,6 +880,7 @@ export default function Arte() {
             sugestaoVisivel={sugestaoVisivel}
             usarSugestaoFinal={usarSugestaoFinal}
             ignorarSugestaoFinal={ignorarSugestaoFinal}
+            ctaNoRodape={ctaDoFinalNoRodape}
           />
         ) : selectedItem && !podeEditar && ['awaiting_submission', 'sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) ? (
           // MODO CONSULTA DENTRO DA PEÇA. A faixa cinza do topo explica a

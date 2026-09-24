@@ -9,6 +9,7 @@ import { EstadoVazio } from "@/components/ui/estados";
 import { T, TOM, N, FS, FONT } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { hrefSeguro } from "@shared/url-segura";
+import { fsToque } from "./constantes";
 import type { BookDaArte } from "./use-book-da-arte";
 
 /** "Subir book": o PDF pronto do evento e as peças que ele cobre. */
@@ -59,7 +60,7 @@ export function DialogoBook({ book, groupOf, dedo }: {
 
           {/* Evento */}
           <div>
-            <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio, display: 'block', marginBottom: 6 }}>Evento</label>
+            <label style={{ fontSize: fsToque(11, dedo), fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio, display: 'block', marginBottom: 6 }}>Evento</label>
             <FilterSelect
               fullWidth hideWhenEmpty={false} showAllLabelWhenEmpty
               label="Evento" allLabel="Selecione um evento"
@@ -72,7 +73,7 @@ export function DialogoBook({ book, groupOf, dedo }: {
           {/* Book atual — só aparece quando já existe um book para o evento */}
           {existingBookUrl && !bookFileUrl && (
             <div>
-              <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio, display: 'block', marginBottom: 6 }}>Book atual</label>
+              <label style={{ fontSize: fsToque(11, dedo), fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio, display: 'block', marginBottom: 6 }}>Book atual</label>
               {/* Neutro e chapado: o book atual é CONTEXTO (o que existe hoje),
                   não alerta — o ladrilho em gradiente laranja com sombra era o
                   objeto mais saturado do modal, acima do próprio upload. */}
@@ -87,7 +88,7 @@ export function DialogoBook({ book, groupOf, dedo }: {
                 <a
                   href={hrefSeguro(existingBookUrl)} target="_blank" rel="noopener noreferrer"
                   onClick={e => e.stopPropagation()}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minHeight: 32, fontSize: 12, fontWeight: 600, color: T.text, textDecoration: 'none', background: T.surface, border: `1px solid ${T.bdark}`, borderRadius: 8, padding: '0 10px', flexShrink: 0, whiteSpace: 'nowrap' }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minHeight: dedo ? 44 : 32, fontSize: 12, fontWeight: 600, color: T.text, textDecoration: 'none', background: T.surface, border: `1px solid ${T.bdark}`, borderRadius: 8, padding: '0 10px', flexShrink: 0, whiteSpace: 'nowrap' }}
                 >
                   <ExternalLink aria-hidden="true" style={{ width: 12, height: 12 }} /> Ver book atual
                 </a>
@@ -97,7 +98,7 @@ export function DialogoBook({ book, groupOf, dedo }: {
 
           {/* Upload do PDF */}
           <div>
-            <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio, display: 'block', marginBottom: 6 }}>
+            <label style={{ fontSize: fsToque(11, dedo), fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio, display: 'block', marginBottom: 6 }}>
               {existingBookUrl ? 'Novo PDF (substituição)' : 'Arquivo do book'}
             </label>
             {/* Drag & drop real: a zona dizia "Arrastar ou clicar" mas só o
@@ -155,9 +156,9 @@ export function DialogoBook({ book, groupOf, dedo }: {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio }}>Peças no book</span>
+                <span style={{ fontSize: fsToque(11, dedo), fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio }}>Peças no book</span>
                 {bookEventPieces.length > 0 && (
-                  <span style={{ fontSize: 11, fontWeight: 800, color: T.text, fontFamily: '"Space Grotesk", sans-serif' }}>
+                  <span style={{ fontSize: fsToque(11, dedo), fontWeight: 800, color: T.text, fontFamily: '"Space Grotesk", sans-serif' }}>
                     {bookSelectedIds.size}<span style={{ fontWeight: 500, color: T.apoio }}> / {bookEventPieces.length}</span>
                   </span>
                 )}
@@ -203,16 +204,16 @@ export function DialogoBook({ book, groupOf, dedo }: {
                     <div style={{ width: 16, height: 16, borderRadius: 6, flexShrink: 0, border: `2px solid ${on ? T.accent : T.bdark}`, background: on ? T.accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.12s' }}>
                       {on && <Check style={{ width: 9, height: 9, color: T.surface }} />}
                     </div>
-                    <span style={{ fontFamily: FONT.display, fontSize: FS.small, fontWeight: 700, color: on ? T.accentText : T.second, background: on ? TOM.laranja.border : N.n3, padding: '2px 7px', borderRadius: 6, flexShrink: 0, letterSpacing: '0.01em', transition: 'all 0.12s' }}>{item.displayId}</span>
+                    <span style={{ fontFamily: FONT.display, fontSize: fsToque(FS.small, dedo), fontWeight: 700, color: on ? T.accentText : T.second, background: on ? TOM.laranja.border : N.n3, padding: '2px 7px', borderRadius: 6, flexShrink: 0, letterSpacing: '0.01em', transition: 'all 0.12s' }}>{item.displayId}</span>
                     <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden' }}>
                         {groupOf(item.type) && (
-                          <span style={{ fontSize: 11, fontWeight: 600, color: on ? T.accentText : T.second, background: on ? TOM.laranja.bg : N.n3, border: `1px solid ${on ? TOM.laranja.border : T.border}`, borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap', flexShrink: 0, letterSpacing: '0.02em', transition: 'all 0.12s' }}>{groupOf(item.type)}</span>
+                          <span style={{ fontSize: fsToque(11, dedo), fontWeight: 600, color: on ? T.accentText : T.second, background: on ? TOM.laranja.bg : N.n3, border: `1px solid ${on ? TOM.laranja.border : T.border}`, borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap', flexShrink: 0, letterSpacing: '0.02em', transition: 'all 0.12s' }}>{groupOf(item.type)}</span>
                         )}
                         <span style={{ fontSize: 12, fontWeight: 600, color: on ? T.text : T.apoio, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere', transition: 'color 0.1s' }}>{item.type}</span>
                       </div>
                       {item.description && item.description !== item.type && (
-                        <span style={{ fontSize: 11, color: T.apoio, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>{item.description}</span>
+                        <span style={{ fontSize: fsToque(11, dedo), color: T.apoio, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>{item.description}</span>
                       )}
                     </span>
                     {item.bookUrl && (

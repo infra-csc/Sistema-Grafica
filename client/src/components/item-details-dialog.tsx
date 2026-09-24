@@ -42,12 +42,19 @@ interface ItemDetailsDialogProps<TPeca extends ItemDaFicha> {
   onOpenChange: (open: boolean) => void;
   customActions?: React.ReactNode;
   topActions?: React.ReactNode;
+  /**
+   * A AÇÃO DA FASE no rodapé fixo (aditivo, 24/09). Quem abre a ficha para
+   * agir (a Arte enviando o arquivo final, no celular) não pode depender de
+   * rolar o corpo para achar o botão: com ela, o rodapé mostra a ação ao lado
+   * de "Fechar", que passa a secundário. Sem ela, o rodapé é o de sempre.
+   */
+  acaoNoRodape?: React.ReactNode;
   onEditSave?: (editedItem: TPeca) => void;
 }
 
 export function ItemDetailsDialog<TPeca extends ItemDaFicha>({
   item, auditLogs = [], open, onOpenChange,
-  customActions, topActions, onEditSave,
+  customActions, topActions, onEditSave, acaoNoRodape,
 }: ItemDetailsDialogProps<TPeca>) {
   const [editMode, setEditMode]     = useState(false);
   const [editedItem, setEditedItem] = useState<TPeca | null>(item);
@@ -243,24 +250,26 @@ export function ItemDetailsDialog<TPeca extends ItemDaFicha>({
           /* Branco, e não o #f5f4f1 de antes: sobre ele o #78716c da linha
              "Atualizado" dá 4,36 e reprova em 11px. Sobre branco, 4,80. */
           backgroundColor: T.surface,
-          display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 12,
+          display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: acaoNoRodape && isMobile ? 8 : 12,
+          ...(isMobile ? { paddingBottom: "calc(12px + env(safe-area-inset-bottom))" } : null),
         }}>
-          <span style={{ fontFamily: FONT.mono, fontSize: 11, color: T.second }}>
+          <span data-testid="rodape-atualizado" style={{ fontFamily: FONT.corpo, fontSize: 12, color: T.second }}>
             {item.updatedAt
               ? `Atualizado ${format(new Date(item.updatedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`
               : item.displayId}
           </span>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: acaoNoRodape && isMobile ? "nowrap" : "wrap", flex: acaoNoRodape && isMobile ? "1 1 100%" : undefined }}>
             <Botao
-              variante="primario"
+              variante={acaoNoRodape ? "secundario" : "primario"}
               tamanho="toque"
               onClick={() => onOpenChange(false)}
               data-testid="button-fechar-rodape"
-              style={{ padding: "0 24px", fontSize: FS.body }}
+              style={{ padding: acaoNoRodape && isMobile ? "0 16px" : "0 24px", fontSize: FS.body, flexShrink: 0 }}
             >
               Fechar
             </Botao>
+            {acaoNoRodape && <div style={{ flex: isMobile ? "1 1 0" : undefined, minWidth: 0, display: "flex" }}>{acaoNoRodape}</div>}
           </div>
         </footer>
       </DialogContent>

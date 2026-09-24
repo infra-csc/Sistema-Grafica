@@ -33,7 +33,7 @@ export function LembreteDoArquivoFinal({ testId = "lembrete-arquivo-final" }: { 
       data-testid={testId}
       style={{
         display: "flex", alignItems: "flex-start", gap: 10,
-        padding: "12px 14px", borderRadius: 10,
+        padding: "10px 12px", borderRadius: 10,
         background: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}`,
         color: TOM.perigo.text,
       }}
@@ -43,9 +43,9 @@ export function LembreteDoArquivoFinal({ testId = "lembrete-arquivo-final" }: { 
         <p id={`${testId}-titulo`} style={{ margin: 0, fontSize: FS.body, fontWeight: FW.rotulo, color: TOM.perigo.text, lineHeight: 1.4 }}>
           Lembre-se de conferir:
         </p>
-        <ul style={{ margin: "6px 0 0", paddingLeft: 18, display: "flex", flexDirection: "column", gap: 3, listStyle: "disc" }}>
+        <ul style={{ margin: "4px 0 0", paddingLeft: 18, display: "flex", flexDirection: "column", gap: 1, listStyle: "disc" }}>
           {ITENS_DO_LEMBRETE_DO_ARQUIVO_FINAL.map((item) => (
-            <li key={item} style={{ fontSize: FS.meta, fontWeight: FW.medio, color: TOM.perigo.text, lineHeight: 1.45, overflowWrap: "anywhere" }}>
+            <li key={item} style={{ fontSize: FS.meta, fontWeight: FW.medio, color: TOM.perigo.text, lineHeight: 1.4, overflowWrap: "anywhere" }}>
               {item}
             </li>
           ))}

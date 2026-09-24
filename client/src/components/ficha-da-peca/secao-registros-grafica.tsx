@@ -2,7 +2,7 @@
 import { AlertTriangle, Camera } from "lucide-react";
 import { RegistrosDeTubos } from "@/components/registros-de-tubos";
 import { T, TOM, FONT } from "@/lib/theme";
-import { CARTAO, TITULO_SECAO } from "./estilos";
+import { CARTAO, TITULO_SECAO, useLetraDaFicha } from "./estilos";
 import { PhotoGrid } from "./fotos";
 import type { ItemDaFicha } from "./tipos";
 
@@ -13,6 +13,7 @@ export function SecaoRegistrosDaGrafica({ item, rawStatus, conferencePhotos, del
   conferencePhotos: string[];
   deliveryPhotos: string[];
 }) {
+  const fsf = useLetraDaFicha();
   // ── Andamento na gráfica ──────────────────────────────────────────────────
   const andamentoGrafica = ([
     ["Reaproveitado", item.reuseQty,        TOM.esmeralda.text],
@@ -42,7 +43,7 @@ export function SecaoRegistrosDaGrafica({ item, rawStatus, conferencePhotos, del
   return (
     <section data-testid="section-registros-grafica">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
-        <h3 style={TITULO_SECAO}>Registros da gráfica</h3>
+        <h3 style={{ ...TITULO_SECAO, fontSize: fsf(10) }}>Registros da gráfica</h3>
         {entregues > 0 && quantidade > 0 && (
           <span style={{ fontSize: 12, fontWeight: 700, color: entregues < quantidade ? T.accentText : TOM.sucesso.text }}>
             {item.deliveredQty} de {item.quantity} entregues
@@ -58,7 +59,7 @@ export function SecaoRegistrosDaGrafica({ item, rawStatus, conferencePhotos, del
           <div style={{ display: "flex", flexWrap: "wrap", gap: "10px 22px" }}>
             {andamentoGrafica.map(([label, valor, cor]) => (
               <div key={label}>
-                <p style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.07em", margin: 0 }}>{label}</p>
+                <p style={{ fontSize: fsf(10), fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.07em", margin: 0 }}>{label}</p>
                 <p style={{ fontFamily: FONT.mono, fontSize: 15, fontWeight: 700, color: cor, margin: "2px 0 0" }}>
                   {valor}<span style={{ color: T.second, fontWeight: 400 }}>/{item.quantity}</span>
                 </p>
@@ -66,7 +67,7 @@ export function SecaoRegistrosDaGrafica({ item, rawStatus, conferencePhotos, del
             ))}
             {item.receivedBy && (
               <div>
-                <p style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.07em", margin: 0 }}>Recebido por</p>
+                <p style={{ fontSize: fsf(10), fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.07em", margin: 0 }}>Recebido por</p>
                 <p style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: "2px 0 0" }}>{item.receivedBy}</p>
               </div>
             )}
@@ -82,7 +83,7 @@ export function SecaoRegistrosDaGrafica({ item, rawStatus, conferencePhotos, del
             diante, que a faixa resume como "+N") e a observação. */}
         {(conferencePhotos.length > 1 || item.conferenceNotes) && (
           <div>
-            <p style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: TOM.ciano.text, margin: "0 0 8px" }}>
+            <p style={{ display: "flex", alignItems: "center", gap: 5, fontSize: fsf(11), fontWeight: 700, color: TOM.ciano.text, margin: "0 0 8px" }}>
               <Camera aria-hidden="true" style={{ width: 12, height: 12 }} />
               Conferência{conferencePhotos.length > 1 ? ` · mais ${conferencePhotos.length - 1} ${conferencePhotos.length - 1 === 1 ? "foto" : "fotos"}` : ""}
             </p>
@@ -95,7 +96,7 @@ export function SecaoRegistrosDaGrafica({ item, rawStatus, conferencePhotos, del
 
         {(deliveryPhotos.length > 0 || item.deliveryNotes) && (
           <div>
-            <p style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: TOM.esmeralda.text, margin: "0 0 8px" }}>
+            <p style={{ display: "flex", alignItems: "center", gap: 5, fontSize: fsf(11), fontWeight: 700, color: TOM.esmeralda.text, margin: "0 0 8px" }}>
               <Camera aria-hidden="true" style={{ width: 12, height: 12 }} />
               Entrega{deliveryPhotos.length > 1 ? ` · ${deliveryPhotos.length} fotos` : ""}
             </p>

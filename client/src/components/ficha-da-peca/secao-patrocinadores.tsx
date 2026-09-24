@@ -6,7 +6,7 @@ import { POS_APROVACAO } from "@shared/fluxo-peca";
 import { useAuth } from "@/contexts/auth-context";
 import { T, N, TOM } from "@/lib/theme";
 import { Selo } from "@/components/ui/selo";
-import { CARTAO, TITULO_SECAO } from "./estilos";
+import { CARTAO, TITULO_SECAO, useLetraDaFicha } from "./estilos";
 import type { LinhaDePatrocinador } from "./regras-da-faixa";
 
 export function SecaoPatrocinadores({
@@ -22,11 +22,12 @@ export function SecaoPatrocinadores({
   revertingSponsorId: string | null;
   handleRevertApproval: (sponsorId: string, sponsorName: string | null | undefined) => void;
 }) {
+  const fsf = useLetraDaFicha();
   const { user } = useAuth();
   return (
     <section data-testid="section-patrocinadores">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
-        <h3 style={TITULO_SECAO}>Patrocinadores</h3>
+        <h3 style={{ ...TITULO_SECAO, fontSize: fsf(10) }}>Patrocinadores</h3>
         <span style={{ fontSize: 12, fontWeight: 700, color: aprovados.length === linhasPatrocinador.length ? TOM.sucesso.text : T.accentText }}>
           {aprovados.length} de {linhasPatrocinador.length} aprovaram
         </span>
@@ -72,6 +73,7 @@ export function SecaoPatrocinadores({
                     ponto
                     title={meta.hint}
                     data-testid={`chip-aprovacao-${s.id}`}
+                    style={{ fontSize: fsf(11) }}
                   >
                     {meta.short}
                   </Selo>

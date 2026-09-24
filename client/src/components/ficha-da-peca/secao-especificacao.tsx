@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { parseDateLocal } from "@/lib/utils";
 import { T, TOM, FONT } from "@/lib/theme";
-import { CARTAO, TITULO_SECAO } from "./estilos";
+import { CARTAO, TITULO_SECAO, useLetraDaFicha } from "./estilos";
 import type { CampoEditavel, ItemDaFicha } from "./tipos";
 
 const CAMPOS_EDITAVEIS: { label: string; field: CampoEditavel }[] = [
@@ -32,6 +32,7 @@ export function SecaoEspecificacao({
   handleEditChange: (field: CampoEditavel, value: string) => void;
   handleSave: () => void;
 }) {
+  const fsf = useLetraDaFicha();
   // ── Especificações: a grade sem linha dupla ───────────────────────────────
   //
   // A grade é feita com `gap: 1px` sobre um fundo — as bordas são as FRESTAS
@@ -59,7 +60,7 @@ export function SecaoEspecificacao({
   return (
     <section>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
-        <h3 style={TITULO_SECAO}>Especificação</h3>
+        <h3 style={{ ...TITULO_SECAO, fontSize: fsf(10) }}>Especificação</h3>
         {!editMode && podeEditar && (
           <button
             onClick={onEditar}
@@ -67,7 +68,7 @@ export function SecaoEspecificacao({
             style={{
               background: "none", border: "none", cursor: "pointer", padding: 0,
               display: "flex", alignItems: "center", gap: 5,
-              font: "inherit", fontSize: 11, fontWeight: 700, color: T.accentText,
+              font: "inherit", fontSize: fsf(11), fontWeight: 700, color: T.accentText,
               textTransform: "uppercase", letterSpacing: "0.06em",
             }}
           >
@@ -81,8 +82,8 @@ export function SecaoEspecificacao({
           <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: 16 }}>
             {CAMPOS_EDITAVEIS.map(({ label, field }) => (
               <div key={field}>
-                <label htmlFor={`detail-edit-${field}`} style={{ fontSize: 11, color: T.apoio, display: "block", marginBottom: 4 }}>{label}</label>
-                <Input id={`detail-edit-${field}`} value={editedItem?.[field] || ""} onChange={(e) => handleEditChange(field, e.target.value)} className="h-9 text-sm" />
+                <label htmlFor={`detail-edit-${field}`} style={{ fontSize: fsf(11), color: T.apoio, display: "block", marginBottom: 4 }}>{label}</label>
+                <Input id={`detail-edit-${field}`} value={editedItem?.[field] || ""} onChange={(e) => handleEditChange(field, e.target.value)} className={isMobile ? "h-11 text-base" : "h-9 text-sm"} />
               </div>
             ))}
             <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
@@ -102,7 +103,7 @@ export function SecaoEspecificacao({
             }}>
               {dadosEspec.map(({ label, value }) => (
                 <div key={label} style={{ backgroundColor: T.surface, padding: "11px 14px", minWidth: 0 }}>
-                  <p style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 3px" }}>{label}</p>
+                  <p style={{ fontSize: fsf(10), fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 3px" }}>{label}</p>
                   <p title={String(value)} style={{ fontFamily: FONT.display, fontWeight: 700, fontSize: 15, color: T.text, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</p>
                 </div>
               ))}
@@ -131,13 +132,13 @@ export function SecaoEspecificacao({
 
       {rawStatus === "canceled" && item.motivoCancelamento && (
         <div data-testid="text-motivo-cancelamento" style={{ ...CARTAO, marginTop: 10, padding: "12px 14px", borderColor: TOM.perigo.border, backgroundColor: TOM.perigo.bg }}>
-          <p style={{ fontSize: 10, fontWeight: 700, color: TOM.perigo.text, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px" }}>Motivo do cancelamento</p>
+          <p style={{ fontSize: fsf(10), fontWeight: 700, color: TOM.perigo.text, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px" }}>Motivo do cancelamento</p>
           <p style={{ fontSize: 13, color: TOM.perigo.text, lineHeight: 1.55, margin: 0 }}>{item.motivoCancelamento}</p>
         </div>
       )}
       {item.observations && (
         <div style={{ ...CARTAO, marginTop: 10, padding: "12px 14px" }}>
-          <p style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px" }}>Recado para a Gráfica</p>
+          <p style={{ fontSize: fsf(10), fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px" }}>Recado para a Gráfica</p>
           <p style={{ fontSize: 13, color: T.apoio, fontStyle: "italic", lineHeight: 1.55, margin: 0 }}>"{item.observations}"</p>
         </div>
       )}

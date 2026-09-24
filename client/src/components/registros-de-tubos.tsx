@@ -182,14 +182,14 @@ export function RegistrosDeTubos({ eventIds = [], busca = "", desde = null, item
                     Sem foto da embalagem — as fotos da conferência valem
                   </div>
                 )}
-                <span style={{ position: "absolute", top: 8, left: 8, display: "inline-flex", alignItems: "center", gap: 4, fontSize: FS.small, fontWeight: FW.forte, color: T.surface, backgroundColor: selo.cor, borderRadius: R.sm, padding: "3px 7px" }}>
+                <span style={{ position: "absolute", top: 8, left: 8, display: "inline-flex", alignItems: "center", gap: 4, fontSize: isMobile ? FS.meta : FS.small, fontWeight: FW.forte, color: T.surface, backgroundColor: selo.cor, borderRadius: R.sm, padding: "3px 7px" }}>
                   <Icone aria-hidden="true" style={{ width: 10, height: 10 }} /> {selo.rotulo}
                 </span>
                 <span style={{ position: "absolute", top: 8, right: 8, fontFamily: FONT.mono, fontSize: FS.meta, fontWeight: FW.forte, color: T.surface, backgroundColor: "rgba(28,25,23,0.72)", borderRadius: R.sm, padding: "2px 7px" }}>
                   {t.avulso ? t.itens[0]?.displayId ?? "Avulso" : `Tubo ${t.numero}`}
                 </span>
                 {fotos.length > 1 && (
-                  <span style={{ position: "absolute", left: 8, bottom: 8, fontSize: FS.small, fontWeight: FW.forte, color: T.surface, backgroundColor: "rgba(28,25,23,0.6)", borderRadius: R.pill, padding: "2px 8px" }}>
+                  <span style={{ position: "absolute", left: 8, bottom: 8, fontSize: isMobile ? FS.meta : FS.small, fontWeight: FW.forte, color: T.surface, backgroundColor: "rgba(28,25,23,0.6)", borderRadius: R.pill, padding: "2px 8px" }}>
                     {plural(fotos.length, "foto", "fotos")}
                   </span>
                 )}

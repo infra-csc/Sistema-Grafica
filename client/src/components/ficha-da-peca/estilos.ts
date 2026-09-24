@@ -1,4 +1,17 @@
 import { T, TOM, FONT } from "@/lib/theme";
+import { useIsMobile } from "@/hooks/use-mobile";
+
+/**
+ * PISO DE 12px NO CELULAR (revisão de 24/09). A ficha abre em toda tela do app
+ * (Arte, Gráfica, Atendimento, Revisão, Eventos) e escrevia rótulos, datas e
+ * a trilha em 9–11px — lidos no celular a um braço de distância. No desktop a
+ * densidade continua a de sempre; no celular nada fica abaixo de 12. Mesma
+ * régua do `fsToque` da Arte e do `fsMin` da Gráfica.
+ */
+export function useLetraDaFicha() {
+  const celular = useIsMobile();
+  return (n: number) => (celular ? Math.max(12, n) : n);
+}
 
 export const TIMELINE_STEPS = [
   { label: "Vinculação", idx: 0 },

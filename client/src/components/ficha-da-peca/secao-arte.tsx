@@ -5,7 +5,7 @@ import { miniatura } from "@/lib/miniatura";
 import { refsDaPeca } from "@/lib/refs-da-peca";
 import { hrefSeguro } from "@shared/url-segura";
 import { T, N, TOM } from "@/lib/theme";
-import { TITULO_SECAO } from "./estilos";
+import { TITULO_SECAO, useLetraDaFicha } from "./estilos";
 import { fmtShort, friendlyFileName } from "./formatos";
 import type { ItemDaFicha } from "./tipos";
 
@@ -14,11 +14,12 @@ export function SecaoArte({ item, conferencePhotos }: {
   /** Fotos da conferência (galeria + campo antigo), já convertidas. */
   conferencePhotos: string[];
 }) {
+  const fsf = useLetraDaFicha();
   const thumbUrl = item.approvalThumbUrl;
 
   return (
     <section>
-      <h3 style={{ ...TITULO_SECAO, marginBottom: 10 }}>Arte</h3>
+      <h3 style={{ ...TITULO_SECAO, fontSize: fsf(10), marginBottom: 10 }}>Arte</h3>
       {/* A COMPARAÇÃO É O QUE SE QUER FAZER AQUI. A referência do
           solicitante vinha num banner de largura inteira no topo da
           ficha e a arte enviada num card no fim da coluna direita —
@@ -72,7 +73,7 @@ export function SecaoArte({ item, conferencePhotos }: {
                 ))}
               </div>
             )}
-            <p style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: T.accentText, margin: "6px 0 0" }}>
+            <p style={{ display: "flex", alignItems: "center", gap: 5, fontSize: fsf(11), fontWeight: 700, color: T.accentText, margin: "6px 0 0" }}>
               <Paperclip aria-hidden="true" style={{ width: 11, height: 11 }} />
               {refs.length > 1 ? `Referências do solicitante (${refs.length})` : "Referência do solicitante"}
             </p>
@@ -84,7 +85,7 @@ export function SecaoArte({ item, conferencePhotos }: {
             <div style={{ position: "relative", aspectRatio: "16/9", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.border}`, backgroundColor: N.n2 }}>
               <FilePreview url={thumbUrl} linkUrl={thumbUrl} objectFit="cover" />
             </div>
-            <p style={{ fontSize: 11, fontWeight: 700, color: T.apoio, margin: "6px 0 0" }}>
+            <p style={{ fontSize: fsf(11), fontWeight: 700, color: T.apoio, margin: "6px 0 0" }}>
               Arte enviada{item.approvalThumbUpdatedAt ? ` · ${fmtShort(item.approvalThumbUpdatedAt)}` : ""}
             </p>
           </div>
@@ -112,12 +113,12 @@ export function SecaoArte({ item, conferencePhotos }: {
                 onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
               />
               {conferencePhotos.length > 1 && (
-                <span style={{ position: "absolute", bottom: 6, right: 6, backgroundColor: "rgba(14,116,144,0.92)", color: T.surface, fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 999 }}>
+                <span style={{ position: "absolute", bottom: 6, right: 6, backgroundColor: "rgba(14,116,144,0.92)", color: T.surface, fontSize: fsf(11), fontWeight: 700, padding: "2px 7px", borderRadius: 999 }}>
                   +{conferencePhotos.length - 1}
                 </span>
               )}
             </a>
-            <p style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: TOM.ciano.text, margin: "6px 0 0" }}>
+            <p style={{ display: "flex", alignItems: "center", gap: 5, fontSize: fsf(11), fontWeight: 700, color: TOM.ciano.text, margin: "6px 0 0" }}>
               <Camera aria-hidden="true" style={{ width: 11, height: 11 }} />
               Conferido pela gráfica
             </p>

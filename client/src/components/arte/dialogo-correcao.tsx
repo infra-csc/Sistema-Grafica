@@ -12,7 +12,7 @@ import { getApprovalMeta } from "@/lib/status";
 import { T, TOM, N, R, FS, FONT } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { BotaoBuscarArte } from "./botao-buscar-arte";
-import { KBD } from "./constantes";
+import { KBD, fsToque } from "./constantes";
 import { MiniaturaDaCorrecao } from "./miniatura-da-correcao";
 import type { AprovacaoDaCorrecao, BuscaDeArte, PecaDaCorrecao } from "./tipos";
 import type { AcoesDaArte } from "./use-acoes-da-arte";
@@ -120,7 +120,7 @@ export function DialogoCorrecao({
                           um selo "RECUSADO"), e o painel logo abaixo já diz
                           "reprovou" em caixa baixa — mesma notícia, duas vozes. */}
                       <span style={{ fontSize: 12, fontWeight: 700, color: TOM.perigo.text, flex: 1, minWidth: 0, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>{approval.sponsor?.name || 'Patrocinador'}</span>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: TOM.perigo.text, whiteSpace: 'nowrap' }}>recusou</span>
+                      <span style={{ fontSize: fsToque(11, dedo), fontWeight: 600, color: TOM.perigo.text, whiteSpace: 'nowrap' }}>recusou</span>
                     </div>
                     {/* Reason */}
                     {/* Corpo BRANCO e sem itálico: é o texto que a pessoa
@@ -135,12 +135,12 @@ export function DialogoCorrecao({
                           {approval.rejectedBy && (
                             // Sem o chip rosa em volta do nome: quem recusou
                             // não é um status, é um crédito de linha.
-                            <span style={{ fontSize: 11, fontWeight: 600, color: T.apoio }}>
+                            <span style={{ fontSize: fsToque(11, dedo), fontWeight: 600, color: T.apoio }}>
                               {approval.rejectedBy}
                             </span>
                           )}
                           {approval.rejectedAt && (
-                            <span style={{ fontSize: 11, color: T.apoio, fontVariantNumeric: 'tabular-nums' }}>
+                            <span style={{ fontSize: fsToque(11, dedo), color: T.apoio, fontVariantNumeric: 'tabular-nums' }}>
                               {new Date(approval.rejectedAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
                             </span>
                           )}
@@ -153,7 +153,7 @@ export function DialogoCorrecao({
 
               {/* Upload zone */}
               <div style={{ marginBottom: 18 }}>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: T.apoio, marginBottom: 8 }}>
+                <label style={{ display: 'block', fontSize: fsToque(11, dedo), fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: T.apoio, marginBottom: 8 }}>
                   Nova versão
                 </label>
                 {correcaoThumbUrl ? (
@@ -168,9 +168,9 @@ export function DialogoCorrecao({
                           patrocinador" (rodada 4) — e a pessoa fechava o
                           modal sem clicar no botão de baixo. Subiu para o
                           servidor; ninguém recebeu ainda. */}
-                      <div style={{ fontSize: 11, fontWeight: 700, color: TOM.sucesso.text }}>Nova versão carregada — falta enviar</div>
+                      <div style={{ fontSize: fsToque(11, dedo), fontWeight: 700, color: TOM.sucesso.text }}>Nova versão carregada — falta enviar</div>
                       {correcaoFileName && (
-                        <div style={{ fontSize: 11, color: TOM.sucesso.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={correcaoFileName}>{correcaoFileName}</div>
+                        <div style={{ fontSize: fsToque(11, dedo), color: TOM.sucesso.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={correcaoFileName}>{correcaoFileName}</div>
                       )}
                     </div>
                     <Botao
@@ -242,7 +242,7 @@ export function DialogoCorrecao({
                     )}
                     {/* O atalho que JÁ existe, desenhado como tecla: escrito no
                         meio da frase ele passava por texto de rodapé. */}
-                    <p style={{ fontSize: 11, color: T.apoio, margin: '3px 0 0' }}>
+                    <p style={{ fontSize: fsToque(11, dedo), color: T.apoio, margin: '3px 0 0' }}>
                       {isPasteUploading ? 'Aguarde…' : <>PDF, PNG, SVG · ou cole com <kbd style={KBD}>Ctrl</kbd>+<kbd style={KBD}>V</kbd></>}
                     </p>
                     {!isPasteUploading && correcaoItem && (
@@ -266,7 +266,7 @@ export function DialogoCorrecao({
                   painel de LEITURA: a tela mostra a conta, e o servidor
                   (sponsor-approvals/resubmit) recusa qualquer outro conjunto. */}
               <div style={{ marginBottom: 20 }} data-testid="painel-reenvio">
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: T.apoio, marginBottom: 8 }}>
+                <label style={{ display: 'block', fontSize: fsToque(11, dedo), fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: T.apoio, marginBottom: 8 }}>
                   Para quem vai o reenvio — automático
                 </label>
                 {correcaoAprovacoes.length === 0 && (

@@ -15,6 +15,7 @@
 // modal da Arte (arte.tsx). Se nascer um terceiro ponto, usa esta.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useId, useRef } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export const COMENTARIO_MINIMO = 5;
 
@@ -37,6 +38,9 @@ export function ComentarioDoBook({
   patrocinadores: string[];
 }) {
   const invalido = !comentarioDoBookValido(republicacao, valor);
+  // Celular: nada abaixo de 12px e o campo em 16px (o iOS dá zoom abaixo disso).
+  const celular = useIsMobile();
+  const fsc = (n: number) => (celular ? Math.max(12, n) : n);
   // Rótulo e aviso AMARRADOS ao campo: o título era um <p> solto, então o
   // leitor de tela anunciava "campo de edição" sem dizer qual — e o aviso de
   // obrigatório nunca era lido junto.
@@ -64,7 +68,7 @@ export function ComentarioDoBook({
 
   return (
     <div data-testid="comentario-do-book">
-      <p id={idRotulo} style={{ margin: "0 0 6px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#57534e" }}>
+      <p id={idRotulo} style={{ margin: "0 0 6px", fontSize: fsc(11), fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#57534e" }}>
         O que mudou nesta versão
         {/* #78716c e não #a8a29e: é texto informativo (diz se o campo é
             obrigatório), e #a8a29e não passa 4,5:1 sobre o branco. */}
@@ -91,7 +95,7 @@ export function ComentarioDoBook({
                   border: usado ? "1px solid #fdba74" : "1px solid #e7e5e4",
                   background: usado ? "#fff7ed" : "#fafaf9",
                   color: usado ? "#c2410c" : "#57534e",
-                  fontSize: 12, fontWeight: 600, transition: "all 0.12s",
+                  fontSize: fsc(12), fontWeight: 600, transition: "all 0.12s",
                 }}
               >
                 {nome}
@@ -120,13 +124,13 @@ export function ComentarioDoBook({
         // chega pelo Tab não via onde estava escrevendo.
         style={{
           width: "100%", boxSizing: "border-box", resize: "vertical",
-          padding: "10px 12px", borderRadius: 10, fontSize: 13, lineHeight: 1.5,
+          padding: "10px 12px", borderRadius: 10, fontSize: celular ? 16 : 13, lineHeight: 1.5,
           fontFamily: "inherit", color: "#1c1917", backgroundColor: "#fff",
           border: `1px solid ${invalido && valor.trim().length > 0 ? "#fca5a5" : "#e7e5e4"}`,
         }}
       />
       {republicacao && invalido && (
-        <p id={idAviso} data-testid="comentario-obrigatorio-aviso" style={{ margin: "4px 0 0", fontSize: 11.5, color: "#b91c1c", fontWeight: 600 }}>
+        <p id={idAviso} data-testid="comentario-obrigatorio-aviso" style={{ margin: "4px 0 0", fontSize: fsc(11.5), color: "#b91c1c", fontWeight: 600 }}>
           {/* Com texto começado, diz QUANTO falta — "mín. 5" obriga a contar. */}
           {valor.trim().length > 0
             ? `Faltam ${faltam} ${faltam === 1 ? "caractere" : "caracteres"} para poder republicar.`
@@ -137,7 +141,7 @@ export function ComentarioDoBook({
           nada tomava o lugar: a pessoa não sabia se o campo tinha "passado".
           Uma linha verde curta confirma — e lembra para onde o texto vai. */}
       {republicacao && !invalido && (
-        <p role="status" data-testid="comentario-pronto" style={{ margin: "4px 0 0", fontSize: 11.5, color: "#15803d", fontWeight: 600 }}>
+        <p role="status" data-testid="comentario-pronto" style={{ margin: "4px 0 0", fontSize: fsc(11.5), color: "#15803d", fontWeight: 600 }}>
           Pronto — este texto vai no e-mail da republicação.
         </p>
       )}

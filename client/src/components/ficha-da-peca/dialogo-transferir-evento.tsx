@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import { FilterSelect } from "@/components/filter-select";
 import { T, N, TOM, FONT } from "@/lib/theme";
 import { Botao } from "@/components/ui/botao";
+import { useLetraDaFicha } from "./estilos";
 import type { EventoParaTransferir, ItemDaFicha } from "./tipos";
 
 export function DialogoTransferirEvento({
@@ -20,6 +21,7 @@ export function DialogoTransferirEvento({
   eventosCarregando: boolean;
   handleTransferEvent: () => void;
 }) {
+  const fsf = useLetraDaFicha();
   // Diálogo próprio, aninhado ao da ficha (Radix suporta; o de baixo some
   // quando o de cima fecha o item inteiro). Só o eventId muda: nada de
   // status, aprovações ou fotos aqui.
@@ -39,7 +41,7 @@ export function DialogoTransferirEvento({
         </div>
 
         <div style={{ padding: "20px 24px" }}>
-          <label style={{ fontSize: 11, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 8 }}>
+          <label style={{ fontSize: fsf(11), fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 8 }}>
             Evento de destino
           </label>
           <FilterSelect

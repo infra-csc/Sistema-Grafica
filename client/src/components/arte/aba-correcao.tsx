@@ -2,6 +2,7 @@ import { memo, type Dispatch, type SetStateAction } from "react";
 import { ArrowRight, CheckCircle, Search } from "lucide-react";
 import { Botao } from "@/components/ui/botao";
 import { EstadoVazio } from "@/components/ui/estados";
+import { EsqueletoDeFila } from "@/components/esqueleto-de-fila";
 import { alvo } from "@/hooks/use-mobile";
 import { T, TOM, FONT } from "@/lib/theme";
 import { CartaoDaCorrecao } from "./cartao-da-correcao";
@@ -41,14 +42,9 @@ export const AbaCorrecao = memo(function AbaCorrecao({
   podeEditar, dedo, emCartoes, hoje, groupOf, abrirCorrecao, proximaFase,
 }: PropsDaAbaCorrecao) {
   if (correcaoLoading) {
-    return (
-      // Um spinner sozinho não diz o que está carregando — e esta aba demora
-      // mais que as outras, porque a fila de correção é uma rota própria.
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '48px 0' }}>
-        <div style={{ width: 32, height: 32, borderRadius: '50%', border: `3px solid ${T.border}`, borderTopColor: T.accent, animation: 'spin 0.8s linear infinite' }} />
-        <p style={{ margin: 0, fontSize: 13, color: T.apoio }}>Carregando a fila de correção…</p>
-      </div>
-    );
+    // A MESMA silhueta das outras abas (EsqueletoDeFila), no lugar do
+    // spinner próprio: trocar de aba não pode trocar de linguagem de espera.
+    return <EsqueletoDeFila linhas={4} rotulo="Carregando a fila de correção…" />;
   }
   // Falha da rota de correção também não pode virar "sem correção pendente".
   if (correcaoIsError) {

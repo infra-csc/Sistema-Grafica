@@ -197,14 +197,14 @@ export function CabecalhoDaArte({
           parcialmente permitido (salvar rascunho funciona, enviar devolve
           403) era o pior dos dois mundos. */}
       {!podeEditar && (
-        <div data-testid="banner-modo-consulta" style={{ display: 'flex', alignItems: 'center', gap: 9, padding: isMobile ? '8px 12px' : '9px 14px', marginBottom: isMobile ? 10 : 14, borderRadius: 10, background: N.n2, border: `1px solid ${T.border}` }}>
+        <div data-testid="banner-modo-consulta" style={{ display: 'flex', alignItems: 'center', gap: 9, padding: isMobile ? '6px 10px' : '9px 14px', marginBottom: isMobile ? 8 : 14, borderRadius: 10, background: N.n2, border: `1px solid ${T.border}` }}>
           <Lock aria-hidden="true" style={{ width: 14, height: 14, color: T.apoio, flexShrink: 0 }} />
           {/* No celular a frase curta (uma linha): a longa ocupava três
               linhas do topo e, junto com os filtros, empurrava a primeira
               peça para fora da tela. A regra é a mesma. */}
           <span style={{ fontSize: 12, color: T.strong }}>
             {isMobile
-              ? <><b style={{ fontWeight: 700 }}>Modo consulta.</b> Só a equipe de Arte altera as peças.</>
+              ? <><b style={{ fontWeight: 700 }}>Modo consulta.</b> Só a Arte altera peças.</>
               : <><b style={{ fontWeight: 700 }}>Modo consulta.</b> Você vê a fila da Arte e pode exportar PDFs, mas enviar, corrigir, finalizar e pular a aprovação é da equipe de Arte.</>}
           </span>
         </div>

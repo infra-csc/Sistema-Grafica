@@ -147,6 +147,8 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
   const [source, setSource] = useState<"artes" | "book">("book");
   const [pickerOpen, setPickerOpen] = useState(false);
   const isMobile = useIsMobile();
+  // No celular nada abaixo de 12px (revisão de 24/09 — mesma régua da Arte).
+  const fsCel = (n: number) => (isMobile ? Math.max(12, n) : n);
 
   useEffect(() => {
     // Reabrir volta ao book: o padrão não pode depender do que foi escolhido na
@@ -412,7 +414,7 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: ativo ? op.tintTexto : T.text }}>{op.titulo}</div>
-                  <div style={{ fontSize: 11, color: T.apoio, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{op.meta}</div>
+                  <div style={{ fontSize: fsCel(11), color: T.apoio, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{op.meta}</div>
                 </div>
                 <div aria-hidden="true" style={{ width: 16, height: 16, borderRadius: "50%", flexShrink: 0, border: `2px solid ${ativo ? op.tint : T.bdark}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   {ativo && <div style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: op.tint }} />}
@@ -449,7 +451,7 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
                   placeholder="Buscar peça, código, patrocinador…"
                   aria-label="Buscar peça por código, descrição ou patrocinador"
                   data-testid="input-export-busca"
-                  style={{ width: "100%", boxSizing: "border-box", height: isMobile ? 44 : 36, padding: "0 10px 0 30px", borderRadius: 7, border: `1px solid ${T.border}`, backgroundColor: T.surface, fontSize: 12, color: T.text, outlineOffset: 2 }}
+                  style={{ width: "100%", boxSizing: "border-box", height: isMobile ? 44 : 36, padding: "0 10px 0 30px", borderRadius: 7, border: `1px solid ${T.border}`, backgroundColor: T.surface, fontSize: isMobile ? 16 : 12, color: T.text, outlineOffset: 2 }}
                 />
               </div>
               <FilterSelect showAllLabelWhenEmpty hideWhenEmpty={false} accent="violet"
@@ -480,7 +482,7 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
               >
                 Mais filtros
                 {(typeFilter !== "all" ? 1 : 0) + (statusFilter !== "all" ? 1 : 0) > 0 && (
-                  <Selo tom="roxo" style={{ padding: "0 6px" }}>
+                  <Selo tom="roxo" style={{ padding: "0 6px", fontSize: fsCel(11) }}>
                     {(typeFilter !== "all" ? 1 : 0) + (statusFilter !== "all" ? 1 : 0)}
                   </Selo>
                 )}
@@ -576,8 +578,8 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
                         borderBottom: `1px solid ${N.n3}`, padding: "7px 8px",
                         display: "flex", alignItems: "center", gap: 8,
                       }}>
-                        <span style={{ fontSize: 11, fontWeight: 800, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.08em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{grupo}</span>
-                        <Selo cores={{ bg: N.n2, text: T.apoio, border: N.n2 }} style={{ padding: "1px 7px", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{itensDoGrupo.length}</Selo>
+                        <span style={{ fontSize: fsCel(11), fontWeight: 800, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.08em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{grupo}</span>
+                        <Selo cores={{ bg: N.n2, text: T.apoio, border: N.n2 }} style={{ padding: "1px 7px", flexShrink: 0, fontVariantNumeric: "tabular-nums", fontSize: fsCel(11) }}>{itensDoGrupo.length}</Selo>
                         <span style={{ flex: 1 }} />
                         {!useBook && (
                           <button
@@ -590,7 +592,7 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
                             style={{
                               display: "inline-flex", alignItems: "center", gap: 5, flexShrink: 0,
                               minHeight: isMobile ? 44 : 36, borderRadius: 999, padding: "3px 9px",
-                              fontSize: 11, fontWeight: 700, cursor: "pointer",
+                              fontSize: fsCel(11), fontWeight: 700, cursor: "pointer",
                               border: `1px solid ${juntas ? TOM.roxo.border : T.border}`,
                               backgroundColor: juntas ? TOM.roxo.bg : T.surface,
                               color: juntas ? TOM.roxo.text : T.second,
@@ -636,7 +638,7 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
                               </div>
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-                                  <span style={{ fontSize: 11, fontWeight: 800, color: TOM.roxo.text, fontFamily: FONT.mono, letterSpacing: "0.02em", flexShrink: 0 }}>{item.displayId}</span>
+                                  <span style={{ fontSize: fsCel(11), fontWeight: 800, color: TOM.roxo.text, fontFamily: FONT.mono, letterSpacing: "0.02em", flexShrink: 0 }}>{item.displayId}</span>
                                   <span style={{ fontSize: 12, fontWeight: 600, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textTransform: "capitalize" }}>{item.type}</span>
                                   {/* "FICA DE FORA" diz a consequência, e só onde
                                       ela existe: peça selecionada, sem book, com a
@@ -647,12 +649,12 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
                                       tom="laranja" forma="retangulo" tamanho="sm"
                                       title="Esta peça não está coberta por nenhum book e fica de fora da exportação"
                                       data-testid={`badge-no-book-export-${item.id}`}
-                                      style={{ flexShrink: 0, padding: "2px 6px" }}>
+                                      style={{ flexShrink: 0, padding: "2px 6px", fontSize: fsCel(10) }}>
                                       Fica de fora
                                     </Selo>
                                   )}
                                 </div>
-                                <div style={{ fontSize: 11, color: T.second, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                <div style={{ fontSize: fsCel(11), color: T.second, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                   {item.event?.name || ""}{item.description ? ` · ${item.description}` : ""}
                                 </div>
                               </div>
@@ -680,8 +682,8 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
             display: "flex", flexDirection: "column", minHeight: 0,
           }}>
             <div style={{ padding: "10px 16px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-              <span style={{ fontSize: 11, fontWeight: 800, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em" }}>O arquivo</span>
-              <span style={{ fontSize: 11, color: T.second, fontFamily: FONT.mono, fontVariantNumeric: "tabular-nums" }}>
+              <span style={{ fontSize: fsCel(11), fontWeight: 800, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em" }}>O arquivo</span>
+              <span style={{ fontSize: fsCel(11), color: T.second, fontFamily: FONT.mono, fontVariantNumeric: "tabular-nums" }}>
                 {useBook
                   ? `${booksInSelection.length} ${booksInSelection.length === 1 ? "book" : "books"}`
                   : `${pageCount} ${pageCount === 1 ? "pág." : "págs."}`}
@@ -693,8 +695,8 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
                 booksInSelection.map(b => (
                   <div key={b.url} style={{ backgroundColor: TOM.roxo.bg, border: `1px solid ${TOM.roxo.border}`, borderRadius: 6, padding: 8, height: 120, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 4 }}>
                     <BookOpen aria-hidden="true" style={{ width: 18, height: 18, color: TOM.roxo.text }} />
-                    <span style={{ fontSize: 11, fontWeight: 700, color: TOM.roxo.text, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{b.label}</span>
-                    <span style={{ fontSize: 10, color: TOM.roxo.text, fontFamily: FONT.mono }}>book completo · {b.count} peças cobertas</span>
+                    <span style={{ fontSize: fsCel(11), fontWeight: 700, color: TOM.roxo.text, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{b.label}</span>
+                    <span style={{ fontSize: fsCel(10), color: TOM.roxo.text, fontFamily: FONT.mono }}>book completo · {b.count} peças cobertas</span>
                   </div>
                 ))
               ) : paginasArtes.length === 0 ? (
@@ -709,11 +711,11 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
                   return (
                     <div key={idx}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4, gap: 8 }}>
-                        <span style={{ fontSize: 10, color: T.second, fontFamily: FONT.mono, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{legenda}</span>
+                        <span style={{ fontSize: fsCel(10), color: T.second, fontFamily: FONT.mono, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{legenda}</span>
                         {/* #78716c: número de página e códigos da miniatura são
                             texto que se confere contra o PDF — o #a8a29e de
                             antes (2,5:1, em 8–10px) não se lia. */}
-                        <span style={{ fontSize: 10, color: T.second, fontFamily: FONT.mono, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{idx + 1}</span>
+                        <span style={{ fontSize: fsCel(10), color: T.second, fontFamily: FONT.mono, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{idx + 1}</span>
                       </div>
                       {/* 11px, e não 8: o código da peça na miniatura é o que
                           se confere contra o PDF gerado, e 8px é letra que não
@@ -727,17 +729,17 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
                       }}>
                         {pg.tipo === "capa" && (
                           <div style={{ backgroundColor: T.bg, borderRadius: 3, display: "flex", alignItems: "center", justifyContent: "center", padding: 4 }}>
-                            <span style={{ fontSize: 11, fontFamily: FONT.mono, textTransform: "uppercase", color: T.second, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pg.rotulo}</span>
+                            <span style={{ fontSize: fsCel(11), fontFamily: FONT.mono, textTransform: "uppercase", color: T.second, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pg.rotulo}</span>
                           </div>
                         )}
                         {pg.tipo === "combinada" && pg.itens.map((it) => (
                           <div key={it.id} style={{ backgroundColor: T.low, borderRadius: 3, display: "flex", alignItems: "center", justifyContent: "center", padding: 2 }}>
-                            <span style={{ fontSize: 11, fontFamily: FONT.mono, textTransform: "uppercase", color: T.second }}>{it.displayId}</span>
+                            <span style={{ fontSize: fsCel(11), fontFamily: FONT.mono, textTransform: "uppercase", color: T.second }}>{it.displayId}</span>
                           </div>
                         ))}
                         {pg.tipo === "unica" && (
                           <div style={{ backgroundColor: T.low, borderRadius: 3, display: "flex", alignItems: "center", justifyContent: "center", padding: 4 }}>
-                            <span style={{ fontSize: 11, fontFamily: FONT.mono, textTransform: "uppercase", color: T.second }}>{pg.item.displayId}</span>
+                            <span style={{ fontSize: fsCel(11), fontFamily: FONT.mono, textTransform: "uppercase", color: T.second }}>{pg.item.displayId}</span>
                           </div>
                         )}
                       </div>
@@ -784,7 +786,7 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
                  tela de distância, no topo do modal. */
               <div style={{ display: "flex", alignItems: "center", gap: 8, backgroundColor: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, borderRadius: 8, padding: "8px 10px" }}>
                 <AlertTriangle aria-hidden="true" style={{ width: 14, height: 14, color: T.accentText, flexShrink: 0 }} />
-                <span style={{ fontSize: 11, color: T.accentText, flex: 1, minWidth: 0 }}>
+                <span style={{ fontSize: fsCel(11), color: T.accentText, flex: 1, minWidth: 0 }}>
                   {cortadas} {cortadas === 1 ? "peça fica" : "peças ficam"} de fora — {cortadas === 1 ? "não está coberta" : "não estão cobertas"} por nenhum book.
                 </span>
                 <Botao

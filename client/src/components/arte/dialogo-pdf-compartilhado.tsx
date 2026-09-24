@@ -11,6 +11,7 @@ import { T, TOM, N } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import type { PecaDaArte } from "./tipos";
 import type { AcoesDaArte } from "./use-acoes-da-arte";
+import { fsToque } from "./constantes";
 import type { UploadsDaArte } from "./use-uploads-da-arte";
 
 /** "PDF compartilhado": um PDF vira o thumb das peças marcadas, que vão juntas para aprovação. */
@@ -69,7 +70,7 @@ export function DialogoPdfCompartilhado({
               {/* Rótulo cinza como os dos outros modais (era marrom-laranja
                   #9d4300, uma sexta cor de rótulo na tela) e sem o zero à
                   esquerda: "(05)" é notação de painel de máquina, não conta. */}
-              <h3 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio, margin: 0 }}>
+              <h3 style={{ fontSize: fsToque(11, dedo), fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio, margin: 0 }}>
                 {selectedItemIds.size} {selectedItemIds.size === 1 ? 'peça selecionada' : 'peças selecionadas'}
               </h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 280, overflowY: 'auto' }}>
@@ -95,7 +96,7 @@ export function DialogoPdfCompartilhado({
                         <p style={{ fontSize: 12, fontWeight: 700, color: T.text, margin: 0, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>
                           {item.displayId} · {item.type}
                         </p>
-                        <p style={{ fontSize: 11, color: T.apoio, margin: 0 }}>
+                        <p style={{ fontSize: fsToque(11, dedo), color: T.apoio, margin: 0 }}>
                           {item.event?.name || 'Sem evento'}{item.sponsors?.[0]?.name ? ` • ${item.sponsors[0].name}` : ''}
                         </p>
                       </div>
@@ -107,7 +108,7 @@ export function DialogoPdfCompartilhado({
 
             {/* Right: upload zone */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <h3 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio, margin: '0 0 16px' }}>
+              <h3 style={{ fontSize: fsToque(11, dedo), fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio, margin: '0 0 16px' }}>
                 PDF compartilhado
               </h3>
               <div style={{

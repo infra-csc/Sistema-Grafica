@@ -5,6 +5,7 @@ import { Botao } from "@/components/ui/botao";
 import { erroDeTamanhoDoUpload } from "@/lib/arte-rules";
 import { T, TOM, N } from "@/lib/theme";
 import type { BulkThumbEntry, EventoDaPeca, PecaDaArte, PecaDaCorrecao } from "./tipos";
+import { fsToque } from "./constantes";
 import type { LoteDeThumbs } from "./use-lote-de-thumbs";
 
 /** Um arquivo do envio em lote: a imagem, o estado do envio e o vínculo com a peça. */
@@ -55,22 +56,22 @@ export function CartaoThumbEmLote({ entry, lote, itemPorId, correcaoItems, event
         {/* Status pill */}
         <div style={{ position: 'absolute', bottom: 4, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
           {entry.status === 'done' && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 6px', borderRadius: 999, backgroundColor: TOM.sucesso.text, color: T.surface, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 6px', borderRadius: 999, backgroundColor: TOM.sucesso.text, color: T.surface, fontSize: fsToque(10, dedo), fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
               <CheckCircle style={{ width: 8, height: 8 }} /> OK
             </span>
           )}
           {entry.status === 'uploading' && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 6px', borderRadius: 999, backgroundColor: TOM.roxo.text, color: T.surface, fontSize: 10, fontWeight: 700, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 6px', borderRadius: 999, backgroundColor: TOM.roxo.text, color: T.surface, fontSize: fsToque(10, dedo), fontWeight: 700, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
               <div style={{ width: 7, height: 7, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.4)', borderTopColor: T.surface, animation: 'spin 0.8s linear infinite' }} />
             </span>
           )}
           {entry.status === 'error' && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 6px', borderRadius: 999, backgroundColor: TOM.perigo.text, color: T.surface, fontSize: 10, fontWeight: 700, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 6px', borderRadius: 999, backgroundColor: TOM.perigo.text, color: T.surface, fontSize: fsToque(10, dedo), fontWeight: 700, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
               Erro
             </span>
           )}
           {entry.status === 'pending' && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 6px', borderRadius: 999, backgroundColor: isLinked ? TOM.info.text : TOM.alerta.text, color: T.surface, fontSize: 10, fontWeight: 700, boxShadow: '0 1px 4px rgba(0,0,0,0.2)', whiteSpace: 'nowrap' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 6px', borderRadius: 999, backgroundColor: isLinked ? TOM.info.text : TOM.alerta.text, color: T.surface, fontSize: fsToque(10, dedo), fontWeight: 700, boxShadow: '0 1px 4px rgba(0,0,0,0.2)', whiteSpace: 'nowrap' }}>
               {isLinked ? '✓' : '?'}
             </span>
           )}
@@ -85,7 +86,7 @@ export function CartaoThumbEmLote({ entry, lote, itemPorId, correcaoItems, event
             <p style={{ fontSize: 12, fontWeight: 700, color: T.text, margin: '0 0 1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={entry.file.name}>
               {entry.file.name}
             </p>
-            <p style={{ fontSize: 11, color: T.apoio, margin: 0 }}>
+            <p style={{ fontSize: fsToque(11, dedo), color: T.apoio, margin: 0 }}>
               {(entry.file.size / 1024).toFixed(0)} KB
             </p>
           </div>
@@ -110,22 +111,22 @@ export function CartaoThumbEmLote({ entry, lote, itemPorId, correcaoItems, event
         {entry.status === 'done' ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 8px', borderRadius: 6, backgroundColor: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}` }}>
             <CheckCircle style={{ width: 11, height: 11, color: TOM.sucesso.text, flexShrink: 0 }} />
-            <p style={{ fontSize: 11, fontWeight: 700, color: TOM.sucesso.text, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <p style={{ fontSize: fsToque(11, dedo), fontWeight: 700, color: TOM.sucesso.text, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {matchedItem?.displayId} · {matchedItem?.type?.slice(0, 28)}
             </p>
           </div>
         ) : entry.status === 'uploading' ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderRadius: 6, backgroundColor: TOM.roxo.bg, border: `1px solid ${TOM.roxo.border}` }}>
             <div style={{ width: 11, height: 11, borderRadius: '50%', border: `2px solid ${TOM.roxo.border}`, borderTopColor: TOM.roxo.text, animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
-            <span style={{ fontSize: 11, color: TOM.roxo.text, fontWeight: 600 }}>Enviando...</span>
+            <span style={{ fontSize: fsToque(11, dedo), color: TOM.roxo.text, fontWeight: 600 }}>Enviando...</span>
           </div>
         ) : entry.status === 'error' ? (
           <div style={{ padding: '5px 8px', borderRadius: 6, backgroundColor: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}`, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             {/* A frase do servidor inteira, quebrando linha: cortada
                 em reticências ela escondia justamente o que fazer. */}
             <div style={{ flex: '1 1 160px', minWidth: 0 }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: TOM.perigo.text, margin: '0 0 1px' }}>Falha no envio</p>
-              <p data-testid={`bulk-thumb-erro-${entry.id}`} style={{ fontSize: 11, color: TOM.perigo.text, margin: 0, lineHeight: 1.4, overflowWrap: 'anywhere' }}>{entry.errorMsg}</p>
+              <p style={{ fontSize: fsToque(11, dedo), fontWeight: 700, color: TOM.perigo.text, margin: '0 0 1px' }}>Falha no envio</p>
+              <p data-testid={`bulk-thumb-erro-${entry.id}`} style={{ fontSize: fsToque(11, dedo), color: TOM.perigo.text, margin: 0, lineHeight: 1.4, overflowWrap: 'anywhere' }}>{entry.errorMsg}</p>
             </div>
             {/* Sem retentativa para o grande demais: o mesmo arquivo
                 falharia de novo. Sem peça vinculada, falta escolher. */}
@@ -147,18 +148,18 @@ export function CartaoThumbEmLote({ entry, lote, itemPorId, correcaoItems, event
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{ flex: 1, padding: '5px 8px', borderRadius: 6, backgroundColor: TOM.info.bg, border: `1px solid ${TOM.info.border}`, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ fontSize: 11, fontWeight: 800, color: TOM.info.text, textTransform: 'uppercase', letterSpacing: '0.04em', flexShrink: 0 }}>{matchedItem.displayId}</span>
-                <span style={{ fontSize: 11, fontWeight: 700, color: TOM.info.text, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>{matchedItem.type}</span>
+                <span style={{ fontSize: fsToque(11, dedo), fontWeight: 800, color: TOM.info.text, textTransform: 'uppercase', letterSpacing: '0.04em', flexShrink: 0 }}>{matchedItem.displayId}</span>
+                <span style={{ fontSize: fsToque(11, dedo), fontWeight: 700, color: TOM.info.text, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>{matchedItem.type}</span>
               </div>
               {matchedItem.event?.name && (
-                <p style={{ fontSize: 11, color: TOM.info.text, margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{matchedItem.event.name}</p>
+                <p style={{ fontSize: fsToque(11, dedo), color: TOM.info.text, margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{matchedItem.event.name}</p>
               )}
               {/* Peça da CORREÇÃO não tem rascunho: os dois
                   botões do rodapé a reenviam (ver o title de
                   "Salvar como rascunho"). Dito no card,
                   antes do clique (rodada 4). */}
               {correcaoItems.some((c) => c.id === matchedItem.id) && (
-                <p data-testid={`aviso-correcao-no-lote-${entry.id}`} style={{ fontSize: 11, fontWeight: 700, color: TOM.perigo.text, margin: '3px 0 0' }}>
+                <p data-testid={`aviso-correcao-no-lote-${entry.id}`} style={{ fontSize: fsToque(11, dedo), fontWeight: 700, color: TOM.perigo.text, margin: '3px 0 0' }}>
                   Na Correção — vai como nova versão
                 </p>
               )}
@@ -167,7 +168,7 @@ export function CartaoThumbEmLote({ entry, lote, itemPorId, correcaoItems, event
                   foi feito pelo último, que é a convenção,
                   mas concentra a atenção onde ela vale. */}
               {entry.ambiguous && (
-                <p data-testid={`aviso-vinculo-duvidoso-${entry.id}`} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: TOM.alerta.text, margin: '3px 0 0' }}>
+                <p data-testid={`aviso-vinculo-duvidoso-${entry.id}`} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: fsToque(11, dedo), fontWeight: 700, color: TOM.alerta.text, margin: '3px 0 0' }}>
                   <AlertTriangle style={{ width: 10, height: 10, flexShrink: 0 }} />
                   Confira este vínculo
                 </p>
@@ -206,7 +207,7 @@ export function CartaoThumbEmLote({ entry, lote, itemPorId, correcaoItems, event
                       width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4,
                       height: 32, borderRadius: 6,
                       border: `1px solid ${isLinked ? TOM.info.border : T.border}`,
-                      backgroundColor: T.surface, fontSize: 11, fontWeight: 600,
+                      backgroundColor: T.surface, fontSize: fsToque(11, dedo), fontWeight: 600,
                       color: linked ? T.text : T.second, padding: '0 8px', cursor: 'pointer',
                     }}>
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -223,7 +224,7 @@ export function CartaoThumbEmLote({ entry, lote, itemPorId, correcaoItems, event
                       <CommandList style={{ maxHeight: 280 }}>
                         <CommandEmpty>Nenhuma peça encontrada.</CommandEmpty>
                         {pendingPool.length === 0 && (
-                          <div style={{ padding: '9px 16px', fontSize: 11, color: TOM.alerta.text, fontWeight: 600, lineHeight: 1.5 }}>
+                          <div style={{ padding: '9px 16px', fontSize: fsToque(11, dedo), color: TOM.alerta.text, fontWeight: 600, lineHeight: 1.5 }}>
                             Nenhuma peça pronta para receber thumb
                             {bulkThumbEventFilter !== "all" ? " neste evento" : ""}.
                             <span style={{ display: 'block', fontWeight: 500, color: T.apoio, marginTop: 4 }}>
@@ -243,7 +244,7 @@ export function CartaoThumbEmLote({ entry, lote, itemPorId, correcaoItems, event
                               }}
                             >
                               <X style={{ width: 10, height: 10, marginRight: 6, flexShrink: 0, color: TOM.perigo.text }} />
-                              <span style={{ color: TOM.perigo.text, fontSize: 11 }}>Remover vínculo</span>
+                              <span style={{ color: TOM.perigo.text, fontSize: fsToque(11, dedo) }}>Remover vínculo</span>
                             </CommandItem>
                           </CommandGroup>
                         )}
@@ -265,10 +266,10 @@ export function CartaoThumbEmLote({ entry, lote, itemPorId, correcaoItems, event
                                   <Check style={{ width: 10, height: 10, color: TOM.sucesso.text, opacity: entry.matchedItemId === item.id ? 1 : 0, marginRight: 4, flexShrink: 0 }} />
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden', minWidth: 0 }}>
                                     {/* displayId — destaque */}
-                                    <span style={{ fontSize: 11, fontWeight: 800, color: T.text, fontFamily: '"Space Grotesk", sans-serif', flexShrink: 0 }}>{item.displayId}</span>
+                                    <span style={{ fontSize: fsToque(11, dedo), fontWeight: 800, color: T.text, fontFamily: '"Space Grotesk", sans-serif', flexShrink: 0 }}>{item.displayId}</span>
                                     {/* descrição ou evento — o tipo já aparece no cabeçalho do grupo */}
                                     {(item.description || evtName) && (
-                                      <span style={{ fontSize: 11, color: T.apoio, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      <span style={{ fontSize: fsToque(11, dedo), color: T.apoio, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                         {item.description ? item.description.slice(0, 48) : evtName}
                                       </span>
                                     )}

@@ -62,6 +62,36 @@ export function useSugestaoDoArquivoFinal({ selectedItem, podeEditar, finalFileU
 }
 
 /**
+ * O ENVIO DO ARQUIVO FINAL — um botão só, no corpo do bloco (desktop) ou no
+ * rodapé fixo da ficha (celular). Mesma regra de desabilitado nos dois.
+ */
+export function BotaoDoArquivoFinal({ selectedItem, finalFileUrl, finalDirty, submitFinalFileMutation, handleSubmitFinalFile, curto = false }: {
+  /** Rótulo curto (rodapé do celular, ao lado de "Fechar"): "Enviar arquivo final". */
+  curto?: boolean;
+  selectedItem: PecaDaArte;
+  finalFileUrl: string;
+  finalDirty: boolean;
+  submitFinalFileMutation: AcoesDaArte["submitFinalFileMutation"];
+  handleSubmitFinalFile: () => void;
+}) {
+  return (
+    <Botao
+      variante="primario"
+      tamanho="toque"
+      larguraCheia
+      carregando={submitFinalFileMutation.isPending}
+      onClick={handleSubmitFinalFile}
+      disabled={!finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)}
+      data-testid="button-submit-final"
+      style={{ fontFamily: FONT.display, fontSize: FS.read }}
+    >
+      {submitFinalFileMutation.isPending ? 'Enviando…' : (selectedItem.finalFileUrl ? 'Atualizar arquivo final' : curto ? 'Enviar arquivo final' : 'Enviar arquivo final para revisão')}
+      {!submitFinalFileMutation.isPending && <ArrowRight aria-hidden="true" style={{ width: 16, height: 16 }} />}
+    </Botao>
+  );
+}
+
+/**
  * O bloco de ação da peça APROVADA no modal: finalização do layout (subir o
  * caminho do arquivo final) ou, já finalizada, a troca do arquivo final e do
  * thumb — sempre pelas regras de shared/troca-de-material.
@@ -69,7 +99,7 @@ export function useSugestaoDoArquivoFinal({ selectedItem, podeEditar, finalFileU
 export function PainelDeFinalizacao({
   selectedItem, isMobile, regraThumbSel, regraFinalSel, thumbPedeMotivo, faltamMotivoThumb, motivoTrocaThumb, setMotivoTrocaThumb,
   updateThumbMutation, submitFinalFileMutation, handleSubmitFinalFile, getUploadUrl, setBuscaDeArte,
-  finalFileUrl, setFinalFileUrl, finalDirty, setFinalDirty, sugestaoVisivel, usarSugestaoFinal, ignorarSugestaoFinal,
+  finalFileUrl, setFinalFileUrl, finalDirty, setFinalDirty, sugestaoVisivel, usarSugestaoFinal, ignorarSugestaoFinal, ctaNoRodape = false,
 }: {
   selectedItem: PecaDaArte;
   isMobile: boolean;
@@ -91,6 +121,8 @@ export function PainelDeFinalizacao({
   sugestaoVisivel: SugestaoDeArquivoFinal | null;
   usarSugestaoFinal: () => void;
   ignorarSugestaoFinal: () => void;
+  /** O botão de envio vai para o rodapé fixo da ficha (celular) — ver BotaoDoArquivoFinal. */
+  ctaNoRodape?: boolean;
 }) {
   // TRÊS SITUAÇÕES, UM BLOCO (24/09 — "trocar depois de enviado", dono):
   //   · FINALIZAÇÃO — arte aprovada, falta o arquivo final (1º envio);
@@ -104,35 +136,13 @@ export function PainelDeFinalizacao({
   const naFinalizacao = ['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status);
   const comArquivoFinal = naFinalizacao || !!selectedItem.finalFileUrl;
   const comAtendimento = selectedItem.status === 'awaiting_sponsor_approval';
+  // Quando o thumb não é o gesto (Finalização) ou nem pode mais mudar (liberada),
+  // o bloco do thumb desce para depois do arquivo final.
+  const thumbPorUltimo = naFinalizacao || !regraThumbSel?.pode;
   // No celular nada abaixo de 12px e campo de texto em 16px (o iOS dá zoom).
   const fs = (n: number) => (isMobile ? Math.max(12, n) : n);
-  return (
-    <section data-testid="painel-da-ficha-arte" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Section header */}
-      {/* Título em caixa normal e o selo virou texto de apoio. O selo
-          dizia "CORREÇÃO" na substituição do arquivo final — a mesma
-          palavra da aba Correção, que é OUTRA coisa (arte recusada pelo
-          patrocinador). Quem lia achava que a peça tinha voltado. */}
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-        <h3 style={{ fontFamily: FONT.display, fontWeight: 700, fontSize: FS.title, letterSpacing: '-0.02em', color: T.text, margin: 0 }}>
-          {naFinalizacao ? 'Finalização de layout' : selectedItem.finalFileUrl ? 'Substituir arquivo final' : 'Trocar thumb enviado'}
-        </h3>
-        <span style={{ fontSize: 12, color: T.second, fontWeight: 600 }}>
-          {naFinalizacao ? 'arte aprovada — falta o arquivo final'
-            : selectedItem.finalFileUrl ? 'a peça já tem arquivo final'
-            : comAtendimento ? 'a peça está com o Atendimento, aguardando o patrocinador'
-            : 'a peça ainda não tem arquivo final'}
-        </span>
-      </div>
-
-      {/* Superfície branca com hairline, sem o "vidro" verde com blur e
-          borda de 2px: verde nesta tela é o ESTADO aprovado, e o bloco
-          inteiro vestido dele competia com o botão de enviar. */}
-      <div style={{
-        background: T.surface,
-        border: `1px solid ${T.border}`, borderRadius: 12, padding: isMobile ? 16 : 20,
-        display: 'flex', flexDirection: 'column', gap: 16
-      }}>
+  const blocoDoThumb = (
+    <>
         {/* Thumb aprovado preview */}
         {selectedItem.approvalThumbUrl && (() => {
           const url = selectedItem.approvalThumbUrl.toLowerCase();
@@ -220,6 +230,38 @@ export function PainelDeFinalizacao({
           );
         })()}
 
+    </>
+  );
+  return (
+    <section data-testid="painel-da-ficha-arte" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Section header */}
+      {/* Título em caixa normal e o selo virou texto de apoio. O selo
+          dizia "CORREÇÃO" na substituição do arquivo final — a mesma
+          palavra da aba Correção, que é OUTRA coisa (arte recusada pelo
+          patrocinador). Quem lia achava que a peça tinha voltado. */}
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <h3 style={{ fontFamily: FONT.display, fontWeight: 700, fontSize: FS.title, letterSpacing: '-0.02em', color: T.text, margin: 0 }}>
+          {naFinalizacao ? 'Finalização de layout' : selectedItem.finalFileUrl ? 'Substituir arquivo final' : 'Trocar thumb enviado'}
+        </h3>
+        {/* Na Finalização a faixa verde logo acima já diz "Aprovada — falta
+            finalizar a arte": o subtítulo repetia a mesma frase (dono, 24/09). */}
+        {!naFinalizacao && <span style={{ fontSize: 12, color: T.second, fontWeight: 600 }}>
+          {selectedItem.finalFileUrl ? 'a peça já tem arquivo final'
+            : comAtendimento ? 'a peça está com o Atendimento, aguardando o patrocinador'
+            : 'a peça ainda não tem arquivo final'}
+        </span>}
+      </div>
+
+      {/* Superfície branca com hairline, sem o "vidro" verde com blur e
+          borda de 2px: verde nesta tela é o ESTADO aprovado, e o bloco
+          inteiro vestido dele competia com o botão de enviar. */}
+      <div style={{
+        background: T.surface,
+        border: `1px solid ${T.border}`, borderRadius: 12, padding: isMobile ? 16 : 20,
+        display: 'flex', flexDirection: 'column', gap: 16
+      }}>
+        {!thumbPorUltimo && blocoDoThumb}
+
         {/* Thumb anterior — gravado quando a Arte troca o thumb aprovado */}
         {selectedItem.previousApprovalThumbUrl && (
           <div style={{ backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 8, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -255,9 +297,19 @@ export function PainelDeFinalizacao({
           {/* htmlFor: o rótulo era um <label> solto (sem vínculo com o
               campo) em verde a 60% — o leitor de tela anunciava "campo de
               edição" sem nome, e o texto não passava AA. */}
-          <label htmlFor="finalFilePath" style={{ fontSize: fs(11), fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio, paddingLeft: 2 }}>
-            Caminho do arquivo final
-          </label>
+          {/* Rótulo e "Buscar arte já feita" na MESMA linha (24/09): o botão
+              numa linha própria abaixo do campo empurrava o envio para fora
+              da primeira vista da ficha. */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+            <label htmlFor="finalFilePath" style={{ fontSize: fs(11), fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio, paddingLeft: 2 }}>
+              Caminho do arquivo final
+            </label>
+            <BotaoBuscarArte
+              variante="discreto"
+              testId="button-buscar-arte-final"
+              onClick={() => setBuscaDeArte({ itemId: selectedItem.id, displayId: selectedItem.displayId, destino: "arquivo-final" })}
+            />
+          </div>
           <div style={{ position: 'relative' }}>
             <FolderOpen aria-hidden="true" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: T.apoio }} />
             <Input
@@ -271,11 +323,6 @@ export function PainelDeFinalizacao({
           </div>
           {/* O arquivo final da mesma arte já está no app — copiar o
               caminho à mão da outra peça era o que se fazia. */}
-          <BotaoBuscarArte
-            variante="discreto"
-            testId="button-buscar-arte-final"
-            onClick={() => setBuscaDeArte({ itemId: selectedItem.id, displayId: selectedItem.displayId, destino: "arquivo-final" })}
-          />
           {sugestaoVisivel && (
             finalFileUrl.trim() === "" ? (
               <div data-testid="sugestao-arquivo-final" style={{ display: "flex", flexDirection: "column", gap: 8, padding: "10px 12px", borderRadius: 8, background: T.bg, border: `1px solid ${T.border}` }}>
@@ -337,19 +384,13 @@ export function PainelDeFinalizacao({
         {/* TINTA (primário), como os outros primários da Arte. O CTA diz o
             resultado (rodada 4). O porquê do desabilitado mora logo
             abaixo (final-bloqueado-motivo), à vista. */}
-        <Botao
-          variante="primario"
-          tamanho="toque"
-          larguraCheia
-          carregando={submitFinalFileMutation.isPending}
-          onClick={handleSubmitFinalFile}
-          disabled={!finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)}
-          data-testid="button-submit-final"
-          style={{ fontFamily: FONT.display, fontSize: FS.read }}
-        >
-          {submitFinalFileMutation.isPending ? 'Enviando…' : (selectedItem.finalFileUrl ? 'Atualizar arquivo final' : 'Enviar arquivo final para revisão')}
-          {!submitFinalFileMutation.isPending && <ArrowRight aria-hidden="true" style={{ width: 16, height: 16 }} />}
-        </Botao>
+        {/* No celular o botão mora no RODAPÉ FIXO da ficha (ctaNoRodape): no
+            corpo ele ficava abaixo da dobra, atrás do cabeçalho, do campo e do
+            lembrete. O lembrete continua logo acima do fim do bloco. */}
+        {!ctaNoRodape && (
+          <BotaoDoArquivoFinal selectedItem={selectedItem} finalFileUrl={finalFileUrl} finalDirty={finalDirty}
+            submitFinalFileMutation={submitFinalFileMutation} handleSubmitFinalFile={handleSubmitFinalFile} />
+        )}
         {/* POR QUE ESTÁ BLOQUEADO, à vista. A razão morava só no `title`
             (hover, e nunca no celular); o botão cinza parecia quebrado. */}
         {!submitFinalFileMutation.isPending && (!finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) ? (
@@ -365,6 +406,10 @@ export function PainelDeFinalizacao({
         ) : null}
         </>
         )}
+        {/* Na FINALIZAÇÃO o gesto da fase é o arquivo final: ele vem primeiro
+            (campo, lembrete e envio visíveis sem rolar a ficha) e a troca do
+            thumb aprovado — gesto raro — desce para depois dele. */}
+        {thumbPorUltimo && blocoDoThumb}
       </div>
     </section>
   );

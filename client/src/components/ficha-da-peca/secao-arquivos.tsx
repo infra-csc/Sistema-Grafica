@@ -6,7 +6,7 @@ import { hrefSeguro } from "@shared/url-segura";
 import { T, N, TOM, FS, FW, R } from "@/lib/theme";
 import { Botao } from "@/components/ui/botao";
 import { Selo } from "@/components/ui/selo";
-import { CARTAO, TITULO_SECAO } from "./estilos";
+import { CARTAO, TITULO_SECAO, useLetraDaFicha } from "./estilos";
 import { fmtShort } from "./formatos";
 import type { ItemDaFicha } from "./tipos";
 
@@ -15,11 +15,12 @@ export function SecaoArquivos({ item, ALVO }: {
   /** Alvo de toque / de ponteiro. */
   ALVO: number;
 }) {
+  const fsf = useLetraDaFicha();
   const { toast } = useToast();
 
   return (
     <section>
-      <h3 style={{ ...TITULO_SECAO, marginBottom: 10 }}>Arquivos</h3>
+      <h3 style={{ ...TITULO_SECAO, fontSize: fsf(10), marginBottom: 10 }}>Arquivos</h3>
       <div style={{ ...CARTAO, overflow: "hidden" }}>
         {/* Arquivo final. A AUSÊNCIA É UM ESTADO NORMAL do fluxo, não
             um card vazio de 100px: até a arte ser aprovada não existe
@@ -75,7 +76,7 @@ export function SecaoArquivos({ item, ALVO }: {
               )}
             </div>
           ) : (
-            <Selo tom="neutro" style={{ flexShrink: 0 }}>
+            <Selo tom="neutro" style={{ flexShrink: 0, fontSize: fsf(11) }}>
               Pendente
             </Selo>
           )}

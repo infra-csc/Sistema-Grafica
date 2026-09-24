@@ -5,7 +5,7 @@ import { ChevronDown } from "lucide-react";
 import { parseDateLocal } from "@/lib/utils";
 import { marcoEventoFinalizado, todayBusinessMs } from "@/lib/status";
 import { T, N, FONT } from "@/lib/theme";
-import { CARTAO, TITULO_SECAO } from "./estilos";
+import { CARTAO, TITULO_SECAO, useLetraDaFicha } from "./estilos";
 import { fmtShort } from "./formatos";
 import type { EventoDoPercurso, ItemDaFicha } from "./tipos";
 
@@ -19,6 +19,7 @@ export function SecaoPercurso({ item, eventosPercurso, percursoAberto, setPercur
   /** Alvo de toque / de ponteiro. */
   ALVO: number;
 }) {
+  const fsf = useLetraDaFicha();
   // FIM DA HISTÓRIA — o evento desta peça saiu de circulação (encerrado por
   // alguém, ou realizado porque a data passou). Pedido do dono (14/08): a
   // trilha não dizia isso em lugar nenhum, embora seja o que explica a peça ter
@@ -34,7 +35,7 @@ export function SecaoPercurso({ item, eventosPercurso, percursoAberto, setPercur
   return (
     <section data-testid="section-percurso">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
-        <h3 style={TITULO_SECAO}>Percurso</h3>
+        <h3 style={{ ...TITULO_SECAO, fontSize: fsf(10) }}>Percurso</h3>
         <span style={{ fontSize: 12, color: T.apoio }}>{eventosPercurso.length} registro{eventosPercurso.length === 1 ? "" : "s"}</span>
       </div>
 
@@ -44,7 +45,7 @@ export function SecaoPercurso({ item, eventosPercurso, percursoAberto, setPercur
             <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: marcoEvento.dot, marginTop: 6, flexShrink: 0 }} />
             <div style={{ minWidth: 0, flex: "1 1 auto" }}>
               <p style={{ fontSize: 13, fontWeight: 700, color: marcoEvento.text, margin: 0, lineHeight: 1.4 }}>{marcoEvento.label}</p>
-              <p style={{ fontSize: 11, color: T.second, margin: "2px 0 0" }}>
+              <p style={{ fontSize: fsf(11), color: T.second, margin: "2px 0 0" }}>
                 {marcoEvento.dataEventoISO
                   ? format(parseDateLocal(marcoEvento.dataEventoISO), "dd/MM/yy", { locale: ptBR })
                   : "Data e autor no Histórico geral"}
@@ -65,9 +66,9 @@ export function SecaoPercurso({ item, eventosPercurso, percursoAberto, setPercur
             <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: e.cor, marginTop: 6, flexShrink: 0 }} />
             <div style={{ minWidth: 0, flex: "1 1 auto" }}>
               <p style={{ fontSize: 13, fontWeight: 600, color: T.text, margin: 0, lineHeight: 1.45 }}>{e.texto}</p>
-              {e.autor && <p style={{ fontSize: 11, color: T.second, margin: "2px 0 0" }}>{e.autor}</p>}
+              {e.autor && <p style={{ fontSize: fsf(11), color: T.second, margin: "2px 0 0" }}>{e.autor}</p>}
             </div>
-            <span style={{ fontFamily: FONT.mono, fontSize: 11, color: T.second, flexShrink: 0, marginTop: 2 }}>
+            <span style={{ fontFamily: FONT.mono, fontSize: fsf(11), color: T.second, flexShrink: 0, marginTop: 2 }}>
               {fmtShort(new Date(e.ts).toISOString())}
             </span>
           </div>

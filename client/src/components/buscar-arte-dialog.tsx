@@ -26,6 +26,7 @@
 // Animação: o app tem uma regra global de `prefers-reduced-motion` em
 // index.css que zera duração de animação e transição — não se repete aqui.
 // ─────────────────────────────────────────────────────────────────────────────
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { FileText, ImageIcon, Search, Sparkles } from "lucide-react";
@@ -110,6 +111,8 @@ const SELO_DO_CARTAO: React.CSSProperties = { padding: "2px 8px", lineHeight: 1.
 function Cartao({ arte, escolhida, onEscolher }: {
   arte: ArteEncontrada; escolhida: boolean; onEscolher: () => void;
 }) {
+  // Celular: os selos do cartão sobem de 11 para 12px (nada abaixo de 12 no toque).
+  const seloDoCartao = useIsMobile() ? { ...SELO_DO_CARTAO, fontSize: 12 } : SELO_DO_CARTAO;
   const [falhou, setFalhou] = useState(false);
   const url = imagemDaArte(arte);
   return (
@@ -152,11 +155,11 @@ function Cartao({ arte, escolhida, onEscolher }: {
         )}
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-        {arte.mesmoPatrocinador && <Selo tom="esmeralda" style={SELO_DO_CARTAO}>mesmo patrocinador</Selo>}
-        {arte.eventoParecido && <Selo tom="info" style={SELO_DO_CARTAO}>evento parecido</Selo>}
-        {arte.mesmoTipo && <Selo tom="neutro" style={SELO_DO_CARTAO}>mesmo tipo</Selo>}
+        {arte.mesmoPatrocinador && <Selo tom="esmeralda" style={seloDoCartao}>mesmo patrocinador</Selo>}
+        {arte.eventoParecido && <Selo tom="info" style={seloDoCartao}>evento parecido</Selo>}
+        {arte.mesmoTipo && <Selo tom="neutro" style={seloDoCartao}>mesmo tipo</Selo>}
         {arte.aprovada && (
-          <Selo tom="esmeralda" style={SELO_DO_CARTAO} title={textoDaAprovacao(arte) ?? undefined}>
+          <Selo tom="esmeralda" style={seloDoCartao} title={textoDaAprovacao(arte) ?? undefined}>
             <span data-testid={`selo-aprovada-${arte.id}`}>Aprovada</span>
           </Selo>
         )}

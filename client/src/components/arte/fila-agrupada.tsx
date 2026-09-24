@@ -193,7 +193,7 @@ export const FilaAgrupada = memo(function FilaAgrupada({
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: emCartoes ? 10 : 16 }}>
       {/* A FAIXA DE ATENÇÃO — terceira forma (dono, 09/09: "está péssimo").
           O que estava errado não era a cor: era a faixa dizer três coisas com
           três aparências diferentes e UM comportamento só no meio delas.
@@ -210,8 +210,10 @@ export const FilaAgrupada = memo(function FilaAgrupada({
           passou do marco (o prazo já venceu) antes de parada (está devagar)
           antes de urgente (o evento é que corre). */}
       {(atrasadas > 0 || urgentes > 0 || paradas > 0) && (
-        <div data-testid="faixa-diagnostico" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '7px 10px', borderRadius: 10, background: T.bg, border: `1px solid ${T.border}` }}>
-          <span style={{ fontSize: fsToque(10.5, dedo), fontWeight: 800, letterSpacing: '0.09em', textTransform: 'uppercase', color: T.second, paddingLeft: 2, flexShrink: 0 }}>
+        // No celular (cartões) a faixa perde a caixa e o rótulo vira só leitor de
+        // tela: uma linha de atalhos de 44px, sem 60px de moldura antes da 1ª peça.
+        <div data-testid="faixa-diagnostico" role="group" aria-label="Atenção" style={emCartoes ? { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } : { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '7px 10px', borderRadius: 10, background: T.bg, border: `1px solid ${T.border}` }}>
+          <span className={emCartoes ? 'sr-only' : undefined} style={{ fontSize: fsToque(10.5, dedo), fontWeight: 800, letterSpacing: '0.09em', textTransform: 'uppercase', color: T.second, paddingLeft: 2, flexShrink: 0 }}>
             Atenção
           </span>
           {([
@@ -220,7 +222,7 @@ export const FilaAgrupada = memo(function FilaAgrupada({
               testid: 'chip-atrasadas',
               ponto: TOM.perigo.text,
               n: tabId === activeTab ? atrasadasNaAba : atrasadas,
-              rotulo: 'passaram do marco',
+              rotulo: emCartoes ? 'atrasadas' : 'passaram do marco',
               ligado: atrasadoFilter,
               alternar: () => setAtrasadoFilter(!atrasadoFilter),
               titulo: atrasadoFilter
@@ -232,7 +234,7 @@ export const FilaAgrupada = memo(function FilaAgrupada({
               testid: 'chip-paradas',
               ponto: T.accentText,
               n: paradas,
-              rotulo: `sem andar há ${PARADA_HA_MAIS_DE}d+`,
+              rotulo: emCartoes ? `paradas ${PARADA_HA_MAIS_DE}d+` : `sem andar há ${PARADA_HA_MAIS_DE}d+`,
               ligado: paradasFilter,
               alternar: () => setParadasFilter(v => !v),
               titulo: paradasFilter
@@ -244,7 +246,7 @@ export const FilaAgrupada = memo(function FilaAgrupada({
               testid: 'chip-urgentes',
               ponto: TOM.alerta.text,
               n: tabId === activeTab ? urgentesNaAba : urgentes,
-              rotulo: 'de eventos urgentes',
+              rotulo: emCartoes ? 'urgentes' : 'de eventos urgentes',
               ligado: urgenteFilter,
               alternar: () => setUrgenteFilter(!urgenteFilter),
               titulo: urgenteFilter
@@ -341,7 +343,7 @@ export const FilaAgrupada = memo(function FilaAgrupada({
         overflowX: emCartoes ? 'visible' : 'auto',
         scrollbarWidth: 'thin', scrollbarColor: `${T.bdark} ${N.n2}`,
       }}>
-        <div style={{ minWidth: emCartoes ? undefined : minW, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ minWidth: emCartoes ? undefined : minW, display: 'flex', flexDirection: 'column', gap: emCartoes ? 10 : 16 }}>
           {blocos.map(bloco => {
             return (
               <div key={bloco.key} style={{ borderRadius: 12, overflow: 'hidden', backgroundColor: T.surface, border: `1px solid ${T.border}` }}>

@@ -113,21 +113,26 @@ export function CartaoDaPeca({ ctx, item, index, showEvHeader, corte }: {
               </span>
             )}
           </div>
-          {/* Prazo e etiquetas NA MESMA linha (eram duas): o link
-              ganha alvo de 44px com a pílula visível de ~30 dentro. */}
+          {/* Prazo, Etiquetas e Tubos NA MESMA linha. Com "Produção Gráfica ·
+              29/09" (208px) + "Etiquetas (5)" + "Tubos" eram 339px numa linha
+              de 298 (360px de tela): a faixa quebrava em três e custava 135px
+              antes de cada peça. Agora "Prazo 29/09" (a tela JÁ é a Gráfica) e
+              Etiquetas como ícone + número — o nome vai no aria-label e no
+              title. O link segue com alvo de 44px e a pílula visível dentro. */}
           {(item.event || (etiquetaveisPorEvento.get(String(item.eventId)) || 0) > 0 || (tubaveisPorEvento.get(String(item.eventId)) || 0) > 0) && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              {item.event && <DeadlineChip event={item.event} fonte={12} />}
+              {item.event && <DeadlineChip event={item.event} fonte={12} curto />}
               {(etiquetaveisPorEvento.get(String(item.eventId)) ?? 0) > 0 && (
                 <Link
                   href={`/eventos/${item.eventId}/etiquetas?de=grafica`}
                   data-testid={`link-etiquetas-mobile-${item.eventId}`}
                   title="Imprimir as etiquetas das peças já conferidas deste evento"
-                  style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', minHeight: 44, textDecoration: 'none' }}
+                  aria-label={`Etiquetas (${etiquetaveisPorEvento.get(String(item.eventId))}) — imprimir as etiquetas das peças conferidas`}
+                  style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: 44, minWidth: 44, textDecoration: 'none' }}
                 >
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 999, background: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.28)', color: T.surface, fontSize: FS.meta, fontWeight: FW.rotulo }}>
-                    <Tag aria-hidden="true" style={{ width: 12, height: 12 }} />
-                    Etiquetas ({etiquetaveisPorEvento.get(String(item.eventId))})
+                  <span aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 10px', borderRadius: 999, background: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.28)', color: T.surface, fontSize: FS.meta, fontWeight: FW.rotulo, fontVariantNumeric: 'tabular-nums' }}>
+                    <Tag style={{ width: 13, height: 13 }} />
+                    {etiquetaveisPorEvento.get(String(item.eventId))}
                   </span>
                 </Link>
               )}

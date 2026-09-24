@@ -327,7 +327,7 @@ export default function Grafica() {
   // paddingBottom no lote: a barra fixa do celular tem DUAS linhas (≈120px +
   // recorte seguro); com os 88 do desktop ela cobria a última peça.
   return (
-    <div ref={raizRef} style={{ display: "flex", flexDirection: "column", gap: isMobile ? 10 : 16, padding: isMobile ? "12px 12px" : 24, paddingBottom: bulkOn ? (isMobile ? 'calc(140px + env(safe-area-inset-bottom))' : 'calc(88px + env(safe-area-inset-bottom))') : isMobile ? 12 : 24, backgroundColor: T.bg, height: "100%", overflowY: "auto" }}>
+    <div ref={raizRef} style={{ display: "flex", flexDirection: "column", gap: isMobile ? 8 : 16, padding: isMobile ? "12px 12px" : 24, paddingBottom: bulkOn ? (isMobile ? 'calc(140px + env(safe-area-inset-bottom))' : 'calc(88px + env(safe-area-inset-bottom))') : isMobile ? 12 : 24, backgroundColor: T.bg, height: "100%", overflowY: "auto" }}>
       {dialogoDeConfirmacao}
 
       <CabecalhoDaGrafica fila={fila} lote={lote} podeConferir={podeConferir} isMobile={isMobile} ponteiroGrosso={ponteiroGrosso}

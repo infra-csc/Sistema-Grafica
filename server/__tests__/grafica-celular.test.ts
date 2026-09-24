@@ -489,6 +489,12 @@ describe.each([360, 390])("Gráfica em %ipx de largura", (largura) => {
     expect(linha.contains($('[data-testid="button-next-10-days-filter"]'))).toBe(true);
     // Subtítulo curto: "N peças na fila", o frescor cabe na mesma linha.
     expect($('[data-testid="title-grafica"]')!.textContent).not.toContain("a ordem segue a saída do caminhão");
+    // Faixa do evento em duas linhas: "Prazo 29/09" (a tela já é a Gráfica)
+    // e o resumo sem a contagem de eventos (a faixa logo abaixo já a mostra).
+    const prazos = Array.from(document.querySelectorAll('span[aria-label^="Prazo de produção gráfica"]'));
+    expect(prazos.length).toBeGreaterThan(0);
+    prazos.forEach((p) => expect(p.textContent).toMatch(/^Prazo \d{2}\/\d{2}/));
+    expect($('[data-testid="resumo-da-lista"]')!.textContent).not.toMatch(/\d+ eventos?/);
 
     // O "+" do Aumentar nunca fica sozinho: sempre há um botão de largura
     // flexível (base 0) dividindo a linha com ele.

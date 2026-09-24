@@ -51,7 +51,8 @@ export function CartaoDeEtapaCelular({ rotulo, valor, carregando, ativo, onClick
         border: `1px solid ${ativo ? tinta : T.border}`,
         borderLeft: `4px solid ${faixa}`,
         borderRadius: R.md,
-        padding: "7px 8px",
+        // 4px (era 7): 46px de altura, 18px a menos nas três linhas — o alvo segue ≥ 44.
+        padding: "4px 8px",
         cursor: "pointer",
       }}
     >

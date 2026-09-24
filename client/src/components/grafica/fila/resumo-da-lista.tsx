@@ -33,7 +33,7 @@ export function ResumoDaLista({ fila, isMobile, ponteiroGrosso, alvoNoTexto, fsM
   return (
     <div
       data-testid="resumo-da-lista"
-      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "6px 12px", padding: isMobile ? "10px 12px" : "10px 16px", borderBottom: `1px solid ${T.border}`, fontSize: isMobile ? 12 : 13, color: T.second, lineHeight: 1.5 }}
+      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "6px 12px", padding: isMobile ? "8px" : "10px 16px", borderBottom: `1px solid ${T.border}`, fontSize: isMobile ? 12 : 13, color: T.second, lineHeight: 1.5 }}
     >
       <div style={{ minWidth: 0, flex: "1 1 320px" }}>
         <span aria-live="polite"><strong style={{ color: T.text, fontVariantNumeric: "tabular-nums" }}>{filteredItems.length}</strong> peça{filteredItems.length !== 1 ? "s" : ""}</span>
@@ -44,8 +44,15 @@ export function ResumoDaLista({ fila, isMobile, ponteiroGrosso, alvoNoTexto, fsM
           const n = resumoDaLista.complementos;
           return n > 0 ? <span style={{ color: CO.text }}> ({n} complemento{n !== 1 ? "s" : ""})</span> : null;
         })()}
-        {" · "}
-        <strong style={{ color: T.text }}>{resumoDaLista.eventos}</strong> evento{resumoDaLista.eventos !== 1 ? "s" : ""}
+        {/* No CELULAR a contagem de eventos sai (revisão de 24/09): a faixa
+            escura logo abaixo já diz qual é o evento, e sem ela o resumo cabe
+            numa linha só — 25px a menos antes da primeira peça. */}
+        {!isMobile && (
+          <>
+            {" · "}
+            <strong style={{ color: T.text }}>{resumoDaLista.eventos}</strong> evento{resumoDaLista.eventos !== 1 ? "s" : ""}
+          </>
+        )}
         {(() => {
           // O total que importa para a Gráfica é o que AINDA vai ser
           // impresso: peça entregue já saiu da fila e não entra na soma
@@ -98,7 +105,9 @@ export function ResumoDaLista({ fila, isMobile, ponteiroGrosso, alvoNoTexto, fsM
               title="A tela abre na fila do que falta fazer. Clique para trazer o histórico de entregas de volta."
               style={{ background: "none", border: "none", padding: 0, fontSize: "inherit", fontWeight: 700, color: TOM.ciano.text, textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer", ...alvoNoTexto }}
             >
-              {entreguesOcultas} entregue{entreguesOcultas !== 1 ? "s" : ""} oculta{entreguesOcultas !== 1 ? "s" : ""} · mostrar
+              {isMobile
+                ? <>mostrar {entreguesOcultas} entregue{entreguesOcultas !== 1 ? "s" : ""}</>
+                : <>{entreguesOcultas} entregue{entreguesOcultas !== 1 ? "s" : ""} oculta{entreguesOcultas !== 1 ? "s" : ""} · mostrar</>}
             </button>
           </>
         )}
@@ -116,6 +125,9 @@ export function ResumoDaLista({ fila, isMobile, ponteiroGrosso, alvoNoTexto, fsM
           </>
         )}
       </div>
+      {/* Só existe com chip dentro: vazio, ele quebrava para uma segunda
+          linha invisível (gap de 6px + nada) e o resumo engordava 14px. */}
+      {(complementosAbertos.length > 0 || filtros.complementos || finalizadasNoRecorte.total > 0) && (
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         {/* Chip de complementos — clicável e visível TAMBÉM no celular:
             importante demais para sumir justamente na tela de quem está no
@@ -178,6 +190,7 @@ export function ResumoDaLista({ fila, isMobile, ponteiroGrosso, alvoNoTexto, fsM
           </Selo>
         )}
       </div>
+      )}
     </div>
   );
 }

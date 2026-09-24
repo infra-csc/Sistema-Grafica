@@ -34,7 +34,13 @@ export function SeloFilaDaImpressora({ item, fonte }: { item: PecaDaFila; fonte:
 
 // Chip de prazo da Produção Gráfica — o mesmo visual sobre o cabeçalho escuro
 // do evento, tanto na tabela desktop quanto no card mobile.
-export function DeadlineChip({ event, fonte = FS.small }: { event: EventoDaPeca; /** Celular: 12 (informação ≥ 12px). */ fonte?: number }) {
+export function DeadlineChip({ event, fonte = FS.small, curto = false }: {
+  event: EventoDaPeca;
+  /** Celular: 12 (informação ≥ 12px). */
+  fonte?: number;
+  /** Dentro da Gráfica o "Produção Gráfica" é redundante: "Prazo 29/09" (celular). */
+  curto?: boolean;
+}) {
   if (!event?.truckDepartureDate) return null;
   const days = event.deadlineProducaoGrafica ?? -1;
   // Conta e formata em UTC — a mesma convenção da "Saída" exibida ao lado.
@@ -71,7 +77,7 @@ export function DeadlineChip({ event, fonte = FS.small }: { event: EventoDaPeca;
       // ("Produção Gráfica · 10/09 · atras…"). Agora quebra dentro da pílula.
       style={{ display: "inline-flex", alignItems: "center", flexWrap: "wrap", maxWidth: "100%", gap: 5, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 999, padding: "3px 9px", fontSize: fonte, fontWeight: 700, color: s.text, letterSpacing: "0.04em", alignSelf: "flex-start" }}
     >
-      <span style={{ whiteSpace: "nowrap" }}>Produção Gráfica · {ds}</span>{sufixo && <span style={{ whiteSpace: "nowrap", opacity: diff < 0 ? 0.95 : 0.8, fontWeight: diff < 0 ? 700 : 500 }}>· {sufixo}</span>}
+      <span style={{ whiteSpace: "nowrap" }}>{curto ? `Prazo ${ds}` : `Produção Gráfica · ${ds}`}</span>{sufixo && <span style={{ whiteSpace: "nowrap", opacity: diff < 0 ? 0.95 : 0.8, fontWeight: diff < 0 ? 700 : 500 }}>· {sufixo}</span>}
     </span>
   );
 }

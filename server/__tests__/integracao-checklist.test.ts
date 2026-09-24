@@ -86,6 +86,8 @@ import {
   TOKEN_MINIMO,
   TETO_DO_ORIGINAL_NA_INTEGRACAO,
   temImagemDaPeca,
+  listarEventosDoChecklist,
+  montarEntreguesDoEvento,
 } from "../routes/integracao-checklist";
 import { miniaturasDisponiveis } from "../services/miniaturas";
 
@@ -568,5 +570,74 @@ describe("temImagemDaPeca", () => {
     expect(temImagemDaPeca("")).toBe(false);
     expect(temImagemDaPeca("/objects/")).toBe(false);
     expect(temImagemDaPeca("https://exemplo.com/a.png")).toBe(false);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// A MONTAGEM FORA DA ROTA (server/services/checklist-entregues.ts) — a mesma
+// que o script de exportação para a demo local (scripts/exportar-checklist.ts)
+// usa. Recebe o banco por parâmetro: aqui, o db em fila lá de cima.
+// ═════════════════════════════════════════════════════════════════════════════
+describe("a montagem das respostas, fora da rota", () => {
+  beforeEach(() => { H.respostas = []; });
+
+  it("evento inexistente é null (a rota transforma em 404)", async () => {
+    const { db } = await import("../db");
+    H.respostas = [[]];
+    expect(await montarEntreguesDoEvento(db, "nao-existe")).toBeNull();
+  });
+
+  it("devolve a mesma forma da rota, com os tubos", async () => {
+    const { db } = await import("../db");
+    const quando = new Date("2026-09-20T12:00:00Z");
+    H.respostas = [
+      [{ id: "ev-1", nome: "Evento", inicio: quando, saidaCaminhao: null, status: "active" }],
+      [{
+        id: "p1", displayId: "0001", type: "Pórtico", description: null, material: "Lona", finish: "Ilhós",
+        measurement: "3 × 1", quantity: 10, deliveredQty: 10, status: "delivered", deliveredAt: quando,
+        receivedBy: "Ana", deletedAt: null, kitRemessaId: null, approvalThumbUrl: null,
+      }],
+      [
+        { itemId: "p1", tuboId: "t2", numero: 2, quantidade: 3, linhaEntregueEm: quando, avulso: false, tuboEntregueEm: quando, tuboRecebidoPor: "Ana", fotos: 0 },
+        { itemId: "p1", tuboId: "t1", numero: 1, quantidade: 7, linhaEntregueEm: quando, avulso: false, tuboEntregueEm: quando, tuboRecebidoPor: "Ana", fotos: 3 },
+      ],
+      [{ id: "m1", name: "Pórtico", group: "Entrada", createdAt: quando }],
+    ];
+    const r = await montarEntreguesDoEvento(db, "ev-1");
+    expect(r).not.toBeNull();
+    expect(r!.evento).toEqual({ id: "ev-1", nome: "Evento", inicio: quando.toISOString(), saidaCaminhao: null, status: "active" });
+    expect(r!.itens).toHaveLength(1);
+    expect(r!.itens[0]).toMatchObject({ codigo: "0001", grupo: "Entrada", quantidadeEntregue: 10, volumes: [1, 2], temImagem: false });
+    expect(r!.itens[0].tubos).toEqual([
+      { tuboId: "t1", numero: 1, quantidade: 7 },
+      { tuboId: "t2", numero: 2, quantidade: 3 },
+    ]);
+    expect(r!.tubos.map((t) => [t.id, t.linhas, t.unidades, t.fotos])).toEqual([["t1", 1, 7, 3], ["t2", 1, 3, 0]]);
+  });
+
+  it("a lista de eventos converte datas e contagem", async () => {
+    const { db } = await import("../db");
+    const quando = new Date("2026-09-20T12:00:00Z");
+    H.respostas = [[{ id: "ev-1", nome: "Evento", inicio: quando, saidaCaminhao: quando, status: "active", pecasEntregues: "12" }]];
+    expect(await listarEventosDoChecklist(db)).toEqual({
+      eventos: [{ id: "ev-1", nome: "Evento", inicio: quando.toISOString(), saidaCaminhao: quando.toISOString(), status: "active", pecasEntregues: 12 }],
+    });
+  });
+
+  it("o serviço não importa server/db (o script roda só com DATABASE_URL, cliente próprio)", () => {
+    const fonte = readFileSync(path.resolve(__dirname, "../services/checklist-entregues.ts"), "utf8");
+    expect(fonte).not.toMatch(/from\s+["']\.\.\/db["']/);
+  });
+
+  it("o script de exportação é só leitura e não usa server/db", () => {
+    const fonte = readFileSync(path.resolve(__dirname, "../../scripts/exportar-checklist.ts"), "utf8");
+    expect(fonte).not.toMatch(/from\s+["'][./]*server\/db["']/);
+    expect(fonte).toContain('accessMode: "read only"');
+    expect(fonte).toContain("SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY");
+    expect(fonte).toContain("transaction_read_only");
+    // O endereço do banco só vem do ambiente.
+    expect(fonte).toContain("process.env.DATABASE_URL");
+    // Erro sai sem o endereço (nem a senha) do banco.
+    expect(fonte).toContain("semSegredo(");
   });
 });

@@ -48,7 +48,9 @@ declara — a sequência do `displayId`, os índices criados por script e a tabe
   `GET /api/integracao/checklist/eventos/:id/entregues` (com os tubos e a
   quantidade de cada peça em cada tubo) e
   `GET /api/integracao/checklist/itens/:itemId/thumb` (a arte) — contrato em
-  docs/arquitetura.md → "Integração com o Checklist de Arena".
+  docs/arquitetura.md → "Integração com o Checklist de Arena". Para a demo
+  local, `scripts/exportar-checklist.ts` exporta eventos reais para um JSON,
+  só leitura (mesma seção, "Exportar um evento para o Checklist").
 * **`[postMerge]`** roda `scripts/post-merge.sh` a cada merge. Ele **não toca no
   banco**: o `db:push` automático que havia ali derrubava o que o schema não
   declara e chegava a pedir confirmação de perda de dado no meio do merge.

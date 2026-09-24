@@ -134,6 +134,40 @@ remessa do Kit, não é book completo, não cancelada, e com **unidade entregue*
 (parcial conta; legado entregue com `delivered_qty` 0 vale a quantidade toda).
 A lista de eventos repete a regra em SQL — mexeu numa, mexa na outra.
 
+A montagem das duas respostas JSON mora em `server/services/checklist-entregues.ts`
+(`listarEventosDoChecklist`, `montarEntreguesDoEvento`), que recebe o banco
+por parâmetro e não importa `server/db` — as rotas e o script abaixo usam a
+mesma.
+
+#### Exportar um evento para o Checklist (demo local)
+
+Enquanto a integração não está publicada, `scripts/exportar-checklist.ts`
+grava os dados REAIS de alguns eventos num arquivo para a demo local do
+Checklist. **Só leitura**: a conexão é posta em
+`SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY`, tudo roda numa
+transação `begin read only`, e o script confere `transaction_read_only = on`
+antes de ler — qualquer escrita o próprio Postgres recusa. O endereço do
+banco vem só de `DATABASE_URL` (nunca de argumento, nunca impresso, nem nas
+mensagens de erro); nenhuma outra variável é necessária. A arte não é
+buscada (`temImagem` segue como está). Rode na raiz do repositório
+(PowerShell):
+
+```powershell
+$env:DATABASE_URL="<cole aqui>"; npx tsx scripts/exportar-checklist.ts   # lista os eventos (id, data, nome, peças)
+npx tsx scripts/exportar-checklist.ts --exportar                          # os 3 mais recentes com peça entregue
+npx tsx scripts/exportar-checklist.ts --ultimos 2                         # os 2 mais recentes
+npx tsx scripts/exportar-checklist.ts <id-do-evento> [<id> ...]           # eventos escolhidos
+npx tsx scripts/exportar-checklist.ts --todos                             # todos com peça entregue (sem a janela de 120 dias)
+Remove-Item Env:DATABASE_URL                                              # ao terminar
+```
+
+Grava `checklist-eventos.json` na pasta atual (ou em `--saida <arquivo>`;
+o nome padrão está no `.gitignore`), no formato
+`{ geradoEm, eventos: [{ lista: <item de /eventos>, entregues: <resposta de /entregues, com tubos> }] }`,
+e imprime por evento: peças, unidades, tubos, avulsos e peças sem tubo. Todas
+as peças entregues entram — as de tubo, as de volume avulso (`avulso: true`)
+e as sem tubo (`tubos: []`).
+
 ---
 
 ## Tempo real: LISTEN/NOTIFY

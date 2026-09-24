@@ -132,7 +132,7 @@ describe("o modal de conferência", () => {
     expect($('#aviso-foto-conferencia')!.textContent).toContain("A foto ainda está subindo");
     await terminarEnvio("/objects/uploads/c2.jpg");
     expect(botaoConferir().disabled).toBe(false);
-    expect(botaoConferir().textContent).toBe("Conferir e embalar 3 un.");
+    expect(botaoConferir().textContent).toBe("Conferir 3 un.");
   });
 
   it("a foto que chega depois de o modal fechar NÃO entra na próxima peça", async () => {
@@ -151,31 +151,15 @@ describe("o modal de conferência", () => {
     expect(document.querySelector('img[src="/objects/uploads/atrasada.jpg"]')).toBeNull();
   });
 
-  it("CONFERIR E EMBALAR: marcado por padrão; confere e embala avulso com a mesma foto", async () => {
+  // PEDIDO DA GRÁFICA (24/09): "tem um botão de embalar avulso que está vindo
+  // selecionado — querem que tire". CONFERIR_E_EMBALAR desligado: a opção não
+  // aparece e conferir só confere (a peça vai para Conferidos → Embalar).
+  it("CONFERIR E EMBALAR desligado: sem a caixa 'Já embalar'; conferir só confere (nenhuma ida às rotas de tubo)", async () => {
     await montarGrafica();
     await act(async () => { fireEvent.click($('[data-testid="button-confer-c2"]')!); });
     await tick(30);
-    const caixa = $('[data-testid="checkbox-ja-embalar"]') as HTMLInputElement;
-    expect(caixa.checked).toBe(true);
-    expect($('[data-testid="opcao-ja-embalar"]')!.textContent).toBe("Já embalar (volume avulso) com esta foto");
-    await act(async () => { fireEvent.click($$('[data-testid="fake-upload"]')[0]); });
-    await terminarEnvio("/objects/uploads/c2.jpg");
-    await act(async () => { fireEvent.click(botaoConferir()); });
-    await tick(80);
-    const confer = chamadas.find((c) => c.url === "/api/items/c2/confer")!;
-    expect(confer.corpo).toMatchObject({ conferencePhotoUrl: "/objects/uploads/c2.jpg", qty: 3 });
-    const embalar = chamadas.find((c) => c.url === "/api/events/ev1/tubos")!;
-    expect(embalar.corpo).toEqual({ itens: [{ id: "c2", quantidade: 3 }], fotos: ["/objects/uploads/c2.jpg"], avulso: true });
-    // a conferência vem ANTES da embalagem
-    expect(chamadas.indexOf(confer)).toBeLessThan(chamadas.indexOf(embalar));
-    expect(toasts.some((t) => String(t.title).startsWith("Conferida e embalada"))).toBe(true);
-  });
-
-  it("desmarcado: só confere (nenhuma ida às rotas de tubo)", async () => {
-    await montarGrafica();
-    await act(async () => { fireEvent.click($('[data-testid="button-confer-c2"]')!); });
-    await tick(30);
-    await act(async () => { fireEvent.click($('[data-testid="checkbox-ja-embalar"]')!); });
+    expect($('[data-testid="opcao-ja-embalar"]'), "a opção de embalar avulso saiu").toBeNull();
+    expect($('[data-testid="checkbox-ja-embalar"]')).toBeNull();
     await act(async () => { fireEvent.click($$('[data-testid="fake-upload"]')[0]); });
     await terminarEnvio("/objects/uploads/c2.jpg");
     expect(botaoConferir().textContent).toBe("Conferir 3 un.");

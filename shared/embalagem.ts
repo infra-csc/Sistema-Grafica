@@ -219,9 +219,12 @@ export const CONFERIR_PARCIAL = true;
 
 /**
  * Decisão do dono (trocável): quando a conferência zera o que falta conferir,
- * o modal oferece (já marcado) "Já embalar (volume avulso) com esta foto".
+ * o modal oferecia (já marcado) "Já embalar (volume avulso) com esta foto".
+ * DESLIGADO em 24/09 a pedido da Gráfica: a caixa vinha marcada e a peça saía
+ * embalada sozinha sem querer. Conferir só confere; a peça vai para
+ * "Conferidos" e é embalada pelo Embalar (ou em lote, num tubo).
  */
-export const CONFERIR_E_EMBALAR = true;
+export const CONFERIR_E_EMBALAR = false;
 
 /** Status em que a impressão já acabou: o contador vazio do acervo antigo não esconde a produção. */
 const IMPRESSAO_FECHADA = new Set(["produced", "produzido", "conferred", "conferido", "packed"]);

@@ -515,6 +515,10 @@ describe.each([360, 390])("Gráfica em %ipx de largura", (largura) => {
     const material = Array.from(dialogo.querySelectorAll("div")).find((d) => d.textContent === "Material")!;
     expect(foto && material, "foto e ficha no diálogo").toBeTruthy();
     expect(foto.compareDocumentPosition(material) & Node.DOCUMENT_POSITION_FOLLOWING, "a ficha vem depois da foto").toBeTruthy();
+    // Pedido da Gráfica (24/09): a caixa "Já embalar (volume avulso)" vinha
+    // marcada e saiu — no celular conferir só confere; embalar é o botão Embalar.
+    expect(dialogo.querySelector('[data-testid="opcao-ja-embalar"]'), "sem embalar avulso no celular").toBeNull();
+    expect(dialogo.textContent).not.toContain("Já embalar");
     // E quem é a peça continua no topo: o subtítulo leva o código.
     expect(dialogo.textContent).toMatch(/#\d{4}[^ ]* ·.+ — compare com a arte e tire a foto/);
   }, 60_000);

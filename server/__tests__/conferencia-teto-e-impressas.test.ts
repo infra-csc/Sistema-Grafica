@@ -65,7 +65,8 @@ const peca = (over: Record<string, unknown> = {}) => ({
 describe("o teto da conferência (shared/embalagem)", () => {
   it("decisões do dono ligadas por padrão", () => {
     expect(CONFERIR_PARCIAL).toBe(true);
-    expect(CONFERIR_E_EMBALAR).toBe(true);
+    // Desligado a pedido da Gráfica (24/09): conferir só confere.
+    expect(CONFERIR_E_EMBALAR).toBe(false);
     expect(IMPRESSAS_EM_EVENTO_REALIZADO).toBe(true);
   });
 

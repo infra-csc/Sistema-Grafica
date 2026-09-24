@@ -107,6 +107,67 @@ fica em `session.papelReal` — e é `papelReal`, não `userRole`, que autoriza 
 próxima troca; senão o primeiro "ver como" trancaria o admin fora do botão de
 voltar. Tudo que ele fizer entra na trilha como "Ana (como Gráfica)".
 
+### Integração com o Checklist de Arena (23/09)
+
+Um terceiro caminho, **sem sessão e só de leitura**: o app Checklist de Arena
+(outro servidor) lê as peças da Arena já entregues para conferir na montagem.
+Ele não ganha login de usuário — um login daria a ele tudo o que aquela pessoa
+vê e escreve. Ganha um token que abre só `/api/integracao/checklist/*`
+(`server/routes/integracao-checklist.ts`):
+
+* `Authorization: Bearer <CHECKLIST_INTEGRACAO_TOKEN>`, comparado por digest
+  sha256 + `timingSafeEqual` (tempo constante, sem revelar o tamanho).
+* Variável ausente ou com menos de 32 caracteres → **503**, integração
+  desligada (falha fechada). Token errado ou ausente → **401**, com log de quem
+  bateu — nunca do token. Toda resposta sai com `Cache-Control: no-store`,
+  menos a imagem da rota da arte (abaixo).
+* Fora do GET → 405; caminho desconhecido do prefixo → 404 em JSON.
+
+| Rota | Devolve |
+| --- | --- |
+| `GET /api/integracao/checklist/eventos` | `{ eventos: [{ id, nome, inicio, saidaCaminhao, status, pecasEntregues }] }` — eventos com início nos últimos 120 dias e ao menos uma peça da Arena entregue, do mais recente para o mais antigo; `pecasEntregues` conta peças (linhas), não unidades |
+| `GET /api/integracao/checklist/eventos/:id/entregues` | `{ evento, geradoEm, itens: [{ id, codigo, grupo, tipo, descricao, material, acabamento, medida, quantidade, quantidadeEntregue, status, entregueEm, recebidoPor, volumes, tubos: [{ tuboId, numero, quantidade }], temImagem }], tubos: [{ id, numero, avulso, entregueEm, recebidoPor, linhas, unidades, fotos }] }` — na ordem da Revisão Final; `volumes` são os números dos volumes já entregues com a peça (avulso é negativo; mantido por compatibilidade); `itens[].tubos` diz em qual volume e **quantas unidades da peça em cada um** (uma linha de `tubo_itens` entregue por entrada; peça sem linha de volume → `[]`, o "Sem tubo" do Checklist); o `tubos` do topo lista os volumes com ao menos uma linha entregue de peça de `itens` (nunca vazio), com `linhas` (peças dentro), `unidades` (soma das quantidades) e `fotos` (quantas fotos de fechamento). Os dois `tubos` vêm em ordem de tubo (1, 2, 3…) e depois os avulsos (−1, −2…). `temImagem` diz se a peça tem arte (thumb `/objects/…` no nosso storage) para pedir na rota abaixo. 404 se o evento não existe |
+| `GET /api/integracao/checklist/itens/:itemId/thumb` | A **miniatura da arte** (webp de até 320px) da peça — a mesma de `/objects/…?thumb=1` (`obterMiniatura` em `server/services/miniaturas.ts`: a gravada no upload, senão gerada a pedido). Sem miniatura possível, o original só sai se for `image/png`/`jpeg`/`gif`/`webp` de até 1 MB. **200**: os bytes, com `Content-Type` real (`image/webp`, `image/png`, `image/jpeg` ou `image/gif`), `Cache-Control: private, max-age=86400`, `X-Content-Type-Options: nosniff`. **400** `{ erro }` se o id não é UUID; **404** `{ erro }` se a peça não existe, não seria listada em `/entregues` (mesma regra), não tem arte no nosso storage, o objeto sumiu ou não é imagem da lista. Só se chega à arte pelo id da peça — o caminho no storage vem do banco, nunca da URL |
+
+"Peça da Arena entregue" é `shared/integracao-checklist.ts`: não excluída, sem
+remessa do Kit, não é book completo, não cancelada, e com **unidade entregue**
+(parcial conta; legado entregue com `delivered_qty` 0 vale a quantidade toda).
+A lista de eventos repete a regra em SQL — mexeu numa, mexa na outra.
+
+A montagem das duas respostas JSON mora em `server/services/checklist-entregues.ts`
+(`listarEventosDoChecklist`, `montarEntreguesDoEvento`), que recebe o banco
+por parâmetro e não importa `server/db` — as rotas e o script abaixo usam a
+mesma.
+
+#### Exportar um evento para o Checklist (demo local)
+
+Enquanto a integração não está publicada, `scripts/exportar-checklist.ts`
+grava os dados REAIS de alguns eventos num arquivo para a demo local do
+Checklist. **Só leitura**: a conexão é posta em
+`SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY`, tudo roda numa
+transação `begin read only`, e o script confere `transaction_read_only = on`
+antes de ler — qualquer escrita o próprio Postgres recusa. O endereço do
+banco vem só de `DATABASE_URL` (nunca de argumento, nunca impresso, nem nas
+mensagens de erro); nenhuma outra variável é necessária. A arte não é
+buscada (`temImagem` segue como está). Rode na raiz do repositório
+(PowerShell):
+
+```powershell
+$env:DATABASE_URL="<cole aqui>"; npx tsx scripts/exportar-checklist.ts   # lista os eventos (id, data, nome, peças)
+npx tsx scripts/exportar-checklist.ts --exportar                          # os 3 mais recentes com peça entregue
+npx tsx scripts/exportar-checklist.ts --ultimos 2                         # os 2 mais recentes
+npx tsx scripts/exportar-checklist.ts <id-do-evento> [<id> ...]           # eventos escolhidos
+npx tsx scripts/exportar-checklist.ts --todos                             # todos com peça entregue (sem a janela de 120 dias)
+Remove-Item Env:DATABASE_URL                                              # ao terminar
+```
+
+Grava `checklist-eventos.json` na pasta atual (ou em `--saida <arquivo>`;
+o nome padrão está no `.gitignore`), no formato
+`{ geradoEm, eventos: [{ lista: <item de /eventos>, entregues: <resposta de /entregues, com tubos> }] }`,
+e imprime por evento: peças, unidades, tubos, avulsos e peças sem tubo. Todas
+as peças entregues entram — as de tubo, as de volume avulso (`avulso: true`)
+e as sem tubo (`tubos: []`).
+
 ---
 
 ## Tempo real: LISTEN/NOTIFY

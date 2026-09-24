@@ -10,6 +10,10 @@ vite.config.ts.*
 preview-book.html
 preview-gestao.html
 
+# Exportação de scripts/exportar-checklist.ts: dados REAIS de eventos para a
+# demo local do Checklist de Arena — nunca no repositório.
+checklist-eventos.json
+
 # ── O QUE SAIU DO ÍNDICE EM 22/09 (com `git rm --cached`, os arquivos ficaram
 # no disco) ──────────────────────────────────────────────────────────────────
 # Nada disto entra no build nem no deploy, e junto pesava ~92 MB de um repo de

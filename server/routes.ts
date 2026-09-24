@@ -38,6 +38,7 @@ import { registerConsultasDeEstoqueRoutes } from "./routes/consultas-de-estoque"
 import { registerKitRoutes } from "./routes/kit";
 import { registerArtesBuscaRoutes } from "./routes/artes-busca";
 import { registerMoldeRoutes } from "./routes/molde";
+import { registerIntegracaoChecklistRoutes } from "./routes/integracao-checklist";
 import { db, pool } from "./db";
 import { items as itemsTable, events as eventsTable, tubos as tubosTable, tuboItens as tuboItensTable } from "@shared/schema";
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
@@ -171,6 +172,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerKitRoutes(app);
   registerArtesBuscaRoutes(app);
   registerMoldeRoutes(app);
+  // Checklist de Arena (outro app): só leitura, por token, sem sessão.
+  registerIntegracaoChecklistRoutes(app);
   registerNotificationRoutes(app);
   registerPhotoRoutes(app);
   registerAuditLogRoutes(app);

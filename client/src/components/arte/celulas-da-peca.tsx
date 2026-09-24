@@ -1,7 +1,8 @@
 // As células da peça na fila da Arte — as mesmas na linha da tabela e no
 // cartão do celular: ação primária, menu "⋯", prazo, selos, anexos e medidas.
 import { Fragment } from "react";
-import { AlertTriangle, Eye, FastForward, FileText, MoreHorizontal, Paperclip, Printer, RotateCcw } from "lucide-react";
+import { AlertTriangle, Eye, FastForward, FileText, FileUp, ImageUp, MoreHorizontal, Paperclip, Printer, RotateCcw } from "lucide-react";
+import { regraDaTrocaDeArquivoFinal, regraDaTrocaDeThumb } from "@shared/troca-de-material";
 import { StatusBadge } from "@/components/status-badge";
 import { SeloKit } from "@/components/kit/selo-kit";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -17,7 +18,7 @@ import { naoDevolvivel } from "@shared/fluxo-peca";
 import { ehMolde, statusDeExibicao } from "@shared/molde";
 import { prazoDoMolde } from "@shared/prazo-molde";
 import { hrefSeguro } from "@shared/url-segura";
-import { menuItemStyle } from "./constantes";
+import { fsToque, menuItemStyle } from "./constantes";
 import type { AcoesDaLinha, PecaDaArte } from "./tipos";
 
 /**
@@ -72,6 +73,15 @@ export function MenuDeAcoes({ item, podeEditar, dedo, acoes }: {
 }) {
   const podeDispensar = podeEditar && DISPENSAVEIS_STATUSES.includes(item.status) && !ehMolde(item);
   const podeDevolver = podeEditar && !naoDevolvivel(item.status);
+  // TROCAR DEPOIS DE ENVIADO (dono, 24/09): a peça que já saiu da mesa da
+  // Arte — com o Atendimento, na Finalização, nos Finalizados — não tinha
+  // nenhum caminho visível para "trocar o thumb" ou "trocar o arquivo final"
+  // na LINHA; a troca morava escondida no fim da ficha. Os dois entram no "⋯"
+  // quando a REGRA deixa (shared/troca-de-material — a mesma do servidor) e
+  // abrem a ficha, onde a troca mora (motivo, aviso e envio). Em "Aguardando
+  // envio" o gesto é o envio, não a troca.
+  const trocaDoThumb = podeEditar && item.status !== "awaiting_submission" ? regraDaTrocaDeThumb(item) : null;
+  const trocaDoFinal = podeEditar && item.finalFileUrl ? regraDaTrocaDeArquivoFinal(item) : null;
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -103,6 +113,30 @@ export function MenuDeAcoes({ item, podeEditar, dedo, acoes }: {
         >
           <Printer style={{ width: 14, height: 14, flexShrink: 0 }} /> Exportar prova em PDF
         </button>
+        {trocaDoThumb?.pode && (
+          <button
+            onClick={() => acoes.verDetalhes(item)}
+            data-testid={`button-trocar-thumb-${item.id}`}
+            title={trocaDoThumb.exigeMotivo ? "Abre a peça para trocar o thumb — pede o motivo da troca" : "Abre a peça para trocar o thumb"}
+            style={menuItemStyle(T.strong, dedo)}
+            onMouseEnter={e => { e.currentTarget.style.background = N.n2; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
+          >
+            <ImageUp style={{ width: 14, height: 14, flexShrink: 0 }} /> Trocar thumb
+          </button>
+        )}
+        {trocaDoFinal?.pode && (
+          <button
+            onClick={() => acoes.verDetalhes(item)}
+            data-testid={`button-trocar-final-${item.id}`}
+            title={trocaDoFinal.voltaParaRevisao ? "Abre a peça para trocar o arquivo final — a troca devolve a peça para a Revisão Final" : "Abre a peça para trocar o arquivo final"}
+            style={menuItemStyle(T.strong, dedo)}
+            onMouseEnter={e => { e.currentTarget.style.background = N.n2; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
+          >
+            <FileUp style={{ width: 14, height: 14, flexShrink: 0 }} /> Trocar arquivo final
+          </button>
+        )}
         {podeDispensar && (
           <>
             <div style={{ height: 1, background: N.n3, margin: '4px 0' }} />
@@ -227,7 +261,7 @@ export function BotaoPrimario({ item, tabId, largura, podeEditar, dedo, enviando
  * mesma da faixa de diagnóstico, do filtro "Prazo: atrasados" e da Gestão de
  * Prazos, com o marco da Finalização (−10) e o ajuste de fim de semana.
  */
-export function PrazoDaPeca({ item, tabId, hoje }: { item: PecaDaArte; tabId: string; hoje: Date }) {
+export function PrazoDaPeca({ item, tabId, hoje, dedo = false }: { item: PecaDaArte; tabId: string; hoje: Date; dedo?: boolean }) {
   // PRAZO DO MOLDE (22/09): no molde de evento com prazo do molde, é ele
   // que a coluna mostra; sem ele (ou peça comum), o marco da fase de sempre.
   const p = prazoDoMolde(item, item.event, hoje) ?? phaseDeadline(item.event, tabId, hoje);
@@ -244,14 +278,17 @@ export function PrazoDaPeca({ item, tabId, hoje }: { item: PecaDaArte; tabId: st
         date={p?.date ?? null}
         label={p?.label}
         testId={`cell-prazo-${item.id}`}
+        fonte={fsToque(11, dedo)}
       />
       {dias !== null && tom && (
         <span
           data-testid={`cell-idade-${item.id}`}
           title={`Há ${dias} ${dias === 1 ? 'dia' : 'dias'} nesta fase (desde ${new Date(item.statusChangedAt ?? item.status_changed_at ?? "").toLocaleDateString('pt-BR')})`}
-          style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: tom.peso, color: tom.cor, whiteSpace: 'nowrap' }}
+          style={{ fontFamily: "'DM Mono', monospace", fontSize: fsToque(11, dedo), fontWeight: tom.peso, color: tom.cor, whiteSpace: 'nowrap' }}
         >
-          há {dias}d na fase
+          {/* "há 0d na fase" não dizia nada a quem lê: a peça do dia diz que
+              chegou hoje. */}
+          {dias === 0 ? 'entrou hoje na fase' : <>há {dias}d na fase</>}
         </span>
       )}
     </div>
@@ -267,12 +304,14 @@ export function PrazoDaPeca({ item, tabId, hoje }: { item: PecaDaArte; tabId: st
  * Viraram links discretos na linha secundária; só "Fora do book" guarda uma
  * cor, porque é o único que pede ação.
  */
-export function TagsDaPeca({ item, eventoTemBook }: {
+export function TagsDaPeca({ item, eventoTemBook, dedo = false }: {
   item: PecaDaArte;
   /** O evento da peça já tem book publicado (ver `eventosComBook`). */
   eventoTemBook: boolean;
+  /** Toque: nada abaixo de 12px. */
+  dedo?: boolean;
 }) {
-  const link: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11.5, fontWeight: 600, color: T.strong, textDecoration: 'underline', textDecorationColor: T.bdark, textUnderlineOffset: 2 };
+  const link: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: fsToque(11.5, dedo), fontWeight: 600, color: T.strong, textDecoration: 'underline', textDecorationColor: T.bdark, textUnderlineOffset: 2 };
   const tem = item.referenceUrl || item.bookUrl || eventoTemBook;
   if (!tem) return null;
   return (
@@ -294,7 +333,7 @@ export function TagsDaPeca({ item, eventoTemBook }: {
         // Salvar o book limpa o bookUrl de TODAS as peças do evento e regrava só
         // as marcadas — é fácil deixar peça de fora sem perceber. #92400e sobre
         // branco = 7,1:1 ✓.
-        <span title="O evento já tem book publicado, mas esta peça ficou de fora dele" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11.5, fontWeight: 700, color: TOM.alerta.text }} data-testid={`tag-fora-do-book-${item.id}`}>
+        <span title="O evento já tem book publicado, mas esta peça ficou de fora dele" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: fsToque(11.5, dedo), fontWeight: 700, color: TOM.alerta.text }} data-testid={`tag-fora-do-book-${item.id}`}>
           <AlertTriangle aria-hidden="true" style={{ width: 10, height: 10 }} />
           Fora do book
         </span>
@@ -321,7 +360,7 @@ export function TagsDaPeca({ item, eventoTemBook }: {
  * SELO NOVO entra NA LISTA `estados`, na posição da gravidade dele — não
  * como mais um <span> solto na célula.
  */
-export function SelosDaPeca({ item, tabId }: { item: PecaDaArte; tabId: string }) {
+export function SelosDaPeca({ item, tabId, dedo = false }: { item: PecaDaArte; tabId: string; dedo?: boolean }) {
   type Estado = { chave: string; rotulo: string; titulo: string; testId: string; cor: { bg: string; borda: string; texto: string } };
   const estados = ([
     tabId === "criar-aprovacoes" && item.rejectedBySponsor && {
@@ -342,18 +381,18 @@ export function SelosDaPeca({ item, tabId }: { item: PecaDaArte; tabId: string }
   ].filter(Boolean) as Estado[]);
   return (
     <>
-      {tabId === "finalizados" && <StatusBadge status={statusDeExibicao(item)} />}
-      <SeloKit peca={item} />
+      {tabId === "finalizados" && <StatusBadge status={statusDeExibicao(item)} className={dedo ? "!text-[12px]" : undefined} />}
+      <SeloKit peca={item} style={dedo ? { fontSize: 12 } : undefined} />
       {estados.map((e, i) => i === 0 && tabId !== "finalizados" ? (
         <Selo key={e.chave} title={e.titulo} data-testid={e.testId} forma="retangulo"
           cores={{ bg: e.cor.bg, text: e.cor.texto, border: e.cor.borda }}
-          style={{ padding: '1px 6px' }}>
+          style={dedo ? { padding: '1px 6px', fontSize: 12 } : { padding: '1px 6px' }}>
           {e.rotulo}
         </Selo>
       ) : (
         // #57534e sobre branco = 7,0:1 ✓ — texto, não selo.
         <span key={e.chave} title={e.titulo} data-testid={e.testId}
-          style={{ fontSize: FS.small, fontWeight: 600, color: T.apoio, whiteSpace: 'nowrap' }}>
+          style={{ fontSize: fsToque(FS.small, dedo), fontWeight: 600, color: T.apoio, whiteSpace: 'nowrap' }}>
           {e.rotulo}
         </span>
       ))}
@@ -370,7 +409,7 @@ export function SelosDaPeca({ item, tabId }: { item: PecaDaArte; tabId: string }
  * na ficha da peça. A ordem de leitura continua a de antes: a medida, o
  * ARQ. (o que a impressora recebe), a área e o material.
  */
-export function MetaDaPeca({ item, comQtd = false }: { item: PecaDaArte; comQtd?: boolean }) {
+export function MetaDaPeca({ item, comQtd = false, dedo = false }: { item: PecaDaArte; comQtd?: boolean; dedo?: boolean }) {
   const partes: React.ReactNode[] = [];
   if (comQtd) partes.push(<span key="q">Qtd {formatQuantity(item.quantity)}</span>);
   if (item.visualWidth && item.visualHeight) {
@@ -379,7 +418,7 @@ export function MetaDaPeca({ item, comQtd = false }: { item: PecaDaArte; comQtd?
   if (item.fileWidth && item.fileHeight) {
     partes.push(
       <span key="a" title={`ARQ. (com sangria): ${item.fileWidth} × ${item.fileHeight} — é o que a impressora recebe`} style={{ fontVariantNumeric: 'tabular-nums' }}>
-        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>arq.</span>
+        <span style={{ fontSize: fsToque(10, dedo), fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>arq.</span>
         {' '}{item.fileWidth} × {item.fileHeight}
       </span>,
     );
@@ -389,7 +428,7 @@ export function MetaDaPeca({ item, comQtd = false }: { item: PecaDaArte; comQtd?
   if (item.finish) partes.push(<span key="f" title={item.finish}>{item.finish}</span>);
   if (partes.length === 0) return null;
   return (
-    <span data-testid={`meta-peca-${item.id}`} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 6, rowGap: 1, fontSize: 11.5, color: T.apoio, minWidth: 0 }}>
+    <span data-testid={`meta-peca-${item.id}`} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 6, rowGap: 1, fontSize: fsToque(11.5, dedo), color: T.apoio, minWidth: 0 }}>
       {partes.map((p, i) => (
         <Fragment key={i}>
           {i > 0 && <span aria-hidden="true" style={{ color: T.second }}>·</span>}

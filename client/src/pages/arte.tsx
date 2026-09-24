@@ -18,7 +18,6 @@ import { T, N } from "@/lib/theme";
 // Regras puras (recortes de status, predicado de filtro, prazo por fase,
 // vínculo do multi-upload) — testadas em server/__tests__/arte-rules.test.ts.
 import {
-  FINALIZADOS_STATUSES,
   TAB_STATUSES,
   filtersKey,
   makeDateBounds,
@@ -39,7 +38,7 @@ import { useLoteDeThumbs } from "@/components/arte/use-lote-de-thumbs";
 import { useBookDaArte } from "@/components/arte/use-book-da-arte";
 import { ChipsAtivos, useChipsAtivos } from "@/components/arte/chips-ativos";
 import { CabecalhoDaArte } from "@/components/arte/cabecalho-da-arte";
-import { BarraDeFiltros } from "@/components/arte/barra-de-filtros";
+import { BarraDeFiltros, OrdenarDaArte } from "@/components/arte/barra-de-filtros";
 import { FasesESelecao } from "@/components/arte/fases-e-selecao";
 import { FilaAgrupada } from "@/components/arte/fila-agrupada";
 import { AbaCorrecao } from "@/components/arte/aba-correcao";
@@ -96,8 +95,13 @@ export default function Arte() {
   // A MESMA caixa decide tabela × cartões pela régua da área útil (menos o
   // padding horizontal dela: 12+12 no celular, 32+32 fora): com a sidebar
   // aberta, uma janela de 1000px deixa ~740 para a lista.
-  const { ref: contentRef, cards: emCartoes } = useDensidadeDoConteudo<HTMLDivElement>(useIsMobile() ? 24 : 64);
+  const { ref: contentRef, cards: emCartoes, larguraUtil } = useDensidadeDoConteudo<HTMLDivElement>(useIsMobile() ? 24 : 64);
   const tablistRef = useRef<HTMLDivElement>(null);
+  const raizRef = useRef<HTMLDivElement>(null);
+  // Onde mora o Ordenar: na barra da busca quando ela tem largura; no celular
+  // e na área estreita (tablet em pé com a sidebar, < 640px úteis) ele vira o
+  // ícone ⇅ ao lado do seletor de fase — na barra ele caía sozinho numa linha.
+  const ordenarJuntoDaFase = useIsMobile() || (larguraUtil > 0 && larguraUtil < 640);
 
   // Paginação da tabela — ver FilaAgrupada.
   const [visibleCount, setVisibleCount] = useState(ARTE_PAGE_SIZE);
@@ -117,8 +121,11 @@ export default function Arte() {
     // aparecer em lugar nenhum: em "Correção" o botão de seleção nem é
     // renderizado, mas o cabeçalho continuava dizendo "Exportar N sel.".
     setSelectedItemIds(new Set());
+    // No celular quem rola é a raiz (o topo rola junto); fora dele, a lista.
+    // As duas vão ao topo — a que não rola simplesmente ignora.
     requestAnimationFrame(() => {
       contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      raizRef.current?.scrollTo({ top: 0, behavior: "smooth" });
     });
   }, []);
   const [finalFileUrl, setFinalFileUrl] = useState<string>("");
@@ -569,16 +576,38 @@ export default function Arte() {
     value: tab.id, label: tab.label, count: tab.count, pinned: true,
   }));
   const faseAtualCount = tabs.find(t => t.id === activeTab)?.count ?? 0;
+  // Correção vazia: a próxima fila em que a Arte age, como as outras abas
+  // vazias oferecem (VazioDaFila). Memoizada — a aba é memoizada.
+  const proximaFaseDaCorrecao = useCallback(() => {
+    const t = tabs.find(x => x.id !== "correcao" && x.count > 0 && ["criar-aprovacoes", "finalizar-layouts"].includes(x.id));
+    return t ? { label: t.label, count: t.count, ir: () => changeTab(t.id) } : undefined;
+  }, [tabs, changeTab]);
+
+  // Qual bloco de ação a ficha abre (só para quem edita):
+  //   · 'thumb'       — aguardando envio: subir o thumb e enviar;
+  //   · 'finalizacao' — aprovada: subir o arquivo final;
+  //   · 'troca'       — já enviada (tem thumb ou arquivo final): trocar o que
+  //                     a regra deixar, com o motivo escrito do que ela não deixa.
+  const painelDaFicha: 'thumb' | 'finalizacao' | 'troca' | null = !selectedItem || !podeEditar ? null
+    : selectedItem.status === 'awaiting_submission' ? 'thumb'
+    : ['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) ? 'finalizacao'
+    : (selectedItem.approvalThumbUrl || selectedItem.finalFileUrl) ? 'troca'
+    : null;
 
   return (
     // ALTURA: `position: absolute; inset: 0` prende a tela na casca em vez de
     // pedir que ela caiba. Com `height: 100%` + `overflow: hidden` a casca
     // rolava TAMBÉM: dois scrollers verticais sobre a mesma lista, e a lista
     // podia parar no meio de uma linha com a tela em branco embaixo.
-    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      {/* ── STICKY HEADER ─────────────────────────────────────────────────── */}
-      <div style={{
-        position: 'sticky', top: 0, zIndex: 40,
+    // NO CELULAR O TOPO ROLA JUNTO (revisão de celular, 24/09). Fixo, ele
+    // ocupava 443 dos 844px de um celular (52%): a primeira peça começava
+    // abaixo da dobra e, no modo consulta, nenhuma aparecia. Agora quem rola
+    // no celular é a caixa inteira — o topo sai de cena ao descer a lista,
+    // como na Gráfica. No desktop/tablet ele segue fixo e a lista rola sozinha.
+    <div ref={raizRef} data-testid="raiz-arte" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', overflowX: 'hidden', overflowY: isMobile ? 'auto' : 'hidden', overscrollBehavior: 'contain' }}>
+      {/* ── TOPO (fixo fora do celular) ───────────────────────────────────── */}
+      <div data-testid="topo-arte" style={{
+        position: isMobile ? 'relative' : 'sticky', top: 0, zIndex: 40,
         background: T.surface,
         borderBottom: `1px solid ${T.border}`,
         flexShrink: 0,
@@ -601,6 +630,7 @@ export default function Arte() {
 
           <BarraDeFiltros
             filtros={filtros}
+            semOrdenar={ordenarJuntoDaFase}
             isMobile={isMobile}
             dedo={dedo}
             activeTab={activeTab}
@@ -638,6 +668,7 @@ export default function Arte() {
             selectedItemIds={selectedItemIds}
             setSelectedItemIds={setSelectedItemIds}
             filteredItems={filteredItems}
+            ordenar={ordenarJuntoDaFase ? <OrdenarDaArte filtros={filtros} somenteIcone /> : undefined}
           />
         </div>
       </div>
@@ -648,7 +679,7 @@ export default function Arte() {
         id="painel-arte"
         role="tabpanel"
         aria-label={tabs.find(t => t.id === activeTab)?.label}
-        style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '12px 12px' : '24px 32px', maxWidth: 1600, margin: '0 auto', width: '100%' }}
+        style={{ flex: isMobile ? 'none' : 1, overflowY: isMobile ? 'visible' : 'auto', padding: isMobile ? '12px 12px 24px' : '24px 32px', maxWidth: 1600, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}
       >
       {/* O QUE SE FAZ NESTA FASE (GUIA_DA_FASE) mora no "?" ao lado do título. */}
       {isLoading ? (
@@ -686,6 +717,7 @@ export default function Arte() {
           hoje={hoje}
           groupOf={groupOf}
           abrirCorrecao={abrirCorrecao}
+          proximaFase={proximaFaseDaCorrecao}
         />
       ) : (
         <FilaAgrupada
@@ -726,6 +758,7 @@ export default function Arte() {
           sendingId={sendingId}
           eventosComBook={eventosComBook}
           acoes={acoesDaLinha}
+          larguraUtil={larguraUtil}
         />
       )}
 
@@ -770,7 +803,42 @@ export default function Arte() {
         auditLogs={selectedItem ? auditLogs.filter((log) => log.entityType === 'item' && log.entityId === selectedItem.id) : []}
         open={!!selectedItem}
         onOpenChange={(open) => !open && setSelectedItemId(null)}
-        topActions={selectedItem && podeEditar && (['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) || (selectedItem.finalFileUrl && FINALIZADOS_STATUSES.includes(selectedItem.status))) ? (
+        // O BLOCO DE AÇÃO DA FASE VEM NO TOPO — nas três situações.
+        // Subir o thumb (o gesto nº 1 da Arte, 2.582 em 30 dias) morava em
+        // `customActions`, no FIM da ficha: abaixo da especificação e do
+        // percurso, a 800px de rolagem no celular, enquanto a Finalização já
+        // vinha no topo (pedido do dono, 11/2025). Agora as duas vêm no topo,
+        // e a TROCA do que já foi enviado também: qualquer peça com thumb ou
+        // arquivo final abre com o bloco de troca, e o que pode ou não pode
+        // é a regra de shared/troca-de-material (o motivo aparece escrito).
+        topActions={painelDaFicha === 'thumb' && selectedItem ? (
+          <PainelDoThumbDeAprovacao
+            selectedItem={selectedItem}
+            zonaDoThumbRef={uploads.zonaDoThumbRef}
+            approvalThumbUrl={approvalThumbUrl}
+            approvalThumbPreview={approvalThumbPreview}
+            savedApprovalThumbUrl={savedApprovalThumbUrl}
+            thumbJustSaved={thumbJustSaved}
+            thumbEnviando={uploads.thumbEnviando}
+            isPasteUploading={isPasteUploading}
+            isDragOver={isDragOver}
+            setIsDragOver={setIsDragOver}
+            iniciarEnvioDoThumb={uploads.iniciarEnvioDoThumb}
+            concluirEnvioDoThumb={concluirEnvioDoThumb}
+            desfazerEnvioDoThumb={uploads.desfazerEnvioDoThumb}
+            uploadFileDirect={uploadFileDirect}
+            getUploadUrl={getUploadUrl}
+            focarEnvioParaAprovacao={focarEnvioParaAprovacao}
+            toast={toast}
+            setBuscaDeArte={setBuscaDeArte}
+            submitForApprovalMutation={submitForApprovalMutation}
+            saveThumbDraftMutation={saveThumbDraftMutation}
+            handleSubmitForApproval={handleSubmitForApproval}
+            handleSaveThumbDraft={handleSaveThumbDraft}
+            isMobile={isMobile}
+            dedo={dedo}
+          />
+        ) : (painelDaFicha === 'finalizacao' || painelDaFicha === 'troca') && selectedItem ? (
           <PainelDeFinalizacao
             selectedItem={selectedItem}
             isMobile={isMobile}
@@ -793,48 +861,17 @@ export default function Arte() {
             usarSugestaoFinal={usarSugestaoFinal}
             ignorarSugestaoFinal={ignorarSugestaoFinal}
           />
-        ) : null}
-        customActions={selectedItem && !podeEditar && ['awaiting_submission', 'sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) ? (
+        ) : selectedItem && !podeEditar && ['awaiting_submission', 'sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) ? (
           // MODO CONSULTA DENTRO DA PEÇA. A faixa cinza do topo explica a
           // lista, mas quem abria uma peça que espera a Arte via o modal sem
           // nenhum bloco de ação e não sabia se faltava permissão ou se a tela
-          // tinha falhado. Só nas fases em que a Arte age.
+          // tinha falhado. Só nas fases em que a Arte age — e no TOPO, no
+          // lugar onde o bloco de ação estaria para quem é da Arte.
           <p data-testid="modal-modo-consulta" style={{ display: 'flex', alignItems: 'center', gap: 8, margin: 0, padding: '10px 14px', borderRadius: 10, background: N.n2, border: `1px solid ${T.border}`, fontSize: 12.5, color: T.strong, lineHeight: 1.5 }}>
             <Lock aria-hidden="true" style={{ width: 14, height: 14, color: T.apoio, flexShrink: 0 }} />
             <span><b style={{ fontWeight: 700 }}>Modo consulta.</b> Subir o thumb e o arquivo final desta peça é da equipe de Arte.</span>
           </p>
-        ) : selectedItem && podeEditar && (
-          <div>
-            {selectedItem.status === 'awaiting_submission' && (
-              <PainelDoThumbDeAprovacao
-                selectedItem={selectedItem}
-                zonaDoThumbRef={uploads.zonaDoThumbRef}
-                approvalThumbUrl={approvalThumbUrl}
-                approvalThumbPreview={approvalThumbPreview}
-                savedApprovalThumbUrl={savedApprovalThumbUrl}
-                thumbJustSaved={thumbJustSaved}
-                thumbEnviando={uploads.thumbEnviando}
-                isPasteUploading={isPasteUploading}
-                isDragOver={isDragOver}
-                setIsDragOver={setIsDragOver}
-                iniciarEnvioDoThumb={uploads.iniciarEnvioDoThumb}
-                concluirEnvioDoThumb={concluirEnvioDoThumb}
-                desfazerEnvioDoThumb={uploads.desfazerEnvioDoThumb}
-                uploadFileDirect={uploadFileDirect}
-                getUploadUrl={getUploadUrl}
-                focarEnvioParaAprovacao={focarEnvioParaAprovacao}
-                toast={toast}
-                setBuscaDeArte={setBuscaDeArte}
-                submitForApprovalMutation={submitForApprovalMutation}
-                saveThumbDraftMutation={saveThumbDraftMutation}
-                handleSubmitForApproval={handleSubmitForApproval}
-                handleSaveThumbDraft={handleSaveThumbDraft}
-                isMobile={isMobile}
-                dedo={dedo}
-              />
-            )}
-          </div>
-        )}
+        ) : null}
       />
 
       <DialogoPdfCompartilhado

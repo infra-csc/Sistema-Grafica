@@ -11,6 +11,7 @@ import { T, TOM, N, R, FS, FONT } from "@/lib/theme";
 import { fileNameFromPath } from "@/lib/utils";
 import type { RegraDaTroca, RegraDoThumb } from "@shared/troca-de-material";
 import { BotaoBuscarArte } from "./botao-buscar-arte";
+import { LembreteDoArquivoFinal } from "./lembrete-do-arquivo-final";
 import type { BuscaDeArte, PecaDaArte, SugestaoDeArquivoFinal } from "./tipos";
 import type { AcoesDaArte } from "./use-acoes-da-arte";
 import type { UploadsDaArte } from "./use-uploads-da-arte";
@@ -91,8 +92,22 @@ export function PainelDeFinalizacao({
   usarSugestaoFinal: () => void;
   ignorarSugestaoFinal: () => void;
 }) {
+  // TRÊS SITUAÇÕES, UM BLOCO (24/09 — "trocar depois de enviado", dono):
+  //   · FINALIZAÇÃO — arte aprovada, falta o arquivo final (1º envio);
+  //   · SUBSTITUIR — a peça já tem arquivo final: troca do arquivo e do thumb;
+  //   · SÓ O THUMB — a peça foi enviada e ainda não tem arquivo final (com o
+  //     Atendimento, por exemplo): só a troca do thumb. Mostrar o campo do
+  //     arquivo final aqui ofereceria um envio que o servidor recusa.
+  // O que pode e o que não pode vem SEMPRE de regraDaTrocaDeThumb/
+  // regraDaTrocaDeArquivoFinal (shared/troca-de-material) — nunca de lista de
+  // status desta tela.
+  const naFinalizacao = ['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status);
+  const comArquivoFinal = naFinalizacao || !!selectedItem.finalFileUrl;
+  const comAtendimento = selectedItem.status === 'awaiting_sponsor_approval';
+  // No celular nada abaixo de 12px e campo de texto em 16px (o iOS dá zoom).
+  const fs = (n: number) => (isMobile ? Math.max(12, n) : n);
   return (
-    <section style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <section data-testid="painel-da-ficha-arte" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Section header */}
       {/* Título em caixa normal e o selo virou texto de apoio. O selo
           dizia "CORREÇÃO" na substituição do arquivo final — a mesma
@@ -100,10 +115,13 @@ export function PainelDeFinalizacao({
           patrocinador). Quem lia achava que a peça tinha voltado. */}
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <h3 style={{ fontFamily: FONT.display, fontWeight: 700, fontSize: FS.title, letterSpacing: '-0.02em', color: T.text, margin: 0 }}>
-          {['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) ? 'Finalização de layout' : 'Substituir arquivo final'}
+          {naFinalizacao ? 'Finalização de layout' : selectedItem.finalFileUrl ? 'Substituir arquivo final' : 'Trocar thumb enviado'}
         </h3>
         <span style={{ fontSize: 12, color: T.second, fontWeight: 600 }}>
-          {['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) ? 'arte aprovada — falta o arquivo final' : 'a peça já tem arquivo final'}
+          {naFinalizacao ? 'arte aprovada — falta o arquivo final'
+            : selectedItem.finalFileUrl ? 'a peça já tem arquivo final'
+            : comAtendimento ? 'a peça está com o Atendimento, aguardando o patrocinador'
+            : 'a peça ainda não tem arquivo final'}
         </span>
       </div>
 
@@ -128,19 +146,21 @@ export function PainelDeFinalizacao({
                   : <img loading="lazy" decoding="async" src={selectedItem.approvalThumbUrl} alt="Thumb" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6 }} />
                 }
               </div>
-              <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+              <div style={{ flex: '1 1 160px', minWidth: 0, overflow: 'hidden' }}>
                 {/* "Thumb aprovado" é o que o bloco É; o nome do arquivo
                     (um hash, em versalete) vai para o `title`. */}
                 <p title={selectedItem.approvalThumbUrl.split('/').pop() || undefined} style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  Thumb aprovado
+                  {/* Com o Atendimento ele ainda NÃO foi aprovado — é o
+                      thumb que o patrocinador está avaliando. */}
+                  {comAtendimento ? 'Thumb em aprovação' : 'Thumb aprovado'}
                 </p>
-                <a href={selectedItem.approvalThumbUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: T.strong, textDecoration: 'underline', textUnderlineOffset: 2 }}>
+                <a href={selectedItem.approvalThumbUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: T.strong, textDecoration: 'underline', textUnderlineOffset: 2, ...(isMobile ? { display: 'inline-flex', alignItems: 'center', minHeight: 44 } : null) }}>
                   Abrir em nova aba
                 </a>
                 {/* "Trocar thumb" sobe NA HORA, sem confirmação — então o
                     que a troca faz (ou por que não dá) vem escrito antes. */}
                 {regraThumbSel && (
-                  <p data-testid="texto-troca-thumb" style={{ margin: '2px 0 0', fontSize: 11, color: T.apoio, lineHeight: 1.4 }}>
+                  <p data-testid="texto-troca-thumb" style={{ margin: '2px 0 0', fontSize: fs(11), color: T.apoio, lineHeight: 1.4 }}>
                     {textoDaTrocaDoThumb(selectedItem.status, regraThumbSel)}
                   </p>
                 )}
@@ -160,7 +180,8 @@ export function PainelDeFinalizacao({
                     data-testid="uploader-update-thumb"
                     disabled={faltamMotivoThumb > 0 || updateThumbMutation.isPending}
                     buttonVariant="ghost"
-                    buttonClassName="h-9 px-3 text-[12px] font-semibold text-stone-800 bg-white border border-stone-300 rounded-lg hover:bg-stone-50 shrink-0"
+                    // 44px no celular: é a ação do bloco, tocada com o dedo.
+                    buttonClassName={`${isMobile ? "h-11 min-h-[44px]" : "h-9"} px-3 text-[12px] font-semibold text-stone-800 bg-white border border-stone-300 rounded-lg hover:bg-stone-50 shrink-0`}
                   >
                     {updateThumbMutation.isPending ? 'Enviando…' : 'Trocar thumb'}
                   </FileUploader>
@@ -177,7 +198,7 @@ export function PainelDeFinalizacao({
               )}
               {thumbPedeMotivo && (
                 <div style={{ flexBasis: '100%', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <label htmlFor="motivo-troca-thumb" style={{ fontSize: 11, fontWeight: 700, color: T.apoio }}>
+                  <label htmlFor="motivo-troca-thumb" style={{ fontSize: fs(11), fontWeight: 700, color: T.apoio }}>
                     Motivo da troca <span style={{ color: P.red.text }}>*</span>
                   </label>
                   <textarea
@@ -186,10 +207,10 @@ export function PainelDeFinalizacao({
                     onChange={(e) => setMotivoTrocaThumb(e.target.value)}
                     placeholder="Ex: o patrocinador pediu o logo novo por e-mail depois de aprovar."
                     data-testid="textarea-motivo-troca-thumb"
-                    style={{ width: '100%', backgroundColor: T.surface, border: `1px solid ${faltamMotivoThumb > 0 ? T.border : TOM.sucesso.text}`, borderRadius: R.md, padding: '8px 10px', fontSize: 12, resize: 'none', height: 60, fontFamily: 'inherit', color: T.text, boxSizing: 'border-box' }}
+                    style={{ width: '100%', backgroundColor: T.surface, border: `1px solid ${faltamMotivoThumb > 0 ? T.border : TOM.sucesso.text}`, borderRadius: R.md, padding: '8px 10px', fontSize: isMobile ? 16 : 12, resize: 'none', height: isMobile ? 72 : 60, fontFamily: 'inherit', color: T.text, boxSizing: 'border-box' }}
                   />
                   {faltamMotivoThumb > 0 && (
-                    <p data-testid="troca-thumb-faltam" style={{ margin: 0, fontSize: 11, color: P.amber.text }}>
+                    <p data-testid="troca-thumb-faltam" style={{ margin: 0, fontSize: fs(11), color: P.amber.text }}>
                       {fraseFaltamCaracteres(faltamMotivoThumb)} para liberar “Trocar thumb”.
                     </p>
                   )}
@@ -204,7 +225,7 @@ export function PainelDeFinalizacao({
           <div style={{ backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 8, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: TOM.alerta.text }}>Thumb substituído — a versão anterior ficou guardada</span>
             <a href={selectedItem.previousApprovalThumbUrl} target="_blank" rel="noopener noreferrer"
-              style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", color: T.apoio, wordBreak: 'break-all', textDecoration: 'underline' }}>
+              style={{ fontSize: fs(11), fontFamily: "'DM Mono', monospace", color: T.apoio, wordBreak: 'break-all', textDecoration: 'underline' }}>
               {selectedItem.previousApprovalThumbUrl.split('/').pop() || selectedItem.previousApprovalThumbUrl}
             </a>
           </div>
@@ -214,13 +235,13 @@ export function PainelDeFinalizacao({
         {selectedItem.previousFinalFileUrl && (
           <div style={{ backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 8, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: TOM.alerta.text }}>Arquivo final substituído — o anterior ficou gravado</span>
-            <span style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", color: T.apoio, wordBreak: 'break-all' }}>
+            <span style={{ fontSize: fs(11), fontFamily: "'DM Mono', monospace", color: T.apoio, wordBreak: 'break-all' }}>
               {selectedItem.previousFinalFileName || selectedItem.previousFinalFileUrl}
             </span>
           </div>
         )}
 
-        {regraFinalSel && !regraFinalSel.pode ? (
+        {!comArquivoFinal ? null : regraFinalSel && !regraFinalSel.pode ? (
           // A troca não cabe mais: o motivo no lugar do campo (a rota
           // responderia 409 com a mesma frase).
           <p data-testid="final-troca-bloqueada" style={{ display: 'flex', alignItems: 'flex-start', gap: 8, margin: 0, padding: '10px 12px', borderRadius: 8, background: N.n2, border: `1px solid ${T.border}`, fontSize: 12, color: T.strong, lineHeight: 1.5 }}>
@@ -234,7 +255,7 @@ export function PainelDeFinalizacao({
           {/* htmlFor: o rótulo era um <label> solto (sem vínculo com o
               campo) em verde a 60% — o leitor de tela anunciava "campo de
               edição" sem nome, e o texto não passava AA. */}
-          <label htmlFor="finalFilePath" style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio, paddingLeft: 2 }}>
+          <label htmlFor="finalFilePath" style={{ fontSize: fs(11), fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio, paddingLeft: 2 }}>
             Caminho do arquivo final
           </label>
           <div style={{ position: 'relative' }}>
@@ -245,7 +266,7 @@ export function PainelDeFinalizacao({
               value={finalFileUrl}
               onChange={(e) => { setFinalFileUrl(e.target.value); setFinalDirty(true); }}
               data-testid="input-final-file-path"
-              style={{ paddingLeft: 36, paddingRight: 16, height: 44, background: T.surface, border: 'none', boxShadow: `0 0 0 1px ${T.bdark}`, borderRadius: 8, fontSize: 13, fontWeight: 500 }}
+              style={{ paddingLeft: 36, paddingRight: 16, height: 44, background: T.surface, border: 'none', boxShadow: `0 0 0 1px ${T.bdark}`, borderRadius: 8, fontSize: isMobile ? 16 : 13, fontWeight: 500 }}
             />
           </div>
           {/* O arquivo final da mesma arte já está no app — copiar o
@@ -270,12 +291,12 @@ export function PainelDeFinalizacao({
                     Ignorar
                   </Botao>
                 </div>
-                <p style={{ margin: 0, fontSize: 11, color: T.second, lineHeight: 1.45 }}>
+                <p style={{ margin: 0, fontSize: fs(11), color: T.second, lineHeight: 1.45 }}>
                   É só sugestão — nada é enviado até você clicar em enviar. Confira se o arquivo serve para esta peça (medida e evento).
                 </p>
               </div>
             ) : (
-              <p data-testid="sugestao-arquivo-final-linha" style={{ margin: 0, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 11.5, color: T.apoio, paddingLeft: 2 }}>
+              <p data-testid="sugestao-arquivo-final-linha" style={{ margin: 0, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: fs(11.5), color: T.apoio, paddingLeft: 2 }}>
                 <span style={{ minWidth: 0, wordBreak: "break-all" }}>Sugestão: {sugestaoVisivel.finalFileUrl}</span>
                 <button type="button" onClick={usarSugestaoFinal} data-testid="button-usar-sugestao-final-linha"
                   style={{ minHeight: 44, padding: "0 8px", border: "none", background: "transparent", color: T.text, fontSize: 12, fontWeight: 700, textDecoration: "underline", textUnderlineOffset: 2, cursor: "pointer" }}>
@@ -287,12 +308,12 @@ export function PainelDeFinalizacao({
           {finalFileUrl.trim() && (
             fileNameFromPath(finalFileUrl)
               ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, color: TOM.sucesso.text, paddingLeft: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: fs(11), fontWeight: 600, color: TOM.sucesso.text, paddingLeft: 4, minWidth: 0, overflowWrap: 'anywhere' }}>
                   <FileCheck style={{ width: 13, height: 13, flexShrink: 0 }} />
                   Arquivo: <span style={{ fontFamily: "'DM Mono', monospace" }}>{fileNameFromPath(finalFileUrl)}</span>
                 </div>
               ) : (
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 11, fontWeight: 600, color: TOM.alerta.text, background: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 6, padding: '7px 10px' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: fs(11), fontWeight: 600, color: TOM.alerta.text, background: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 6, padding: '7px 10px' }}>
                   <AlertTriangle style={{ width: 13, height: 13, flexShrink: 0, marginTop: 1 }} />
                   <span>Isto parece uma <b>pasta</b>. Cole o caminho do <b>arquivo específico</b> (com nome e extensão, ex.: …\Rolo_Ministerio.tif) para a gráfica não pegar o arquivo errado.</span>
                 </div>
@@ -303,11 +324,15 @@ export function PainelDeFinalizacao({
         {/* Troca que devolve a peça para a Revisão Final: dito ANTES do
             clique, junto da ação. */}
         {regraFinalSel && avisoDaTrocaDoArquivoFinal(regraFinalSel) && (
-          <p data-testid="aviso-troca-volta-revisao" style={{ display: 'flex', alignItems: 'flex-start', gap: 6, margin: 0, padding: '7px 10px', borderRadius: 6, background: P.amber.bg, border: `1px solid ${P.amber.border}`, fontSize: 11.5, fontWeight: 600, color: TOM.alerta.text, lineHeight: 1.45 }}>
+          <p data-testid="aviso-troca-volta-revisao" style={{ display: 'flex', alignItems: 'flex-start', gap: 6, margin: 0, padding: '7px 10px', borderRadius: 6, background: P.amber.bg, border: `1px solid ${P.amber.border}`, fontSize: fs(11.5), fontWeight: 600, color: TOM.alerta.text, lineHeight: 1.45 }}>
             <RotateCcw aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0, marginTop: 1 }} />
             {avisoDaTrocaDoArquivoFinal(regraFinalSel)}
           </p>
         )}
+        {/* O LEMBRETE DO DONO (24/09), colado no botão: é a última coisa
+            lida antes de mandar o arquivo para a Gráfica — no 1º envio e na
+            troca. Não trava nada (ver LembreteDoArquivoFinal). */}
+        <LembreteDoArquivoFinal />
         {/* CTA button */}
         {/* TINTA (primário), como os outros primários da Arte. O CTA diz o
             resultado (rodada 4). O porquê do desabilitado mora logo
@@ -328,13 +353,13 @@ export function PainelDeFinalizacao({
         {/* POR QUE ESTÁ BLOQUEADO, à vista. A razão morava só no `title`
             (hover, e nunca no celular); o botão cinza parecia quebrado. */}
         {!submitFinalFileMutation.isPending && (!finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) ? (
-          <p data-testid="final-bloqueado-motivo" style={{ margin: '-8px 0 0', fontSize: 11.5, color: T.apoio, textAlign: 'center' }}>
+          <p data-testid="final-bloqueado-motivo" style={{ margin: '-8px 0 0', fontSize: fs(11.5), color: T.apoio, textAlign: 'center' }}>
             {!finalFileUrl
               ? 'Cole o caminho do arquivo acima para liberar o envio.'
               : 'Troque o caminho acima para atualizar o arquivo final.'}
           </p>
         ) : !selectedItem.finalFileUrl && !submitFinalFileMutation.isPending ? (
-          <p style={{ margin: '-8px 0 0', fontSize: 11.5, color: T.apoio, textAlign: 'center' }}>
+          <p style={{ margin: '-8px 0 0', fontSize: fs(11.5), color: T.apoio, textAlign: 'center' }}>
             Quem pediu a peça confere o arquivo; depois ela vai para a Gráfica.
           </p>
         ) : null}

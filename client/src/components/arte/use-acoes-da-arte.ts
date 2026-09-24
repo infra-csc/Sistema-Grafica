@@ -263,14 +263,19 @@ export function useAcoesDaArte({
       // O servidor devolve a peça aprovada para a aprovação quando algum
       // patrocinador aprova toda versão nova — o toast tem de dizer isso.
       const voltouParaAprovacao = variables.statusAntes === "sponsor_approved" && dados?.status === "awaiting_sponsor_approval";
+      // Troca COM O ATENDIMENTO (24/09): o servidor avisa o Atendimento —
+      // o toast diz isso, para ninguém mandar mensagem à parte.
+      const comAtendimento = variables.statusAntes === "awaiting_sponsor_approval";
       const descricao = voltouParaAprovacao
         ? "Um patrocinador que aprova toda versão nova perdeu a aprovação — a peça voltou para a aprovação do Atendimento."
+        : comAtendimento
+        ? "O Atendimento foi avisado para apresentar a versão nova ao patrocinador. O thumb anterior ficou no histórico."
         : variables.motivo
         ? "Registrado como “trocada após aprovação”, com o seu motivo. O thumb anterior ficou no histórico."
         : "O thumb anterior ficou guardado no histórico da peça.";
       toast(variables.origem
         ? { title: `Arte de ${variables.origem} aplicada`, description: descricao, variant: "success" }
-        : { title: "Thumb atualizado", description: descricao, variant: "success" });
+        : { title: comAtendimento ? "Thumb trocado" : "Thumb atualizado", description: descricao, variant: "success" });
     },
     onError: (error: Error) => {
       // A peça pode ter andado (liberada, foi para o patrocinador): recarrega

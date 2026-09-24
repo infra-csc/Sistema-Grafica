@@ -158,6 +158,16 @@ export const KBD: React.CSSProperties = {
   lineHeight: '16px', textAlign: 'center',
 };
 
+/**
+ * PISO DE 12px NO TOQUE (revisão de celular, 24/09). A fila escrevia medida,
+ * idade na fase, grupo e faixa do evento em 10, 10,5, 11 e 11,5px — lidos a um
+ * braço de distância, no celular ou no tablet do galpão, eram os dados que a
+ * pessoa mais aperta os olhos para achar. No mouse a tela continua como era
+ * (a densidade do desktop foi decidida com o dono); no DEDO nada fica abaixo
+ * de 12. Mesma régua do `fsMin` da Gráfica.
+ */
+export const fsToque = (n: number, dedo: boolean) => (dedo ? Math.max(12, n) : n);
+
 /** Item do menu "⋯" — mesma altura de alvo de toque dos botões da linha. */
 export function menuItemStyle(color: string, dedo = false): React.CSSProperties {
   return {

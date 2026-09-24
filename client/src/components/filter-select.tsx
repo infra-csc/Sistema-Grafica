@@ -245,6 +245,20 @@ interface FilterSelectProps {
    * com a mão no ponteiro e roubar o foco atrapalha.
    */
   onCommit?: () => void;
+  /**
+   * Gatilho SÓ COM O ÍCONE (quadrado, 44×44 no celular). Para a linha
+   * apertada do celular, onde o rótulo não cabe ao lado de outro controle
+   * (a ordenação da Arte ao lado do seletor de fase). O nome do campo e o
+   * valor escolhido continuam no `aria-label` e no `title`. Sem ícone próprio
+   * nem `kind="sort"`, não há o que desenhar — a prop é ignorada.
+   */
+  somenteIcone?: boolean;
+  /**
+   * Mostra no gatilho a CONTAGEM da opção escolhida (modo simples), no mesmo
+   * selo das opções do menu. Para o seletor que substitui abas: a aba dizia
+   * quantas peças havia na fase aberta; o seletor precisa dizer o mesmo.
+   */
+  contagemNoGatilho?: boolean;
 }
 
 export function FilterSelect({
@@ -278,7 +292,10 @@ export function FilterSelect({
   invalid = false,
   triggerProps,
   onCommit,
+  somenteIcone: somenteIconePedido = false,
+  contagemNoGatilho = false,
 }: FilterSelectProps) {
+  const somenteIcone = somenteIconePedido && (!!Icon || kind === "sort");
   const multiple = values !== undefined && onValuesChange !== undefined;
   // Ordenação e campo de formulário SEMPRE valem alguma coisa: não existe
   // "todas as ordens" nem "todo material". Some a linha "Todos" e o × de
@@ -829,9 +846,16 @@ export function FilterSelect({
     ...cleanTriggerStyle,
   };
 
-  const resolvedTrigger = triggerClassName
+  const resolvedTriggerBase = triggerClassName
     ? { display: "flex", alignItems: "center", gap: 5, ...cleanTriggerStyle }
     : variant === "bare" ? bareTrigger : pillTrigger;
+  // Só o ícone: quadrado na altura do gatilho, glifo centralizado.
+  const resolvedTrigger: React.CSSProperties = somenteIcone
+    ? { ...resolvedTriggerBase, width: isMobile ? 44 : 36, minWidth: isMobile ? 44 : 36, padding: 0, justifyContent: "center" }
+    : resolvedTriggerBase;
+  const contagemEscolhida = contagemNoGatilho && !multiple
+    ? sorted.find(o => o.value === value)?.count
+    : undefined;
 
   // ── Render opção ──────────────────────────────────────────────────────
   const renderOption = (opt: FilterOption) => {
@@ -960,16 +984,28 @@ export function FilterSelect({
             paleta grafite). Quem passar `icon` explicitamente manda. */}
         {(Icon || kind === "sort") && (() => {
           const Glifo = Icon ?? ArrowUpDown;
-          return <Glifo aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0, opacity: isActive ? 1 : 0.75 }} />;
+          return <Glifo aria-hidden="true" style={{ width: somenteIcone ? 16 : 13, height: somenteIcone ? 16 : 13, flexShrink: 0, opacity: isActive ? 1 : 0.75 }} />;
         })()}
-        {triggerDot && (
+        {!somenteIcone && triggerDot && (
           <span style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: triggerDot, flexShrink: 0 }} />
         )}
         {/* textAlign: o <button> centraliza o texto por padrão — com largura
             cheia (folha de filtros do celular) o rótulo flutuava no meio. */}
-        <span style={{ overflow: "hidden", textOverflow: "ellipsis", flex: fullWidth ? 1 : undefined, textAlign: fullWidth ? "left" : undefined }}>
-          {triggerText}
-        </span>
+        {!somenteIcone && (
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", flex: fullWidth ? 1 : undefined, textAlign: fullWidth ? "left" : undefined }}>
+            {triggerText}
+          </span>
+        )}
+        {/* Contagem da opção escolhida (contagemNoGatilho) — o mesmo selo das
+            opções do menu: #57534e sobre #F3F4F6 = 6,93:1. */}
+        {!somenteIcone && contagemEscolhida !== undefined && (
+          <span data-testid={testId ? `${testId}-contagem` : undefined} style={{
+            fontSize: 12, fontWeight: 700, padding: "1px 8px", borderRadius: 99,
+            backgroundColor: "#F3F4F6", color: "#57534e", flexShrink: 0, fontVariantNumeric: "tabular-nums",
+          }}>
+            {contagemEscolhida}
+          </span>
+        )}
 
         {/* O SELO DE CONTAGEM SAIU. O comentário antigo já tinha visto a
             duplicação — "3 ações ③" é a mesma informação duas vezes — mas
@@ -984,7 +1020,7 @@ export function FilterSelect({
         {/* Botão X — limpar. Só no job de FILTRO: em ordenação e em campo de
             formulário não existe estado "sem valor" para voltar, então o × não
             teria o que fazer — e um × que não limpa nada é pior que × nenhum. */}
-        {isActive && !hideClear && isFilterKind && (
+        {!somenteIcone && isActive && !hideClear && isFilterKind && (
           <span
             role="button"
             // tabIndex + Enter/Espaço: o × fica dentro do <button> do trigger
@@ -1012,13 +1048,15 @@ export function FilterSelect({
           </span>
         )}
 
-        <ChevronDown aria-hidden="true" style={{
-          width: variant === "bare" ? 14 : 13, height: variant === "bare" ? 14 : 13,
-          flexShrink: 0, marginLeft: 2,
-          color: solidActive ? "rgba(255,255,255,0.9)" : wearsActiveSkin ? C.border : "#78716c",
-          transition: "transform 0.2s",
-          transform: open ? "rotate(180deg)" : "rotate(0deg)",
-        }} />
+        {!somenteIcone && (
+          <ChevronDown aria-hidden="true" style={{
+            width: variant === "bare" ? 14 : 13, height: variant === "bare" ? 14 : 13,
+            flexShrink: 0, marginLeft: 2,
+            color: solidActive ? "rgba(255,255,255,0.9)" : wearsActiveSkin ? C.border : "#78716c",
+            transition: "transform 0.2s",
+            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+          }} />
+        )}
       </button>
 
       {/* ── Dropdown panel ── */}
@@ -1259,7 +1297,7 @@ export function ShortcutPill({
       {count !== undefined && (
         // #57534e sobre #e7e5e4 = 6,00:1 ✓ · #ffffff sobre #c2410c = 5,18:1 ✓
         <span style={{
-          fontSize: 11, fontWeight: 700, padding: "1px 7px", borderRadius: 99, flexShrink: 0,
+          fontSize: isMobile ? 12 : 11, fontWeight: 700, padding: "1px 7px", borderRadius: 99, flexShrink: 0,
           backgroundColor: active ? "#c2410c" : "#e7e5e4",
           color: active ? "#ffffff" : "#57534e",
         }}>

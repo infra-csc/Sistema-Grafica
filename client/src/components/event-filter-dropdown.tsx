@@ -42,6 +42,8 @@ interface Props {
   onValuesChange?: (v: string[]) => void;
   options: EventOption[];
   allLabel?: string;
+  /** Ocupa a largura do contêiner (linha do celular). Padrão: largura do conteúdo, como sempre. */
+  fullWidth?: boolean;
 }
 
 export function EventFilterDropdown({
@@ -51,6 +53,7 @@ export function EventFilterDropdown({
   onValuesChange,
   options,
   allLabel = "Todos os Eventos",
+  fullWidth = false,
 }: Props) {
   const multiple = values !== undefined && onValuesChange !== undefined;
 
@@ -79,6 +82,7 @@ export function EventFilterDropdown({
       // ícone: dar um só a Evento deixaria a faixa MENOS uniforme, que é o
       // oposto do pedido.
       options={options}
+      fullWidth={fullWidth}
       {...(multiple
         ? { values, onValuesChange }
         : { value, onChange })}

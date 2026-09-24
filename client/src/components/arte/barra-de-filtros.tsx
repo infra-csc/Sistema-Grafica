@@ -7,9 +7,31 @@ import { useAcompanharAreaVisivel } from "@/components/grafica/area-visivel";
 import { alvo, ALVO_TOQUE } from "@/hooks/use-mobile";
 import type { ArteSortMode, PeriodFilter, TriState } from "@/lib/arte-rules";
 import { T, TOM, N, R, FS } from "@/lib/theme";
-import { ARTE_SORT_OPTIONS } from "./constantes";
+import { ARTE_SORT_OPTIONS, fsToque } from "./constantes";
 import type { OpcaoDeFiltro } from "./tipos";
 import type { FiltrosDaArte } from "./use-filtros-da-arte";
+
+/**
+ * O ORDENAR da Arte — um só, em dois lugares: na barra da busca (desktop e
+ * tablet, com rótulo) e, no celular, como o ícone ⇅ de 44px ao lado do seletor
+ * de fase (`somenteIcone`: o critério escolhido vai no aria-label e no title).
+ * Mesmo estado e mesma URL (?ordem=).
+ */
+export function OrdenarDaArte({ filtros, somenteIcone = false }: { filtros: FiltrosDaArte; somenteIcone?: boolean }) {
+  return (
+    <FilterSelect
+      kind="sort" hideSearch hideWhenEmpty={false}
+      label="Ordenar"
+      value={filtros.sortMode}
+      onChange={v => filtros.setSortMode(v as ArteSortMode)}
+      options={ARTE_SORT_OPTIONS}
+      panelWidth={190}
+      dropdownAlign="right"
+      somenteIcone={somenteIcone}
+      testId="select-ordenar"
+    />
+  );
+}
 
 // À vista: a busca (o gesto mais usado), o Evento, o "Saída 10 dias" e o
 // Ordenar. O resto — os mesmos controles, estado e URL — mora atrás de "Mais
@@ -17,7 +39,7 @@ import type { FiltrosDaArte } from "./use-filtros-da-arte";
 // lista continua viva por baixo), no celular a folha de tela cheia da Gráfica.
 export function BarraDeFiltros({
   filtros, isMobile, dedo, activeTab, atrasadasNaAba, faseAtualCount, saida10Count, nFiltrosEscondidos,
-  eventFilterOptions, sponsorFilterOptions, typeFilterOptions, materialFilterOptions, monthFilterOptions, periodFilterOptions,
+  eventFilterOptions, sponsorFilterOptions, typeFilterOptions, materialFilterOptions, monthFilterOptions, periodFilterOptions, semOrdenar = false,
 }: {
   filtros: FiltrosDaArte;
   isMobile: boolean;
@@ -33,13 +55,15 @@ export function BarraDeFiltros({
   materialFilterOptions: OpcaoDeFiltro[];
   monthFilterOptions: OpcaoDeFiltro[];
   periodFilterOptions: OpcaoDeFiltro[];
+  /** O Ordenar mora ao lado do seletor de fase (celular e área estreita). */
+  semOrdenar?: boolean;
 }) {
   const {
     searchFilter, setSearchFilter, eventFilter, setEventFilter, sponsorFilter, setSponsorFilter,
     typeFilter, setTypeFilter, materialFilter, setMaterialFilter, monthFilter, setMonthFilter,
     periodFilter, setPeriodFilter, next10DaysFilter, setNext10DaysFilter, atrasadoFilter, setAtrasadoFilter,
     urgenteFilter, setUrgenteFilter, thumbFilter, setThumbFilter, finalFilter, setFinalFilter,
-    sortMode, setSortMode, maisFiltrosAberto, alternarMaisFiltros, limparFiltrosEscondidos,
+    maisFiltrosAberto, alternarMaisFiltros, limparFiltrosEscondidos,
     filtrosAbertosMobile, setFiltrosAbertosMobile,
   } = filtros;
   const folhaFiltrosRef = useRef<HTMLDivElement>(null);
@@ -47,7 +71,10 @@ export function BarraDeFiltros({
   useAcompanharAreaVisivel(folhaFiltrosRef, "tela-cheia", isMobile && filtrosAbertosMobile);
 
   const campoBusca = (
-    <div style={{ position: 'relative', flex: '1 1 180px', minWidth: isMobile ? 0 : 160 }}>
+    // Base de 260px (era 180): quando a faixa quebra (notebook/tablet), a
+    // quebra leva "Mais filtros" JUNTO com o Ordenar — com 180 o Ordenar
+    // caía sozinho numa segunda linha, órfão, em 1024px.
+    <div style={{ position: 'relative', flex: isMobile ? '1 1 180px' : '1 1 260px', minWidth: isMobile ? 0 : 160 }}>
       <Search style={{ width: 14, height: 14, color: T.apoio, position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
       <input
         type="text"
@@ -169,7 +196,7 @@ export function BarraDeFiltros({
       por definição: lá o recorte não existe em vez de mentir. */}
   <div role="group" aria-label="Prazo da fase" data-testid="segment-atrasado"
     style={{ display: 'flex', alignItems: 'center', gap: 2, height: isMobile ? 'auto' : 36, padding: isMobile ? 0 : '0 3px', borderRadius: 9, background: N.n2, border: `1px solid ${T.border}`, boxSizing: 'border-box', flexShrink: 0 }}>
-    <span style={{ fontSize: 11, fontWeight: 700, color: T.apoio, padding: '0 6px 0 8px' }}>Prazo</span>
+    <span style={{ fontSize: fsToque(11, dedo), fontWeight: 700, color: T.apoio, padding: '0 6px 0 8px' }}>Prazo</span>
     {([
       { on: false, label: 'todos' },
       { on: true, label: 'atrasados' },
@@ -183,7 +210,7 @@ export function BarraDeFiltros({
           title={bloqueado
             ? "Em Finalizados o marco é a própria saída do caminhão, que numa peça pronta já passou — não há atraso a apontar"
             : on ? "Só peças que já passaram do marco desta fase" : undefined}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, alignSelf: 'stretch', margin: isMobile ? 0 : '3px 0', minHeight: dedo ? ALVO_TOQUE : undefined, minWidth: dedo ? ALVO_TOQUE : undefined, justifyContent: 'center', padding: '0 10px', borderRadius: 6, border: 'none', cursor: bloqueado ? 'not-allowed' : 'pointer', opacity: bloqueado ? 0.5 : 1, fontSize: 11, fontWeight: ativo ? 700 : 600, background: ativo ? T.surface : T.bg, color: ativo ? T.text : T.apoio, boxShadow: ativo ? `inset 0 -2px 0 ${T.text}` : 'none', transition: 'all 0.12s' }}>
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, alignSelf: 'stretch', margin: isMobile ? 0 : '3px 0', minHeight: dedo ? ALVO_TOQUE : undefined, minWidth: dedo ? ALVO_TOQUE : undefined, justifyContent: 'center', padding: '0 10px', borderRadius: 6, border: 'none', cursor: bloqueado ? 'not-allowed' : 'pointer', opacity: bloqueado ? 0.5 : 1, fontSize: fsToque(11, dedo), fontWeight: ativo ? 700 : 600, background: ativo ? T.surface : T.bg, color: ativo ? T.text : T.apoio, boxShadow: ativo ? `inset 0 -2px 0 ${T.text}` : 'none', transition: 'all 0.12s' }}>
           {label}
           {on && !bloqueado && (
             // A contagem vive no controle: o recorte diz QUANTOS são
@@ -192,7 +219,7 @@ export function BarraDeFiltros({
               // Contrastes (texto ≤13px exige 4,5:1):
               // #991b1b sobre #fef2f2 = 7,60:1 ✓ · #57534e sobre
               // #e7e5e4 = 6,00:1 ✓
-              style={{ padding: '0 6px', borderRadius: 999, fontSize: 11, fontWeight: 700, lineHeight: '16px', background: atrasadasNaAba > 0 ? TOM.perigo.bg : T.border, color: atrasadasNaAba > 0 ? TOM.perigo.text : T.apoio }}>
+              style={{ padding: '0 6px', borderRadius: 999, fontSize: fsToque(11, dedo), fontWeight: 700, lineHeight: '16px', background: atrasadasNaAba > 0 ? TOM.perigo.bg : T.border, color: atrasadasNaAba > 0 ? TOM.perigo.text : T.apoio }}>
               {atrasadasNaAba}
             </span>
           )}
@@ -203,14 +230,14 @@ export function BarraDeFiltros({
 
   <div role="group" aria-label="Prioridade" data-testid="segment-urgente"
     style={{ display: 'flex', alignItems: 'center', gap: 2, height: isMobile ? 'auto' : 36, padding: isMobile ? 0 : '0 3px', borderRadius: 9, background: N.n2, border: `1px solid ${T.border}`, boxSizing: 'border-box', flexShrink: 0 }}>
-    <span style={{ fontSize: 11, fontWeight: 700, color: T.apoio, padding: '0 6px 0 8px' }}>Prioridade</span>
+    <span style={{ fontSize: fsToque(11, dedo), fontWeight: 700, color: T.apoio, padding: '0 6px 0 8px' }}>Prioridade</span>
     {([
       { on: false, label: 'todas' },
       { on: true, label: 'urgentes' },
     ] as { on: boolean; label: string }[]).map(({ on, label }) => (
       <button key={label} onClick={() => setUrgenteFilter(on)} aria-pressed={urgenteFilter === on}
         data-testid={`button-urgente-${on ? 'sim' : 'nao'}`}
-        style={{ alignSelf: 'stretch', margin: isMobile ? 0 : '3px 0', minHeight: dedo ? ALVO_TOQUE : undefined, minWidth: dedo ? ALVO_TOQUE : undefined, justifyContent: 'center', padding: '0 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: urgenteFilter === on ? 700 : 600, background: urgenteFilter === on ? T.surface : T.bg, color: urgenteFilter === on ? T.text : T.apoio, boxShadow: urgenteFilter === on ? `inset 0 -2px 0 ${T.text}` : 'none', transition: 'all 0.12s' }}>
+        style={{ alignSelf: 'stretch', margin: isMobile ? 0 : '3px 0', minHeight: dedo ? ALVO_TOQUE : undefined, minWidth: dedo ? ALVO_TOQUE : undefined, justifyContent: 'center', padding: '0 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: fsToque(11, dedo), fontWeight: urgenteFilter === on ? 700 : 600, background: urgenteFilter === on ? T.surface : T.bg, color: urgenteFilter === on ? T.text : T.apoio, boxShadow: urgenteFilter === on ? `inset 0 -2px 0 ${T.text}` : 'none', transition: 'all 0.12s' }}>
         {label}
       </button>
     ))}
@@ -225,14 +252,14 @@ export function BarraDeFiltros({
   ] as { rotulo: string; value: TriState; set: (v: TriState) => void; testId: string }[]).map(({ rotulo, value, set, testId }) => (
     <div key={testId} role="group" aria-label={rotulo} data-testid={testId}
       style={{ display: 'flex', alignItems: 'center', gap: 2, height: isMobile ? 'auto' : 36, padding: isMobile ? 0 : '0 3px', borderRadius: 9, background: N.n2, border: `1px solid ${T.border}`, boxSizing: 'border-box', flexShrink: 0 }}>
-      <span style={{ fontSize: 11, fontWeight: 700, color: T.apoio, padding: '0 6px 0 8px' }}>{rotulo}</span>
+      <span style={{ fontSize: fsToque(11, dedo), fontWeight: 700, color: T.apoio, padding: '0 6px 0 8px' }}>{rotulo}</span>
       {([
         { v: 'todos', label: 'todos' },
         { v: 'com', label: 'com' },
         { v: 'sem', label: 'sem' },
       ] as { v: TriState; label: string }[]).map(({ v, label }) => (
         <button key={v} onClick={() => set(v)} aria-pressed={value === v}
-          style={{ alignSelf: 'stretch', margin: isMobile ? 0 : '3px 0', minHeight: dedo ? ALVO_TOQUE : undefined, minWidth: dedo ? ALVO_TOQUE : undefined, justifyContent: 'center', padding: '0 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: value === v ? 700 : 600, background: value === v ? T.surface : T.bg, color: value === v ? T.text : T.apoio, boxShadow: value === v ? `inset 0 -2px 0 ${T.text}` : 'none', transition: 'all 0.12s' }}>
+          style={{ alignSelf: 'stretch', margin: isMobile ? 0 : '3px 0', minHeight: dedo ? ALVO_TOQUE : undefined, minWidth: dedo ? ALVO_TOQUE : undefined, justifyContent: 'center', padding: '0 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: fsToque(11, dedo), fontWeight: value === v ? 700 : 600, background: value === v ? T.surface : T.bg, color: value === v ? T.text : T.apoio, boxShadow: value === v ? `inset 0 -2px 0 ${T.text}` : 'none', transition: 'all 0.12s' }}>
           {label}
         </button>
       ))}
@@ -247,19 +274,13 @@ export function BarraDeFiltros({
   // (22/09) que a Arte usa muito — escondido, custava dois cliques.
   // No celular o divisor vertical ficaria sozinho numa linha,
   // separando nada de nada.
+  // No celular o Ordenar NÃO mora aqui: vira o ícone ⇅ ao lado do seletor de
+  // fase (OrdenarDaArte em FasesESelecao) — a linha própria dele custava 52px
+  // antes da primeira peça.
   const ordenar = (
-  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: isMobile ? undefined : 'auto' }}>
-    {!isMobile && <span aria-hidden="true" style={{ width: 1, height: 20, background: T.border }} />}
-    <FilterSelect
-      kind="sort" hideSearch hideWhenEmpty={false}
-      label="Ordenar"
-      value={sortMode}
-      onChange={v => setSortMode(v as ArteSortMode)}
-      options={ARTE_SORT_OPTIONS}
-      panelWidth={190}
-      dropdownAlign="right"
-      testId="select-ordenar"
-    />
+  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+    <span aria-hidden="true" style={{ width: 1, height: 20, background: T.border }} />
+    <OrdenarDaArte filtros={filtros} />
   </div>
   );
 
@@ -289,11 +310,14 @@ export function BarraDeFiltros({
             Filtros{nFiltrosEscondidos > 0 ? ` (${nFiltrosEscondidos})` : ''}
           </button>
         </div>
-        {/* O Evento à vista, em linha própria e na largura toda —
-            mesmo desenho da Gráfica (21/09). O X limpa só o evento. */}
+        {/* O Evento à vista e, NA MESMA LINHA, o "Saída 10 dias" (revisão
+            de celular, 24/09): em 336px úteis o Evento fica com ≥ 130px
+            mesmo com o X de limpar, e a linha própria do "Saída" e do
+            Ordenar (52px) sai da frente da primeira peça. O X limpa só o
+            evento. */}
         <div data-testid="filtro-evento-mobile" style={{ display: 'flex', gap: 8, alignItems: 'center', width: '100%' }}>
           <div style={{ flex: '1 1 0', minWidth: 0 }}>
-            <EventFilterDropdown values={eventFilter} onValuesChange={setEventFilter} options={eventFilterOptions} />
+            <EventFilterDropdown values={eventFilter} onValuesChange={setEventFilter} options={eventFilterOptions} fullWidth />
           </div>
           {eventFilter.length > 0 && (
             <button type="button" onClick={() => setEventFilter([])} data-testid="button-limpar-evento-mobile"
@@ -302,14 +326,7 @@ export function BarraDeFiltros({
               <X aria-hidden="true" style={{ width: 16, height: 16 }} />
             </button>
           )}
-        </div>
-        {/* "Saída 10 dias" e Ordenar numa linha própria e compacta.
-            Ao lado do Evento (+ o X de limpar) não cabem em 360px, e
-            ao lado de "Filtros" a busca ficaria com ~80px; aqui os
-            dois somam ~320 dos 328 úteis (wrap se não couber). */}
-        <div data-testid="linha-ordenar-mobile" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          {saida10}
-          {ordenar}
+          <div style={{ flex: '0 0 auto' }}>{saida10}</div>
         </div>
       </div>
 
@@ -380,7 +397,7 @@ export function BarraDeFiltros({
           Mais filtros{nFiltrosEscondidos > 0 ? ` (${nFiltrosEscondidos})` : ''}
           <ChevronDown aria-hidden="true" style={{ width: 14, height: 14, transform: maisFiltrosAberto ? 'rotate(180deg)' : undefined, transition: 'transform 0.15s' }} />
         </button>
-        {ordenar}
+        {!semOrdenar && ordenar}
       </div>
 
       {/* ── Filter Row 2 ── */}
@@ -404,7 +421,7 @@ export function BarraDeFiltros({
             {gatilhos(false)}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', borderTop: `1px solid ${N.n3}`, paddingTop: 8 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: T.apoio, textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>Mostrar:</span>
+            <span style={{ fontSize: fsToque(11, dedo), fontWeight: 700, color: T.apoio, textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>Mostrar:</span>
             {segmentos}
           </div>
           {botaoLimparEscondidos && (

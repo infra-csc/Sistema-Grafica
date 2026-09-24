@@ -6,6 +6,7 @@ import { formatQuantity } from "@/lib/arte-rules";
 import { T, TOM, N } from "@/lib/theme";
 import { hrefSeguro } from "@shared/url-segura";
 import { ThumbPreview } from "./thumb-preview";
+import { fsToque } from "./constantes";
 import { BotaoPrimario, MenuDeAcoes, MetaDaPeca, PrazoDaPeca, SelosDaPeca, TagsDaPeca } from "./celulas-da-peca";
 import type { AcoesDaLinha, PecaDaArte } from "./tipos";
 
@@ -42,13 +43,19 @@ export const LinhaDaArte = memo(function LinhaDaArte({
       onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = T.surface}
     >
       {comSelecao && (
-        <td style={{ padding: '9px 12px' }} onClick={e => e.stopPropagation()}>
-          <Checkbox
-            checked={selecionada}
-            aria-label={`Selecionar a peça ${item.displayId}${item.type ? ` — ${item.type}` : ''}`}
-            onCheckedChange={() => acoes.alternarSelecao(item.id)}
-            data-testid={`checkbox-item-${item.id}`}
-          />
+        <td style={{ padding: dedo ? 0 : '9px 12px' }} onClick={e => e.stopPropagation()}>
+          {/* No toque (tablet em tabela) a caixinha de 16px ganha um alvo de
+              44×44 — a célula inteira marca. */}
+          <label style={dedo ? { display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, minHeight: 44, cursor: 'pointer' } : { display: 'contents' }}>
+            <Checkbox
+              checked={selecionada}
+              aria-label={`Selecionar a peça ${item.displayId}${item.type ? ` — ${item.type}` : ''}`}
+              onCheckedChange={() => acoes.alternarSelecao(item.id)}
+              data-testid={`checkbox-item-${item.id}`}
+              // O alvo de 44px é a <label> em volta; a caixinha fica com 16.
+              data-alvo-natural=""
+            />
+          </label>
         </td>
       )}
       {/* ID + os selos da peça (SelosDaPeca). `overflow: hidden` é a
@@ -62,7 +69,7 @@ export const LinhaDaArte = memo(function LinhaDaArte({
           <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 12, color: T.apoio, fontWeight: 600 }} data-testid={`text-display-id-${item.id}`}>
             {item.displayId}
           </span>
-          <SelosDaPeca item={item} tabId={tabId} />
+          <SelosDaPeca item={item} tabId={tabId} dedo={dedo} />
         </div>
       </td>
       {/* Qtd — formatQuantity: `String(q || '—').padStart(2,'0')` transformava
@@ -79,16 +86,16 @@ export const LinhaDaArte = memo(function LinhaDaArte({
           {item.type && item.description && (
             <span style={{ fontSize: 12, color: T.apoio, wordBreak: 'break-word' }}>{item.description}</span>
           )}
-          <MetaDaPeca item={item} />
+          <MetaDaPeca item={item} dedo={dedo} />
           {/* A observação é instrução de quem pediu a peça para quem faz a
               arte — fica à vista, na única cor de aviso da célula.
               #b45309 sobre branco = 5,0:1 ✓. */}
           {item.observations && (
-            <span style={{ fontSize: 11.5, color: TOM.alerta.text, display: 'flex', alignItems: 'center', gap: 3 }}>
+            <span style={{ fontSize: fsToque(11.5, dedo), color: TOM.alerta.text, display: 'flex', alignItems: 'center', gap: 3 }}>
               <AlertCircle aria-hidden="true" style={{ width: 10, height: 10, flexShrink: 0 }} />{item.observations}
             </span>
           )}
-          <TagsDaPeca item={item} eventoTemBook={eventoTemBook} />
+          <TagsDaPeca item={item} eventoTemBook={eventoTemBook} dedo={dedo} />
         </div>
       </td>
       {/* Arte — thumb / arquivo final */}
@@ -107,7 +114,7 @@ export const LinhaDaArte = memo(function LinhaDaArte({
         </div>
       </td>
       {/* Prazo */}
-      <td style={{ padding: '9px 12px' }}><PrazoDaPeca item={item} tabId={tabId} hoje={hoje} /></td>
+      <td style={{ padding: '9px 12px' }}><PrazoDaPeca item={item} tabId={tabId} hoje={hoje} dedo={dedo} /></td>
       {/* Patrocinadores. `overflow: hidden`: o chip é `whiteSpace: nowrap`
           (sponsor-chips.tsx) e "Prefeitura Municipal" pede 131,6px — sem o
           recorte ele pintava por cima do botão de ação. O nome inteiro fica no

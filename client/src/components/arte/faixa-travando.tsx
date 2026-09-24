@@ -4,7 +4,7 @@ import { alvo } from "@/hooks/use-mobile";
 import { diasNaFase } from "@/lib/idade-na-fase";
 import { getApprovalMeta } from "@/lib/status";
 import { T, TOM, N } from "@/lib/theme";
-import { TRAVANDO_CHIPS_VISIBLE } from "./constantes";
+import { TRAVANDO_CHIPS_VISIBLE, fsToque } from "./constantes";
 import type { PecaDaArte } from "./tipos";
 
 /**
@@ -81,7 +81,7 @@ export function FaixaTravando({
   return (
     <div data-testid="faixa-travando" style={{ borderRadius: 12, background: T.surface, border: `1px solid ${T.border}`, overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', padding: '10px 14px', background: T.bg, borderBottom: `1px solid ${N.n3}` }}>
-        <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: T.apoio, whiteSpace: 'nowrap' }}>Quem está travando</span>
+        <span style={{ fontSize: fsToque(11, dedo), fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: T.apoio, whiteSpace: 'nowrap' }}>Quem está travando</span>
         <span data-testid="travando-resumo" style={{ fontSize: 12, color: T.second }}>
           {travando.length} {travando.length === 1 ? 'marca segura' : 'marcas seguram'} {pendencias} {pendencias === 1 ? 'aprovação' : 'aprovações'}
           {travando[0].espera > 0 ? ` — a mais antiga espera há ${travando[0].espera}d` : ''}
@@ -93,7 +93,7 @@ export function FaixaTravando({
           aria-expanded={rankingAberto}
           aria-controls="ranking-travando"
           data-testid="button-travando-ranking"
-          style={{ border: 'none', background: 'transparent', padding: '0 4px', minHeight: alvo(28, dedo), color: T.strong, fontSize: 12, fontWeight: 700, cursor: 'pointer', font: 'inherit', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+          style={{ font: 'inherit', border: 'none', background: 'transparent', padding: '0 4px', minHeight: alvo(28, dedo), color: T.strong, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4 }}
         >
           {rankingAberto ? 'Recolher' : 'Ver quem'}
           <ChevronDown aria-hidden="true" style={{ width: 12, height: 12, transform: rankingAberto ? 'rotate(180deg)' : undefined, transition: 'transform 0.15s' }} />
@@ -103,7 +103,7 @@ export function FaixaTravando({
             type="button"
             onClick={() => setShowAllTravando(v => !v)}
             data-testid="button-travando-todas"
-            style={{ border: 'none', background: 'transparent', padding: 0, color: T.accentText, fontSize: 12, fontWeight: 700, cursor: 'pointer', font: 'inherit', whiteSpace: 'nowrap', textDecoration: 'underline', textUnderlineOffset: 3, textDecorationColor: TOM.laranja.border }}
+            style={{ font: 'inherit', border: 'none', background: 'transparent', padding: 0, minHeight: alvo(28, dedo), color: T.accentText, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', textDecoration: 'underline', textUnderlineOffset: 3, textDecorationColor: TOM.laranja.border }}
           >
             {showAllTravando ? 'Mostrar menos' : `Ver as ${ocultas} outra${ocultas !== 1 ? 's' : ''}`}
           </button>
@@ -136,10 +136,10 @@ export function FaixaTravando({
               onMouseLeave={e => { e.currentTarget.style.background = ligado ? T.text : 'transparent'; }}
             >
               <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 5 }}>
-                <span aria-hidden style={{ fontFamily: "'DM Mono', monospace", fontSize: 10.5, fontWeight: 700, color: ligado ? 'rgba(255,255,255,0.72)' : T.second, minWidth: 16 }}>{rank}º</span>
-                <span style={{ fontSize: 12.5, fontWeight: 700, color: ligado ? T.surface : T.text, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere', minWidth: 0, flex: 1 }}>{t.nome}</span>
-                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12.5, fontWeight: 800, color: ligado ? T.surface : p.texto, whiteSpace: 'nowrap' }}>{t.pecas}</span>
-                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 700, color: ligado ? 'rgba(255,255,255,0.8)' : p.sub, whiteSpace: 'nowrap', minWidth: 38, textAlign: 'right' }}>
+                <span aria-hidden style={{ fontFamily: "'DM Mono', monospace", fontSize: fsToque(10.5, dedo), fontWeight: 700, color: ligado ? 'rgba(255,255,255,0.72)' : T.second, minWidth: 16 }}>{rank}º</span>
+                <span style={{ fontSize: fsToque(12.5, dedo), fontWeight: 700, color: ligado ? T.surface : T.text, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere', minWidth: 0, flex: 1 }}>{t.nome}</span>
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: fsToque(12.5, dedo), fontWeight: 800, color: ligado ? T.surface : p.texto, whiteSpace: 'nowrap' }}>{t.pecas}</span>
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: fsToque(11, dedo), fontWeight: 700, color: ligado ? 'rgba(255,255,255,0.8)' : p.sub, whiteSpace: 'nowrap', minWidth: 38, textAlign: 'right' }}>
                   {t.espera > 0 ? `+${t.espera}d` : 'hoje'}
                 </span>
               </span>

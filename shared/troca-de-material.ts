@@ -26,6 +26,18 @@ import { pecaTravada, fraseDaTrava, type PecaTravavel } from "./trava-da-peca";
 export const THUMB_APOS_APROVACAO: "motivo" | "bloquear" = "motivo";
 
 /**
+ * Decisão do dono (24/09): trocar o thumb ENQUANTO a peça está com o
+ * Atendimento (aguardando o patrocinador) é permitido, com motivo. Antes era
+ * recusado — e uma alteração que chegava nesse meio-tempo obrigava a esperar
+ * alguém reprovar para a peça voltar à Arte. Com a troca, o Atendimento é
+ * avisado para apresentar a versão nova, e o patrocinador desaprovador
+ * (strictApproval) que já tinha aprovado a anterior volta a aprovar.
+ *   · "motivo"   — permite, com motivo (o padrão);
+ *   · "bloquear" — volta à regra antiga: a versão nova entra pela reprovação.
+ */
+export const THUMB_EM_APROVACAO: "motivo" | "bloquear" = "motivo";
+
+/**
  * Decisão do dono (padrão proposto, ajustável aqui): liberar ou devolver na
  * Revisão Final é da Solicitação (e do admin). A Arte não revisa o próprio
  * trabalho — com `true` ela volta a poder, nas mesmas rotas.
@@ -101,8 +113,8 @@ export type RegraDoThumb =
 
 /**
  * Trocar o THUMB agora:
- *   · em aprovação do patrocinador: não — mudaria o que o Atendimento está
- *     apresentando; a versão nova entra pela reprovação/reenvio;
+ *   · em aprovação do patrocinador: com motivo (THUMB_EM_APROVACAO) — o
+ *     servidor avisa o Atendimento para apresentar a versão nova;
  *   · aprovada (Finalização/Revisão): com motivo (THUMB_APOS_APROVACAO);
  *   · liberada em diante: não — a peça já é da Gráfica;
  *   · antes da aprovação: livre.
@@ -113,6 +125,7 @@ export function regraDaTrocaDeThumb(p: PecaComMaterial | null | undefined): Regr
   const status = p.status ?? "";
   if (FORA_DO_FLUXO.includes(status)) return { pode: false, motivo: "Peça cancelada não recebe thumb novo." };
   if (EM_APROVACAO.includes(status)) {
+    if (THUMB_EM_APROVACAO === "motivo") return { pode: true, exigeMotivo: true };
     return { pode: false, motivo: "A peça está com o Atendimento, aguardando o patrocinador — trocar o thumb agora mudaria o que ele está avaliando. Se a arte precisa mudar, o Atendimento registra a reprovação e a versão nova vai pela Correção." };
   }
   if (LIBERADA.includes(status) || EM_IMPRESSAO.includes(status) || PRODUZIDA_EM_DIANTE.includes(status)) {
@@ -140,3 +153,5 @@ export function lerMotivoDaTroca(bruto: unknown): { ok: true; motivo: string } |
 
 /** Marca da trilha e da versão para a troca feita depois da aprovação. */
 export const MARCA_TROCA_APOS_APROVACAO = "trocada após aprovação";
+/** Marca da trilha e da versão para a troca feita com o Atendimento (em aprovação). */
+export const MARCA_TROCA_EM_APROVACAO = "trocada durante a aprovação";

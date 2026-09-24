@@ -162,6 +162,12 @@ export interface PrazoInlineProps {
   label?: string;
   /** `data-testid` do elemento raiz. */
   testId?: string;
+  /**
+   * Tamanho da letra (padrão 11, o da coluna Prazo no desktop). No toque a
+   * Arte passa 12 — nada abaixo de 12px no celular. Aditivo: quem não passa
+   * continua igual.
+   */
+  fonte?: number;
 }
 
 /**
@@ -179,7 +185,7 @@ export interface PrazoInlineProps {
  * mesma coordenada em todas as linhas: dá para varrer a coluna pelos números
  * sem que a data atrapalhe.
  */
-export function PrazoInline({ diff, date, label, testId }: PrazoInlineProps) {
+export function PrazoInline({ diff, date, label, testId, fonte = FONTE }: PrazoInlineProps) {
   const l = date ? lerPrazo(diff) : null;
 
   // Sem saída marcada não há prazo a pintar — ausência não é um estado, é a
@@ -189,7 +195,7 @@ export function PrazoInline({ diff, date, label, testId }: PrazoInlineProps) {
       <span
         data-testid={testId}
         title="Este evento não tem data de saída marcada — não há prazo a calcular"
-        style={{ fontSize: FONTE, fontWeight: 600, color: PRAZO_COLORS.neutral }}
+        style={{ fontSize: fonte, fontWeight: 600, color: PRAZO_COLORS.neutral }}
       >
         <span aria-hidden="true">—</span>
         <span className="sr-only">Sem prazo: o evento não tem data de saída marcada</span>
@@ -217,13 +223,13 @@ export function PrazoInline({ diff, date, label, testId }: PrazoInlineProps) {
       <span aria-hidden="true" title={frase}>
         <span
           style={{
-            fontSize: FONTE, fontWeight: 600, color: COR_DATA,
+            fontSize: fonte, fontWeight: 600, color: COR_DATA,
             fontVariantNumeric: "tabular-nums", marginRight: 6,
           }}
         >
           {curta}
         </span>
-        <span style={{ fontSize: FONTE, color: l.cor, fontVariantNumeric: "tabular-nums" }}>
+        <span style={{ fontSize: fonte, color: l.cor, fontVariantNumeric: "tabular-nums" }}>
           {l.partes.map((p, i) => (
             <span key={p.texto} style={{ fontWeight: p.peso, marginLeft: i ? 3 : 0 }}>
               {p.texto}

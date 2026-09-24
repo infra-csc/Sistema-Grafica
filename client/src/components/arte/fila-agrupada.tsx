@@ -6,7 +6,7 @@ import { isAtrasadaNaFase, isUrgente } from "@/lib/arte-rules";
 import { T, TOM, N } from "@/lib/theme";
 import { arquivoFinalOk } from "@shared/molde";
 import { ARTE_CHECKBOX_WIDTH, DICA_DA_COLUNA, colunasDaAba, tableMinWidth } from "./colunas";
-import { ARTE_PAGE_SIZE, PARADA_HA_MAIS_DE, estaParada } from "./constantes";
+import { ARTE_PAGE_SIZE, PARADA_HA_MAIS_DE, estaParada, fsToque } from "./constantes";
 import { CartaoDaArte } from "./cartao-da-arte";
 import { FaixaDoEvento } from "./faixa-do-evento";
 import { FaixaTravando } from "./faixa-travando";
@@ -52,6 +52,8 @@ export interface PropsDaFila {
   sendingId: string | null;
   eventosComBook: Set<string>;
   acoes: AcoesDaLinha;
+  /** Largura útil da lista (px), para a coluna de patrocinadores crescer com a folga. 0 = não medida. */
+  larguraUtil?: number;
 }
 
 /**
@@ -72,7 +74,7 @@ export const FilaAgrupada = memo(function FilaAgrupada({
   clearAllFilters, tabs, changeTab, paradasNaAba, atrasadasNaAba, urgentesNaAba,
   showAllTravando, setShowAllTravando, travandoAberto, setTravandoAberto, sponsorFilter, setSponsorFilter,
   finalizadosForaDaJanela, finalizadosTudo, setFinalizadosTudo, groupOf,
-  selectedItemIds, setSelectedItemIds, sendingId, eventosComBook, acoes,
+  selectedItemIds, setSelectedItemIds, sendingId, eventosComBook, acoes, larguraUtil = 0,
 }: PropsDaFila) {
   // A coluna de seleção só existe nestas duas abas — nas outras a tabela não
   // deve pagar os 44px dela.
@@ -80,7 +82,17 @@ export const FilaAgrupada = memo(function FilaAgrupada({
   // Um conjunto de colunas por aba: só Finalizados desenha o selo de status
   // na célula de ID e só ela fica sem botão de ação primária. As outras
   // quatro continuam com ARTE_COLS, letra por letra (ver ARTE_COLS_FINALIZADOS).
-  const cols = colunasDaAba(tabId);
+  const colsBase = colunasDaAba(tabId);
+  // PATROCINADORES CRESCEM COM A FOLGA (1920px, 24/09). A coluna tem largura
+  // fixa (150) e "Banco Aurora (exem…" cortava enquanto "Peça" ficava com
+  // 900px de vazio. Com folga de sobra (mais de 300px além do mínimo da
+  // tabela), um quarto dela vai para "Patroc.", até +110px. Abaixo disso nada
+  // muda — as medições de cabimento de colunas.ts continuam valendo.
+  const folga = larguraUtil > 0 ? larguraUtil - tableMinWidth(comSelecao, colsBase) : 0;
+  const extraPatroc = Math.max(0, Math.min(110, Math.round((folga - 300) / 4)));
+  const cols = extraPatroc > 0
+    ? colsBase.map(c => (c.label === 'Patroc.' && typeof c.w === 'number' ? { ...c, w: c.w + extraPatroc } : c))
+    : colsBase;
   const minW = tableMinWidth(comSelecao, cols);
   const totalColunas = cols.length + (comSelecao ? 1 : 0);
 
@@ -173,7 +185,7 @@ export const FilaAgrupada = memo(function FilaAgrupada({
   // cabeçalho, "M²" ficava alinhado à direita mas a fronteira entre as duas
   // colunas só existia meia tabela abaixo.
   const thStyle = (col: { right?: boolean; sep?: boolean }): CSSProperties => ({
-    padding: '10px 12px', fontSize: 11, fontWeight: 700, color: T.apoio,
+    padding: '10px 12px', fontSize: fsToque(11, dedo), fontWeight: 700, color: T.apoio,
     textTransform: 'uppercase', letterSpacing: '0.06em',
     textAlign: col.right ? 'right' : 'left',
     borderLeft: col.sep ? `1px solid ${N.n3}` : undefined,
@@ -199,7 +211,7 @@ export const FilaAgrupada = memo(function FilaAgrupada({
           antes de urgente (o evento é que corre). */}
       {(atrasadas > 0 || urgentes > 0 || paradas > 0) && (
         <div data-testid="faixa-diagnostico" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '7px 10px', borderRadius: 10, background: T.bg, border: `1px solid ${T.border}` }}>
-          <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.09em', textTransform: 'uppercase', color: T.second, paddingLeft: 2, flexShrink: 0 }}>
+          <span style={{ fontSize: fsToque(10.5, dedo), fontWeight: 800, letterSpacing: '0.09em', textTransform: 'uppercase', color: T.second, paddingLeft: 2, flexShrink: 0 }}>
             Atenção
           </span>
           {([
@@ -260,7 +272,7 @@ export const FilaAgrupada = memo(function FilaAgrupada({
                     fundo escuro já é o sinal, e dois sinais competindo no
                     mesmo chip é o que deixava a faixa confusa. */}
                 <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 999, background: ligado ? T.surface : ponto, flexShrink: 0 }} />
-                <span style={{ fontSize: 12.5, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: ligado ? T.surface : T.text }}>{n}</span>
+                <span style={{ fontSize: fsToque(12.5, dedo), fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: ligado ? T.surface : T.text }}>{n}</span>
                 <span style={{ fontSize: 12, fontWeight: 500, color: ligado ? T.border : T.apoio }}>{rotulo}</span>
               </button>
             ))}
@@ -344,12 +356,16 @@ export const FilaAgrupada = memo(function FilaAgrupada({
                 />
 
                 {emCartoes ? (
-                  <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  // CARTÕES EM GRADE quando a área comporta (tablet: 2 colunas
+                  // a partir de ~660px úteis). Numa coluna só, em 700px, o
+                  // cartão virava uma faixa com o botão preto de ponta a ponta
+                  // — e metade da tela era vazio à direita do texto.
+                  <div style={{ padding: '8px 10px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))', gap: 8, alignItems: 'start' }}>
                     {bloco.grupos.map((grupo, gi) => (
                       <Fragment key={gi}>
                         {grupo.nome && (
-                          <div style={{ padding: '6px 2px 2px', borderBottom: `1px solid ${N.n3}` }}>
-                            <span style={{ fontSize: 10, fontWeight: 800, color: T.second, textTransform: 'uppercase', letterSpacing: '0.12em' }}>{grupo.nome}</span>
+                          <div style={{ gridColumn: '1 / -1', padding: '6px 2px 2px', borderBottom: `1px solid ${N.n3}` }}>
+                            <span style={{ fontSize: fsToque(10, dedo), fontWeight: 800, color: T.second, textTransform: 'uppercase', letterSpacing: '0.12em' }}>{grupo.nome}</span>
                           </div>
                         )}
                         {grupo.items.map((item) => (
@@ -357,6 +373,8 @@ export const FilaAgrupada = memo(function FilaAgrupada({
                             key={item.id}
                             item={item}
                             tabId={tabId}
+                            comSelecao={comSelecao}
+                            selecionada={selectedItemIds.has(item.id)}
                             hoje={hoje}
                             enviando={sendingId === item.id}
                             algumEnviando={!!sendingId}
@@ -435,7 +453,7 @@ export const FilaAgrupada = memo(function FilaAgrupada({
                                   data-testid={`checkbox-group-${bloco.key}-${gi}`}
                                 />
                               </td>
-                              <td colSpan={totalColunas - 1} style={{ padding: '4px 12px', borderBottom: `1px solid ${N.n2}`, fontSize: 11, color: T.apoio }}>
+                              <td colSpan={totalColunas - 1} style={{ padding: '4px 12px', borderBottom: `1px solid ${N.n2}`, fontSize: fsToque(11, dedo), color: T.apoio }}>
                                 {marcadas > 0 ? `${marcadas} de ${selecionaveis.length} selecionadas` : `Selecionar as ${selecionaveis.length} peças deste grupo`}
                               </td>
                             </tr>
@@ -477,7 +495,7 @@ export const FilaAgrupada = memo(function FilaAgrupada({
           >
             Carregar mais ({items.length - shownItems.length} restantes)
           </Botao>
-          <span style={{ fontSize: 11, color: T.apoio }}>
+          <span style={{ fontSize: fsToque(11, dedo), color: T.apoio }}>
             Exibindo {shownItems.length} de {items.length} peças
           </span>
         </div>

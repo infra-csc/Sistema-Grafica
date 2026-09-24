@@ -24,8 +24,30 @@ export function CabecalhoDaArte({
   openBookModal: () => void;
   setShowBulkDialog: (aberto: boolean) => void;
 }) {
+  const temLote = podeEditar && activeTab === "criar-aprovacoes";
+  // O LOTE DE THUMBS: o <input> mora FORA do menu (sempre montado) e o que
+  // aparece é um <label htmlFor> — no desktop à vista, no celular dentro de
+  // "Mais ações". Assim o seletor de arquivos devolve os arquivos mesmo que o
+  // menu feche enquanto ele está aberto. sr-only e não display:none: um input
+  // display:none não entra na ordem de foco e o Tab pulava a ação.
+  const loteDeThumbs = (
+    <label
+      htmlFor="arte-input-lote-thumbs"
+      data-testid="button-open-bulk-thumb"
+      style={isMobile
+        ? { display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: alvo(36, dedo), padding: '0 12px', borderRadius: R.sm, border: `1px solid ${TOM.ciano.border}`, background: TOM.ciano.bg, color: TOM.ciano.text, fontSize: FS.body, fontWeight: 600, cursor: 'pointer', boxSizing: 'border-box' }
+        : { height: alvo(36, dedo), padding: '0 14px', borderRadius: R.md, border: `1px solid ${TOM.ciano.border}`, background: TOM.ciano.bg, color: TOM.ciano.text, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: FS.body, fontWeight: 600, whiteSpace: 'nowrap', transition: 'border-color 0.12s', justifyContent: 'center' }}
+    >
+      <FileImage aria-hidden="true" style={{ width: isMobile ? 13 : 12, height: isMobile ? 13 : 12, color: TOM.ciano.text }} />
+      Envio de thumbs em lote
+    </label>
+  );
   return (
     <>
+      {temLote && (
+        <input id="arte-input-lote-thumbs" type="file" accept="image/*" multiple className="sr-only" aria-label="Envio de thumbs em lote"
+          onChange={e => { if (e.target.files) handleBulkThumbFilesAdded(e.target.files); e.target.value = ''; }} />
+      )}
       {/* ── Identidade + ações ──
           MENOS É MAIS (dono, 22/09: "apenas o que eles REALMENTE usam").
           Medido na trilha de 30 dias: a Arte vive de três gestos — subir/
@@ -50,7 +72,9 @@ export function CabecalhoDaArte({
       <div style={{ marginBottom: isMobile ? -8 : -4 }}>
         <CabecalhoDaPagina
           titulo="Arte"
-          icone={Palette}
+          // No celular o ícone sai: a barra do app, logo acima, já diz "Arte",
+          // e os 38px do quadrado empurravam o título para a segunda linha.
+          icone={isMobile ? undefined : Palette}
           subtitulo={
             // A soma é das três fases em que a peça espera a Arte — o
             // `title` conta (rodada 4).
@@ -90,41 +114,35 @@ export function CabecalhoDaArte({
             </Popover>
           }
           acoes={<>
-            {podeEditar && activeTab === "criar-aprovacoes" && (
-              // <label> com o input dentro (e não <Botao>): é o clique no
-              // rótulo que abre o seletor de arquivos.
-              <label
-                data-testid="button-open-bulk-thumb"
-                style={{ height: alvo(36, dedo), padding: '0 14px', borderRadius: R.md, border: `1px solid ${TOM.ciano.border}`, background: TOM.ciano.bg, color: TOM.ciano.text, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: FS.body, fontWeight: 600, whiteSpace: 'nowrap', transition: 'border-color 0.12s', flex: isMobile ? '1 1 auto' : undefined, justifyContent: 'center' }}
-              >
-                <FileImage aria-hidden="true" style={{ width: 12, height: 12, color: TOM.ciano.text }} />
-                Envio de thumbs em lote
-                {/* sr-only e não display:none — um input display:none não entra
-                    na ordem de foco, e nem <label> nem <div> são focáveis por
-                    si: o Tab pulava direto por cima desta ação. */}
-                <input type="file" accept="image/*" multiple className="sr-only" onChange={e => { if (e.target.files) handleBulkThumbFilesAdded(e.target.files); e.target.value = ''; }} />
-              </label>
-            )}
+            {temLote && !isMobile && loteDeThumbs}
             <Popover>
               <PopoverTrigger asChild>
                 <Botao
                   variante="secundario"
                   tamanho={dedo ? "toque" : "md"}
                   icone={MoreHorizontal}
+                  tamanhoDoIcone={isMobile ? 18 : 14}
                   data-testid="button-mais-acoes"
                   aria-label="Mais ações da Arte"
-                  style={{ fontSize: FS.body, fontWeight: 600 }}
+                  title="Mais ações da Arte"
+                  // No celular, só o "⋯" (44×44) na linha do título: a fileira
+                  // própria das ações custava 52px antes da primeira peça.
+                  style={isMobile ? { width: 44, minWidth: 44, padding: 0, flex: '0 0 44px' } : { fontSize: FS.body, fontWeight: 600 }}
                 >
-                  Mais ações
+                  {isMobile ? null : 'Mais ações'}
                 </Botao>
               </PopoverTrigger>
-              <PopoverContent align="end" className="p-1" style={{ width: 260 }} data-testid="menu-mais-acoes">
+              <PopoverContent align="end" className="p-1" style={{ width: 272, maxWidth: 'calc(100vw - 24px)' }} data-testid="menu-mais-acoes">
                 {/* As cores de 17/09 continuam DENTRO do menu — cada ação com
                     o seu tom (fundo 50, borda 200, texto 700 = AA) — para a
                     pessoa achar a ação pela cor sem ler a lista inteira.
                     Exportar é LEITURA: aparece também em modo consulta.
                     São ITENS DE MENU, não <Botao>. */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {/* No CELULAR o lote de thumbs mora aqui, o primeiro da
+                      lista: subir dezenas de imagens é gesto de mesa, e à
+                      vista ele ocupava uma linha inteira do topo. */}
+                  {temLote && isMobile && loteDeThumbs}
                   <button
                     onClick={handleClickExportButton}
                     data-testid="button-export-pdf"
@@ -179,10 +197,15 @@ export function CabecalhoDaArte({
           parcialmente permitido (salvar rascunho funciona, enviar devolve
           403) era o pior dos dois mundos. */}
       {!podeEditar && (
-        <div data-testid="banner-modo-consulta" style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 14px', marginBottom: 14, borderRadius: 10, background: N.n2, border: `1px solid ${T.border}` }}>
-          <Lock style={{ width: 14, height: 14, color: T.apoio, flexShrink: 0 }} />
+        <div data-testid="banner-modo-consulta" style={{ display: 'flex', alignItems: 'center', gap: 9, padding: isMobile ? '8px 12px' : '9px 14px', marginBottom: isMobile ? 10 : 14, borderRadius: 10, background: N.n2, border: `1px solid ${T.border}` }}>
+          <Lock aria-hidden="true" style={{ width: 14, height: 14, color: T.apoio, flexShrink: 0 }} />
+          {/* No celular a frase curta (uma linha): a longa ocupava três
+              linhas do topo e, junto com os filtros, empurrava a primeira
+              peça para fora da tela. A regra é a mesma. */}
           <span style={{ fontSize: 12, color: T.strong }}>
-            <b style={{ fontWeight: 700 }}>Modo consulta.</b> Você vê a fila da Arte e pode exportar PDFs, mas enviar, corrigir, finalizar e pular a aprovação é da equipe de Arte.
+            {isMobile
+              ? <><b style={{ fontWeight: 700 }}>Modo consulta.</b> Só a equipe de Arte altera as peças.</>
+              : <><b style={{ fontWeight: 700 }}>Modo consulta.</b> Você vê a fila da Arte e pode exportar PDFs, mas enviar, corrigir, finalizar e pular a aprovação é da equipe de Arte.</>}
           </span>
         </div>
       )}

@@ -171,9 +171,15 @@ describe("Arte 390px — topo e card limpos", { timeout: 60_000 }, () => {
     await montar(390);
     // "Mais ações" é um <Botao> (tamanho "toque" no dedo/celular): alvo em minHeight.
     expect(tid("button-mais-acoes")!.style.minHeight).toBe("44px");
-    expect(tid("button-open-bulk-thumb")!.style.height).toBe("44px");
+    // Revisão de celular (24/09): no celular o "⋯" é só ícone (44×44) na linha
+    // do título e o lote de thumbs mora DENTRO dele — à vista, a fileira das
+    // ações custava 52px antes da primeira peça. No desktop segue à vista
+    // (teste de 1280px acima). O alvo de 44px continua.
+    expect(tid("button-mais-acoes")!.style.width).toBe("44px");
+    expect(tid("button-open-bulk-thumb")).toBeNull();
     expect(tid("button-export-pdf")).toBeNull();
     await clicar(tid("button-mais-acoes"));
+    expect(tid("button-open-bulk-thumb")!.style.height).toBe("44px");
     expect(tid("button-export-pdf")!.style.minHeight).toBe("44px");
   });
 

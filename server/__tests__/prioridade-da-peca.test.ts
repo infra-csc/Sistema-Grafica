@@ -62,7 +62,9 @@ describe("a fila da Arte", () => {
     expect(ARTE).toContain("tag-prioritaria-${item.id}");
     const selos = ARTE.slice(ARTE.indexOf("export function SelosDaPeca("), ARTE.indexOf("export function MetaDaPeca("));
     expect(selos).toContain("PRIORITÁRIA");
-    expect((ARTE.match(/<SelosDaPeca item=\{item\} tabId=\{tabId\} \/>/g) ?? []).length).toBe(2);
+    // Linha E card continuam usando o mesmo componente; desde 24/09 ele
+    // recebe `dedo` (piso de 12px no toque) — a regra do selo não mudou.
+    expect((ARTE.match(/<SelosDaPeca item=\{item\} tabId=\{tabId\}(?: dedo=\{dedo\})? \/>/g) ?? []).length).toBe(2);
   });
 
   it("na lista do evento (quem marcou), o selo também aparece", () => {

@@ -11,6 +11,7 @@ import {
   regraDaTrocaDeThumb,
   lerMotivoDaTroca,
   MARCA_TROCA_APOS_APROVACAO,
+  MARCA_TROCA_EM_APROVACAO,
 } from "@shared/troca-de-material";
 import { requireAuth, broadcast, translateStatus, sendSensitiveError, createAuditLog } from "../shared";
 // A tela de Versões guarda o quadro calculado por 30 s. Toda escrita que mude
@@ -105,7 +106,8 @@ export function registrarArte(app: Express): void {
 
   // Troca o thumb de aprovação já existente, preservando o anterior. A regra
   // de QUANDO pode (shared/troca-de-material.ts, a mesma que a tela lê):
-  //   · em aprovação do patrocinador: não — mudaria o que ele está avaliando;
+  //   · em aprovação do patrocinador: com motivo, e o Atendimento é avisado
+  //     para apresentar a versão nova (decisão do dono, 24/09);
   //   · aprovada (Finalização/Revisão): com motivo, marcada "trocada após
   //     aprovação" na trilha e na versão;
   //   · liberada em diante: não — a peça já é da Gráfica.
@@ -158,8 +160,10 @@ export function registrarArte(app: Express): void {
       }
       // A versão leva a marca no "por" — é o que a tela de Versões mostra ao
       // lado de cada thumb, sem pedir coluna nova.
+      const emAprovacao = currentItem.status === "awaiting_sponsor_approval";
+      const marca = emAprovacao ? MARCA_TROCA_EM_APROVACAO : MARCA_TROCA_APOS_APROVACAO;
       const porDaVersao = motivoDaTroca
-        ? `${req.userName ?? "Arte"} (${MARCA_TROCA_APOS_APROVACAO})`
+        ? `${req.userName ?? "Arte"} (${marca})`
         : (req.userName ?? null);
       await storage.createItemArtVersion({ itemId: item.id, thumbUrl: thumbNormalizado, origem: "troca", createdBy: porDaVersao });
       invalidarCacheDeVersoes();
@@ -174,7 +178,25 @@ export function registrarArte(app: Express): void {
         `Thumb de aprovação atualizado por ${req.userName}. Anterior: ${prevUrl} → Novo: ${thumbNormalizado}`
       );
       if (motivoDaTroca) {
-        await createAuditLog(req, 'updated', 'item', item.id, `Thumb ${MARCA_TROCA_APOS_APROVACAO} (${translateStatus(currentItem.status)}). Motivo: ${motivoDaTroca}`);
+        await createAuditLog(req, 'updated', 'item', item.id, `Thumb ${marca} (${translateStatus(currentItem.status)}). Motivo: ${motivoDaTroca}`);
+      }
+
+      // COM O ATENDIMENTO (aguardando o patrocinador): a peça fica onde está,
+      // mas quem apresenta precisa saber que a arte mudou — e o desaprovador
+      // estrito que já tinha aprovado a anterior volta a aprovar.
+      if (emAprovacao) {
+        const revogados = await revogarAprovacoesEstritas(req, currentItem, { tipo: "nova_versao" });
+        const event = await storage.getEvent(currentItem.eventId);
+        const notification = await storage.createNotification({
+          // Mesmo tipo da "nova versão" que volta ao Atendimento (sino: "Voltou
+          // para você", grupo "Precisa de ação") — é trabalho para ele.
+          type: "itemRejected",
+          message: `A Arte trocou o thumb enquanto aguardava o patrocinador — apresente a versão nova${revogados.length ? ` (${revogados.join(", ")} precisa aprovar de novo)` : ""}. Motivo: ${motivoDaTroca}. ${currentItem.type} - Evento: ${event?.name}`,
+          eventId: currentItem.eventId,
+          itemId: item.id,
+          targetRoles: ["atendimento"],
+        });
+        broadcast({ type: "notification_created", notification });
       }
 
       // Aprovada e ainda na Finalização: o desaprovador estrito perde a

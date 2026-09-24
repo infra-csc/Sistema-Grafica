@@ -1,11 +1,12 @@
 import { memo, type Dispatch, type SetStateAction } from "react";
-import { CheckCircle, Search } from "lucide-react";
+import { ArrowRight, CheckCircle, Search } from "lucide-react";
 import { Botao } from "@/components/ui/botao";
 import { EstadoVazio } from "@/components/ui/estados";
 import { alvo } from "@/hooks/use-mobile";
 import { T, TOM, FONT } from "@/lib/theme";
 import { CartaoDaCorrecao } from "./cartao-da-correcao";
 import { ErroDeCarga } from "./erro-de-carga";
+import { fsToque } from "./constantes";
 import type { PecaDaCorrecao } from "./tipos";
 
 export interface PropsDaAbaCorrecao {
@@ -26,6 +27,8 @@ export interface PropsDaAbaCorrecao {
   hoje: Date;
   groupOf: (type: string) => string;
   abrirCorrecao: (item: PecaDaCorrecao) => void;
+  /** A próxima fase com peças em que a Arte age (fila vazia). */
+  proximaFase?: () => { label: string; count: number; ir: () => void } | undefined;
 }
 
 /**
@@ -35,7 +38,7 @@ export interface PropsDaAbaCorrecao {
 export const AbaCorrecao = memo(function AbaCorrecao({
   correcaoLoading, correcaoIsError, correcaoError, refetchCorrecao, correcaoItems, correcaoFiltrados,
   correcaoSponsorFilter, setCorrecaoSponsorFilter, activeFilterCount, clearAllFilters,
-  podeEditar, dedo, emCartoes, hoje, groupOf, abrirCorrecao,
+  podeEditar, dedo, emCartoes, hoje, groupOf, abrirCorrecao, proximaFase,
 }: PropsDaAbaCorrecao) {
   if (correcaoLoading) {
     return (
@@ -59,8 +62,21 @@ export const AbaCorrecao = memo(function AbaCorrecao({
     );
   }
   if (correcaoItems.length === 0) {
+    // O mesmo próximo passo das outras filas vazias (VazioDaFila): a próxima
+    // fase com peças em que a Arte age — sem varrer as abas.
+    const destino = proximaFase?.();
     return (
-      <EstadoVazio icone={CheckCircle} titulo="Sem correção pendente" descricao="Nenhuma peça aguarda nova versão de arte" />
+      <EstadoVazio
+        icone={CheckCircle}
+        titulo="Sem correção pendente"
+        descricao="Nenhuma peça aguarda nova versão de arte"
+        acao={destino ? (
+          <Botao variante="primario" tamanho={dedo ? "toque" : "md"} onClick={destino.ir} data-testid="button-empty-proxima-fase-correcao">
+            Ir para {destino.label} ({destino.count})
+            <ArrowRight aria-hidden="true" style={{ width: 14, height: 14 }} />
+          </Botao>
+        ) : undefined}
+      />
     );
   }
 
@@ -133,8 +149,8 @@ export const AbaCorrecao = memo(function AbaCorrecao({
 
         {/* Sponsor filter pills */}
         {correcaoSponsors.length > 1 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: T.apoio, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Filtrar</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: dedo ? 8 : 6, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: fsToque(11, dedo), fontWeight: 600, color: T.apoio, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Filtrar</span>
             {[{ id: "all", name: "Todos", color: T.second }, ...correcaoSponsors].map(sp => {
               const isActive = correcaoSponsorFilter === sp.id;
               return (
@@ -162,7 +178,7 @@ export const AbaCorrecao = memo(function AbaCorrecao({
                       antes de ser clicado, como as abas e os dropdowns. */}
                   {/* #746e69 e não #a8a29e: é número que se lê (quantas
                       correções cada marca pediu), e #a8a29e não passa AA. */}
-                  <span style={{ fontSize: 11, fontWeight: 700, color: isActive ? TOM.perigo.text : T.second, fontVariantNumeric: 'tabular-nums' }}>
+                  <span style={{ fontSize: fsToque(11, dedo), fontWeight: 700, color: isActive ? TOM.perigo.text : T.second, fontVariantNumeric: 'tabular-nums' }}>
                     {sp.id === 'all'
                       ? baseItems.length
                       : baseItems.filter((i) => (i.awaitingArteApprovals || []).some((a) => a.sponsorId === sp.id)).length}

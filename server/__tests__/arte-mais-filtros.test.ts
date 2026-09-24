@@ -191,8 +191,14 @@ describe("Arte 390px — busca, Evento e Ordenar à vista, o resto na folha", { 
     expect(botao.getAttribute("aria-controls")).toBe("arte-folha-filtros");
     expect(botao.style.minHeight).toBe("44px");
     ordenarAVistaForaDaFaixa();
-    expect(tid("linha-ordenar-mobile")!.contains(tid("select-ordenar"))).toBe(true);
-    expect((tid("select-ordenar")!.querySelector("button") ?? tid("select-ordenar")!).style.height || "44px").toBe("44px");
+    // Revisão de celular (24/09): o Ordenar continua À VISTA, mas como o
+    // ícone ⇅ de 44×44 ao lado do seletor de fase (linha-fase-mobile) — a
+    // linha própria dele ("linha-ordenar-mobile") custava 52px antes da
+    // primeira peça. O "Saída 10 dias" subiu para a linha do Evento.
+    expect(tid("linha-fase-mobile")!.contains(tid("select-ordenar"))).toBe(true);
+    expect(tid("filtro-evento-mobile")!.contains(tid("button-next-10-days-filter"))).toBe(true);
+    expect(tid("select-ordenar")!.style.width).toBe("44px");
+    expect(tid("select-ordenar")!.style.height).toBe("44px");
   });
 
   it("a folha abre com os outros filtros, rodapé com safe-area, e fecha", async () => {

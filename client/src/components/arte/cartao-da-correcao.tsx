@@ -8,6 +8,7 @@ import { phaseDeadline } from "@/lib/arte-rules";
 import { miniatura } from "@/lib/miniatura";
 import { toUTCDisplayDate } from "@/lib/utils";
 import { T, TOM, N, R, FS, FONT } from "@/lib/theme";
+import { fsToque } from "./constantes";
 import type { PecaDaCorrecao } from "./tipos";
 
 /** Um cartão da aba Correção: o que foi recusado, por quem, e a saída. */
@@ -76,14 +77,14 @@ export function CartaoDaCorrecao({ item, correcaoSponsorFilter, emCartoes, hoje,
               texto inteiro no `title` não existe para quem toca). O
               grupo, rótulo curto de contexto, sobe para cima. */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-            {groupLabel && <span title={groupLabel} style={{ fontSize: FS.small, color: T.second, fontWeight: 600, minWidth: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{groupLabel}</span>}
+            {groupLabel && <span title={groupLabel} style={{ fontSize: fsToque(FS.small, emCartoes), color: T.second, fontWeight: 600, minWidth: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{groupLabel}</span>}
             <span title={item.type} style={{ fontSize: FS.body, fontWeight: 700, color: T.text, letterSpacing: '-0.02em', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere', fontFamily: FONT.display }}>{item.type}</span>
             {item.description && item.description !== item.type && (
               <span title={item.description} style={{ fontSize: FS.meta, color: T.apoio, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>{item.description}</span>
             )}
           </div>
         </div>
-        <span style={{ fontFamily: FONT.display, fontSize: FS.small, fontWeight: 800, color: T.apoio, background: T.bg, border: `1px solid ${T.border}`, borderRadius: R.sm, padding: '3px 7px', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{item.displayId}</span>
+        <span style={{ fontFamily: FONT.display, fontSize: fsToque(FS.small, emCartoes), fontWeight: 800, color: T.apoio, background: T.bg, border: `1px solid ${T.border}`, borderRadius: R.sm, padding: '3px 7px', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{item.displayId}</span>
         <SeloKit peca={item} style={{ flexShrink: 0 }} />
       </div>
 
@@ -102,11 +103,11 @@ export function CartaoDaCorrecao({ item, correcaoSponsorFilter, emCartoes, hoje,
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderBottom: `1px solid ${N.n3}`, background: T.bg }}>
             {item.event?.name && (
-              <span title={item.event.name} style={{ fontSize: 11, fontWeight: 600, color: T.apoio, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.event.name}</span>
+              <span title={item.event.name} style={{ fontSize: fsToque(11, emCartoes), fontWeight: 600, color: T.apoio, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.event.name}</span>
             )}
             {item.event?.name && saida && <span aria-hidden="true" style={{ width: 1, height: 11, background: T.border, flexShrink: 0 }} />}
             {saida && (
-              <span style={{ fontSize: 11, fontWeight: 600, color: T.apoio, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
+              <span style={{ fontSize: fsToque(11, emCartoes), fontWeight: 600, color: T.apoio, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
                 {String(saida.getDate()).padStart(2, '0')}/{String(saida.getMonth() + 1).padStart(2, '0')}
               </span>
             )}
@@ -118,7 +119,7 @@ export function CartaoDaCorrecao({ item, correcaoSponsorFilter, emCartoes, hoje,
               // Selo só quando aperta (≤3d): folga é texto, não cor.
               return urgente
                 ? <Selo tom="alerta" style={{ flexShrink: 0, padding: '2px 8px', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{texto}</Selo>
-                : <span style={{ fontSize: FS.small, fontWeight: 700, flexShrink: 0, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', color: T.second, padding: '2px 8px' }}>{texto}</span>;
+                : <span style={{ fontSize: fsToque(FS.small, emCartoes), fontWeight: 700, flexShrink: 0, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', color: T.second, padding: '2px 8px' }}>{texto}</span>;
             })()}
           </div>
         );
@@ -137,7 +138,7 @@ export function CartaoDaCorrecao({ item, correcaoSponsorFilter, emCartoes, hoje,
           ) : item.approvalThumbUrl ? (
             <a href={item.approvalThumbUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, textDecoration: 'none', color: TOM.perigo.text }}>
               <FileText style={{ width: 22, height: 22 }} />
-              <span style={{ fontSize: 11, fontWeight: 600 }}>PDF</span>
+              <span style={{ fontSize: fsToque(11, emCartoes), fontWeight: 600 }}>PDF</span>
             </a>
           ) : (
             <FileImage style={{ width: 22, height: 22, color: TOM.perigo.border }} />
@@ -161,12 +162,12 @@ export function CartaoDaCorrecao({ item, correcaoSponsorFilter, emCartoes, hoje,
               <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: TOM.perigo.text }}>
                 Reprovada por um patrocinador
               </p>
-              <p style={{ margin: '3px 0 0', fontSize: 11, color: TOM.perigo.text, lineHeight: 1.45 }}>
+              <p style={{ margin: '3px 0 0', fontSize: fsToque(11, emCartoes), color: TOM.perigo.text, lineHeight: 1.45 }}>
                 Devolvida sem patrocinador nem motivo informados. Veja quem devolveu e quando no Histórico da peça.
               </p>
               <Link
                 href={`/historico?busca=${item.displayId?.replace('#','')}`}
-                style={{ display: 'inline-block', marginTop: 6, fontSize: 11, fontWeight: 700, color: TOM.perigo.text, textDecoration: 'underline', textUnderlineOffset: 2 }}
+                style={{ display: 'inline-block', marginTop: 6, fontSize: fsToque(11, emCartoes), fontWeight: 700, color: TOM.perigo.text, textDecoration: 'underline', textUnderlineOffset: 2 }}
               >
                 Ver no Histórico →
               </Link>
@@ -182,7 +183,7 @@ export function CartaoDaCorrecao({ item, correcaoSponsorFilter, emCartoes, hoje,
                 {(approval.rejectedBy || approval.rejectedAt) && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 3, minWidth: 0 }}>
                     {approval.rejectedBy && (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, minWidth: 0, fontSize: 11, fontWeight: 600, color: T.apoio, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={approval.rejectedBy}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, minWidth: 0, fontSize: fsToque(11, emCartoes), fontWeight: 600, color: T.apoio, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={approval.rejectedBy}>
                         <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                         {/* Nome INTEIRO. O `split(' ')[0]` cortava no
                             primeiro nome — numa empresa com dois
@@ -193,7 +194,7 @@ export function CartaoDaCorrecao({ item, correcaoSponsorFilter, emCartoes, hoje,
                     )}
                     {approval.rejectedBy && approval.rejectedAt && <span style={{ color: T.bdark, fontSize: 11 }}>·</span>}
                     {approval.rejectedAt && (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 11, fontWeight: 600, color: T.apoio, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: fsToque(11, emCartoes), fontWeight: 600, color: T.apoio, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
                         <Clock style={{ width: 9, height: 9, flexShrink: 0 }} />
                         {(() => { const d = new Date(approval.rejectedAt); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; })()}
                       </span>

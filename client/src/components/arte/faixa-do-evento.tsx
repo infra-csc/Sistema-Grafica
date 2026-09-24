@@ -6,7 +6,7 @@ import { alvo } from "@/hooks/use-mobile";
 import { ARTE_MARCOS_FAIXA, phaseDeadline } from "@/lib/arte-rules";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { T, N, FS, FONT } from "@/lib/theme";
-import { semaforoPrazo } from "./constantes";
+import { fsToque, semaforoPrazo } from "./constantes";
 import type { EventoDaPeca } from "./tipos";
 
 /**
@@ -44,23 +44,23 @@ export function FaixaDoEvento({ bloco, prog, evTotal, tabId, hoje, emCartoes, de
   // eram exatamente o que a faixa escura estava sufocando.
   return (
     <div style={{
-      padding: '12px 18px',
+      padding: emCartoes ? '10px 12px' : '12px 18px',
       backgroundColor: T.bg,
       borderBottom: `1px solid ${N.n3}`,
       display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: emCartoes ? 'baseline' : 'center', columnGap: 10, rowGap: 2, minWidth: 0, flexWrap: emCartoes ? 'wrap' : 'nowrap' }}>
         {/* A ESTRELA LARANJA CHEIA SAIU, e a caixa alta do nome
             também. Uma estrela preenchida na cor de atenção antes
             de CADA bloco não distinguia evento nenhum — todos a
             tinham —, e o nome em versalete gritava mais alto que o
             prazo ao lado, que é o dado que decide a ordem. */}
-        <span title={bloco.eventName} style={{ color: T.text, fontFamily: FONT.display, fontWeight: 700, fontSize: FS.strong, letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span title={bloco.eventName} style={{ color: T.text, fontFamily: FONT.display, fontWeight: 700, fontSize: FS.strong, letterSpacing: '-0.02em', ...(emCartoes ? { overflowWrap: 'anywhere' } : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }) }}>
           {bloco.eventName}
         </span>
         {/* Quanto daquele evento já está resolvido NESTA fase. */}
         {faltando && (
-          <span style={{ fontSize: 11, fontWeight: 600, color: T.second, whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: fsToque(11, dedo), fontWeight: 600, color: T.second, whiteSpace: 'nowrap' }}>
             {faltando}
           </span>
         )}
@@ -74,7 +74,7 @@ export function FaixaDoEvento({ bloco, prog, evTotal, tabId, hoje, emCartoes, de
             data do evento e os outros dois marcos continuam a um
             passar de mouse, no `title` do marco. */}
         {!emCartoes && bloco.eventObj?.truckDepartureDate && (
-          <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: T.apoio, fontSize: 11, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: T.apoio, fontSize: fsToque(11, dedo), fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
             <Truck aria-hidden="true" style={{ width: 12, height: 12 }} />
             {/* Bloco do Kit: a data que manda é a entrega do material (15/09). */}
             {bloco.eventObj.datasDoKit
@@ -97,7 +97,7 @@ export function FaixaDoEvento({ bloco, prog, evTotal, tabId, hoje, emCartoes, de
           ].filter(Boolean).join(' · ');
           return (
             <Selo data-testid="marco-da-fase" title={`Marco desta fase. ${todos}`} cores={s}
-              style={{ padding: '3px 9px', fontWeight: 700 }}>
+              style={{ padding: '3px 9px', fontWeight: 700, ...(dedo ? { fontSize: 12 } : null) }}>
               {prazo.label} · {ds}{prazo.diff >= 0 && prazo.diff <= 14 && <span style={{ opacity: 0.8, fontWeight: 500 }}> ({prazo.diff}d)</span>}
             </Selo>
           );

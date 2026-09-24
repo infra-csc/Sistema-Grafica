@@ -109,7 +109,7 @@ export function PainelDoThumbDeAprovacao({
                   </>
                 ) : null}
                 {!approvalThumbPreview.startsWith('data:') && (
-                  <span title={approvalThumbPreview.split('/').pop() || undefined} style={{ fontSize: 11, color: T.apoio, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                  <span title={approvalThumbPreview.split('/').pop() || undefined} style={{ fontSize: isMobile ? 12 : 11, color: T.apoio, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
                     {approvalThumbPreview.split('/').pop()}
                   </span>
                 )}
@@ -127,7 +127,7 @@ export function PainelDoThumbDeAprovacao({
                 disabled={thumbEnviando || isPasteUploading}
                 accept="image/*"
                 buttonVariant="ghost"
-                buttonClassName="h-auto p-0 self-start text-[12px] font-semibold text-stone-700 underline underline-offset-2 hover:text-stone-900 hover:bg-transparent"
+                buttonClassName={`${dedo ? "min-h-[44px] px-0" : "h-auto p-0"} self-start text-[12px] font-semibold text-stone-700 underline underline-offset-2 hover:text-stone-900 hover:bg-transparent`}
               >
                 Trocar thumb
               </FileUploader>
@@ -269,7 +269,7 @@ export function PainelDoThumbDeAprovacao({
               {isPasteUploading ? 'Subindo a imagem…' : 'Suba o thumb para enviar'}
             </p>
             <p style={{ fontSize: 12, color: T.apoio, margin: 0 }}>
-              {isPasteUploading ? 'Aguarde o upload concluir' : <>Arraste aqui, escolha o arquivo ou cole com <kbd style={KBD}>Ctrl</kbd>+<kbd style={KBD}>V</kbd></>}
+              {isPasteUploading ? 'Aguarde o upload concluir' : isMobile ? 'Escolha a imagem no aparelho ou reaproveite uma arte já feita' : <>Arraste aqui, escolha o arquivo ou cole com <kbd style={KBD}>Ctrl</kbd>+<kbd style={KBD}>V</kbd></>}
             </p>
           </div>
           {!isPasteUploading && (
@@ -285,7 +285,7 @@ export function PainelDoThumbDeAprovacao({
               onFileSelect={iniciarEnvioDoThumb}
               accept="image/*"
               buttonVariant="ghost"
-              buttonClassName="mt-1 h-10 text-[13px] font-semibold bg-white text-stone-900 border border-stone-300 px-5 rounded-lg hover:bg-stone-50 hover:text-stone-900"
+              buttonClassName={`mt-1 ${dedo ? "h-11 min-h-[44px] text-[14px]" : "h-10 text-[13px]"} font-semibold bg-white text-stone-900 border border-stone-300 px-5 rounded-lg hover:bg-stone-50 hover:text-stone-900`}
             >
               Escolher arquivo
             </FileUploader>

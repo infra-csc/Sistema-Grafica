@@ -4,8 +4,9 @@
 //
 //   1. trocar o arquivo final depois da liberação devolve a peça à Revisão;
 //      com material produzido, 409; travada, 409 com o código da trava;
-//   2. trocar o thumb: recusado em aprovação e depois da liberação; depois
-//      da aprovação pede motivo e marca "trocada após aprovação";
+//   2. trocar o thumb: com o Atendimento (em aprovação) pede motivo e avisa o
+//      Atendimento (decisão do dono 24/09); recusado depois da liberação;
+//      depois da aprovação pede motivo e marca "trocada após aprovação";
 //   3. a Revisão pergunta o que fazer com a trava ao liberar;
 //   4. a Arte não libera nem devolve na Revisão (ARTE_DECIDE_NA_REVISAO);
 //   5. o molde devolvido mantém o thumb e diz que foi para a Arte;
@@ -52,7 +53,7 @@ import { registerItemRoutes } from "../routes/items";
 import { txDeMentira } from "./tx-de-mentira";
 import {
   regraDaTrocaDeArquivoFinal, regraDaTrocaDeThumb, ERRO_JA_PRODUZIDO, ARTE_DECIDE_NA_REVISAO, papelDecideNaRevisao,
-  MARCA_TROCA_APOS_APROVACAO, THUMB_APOS_APROVACAO,
+  MARCA_TROCA_APOS_APROVACAO, THUMB_APOS_APROVACAO, MARCA_TROCA_EM_APROVACAO, THUMB_EM_APROVACAO,
 } from "@shared/troca-de-material";
 import { CODIGO_PECA_TRAVADA } from "@shared/trava-da-peca";
 
@@ -199,12 +200,43 @@ describe("2 · trocar o thumb", () => {
   const THUMB_NOVO = "/objects/uploads/thumb-v2.png";
   const trocar = (body: any = {}) => chamar("PATCH /api/items/:id/update-thumb", { params: { id: "p1" }, body: { approvalThumbUrl: THUMB_NOVO, ...body }, userRole: "arte" });
 
-  it("em aprovação do patrocinador: 409, o thumb que o Atendimento mostra não muda", async () => {
+  // DECISÃO DO DONO (24/09): "pra gente não ter que ficar esperando alguém
+  // recusar se vier alguma alteração" — a Arte troca o thumb com a peça ainda
+  // com o Atendimento. Antes era 409 e a versão nova só entrava pela reprovação.
+  it("em aprovação do patrocinador: sem motivo é 400 — o thumb não muda", async () => {
+    expect(THUMB_EM_APROVACAO).toBe("motivo");
     mundo.itens.p1 = peca({ status: "awaiting_sponsor_approval" });
-    const r = await trocar({ motivo: "cor errada no logo do patrocinador" });
-    expect(r.status).toBe(409);
-    expect(r.body.error).toContain("aguardando o patrocinador");
+    const r = await trocar({ motivo: "curto" });
+    expect(r.status).toBe(400);
     expect(mundo.itens.p1.approvalThumbUrl).toBe("/objects/uploads/thumb-v1.png");
+  });
+
+  it("em aprovação, com motivo: troca, fica com o Atendimento, marca a versão e AVISA o Atendimento", async () => {
+    mundo.itens.p1 = peca({ status: "awaiting_sponsor_approval" });
+    const r = await trocar({ motivo: "patrocinador mandou o logo novo por e-mail" });
+    expect(r.status).toBe(200);
+    expect(mundo.itens.p1.approvalThumbUrl).toBe(THUMB_NOVO);
+    expect(mundo.itens.p1.status, "a peça segue com o Atendimento").toBe("awaiting_sponsor_approval");
+    expect(versoes[0]).toMatchObject({ origem: "troca", createdBy: `Maria (${MARCA_TROCA_EM_APROVACAO})` });
+    expect(trilha.some((t) => t.includes(MARCA_TROCA_EM_APROVACAO) && t.includes("logo novo por e-mail"))).toBe(true);
+    const aviso = notificacoes.find((n) => n.targetRoles.includes("atendimento"));
+    expect(aviso?.message).toContain("apresente a versão nova");
+    expect(aviso?.message).toContain("logo novo por e-mail");
+    expect(aviso?.type, "grupo 'Precisa de ação' do sino").toBe("itemRejected");
+  });
+
+  it("em aprovação: o desaprovador estrito que já tinha aprovado volta a aprovar (e o aviso diz quem)", async () => {
+    mundo.itens.p1 = peca({ status: "awaiting_sponsor_approval" });
+    const aprovacao = { id: "ap1", sponsorId: "s1", status: "approved" };
+    H.storage.getItemSponsors = vi.fn(async () => [{ sponsorId: "s1" }]);
+    H.storage.getItemSponsorApprovals = vi.fn(async () => [aprovacao]);
+    H.storage.getSponsor = vi.fn(async () => ({ id: "s1", name: "Banco Aurora", strictApproval: true }));
+    const mudancas: any[] = [];
+    H.storage.updateItemSponsorApproval = vi.fn(async (_id: string, d: any) => { mudancas.push(d); return { ...aprovacao, ...d }; });
+    const r = await trocar({ motivo: "patrocinador mandou o logo novo por e-mail" });
+    expect(r.status).toBe(200);
+    expect(mudancas[0]?.status).toBe("new_version_pending");
+    expect(notificacoes.find((n) => n.targetRoles.includes("atendimento"))?.message).toContain("Banco Aurora precisa aprovar de novo");
   });
 
   it("liberada em diante: 409", async () => {
@@ -245,6 +277,8 @@ describe("2 · trocar o thumb", () => {
   it("peça isenta de aprovação na Revisão: ninguém aprovou este thumb, não pede motivo", () => {
     expect(regraDaTrocaDeThumb(peca({ status: "awaiting_creator_review", skipApproval: true }))).toEqual({ pode: true, exigeMotivo: false });
     expect(regraDaTrocaDeThumb(peca({ status: "sponsor_approved" }))).toEqual({ pode: true, exigeMotivo: true });
+    // Com o Atendimento: pode, com motivo (a tela da Arte lê esta mesma regra).
+    expect(regraDaTrocaDeThumb(peca({ status: "awaiting_sponsor_approval" }))).toEqual({ pode: true, exigeMotivo: true });
   });
 });
 

@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { X } from "lucide-react";
 import { alvo } from "@/hooks/use-mobile";
 import { T, TOM, R } from "@/lib/theme";
-import { FILTROS_ESCONDIDOS, PARADA_HA_MAIS_DE, months } from "./constantes";
+import { FILTROS_ESCONDIDOS, PARADA_HA_MAIS_DE, fsToque, months } from "./constantes";
 import type { ActiveChip, EventoDaPeca, PatrocinadorDaPeca, PecaDaCorrecao } from "./tipos";
 import type { FiltrosDaArte } from "./use-filtros-da-arte";
 
@@ -101,25 +101,25 @@ export function ChipsAtivos({ activeChips, removeChipFilter, clearAllFilters, ma
     : activeChips;
   if (chipsVisiveis.length === 0) return null;
   return (
-    <div data-testid="linha-chips-ativos" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-      <span style={{ fontSize: 11, fontWeight: 700, color: T.apoio, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Ativos:</span>
+    <div data-testid="linha-chips-ativos" style={{ display: 'flex', alignItems: 'center', gap: dedo ? 8 : 6, marginBottom: 8, flexWrap: 'wrap' }}>
+      <span style={{ fontSize: fsToque(11, dedo), fontWeight: 700, color: T.apoio, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Ativos:</span>
       {chipsVisiveis.map(chip => (
-        <span key={`${chip.kind}-${chip.id ?? ''}`} data-testid={`chip-ativo-${chip.kind}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, padding: '0 2px 0 9px', minHeight: alvo(24, dedo), borderRadius: R.pill, background: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, fontSize: 11, fontWeight: 600, color: T.accentText }}>
+        <span key={`${chip.kind}-${chip.id ?? ''}`} data-testid={`chip-ativo-${chip.kind}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, padding: '0 2px 0 9px', minHeight: alvo(24, dedo), borderRadius: R.pill, background: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, fontSize: fsToque(11, dedo), fontWeight: 600, color: T.accentText }}>
           {chip.label}
           {/* O × tinha 9×9px de alvo. 22px de caixa (dentro do chip de
               24) passa o mínimo de 24 do WCAG 2.5.8 somado à borda;
               no celular o alvo vai a 44. */}
-          <button onClick={() => removeChipFilter(chip)} aria-label={`Remover filtro ${chip.label}`} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.accentText, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: dedo ? 40 : 22, height: dedo ? 40 : 22, borderRadius: R.pill, padding: 0 }}>
+          <button onClick={() => removeChipFilter(chip)} aria-label={`Remover filtro ${chip.label}`} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.accentText, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: dedo ? 44 : 22, height: dedo ? 44 : 22, borderRadius: R.pill, padding: 0 }}>
             <X aria-hidden="true" style={{ width: 10, height: 10 }} />
           </button>
         </span>
       ))}
-      <button onClick={clearAllFilters} data-testid="button-clear-filters" style={{ fontSize: 11, fontWeight: 600, color: T.apoio, background: 'none', border: `1px solid ${T.border}`, borderRadius: 999, cursor: 'pointer', padding: '0 10px', minHeight: alvo(24, dedo) }}>
+      <button onClick={clearAllFilters} data-testid="button-clear-filters" style={{ fontSize: fsToque(11, dedo), fontWeight: 600, color: T.apoio, background: 'none', border: `1px solid ${T.border}`, borderRadius: 999, cursor: 'pointer', padding: '0 10px', minHeight: alvo(24, dedo) }}>
         Limpar tudo
       </button>
       {/* O aviso só importa quando há recorte ativo — e aí ele mora
           aqui, na linha que mostra o recorte. */}
-      <span style={{ fontSize: 11, color: T.apoio }}>
+      <span style={{ fontSize: fsToque(11, dedo), color: T.apoio }}>
         as contagens das abas seguem este recorte
       </span>
     </div>

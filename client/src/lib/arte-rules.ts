@@ -690,6 +690,13 @@ export function mensagemDoUploadFalho(status: number, corpo: string): string {
 export function textoDaTrocaDoThumb(status: string | null | undefined, regra: RegraDoThumb): string {
   if (!regra.pode) return regra.motivo;
   if (!regra.exigeMotivo) return "Troca simples — o thumb anterior fica no histórico.";
+  // COM O ATENDIMENTO (dono, 24/09: "pra gente não ter que ficar esperando
+  // alguém recusar"): o patrocinador ainda não decidiu, então a troca não é
+  // "após aprovação" — é uma versão nova no meio da avaliação. Pede motivo e
+  // o Atendimento é avisado para apresentar a versão nova.
+  if (status === "awaiting_sponsor_approval") {
+    return "A peça está com o Atendimento: trocar pede um motivo, e o Atendimento será avisado para apresentar a versão nova ao patrocinador — quem aprova toda versão nova e já tinha aprovado volta a avaliar. O thumb anterior fica no histórico.";
+  }
   const base = "O patrocinador já aprovou este thumb: trocar pede um motivo e fica registrado como “trocada após aprovação”.";
   return status === "sponsor_approved"
     ? `${base} Ele não é chamado de novo — só quem aprova toda versão nova perde a aprovação, e a peça volta para ele.`

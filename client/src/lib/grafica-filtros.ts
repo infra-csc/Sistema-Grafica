@@ -18,7 +18,8 @@
 // (ctx.groupOf), porque ela depende do catálogo de Modelos carregado por query.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { isDelivered, isComplement, isInProd, reusedTotalOf, type SaldoItem } from "./saldo";
+import { isDelivered, isComplement, isInProd, reusedTotalOf, canConfer, type SaldoItem } from "./saldo";
+import { aEmbalar, embaladaDe, entregueDe, type PecaDaEmbalagem } from "@shared/embalagem";
 import { impressorasDaPeca, SEM_IMPRESSORA as SEM_IMPRESSORA_COMPARTILHADO } from "@shared/progresso-da-impressao";
 import { pecaTravada } from "@shared/trava-da-peca";
 import { statusParaContagem } from "@shared/molde";
@@ -348,6 +349,36 @@ export const casaStatus = (statusDoItem: string, escolhido: string): boolean =>
     : statusDoItem === escolhido;
 
 /**
+ * A ETAPA PARCIAL (relato de 24/09: "embalar parcial ou conferir parcial não
+ * está aparecendo no filtro do card da Gráfica"). Com a conferência parcial, a
+ * peça tem trabalho em DUAS etapas ao mesmo tempo: 6 de 10 impressas esperam a
+ * conferência enquanto as outras 4 ainda estão na máquina. O status diz só
+ * "Em Impressão", e o card "Impresso" — a fila de quem confere — não a
+ * mostrava. O mesmo um degrau abaixo: conferidas esperando embalagem com a
+ * peça ainda "Impresso", e volumes embalados esperando entrega com a peça
+ * ainda "Conferido".
+ *
+ * A etapa casa pelo STATUS (como antes) OU pelo SALDO que espera nela:
+ *   · Impresso   — há unidades impressas a conferir (`canConfer`);
+ *   · Conferidos — há conferidas a embalar (`aEmbalar`: o status tem de deixar
+ *                  embalar — peça ainda na máquina não embala, regra do servidor);
+ *   · Embalados  — há unidades embaladas que ainda não saíram na entrega.
+ * A peça aparece nos DOIS cards de propósito: cada card é a fila de uma mão.
+ * Cartão, clique e menu de status usam esta mesma função — o número bate com a lista.
+ */
+const FORA_DO_FLUXO = new Set(["canceled", "archived", "deleted"]);
+export function casaEtapa(item: SaldoItem, escolhido: string): boolean {
+  const peca = item as SaldoItem & { type?: string | null };
+  if (casaStatus(statusParaContagem(peca), escolhido)) return true;
+  if (FORA_DO_FLUXO.has(String(peca.status)) || isDelivered(peca)) return false;
+  const saldo = peca as PecaDaEmbalagem;
+  if (escolhido === "produced") return canConfer(peca);
+  if (escolhido === "conferred") return aEmbalar(saldo) > 0;
+  if (escolhido === "packed") return embaladaDe(saldo) > entregueDe(saldo);
+  return false;
+}
+
+/**
  * As entregues ficam ocultas por padrão — MAS não quando o operador PEDIU por
  * elas. São quatro pedidos, e os quatro são intenção explícita de ver aquilo:
  *   · o chip "mostrar" do rodapé (`entregues`);
@@ -403,7 +434,7 @@ export function itemCasaFiltros(
 
   if (!ignorarStatus && excluir !== "status") {
     // Molde produzido casa com "Entregues" — o card que o conta (shared/molde).
-    if (f.status.length > 0 && !f.status.some((s) => casaStatus(statusParaContagem(item as { type?: string | null; status?: string | null }), s))) return false;
+    if (f.status.length > 0 && !f.status.some((s) => casaEtapa(item as SaldoItem, s))) return false;
   }
   // A ocultação das entregues não é um filtro: é o padrão da tela, e ela CEDE
   // aos recortes que pedem pelas entregues (`escondeEntregues`). Por isso a

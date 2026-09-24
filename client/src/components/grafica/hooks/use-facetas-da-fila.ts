@@ -10,11 +10,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useMemo } from "react";
 import { getPriorityMeta, descricaoDoStatus } from "@/lib/status";
-import { statusParaContagem } from "@shared/molde";
 import { rotuloDaMaquina, MAQUINAS_DE_IMPRESSAO } from "@shared/fluxo-peca";
 import { recorteSoDaBusca, recorteSemABusca } from "@/components/grafica/recorte-da-busca";
 import {
-  itemCasaFiltros, itemPercursos, nomeDoMes, ordemPercurso, itemMes, itemImpressoras, SEM_IMPRESSORA,
+  itemCasaFiltros, casaEtapa, itemPercursos, nomeDoMes, ordemPercurso, itemMes, itemImpressoras, SEM_IMPRESSORA,
   type GraficaFiltros, type FacetaGrafica, type CtxFiltros,
 } from "@/lib/grafica-filtros";
 import type { PecaDaFila } from "@/components/grafica/tipos";
@@ -159,14 +158,13 @@ export function useFacetasDaFila({ items, filtros, ctxFiltros, groupOf }: {
     { value: "delivered",            label: "Entregues" },
   ] as const;
   const statusFilterOptions = useMemo(() => {
-    const conta = new Map<string, number>();
-    gFacetPool('status').forEach((i) => {
-      const s = statusParaContagem(i); // molde produzido = Entregues (shared/molde)
-      const chave = s === "pronto_para_producao" ? "ready_for_production"
-        : (s === "awaiting_review" || s === "in_review") ? "awaiting_final_review"
-        : s;
-      conta.set(chave, (conta.get(chave) ?? 0) + 1);
-    });
+    // `casaEtapa` é a régua do clique (lib/grafica-filtros): junta as grafias
+    // legadas, manda o molde produzido para Entregues e conta a peça PARCIAL
+    // também na etapa em que parte dela espera (impressas a conferir etc.).
+    const pool = gFacetPool('status');
+    const conta = new Map<string, number>(
+      STATUS_DA_FILA.map((s) => [s.value, pool.filter((i) => casaEtapa(i, s.value)).length] as const),
+    );
     // O status ESCOLHIDO fica na lista mesmo com zero peças: fora dela, o chip
     // do filtro mostrava a chave crua ("inProduction") em vez de "Em Impressão".
     return STATUS_DA_FILA

@@ -52,7 +52,8 @@ describe("aparece", () => {
 
   it("o filtro casa a família inteira, e a contagem soma igual — invariante da faceta", () => {
     expect(FILTROS).toContain('statusDoItem === "awaiting_final_review" || statusDoItem === "awaiting_review" || statusDoItem === "in_review"');
-    expect(GRAFICA).toContain(': (s === "awaiting_review" || s === "in_review") ? "awaiting_final_review"');
+    // A faceta de status conta com a MESMA régua do clique (casaEtapa → casaStatus).
+    expect(GRAFICA).toContain("casaEtapa(i, s.value)");
   });
 });
 

@@ -9,7 +9,7 @@ import { useEffect, useMemo, useRef, useState, startTransition } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getStatusLabel, seloPecaEventoFinalizado, todayBusinessMs } from "@/lib/status";
 import type { SeloPecaEventoFinalizado } from "@/lib/status";
-import { ehMolde, statusParaContagem } from "@shared/molde";
+import { ehMolde } from "@shared/molde";
 import { rotuloDaMaquina, podeIrParaTubo } from "@shared/fluxo-peca";
 import { eventoBarraImpressas } from "@shared/impressao-dividida";
 import { pecaTravada } from "@shared/trava-da-peca";
@@ -25,7 +25,7 @@ import { compareDisplayId } from "@/lib/displayId";
 import {
   FILTROS_VAZIOS, filtrosDaURL, filtrosParaQuery, itemCasaFiltros,
   contarFiltrosAtivos, temFiltroAtivo, descreverFiltros, nomeDoMes, escondeEntregues,
-  hojeEmUTC, normKey, SEM_IMPRESSORA, casaStatus,
+  hojeEmUTC, normKey, SEM_IMPRESSORA, casaEtapa,
   type GraficaFiltros,
 } from "@/lib/grafica-filtros";
 import type { ModeloDoCatalogo, PecaDaFila, RegistroDoHistorico } from "@/components/grafica/tipos";
@@ -291,14 +291,14 @@ export function useFilaDaGrafica() {
   // Memoizado: eram seis varreduras do pool a CADA render da página (cada tecla,
   // cada modal aberto, cada peça marcada no lote), sem o recorte ter mudado.
   // Mesmas seis perguntas, mesmas contagens.
-  // CONTA E FILTRO COM A MESMA LISTA: cada cartão conta com `casaStatus` — a
+  // CONTA E FILTRO COM A MESMA LISTA: cada cartão conta com `casaEtapa` — a
   // mesma régua que o filtro aplica ao clicar (lib/grafica-filtros). Antes a
   // conta era escrita à parte ("Em Revisão" contava 3 status e filtrava 1;
   // "Liberados" contava a grafia legada e não a filtrava) e o número do cartão
   // não batia com a lista que o clique abria. MOLDE: statusParaContagem manda
   // o produzido para Entregues.
   const stats = useMemo(() => {
-    const conta = (vals: readonly string[]) => statsPool.filter((i) => vals.some((v) => casaStatus(statusParaContagem(i), v))).length;
+    const conta = (vals: readonly string[]) => statsPool.filter((i) => vals.some((v) => casaEtapa(i, v))).length;
     return {
       revisao:    conta(FILTRO_DOS_CARTOES.revisao),
       liberados:  conta(FILTRO_DOS_CARTOES.liberados),

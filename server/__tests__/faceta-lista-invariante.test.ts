@@ -33,13 +33,16 @@ import { readFileSync } from "fs";
 import { resolve } from "path";
 import { lerTelaOuArquivo } from "./fonte-das-telas-da-arte";
 import {
-  FILTROS_VAZIOS, itemCasaFiltros, itemPercursos, itemMes, itemImpressoras, normKey, escondeEntregues,
+  FILTROS_VAZIOS, itemCasaFiltros, casaEtapa, itemPercursos, itemMes, itemImpressoras, normKey, escondeEntregues,
   type FacetaGrafica, type GraficaFiltros, type ItemGrafica, type CtxFiltros,
 } from "@/lib/grafica-filtros";
 import { normalizarBusca } from "@/lib/utils";
 import { seloPecaEventoFinalizado } from "@/lib/status";
 import { EVENT_CLOSED_STATUS } from "@shared/prazo-dates";
 import { fonteDaGrafica } from "./fonte-da-grafica";
+
+/** As etapas do menu de status da Gráfica (use-facetas-da-fila, STATUS_DA_FILA). */
+const ETAPAS_DO_MENU = ["awaiting_final_review", "ready_for_production", "approved", "inProduction", "produced", "conferred", "packed", "delivered"];
 
 // Arte, Revisão e Vinculação são lidas como a área inteira (página + pasta).
 const ler = (p: string) => lerTelaOuArquivo(p);
@@ -142,10 +145,9 @@ const CAMPO: Record<FacetaGrafica, keyof GraficaFiltros> = {
  */
 function valoresDaFaceta(faceta: FacetaGrafica, i: ItemGrafica): string[] {
   switch (faceta) {
-    case "status": {
-      const s = String(i.status ?? "");
-      return s ? [s === "pronto_para_producao" ? "ready_for_production" : s] : [];
-    }
+    // A peça parcial conta em MAIS de uma etapa (impressas a conferir contam em
+    // Impresso mesmo "Em Impressão") — `casaEtapa`, a régua do menu e do clique.
+    case "status":     return ETAPAS_DO_MENU.filter((e) => casaEtapa(i, e));
     case "evento":     return i.eventId ? [String(i.eventId)] : [];
     case "grupo":      { const g = ctx.groupOf(String(i.type ?? "")); return g ? [g] : []; }
     case "percurso":   return itemPercursos(i);

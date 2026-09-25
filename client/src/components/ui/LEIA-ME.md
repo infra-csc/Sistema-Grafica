@@ -436,10 +436,11 @@ props de `testId` existem. As linhas são aproximadas (as telas estão mudando).
 - `pages/event-detail.tsx`: botão claro no cabeçalho escuro (~2486) →
   `variante="claro"`; (~666) → `perigoSecundario`; (~2038) → `tom="sucesso"`;
   `<Link className="ds-botao">` (~1988) → `<BotaoLink>`.
-- `pages/solicitacao.tsx`: anterior/próxima no `trailing` escuro (~2565–2604) →
-  `claroFantasma`; perigo por `style` (~2025, 2949, 2963) → `perigoSecundario`;
-  verdes (~1826, 2004, 2911) → `tom="sucesso"`; (~3059) → `tom="alerta"`;
-  rodapés `T.bg` (~2859, ~3139) → `<ModalFooter fundo={T.bg}>`.
+- Revisão Final (`components/revisao/`, 25/09): anterior/próxima já são
+  `claroFantasma`, o Destravar e a lixeira do cartão já são `perigoSecundario`
+  e os botões de ícone da linha já são `<Botao>`. Restam os verdes do
+  reaproveitamento por `style` (o estado MARCADO pede fundo, que o `tom` do
+  secundário não pinta).
 - `pages/vincular-patrocinadores.tsx`: `<Selo cores={{ bg: "rgba(…)", … }}>` no
   `trailing` (~3205, ~3787) → `selo={<Selo cores={CORES_SOBRE_ESCURO}>}`;
   `<div data-testid="button-retry-items">` (~2191) → `testIdDoBotao`;
@@ -483,7 +484,7 @@ props de `testId` existem. As linhas são aproximadas (as telas estão mudando).
 - `onMouseEnter` trocando cor em `<button>` que ainda restam: `bulk-item-entry.tsx`,
   `filter-select.tsx`, `notification-bell.tsx`, `painel-geral.tsx` (~1037, ~1054),
   `eventos.tsx` (~2832), `event-detail.tsx` (~2005, 3780, 3801, 3814),
-  `solicitacao.tsx` (~2465), `logs-sistema.tsx` (~344, ~525),
+  `logs-sistema.tsx` (~344, ~525),
   `item-details-dialog.tsx` (~213, 218, 246, 1053) → `<Botao>`/`<BotaoLink>`.
 - `server/__tests__/grafica-celular.test.ts`: a exceção do `<Abas>` em
   `vizinhosColados` deixou de ser necessária (o vão agora é 8px) e pode sair.

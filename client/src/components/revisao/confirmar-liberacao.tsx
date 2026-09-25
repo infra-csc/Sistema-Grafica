@@ -14,11 +14,12 @@ import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogTit
 // classes do botão do shadcn, que brigariam com o <Botao> passado por asChild.
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 import { Botao } from "@/components/ui/botao";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { seloDaTrava } from "@shared/trava-da-peca";
 import type { propostaDaLiberacao } from "@shared/consultas-de-estoque";
 import { T, TOM } from "@/lib/theme";
-import { CORPO_DA_CONFIRMACAO, RODAPE_DA_CONFIRMACAO, TEXTO_DA_CONFIRMACAO } from "./estilos";
+import { TEXTO_DA_CONFIRMACAO, corpoDaConfirmacao, rodapeDaConfirmacao } from "./estilos";
 import { reaproveitamentoTotal } from "./regras";
 import type { PecaDaRevisao } from "./tipos";
 
@@ -46,6 +47,7 @@ export function ConfirmarLiberacao({
   botaoConfirmarRef: RefObject<HTMLButtonElement>;
   aoLiberar: (pedido: PedidoDeLiberacao) => void;
 }) {
+  const celular = useIsMobile();
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       {/* FOCO NO "LIBERAR", não no Cancelar (o padrão do Radix). Quem chega
@@ -63,9 +65,9 @@ export function ConfirmarLiberacao({
             o ID e o tipo da peça na descrição. Sem congelar, a frase inteira
             some antes do diálogo terminar de sair. */}
         <FreezeWhileClosing open={open}>
-        <ModalHeader variant="confirm" icon={Check} tint={T.text} title="Liberar para produção" onClose={() => onOpenChange(false)} />
+        <ModalHeader variant="confirm" compacto={celular} icon={Check} tint={T.text} title="Liberar para produção" onClose={() => onOpenChange(false)} />
         <AlertDialogTitle className="sr-only">Liberar para produção</AlertDialogTitle>
-        <div style={CORPO_DA_CONFIRMACAO}>
+        <div style={corpoDaConfirmacao(celular)}>
           <AlertDialogDescription asChild>
             <div style={TEXTO_DA_CONFIRMACAO}>
               {selectedItem && (
@@ -95,16 +97,16 @@ export function ConfirmarLiberacao({
             </div>
           </AlertDialogDescription>
         </div>
-        <div style={RODAPE_DA_CONFIRMACAO}>
+        <div style={rodapeDaConfirmacao(celular)}>
           <AlertDialogPrimitive.Cancel asChild>
-            <Botao variante="fantasma" tamanho={dedo ? "toque" : "md"} data-testid="button-release-cancel">Cancelar</Botao>
+            <Botao variante="fantasma" tamanho={dedo || celular ? "toque" : "md"} data-testid="button-release-cancel">Cancelar</Botao>
           </AlertDialogPrimitive.Cancel>
           {/* Travada: a segunda saída libera E destrava na mesma gravação. */}
           {fichaTravada && (
             <AlertDialogPrimitive.Action asChild>
               <Botao
                 variante="secundario"
-                tamanho={dedo ? "toque" : "md"}
+                tamanho={dedo || celular ? "toque" : "md"}
                 icone={Unlock}
                 onKeyDown={(e) => { if (e.repeat) e.preventDefault(); }}
                 onClick={() => selectedItem && aoLiberar({
@@ -123,7 +125,7 @@ export function ConfirmarLiberacao({
             <Botao
               ref={botaoConfirmarRef}
               variante="primario"
-              tamanho={dedo ? "toque" : "md"}
+              tamanho={dedo || celular ? "toque" : "md"}
               icone={Check}
               // Com o foco já no botão, o repeat de um Enter SEGURADO (o mesmo
               // aperto que abriu esta confirmação) ativaria o clique sozinho.

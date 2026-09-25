@@ -15,22 +15,31 @@
 // flexShrink: 0 — numa janela de 540px de altura, a comparação e os botões
 // estão visíveis sem rolar.
 //
+// NO CELULAR (revisão de 25/09) a casca muda em três pontos, todos para a
+// decisão caber na primeira dobra: o cabeçalho fica enxuto (sem o ladrilho do
+// ícone, título menor); a FILA (anterior · 3 de 12 · próxima) desce para uma
+// tira própria logo abaixo dele — no cabeçalho, com o X e os selos, o título
+// sobrava com ~90px e quebrava em quatro linhas; e LIBERAR e DEVOLVER moram
+// num RODAPÉ FIXO, com o recorte seguro embaixo — no corpo ficavam a ~700px
+// de rolagem.
+//
 // Tudo o que está dentro do FreezeWhileClosing recebe o que mostra por props
 // (nenhum filho chama hook de dado): congelado, o miolo fica exatamente como
 // estava no último render aberto.
 // ─────────────────────────────────────────────────────────────────────────────
-import { Fragment } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Eye } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { SeloKit } from "@/components/kit/selo-kit";
 import { Selo } from "@/components/ui/selo";
+import { Botao } from "@/components/ui/botao";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { alvo } from "@/hooks/use-mobile";
 import { T, N, FS, R, FONT } from "@/lib/theme";
 import { TI } from "./regras";
 import { FichaComparacao } from "./ficha-comparacao";
 import { FichaMetadados } from "./ficha-metadados";
-import { FichaDecisao } from "./ficha-decisao";
+import { BotoesDoRodape, FichaDecisao } from "./ficha-decisao";
 import type { FichaDecisaoProps } from "./ficha-decisao";
 import { FichaHistorico } from "./ficha-historico";
 import type { RegistroDoHistorico } from "./tipos";
@@ -52,8 +61,95 @@ export type ModalDeDecisaoProps = FichaDecisaoProps & Omit<PropsDaMetadados, "se
   itemAuditLogs: RegistroDoHistorico[];
 };
 
+/**
+ * ── A FILA: anterior · posição · próxima ──
+ * O trabalho é uma fila: sem isto, decidir fecha o modal e é preciso achar a
+ * próxima na tabela — que mudou entre uma e outra (a peça decidida saiu
+ * dela). No desktop mora no cabeçalho escuro (setas `claroFantasma`, as
+ * claras da casa para fundo escuro); no celular, numa tira clara logo abaixo
+ * dele, com as setas de 44px.
+ */
+function NavDaFila({ sobreEscuro, dedo, filaIdx, totalNaFila, temAnterior, temProxima, irParaFila }: {
+  sobreEscuro: boolean;
+  dedo: boolean;
+  filaIdx: number;
+  totalNaFila: number;
+  temAnterior: boolean;
+  temProxima: boolean;
+  irParaFila: (idx: number) => void;
+}) {
+  const lado = alvo(32, dedo || !sobreEscuro);
+  const seta = { width: lado, minWidth: lado, height: lado, minHeight: lado, padding: 0 };
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: sobreEscuro ? 2 : 6, flexShrink: 0 }}>
+      <Botao
+        variante={sobreEscuro ? "claroFantasma" : "secundario"}
+        icone={ChevronLeft}
+        tamanhoDoIcone={16}
+        onClick={() => irParaFila(filaIdx - 1)}
+        disabled={!temAnterior}
+        title="Peça anterior (←)"
+        aria-label="Peça anterior"
+        data-testid="button-modal-prev"
+        style={seta}
+      />
+      <span
+        data-testid="text-queue-position"
+        aria-live="polite"
+        style={{ fontFamily: FONT.mono, fontSize: sobreEscuro ? FS.meta : FS.body, fontWeight: 700, color: sobreEscuro ? "rgba(255,255,255,0.85)" : T.strong, padding: "0 6px", whiteSpace: "nowrap" }}
+      >
+        {filaIdx + 1} / {totalNaFila}
+      </span>
+      <Botao
+        variante={sobreEscuro ? "claroFantasma" : "secundario"}
+        icone={ChevronRight}
+        tamanhoDoIcone={16}
+        onClick={() => irParaFila(filaIdx + 1)}
+        disabled={!temProxima}
+        title="Próxima peça (→)"
+        aria-label="Próxima peça"
+        data-testid="button-modal-next"
+        style={seta}
+      />
+    </div>
+  );
+}
+
+/**
+ * A JANELA NÃO COMPORTA A FAIXA DE DECISÃO EM DUAS COLUNAS? Abaixo de 1200px o
+ * modal tem menos de ~1100 de largura, e a metade esquerda da faixa (onde
+ * moram "Liberar para produção", "Devolver para Arte" e "Reaproveitar", ~510px
+ * lado a lado) cortava os rótulos com reticência — a 768 e a 1024 (tablet,
+ * notebook) o Liberar saía "Liberar para pro…". Aí a faixa empilha: decisão
+ * em largura cheia, patrocinadores e histórico embaixo.
+ */
+const LARGURA_PARA_DUAS_COLUNAS = 1200;
+function useFaixaEmpilhada() {
+  const medir = () => typeof window !== "undefined" && window.innerWidth < LARGURA_PARA_DUAS_COLUNAS;
+  const [empilhada, setEmpilhada] = useState(medir);
+  useEffect(() => {
+    const aoMudar = () => setEmpilhada(medir());
+    window.addEventListener("resize", aoMudar);
+    return () => window.removeEventListener("resize", aoMudar);
+  }, []);
+  return empilhada;
+}
+
 export function ModalDeDecisao(p: ModalDeDecisaoProps) {
   const { open, isMobile, dedo, selectedItem, filaIdx, totalNaFila, temAnterior, temProxima, irParaFila } = p;
+  const empilhada = useFaixaEmpilhada() || isMobile;
+  const temFila = filaIdx >= 0 && totalNaFila > 1;
+  const nav = temFila ? (
+    <NavDaFila
+      sobreEscuro={!isMobile}
+      dedo={dedo}
+      filaIdx={filaIdx}
+      totalNaFila={totalNaFila}
+      temAnterior={temAnterior}
+      temProxima={temProxima}
+      irParaFila={irParaFila}
+    />
+  ) : null;
   return (
     <Dialog open={open} onOpenChange={p.onOpenChange}>
       {/* Casca da casa (`modalSurface`), com a ALTURA de tela de trabalho por
@@ -86,64 +182,39 @@ export function ModalDeDecisao(p: ModalDeDecisaoProps) {
             direita. O X é o do próprio ModalHeader. */}
         <ModalHeader
           variant="work"
-          icon={Eye}
+          icon={isMobile ? undefined : Eye}
           tint={T.accentText}
+          compacto={isMobile}
           title={`${selectedItem?.displayId ?? ""} · ${selectedItem?.type ?? ""}`}
           subtitle={p.subtitulo}
           onClose={p.aoFechar}
           trailing={
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
               {selectedItem && <SeloKit peca={selectedItem} style={{ flexShrink: 0 }} />}
-              {selectedItem?.isReuse && (
+              {/* No celular o selo sai: o aviso verde do corpo diz o mesmo, e
+                  aqui ele roubava a largura do título. */}
+              {selectedItem?.isReuse && !isMobile && (
                 <Selo tom="sucesso" tamanho="sm" style={{ flexShrink: 0 }}>Reaproveitamento</Selo>
               )}
-              {/* ── A FILA mora no cabeçalho, não no corpo ──
-                  O trabalho é uma fila: sem isto, decidir fecha o modal e é
-                  preciso achar a próxima na tabela — que mudou entre uma e
-                  outra (a peça decidida saiu dela). */}
-              {filaIdx >= 0 && totalNaFila > 1 && (
-                <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
-                  <button
-                    type="button"
-                    onClick={() => irParaFila(filaIdx - 1)}
-                    disabled={!temAnterior}
-                    title="Peça anterior (←)"
-                    aria-label="Peça anterior"
-                    data-testid="button-modal-prev"
-                    style={{ width: alvo(32, dedo), height: alvo(32, dedo), borderRadius: R.md, border: "1px solid rgba(255,255,255,0.22)", background: "transparent", color: temAnterior ? T.surface : "rgba(255,255,255,0.35)", cursor: temAnterior ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
-                  >
-                    <ChevronLeft style={{ width: 15, height: 15 }} />
-                  </button>
-                  <span
-                    data-testid="text-queue-position"
-                    aria-live="polite"
-                    style={{ fontFamily: FONT.mono, fontSize: FS.meta, fontWeight: 700, color: "rgba(255,255,255,0.85)", padding: "0 6px", whiteSpace: "nowrap" }}
-                  >
-                    {filaIdx + 1} / {totalNaFila}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => irParaFila(filaIdx + 1)}
-                    disabled={!temProxima}
-                    title="Próxima peça (→)"
-                    aria-label="Próxima peça"
-                    data-testid="button-modal-next"
-                    style={{ width: alvo(32, dedo), height: alvo(32, dedo), borderRadius: R.md, border: "1px solid rgba(255,255,255,0.22)", background: "transparent", color: temProxima ? T.surface : "rgba(255,255,255,0.35)", cursor: temProxima ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
-                  >
-                    <ChevronRight style={{ width: 15, height: 15 }} />
-                  </button>
-                </div>
-              )}
+              {!isMobile && nav}
             </div>
           }
         />
+
+        {/* A FILA NO CELULAR: uma tira clara, fora da rolagem. */}
+        {isMobile && nav && (
+          <div data-testid="fila-da-ficha-celular" style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "6px 12px", backgroundColor: T.surface, borderBottom: `1px solid ${T.border}` }}>
+            <span style={{ fontSize: FS.meta, fontWeight: 700, color: T.apoio }}>Peça da fila</span>
+            {nav}
+          </div>
+        )}
 
         {/* O CORPO ROLA. No desktop a conta das faixas foi feita para caber e
             a barra nem aparece; numa janela baixa, ou no celular, o excesso
             ROLA em vez de ser cortado em silêncio. O cabeçalho fica fora da
             rolagem, então a fila e o X continuam à mão. */}
-        <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column" }}>
-          <FichaComparacao selectedItem={selectedItem} isMobile={isMobile} />
+        <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", display: "flex", flexDirection: "column" }}>
+          <FichaComparacao selectedItem={selectedItem} isMobile={isMobile} dedo={dedo} />
 
           <FichaMetadados
             selectedItem={selectedItem}
@@ -167,13 +238,14 @@ export function ModalDeDecisao(p: ModalDeDecisaoProps) {
               abaixo; à direita patrocinadores e histórico. As duas colunas com
               teto de 32vh e rolagem própria — sem o teto elas crescem até a
               altura do conteúdo e o modal inteiro passa a rolar, deixando as
-              decisões fora de vista na abertura. Rótulos em caixa normal: em
-              maiúsculas espaçadas eles não cabiam lado a lado. */}
-          <div style={{ flexShrink: 0, borderTop: `1px solid ${T.border}`, backgroundColor: T.bg, padding: isMobile ? 12 : "14px 20px", display: "flex", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 12 : 24 }}>
-            <FichaDecisao {...p} />
+              decisões fora de vista na abertura. No celular os botões estão
+              no rodapé fixo e as colunas empilham sem teto (o corpo rola). */}
+          <div style={{ flexShrink: 0, borderTop: `1px solid ${T.border}`, backgroundColor: T.bg, padding: isMobile ? 12 : "14px 20px", display: "flex", flexDirection: empilhada ? "column" : "row", gap: isMobile ? 16 : empilhada ? 18 : 24 }}>
+            <FichaDecisao {...p} botoesNoRodape={isMobile} empilhado={empilhada} />
             <FichaHistorico
               selectedItem={selectedItem}
               isMobile={isMobile}
+              empilhado={empilhada}
               historicoCarregando={p.historicoCarregando}
               itemAuditLogs={p.itemAuditLogs}
             />
@@ -183,7 +255,7 @@ export function ModalDeDecisao(p: ModalDeDecisaoProps) {
               teclado físico e o rodapé roubava altura do modal. */}
           {!isMobile && (
             <div style={{ padding: "12px 20px", backgroundColor: T.bg, borderTop: `1px solid ${N.n3}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                 <span style={{ fontSize: FS.micro, fontWeight: 700, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.08em" }}>Atalhos:</span>
                 {([
                   // A confirmação abre com o foco no "Liberar": Enter de
@@ -202,6 +274,18 @@ export function ModalDeDecisao(p: ModalDeDecisaoProps) {
             </div>
           )}
         </div>
+
+        {/* ── RODAPÉ FIXO DA DECISÃO (celular) ──
+            Liberar e Devolver sempre à vista, na zona do polegar, com o recorte
+            seguro embaixo. LONGOS: o atalho com env() some no parser do jsdom. */}
+        {isMobile && (
+          <div
+            data-testid="rodape-da-decisao"
+            style={{ flexShrink: 0, paddingTop: 10, paddingLeft: 12, paddingRight: 12, paddingBottom: "calc(10px + env(safe-area-inset-bottom))", borderTop: `1px solid ${T.border}`, backgroundColor: T.surface, boxShadow: "0 -4px 16px rgba(28,25,23,0.06)" }}
+          >
+            <BotoesDoRodape {...p} />
+          </div>
+        )}
         </FreezeWhileClosing>
       </DialogContent>
     </Dialog>

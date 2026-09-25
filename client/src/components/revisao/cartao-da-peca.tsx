@@ -4,7 +4,7 @@
 // as ações chegam como funções estáveis (useCallback na página) e tudo o que
 // muda por peça chega já resolvido (selo, estoque, falha, desfazendo).
 import { memo } from "react";
-import { Check, Clock, Recycle, Trash2 } from "lucide-react";
+import { Check, ChevronRight, Clock, Recycle, Trash2 } from "lucide-react";
 import { SeloKit } from "@/components/kit/selo-kit";
 import { SeloPrazoMolde } from "@/components/prazo-do-molde";
 import { SeloDoEstoqueNaLinha } from "@/components/consulta-de-estoque/na-revisao";
@@ -16,7 +16,12 @@ import { motivoAcaoBloqueada } from "@/lib/status";
 import type { SeloPecaEventoFinalizado } from "@/lib/status";
 import { T, TOM, N, FS, R, FONT } from "@/lib/theme";
 import { FalhaNaLinha, SeloTravaNaLinha } from "./selos-da-linha";
+import { medidaDaPeca } from "./regras";
 import type { PecaDaRevisao } from "./tipos";
+import { DESLIGADO_LEGIVEL } from "./estilos";
+
+/** O Selo comum escreve em 11px; no cartão (a lista do celular) o piso é 12. */
+const LETRA_DO_SELO = { fontSize: FS.meta } as const;
 
 export interface CartaoDaPecaProps {
   item: PecaDaRevisao;
@@ -87,48 +92,65 @@ export const CartaoDaPeca = memo(function CartaoDaPeca({
           )}
           <SeloTravaNaLinha item={item} onde="cartao" agora={agora} />
         </div>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
-          <div style={{flex:1}}>
-            <span style={{fontSize:FS.body,fontWeight:700,color:T.text}}>{item.type}</span>
-            {item.description && <p style={{fontSize:FS.body,color:T.second,margin:"2px 0 0"}}>{item.description}</p>}
-          </div>
-          <span style={{fontSize:FS.micro,fontWeight:700,color:T.second,whiteSpace:"nowrap"}}>{item.quantity}×</span>
+        <div style={{minWidth:0}}>
+          <span style={{fontSize:FS.strong,fontWeight:700,color:T.text,overflowWrap:"anywhere"}}>{item.type}</span>
+          {item.description && <p style={{fontSize:FS.body,color:T.apoio,margin:"2px 0 0",overflowWrap:"anywhere"}}>{item.description}</p>}
+          {/* A MEDIDA, como na coluna "Qtd · Dim · m²" da tabela. Era só um
+              "2×" de 10px cinza à direita — ilegível no celular e sem a
+              dimensão, que é o que se confere contra o arquivo. */}
+          <p data-testid={`medida-cartao-${item.id}`} style={{fontFamily:FONT.mono,fontSize:FS.meta,color:T.apoio,margin:"4px 0 0"}}>{medidaDaPeca(item)}</p>
         </div>
         {/* O ARQUIVO FINAL também no cartão: na tabela ele tem coluna própria
             (decide se a peça é revisável); aqui só se descobriria abrindo a
-            ficha. */}
+            ficha. Letra de 12 (o Selo comum tem 11). */}
         <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
           {ehMolde(item) ? (
             <>
-              <Selo data-testid={`chip-arquivo-mobile-${item.id}`} title="Molde não tem arquivo final — libera só com o thumb" cores={{ bg: N.n2, border: T.bdark, text: T.strong }}>
+              <Selo data-testid={`chip-arquivo-mobile-${item.id}`} title="Molde não tem arquivo final — libera só com o thumb" cores={{ bg: N.n2, border: T.bdark, text: T.strong }} style={LETRA_DO_SELO}>
                 Molde · sem arquivo final
               </Selo>
               {/* Prazo do molde: só o fluxo do molde o lê. */}
               <SeloPrazoMolde item={item} hoje={new Date(agora)} />
             </>
           ) : item.finalFileUrl ? (
-            <Selo data-testid={`chip-arquivo-mobile-${item.id}`} tom="sucesso" icone={Check}>
+            <Selo data-testid={`chip-arquivo-mobile-${item.id}`} tom="sucesso" icone={Check} style={LETRA_DO_SELO}>
               Arquivo recebido
             </Selo>
           ) : (
-            <Selo data-testid={`chip-arquivo-mobile-${item.id}`} tom="laranja" icone={Clock}>
+            <Selo data-testid={`chip-arquivo-mobile-${item.id}`} tom="laranja" icone={Clock} style={LETRA_DO_SELO}>
               Aguardando arquivo
             </Selo>
           )}
-          {item.sponsors?.map((s)=><Selo key={s.id} forma="retangulo" cores={{ bg: N.n2, border: N.n2, text: T.apoio }}>{s.name}</Selo>)}
+          {item.sponsors?.map((s)=><Selo key={s.id} forma="retangulo" cores={{ bg: N.n2, border: N.n2, text: T.apoio }} style={LETRA_DO_SELO}>{s.name}</Selo>)}
         </div>
         <FalhaNaLinha itemId={item.id} falha={falha} />
       </div>
-      {/* REAPROVEITAR e EXCLUIR também no cartão — o que a tabela tem na
-          linha. Ficam FORA do alvo role="button" da revisão (interativo
-          aninhado em botão é estrutura inválida) e com os mesmos testids da
-          tabela: os dois layouts nunca coexistem. Excluir: mesmo gate de papel
-          da tabela (o DELETE trava "solicitacao" nesse status). Reaproveitar,
-          em evento finalizado, fica visível e travado, com o motivo escrito. */}
-      <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:4,flexWrap:"wrap",padding:"0 4px 4px",marginTop:-4}}>
+      {/* AS AÇÕES DO CARTÃO, numa linha previsível (o padrão da Gráfica):
+          REVISAR é a principal e vem primeiro, cheia — antes o cartão não
+          tinha botão nenhum dizendo o que fazer (só o toque no corpo, que
+          ninguém adivinha), e as duas ações à vista eram as secundárias.
+          Reaproveitar divide a linha; Excluir (só admin) é o ícone no fim.
+          Ficam FORA do alvo role="button" da revisão (interativo aninhado
+          em botão é estrutura inválida) e com os mesmos testids da tabela:
+          os dois layouts nunca coexistem. Excluir: mesmo gate de papel da
+          tabela (o DELETE trava "solicitacao" nesse status). Reaproveitar,
+          em evento finalizado, fica visível e travado, com o motivo escrito
+          no selo de evento finalizado acima. */}
+      <div style={{display:"flex",alignItems:"stretch",gap:8,padding:"0 12px 12px"}}>
         <Botao
-          variante="fantasma"
-          tamanho={dedo ? "toque" : "sm"}
+          variante="primario"
+          tamanho="toque"
+          onClick={() => aoAbrir(item)}
+          data-testid={`button-revisar-cartao-${item.id}`}
+          aria-label={`Revisar a peça ${item.displayId}`}
+          style={{ flex: "1 1 0%", minWidth: 0 }}
+        >
+          Revisar
+          <ChevronRight aria-hidden="true" style={{ width: 16, height: 16, marginLeft: 2 }} />
+        </Botao>
+        <Botao
+          variante="secundario"
+          tamanho="toque"
           icone={Recycle}
           onClick={() => {
             if (selo) return;
@@ -138,24 +160,27 @@ export const CartaoDaPeca = memo(function CartaoDaPeca({
           data-testid={`button-reuse-${item.id}`}
           aria-pressed={!!item.isReuse}
           title={selo ? motivoAcaoBloqueada(selo.motivo, "marcar reaproveitamento") : undefined}
-          // O verde é a identidade do reaproveitamento na tela.
-          style={{ color: TOM.sucesso.text, ...(item.isReuse ? { backgroundColor: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}` } : {}) }}
+          // O verde é a identidade do reaproveitamento na tela. Em evento
+          // finalizado, o cinza legível das decisões da ficha.
+          style={{ flex: "1 1 0%", minWidth: 0, whiteSpace: "normal", lineHeight: 1.15, textAlign: "center",
+            ...(selo ? DESLIGADO_LEGIVEL : item.isReuse
+              ? { color: TOM.sucesso.text, backgroundColor: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}` }
+              : { color: TOM.sucesso.text, border: `1px solid ${TOM.sucesso.border}` }) }}
         >
           {desfazendo ? "Desfazendo…" : item.isReuse ? "Reaproveitada · desfazer" : "Reaproveitar"}
         </Botao>
         {admin && (
           <Botao
-            variante="fantasma"
-            tamanho={dedo ? "toque" : "sm"}
+            variante="perigoSecundario"
+            tamanho="toque"
             icone={Trash2}
+            tamanhoDoIcone={16}
             onClick={() => aoExcluir(item.id)}
             data-testid={`button-delete-${item.id}`}
             title="Excluir peça"
             aria-label={`Excluir a peça ${item.displayId}`}
-            style={{ color: TOM.perigo.text }}
-          >
-            Excluir
-          </Botao>
+            style={{ flex: "0 0 44px", width: 44, padding: 0 }}
+          />
         )}
       </div>
     </div>

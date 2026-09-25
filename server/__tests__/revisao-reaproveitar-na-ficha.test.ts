@@ -71,9 +71,11 @@ describe("o botão da ficha", () => {
     // A colisão de rótulos já aconteceu uma vez nesta faixa; o terceiro botão
     // tem largura de conteúdo no desktop e vai para a linha de baixo no celular.
     expect(bloco).toContain('flex: isMobile ? "1 1 100%" : "0 0 auto", height: 48');
-    expect(FICHA).toContain('<div style={{ display: "flex", gap: 10, flexWrap: isMobile ? "wrap" : "nowrap" }}>');
+    // A fileira quebra também no desktop (25/09): sem espaço, o Reaproveitar
+    // desce de linha em vez de espremer Liberar e Devolver.
+    expect(FICHA).toContain('<div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>');
     // Os dois primeiros continuam com a receita deles, e só eles.
-    expect((REV.match(/flex: "1 1 0", minWidth: 0, height: 48,/g) ?? []).length).toBe(2);
+    expect((REV.match(/flex: "1 1 auto", minWidth: 0, height: 48,/g) ?? []).length).toBe(2);
   });
 });
 

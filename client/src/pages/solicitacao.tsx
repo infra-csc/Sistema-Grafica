@@ -17,6 +17,8 @@ import { useToast } from "@/hooks/use-toast";
 import { usePecaDoLink } from "@/hooks/use-peca-do-link";
 import { Botao } from "@/components/ui/botao";
 import { EstadoVazio, EstadoErro } from "@/components/ui/estados";
+import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
+import { EsqueletoDeFila } from "@/components/esqueleto-de-fila";
 import { useIsMobile, usePonteiroGrosso, alvo, densityFromWidth } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
 import { pecaTravada, podeTravar } from "@shared/trava-da-peca";
@@ -492,12 +494,16 @@ export default function Solicitacao() {
   }, [modalOpen, selectedItem, releaseConfirmOpen, returnConfirmOpen, travandoItem, desfazerReuseId, reuseDialogItemId, filaIdx, temAnterior, temProxima, seloSelecionado]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (itemsLoading || eventsLoading) {
-    // O giro sozinho não dizia O QUE carrega — numa fila que às vezes está
-    // vazia de verdade, "carregando ou vazio?" era pergunta de todo dia.
+    // A SILHUETA DA FILA (25/09), como na Arte e na Gráfica: o giro central
+    // colapsava a altura e, quando os dados chegavam, a lista EMPURRAVA a tela.
+    // O título já fica no lugar; a frase diz O QUE carrega — numa fila que às
+    // vezes está vazia de verdade, "carregando ou vazio?" era pergunta de todo dia.
     return (
-      <div role="status" style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center", justifyContent: "center", height: "100%" }}>
-        <div aria-hidden="true" className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: TI.accent }} />
-        <p style={{ margin: 0, fontSize: FS.body, color: T.apoio }}>Carregando a fila de revisão…</p>
+      <div style={{ backgroundColor: TI.bg, height: "100%", overflowY: "auto" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto", padding: isMobile ? "16px 12px" : "20px 32px" }}>
+          <CabecalhoDaPagina titulo="Revisão Final" subtitulo={<span style={{ color: T.apoio }}>Carregando a fila de revisão…</span>} />
+          <EsqueletoDeFila linhas={isMobile ? 5 : 8} rotulo="Carregando a fila de revisão…" />
+        </div>
       </div>
     );
   }
@@ -515,6 +521,9 @@ export default function Solicitacao() {
   }
 
   const admin = user?.role === "admin";
+  // UM "limpar filtros" para a barra e para o vazio — o do vazio esquecia o
+  // filtro do estoque e deixava a lista vazia com o botão já usado.
+  const limparFiltros = () => { setSearchTerm(""); setEventFilter([]); setItemTypeFilter([]); setSoSemArquivo(false); setSoEventoFinalizado(false); setFiltroEstoque(""); };
   // O que a ficha faz ao decidir reaproveitar de dentro dela: avança para a
   // próxima da fila, como Liberar e Devolver — ou fecha, se era a última.
   // Aberto pela linha (modal fechado), nada de mexer na fila.
@@ -559,15 +568,17 @@ export default function Solicitacao() {
         filtroEstoque={filtroEstoque}
         alternarFiltroEstoque={(alvoDoFiltro) => setFiltroEstoque(v => (v === alvoDoFiltro ? "" : alvoDoFiltro))}
         contagemDoEstoque={contagemDoEstoque}
-        limparFiltros={() => { setSearchTerm(""); setEventFilter([]); setItemTypeFilter([]); setSoSemArquivo(false); setSoEventoFinalizado(false); setFiltroEstoque(""); }}
+        limparFiltros={limparFiltros}
         totalFiltradas={filteredItems.length}
         totalNaFila={pendingItems.length}
         totalSelecionadas={selectedItemIds.size}
         toggleAll={toggleAll}
         totalDeEventoFinalizado={selosPorItem.size}
+        emTabela={!listaEmCartoes}
       >
         {selecaoLote.ids.length > 0 && (
           <BarraDoLote
+            isMobile={isMobile}
             dedo={dedo}
             alturaControle={alturaControle}
             selecaoLote={selecaoLote}
@@ -585,10 +596,12 @@ export default function Solicitacao() {
       </BarraDeFiltros>
 
       {/* A FILA: vazia, em cartões ou em tabela. */}
-      <section style={{ padding: isMobile ? "12px 12px" : listaEmCartoes ? "20px" : "32px", maxWidth: 1200, margin: "0 auto", paddingBottom: isMobile ? 20 : 80 }}>
+      <section style={{ padding: isMobile ? "12px 12px" : listaEmCartoes ? "20px" : "32px", maxWidth: 1200, margin: "0 auto", paddingBottom: isMobile ? (selecaoLote.ids.length > 0 ? 180 : 24) : 80 }}>
         {filteredItems.length === 0 ? (
           <EstadoVazio
             icone={pendingItems.length === 0 ? CheckCircle : Search}
+            // Tudo revisado é boa notícia: o ícone verde, como no vazio das outras filas.
+            tom={pendingItems.length === 0 ? "sucesso" : undefined}
             titulo={pendingItems.length === 0 ? "Tudo revisado!" : "Nenhuma peça neste recorte"}
             descricao={
               <>
@@ -609,7 +622,7 @@ export default function Solicitacao() {
               <Botao
                 variante="secundario"
                 tamanho={dedo ? "toque" : "md"}
-                onClick={() => { setSearchTerm(""); setEventFilter([]); setItemTypeFilter([]); setSoSemArquivo(false); setSoEventoFinalizado(false); }}
+                onClick={limparFiltros}
                 data-testid="button-clear-filters-empty"
               >
                 Limpar filtros
@@ -641,7 +654,6 @@ export default function Solicitacao() {
             setSelectedItemIds={setSelectedItemIds}
             toggleAll={toggleAll}
             totalFiltradas={filteredItems.length}
-            totalNaFila={pendingItems.length}
             typeToGroup={typeToGroup}
             seloDoItem={seloDoItem}
             estoquePorPeca={estoquePorPeca}

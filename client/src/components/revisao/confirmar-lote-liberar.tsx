@@ -5,10 +5,11 @@ import { Check } from "lucide-react";
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 import { Botao } from "@/components/ui/botao";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { resumoDoLoteComEstoque } from "@shared/consultas-de-estoque";
 import { T, TOM } from "@/lib/theme";
-import { CORPO_DA_CONFIRMACAO, RODAPE_DA_CONFIRMACAO, TEXTO_DA_CONFIRMACAO } from "./estilos";
+import { TEXTO_DA_CONFIRMACAO, corpoDaConfirmacao, rodapeDaConfirmacao } from "./estilos";
 import type { useFilaDaRevisao } from "./use-fila-da-revisao";
 
 type Fila = ReturnType<typeof useFilaDaRevisao>;
@@ -28,6 +29,7 @@ export function ConfirmarLoteLiberar({
   liberando: boolean;
   aoLiberar: () => void;
 }) {
+  const celular = useIsMobile();
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(470)}>
@@ -38,13 +40,14 @@ export function ConfirmarLoteLiberar({
         <FreezeWhileClosing open={open}>
         <ModalHeader
           variant="confirm"
+          compacto={celular}
           icon={Check}
           tint={T.text}
           title={`Liberar ${loteDeLiberar.prontas.length} ${loteDeLiberar.prontas.length === 1 ? "peça" : "peças"}`}
           onClose={() => onOpenChange(false)}
         />
         <AlertDialogTitle className="sr-only">Liberar {loteDeLiberar.prontas.length} {loteDeLiberar.prontas.length === 1 ? "peça" : "peças"}</AlertDialogTitle>
-        <div style={CORPO_DA_CONFIRMACAO}>
+        <div style={corpoDaConfirmacao(celular)}>
           <AlertDialogDescription asChild>
             <div style={TEXTO_DA_CONFIRMACAO}>
               {loteDeLiberar.prontas.length === 1 ? "A peça sai" : `As ${loteDeLiberar.prontas.length} peças saem`} da Revisão Final
@@ -83,14 +86,14 @@ export function ConfirmarLoteLiberar({
             </div>
           </AlertDialogDescription>
         </div>
-        <div style={RODAPE_DA_CONFIRMACAO}>
+        <div style={rodapeDaConfirmacao(celular)}>
           <AlertDialogPrimitive.Cancel asChild>
-            <Botao variante="fantasma" tamanho={dedo ? "toque" : "md"} data-testid="button-bulk-release-cancel">Cancelar</Botao>
+            <Botao variante="fantasma" tamanho={dedo || celular ? "toque" : "md"} data-testid="button-bulk-release-cancel">Cancelar</Botao>
           </AlertDialogPrimitive.Cancel>
           <AlertDialogPrimitive.Action asChild>
             <Botao
               variante="primario"
-              tamanho={dedo ? "toque" : "md"}
+              tamanho={dedo || celular ? "toque" : "md"}
               icone={Check}
               onClick={aoLiberar}
               disabled={liberando || loteDeLiberar.prontas.length === 0}

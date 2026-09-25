@@ -3,9 +3,10 @@ import { Trash2 } from "lucide-react";
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 import { Botao } from "@/components/ui/botao";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { TOM } from "@/lib/theme";
-import { CORPO_DA_CONFIRMACAO, RODAPE_DA_CONFIRMACAO, TEXTO_DA_CONFIRMACAO } from "./estilos";
+import { TEXTO_DA_CONFIRMACAO, corpoDaConfirmacao, rodapeDaConfirmacao } from "./estilos";
 import type { PecaDaRevisao } from "./tipos";
 
 export function ConfirmarExclusao({
@@ -18,6 +19,7 @@ export function ConfirmarExclusao({
   aoFechar: () => void;
   aoExcluir: (itemId: string) => void;
 }) {
+  const celular = useIsMobile();
   return (
     <AlertDialog open={!!itemId} onOpenChange={open => { if (!open) aoFechar(); }}>
       <AlertDialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(470)}>
@@ -26,9 +28,9 @@ export function ConfirmarExclusao({
             congelar, "A peça SOL-123 será excluída" cairia para o texto
             genérico durante a saída. */}
         <FreezeWhileClosing open={!!itemId}>
-        <ModalHeader variant="confirm" icon={Trash2} tint={TOM.perigo.text} title="Excluir peça" onClose={aoFechar} />
+        <ModalHeader variant="confirm" compacto={celular} icon={Trash2} tint={TOM.perigo.text} title="Excluir peça" onClose={aoFechar} />
         <AlertDialogTitle className="sr-only">Excluir peça</AlertDialogTitle>
-        <div style={CORPO_DA_CONFIRMACAO}>
+        <div style={corpoDaConfirmacao(celular)}>
           <AlertDialogDescription asChild>
             <div style={TEXTO_DA_CONFIRMACAO}>
               {itemId && (() => {
@@ -38,14 +40,14 @@ export function ConfirmarExclusao({
             </div>
           </AlertDialogDescription>
         </div>
-        <div style={RODAPE_DA_CONFIRMACAO}>
+        <div style={rodapeDaConfirmacao(celular)}>
           <AlertDialogPrimitive.Cancel asChild>
-            <Botao variante="fantasma" tamanho={dedo ? "toque" : "md"} data-testid="button-delete-cancel">Cancelar</Botao>
+            <Botao variante="fantasma" tamanho={dedo || celular ? "toque" : "md"} data-testid="button-delete-cancel">Cancelar</Botao>
           </AlertDialogPrimitive.Cancel>
           <AlertDialogPrimitive.Action asChild>
             <Botao
               variante="perigo"
-              tamanho={dedo ? "toque" : "md"}
+              tamanho={dedo || celular ? "toque" : "md"}
               icone={Trash2}
               onClick={(e) => {
                 e.preventDefault(); // a mutation controla o fechamento (mantém aberto em erro)

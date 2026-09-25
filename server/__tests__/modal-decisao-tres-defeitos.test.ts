@@ -54,8 +54,12 @@ describe("1 · os botões de decisão nunca se sobrepõem", () => {
   //        vivem numa faixa de LARGURA CHEIA, em caixa normal ("Liberar
   //        para produção" mede ~40% menos que o mesmo rótulo em maiúsculas
   //        com letterSpacing), fora de qualquer caixa escura.
-  it("cada botão divide a largura e pode encolher", () => {
-    expect((REV.match(/flex: "1 1 0", minWidth: 0, height: 48,/g) ?? []).length).toBe(2);
+  // 25/09 (conferido ao vivo a 1366px): com base 0 os três dividiam ~540px e
+  // "Liberar para produção" cortava em reticências. Base AUTO: cada um ocupa ao
+  // menos o próprio rótulo, e a fileira quebra (o Reaproveitar desce).
+  it("cada botão ocupa ao menos o próprio rótulo e a fileira quebra em vez de espremer", () => {
+    expect((REV.match(/flex: "1 1 auto", minWidth: 0, height: 48,/g) ?? []).length).toBe(2);
+    expect(REV).toContain('<div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>');
   });
 
   it("caixa normal e nowrap — o rótulo cabe em vez de ser contido", () => {
@@ -134,12 +138,17 @@ describe("4 · a tira de metadados não é cortada pela borda", () => {
     // Os cartões viraram blocos separados por filetes, numa faixa própria
     // de largura cheia com flexShrink: 0 — a segunda linha que nascia fora
     // da altura reservada não tem mais onde nascer.
-    expect(REV).toContain('flex: "1 1 0", minWidth: isMobile ? 76 : 0');
+    // No desktop, a linha de blocos que encolhem (o celular virou grade — ver abaixo).
+    expect(REV).toContain('flex: "1 1 0", minWidth: 0, padding: "2px 14px 2px "');
     expect(REV).toContain('title={String(value)}');
     expect(REV).toContain("borderLeft: i === 0 ? \"none\" : `1px solid ${T.border}`");
   });
 
-  it("no celular a tira rola em vez de esconder", () => {
-    expect(REV).toContain('overflowX: isMobile ? "auto" : "hidden"');
+  it("no celular a tira vira GRADE — nada fica escondido atrás de rolagem lateral", () => {
+    // Era `overflowX: isMobile ? "auto" : "hidden"`: a linha rolava na
+    // horizontal e o que ficava fora (m², Qtd, copiar caminho) não se via nem
+    // se sabia que existia. 25/09: três colunas que quebram em linhas.
+    expect(REV).toContain('gridTemplateColumns: "repeat(3, minmax(0, 1fr))"');
+    expect(REV).not.toContain('overflowX: isMobile ? "auto" : "hidden"');
   });
 });

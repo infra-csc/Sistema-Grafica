@@ -25,7 +25,8 @@ export function SeloTravaNaLinha({ item, onde, agora }: {
       tom="perigo"
       forma="retangulo"
       icone={Lock}
-      style={{ whiteSpace: "normal", overflowWrap: "anywhere", maxWidth: "100%", minWidth: 0, flexShrink: 1, lineHeight: 1.35 }}
+      // No cartão (a lista do celular) a letra sobe para 12: o Selo comum tem 11.
+      style={{ whiteSpace: "normal", overflowWrap: "anywhere", maxWidth: "100%", minWidth: 0, flexShrink: 1, lineHeight: 1.35, ...(onde === "cartao" ? { fontSize: FS.meta } : {}) }}
     >
       {seloDaTrava(item, agora)}
     </Selo>

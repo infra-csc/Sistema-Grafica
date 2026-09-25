@@ -4,9 +4,10 @@ import { RotateCcw } from "lucide-react";
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 import { Botao } from "@/components/ui/botao";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { T, N, FS, R } from "@/lib/theme";
-import { CAMPO_DO_MOTIVO, CORPO_DA_CONFIRMACAO, RODAPE_DA_CONFIRMACAO, TEXTO_DA_CONFIRMACAO } from "./estilos";
+import { CAMPO_DO_MOTIVO, TEXTO_DA_CONFIRMACAO, corpoDaConfirmacao, rodapeDaConfirmacao } from "./estilos";
 import { avisoMotivoCurto, motivoCurto } from "./regras";
 import { ContadorDoMotivo, SeletorDeDestino } from "./motivo-da-devolucao";
 import type { DestinoDaDevolucao } from "./tipos";
@@ -33,6 +34,7 @@ export function ConfirmarLoteDevolver({
   devolvendo: boolean;
   aoDevolver: () => void;
 }) {
+  const celular = useIsMobile();
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(470)}>
@@ -42,13 +44,14 @@ export function ConfirmarLoteDevolver({
         <FreezeWhileClosing open={open}>
         <ModalHeader
           variant="confirm"
+          compacto={celular}
           icon={RotateCcw}
           tint={T.text}
           title={`Devolver ${selecaoLote.vivas.length} ${selecaoLote.vivas.length === 1 ? "peça" : "peças"} para a Arte`}
           onClose={() => onOpenChange(false)}
         />
         <AlertDialogTitle className="sr-only">Devolver {selecaoLote.vivas.length} {selecaoLote.vivas.length === 1 ? "peça" : "peças"} para a Arte</AlertDialogTitle>
-        <div style={CORPO_DA_CONFIRMACAO}>
+        <div style={corpoDaConfirmacao(celular)}>
           <AlertDialogDescription asChild>
             <div style={{ ...TEXTO_DA_CONFIRMACAO, marginBottom: 12 }}>
               {selecaoLote.vivas.length === 1 ? "A peça sai" : `As ${selecaoLote.vivas.length} peças saem`} da Revisão Final e {selecaoLote.vivas.length === 1 ? "volta" : "voltam"} para a Arte, que é avisada com o motivo escrito abaixo.
@@ -78,14 +81,14 @@ export function ConfirmarLoteDevolver({
           />
           <ContadorDoMotivo texto={motivo} />
         </div>
-        <div style={RODAPE_DA_CONFIRMACAO}>
+        <div style={rodapeDaConfirmacao(celular)}>
           <AlertDialogPrimitive.Cancel asChild>
-            <Botao variante="fantasma" tamanho={dedo ? "toque" : "md"} data-testid="button-bulk-return-cancel">Cancelar</Botao>
+            <Botao variante="fantasma" tamanho={dedo || celular ? "toque" : "md"} data-testid="button-bulk-return-cancel">Cancelar</Botao>
           </AlertDialogPrimitive.Cancel>
           <AlertDialogPrimitive.Action asChild>
             <Botao
               variante="primario"
-              tamanho={dedo ? "toque" : "md"}
+              tamanho={dedo || celular ? "toque" : "md"}
               icone={RotateCcw}
               onClick={(e) => {
                 e.preventDefault(); // a mutation controla o fechamento (mantém aberto em erro)

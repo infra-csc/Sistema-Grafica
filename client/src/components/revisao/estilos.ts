@@ -29,3 +29,34 @@ export const CAMPO_DO_MOTIVO: CSSProperties = {
 export const DESLIGADO_LEGIVEL: CSSProperties = {
   backgroundColor: N.n2, color: T.second, border: `1px solid ${T.border}`, opacity: 1,
 };
+
+/**
+ * PISO DE 12px NO CELULAR (revisão de 25/09). A Revisão escrevia rótulos,
+ * contagens e selos em 10–11px — lidos a um braço de distância, no celular,
+ * somem. No desktop a densidade continua a de sempre. Mesma régua do
+ * `fsToque` da Arte, do `fsMin` da Gráfica e do `useLetraDaFicha`.
+ */
+export const letra = (n: number, celular: boolean) => (celular ? Math.max(12, n) : n);
+
+/**
+ * O rodapé das confirmações NO CELULAR: os botões em linha cheia, empilhados
+ * com a ação principal EM CIMA (column-reverse sobre a ordem Cancelar → ação)
+ * e o recorte seguro embaixo (home indicator). Em 360px a fileira da direita
+ * quebrava do jeito que desse: "Liberar mantendo a trava" caía sozinho numa
+ * linha, colado na borda, e o Cancelar ficava ao lado do "Liberar e
+ * destravar". LONGOS: o atalho `padding` com env() some no parser do jsdom.
+ */
+export function rodapeDaConfirmacao(celular: boolean): CSSProperties {
+  if (!celular) return RODAPE_DA_CONFIRMACAO;
+  return {
+    display: "flex", flexDirection: "column-reverse", alignItems: "stretch", gap: 8, flexShrink: 0,
+    paddingTop: 12, paddingLeft: 16, paddingRight: 16,
+    paddingBottom: "calc(12px + env(safe-area-inset-bottom))",
+    borderTop: `1px solid ${T.border}`,
+  };
+}
+
+/** O corpo da confirmação no celular: menos margem lateral (a largura é pouca). */
+export function corpoDaConfirmacao(celular: boolean): CSSProperties {
+  return celular ? { ...CORPO_DA_CONFIRMACAO, padding: "4px 16px 16px" } : CORPO_DA_CONFIRMACAO;
+}

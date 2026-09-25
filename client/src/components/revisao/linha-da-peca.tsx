@@ -18,6 +18,7 @@ import { motivoAcaoBloqueada } from "@/lib/status";
 import type { SeloPecaEventoFinalizado } from "@/lib/status";
 import { T, TOM, N, FS, R, FONT } from "@/lib/theme";
 import { TI, medidaDaPeca } from "./regras";
+import { DESLIGADO_LEGIVEL } from "./estilos";
 import { FalhaNaLinha, SeloTravaNaLinha } from "./selos-da-linha";
 import type { PecaDaRevisao } from "./tipos";
 
@@ -128,9 +129,10 @@ export const LinhaDaPeca = memo(function LinhaDaPeca({
               title="Ver a referência visual do solicitante"
               aria-label={`Referência visual de ${item.displayId}`}
               data-testid={`link-reference-solicitacao-${item.id}`}
-              style={{ display: "inline-flex", color: TOM.info.text, flexShrink: 0 }}
+              // Alvo de 24 no mouse e 44 no toque — era o ícone de 13px cru.
+              style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: alvo(24, dedo), minHeight: alvo(24, dedo), margin: dedo ? 0 : "-4px -2px", borderRadius: R.sm, color: TOM.info.text, flexShrink: 0 }}
             >
-              <Paperclip style={{ width: 13, height: 13 }} />
+              <Paperclip aria-hidden="true" style={{ width: 14, height: 14 }} />
             </a>
           )}
           {item.isReuse && (
@@ -200,9 +202,12 @@ export const LinhaDaPeca = memo(function LinhaDaPeca({
       <td onClick={e => e.stopPropagation()} style={{ padding: "12px 16px", textAlign: "right" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
           {/* Caixa normal: maiúsculas espaçadas repetidas em cada linha
-              gritavam mais que a peça. */}
+              gritavam mais que a peça. E secundário FORTE, não primário
+              (25/09): uma coluna de 30 botões pretos iguais competia com a
+              peça e com o "Revisar em fila" do topo — a principal da tela. A
+              linha inteira já abre a ficha; o botão é a porta explícita. */}
           <Botao
-            variante="primario"
+            variante="secundarioForte"
             tamanho={dedo ? "toque" : "sm"}
             onClick={() => aoAbrir(item)}
             data-testid={`button-review-${item.id}`}
@@ -210,8 +215,16 @@ export const LinhaDaPeca = memo(function LinhaDaPeca({
             Revisar
           </Botao>
           {/* Reaproveitamento passa por PATCH /api/items/:id (isReuse) e por
-              creator-review: as duas rotas são barradas em evento finalizado. */}
-          <button
+              creator-review: as duas rotas são barradas em evento finalizado.
+              <Botao> (e não <button> com onMouseEnter trocando a cor): o
+              hover e o foco por teclado vêm da classe da casa. O verde é a
+              identidade do reaproveitamento; em evento finalizado, o cinza
+              legível das decisões da ficha. */}
+          <Botao
+            variante="fantasma"
+            tamanho={dedo ? "toque" : "sm"}
+            icone={Recycle}
+            tamanhoDoIcone={15}
             onClick={() => {
               if (selo) return;
               // Marcada: desfazer pede confirmação. Não marcada: escolher total ou parcial.
@@ -220,53 +233,32 @@ export const LinhaDaPeca = memo(function LinhaDaPeca({
             disabled={!!selo || desfazendo}
             data-testid={`button-reuse-${item.id}`}
             aria-label={`Reaproveitamento de ${item.displayId}`}
+            aria-pressed={!!item.isReuse}
             title={selo
               ? motivoAcaoBloqueada(selo.motivo, "marcar reaproveitamento")
               : item.isReuse ? "Remover marcação de reaproveitamento" : "Marcar para reaproveitamento"}
             style={{
-              background: selo ? N.n2 : item.isReuse ? TOM.sucesso.bg : "none",
-              border: selo ? `1px solid ${T.border}` : item.isReuse ? `1px solid ${TOM.sucesso.border}` : "1px solid transparent",
-              cursor: selo ? "not-allowed" : "pointer",
-              color: selo ? T.second : item.isReuse ? TOM.sucesso.text : T.second,
-              padding: 6, minWidth: alvo(28, dedo), minHeight: alvo(28, dedo), justifyContent: "center",
-              display: "flex", alignItems: "center",
-              borderRadius: R.sm, transition: "all 0.15s",
+              width: alvo(32, dedo), padding: 0, flexShrink: 0,
+              ...(selo ? DESLIGADO_LEGIVEL
+                : item.isReuse ? { color: TOM.sucesso.text, backgroundColor: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}` }
+                : { color: TOM.sucesso.text }),
             }}
-            onMouseEnter={e => {
-              if (!selo && !item.isReuse) {
-                e.currentTarget.style.color = TOM.sucesso.text;
-                e.currentTarget.style.backgroundColor = TOM.sucesso.bg;
-              }
-            }}
-            onMouseLeave={e => {
-              if (!selo && !item.isReuse) {
-                e.currentTarget.style.color = T.second;
-                e.currentTarget.style.backgroundColor = "transparent";
-              }
-            }}
-          >
-            <Recycle style={{ width: 15, height: 15 }} />
-          </button>
+          />
           {/* Toda peça desta tela está em awaiting_final_review — status
               TRAVADO para "solicitacao" no DELETE do servidor. Mostrar a
               lixeira para esse perfil só rendia um 403. */}
           {admin && (
-            <button
+            <Botao
+              variante="fantasma"
+              tamanho={dedo ? "toque" : "sm"}
+              icone={Trash2}
+              tamanhoDoIcone={15}
               onClick={() => aoExcluir(item.id)}
               data-testid={`button-delete-${item.id}`}
               title="Excluir peça"
               aria-label={`Excluir a peça ${item.displayId}`}
-              style={{
-                background: "none", border: "none", cursor: "pointer",
-                color: T.second, padding: 6, minWidth: alvo(28, dedo), minHeight: alvo(28, dedo), justifyContent: "center",
-                display: "flex", alignItems: "center",
-                borderRadius: R.sm, transition: "color 0.15s",
-              }}
-              onMouseEnter={e => (e.currentTarget.style.color = TOM.perigo.dot)}
-              onMouseLeave={e => (e.currentTarget.style.color = T.second)}
-            >
-              <Trash2 style={{ width: 15, height: 15 }} />
-            </button>
+              style={{ width: alvo(32, dedo), padding: 0, flexShrink: 0, color: TOM.perigo.text }}
+            />
           )}
         </div>
       </td>

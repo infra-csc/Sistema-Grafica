@@ -11,6 +11,7 @@ import { Botao } from "@/components/ui/botao";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { AplicarAgoraNoModal, PedirAoEstoque } from "@/components/consulta-de-estoque/na-revisao";
 import { alvo } from "@/hooks/use-mobile";
+import { letra, rodapeDaConfirmacao } from "./estilos";
 import { arquivoFinalOk } from "@shared/molde";
 import { SOLICITACAO_AO_ESTOQUE_ATIVA } from "@shared/consultas-de-estoque";
 import { T, TOM, FS, R } from "@/lib/theme";
@@ -54,6 +55,7 @@ export function DialogoReaproveitamento({
               </DialogDescription>
               <ModalHeader
                 variant="confirm"
+                compacto={isMobile}
                 icon={Recycle}
                 tint={TOM.sucesso.text}
                 title="Reaproveitamento"
@@ -63,7 +65,7 @@ export function DialogoReaproveitamento({
               {/* O corpo rola: o `modalSurface` traz teto COM `overflow:
                   hidden`, e a segunda opção só aparece quando a quantidade é
                   maior que 1 — o corpo é elástico. */}
-              <div style={{ padding: "20px 24px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
+              <div style={{ padding: isMobile ? "14px 16px 16px" : "20px 24px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
 
                 {/* PEDIR AO ESTOQUE: com a chave LIGADA, confirmar aqui não
                     aplica o reaproveitamento na hora — vira uma solicitação para
@@ -82,7 +84,7 @@ export function DialogoReaproveitamento({
                   {/* Opção: reaproveitar tudo — a ação principal deste modal. */}
                   <Botao
                     variante="primario"
-                    tamanho={dedo ? "toque" : "md"}
+                    tamanho={dedo || isMobile ? "toque" : "md"}
                     larguraCheia
                     icone={Recycle}
                     onClick={() => aoReaproveitarTudo(dialogItem)}
@@ -95,7 +97,7 @@ export function DialogoReaproveitamento({
                   {/* Opção: reaproveitar parcialmente (só aparece se qty > 1) */}
                   {qty > 1 && (
                     <div style={{ border: `1px solid ${T.border}`, borderRadius: R.md, padding: "14px 16px" }}>
-                      <p style={{ margin: "0 0 10px", fontSize: FS.small, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                      <p style={{ margin: "0 0 10px", fontSize: letra(FS.small, isMobile), fontWeight: 700, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                         Reaproveitar parcialmente
                       </p>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
@@ -107,11 +109,11 @@ export function DialogoReaproveitamento({
                           onChange={e => setPartialReuseQty(Math.max(1, Math.min(qty - 1, parseInt(e.target.value) || 1)))}
                           aria-label="Unidades reaproveitadas"
                           data-testid="input-partial-reuse-qty"
-                          style={{ width: 64, height: alvo(34, dedo), padding: "0 8px", borderRadius: R.sm, border: `1px solid ${T.bdark}`, fontSize: dedo || isMobile ? FS.lead : FS.strong, fontWeight: 700, textAlign: "center" }}
+                          style={{ width: 64, height: alvo(34, dedo || isMobile), padding: "0 8px", borderRadius: R.sm, border: `1px solid ${T.bdark}`, fontSize: dedo || isMobile ? FS.lead : FS.strong, fontWeight: 700, textAlign: "center" }}
                         />
                         <span style={{ fontSize: FS.body, color: T.second }}>de {qty} un. reaproveitadas</span>
                       </div>
-                      <p style={{ margin: "0 0 10px", fontSize: FS.small, color: T.second }}>
+                      <p style={{ margin: "0 0 10px", fontSize: letra(FS.small, isMobile), color: T.apoio }}>
                         As outras <strong>{qty - partialReuseQty}</strong> un. seguirão para produção normal.
                       </p>
                       {/* O parcial LIBERA o restante para produção — e produção
@@ -124,7 +126,7 @@ export function DialogoReaproveitamento({
                       )}
                       <Botao
                         variante="secundario"
-                        tamanho={dedo ? "toque" : "md"}
+                        tamanho={dedo || isMobile ? "toque" : "md"}
                         larguraCheia
                         carregando={salvandoParte}
                         onClick={() => {
@@ -139,12 +141,16 @@ export function DialogoReaproveitamento({
                   )}
                 </AplicarAgoraNoModal>
 
+              </div>
+              {/* Cancelar no rodapé, como nas outras confirmações da tela (e
+                  com o recorte seguro no celular) — no fim do corpo ele rolava
+                  junto e, com o parcial aberto, sumia abaixo da dobra. */}
+              <div style={rodapeDaConfirmacao(isMobile)}>
                 <Botao
                   variante="fantasma"
-                  tamanho={dedo ? "toque" : "md"}
-                  larguraCheia
+                  tamanho={dedo || isMobile ? "toque" : "md"}
                   onClick={aoFechar}
-                  style={{ marginTop: 12 }}
+                  data-testid="button-reuse-dialog-cancel"
                 >
                   Cancelar
                 </Botao>

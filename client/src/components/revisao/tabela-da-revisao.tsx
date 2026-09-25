@@ -7,13 +7,12 @@ import type { Dispatch, SetStateAction } from "react";
 import type { EstoqueDaLinha } from "@/components/consulta-de-estoque/na-revisao";
 import type { SeloPecaEventoFinalizado } from "@/lib/status";
 import { T, FS, R } from "@/lib/theme";
-import { TI } from "./regras";
 import { CabecalhoDoEvento } from "./cabecalho-do-evento";
 import { LinhaDaPeca } from "./linha-da-peca";
 import type { EventoDaPeca, PecaDaRevisao } from "./tipos";
 
 export function TabelaDaRevisao({
-  itemsByEvent, getEventInfo, selectedItemIds, setSelectedItemIds, toggleAll, totalFiltradas, totalNaFila,
+  itemsByEvent, getEventInfo, selectedItemIds, setSelectedItemIds, toggleAll, totalFiltradas,
   typeToGroup, seloDoItem, estoquePorPeca, falhasPorId, desfazendoReuse, compacto, colunasDeDados,
   dedo, admin, agora, aoAbrir, aoMarcar, aoReaproveitar, aoExcluir,
 }: {
@@ -23,7 +22,6 @@ export function TabelaDaRevisao({
   setSelectedItemIds: Dispatch<SetStateAction<Set<string>>>;
   toggleAll: () => void;
   totalFiltradas: number;
-  totalNaFila: number;
   typeToGroup: Record<string, string>;
   seloDoItem: (item: PecaDaRevisao) => SeloPecaEventoFinalizado | null;
   estoquePorPeca: Map<string, EstoqueDaLinha>;
@@ -148,18 +146,10 @@ export function TabelaDaRevisao({
         </tbody>
       </table>
 
-      {/* Rodapé da tabela: só a contagem. As ações de lote moram na barra
-          fixa — uma cópia delas aqui contava a seleção crua em vez das peças
-          que de fato vão. */}
-      <div style={{
-        backgroundColor: T.bg, padding: "12px 24px",
-        borderTop: `1px solid ${T.border}`,
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-      }}>
-        <span style={{ fontSize: FS.micro, fontWeight: 700, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-          Mostrando {totalFiltradas} de {totalNaFila} {totalNaFila !== 1 ? "peças aguardando revisão" : "peça aguardando revisão"}
-        </span>
-      </div>
+      {/* SEM RODAPÉ DE CONTAGEM (25/09): "Mostrando 12 de 30 peças
+          aguardando revisão" repetia, em 10px, o contador único da barra de
+          filtros — que é fixa e está sempre à vista. As ações de lote também
+          moram lá. */}
     </div>
   );
 }

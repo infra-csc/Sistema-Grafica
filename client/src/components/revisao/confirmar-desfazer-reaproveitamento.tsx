@@ -4,9 +4,10 @@ import { Recycle } from "lucide-react";
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 import { Botao } from "@/components/ui/botao";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { T } from "@/lib/theme";
-import { CORPO_DA_CONFIRMACAO, RODAPE_DA_CONFIRMACAO, TEXTO_DA_CONFIRMACAO } from "./estilos";
+import { TEXTO_DA_CONFIRMACAO, corpoDaConfirmacao, rodapeDaConfirmacao } from "./estilos";
 import type { PecaDaRevisao } from "./tipos";
 
 export function ConfirmarDesfazerReaproveitamento({
@@ -19,19 +20,21 @@ export function ConfirmarDesfazerReaproveitamento({
   aoFechar: () => void;
   aoDesfazer: (itemId: string) => void;
 }) {
+  const celular = useIsMobile();
   return (
     <AlertDialog open={!!itemId} onOpenChange={open => { if (!open && !desfazendo) aoFechar(); }}>
       <AlertDialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(470)}>
         <FreezeWhileClosing open={!!itemId}>
         <ModalHeader
           variant="confirm"
+          compacto={celular}
           icon={Recycle}
           tint={T.text}
           title="Desfazer o reaproveitamento"
           onClose={() => { if (!desfazendo) aoFechar(); }}
         />
         <AlertDialogTitle className="sr-only">Desfazer o reaproveitamento</AlertDialogTitle>
-        <div style={CORPO_DA_CONFIRMACAO}>
+        <div style={corpoDaConfirmacao(celular)}>
           <AlertDialogDescription asChild>
             <div style={TEXTO_DA_CONFIRMACAO}>
               {(() => {
@@ -45,14 +48,14 @@ export function ConfirmarDesfazerReaproveitamento({
             </div>
           </AlertDialogDescription>
         </div>
-        <div style={RODAPE_DA_CONFIRMACAO}>
+        <div style={rodapeDaConfirmacao(celular)}>
           <AlertDialogPrimitive.Cancel asChild>
-            <Botao variante="fantasma" tamanho={dedo ? "toque" : "md"} data-testid="button-desfazer-reuse-cancel" disabled={desfazendo}>Manter reaproveitada</Botao>
+            <Botao variante="fantasma" tamanho={dedo || celular ? "toque" : "md"} data-testid="button-desfazer-reuse-cancel" disabled={desfazendo}>Manter reaproveitada</Botao>
           </AlertDialogPrimitive.Cancel>
           <AlertDialogPrimitive.Action asChild>
             <Botao
               variante="primario"
-              tamanho={dedo ? "toque" : "md"}
+              tamanho={dedo || celular ? "toque" : "md"}
               onClick={(e) => {
                 e.preventDefault(); // a mutation fecha (mantém aberto em erro)
                 if (itemId) aoDesfazer(itemId);

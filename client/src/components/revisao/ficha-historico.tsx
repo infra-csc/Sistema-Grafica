@@ -7,6 +7,7 @@ import { EstadoVazio } from "@/components/ui/estados";
 import { STATUS, getStatusMeta } from "@/lib/status";
 import { T, TOM, N, FS, R, FONT } from "@/lib/theme";
 import { TI } from "./regras";
+import { letra } from "./estilos";
 import type { PecaDaRevisao, RegistroDoHistorico } from "./tipos";
 
 // Ações de log que correspondem a status do vocabulário herdam rótulo e cor
@@ -38,22 +39,26 @@ export function getLogCfg(log: Pick<RegistroDoHistorico, "action" | "details"> |
   return { label: action ? "Alteração na peça" : (log?.details || "Alteração na peça"), dot: T.muted, text: T.second };
 }
 
-export function FichaHistorico({ selectedItem, isMobile, historicoCarregando, itemAuditLogs }: {
+export function FichaHistorico({ selectedItem, isMobile, empilhado = isMobile, historicoCarregando, itemAuditLogs }: {
   selectedItem: PecaDaRevisao | null;
   isMobile: boolean;
+  /** A faixa de decisão está empilhada (celular e tablet): sem base zero. */
+  empilhado?: boolean;
   historicoCarregando: boolean;
   itemAuditLogs: RegistroDoHistorico[];
 }) {
   return (
-    <div style={{ flex: "1 1 0", minWidth: 0, minHeight: 0, maxHeight: isMobile ? "26vh" : "32vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 14 }}>
+    // No celular sem teto nem rolagem própria: o corpo da ficha já rola, e uma
+    // caixa rolando dentro de outra prendia o dedo.
+    <div style={{ flex: empilhado ? undefined : "1 1 0", minWidth: 0, minHeight: 0, maxHeight: isMobile ? undefined : "32vh", overflowY: isMobile ? undefined : "auto", display: "flex", flexDirection: "column", gap: 14 }}>
       {(selectedItem?.sponsors?.length ?? 0) > 0 && (
         <div>
-          <h3 style={{ fontSize: FS.small, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: TI.secondary, paddingBottom: 8, borderBottom: `1px solid ${N.n3}`, margin: "0 0 10px" }}>
+          <h3 style={{ fontSize: letra(FS.small, isMobile), fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: TI.secondary, paddingBottom: 8, borderBottom: `1px solid ${N.n3}`, margin: "0 0 10px" }}>
             Patrocinadores da peça
           </h3>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {selectedItem?.sponsors?.map((s) => (
-              <Selo key={s.id} cores={{ bg: N.n2, border: T.border, text: TI.secondary }}>
+              <Selo key={s.id} cores={{ bg: N.n2, border: T.border, text: TI.secondary }} style={{ fontSize: letra(FS.small, isMobile) }}>
                 {s.name}
               </Selo>
             ))}
@@ -62,7 +67,7 @@ export function FichaHistorico({ selectedItem, isMobile, historicoCarregando, it
       )}
 
       <div>
-        <h3 style={{ fontSize: FS.small, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: TI.secondary, paddingBottom: 8, borderBottom: `1px solid ${N.n3}`, margin: "0 0 14px" }}>
+        <h3 style={{ fontSize: letra(FS.small, isMobile), fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: TI.secondary, paddingBottom: 8, borderBottom: `1px solid ${N.n3}`, margin: "0 0 14px" }}>
           Histórico
         </h3>
         {historicoCarregando ? (
@@ -85,14 +90,14 @@ export function FichaHistorico({ selectedItem, isMobile, historicoCarregando, it
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                       <div>
                         <p style={{ fontSize: FS.body, fontWeight: 700, color: cfg.text, margin: 0 }}>{cfg.label}</p>
-                        {log.userName && <p style={{ fontSize: FS.micro, color: TI.secondary, margin: "2px 0 0" }}>{log.userName}</p>}
+                        {log.userName && <p style={{ fontSize: letra(FS.micro, isMobile), color: TI.secondary, margin: "2px 0 0" }}>{log.userName}</p>}
                         {log.details && log.action && (
-                          <p style={{ fontSize: FS.small, fontStyle: "italic", color: TI.secondary, backgroundColor: T.low, padding: "6px 8px", borderRadius: R.sm, margin: "6px 0 0" }}>
+                          <p style={{ fontSize: letra(FS.small, isMobile), fontStyle: "italic", color: TI.secondary, backgroundColor: T.low, padding: "6px 8px", borderRadius: R.sm, margin: "6px 0 0" }}>
                             "{log.details}"
                           </p>
                         )}
                       </div>
-                      <span style={{ fontSize: FS.micro, fontWeight: 700, color: T.second, whiteSpace: "nowrap", fontFamily: FONT.mono }}>
+                      <span style={{ fontSize: letra(FS.micro, isMobile), fontWeight: 700, color: T.second, whiteSpace: "nowrap", fontFamily: FONT.mono }}>
                         {log.createdAt ? new Date(log.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}
                       </span>
                     </div>

@@ -1,6 +1,8 @@
 // As duas peças que as duas devoluções (da ficha e em lote) compartilham: a
 // escolha de PARA ONDE a peça volta e o contador do motivo.
+import { useIsMobile } from "@/hooks/use-mobile";
 import { T, TOM, FS, R } from "@/lib/theme";
+import { letra } from "./estilos";
 import { MOTIVO_MIN } from "./regras";
 import type { DestinoDaDevolucao } from "./tipos";
 
@@ -22,9 +24,10 @@ export function SeletorDeDestino({ destino, aoEscolher }: {
   destino: DestinoDaDevolucao;
   aoEscolher: (d: DestinoDaDevolucao) => void;
 }) {
+  const celular = useIsMobile();
   return (
     <div style={{ marginBottom: 12 }}>
-      <p style={{ margin: "0 0 6px", fontSize: FS.small, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: T.apoio }}>
+      <p style={{ margin: "0 0 6px", fontSize: letra(FS.small, celular), fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: T.apoio }}>
         O que a Arte precisa refazer?
       </p>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -38,7 +41,7 @@ export function SeletorDeDestino({ destino, aoEscolher }: {
               aria-pressed={ativo}
               data-testid={`destino-${op.valor}`}
               style={{
-                textAlign: "left", cursor: "pointer", borderRadius: R.md, padding: "9px 11px",
+                textAlign: "left", cursor: "pointer", borderRadius: R.md, padding: "9px 11px", minHeight: 44, width: "100%",
                 border: `1.5px solid ${ativo ? T.accentText : T.border}`,
                 background: ativo ? TOM.laranja.bg : T.surface,
                 display: "flex", gap: 9, alignItems: "flex-start", font: "inherit",
@@ -55,7 +58,7 @@ export function SeletorDeDestino({ destino, aoEscolher }: {
                 <span style={{ display: "block", fontSize: FS.body, fontWeight: 700, color: ativo ? T.accentText : T.text }}>
                   {op.titulo}
                 </span>
-                <span style={{ display: "block", fontSize: FS.small, color: T.apoio, lineHeight: 1.4, marginTop: 1 }}>
+                <span style={{ display: "block", fontSize: letra(FS.small, celular), color: T.apoio, lineHeight: 1.4, marginTop: 1 }}>
                   {op.desc}
                 </span>
               </span>

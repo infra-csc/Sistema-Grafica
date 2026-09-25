@@ -106,9 +106,13 @@ export function useConfirmar() {
                 então este fica só para o leitor de tela. */}
             <AlertDialogTitle className="sr-only">{p.titulo}</AlertDialogTitle>
 
+            {/* O CORPO ROLA (25/09): o `modalSurface` tem teto de altura com
+                overflow hidden — uma descrição longa numa janela baixa (tablet
+                deitado, celular com o teclado aberto) empurrava o rodapé, e o
+                botão de confirmar sumia sem barra de rolagem. */}
             {p.descricao ? (
               <AlertDialogDescription asChild>
-                <div style={{ padding: "4px 24px 18px", fontSize: FS.body, lineHeight: 1.55, color: T.apoio }}>
+                <div style={{ padding: "4px 24px 18px", fontSize: FS.body, lineHeight: 1.55, color: T.apoio, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
                   {p.descricao}
                 </div>
               </AlertDialogDescription>
@@ -118,8 +122,11 @@ export function useConfirmar() {
 
             <div
               style={{
-                display: "flex", justifyContent: "flex-end", gap: 8, flexShrink: 0,
-                padding: "14px 24px", borderTop: `1px solid ${T.border}`,
+                // QUEBRA em vez de vazar (rótulo longo em 360px) e respeita o
+                // recorte seguro embaixo. LONGOS: o atalho com env() some no jsdom.
+                display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: 8, flexShrink: 0,
+                paddingTop: 14, paddingLeft: 24, paddingRight: 24, paddingBottom: "calc(14px + env(safe-area-inset-bottom))",
+                borderTop: `1px solid ${T.border}`,
               }}
             >
               <Botao variante="fantasma" onClick={() => responder(false)} data-testid="confirmacao-cancelar">

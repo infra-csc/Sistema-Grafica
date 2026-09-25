@@ -35,15 +35,19 @@ export function CabecalhoDaRevisao({
               {/* O QUE É ESTA TELA, numa linha: quem chega pela primeira vez
                   não sabe o que "revisar" quer dizer, nem para onde a peça vai
                   depois do clique. Tom secundário, para não competir com a
-                  frase de resolução. */}
-              <span data-testid="explicacao-revisao" style={{ display: "block", margin: "2px 0 0", fontSize: FS.meta, color: T.apoio, maxWidth: 680 }}>
+                  frase de resolução. NO CELULAR ela sai: eram quatro linhas
+                  empurrando a primeira peça para baixo da dobra, e a ficha diz
+                  o mesmo, peça a peça, logo acima da decisão
+                  (`destino-da-decisao`). */}
+              {!isMobile && <span data-testid="explicacao-revisao" style={{ display: "block", margin: "2px 0 0", fontSize: FS.meta, color: T.apoio, maxWidth: 680 }}>
                 Última conferência antes da Gráfica: compare o aprovado pelo patrocinador com o arquivo final da Arte.
                 {" "}<strong style={{ fontWeight: 700, color: T.strong }}>Liberar</strong> manda para a fila da Gráfica;
                 {" "}<strong style={{ fontWeight: 700, color: T.strong }}>Devolver</strong> volta para a Arte com o seu motivo.
-              </span>
+              </span>}
             </>
           }
-          acoes={
+          margemInferior={isMobile ? 12 : 20}
+          acoes={isMobile && !admin ? undefined : (
             <>
               {/* O DISPARO À MÃO DO AVISO. Discreto de propósito: é ferramenta
                   de manutenção, não parte do trabalho de revisar. */}
@@ -62,7 +66,7 @@ export function CabecalhoDaRevisao({
               )}
               {/* A ENTRADA DA FILA: quem abre esta tela para trabalhar quer
                   começar do começo, sem mirar na primeira linha. */}
-              {totalNaFila > 0 && (
+              {totalNaFila > 0 && !isMobile && (
                 <Botao
                   variante="primario"
                   tamanho={dedo ? "toque" : "md"}
@@ -74,8 +78,24 @@ export function CabecalhoDaRevisao({
                 </Botao>
               )}
             </>
-          }
+          )}
         />
+        {/* A ENTRADA DA FILA NO CELULAR: linha cheia, logo abaixo do título. */}
+        {isMobile && totalNaFila > 0 && (
+          <div style={{ paddingBottom: 12 }}>
+            <Botao
+              variante="primario"
+              tamanho="toque"
+              larguraCheia
+              icone={Eye}
+              onClick={aoComecarFila}
+              data-testid="button-queue-start"
+              style={{ minHeight: 48 }}
+            >
+              Revisar em fila ({totalNaFila})
+            </Botao>
+          </div>
+        )}
       </div>
     </section>
   );

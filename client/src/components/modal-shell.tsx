@@ -164,6 +164,13 @@ interface ModalHeaderProps {
   selo?: React.ReactNode;
   /** `data-testid` do X (pd. nenhum). Antes a tela refazia o X no trailing. */
   testIdDoFechar?: string;
+  /**
+   * Cabeçalho ENXUTO (aditivo, 25/09) — para o celular. Os 22/28px de
+   * respiro e o título de 20px comiam ~40px de largura e ~20 de altura de uma
+   * tela de 360: na ficha da Revisão o título "#0123 · Pórtico" sobrava com
+   * ~90px e quebrava em quatro linhas. Sem a prop, nada muda.
+   */
+  compacto?: boolean;
 }
 
 export function ModalHeader({
@@ -178,13 +185,14 @@ export function ModalHeader({
   trailing,
   selo,
   testIdDoFechar,
+  compacto = false,
 }: ModalHeaderProps) {
   const dark = variant === "work";
   const titulo = (
     <h2
       style={{
         margin: 0, lineHeight: 1.25,
-        fontSize: dark ? 20 : 15,
+        fontSize: dark ? (compacto ? 17 : 20) : 15,
         fontWeight: 800,
         letterSpacing: "-0.03em",
         color: dark ? T.surface : T.text,
@@ -203,8 +211,8 @@ export function ModalHeader({
         // `flexShrink: 0`: com o teto de altura no `modalSurface`, o Content é
         // uma coluna flex — e sem isto o cabeçalho seria espremido junto com o
         // corpo numa janela baixa, em vez de o corpo rolar.
-        display: "flex", alignItems: "center", gap: 14, flexShrink: 0,
-        padding: dark ? "22px 28px" : "22px 24px 16px",
+        display: "flex", alignItems: "center", gap: compacto ? 10 : 14, flexShrink: 0,
+        padding: compacto ? (dark ? "12px 12px 12px 16px" : "16px 16px 12px") : dark ? "22px 28px" : "22px 24px 16px",
         // O gradiente do cabeçalho escuro é o token ESCURO (n10 → #2d2926): o
         // mesmo fundo da barra de lote e do Exportar PDF, que cravavam o hex.
         background: dark ? ESCURO.gradiente : T.surface,

@@ -4,10 +4,11 @@ import { RotateCcw } from "lucide-react";
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 import { Botao } from "@/components/ui/botao";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { ehMolde } from "@shared/molde";
 import { T, N, FS, R } from "@/lib/theme";
-import { CAMPO_DO_MOTIVO, CORPO_DA_CONFIRMACAO, RODAPE_DA_CONFIRMACAO, TEXTO_DA_CONFIRMACAO } from "./estilos";
+import { CAMPO_DO_MOTIVO, TEXTO_DA_CONFIRMACAO, corpoDaConfirmacao, rodapeDaConfirmacao } from "./estilos";
 import { avisoMotivoCurto, motivoCurto } from "./regras";
 import { ContadorDoMotivo, SeletorDeDestino } from "./motivo-da-devolucao";
 import type { DestinoDaDevolucao, PecaDaRevisao } from "./tipos";
@@ -28,6 +29,7 @@ export function ConfirmarDevolucao({
   devolvendo: boolean;
   aoDevolver: (pedido: { itemId: string; notes: string; destino: string }) => void;
 }) {
+  const celular = useIsMobile();
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(470)}>
@@ -36,9 +38,9 @@ export function ConfirmarDevolucao({
             o texto que a pessoa acabou de escrever sumiria do textarea à vista,
             no meio do fade. */}
         <FreezeWhileClosing open={open}>
-        <ModalHeader variant="confirm" icon={RotateCcw} tint={T.text} title="Devolver para Arte" onClose={() => onOpenChange(false)} />
+        <ModalHeader variant="confirm" compacto={celular} icon={RotateCcw} tint={T.text} title="Devolver para Arte" onClose={() => onOpenChange(false)} />
         <AlertDialogTitle className="sr-only">Devolver para Arte</AlertDialogTitle>
-        <div style={CORPO_DA_CONFIRMACAO}>
+        <div style={corpoDaConfirmacao(celular)}>
           <AlertDialogDescription asChild>
             <div style={{ ...TEXTO_DA_CONFIRMACAO, marginBottom: 12 }}>
               {selectedItem && <span><strong>{selectedItem.displayId}</strong> sai da Revisão Final e volta para a Arte. Quem recebe é a Arte: ela é avisada com o motivo que você escrever abaixo.</span>}
@@ -60,14 +62,14 @@ export function ConfirmarDevolucao({
           />
           <ContadorDoMotivo texto={motivo} />
         </div>
-        <div style={RODAPE_DA_CONFIRMACAO}>
+        <div style={rodapeDaConfirmacao(celular)}>
           <AlertDialogPrimitive.Cancel asChild>
-            <Botao variante="fantasma" tamanho={dedo ? "toque" : "md"} data-testid="button-return-cancel" onClick={() => { setMotivo(""); }}>Cancelar</Botao>
+            <Botao variante="fantasma" tamanho={dedo || celular ? "toque" : "md"} data-testid="button-return-cancel" onClick={() => { setMotivo(""); }}>Cancelar</Botao>
           </AlertDialogPrimitive.Cancel>
           <AlertDialogPrimitive.Action asChild>
             <Botao
               variante="primario"
-              tamanho={dedo ? "toque" : "md"}
+              tamanho={dedo || celular ? "toque" : "md"}
               icone={RotateCcw}
               onClick={() => selectedItem && aoDevolver({ itemId: selectedItem.id, notes: motivo, destino: ehMolde(selectedItem) ? "arte" : destino })}
               disabled={devolvendo || motivoCurto(motivo)}

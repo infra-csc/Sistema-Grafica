@@ -85,11 +85,14 @@ describe("Revisão", () => {
 
   it("7a · a moldura da imagem tem eixo definido", () => {
     // `max-*` limita um tamanho, nunca o produz: sozinho, resolve para 2px.
-    expect(REV).toContain('flex: "1 1 auto", minHeight: isMobile ? 180 : 140, width: "100%"');
+    // 25/09: no celular a moldura tem altura definida (clamp) — ver
+    // revisao-comparacao-e-fila.
+    expect(REV).toContain('flex: "1 1 auto", minHeight: isMobile ? 150 : 140, height: isMobile ? "clamp(150px, 32dvh, 260px)" : undefined, width: "100%"');
   });
 
   it("7b · a faixa de comparação tem piso e recorte", () => {
-    expect(REV).toContain('flex: "1 1 auto", minHeight: 200, overflow: "hidden"');
+    // 25/09: no celular a faixa não encolhe (o corpo rola; encolhida, recortava).
+    expect(REV).toContain('flex: isMobile ? "0 0 auto" : "1 1 auto", minHeight: 200, overflow: "hidden"');
   });
 
   it("7c · a decisão se contém em vez de crescer", () => {
@@ -100,7 +103,10 @@ describe("Revisão", () => {
     // decisão têm teto de 32vh com rolagem própria — sem o teto elas
     // cresceriam até a altura do conteúdo e o modal inteiro rolaria,
     // deixando as decisões fora de vista na abertura.
-    expect((REV.match(/maxHeight: isMobile \? "\d+vh" : "32vh", overflowY: "auto"/g) ?? []).length).toBe(2);
+    // 25/09: o teto (e a rolagem própria) vale no DESKTOP. No celular as duas
+    // metades empilham sem teto: o corpo da ficha já rola, e uma caixa rolando
+    // dentro de outra prendia o dedo — e lá os botões moram no rodapé fixo.
+    expect((REV.match(/maxHeight: isMobile \? undefined : "32vh", overflowY: isMobile \? undefined : "auto"/g) ?? []).length).toBe(2);
     expect(REV).toContain('height: isMobile ? "94dvh" : "87vh", maxHeight: 900');
   });
 

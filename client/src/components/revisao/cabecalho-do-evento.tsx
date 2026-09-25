@@ -6,6 +6,28 @@ import { parseDateLocal } from "@/lib/utils";
 import { T, TOM, FS, FONT } from "@/lib/theme";
 import type { EventoDaPeca } from "./tipos";
 
+/**
+ * A SAÍDA DO CAMINHÃO, COM OS DIAS — a mesma conta na faixa escura da tabela
+ * e no cabeçalho claro da lista em cartões. A saída é gravada no "horário de
+ * exibição" (UTC = relógio de São Paulo), daí o timeZone "UTC" na data e na
+ * hora. `nivel` é a régua de urgência: cada superfície pinta com o seu tom.
+ */
+export function saidaDoCaminhao(event: Pick<EventoDaPeca, "truckDepartureDate" | "datasDoKit">) {
+  const saida = new Date(event.truckDepartureDate as string);
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const dia = new Date(saida); dia.setHours(0,0,0,0);
+  const dias = Math.ceil((dia.getTime() - hoje.getTime()) / 86400000);
+  const nivel: "perigo" | "laranja" | "neutro" = dias <= 7 ? "perigo" : dias <= 30 ? "laranja" : "neutro";
+  const quando = dias < 0 ? `há ${-dias}d`
+    : dias === 0 ? "hoje"
+    : dias === 1 ? "amanhã"
+    : `${dias}d`;
+  const data = saida.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", timeZone: 'UTC' }).toUpperCase().replace(".", "");
+  const hora = saida.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: 'UTC' });
+  const title = `Saída do caminhão em ${saida.toLocaleDateString("pt-BR", { timeZone: 'UTC' })} às ${hora}`;
+  return { dias, nivel, quando, data, hora, title, comHora: !event.datasDoKit };
+}
+
 export function CabecalhoDoEvento({ eventId, event, total, grupoMarcado, aoMarcarGrupo, colunasDeDados }: {
   eventId: string;
   event: EventoDaPeca | undefined;
@@ -58,25 +80,18 @@ export function CabecalhoDoEvento({ eventId, event, total, grupoMarcado, aoMarca
                   chips de prazo ao lado — nada de um terceiro vocabulário de
                   urgência no mesmo cabeçalho. */}
               {event.truckDepartureDate && (() => {
-                const saida = new Date(event.truckDepartureDate);
-                const hoje = new Date(); hoje.setHours(0,0,0,0);
-                const dia = new Date(saida); dia.setHours(0,0,0,0);
-                const dias = Math.ceil((dia.getTime() - hoje.getTime()) / 86400000);
-                const cor = dias <= 7 ? TOM.perigo.border : dias <= 30 ? TOM.laranja.border : "rgba(255,255,255,0.7)";
-                const quando = dias < 0 ? `há ${-dias}d`
-                  : dias === 0 ? "hoje"
-                  : dias === 1 ? "amanhã"
-                  : `${dias}d`;
+                const s = saidaDoCaminhao(event);
+                const cor = s.nivel === "perigo" ? TOM.perigo.border : s.nivel === "laranja" ? TOM.laranja.border : "rgba(255,255,255,0.7)";
                 return (
                   <span
                     data-testid={`chip-caminhao-${eventId}`}
-                    title={`Saída do caminhão em ${saida.toLocaleDateString("pt-BR", { timeZone: 'UTC' })} às ${saida.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: 'UTC' })}`}
+                    title={s.title}
                     style={{ display: "inline-flex", alignItems: "center", gap: 5, flexShrink: 0, backgroundColor: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 999, padding: "3px 9px", fontSize: 10, fontWeight: 700, color: cor, letterSpacing: "0.04em", whiteSpace: "nowrap", textTransform: "none" }}
                   >
                     <Truck aria-hidden="true" style={{ width: 11, height: 11 }} />
-                    {event.datasDoKit ? "Entrega do material" : "Caminhão"} {saida.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", timeZone: 'UTC' }).toUpperCase().replace(".", "")}
-                    {!event.datasDoKit && <>{" · "}{saida.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: 'UTC' })}</>}
-                    {" · "}{quando}
+                    {event.datasDoKit ? "Entrega do material" : "Caminhão"} {s.data}
+                    {s.comHora && <>{" · "}{s.hora}</>}
+                    {" · "}{s.quando}
                   </span>
                 );
               })()}

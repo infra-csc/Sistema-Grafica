@@ -49,7 +49,12 @@ function contraste(a: string, b: string): number {
 
 describe("a comparação se vê de uma vez", () => {
   it("os dois arquivos ficam lado a lado, não empilhados", () => {
-    expect(tela).toContain('gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr"');
+    // 25/09: lado a lado TAMBÉM no celular. Empilhados, cada arquivo tinha
+    // 180px e o segundo só aparecia rolando — o mesmo defeito que este teste
+    // nasceu para impedir no desktop. minmax(0, 1fr): a coluna encolhe em vez
+    // de o conteúdo largo empurrar a outra para fora.
+    expect(tela).toContain('gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)"');
+    expect(codigo).not.toContain('gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr"');
     // O empilhamento por rolagem sumiu: a faixa não rola.
     expect(codigo).not.toContain('height: isMobile ? 220 : "32vh"');
   });
@@ -58,13 +63,17 @@ describe("a comparação se vê de uma vez", () => {
     // Com `flex: 1 1 auto; minHeight: 0` a faixa absorve todo o encolhimento e
     // colapsa; com um piso grande demais (300px) empurra o resto abaixo da
     // dobra numa janela de 540px. 200px fecha as duas contas.
-    expect(tela).toContain('flex: "1 1 auto", minHeight: 200, overflow: "hidden"');
+    // 25/09: no CELULAR a faixa não encolhe ("0 0 auto") — lá o corpo rola, e
+    // encolhida até o piso ela recortava o fim dos arquivos (overflow hidden).
+    expect(tela).toContain('flex: isMobile ? "0 0 auto" : "1 1 auto", minHeight: 200, overflow: "hidden"');
   });
 
   it("a moldura da imagem tem EIXO DEFINIDO, não só limites", () => {
     // `max-width: 100%; max-height: 100%; aspect-ratio: 3/2` sem largura nem
     // altura resolve para 2px: `max-*` LIMITA um tamanho, nunca o produz.
-    expect(tela).toContain('flex: "1 1 auto", minHeight: isMobile ? 180 : 140, width: "100%"');
+    // 25/09: no celular a moldura ganhou ALTURA definida (clamp): com a faixa
+    // sem encolher, só o piso deixaria a imagem ditar a altura.
+    expect(tela).toContain('flex: "1 1 auto", minHeight: isMobile ? 150 : 140, height: isMobile ? "clamp(150px, 32dvh, 260px)" : undefined, width: "100%"');
     expect(codigo).not.toContain("aspectRatio: \"3/2\"");
     // O conteúdo cabe inteiro, sem corte.
     expect(tela).toContain('objectFit="contain"');
@@ -76,7 +85,7 @@ describe("a comparação se vê de uma vez", () => {
     // comparação é uma faixa de largura cheia, e é a única que flexiona.
     expect(codigo).not.toContain('width: isMobile ? "100%" : "56%"');
     expect(codigo).not.toContain("review-modal-columns");
-    expect(tela).toContain('flex: "1 1 auto", minHeight: 200, overflow: "hidden", backgroundColor: N.n2');
+    expect(tela).toContain('flex: isMobile ? "0 0 auto" : "1 1 auto", minHeight: 200, overflow: "hidden", backgroundColor: N.n2');
   });
 
   it("cada pane declara se o arquivo existe", () => {
@@ -100,7 +109,8 @@ describe("o rótulo do primário não quebra nem invade", () => {
     const i = tela.indexOf('data-testid="button-release-modal"');
     expect(i).toBeGreaterThan(-1);
     const bloco = tela.slice(i, i + 1900);
-    expect(bloco).toContain('flex: "1 1 0", minWidth: 0, height: 48');
+    // Base auto desde 25/09 (ver modal-decisao-tres-defeitos): o rótulo inteiro.
+    expect(bloco).toContain('flex: "1 1 auto", minWidth: 0, height: 48');
     expect(bloco).toContain("Liberar para produção");
     expect(bloco).not.toContain('textTransform: "uppercase"');
   });

@@ -355,6 +355,9 @@ describe("as peças do Kit", () => {
     };
     beforeEach(() => {
       H.storage.ensureDisplayIdSequence = vi.fn(async () => {});
+      // O tipo da planilha é casado com o catálogo e o evento (shared/tipo-da-peca).
+      H.storage.getAllStandardItems = vi.fn(async () => []);
+      H.storage.getItemsByEvent = vi.fn(async () => []);
       H.db.transaction = vi.fn(async (fazer: any) => fazer({
         select: () => ({ from: () => ({ where: async () => [] }) }),
         insert: inserir,

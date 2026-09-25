@@ -11,6 +11,7 @@ import { AumentarQuantidadeButton } from "@/components/aumentar-quantidade-dialo
 import { calculateM2 } from "@/lib/calculateM2";
 import { T, N, TOM } from "@/lib/theme";
 import { rotuloDaRemessa, type RemessaDoKit } from "@shared/kit";
+import { alinharTipo } from "@shared/tipo-da-peca";
 import type { ItemFormData, ModeloDePeca } from "./tipos";
 
 // Tipografia e controles do formulário de peça — a MESMA cara nos dois fluxos.
@@ -136,7 +137,16 @@ export function ItemForm({
                   data-testid="input-type-name-edit"
                   style={FIELD_INPUT}
                   onFocus={focusRing}
-                  onBlur={blurRing}
+                  // Tipo digitado que JÁ existe (Modelo ou tipo do evento, sem
+                  // distinguir maiúscula/acento) vira a grafia existente — senão
+                  // a peça cai num subgrupo à parte (relato de 25/09).
+                  onBlur={(e) => {
+                    blurRing(e);
+                    const alinhado = alinharTipo(formData.type, { modelos: standardItems, tiposDoEvento: typeOptions });
+                    if (alinhado.type !== formData.type || alinhado.standardItemId) {
+                      setFormData({ ...formData, type: alinhado.type, standardItemId: alinhado.standardItemId ?? formData.standardItemId ?? "" });
+                    }
+                  }}
                 />
                 {/* Caminho de volta: sem ele, quem clicava em "+ Novo tipo..."
                     por engano ficava preso no modo texto livre. */}

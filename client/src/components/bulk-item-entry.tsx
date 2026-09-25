@@ -7,6 +7,7 @@
 // components/entrada-rapida/.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { alinharTipo } from "@shared/tipo-da-peca";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Copy, Trash2, Loader2, ArrowRight, RotateCcw, AlertTriangle } from "lucide-react";
 import { calculateM2FromStrings } from "@/lib/calculateM2";
@@ -177,6 +178,10 @@ export function BulkItemEntry({
     // o sucesso — assim elas não podem ser salvas duas vezes.
     submittedIdsRef.current = completeRows.map(r => r.id);
     const valid: PecaDoLote[] = completeRows
+      // Tipo digitado que já existe (Modelo ou tipo do evento, sem distinguir
+      // maiúscula/acento) vira a grafia existente + o vínculo com o Modelo —
+      // a peça fica no mesmo grupo das outras (relato de 25/09).
+      .map(r => ({ ...r, ...(() => { const a = alinharTipo(r.type, { modelos: standardItems, tiposDoEvento: existingItems.map((i) => i.type) }); return { type: a.type, standardItemId: r.standardItemId || a.standardItemId || "" }; })() }))
       .map(r => ({
         eventId, type: r.type, description: r.description || "",
         quantity: parseInt(r.quantity),

@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { getStatusLabel } from "@/lib/status";
 import { grupoDoKit } from "@shared/kit";
+import { chaveDoTipo } from "@shared/tipo-da-peca";
 import { statusDeExibicao, statusParaContagem } from "@shared/molde";
 import { ORDEM_DO_FLUXO, estaAtrasDoMarco } from "./regras";
 import type { PecaDoEvento } from "./tipos";
@@ -74,13 +75,20 @@ export function usePecasDaLista(mainItems: PecaDoEvento[], filtros: FiltrosDaLis
   // Agrupar itens: Grupo Pai → Tipo → [itens]
   const { groupMap, sortedGroups } = useMemo(() => {
     const map: Record<string, Record<string, typeof visibleEventItems>> = {};
+    // O SUBGRUPO é o tipo sem distinguir maiúscula/acento/espaço (relato de
+    // 25/09): "PLACA KM" (importada) e "Placa KM" (criada pelo Modelo) são a
+    // mesma peça e ficam juntas, sob a primeira grafia que aparecer.
+    const rotuloDoTipo = new Map<string, string>();
     visibleEventItems.forEach(item => {
       // Peça do Kit: agrupada na remessa ("KIT V1 · entrega 14/09"),
       // não misturada nos grupos da Arena.
       const g = grupoDoKit(item) ?? (groupOf(item.type) || '');
+      const k = chaveDoTipo(item.type);
+      if (!rotuloDoTipo.has(k)) rotuloDoTipo.set(k, item.type);
+      const t = rotuloDoTipo.get(k)!;
       if (!map[g]) map[g] = {};
-      if (!map[g][item.type]) map[g][item.type] = [];
-      map[g][item.type].push(item);
+      if (!map[g][t]) map[g][t] = [];
+      map[g][t].push(item);
     });
     const ehKit = (g: string) => g.startsWith('KIT');
     const groups = Object.keys(map).sort((a, b) => {

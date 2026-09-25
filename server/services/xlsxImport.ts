@@ -13,6 +13,9 @@ import { carregarRemessa, remessaSchema } from "./kitRemessas";
 import { cabecalhoDoKit, diaMesDoKit, remessaUtilizavelPor, type CabecalhoDoKit } from "@shared/kit";
 import { camposDoErro, fraseDoZod } from "../erros";
 import { tipoCanonico } from "@shared/molde";
+// O tipo da planilha casado com o catálogo e com os tipos do evento (relato
+// de 25/09: a peça importada não caía no grupo da criada à mão).
+import { alinharTipo } from "@shared/tipo-da-peca";
 
   // ── O CABEÇALHO DA PLANILHA DO KIT (14/09) ───────────────────────────────
   // Rótulo na coluna A, valor na B, nas linhas acima da tabela de peças; o
@@ -522,7 +525,11 @@ import { tipoCanonico } from "@shared/molde";
       // para a tela sugerir a remessa nova.
       // `ignoradas`: as linhas que ficaram de fora e por quê — a tela lista
       // "Linha 12: quantidade mínima é 1" em vez de a peça sumir calada.
-      res.json({ items: leitura.items, ignoradas: leitura.ignoradas, fileName: file.originalname, kit: lerCabecalhoDoKit(file.buffer) });
+      // O tipo que a prévia mostra já é o que vai ser gravado (ver alinharTipo).
+      const [modelos, pecasDoEvento] = await Promise.all([storage.getAllStandardItems(), storage.getItemsByEvent(event.id)]);
+      const ctxDoTipo = { modelos, tiposDoEvento: Array.from(new Set(pecasDoEvento.map((i) => i.type).filter(Boolean))) };
+      const items = leitura.items.map((it) => ({ ...it, type: alinharTipo(it.type, ctxDoTipo).type }));
+      res.json({ items, ignoradas: leitura.ignoradas, fileName: file.originalname, kit: lerCabecalhoDoKit(file.buffer) });
     } catch (error: unknown) {
       const campos = camposDoErro(error) as { message?: string; code?: string; stack?: string };
       console.error("[preview-xlsx] unhandled error:", campos.message, campos.stack?.slice(0, 600));
@@ -595,9 +602,15 @@ import { tipoCanonico } from "@shared/molde";
       };
       const texto = (v: unknown) => (v !== null && v !== undefined && v !== "" ? String(v) : null);
 
+      // A confirmação é a autoridade: casa de novo (a prévia pode ter sido
+      // editada) e grava o vínculo com o Modelo, como a criação individual.
+      const [modelos, pecasDoEvento] = await Promise.all([storage.getAllStandardItems(), storage.getItemsByEvent(event.id)]);
+      const ctxDoTipo = { modelos, tiposDoEvento: Array.from(new Set(pecasDoEvento.map((i) => i.type).filter(Boolean))) };
+      const alinhar = (t: unknown) => (typeof t === "string" ? alinharTipo(tipoCanonico(t), ctxDoTipo) : { type: t as string, standardItemId: null });
       const toCreate = items.map((item) => ({
         eventId: event.id,
-        type: typeof item.type === "string" ? tipoCanonico(item.type) : item.type,
+        type: alinhar(item.type).type,
+        standardItemId: alinhar(item.type).standardItemId,
         description: item.description,
         quantity: Number(item.quantity),
         area: Number(item.visualWidth) || Number(item.fileWidth) || 0,

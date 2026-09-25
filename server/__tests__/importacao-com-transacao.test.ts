@@ -144,6 +144,10 @@ beforeEach(() => {
   s.getSponsor = vi.fn(async (id: string) => ({ id, name: id === "sp-x" ? "Itaú" : "Aché" }));
   s.createNotification = vi.fn(async (n: any) => ({ id: "n1", ...n }));
   s.ensureDisplayIdSequence = vi.fn(async () => {});
+  // O tipo da planilha é casado com o catálogo e com os tipos do evento
+  // (shared/tipo-da-peca) — por padrão, catálogo e evento vazios.
+  s.getAllStandardItems = vi.fn(async () => []);
+  s.getItemsByEvent = vi.fn(async () => []);
 });
 
 describe("confirmar a importação", () => {
@@ -175,6 +179,16 @@ describe("confirmar a importação", () => {
       { itemId: "peca-1", sponsorId: "sp-a" },
     ]);
     expect(H.updateEventStatus).toHaveBeenCalledWith("ev-1");
+  });
+
+  // RELATO DO DONO (25/09): a peça importada não caía no grupo da criada à mão.
+  it("o tipo da planilha vira o NOME do Modelo (com o vínculo) ou a grafia que o evento já usa", async () => {
+    H.storage.getAllStandardItems = vi.fn(async () => [{ id: "m-t", name: "TESTEIRA", group: "PÓRTICO" }]);
+    H.storage.getItemsByEvent = vi.fn(async () => [{ type: "Wind Banner" }]);
+    const r = await confirmar({ items: [LINHA, { ...LINHA, type: "wind  banner", description: "WB" }, { ...LINHA, type: "Faixa", description: "F" }] });
+    expect(r.status).toBe(201);
+    const pecas = inseridos.find((o) => o.tabela === itemsTable)!.valores;
+    expect(pecas.map((p: any) => [p.type, p.standardItemId])).toEqual([["TESTEIRA", "m-t"], ["Wind Banner", null], ["Faixa", null]]);
   });
 
   it("remessa nova do Kit nasce DENTRO da transação, e as peças entram nela", async () => {

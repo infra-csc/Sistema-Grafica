@@ -49,12 +49,14 @@ interface ItemDetailsDialogProps<TPeca extends ItemDaFicha> {
    * de "Fechar", que passa a secundário. Sem ela, o rodapé é o de sempre.
    */
   acaoNoRodape?: React.ReactNode;
+  /** Um bloco de largura cheia ACIMA dos botões do rodapé (ex.: o motivo obrigatório de uma troca). */
+  acimaDaAcaoNoRodape?: React.ReactNode;
   onEditSave?: (editedItem: TPeca) => void;
 }
 
 export function ItemDetailsDialog<TPeca extends ItemDaFicha>({
   item, auditLogs = [], open, onOpenChange,
-  customActions, topActions, onEditSave, acaoNoRodape,
+  customActions, topActions, onEditSave, acaoNoRodape, acimaDaAcaoNoRodape,
 }: ItemDetailsDialogProps<TPeca>) {
   const [editMode, setEditMode]     = useState(false);
   const [editedItem, setEditedItem] = useState<TPeca | null>(item);
@@ -253,11 +255,16 @@ export function ItemDetailsDialog<TPeca extends ItemDaFicha>({
           display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: acaoNoRodape && isMobile ? 8 : 12,
           ...(isMobile ? { paddingBottom: "calc(12px + env(safe-area-inset-bottom))" } : null),
         }}>
-          <span data-testid="rodape-atualizado" style={{ fontFamily: FONT.corpo, fontSize: 12, color: T.second }}>
-            {item.updatedAt
-              ? `Atualizado ${format(new Date(item.updatedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`
-              : item.displayId}
-          </span>
+          {/* Com um campo no rodapé (celular) a linha "Atualizado" sai: o
+              rodapé fixo não pode crescer a ponto de engolir a ficha. */}
+          {!(acimaDaAcaoNoRodape && isMobile) && (
+            <span data-testid="rodape-atualizado" style={{ fontFamily: FONT.corpo, fontSize: 12, color: T.second }}>
+              {item.updatedAt
+                ? `Atualizado ${format(new Date(item.updatedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`
+                : item.displayId}
+            </span>
+          )}
+          {acimaDaAcaoNoRodape && <div data-testid="rodape-acima-da-acao" style={{ flex: "1 1 100%", minWidth: 0 }}>{acimaDaAcaoNoRodape}</div>}
 
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: acaoNoRodape && isMobile ? "nowrap" : "wrap", flex: acaoNoRodape && isMobile ? "1 1 100%" : undefined }}>
             <Botao

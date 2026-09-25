@@ -118,7 +118,7 @@ export function CartaoDaCorrecao({ item, correcaoSponsorFilter, emCartoes, hoje,
                 : pr.diff === 0 ? 'vence hoje' : `${pr.diff}d`;
               // Selo só quando aperta (≤3d): folga é texto, não cor.
               return urgente
-                ? <Selo tom="alerta" style={{ flexShrink: 0, padding: '2px 8px', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{texto}</Selo>
+                ? <Selo tom="alerta" style={{ flexShrink: 0, padding: '2px 8px', fontWeight: 700, fontVariantNumeric: 'tabular-nums', fontSize: fsToque(11, emCartoes) }}>{texto}</Selo>
                 : <span style={{ fontSize: fsToque(FS.small, emCartoes), fontWeight: 700, flexShrink: 0, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', color: T.second, padding: '2px 8px' }}>{texto}</span>;
             })()}
           </div>
@@ -192,7 +192,7 @@ export function CartaoDaCorrecao({ item, correcaoSponsorFilter, emCartoes, hoje,
                         {approval.rejectedBy}
                       </span>
                     )}
-                    {approval.rejectedBy && approval.rejectedAt && <span style={{ color: T.bdark, fontSize: 11 }}>·</span>}
+                    {approval.rejectedBy && approval.rejectedAt && <span aria-hidden="true" style={{ color: T.bdark, fontSize: fsToque(11, emCartoes) }}>·</span>}
                     {approval.rejectedAt && (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: fsToque(11, emCartoes), fontWeight: 600, color: T.apoio, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
                         <Clock style={{ width: 9, height: 9, flexShrink: 0 }} />

@@ -304,6 +304,25 @@ describe("A FICHA no celular (compartilhada — rodada final, 24/09)", { timeout
     expect(tid("rodape-atualizado")!.style.fontFamily).not.toMatch(/Mono/);
   });
 
+  it("390px, peça com o Atendimento: motivo e 'Trocar thumb' no RODAPÉ fixo (dono, 24/09)", async () => {
+    const regra = regraDaTrocaDeThumb(PECAS[3]);
+    await montar(390, "?item=p3");
+    await esperar(() => !!tid("painel-da-ficha-arte"), "a ficha abre com a troca");
+    if (!regra.pode) return; // a regra manda: sem troca, sem rodapé
+    const rodape = $('[role="dialog"] footer')!;
+    expect(rodape.querySelector('[data-testid="button-upload-file"]'), "o botão da troca mora no rodapé").not.toBeNull();
+    if (regra.exigeMotivo) {
+      const motivo = tid("textarea-motivo-troca-thumb")!;
+      expect(motivo.closest("footer"), "o motivo mora no rodapé").not.toBeNull();
+      expect(motivo.style.fontSize).toBe("16px");
+      expect(document.querySelectorAll('[data-testid="textarea-motivo-troca-thumb"]').length, "um campo só").toBe(1);
+      expect(rodape.querySelector('[data-testid="button-upload-file"]')!.textContent).toBe("Escreva o motivo para trocar");
+      await act(async () => { fireEvent.change(motivo, { target: { value: "patrocinador mandou logo novo" } }); });
+      expect(rodape.querySelector('[data-testid="button-upload-file"]')!.textContent).toBe("Trocar thumb");
+    }
+    expect(tid("painel-da-ficha-arte")!.querySelector('[data-testid="button-upload-file"]'), "sem botão repetido no corpo").toBeNull();
+  });
+
   it("desktop: a trilha continua com os seis nomes e sem a linha extra", async () => {
     await montar(1280, "?item=p2");
     await esperar(() => !!tid("trilha-da-ficha"));

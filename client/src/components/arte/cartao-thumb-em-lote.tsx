@@ -98,7 +98,7 @@ export function CartaoThumbEmLote({ entry, lote, itemPorId, correcaoItems, event
                 return false;
               }))}
               aria-label={`Remover ${entry.file.name}`}
-              style={{ flexShrink: 0, width: 32, height: 32, borderRadius: '50%', backgroundColor: N.n2, border: `1px solid ${T.border}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.12s' }}
+              style={{ flexShrink: 0, width: dedo ? 44 : 32, height: dedo ? 44 : 32, borderRadius: '50%', backgroundColor: N.n2, border: `1px solid ${T.border}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.12s' }}
               onMouseEnter={e => { e.currentTarget.style.backgroundColor = TOM.perigo.bg; e.currentTarget.style.borderColor = TOM.perigo.border; }}
               onMouseLeave={e => { e.currentTarget.style.backgroundColor = N.n2; e.currentTarget.style.borderColor = T.border; }}
             >

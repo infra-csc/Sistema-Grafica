@@ -46,7 +46,7 @@ import { ErroDeCarga } from "@/components/arte/erro-de-carga";
 import { DialogoDispensar } from "@/components/arte/dialogo-dispensar";
 import { DialogoDevolver } from "@/components/arte/dialogo-devolver";
 import { DialogoCorrecao } from "@/components/arte/dialogo-correcao";
-import { BotaoDoArquivoFinal, PainelDeFinalizacao, useSugestaoDoArquivoFinal } from "@/components/arte/painel-finalizacao";
+import { BotaoDoArquivoFinal, BotaoTrocarThumb, MotivoDaTrocaDoThumb, PainelDeFinalizacao, useSugestaoDoArquivoFinal } from "@/components/arte/painel-finalizacao";
 import { PainelDoThumbDeAprovacao } from "@/components/arte/painel-thumb-aprovacao";
 import { DialogoPdfCompartilhado } from "@/components/arte/dialogo-pdf-compartilhado";
 import { DialogoBook } from "@/components/arte/dialogo-book";
@@ -600,6 +600,11 @@ export default function Arte() {
   // O envio do arquivo final aparece (1º envio ou troca permitida)? No celular ele vai para o rodapé.
   const ctaDoFinalNoRodape = isMobile && !trocaTodaNegada
     && (painelDaFicha === 'finalizacao' || (painelDaFicha === 'troca' && !!regraFinalSel?.pode));
+  // Troca do thumb (com o Atendimento, p.ex.) no CELULAR: motivo e botão no
+  // rodapé fixo da ficha (dono, 24/09) — no corpo ficavam abaixo da dobra.
+  // Só quando o rodapé não está ocupado pelo envio do arquivo final.
+  const trocaThumbNoRodape = isMobile && !trocaTodaNegada && !ctaDoFinalNoRodape
+    && painelDaFicha === 'troca' && !!regraThumbSel?.pode;
   const motivoDaTrocaNegada = (regraFinalSel && !regraFinalSel.pode ? regraFinalSel.motivo : null)
     ?? (regraThumbSel && !regraThumbSel.pode ? regraThumbSel.motivo : null) ?? "";
 
@@ -814,7 +819,15 @@ export default function Arte() {
         onOpenChange={(open) => !open && setSelectedItemId(null)}
         // No celular o envio do arquivo final vai para o rodapé fixo da ficha:
         // no corpo ele ficava abaixo da dobra (medido: 765px numa tela de 780).
-        acaoNoRodape={ctaDoFinalNoRodape && selectedItem ? (
+        acimaDaAcaoNoRodape={trocaThumbNoRodape && thumbPedeMotivo ? (
+          <MotivoDaTrocaDoThumb motivoTrocaThumb={motivoTrocaThumb} setMotivoTrocaThumb={setMotivoTrocaThumb} faltamMotivoThumb={faltamMotivoThumb} isMobile />
+        ) : undefined}
+        acaoNoRodape={trocaThumbNoRodape && selectedItem ? (
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <BotaoTrocarThumb selectedItem={selectedItem} getUploadUrl={getUploadUrl} updateThumbMutation={updateThumbMutation}
+              thumbPedeMotivo={thumbPedeMotivo} faltamMotivoThumb={faltamMotivoThumb} motivoTrocaThumb={motivoTrocaThumb} isMobile noRodape />
+          </div>
+        ) : ctaDoFinalNoRodape && selectedItem ? (
           <BotaoDoArquivoFinal selectedItem={selectedItem} finalFileUrl={finalFileUrl} finalDirty={finalDirty}
             submitFinalFileMutation={submitFinalFileMutation} handleSubmitFinalFile={handleSubmitFinalFile} curto />
         ) : undefined}
@@ -881,6 +894,7 @@ export default function Arte() {
             usarSugestaoFinal={usarSugestaoFinal}
             ignorarSugestaoFinal={ignorarSugestaoFinal}
             ctaNoRodape={ctaDoFinalNoRodape}
+            trocaThumbNoRodape={trocaThumbNoRodape}
           />
         ) : selectedItem && !podeEditar && ['awaiting_submission', 'sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) ? (
           // MODO CONSULTA DENTRO DA PEÇA. A faixa cinza do topo explica a

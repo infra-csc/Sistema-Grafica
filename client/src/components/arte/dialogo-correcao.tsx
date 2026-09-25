@@ -243,7 +243,7 @@ export function DialogoCorrecao({
                     {/* O atalho que JÁ existe, desenhado como tecla: escrito no
                         meio da frase ele passava por texto de rodapé. */}
                     <p style={{ fontSize: fsToque(11, dedo), color: T.apoio, margin: '3px 0 0' }}>
-                      {isPasteUploading ? 'Aguarde…' : <>PDF, PNG, SVG · ou cole com <kbd style={KBD}>Ctrl</kbd>+<kbd style={KBD}>V</kbd></>}
+                      {isPasteUploading ? 'Aguarde…' : dedo ? 'PDF, PNG ou SVG' : <>PDF, PNG, SVG · ou cole com <kbd style={KBD}>Ctrl</kbd>+<kbd style={KBD}>V</kbd></>}
                     </p>
                     {!isPasteUploading && correcaoItem && (
                       <BotaoBuscarArte
@@ -290,10 +290,10 @@ export function DialogoCorrecao({
                           <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: a.sponsor.color, flexShrink: 0 }} />
                         )}
                         <span style={{ fontSize: FS.body, fontWeight: recebe ? 700 : 500, color: T.text, flex: 1, minWidth: 0, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>{a.sponsor?.name || 'Patrocinador'}</span>
-                        <Selo forma="retangulo" cores={est ? { bg: est.bg, text: est.text, border: est.border } : undefined} style={{ padding: '2px 8px', letterSpacing: '0.04em' }}>
+                        <Selo forma="retangulo" cores={est ? { bg: est.bg, text: est.text, border: est.border } : undefined} style={{ padding: '2px 8px', letterSpacing: '0.04em', fontSize: fsToque(11, dedo) }}>
                           {estadoTexto}
                         </Selo>
-                        <Selo forma="retangulo" tom={recebe ? "laranja" : "sucesso"} style={{ padding: '2px 8px' }}>
+                        <Selo forma="retangulo" tom={recebe ? "laranja" : "sucesso"} style={{ padding: '2px 8px', fontSize: fsToque(11, dedo) }}>
                           {recebe ? 'vai receber' : 'mantém aprovação'}
                         </Selo>
                       </div>

@@ -92,6 +92,75 @@ export function BotaoDoArquivoFinal({ selectedItem, finalFileUrl, finalDirty, su
 }
 
 /**
+ * O MOTIVO DA TROCA DO THUMB — um campo só, no bloco (desktop) ou no rodapé
+ * fixo da ficha (celular). Obrigatório quando a regra pede (exigeMotivo), com
+ * o contador do que falta.
+ */
+export function MotivoDaTrocaDoThumb({ motivoTrocaThumb, setMotivoTrocaThumb, faltamMotivoThumb, isMobile }: {
+  motivoTrocaThumb: string;
+  setMotivoTrocaThumb: Dispatch<SetStateAction<string>>;
+  faltamMotivoThumb: number;
+  isMobile: boolean;
+}) {
+  const fs = (n: number) => (isMobile ? Math.max(12, n) : n);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
+      <label htmlFor="motivo-troca-thumb" style={{ fontSize: fs(11), fontWeight: 700, color: T.apoio }}>
+        Motivo da troca <span style={{ color: P.red.text }}>*</span>
+      </label>
+      <textarea
+        id="motivo-troca-thumb"
+        value={motivoTrocaThumb}
+        onChange={(e) => setMotivoTrocaThumb(e.target.value)}
+        placeholder="Ex: o patrocinador pediu o logo novo por e-mail depois de aprovar."
+        data-testid="textarea-motivo-troca-thumb"
+        style={{ width: '100%', backgroundColor: T.surface, border: `1px solid ${faltamMotivoThumb > 0 ? T.border : TOM.sucesso.text}`, borderRadius: R.md, padding: '8px 10px', fontSize: isMobile ? 16 : 12, resize: 'none', height: isMobile ? 64 : 60, fontFamily: 'inherit', color: T.text, boxSizing: 'border-box' }}
+      />
+      {faltamMotivoThumb > 0 && (
+        <p data-testid="troca-thumb-faltam" style={{ margin: 0, fontSize: fs(11), color: P.amber.text }}>
+          {fraseFaltamCaracteres(faltamMotivoThumb)} para liberar “Trocar thumb”.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** O botão "Trocar thumb" (upload + update-thumb com o motivo) — no bloco ou no rodapé. */
+export function BotaoTrocarThumb({ selectedItem, getUploadUrl, updateThumbMutation, thumbPedeMotivo, faltamMotivoThumb, motivoTrocaThumb, isMobile, noRodape = false }: {
+  selectedItem: PecaDaArte;
+  getUploadUrl: UploadsDaArte["getUploadUrl"];
+  updateThumbMutation: AcoesDaArte["updateThumbMutation"];
+  thumbPedeMotivo: boolean;
+  faltamMotivoThumb: number;
+  motivoTrocaThumb: string;
+  isMobile: boolean;
+  /** No rodapé: botão cheio, em tinta (é a ação da ficha), na largura toda. */
+  noRodape?: boolean;
+}) {
+  return (
+    <FileUploader
+      onGetUploadParameters={getUploadUrl}
+      onComplete={(result) => updateThumbMutation.mutate({
+        itemId: selectedItem.id,
+        approvalThumbUrl: convertGCSUrlToLocalPath(result.url),
+        statusAntes: selectedItem.status,
+        motivo: thumbPedeMotivo ? motivoTrocaThumb.trim().replace(/\s+/g, " ") : undefined,
+      })}
+      accept="image/*,application/pdf"
+      data-testid="uploader-update-thumb"
+      disabled={faltamMotivoThumb > 0 || updateThumbMutation.isPending}
+      buttonVariant={noRodape ? "default" : "ghost"}
+      // 44px no celular: é a ação do bloco, tocada com o dedo.
+      buttonClassName={noRodape
+        ? "h-11 min-h-[44px] w-full px-4 text-[14px] font-bold rounded-lg"
+        : `${isMobile ? "h-11 min-h-[44px]" : "h-9"} px-3 text-[12px] font-semibold text-stone-800 bg-white border border-stone-300 rounded-lg hover:bg-stone-50 shrink-0`}
+    >
+      {updateThumbMutation.isPending ? 'Enviando…' : faltamMotivoThumb > 0 && noRodape ? 'Escreva o motivo para trocar' : 'Trocar thumb'}
+    </FileUploader>
+  );
+}
+
+/**
  * O bloco de ação da peça APROVADA no modal: finalização do layout (subir o
  * caminho do arquivo final) ou, já finalizada, a troca do arquivo final e do
  * thumb — sempre pelas regras de shared/troca-de-material.
@@ -99,7 +168,7 @@ export function BotaoDoArquivoFinal({ selectedItem, finalFileUrl, finalDirty, su
 export function PainelDeFinalizacao({
   selectedItem, isMobile, regraThumbSel, regraFinalSel, thumbPedeMotivo, faltamMotivoThumb, motivoTrocaThumb, setMotivoTrocaThumb,
   updateThumbMutation, submitFinalFileMutation, handleSubmitFinalFile, getUploadUrl, setBuscaDeArte,
-  finalFileUrl, setFinalFileUrl, finalDirty, setFinalDirty, sugestaoVisivel, usarSugestaoFinal, ignorarSugestaoFinal, ctaNoRodape = false,
+  finalFileUrl, setFinalFileUrl, finalDirty, setFinalDirty, sugestaoVisivel, usarSugestaoFinal, ignorarSugestaoFinal, ctaNoRodape = false, trocaThumbNoRodape = false,
 }: {
   selectedItem: PecaDaArte;
   isMobile: boolean;
@@ -123,6 +192,8 @@ export function PainelDeFinalizacao({
   ignorarSugestaoFinal: () => void;
   /** O botão de envio vai para o rodapé fixo da ficha (celular) — ver BotaoDoArquivoFinal. */
   ctaNoRodape?: boolean;
+  /** A troca do thumb (motivo + botão) vai para o rodapé fixo da ficha (celular). */
+  trocaThumbNoRodape?: boolean;
 }) {
   // TRÊS SITUAÇÕES, UM BLOCO (24/09 — "trocar depois de enviado", dono):
   //   · FINALIZAÇÃO — arte aprovada, falta o arquivo final (1º envio);
@@ -178,23 +249,10 @@ export function PainelDeFinalizacao({
 
               {regraThumbSel?.pode && (
                 <>
-                  <FileUploader
-                    onGetUploadParameters={getUploadUrl}
-                    onComplete={(result) => updateThumbMutation.mutate({
-                      itemId: selectedItem.id,
-                      approvalThumbUrl: convertGCSUrlToLocalPath(result.url),
-                      statusAntes: selectedItem.status,
-                      motivo: thumbPedeMotivo ? motivoTrocaThumb.trim().replace(/\s+/g, " ") : undefined,
-                    })}
-                    accept="image/*,application/pdf"
-                    data-testid="uploader-update-thumb"
-                    disabled={faltamMotivoThumb > 0 || updateThumbMutation.isPending}
-                    buttonVariant="ghost"
-                    // 44px no celular: é a ação do bloco, tocada com o dedo.
-                    buttonClassName={`${isMobile ? "h-11 min-h-[44px]" : "h-9"} px-3 text-[12px] font-semibold text-stone-800 bg-white border border-stone-300 rounded-lg hover:bg-stone-50 shrink-0`}
-                  >
-                    {updateThumbMutation.isPending ? 'Enviando…' : 'Trocar thumb'}
-                  </FileUploader>
+                  {!trocaThumbNoRodape && (
+                    <BotaoTrocarThumb selectedItem={selectedItem} getUploadUrl={getUploadUrl} updateThumbMutation={updateThumbMutation}
+                      thumbPedeMotivo={thumbPedeMotivo} faltamMotivoThumb={faltamMotivoThumb} motivoTrocaThumb={motivoTrocaThumb} isMobile={isMobile} />
+                  )}
                   {/* Reaproveitar segue a MESMA mutação (e o mesmo
                       motivo) — ver aplicarArteEncontrada. */}
                   {faltamMotivoThumb === 0 && (
@@ -206,24 +264,9 @@ export function PainelDeFinalizacao({
                   )}
                 </>
               )}
-              {thumbPedeMotivo && (
-                <div style={{ flexBasis: '100%', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <label htmlFor="motivo-troca-thumb" style={{ fontSize: fs(11), fontWeight: 700, color: T.apoio }}>
-                    Motivo da troca <span style={{ color: P.red.text }}>*</span>
-                  </label>
-                  <textarea
-                    id="motivo-troca-thumb"
-                    value={motivoTrocaThumb}
-                    onChange={(e) => setMotivoTrocaThumb(e.target.value)}
-                    placeholder="Ex: o patrocinador pediu o logo novo por e-mail depois de aprovar."
-                    data-testid="textarea-motivo-troca-thumb"
-                    style={{ width: '100%', backgroundColor: T.surface, border: `1px solid ${faltamMotivoThumb > 0 ? T.border : TOM.sucesso.text}`, borderRadius: R.md, padding: '8px 10px', fontSize: isMobile ? 16 : 12, resize: 'none', height: isMobile ? 72 : 60, fontFamily: 'inherit', color: T.text, boxSizing: 'border-box' }}
-                  />
-                  {faltamMotivoThumb > 0 && (
-                    <p data-testid="troca-thumb-faltam" style={{ margin: 0, fontSize: fs(11), color: P.amber.text }}>
-                      {fraseFaltamCaracteres(faltamMotivoThumb)} para liberar “Trocar thumb”.
-                    </p>
-                  )}
+              {thumbPedeMotivo && !trocaThumbNoRodape && (
+                <div style={{ flexBasis: '100%' }}>
+                  <MotivoDaTrocaDoThumb motivoTrocaThumb={motivoTrocaThumb} setMotivoTrocaThumb={setMotivoTrocaThumb} faltamMotivoThumb={faltamMotivoThumb} isMobile={isMobile} />
                 </div>
               )}
             </div>

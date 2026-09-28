@@ -226,7 +226,7 @@ export const TRANSICOES: readonly Transicao[] = [
   // — admin, de qualquer etapa depois da Arte enquanto não há material físico
   // (shared/devolver-evento-para-arte.ts).
   { acao: "devolver-evento-para-a-arte", de: VOLTA_PARA_A_ARTE_DE, para: "awaiting_submission", papeis: ["admin"],
-    condicoes: [EVENTO_ABERTO, MOTIVO, NAO_TRAVADA, "nenhuma unidade impressa, conferida ou entregue", "opcional: pedir nova aprovação de todos os patrocinadores"], rotas: [ROTA.devolverEventoArte] },
+    condicoes: [EVENTO_ABERTO, MOTIVO, "travada: o admin destrava ao devolver", "nenhuma unidade impressa, conferida ou entregue", "todo patrocinador que já aprovou aprova a arte nova"], rotas: [ROTA.devolverEventoArte] },
   { acao: "devolver-para-a-revisao", de: LIBERADA, para: "awaiting_final_review", papeis: ["grafica", "admin"],
     condicoes: [EVENTO_ABERTO, MOTIVO, "nenhuma unidade impressa"], rotas: [ROTA.devolverRevisao] },
 

@@ -418,26 +418,30 @@ describe("devolver as peças do evento para a Arte (admin)", () => {
     expect(mundo.itens.a.status).toBe("awaiting_sponsor_approval");
   });
 
-  it("devolve o que pode, recusa o resto com o porquê — e a peça sai limpa da Gráfica", async () => {
+  it("devolve o que pode (a travada, destravada), recusa o resto com o porquê — e a peça sai limpa da Gráfica", async () => {
     const r = await devolver({ itemIds: ["a", "b", "c", "d", "x"], motivo: MOTIVO });
     expect(r.status).toBe(200);
-    expect(r.body.devolvidas).toBe(2);
-    for (const id of ["a", "b"]) {
+    expect(r.body.devolvidas).toBe(3);
+    // Travada volta DESTRAVADA, e a trilha diz de quem era a trava.
+    expect(mundo.itens.d).toMatchObject({ status: "awaiting_submission", travadaEm: null, travadaPor: null, travadaMotivo: null });
+    expect(trilha.some((t) => t.includes("Destravada") && t.includes("Ana Solicitação"))).toBe(true);
+    for (const id of ["a", "b", "d"]) {
       expect(mundo.itens[id]).toMatchObject({ status: "awaiting_submission", approvalThumbUrl: null, finalFileUrl: null, observations: MOTIVO, rejectionReason: MOTIVO, hasModifiedData: true });
     }
     expect(mundo.itens.b).toMatchObject({ maquinaPrevista: null, reservaPorMaquina: null, printMachine: null });
     const porque = Object.fromEntries(r.body.recusadas.map((x: any) => [x.itemId, x.error]));
     expect(porque.c).toContain("material impresso");
-    expect(porque.d).toContain("travada");
     expect(porque.x).toBe("Não é peça deste evento.");
     expect(mundo.itens.c.status).toBe("inProduction");
     // Avisa a Arte e quem perdeu peça da fila (Atendimento e Gráfica), com o motivo.
     const aviso = notificacoes.at(-1);
-    expect(aviso.targetRoles.sort()).toEqual(["arte", "atendimento", "grafica"]);
+    // A travada (d) estava na Revisão Final: a Solicitação também é avisada.
+    expect(aviso.targetRoles.sort()).toEqual(["arte", "atendimento", "grafica", "solicitacao"]);
     expect(aviso.message).toContain(MOTIVO);
   });
 
-  it("nova aprovação de todos: aprovação já dada volta a pendente de nova versão", async () => {
+  // Dono, 28/09: "tem que ser todos" — sem opção de manter aprovações.
+  it("nova aprovação de TODOS, sempre: aprovação já dada volta a pendente de nova versão", async () => {
     const aprovacoes = [{ id: "ap1", sponsorId: "s1", status: "approved" }, { id: "ap2", sponsorId: "s2", status: "pending" }];
     H.storage.getItemSponsorApprovals = vi.fn(async () => aprovacoes);
     const mud: any[] = [];
@@ -445,9 +449,10 @@ describe("devolver as peças do evento para a Arte (admin)", () => {
     await devolver({ itemIds: ["a"], motivo: MOTIVO, pedirNovaAprovacao: true });
     expect(mud).toEqual([expect.objectContaining({ id: "ap1", status: "new_version_pending" })]);
     mud.length = 0;
+    // Mesmo pedindo para manter, o servidor pede a nova aprovação de todos.
     mundo.itens.a = peca({ id: "a", status: "sponsor_approved" });
     await devolver({ itemIds: ["a"], motivo: MOTIVO, pedirNovaAprovacao: false });
-    expect(mud).toEqual([]);
+    expect(mud).toEqual([expect.objectContaining({ id: "ap1", status: "new_version_pending" })]);
   });
 
   it("evento encerrado: 409 — reabra antes", async () => {

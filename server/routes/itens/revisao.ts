@@ -663,11 +663,11 @@ export function registrarRevisao(app: Express): void {
    * Mesma gravação da devolução "refazer a arte" da Revisão Final
    * (camposDoDestino "arte"), aberta às etapas seguintes enquanto não há
    * material físico — a régua é shared/devolver-evento-para-arte.ts. A peça
-   * sai da fila/impressora da Gráfica sem reserva pendurada. Com
-   * `pedirNovaAprovacao`, TODO patrocinador que já tinha aprovado volta a
-   * aprovar a arte nova (não só o desaprovador estrito).
+   * sai da fila/impressora da Gráfica sem reserva pendurada. TODO
+   * patrocinador que já tinha aprovado volta a aprovar a arte nova — não só o
+   * desaprovador estrito (decisão do dono, 28/09: "tem que ser todos").
    *
-   * Corpo: { itemIds, motivo, pedirNovaAprovacao }. Resposta por peça, como os
+   * Corpo: { itemIds, motivo }. Resposta por peça, como os
    * lotes: `devolvidas` e `recusadas` (com o porquê de cada uma).
    */
   app.post("/api/events/:id/devolver-para-a-arte", requireAuth, async (req, res) => {
@@ -682,7 +682,6 @@ export function registrarRevisao(app: Express): void {
       const lido = lerMotivoDevolucao({ body: { rejectionReason: req.body?.motivo } });
       if (!lido.ok) return res.status(400).json({ error: lido.erro });
       const motivo = lido.motivo;
-      const pedirNovaAprovacao = req.body?.pedirNovaAprovacao !== false;
 
       const event = await storage.getEvent(req.params.id);
       if (!event) return res.status(404).json({ error: "Evento não encontrado." });
@@ -704,6 +703,8 @@ export function registrarRevisao(app: Express): void {
         try {
           const item = await storage.updateItem(itemId, {
             ...camposDoDestino("arte", false, peca),
+            // Travada: o admin destrava ao devolver (a trilha registra).
+            ...(situacao.destrava ? colunasDoDestravar() : {}),
             creatorReviewedAt: null,
             rejectedByCreator: true,
             observations: motivo,
@@ -713,22 +714,21 @@ export function registrarRevisao(app: Express): void {
             reservaPorMaquina: null, maquinaPrevista: null, printMachine: null, impressaoPorMaquina: null,
           });
           if (!item) { recusadas.push({ itemId, displayId: peca.displayId ?? null, error: "Peça não encontrada." }); continue; }
-          if (pedirNovaAprovacao) {
-            for (const a of await storage.getItemSponsorApprovals(itemId)) {
-              if (a.status === "approved") {
-                await storage.updateItemSponsorApproval(a.id, {
-                  status: "new_version_pending", approvedBy: null, approvedAt: null,
-                  rejectedBy: req.userName ?? null, rejectedAt: new Date(),
-                  rejectionReason: `Arte refeita a pedido do admin: ${motivo}`,
-                });
-              }
+          // Todo patrocinador que já aprovou aprova a arte nova (sem exceção).
+          for (const a of await storage.getItemSponsorApprovals(itemId)) {
+            if (a.status === "approved") {
+              await storage.updateItemSponsorApproval(a.id, {
+                status: "new_version_pending", approvedBy: null, approvedAt: null,
+                rejectedBy: req.userName ?? null, rejectedAt: new Date(),
+                rejectionReason: `Arte refeita a pedido do admin: ${motivo}`,
+              });
             }
           }
           origens.add(peca.status);
           devolvidas.push(item);
           trilha.push({
             action: "rejected", entityType: "item", entityId: item.id,
-            details: `Admin devolveu a peça para a Arte (refazer a arte — evento inteiro), de ${translateStatus(peca.status)}.${pedirNovaAprovacao ? " Nova aprovação de todos os patrocinadores." : ""} Motivo: ${motivo}`,
+            details: `Admin devolveu a peça para a Arte (refazer a arte — evento inteiro), de ${translateStatus(peca.status)}.${situacao.destrava ? ` Destravada (trava de ${peca.travadaPor ?? "Solicitação"}: ${peca.travadaMotivo ?? "sem motivo"}).` : ""} Nova aprovação de todos os patrocinadores. Motivo: ${motivo}`,
           });
         } catch (e) {
           console.error("[devolver-evento-para-a-arte] falha na peça", itemId, e);

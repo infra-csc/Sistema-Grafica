@@ -12,9 +12,14 @@
 // aberta às etapas seguintes ENQUANTO não existe material físico:
 //   · volta: com o Atendimento, aprovada, finalização, Revisão Final, liberada
 //     para a Gráfica, e na impressora sem nenhuma unidade impressa;
+//   · TRAVADA também volta, destravada (dono, 28/09: "todos que têm
+//     Ministério, independente de status, pois ele está travando alguns") —
+//     a trilha registra que o admin destravou;
+//   · JÁ COM A ARTE (Aguardando envio) recebe o motivo e a nova aprovação —
+//     a Arte pode estar fazendo o thumb com o logo antigo;
 //   · não volta (com o porquê): material impresso/conferido/entregue — o
-//     caminho é complemento/reimpressão; travada pela Solicitação — destrave
-//     antes; cancelada; já com a Arte; ainda antes da Arte.
+//     caminho é complemento/reimpressão; cancelada; ainda antes da Arte (não
+//     há arte feita — ela chega à Arte pelo caminho normal).
 // Puro: a rota e o diálogo leem daqui (a tela não oferece o que o servidor nega).
 // ─────────────────────────────────────────────────────────────────────────────
 import { pecaTravada, type PecaTravavel } from "./trava-da-peca";
@@ -28,10 +33,10 @@ export type PecaParaDevolver = PecaTravavel & {
 };
 
 /** Por que a peça fica de fora — o agrupamento que o diálogo mostra. */
-export type ForaDaDevolucao = "ja-na-arte" | "antes-da-arte" | "com-material" | "travada" | "cancelada";
+export type ForaDaDevolucao = "antes-da-arte" | "com-material" | "cancelada";
 
 export type SituacaoDaDevolucao =
-  | { volta: true }
+  | { volta: true; destrava?: true; jaNaArte?: true }
   | { volta: false; grupo: ForaDaDevolucao; porque: string };
 
 /** Motivo mínimo: a mesma régua das outras devoluções (lerMotivoDevolucao). */
@@ -47,7 +52,7 @@ const COM_MATERIAL = [
 
 /** As etapas de onde a peça volta — a origem da transição na máquina de estados. */
 export const VOLTA_PARA_A_ARTE_DE = [
-  "awaiting_sponsor_approval", "awaiting_approval", "sponsor_approved", "awaiting_finalization",
+  "awaiting_submission", "awaiting_sponsor_approval", "awaiting_approval", "sponsor_approved", "awaiting_finalization",
   "awaiting_creator_review", "awaiting_final_review", "awaiting_review", "in_review",
   "ready_for_production", "pronto_para_producao", "approved", "liberado",
   "inProduction", "em_producao",
@@ -56,14 +61,14 @@ export const VOLTA_PARA_A_ARTE_DE = [
 export function situacaoParaVoltarAArte(p: PecaParaDevolver): SituacaoDaDevolucao {
   const status = p.status ?? "";
   if (CANCELADA.includes(status)) return { volta: false, grupo: "cancelada", porque: "cancelada" };
-  if (JA_NA_ARTE.includes(status)) return { volta: false, grupo: "ja-na-arte", porque: "já está com a Arte" };
   if (ANTES_DA_ARTE.includes(status)) return { volta: false, grupo: "antes-da-arte", porque: "ainda não chegou à Arte" };
   const material = (p.quantityProduced ?? 0) > 0 || (p.conferredQty ?? 0) > 0 || (p.embaladaQty ?? 0) > 0 || (p.deliveredQty ?? 0) > 0;
   if (material || COM_MATERIAL.includes(status)) {
     return { volta: false, grupo: "com-material", porque: "já tem material impresso — peça um complemento/reimpressão" };
   }
-  if (pecaTravada(p)) return { volta: false, grupo: "travada", porque: "travada pela Solicitação — destrave antes" };
-  if ((VOLTA_PARA_A_ARTE_DE as readonly string[]).includes(status)) return { volta: true };
+  const destrava = pecaTravada(p) ? { destrava: true as const } : {};
+  if (JA_NA_ARTE.includes(status)) return { volta: true, jaNaArte: true, ...destrava };
+  if ((VOLTA_PARA_A_ARTE_DE as readonly string[]).includes(status)) return { volta: true, ...destrava };
   // Status desconhecido/legado: não se mexe no que não se entende.
   return { volta: false, grupo: "antes-da-arte", porque: "etapa que não volta para a Arte" };
 }
@@ -71,8 +76,6 @@ export function situacaoParaVoltarAArte(p: PecaParaDevolver): SituacaoDaDevoluca
 /** O título de cada grupo "de fora" no diálogo. */
 export const ROTULO_DE_FORA: Record<ForaDaDevolucao, string> = {
   "com-material": "Com material impresso (complemento/reimpressão)",
-  "travada": "Travadas pela Solicitação",
-  "ja-na-arte": "Já estão com a Arte",
-  "antes-da-arte": "Ainda não chegaram à Arte",
+  "antes-da-arte": "Ainda não chegaram à Arte (sem arte feita)",
   "cancelada": "Canceladas",
 };

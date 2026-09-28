@@ -34,7 +34,6 @@ export function DevolverEventoParaArteDialog({ open, onFechar, eventId, nomeDoEv
   toast: ReturnType<typeof useToast>["toast"];
 }) {
   const [motivo, setMotivo] = useState("");
-  const [novaAprovacao, setNovaAprovacao] = useState(true);
   const [soDoPatrocinador, setSoDoPatrocinador] = useState<string[]>([]);
   const [desmarcadas, setDesmarcadas] = useState<Set<string>>(() => new Set());
   const [enviando, setEnviando] = useState(false);
@@ -77,7 +76,7 @@ export function DevolverEventoParaArteDialog({ open, onFechar, eventId, nomeDoEv
     setEnviando(true);
     try {
       const r = await apiRequest("POST", `/api/events/${eventId}/devolver-para-a-arte`, {
-        itemIds: marcadas.map((p) => p.id), motivo: motivoLimpo, pedirNovaAprovacao: novaAprovacao,
+        itemIds: marcadas.map((p) => p.id), motivo: motivoLimpo,
       });
       const corpo = (await r.json()) as Resposta;
       await queryClient.invalidateQueries({ queryKey: ["/api/items"] });
@@ -128,16 +127,11 @@ export function DevolverEventoParaArteDialog({ open, onFechar, eventId, nomeDoEv
             {faltam > 0 && <p style={{ margin: "4px 0 0", fontSize: letra(FS.small), color: TOM.alerta.text }}>Faltam {faltam} caractere{faltam !== 1 ? "s" : ""} no motivo.</p>}
           </div>
 
-          <label style={{ display: "flex", alignItems: "flex-start", gap: 10, minHeight: 44, cursor: "pointer", fontSize: letra(13), color: T.text }}>
-            <input type="checkbox" checked={novaAprovacao} onChange={(e) => setNovaAprovacao(e.target.checked)} data-testid="checkbox-nova-aprovacao"
-              style={{ width: 18, height: 18, marginTop: 2, flexShrink: 0, accentColor: T.text }} />
-            <span>
-              <strong>Pedir nova aprovação de todos os patrocinadores</strong>
-              <span style={{ display: "block", color: T.second, fontSize: letra(FS.small), marginTop: 2 }}>
-                Desmarcado, só quem sempre reaprova (aprovação rigorosa) aprova a arte nova; os outros continuam aprovados.
-              </span>
-            </span>
-          </label>
+          {/* Decisão do dono (28/09): "tem que ser todos" — sem opção. */}
+          <p data-testid="aviso-nova-aprovacao" style={{ margin: 0, display: "flex", gap: 8, alignItems: "flex-start", padding: "10px 12px", borderRadius: R.md, background: TOM.info.bg, border: `1px solid ${TOM.info.border}`, color: TOM.info.text, fontSize: letra(13), lineHeight: 1.45 }}>
+            <strong style={{ whiteSpace: "nowrap" }}>Nova aprovação:</strong>
+            <span>todos os patrocinadores aprovam a arte nova — inclusive quem já tinha aprovado a anterior.</span>
+          </p>
 
           {patrocinadores.length > 1 && (
             <div>
@@ -169,6 +163,11 @@ export function DevolverEventoParaArteDialog({ open, onFechar, eventId, nomeDoEv
                       style={{ width: 18, height: 18, flexShrink: 0, accentColor: T.text }} />
                     <span style={{ fontWeight: FW.forte, color: T.accentText, fontVariantNumeric: "tabular-nums" }}>{p.displayId}</span>
                     <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{p.type}{p.description && p.description !== p.type ? ` — ${p.description}` : ""}</span>
+                    {(() => {
+                      const s = situacaoParaVoltarAArte(p);
+                      const selo = s.volta && s.destrava ? "será destravada" : s.volta && s.jaNaArte ? "já na Arte — recebe o motivo" : null;
+                      return selo ? <span style={{ flexShrink: 0, marginLeft: "auto", padding: "2px 8px", borderRadius: R.pill, background: TOM.alerta.bg, color: TOM.alerta.text, fontSize: letra(FS.small), fontWeight: FW.forte, whiteSpace: "nowrap" }}>{selo}</span> : null;
+                    })()}
                   </label>
                 ))}
               </div>

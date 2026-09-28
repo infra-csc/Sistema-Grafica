@@ -24,12 +24,17 @@ describe("quem volta para a Arte", () => {
     expect(situacaoParaVoltarAArte(p({ status }))).toMatchObject({ volta: false, grupo: "com-material" });
   });
 
-  it("travada pela Solicitação não volta — destrave antes", () => {
-    expect(situacaoParaVoltarAArte(p({ travadaEm: new Date(), travadaPor: "Ana", travadaMotivo: "x" }))).toMatchObject({ volta: false, grupo: "travada" });
+  // Dono, 28/09: "todos que têm Ministério, independente de status, pois ele
+  // está travando alguns".
+  it("travada pela Solicitação VOLTA, destravada", () => {
+    expect(situacaoParaVoltarAArte(p({ travadaEm: new Date(), travadaPor: "Ana", travadaMotivo: "x" }))).toEqual({ volta: true, destrava: true });
   });
 
-  it("já com a Arte, antes da Arte e cancelada ficam de fora com o porquê", () => {
-    expect(situacaoParaVoltarAArte(p({ status: "awaiting_submission" }))).toMatchObject({ volta: false, grupo: "ja-na-arte" });
+  it("já com a Arte também volta — recebe o motivo e a nova aprovação", () => {
+    expect(situacaoParaVoltarAArte(p({ status: "awaiting_submission" }))).toEqual({ volta: true, jaNaArte: true });
+  });
+
+  it("antes da Arte e cancelada ficam de fora com o porquê", () => {
     expect(situacaoParaVoltarAArte(p({ status: "awaiting_linking" }))).toMatchObject({ volta: false, grupo: "antes-da-arte" });
     expect(situacaoParaVoltarAArte(p({ status: "canceled" }))).toMatchObject({ volta: false, grupo: "cancelada" });
   });

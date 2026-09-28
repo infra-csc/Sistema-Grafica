@@ -201,7 +201,7 @@ patrocinador, o reaproveitamento) e a peça não muda de status.
 
 | Ação | De | Para | Quem | Condições |
 | --- | --- | --- | --- | --- |
-| devolver-evento-para-a-arte | `awaiting_sponsor_approval`, `awaiting_approval`, `sponsor_approved`, `awaiting_finalization`, `awaiting_creator_review`, `awaiting_final_review`, `awaiting_review`, `in_review`, `ready_for_production`, `pronto_para_producao`, `approved`, `liberado`, `inProduction`, `em_producao` | `awaiting_submission` | admin | evento aberto (nem encerrado nem já realizado); motivo com pelo menos 10 caracteres; peça não travada pela Solicitação; nenhuma unidade impressa, conferida ou entregue; opcional: pedir nova aprovação de todos os patrocinadores |
+| devolver-evento-para-a-arte | `awaiting_submission`, `awaiting_sponsor_approval`, `awaiting_approval`, `sponsor_approved`, `awaiting_finalization`, `awaiting_creator_review`, `awaiting_final_review`, `awaiting_review`, `in_review`, `ready_for_production`, `pronto_para_producao`, `approved`, `liberado`, `inProduction`, `em_producao` | `awaiting_submission` | admin | evento aberto (nem encerrado nem já realizado); motivo com pelo menos 10 caracteres; travada: o admin destrava ao devolver; nenhuma unidade impressa, conferida ou entregue; todo patrocinador que já aprovou aprova a arte nova |
 
 ### PATCH /api/items/:id/return-to-review
 

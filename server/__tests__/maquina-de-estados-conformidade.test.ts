@@ -260,6 +260,8 @@ const FORA_DESTE_TESTE: Partial<Record<AcaoDaPeca, string>> = {
   "embalar": "tubos.ts — tubos.test.ts / embalagem-com-quantidade.test.ts",
   "tirar-do-tubo": "tubos.ts — tubos.test.ts",
   "entregar-volume": "tubos.ts — tubos.test.ts",
+  // Rota por EVENTO (itemIds no corpo), fora do molde de cenário por peça.
+  "devolver-evento-para-a-arte": "itens/revisao.ts — revisao-trava-lote-e-trocas.test.ts / devolver-evento-para-arte.test.ts",
 };
 
 const UNIVERSO = Array.from(new Set<string>([...STATUS_CONHECIDOS, ...ITEM_STATUSES, "status_inexistente"]));

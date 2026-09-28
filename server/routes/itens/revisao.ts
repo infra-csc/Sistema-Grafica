@@ -26,6 +26,9 @@ import { motivoEventoFechado, barraEventoFinalizado, contadorDeBloqueio } from "
 import { lerMotivoDevolucao, type DestinoDevolucao, lerDestinoDevolucao } from "./comum";
 import { responderFalha, camposDoErro } from "../../erros";
 import { vemDeOrigemValida } from "@shared/maquina-de-estados";
+import { situacaoParaVoltarAArte } from "@shared/devolver-evento-para-arte";
+// Mexe em decisão de patrocinador (nova aprovação): o quadro de Versões é refeito.
+import { invalidarCacheDeVersoes } from "../versoes";
 
 /**
  * Os campos que cada destino grava.
@@ -649,6 +652,111 @@ export function registrarRevisao(app: Express): void {
       res.json({ success: results.length, errors, items: results, failedItemIds: errors.map(e => e.itemId), destinos });
     } catch (error) {
       sendSensitiveError(res, error, "Devolver em lote para a Arte", 500);
+    }
+  });
+
+  /**
+   * DEVOLVER AS PEÇAS DO EVENTO PARA A ARTE — admin, com motivo (dono, 28/09:
+   * "Night Run CWB mudou de data e com isso mudam todos os logos de Ministério
+   * e Lei… como fazemos pra retornar tudo pra Arte?").
+   *
+   * Mesma gravação da devolução "refazer a arte" da Revisão Final
+   * (camposDoDestino "arte"), aberta às etapas seguintes enquanto não há
+   * material físico — a régua é shared/devolver-evento-para-arte.ts. A peça
+   * sai da fila/impressora da Gráfica sem reserva pendurada. Com
+   * `pedirNovaAprovacao`, TODO patrocinador que já tinha aprovado volta a
+   * aprovar a arte nova (não só o desaprovador estrito).
+   *
+   * Corpo: { itemIds, motivo, pedirNovaAprovacao }. Resposta por peça, como os
+   * lotes: `devolvidas` e `recusadas` (com o porquê de cada uma).
+   */
+  app.post("/api/events/:id/devolver-para-a-arte", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "admin") {
+        return res.status(403).json({ error: "Só o admin devolve as peças do evento para a Arte." });
+      }
+      const itemIds: unknown = req.body?.itemIds;
+      if (!Array.isArray(itemIds) || itemIds.length === 0 || !itemIds.every((i) => typeof i === "string")) {
+        return res.status(400).json({ error: "Selecione ao menos uma peça para devolver." });
+      }
+      const lido = lerMotivoDevolucao({ body: { rejectionReason: req.body?.motivo } });
+      if (!lido.ok) return res.status(400).json({ error: lido.erro });
+      const motivo = lido.motivo;
+      const pedirNovaAprovacao = req.body?.pedirNovaAprovacao !== false;
+
+      const event = await storage.getEvent(req.params.id);
+      if (!event) return res.status(404).json({ error: "Evento não encontrado." });
+      // ANDA: refazer a arte é trabalho novo — evento encerrado/realizado não.
+      const fechado = motivoEventoFechado(event);
+      if (fechado) return res.status(409).json({ error: "O evento já foi encerrado ou realizado — reabra o evento antes de devolver as peças para a Arte." });
+
+      const doEvento = new Map((await storage.getItemsByEvent(event.id)).map((i) => [i.id, i]));
+      const devolvidas: Item[] = [];
+      const recusadas: Array<{ itemId: string; displayId: string | null; error: string }> = [];
+      const trilha: Array<{ action: string; entityType: string; entityId: string; details?: string }> = [];
+      const origens = new Set<string>();
+
+      for (const itemId of itemIds as string[]) {
+        const peca = doEvento.get(itemId);
+        if (!peca) { recusadas.push({ itemId, displayId: null, error: "Não é peça deste evento." }); continue; }
+        const situacao = situacaoParaVoltarAArte(peca);
+        if (!situacao.volta) { recusadas.push({ itemId, displayId: peca.displayId ?? null, error: situacao.porque }); continue; }
+        try {
+          const item = await storage.updateItem(itemId, {
+            ...camposDoDestino("arte", false, peca),
+            creatorReviewedAt: null,
+            rejectedByCreator: true,
+            observations: motivo,
+            rejectionReason: motivo,
+            hasModifiedData: true,
+            // Sai da Gráfica sem deixar reserva "Pausada" nem impressora ocupada.
+            reservaPorMaquina: null, maquinaPrevista: null, printMachine: null, impressaoPorMaquina: null,
+          });
+          if (!item) { recusadas.push({ itemId, displayId: peca.displayId ?? null, error: "Peça não encontrada." }); continue; }
+          if (pedirNovaAprovacao) {
+            for (const a of await storage.getItemSponsorApprovals(itemId)) {
+              if (a.status === "approved") {
+                await storage.updateItemSponsorApproval(a.id, {
+                  status: "new_version_pending", approvedBy: null, approvedAt: null,
+                  rejectedBy: req.userName ?? null, rejectedAt: new Date(),
+                  rejectionReason: `Arte refeita a pedido do admin: ${motivo}`,
+                });
+              }
+            }
+          }
+          origens.add(peca.status);
+          devolvidas.push(item);
+          trilha.push({
+            action: "rejected", entityType: "item", entityId: item.id,
+            details: `Admin devolveu a peça para a Arte (refazer a arte — evento inteiro), de ${translateStatus(peca.status)}.${pedirNovaAprovacao ? " Nova aprovação de todos os patrocinadores." : ""} Motivo: ${motivo}`,
+          });
+        } catch (e) {
+          console.error("[devolver-evento-para-a-arte] falha na peça", itemId, e);
+          recusadas.push({ itemId, displayId: peca.displayId ?? null, error: "Falha interna ao devolver esta peça — tente de novo." });
+        }
+      }
+
+      if (devolvidas.length > 0) {
+        invalidarCacheDeVersoes();
+        await createAuditLogsEmLote(req, trilha);
+        broadcast({ type: "items_bulk_updated", itemIds: devolvidas.map((i) => i.id), eventId: event.id });
+        // A Arte recebe o trabalho; quem perdeu peça da própria fila é avisado.
+        const papeis = new Set<"arte" | "atendimento" | "solicitacao" | "grafica">(["arte"]);
+        if (Array.from(origens).some((s) => ["awaiting_sponsor_approval", "awaiting_approval", "sponsor_approved"].includes(s))) papeis.add("atendimento");
+        if (Array.from(origens).some((s) => ["awaiting_final_review", "awaiting_review", "in_review", "awaiting_creator_review"].includes(s))) papeis.add("solicitacao");
+        if (Array.from(origens).some((s) => ["ready_for_production", "pronto_para_producao", "approved", "liberado", "inProduction", "em_producao"].includes(s))) papeis.add("grafica");
+        const notification = await storage.createNotification({
+          type: "itemRejected",
+          message: `Admin devolveu ${devolvidas.length} peça(s) de ${event.name} para a Arte refazer. Motivo: ${motivo}`,
+          eventId: event.id,
+          itemId: devolvidas.length === 1 ? devolvidas[0].id : null,
+          targetRoles: Array.from(papeis),
+        });
+        broadcast({ type: "notification_created", notification });
+      }
+      res.json({ devolvidas: devolvidas.length, recusadas, items: devolvidas });
+    } catch (error) {
+      sendSensitiveError(res, error, "Devolver as peças do evento para a Arte", 500);
     }
   });
 }

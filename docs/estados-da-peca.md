@@ -197,6 +197,12 @@ patrocinador, o reaproveitamento) e a peça não muda de status.
 | --- | --- | --- | --- | --- |
 | devolver-ao-solicitante | qualquer status, menos `draft` | `draft` | arte, admin | evento aberto (nem encerrado nem já realizado); motivo com pelo menos 10 caracteres; de depois da Arte a trilha marca "JÁ FORA DA ARTE" |
 
+### POST /api/events/:id/devolver-para-a-arte
+
+| Ação | De | Para | Quem | Condições |
+| --- | --- | --- | --- | --- |
+| devolver-evento-para-a-arte | `awaiting_sponsor_approval`, `awaiting_approval`, `sponsor_approved`, `awaiting_finalization`, `awaiting_creator_review`, `awaiting_final_review`, `awaiting_review`, `in_review`, `ready_for_production`, `pronto_para_producao`, `approved`, `liberado`, `inProduction`, `em_producao` | `awaiting_submission` | admin | evento aberto (nem encerrado nem já realizado); motivo com pelo menos 10 caracteres; peça não travada pela Solicitação; nenhuma unidade impressa, conferida ou entregue; opcional: pedir nova aprovação de todos os patrocinadores |
+
 ### PATCH /api/items/:id/return-to-review
 
 | Ação | De | Para | Quem | Condições |

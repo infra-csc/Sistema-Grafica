@@ -24,6 +24,7 @@ import type { Papel } from "./permissoes";
 import { DISPENSAVEIS, DESTINO_DA_DISPENSA, POS_APROVACAO, EM_REVISAO, DEPOIS_DA_ARTE, PODE_IR_PARA_TUBO } from "./fluxo-peca";
 import { DESTINO_DO_ENVIO_DO_MOLDE, MOLDE_LIBERADO } from "./molde";
 import { ARTE_DECIDE_NA_REVISAO } from "./troca-de-material";
+import { VOLTA_PARA_A_ARTE_DE } from "./devolver-evento-para-arte";
 
 /** Status gravado na peça — os canônicos e as grafias legadas que o banco ainda tem. */
 export type StatusDaPeca = string;
@@ -47,7 +48,7 @@ export type AcaoDaPeca =
   | "dispensar-aprovacao" | "enviar-arquivo-final" | "trocar-thumb-aprovado" | "trocar-arquivo-final-liberado"
   | "liberar-para-producao" | "liberar-com-reaproveitamento-total" | "liberar-o-que-ja-foi-liberado"
   | "devolver-para-a-arte" | "devolver-para-a-finalizacao" | "devolver-para-a-aprovacao"
-  | "devolver-ao-solicitante" | "devolver-para-a-revisao"
+  | "devolver-ao-solicitante" | "devolver-para-a-revisao" | "devolver-evento-para-a-arte"
   | "cancelar" | "descancelar"
   | "iniciar-impressao" | "concluir-impressao" | "informar-impressas-parcial" | "esvaziar-impressoras"
   | "reaproveitar-o-que-falta" | "reaproveitar-parte" | "ajustar-reaproveitamento-da-produzida"
@@ -133,6 +134,7 @@ const ROTA = {
   devolverArteLote: "PATCH /api/items/bulk-return-to-arte",
   devolverSolicitante: "PATCH /api/items/:id/arte-reject",
   devolverRevisao: "PATCH /api/items/:id/return-to-review",
+  devolverEventoArte: "POST /api/events/:id/devolver-para-a-arte",
   cancelar: "PATCH /api/items/:id/cancel",
   cancelarLote: "PATCH /api/items/bulk-cancel",
   descancelar: "PATCH /api/items/:id/uncancel",
@@ -220,6 +222,11 @@ export const TRANSICOES: readonly Transicao[] = [
     condicoes: [EVENTO_ABERTO, MOTIVO, "destino \"finalização\", mas com patrocinador ainda pendente"], rotas: [ROTA.devolverArte, ROTA.devolverArteLote] },
   { acao: "devolver-ao-solicitante", de: { todosMenos: ["draft"] }, para: "draft", papeis: ["arte", "admin"],
     condicoes: [EVENTO_ABERTO, MOTIVO, "de depois da Arte a trilha marca \"JÁ FORA DA ARTE\""], rotas: [ROTA.devolverSolicitante] },
+  // Mudança que refaz a arte do evento inteiro (ex.: data nova troca os logos)
+  // — admin, de qualquer etapa depois da Arte enquanto não há material físico
+  // (shared/devolver-evento-para-arte.ts).
+  { acao: "devolver-evento-para-a-arte", de: VOLTA_PARA_A_ARTE_DE, para: "awaiting_submission", papeis: ["admin"],
+    condicoes: [EVENTO_ABERTO, MOTIVO, NAO_TRAVADA, "nenhuma unidade impressa, conferida ou entregue", "opcional: pedir nova aprovação de todos os patrocinadores"], rotas: [ROTA.devolverEventoArte] },
   { acao: "devolver-para-a-revisao", de: LIBERADA, para: "awaiting_final_review", papeis: ["grafica", "admin"],
     condicoes: [EVENTO_ABERTO, MOTIVO, "nenhuma unidade impressa"], rotas: [ROTA.devolverRevisao] },
 

@@ -40,6 +40,7 @@ import { EsqueletoDoEvento, EventoIndisponivel } from "@/components/detalhe-do-e
 import { FaixasDoEvento } from "@/components/detalhe-do-evento/faixas-do-evento";
 import { TituloDoEvento } from "@/components/detalhe-do-evento/titulo-do-evento";
 import { AcoesDoEvento } from "@/components/detalhe-do-evento/acoes-do-evento";
+import { DevolverEventoParaArteDialog } from "@/components/detalhe-do-evento/devolver-evento-para-arte-dialog";
 import { ModalDeEntradaDePecas } from "@/components/detalhe-do-evento/modal-de-entrada-de-pecas";
 import { AgendaOperacional } from "@/components/detalhe-do-evento/agenda-operacional";
 import { CardDeRascunhos } from "@/components/detalhe-do-evento/card-de-rascunhos";
@@ -206,6 +207,8 @@ export default function EventDetail() {
 
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [reopenDialogOpen, setReopenDialogOpen] = useState(false);
+  // Admin: devolver as peças do evento para a Arte (data nova troca os logos).
+  const [devolverParaArteOpen, setDevolverParaArteOpen] = useState(false);
 
   const { closeEventMutation, reopenEventMutation } = useEncerrarEReabrir({ eventId, toast, setCloseDialogOpen, setReopenDialogOpen });
 
@@ -367,6 +370,7 @@ export default function EventDetail() {
             setCloneDialogOpen={setCloneDialogOpen}
             setCloseDialogOpen={setCloseDialogOpen}
             setReopenDialogOpen={setReopenDialogOpen}
+            setDevolverParaArteOpen={setDevolverParaArteOpen}
             setLocation={setLocation}
             toast={toast}
           >
@@ -654,6 +658,18 @@ export default function EventDetail() {
         emProducao={openWork.emProducao}
         ativas={openWork.ativas}
       />
+
+      {canCloseEvent && eventId && (
+        <DevolverEventoParaArteDialog
+          open={devolverParaArteOpen}
+          onFechar={() => setDevolverParaArteOpen(false)}
+          eventId={eventId}
+          nomeDoEvento={event.name}
+          pecas={rawItems}
+          isMobile={isMobile}
+          toast={toast}
+        />
+      )}
 
       <ExcluirPecaDialog
         deletingItem={deletingItem}

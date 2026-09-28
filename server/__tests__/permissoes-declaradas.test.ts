@@ -42,7 +42,8 @@ describe("tabela ↔ código, sem sobras de nenhum lado", () => {
     expect(fantasmas).toEqual([]);
   });
 
-  it("são as 119 — o número que o diagnóstico mediu; mudou, atualize os dois", () => {
+  // 120 desde 28/09: POST /api/events/:id/devolver-para-a-arte (admin).
+  it("são as 120 — o número que o diagnóstico mediu; mudou, atualize os dois", () => {
     // 96 = as 78 do diagnóstico + o descancelar do admin (01/09)
     //    + iniciar impressão da Gráfica (14/09)
     //    + reservar e liberar peça do estoque (14/09)
@@ -62,8 +63,8 @@ describe("tabela ↔ código, sem sobras de nenhum lado", () => {
     //    − DELETE /api/comments/:id: a rota de comentários saiu (nenhuma tela a chamava).
     //    + entregar volumes em lote (23/09).
     //    + restaurar evento e restaurar patrocinador ("excluir" virou arquivar).
-    expect(REGUA_DE_PAPEIS.length).toBe(119);
-    expect(doCodigo.length).toBe(119);
+    expect(REGUA_DE_PAPEIS.length).toBe(120);
+    expect(doCodigo.length).toBe(120);
   });
 });
 

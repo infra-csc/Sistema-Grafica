@@ -55,6 +55,8 @@ const ORDEM_ORIGINAL = [
   "PATCH /api/items/:id/return-to-arte",
   "PATCH /api/items/:id/return-to-review",
   "PATCH /api/items/bulk-return-to-arte",
+  // 28/09: admin devolve as peças do evento para a Arte (fim de registrarRevisao).
+  "POST /api/events/:id/devolver-para-a-arte",
   "PATCH /api/items/:id/cancel",
   "PATCH /api/items/:id/uncancel",
   "PATCH /api/items/bulk-cancel",

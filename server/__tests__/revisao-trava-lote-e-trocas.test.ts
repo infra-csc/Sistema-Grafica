@@ -389,3 +389,71 @@ describe("13 · as rotas mortas saíram", () => {
     expect(rotas.has("PATCH /api/items/:id/return-to-arte")).toBe(true);
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// DEVOLVER AS PEÇAS DO EVENTO PARA A ARTE (dono, 28/09 — data nova troca os logos)
+describe("devolver as peças do evento para a Arte (admin)", () => {
+  const devolver = (body: any, userRole = "admin") => chamar("POST /api/events/:id/devolver-para-a-arte", { params: { id: "ev-1" }, body, userRole });
+  beforeEach(() => {
+    mundo.itens = {
+      a: peca({ id: "a", displayId: "#0601", status: "awaiting_sponsor_approval" }),
+      b: peca({ id: "b", displayId: "#0602", status: "ready_for_production", maquinaPrevista: "2", reservaPorMaquina: { "2": 4 } }),
+      c: peca({ id: "c", displayId: "#0603", status: "inProduction", quantityProduced: 2, printMachine: "1" }),
+      d: peca({ id: "d", displayId: "#0604", status: "awaiting_final_review", ...TRAVA }),
+      x: peca({ id: "x", displayId: "#0700", eventId: "ev-2", status: "awaiting_final_review" }),
+    };
+    H.storage.getItemsByEvent = vi.fn(async (eventId: string) => Object.values(mundo.itens).filter((i: any) => i.eventId === eventId));
+  });
+  const MOTIVO = "evento mudou para 15/11 — trocar data e logos do Ministério";
+
+  it("só o admin: a Solicitação recebe 403 e nada muda", async () => {
+    const r = await devolver({ itemIds: ["a"], motivo: MOTIVO }, "solicitacao");
+    expect(r.status).toBe(403);
+    expect(mundo.itens.a.status).toBe("awaiting_sponsor_approval");
+  });
+
+  it("sem motivo (menos de 10 caracteres) é 400", async () => {
+    const r = await devolver({ itemIds: ["a"], motivo: "logo" });
+    expect(r.status).toBe(400);
+    expect(mundo.itens.a.status).toBe("awaiting_sponsor_approval");
+  });
+
+  it("devolve o que pode, recusa o resto com o porquê — e a peça sai limpa da Gráfica", async () => {
+    const r = await devolver({ itemIds: ["a", "b", "c", "d", "x"], motivo: MOTIVO });
+    expect(r.status).toBe(200);
+    expect(r.body.devolvidas).toBe(2);
+    for (const id of ["a", "b"]) {
+      expect(mundo.itens[id]).toMatchObject({ status: "awaiting_submission", approvalThumbUrl: null, finalFileUrl: null, observations: MOTIVO, rejectionReason: MOTIVO, hasModifiedData: true });
+    }
+    expect(mundo.itens.b).toMatchObject({ maquinaPrevista: null, reservaPorMaquina: null, printMachine: null });
+    const porque = Object.fromEntries(r.body.recusadas.map((x: any) => [x.itemId, x.error]));
+    expect(porque.c).toContain("material impresso");
+    expect(porque.d).toContain("travada");
+    expect(porque.x).toBe("Não é peça deste evento.");
+    expect(mundo.itens.c.status).toBe("inProduction");
+    // Avisa a Arte e quem perdeu peça da fila (Atendimento e Gráfica), com o motivo.
+    const aviso = notificacoes.at(-1);
+    expect(aviso.targetRoles.sort()).toEqual(["arte", "atendimento", "grafica"]);
+    expect(aviso.message).toContain(MOTIVO);
+  });
+
+  it("nova aprovação de todos: aprovação já dada volta a pendente de nova versão", async () => {
+    const aprovacoes = [{ id: "ap1", sponsorId: "s1", status: "approved" }, { id: "ap2", sponsorId: "s2", status: "pending" }];
+    H.storage.getItemSponsorApprovals = vi.fn(async () => aprovacoes);
+    const mud: any[] = [];
+    H.storage.updateItemSponsorApproval = vi.fn(async (id: string, d: any) => { mud.push({ id, ...d }); return d; });
+    await devolver({ itemIds: ["a"], motivo: MOTIVO, pedirNovaAprovacao: true });
+    expect(mud).toEqual([expect.objectContaining({ id: "ap1", status: "new_version_pending" })]);
+    mud.length = 0;
+    mundo.itens.a = peca({ id: "a", status: "sponsor_approved" });
+    await devolver({ itemIds: ["a"], motivo: MOTIVO, pedirNovaAprovacao: false });
+    expect(mud).toEqual([]);
+  });
+
+  it("evento encerrado: 409 — reabra antes", async () => {
+    mundo.eventos["ev-1"] = { ...mundo.eventos["ev-1"], status: "closed", manuallyClosed: true };
+    const r = await devolver({ itemIds: ["a"], motivo: MOTIVO });
+    expect(r.status).toBe(409);
+    expect(mundo.itens.a.status).toBe("awaiting_sponsor_approval");
+  });
+});

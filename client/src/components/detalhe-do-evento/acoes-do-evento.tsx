@@ -4,7 +4,7 @@
 // porquê de cada bloqueio escrito ao lado.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useRef, type ReactNode } from "react";
-import { Plus, Lock, Unlock, Upload, Copy, ChevronDown, FileSpreadsheet, FileText, Tags, BookOpen, MoreHorizontal } from "lucide-react";
+import { Plus, Lock, Unlock, Upload, Copy, ChevronDown, FileSpreadsheet, FileText, Tags, BookOpen, MoreHorizontal, RotateCcw } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,7 +23,7 @@ import type { EventoDoDetalhe, PecaDoEvento } from "./tipos";
 export function AcoesDoEvento({
   event, eventId, rawItems, isMobile, canEditLists, canCloseEvent, isEventClosed, eventoFinalizado, avisoEventoFim,
   abrirEntradaDePecas, setImportDialogOpen, setCloneDialogOpen, setCloseDialogOpen, setReopenDialogOpen,
-  setLocation, toast, children,
+  setDevolverParaArteOpen, setLocation, toast, children,
 }: {
   event: EventoDoDetalhe;
   eventId: string | undefined;
@@ -39,6 +39,8 @@ export function AcoesDoEvento({
   setCloneDialogOpen: (v: boolean) => void;
   setCloseDialogOpen: (v: boolean) => void;
   setReopenDialogOpen: (v: boolean) => void;
+  /** Admin: devolver as peças do evento para a Arte refazer (com motivo). */
+  setDevolverParaArteOpen: (v: boolean) => void;
   setLocation: (to: string) => void;
   toast: ReturnType<typeof useToast>["toast"];
   /** O modal de entrada de peças mora aqui, junto do botão que o abre. */
@@ -171,6 +173,19 @@ export function AcoesDoEvento({
               {canCloseEvent && (
                 <>
                   <DropdownMenuSeparator />
+                  {/* Devolver para a Arte (dono, 28/09: evento mudou de data e os
+                      logos mudam). Admin — o mesmo gate do encerrar; evento
+                      encerrado não refaz arte (a rota devolve 409). */}
+                  {!isEventClosed && !eventoFinalizado && (
+                    <DropdownMenuItem
+                      data-testid="button-devolver-evento-para-arte"
+                      onSelect={depoisDoMenu(() => setDevolverParaArteOpen(true))}
+                      className={itemDoMenu}
+                    >
+                      <RotateCcw aria-hidden="true" style={{ color: TOM.perigo.text }} />
+                      Devolver peças para a Arte…
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem
                     data-testid={isEventClosed ? "button-reopen-event" : "button-close-event"}
                     onSelect={depoisDoMenu(() => (isEventClosed ? setReopenDialogOpen(true) : setCloseDialogOpen(true)))}

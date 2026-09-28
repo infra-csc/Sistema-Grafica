@@ -151,6 +151,8 @@ export const REGUA_DE_PAPEIS: RegraDeRota[] = [
   { metodo: "POST", rota: "/api/items/bulk-add-sponsor", papeis: ["admin", "solicitacao"] },
   { metodo: "PATCH", rota: "/api/items/bulk-cancel", papeis: ["admin", "arte", "solicitacao"] },
   { metodo: "PATCH", rota: "/api/items/bulk-return-to-arte", papeis: ["admin", "solicitacao"] },
+  // 28/09: devolver as peças do evento para a Arte (data nova troca os logos).
+  { metodo: "POST", rota: "/api/events/:id/devolver-para-a-arte", papeis: ["admin"] },
   { metodo: "POST", rota: "/api/items/send-to-arte", papeis: ["admin", "arte", "atendimento", "solicitacao"] },
   { metodo: "PATCH", rota: "/api/notifications/read-all", papeis: ["admin"] },
   { metodo: "DELETE", rota: "/api/photos/:id", papeis: ["admin", "grafica"] },

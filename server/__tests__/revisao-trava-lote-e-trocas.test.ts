@@ -462,3 +462,37 @@ describe("devolver as peças do evento para a Arte (admin)", () => {
     expect(mundo.itens.a.status).toBe("awaiting_sponsor_approval");
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// A TRAVA SÓ VALE NA GRÁFICA (dono, 29/09: "esse aviso só ficar na Gráfica —
+// saiu de lá não precisa mais"). Caso real: 21 placas travadas "Arte vai
+// mudar" voltaram para a Revisão e depois para a Arte AINDA travadas — e a
+// Arte não conseguia mandar o arquivo novo.
+describe("a trava cai quando a peça VOLTA (Gráfica → Revisão → Arte)", () => {
+  const MOTIVO_DEV = "arte vai mudar — trocar o arquivo das placas";
+  it("Gráfica devolve para a Revisão: sai destravada, e a trilha diz de quem era a trava", async () => {
+    mundo.itens.p1 = peca({ status: "ready_for_production", ...TRAVA });
+    const r = await chamar("PATCH /api/items/:id/return-to-review", { params: { id: "p1" }, body: { notes: MOTIVO_DEV }, userRole: "grafica" });
+    expect(r.status).toBe(200);
+    expect(mundo.itens.p1).toMatchObject({ status: "awaiting_final_review", travadaEm: null, travadaPor: null, travadaMotivo: null });
+    expect(trilha.some((t) => t.includes("Trava removida (só vale na Gráfica)") && t.includes("Ana Solicitação"))).toBe(true);
+  });
+
+  it("Revisão devolve para a Arte (individual e lote): sai destravada", async () => {
+    mundo.itens.p1 = peca({ ...TRAVA });
+    const r = await chamar("PATCH /api/items/:id/return-to-arte", { params: { id: "p1" }, body: { notes: MOTIVO_DEV, destino: "finalizacao" }, userRole: "solicitacao" });
+    expect(r.status).toBe(200);
+    expect(mundo.itens.p1.travadaEm).toBeNull();
+    expect(trilha.some((t) => t.includes("Trava removida"))).toBe(true);
+    mundo.itens.p2 = peca({ id: "p2", ...TRAVA });
+    const l = await chamar("PATCH /api/items/bulk-return-to-arte", { body: { itemIds: ["p2"], notes: MOTIVO_DEV, destino: "arte" }, userRole: "solicitacao" });
+    expect(l.status).toBe(200);
+    expect(mundo.itens.p2.travadaEm).toBeNull();
+  });
+
+  it("peça sem trava: nada muda na trilha", async () => {
+    mundo.itens.p1 = peca({ status: "ready_for_production" });
+    await chamar("PATCH /api/items/:id/return-to-review", { params: { id: "p1" }, body: { notes: MOTIVO_DEV }, userRole: "grafica" });
+    expect(trilha.some((t) => t.includes("Trava removida"))).toBe(false);
+  });
+});

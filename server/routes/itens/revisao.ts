@@ -103,6 +103,10 @@ async function camposDaDevolucaoDaRevisao(peca: Item, destino: DestinoDevolucao,
     observations: notes,
     rejectionReason: notes,
     hasModifiedData: true, // a Arte precisa revisar os dados da peça
+    // A TRAVA SÓ VALE NA GRÁFICA (dono, 29/09: "esse aviso só ficar na
+    // Gráfica — saiu de lá não precisa mais"). Voltando para a Arte ela
+    // travaria o arquivo novo que a Arte precisa mandar.
+    ...colunasDoDestravar(),
   };
   return { destinoEfetivo, campos };
 }
@@ -439,7 +443,7 @@ export function registrarRevisao(app: Express): void {
         'rejected',
         'item',
         item.id,
-        `Item devolvido para Arte para modificações (${textoDoDestino(destinoEfetivo)}).${detailMsg}${modifiedDataMsg}`
+        `Item devolvido para Arte para modificações (${textoDoDestino(destinoEfetivo)}).${pecaTravada(currentItem) ? ` Trava removida (só vale na Gráfica) — era de ${currentItem.travadaPor ?? "Solicitação"}: ${currentItem.travadaMotivo ?? "sem motivo"}.` : ""}${detailMsg}${modifiedDataMsg}`
       );
 
       const notification = await storage.createNotification({
@@ -523,6 +527,8 @@ export function registrarRevisao(app: Express): void {
         observations: notes,
         rejectionReason: notes,
         reservaPorMaquina: null, maquinaPrevista: null, // sem "Pausada" ao liberar
+        // A trava só vale na Gráfica (dono, 29/09): saiu de lá, cai.
+        ...colunasDoDestravar(),
       });
       if (!item) return res.status(404).json({ error: "Item não encontrado" });
 
@@ -533,7 +539,7 @@ export function registrarRevisao(app: Express): void {
         "rejected",
         "item",
         item.id,
-        `Gráfica devolveu a peça para a Revisão antes de produzir. Motivo: ${notes}`,
+        `Gráfica devolveu a peça para a Revisão antes de produzir.${pecaTravada(currentItem) ? ` Trava removida (só vale na Gráfica) — era de ${currentItem.travadaPor ?? "Solicitação"}: ${currentItem.travadaMotivo ?? "sem motivo"}.` : ""} Motivo: ${notes}`,
       );
 
       const notification = await storage.createNotification({
@@ -614,7 +620,7 @@ export function registrarRevisao(app: Express): void {
           const modifiedDataMsg = currentItem.hasModifiedData ? " ⚠️ DADOS MODIFICADOS: Verifique Quantidade, m² Total e Medida!" : "";
           trilha.push({
             action: 'rejected', entityType: 'item', entityId: item.id,
-            details: `Item devolvido para Arte para modificações (em lote — ${textoDoDestino(destinoEfetivo)}). Observações: ${notes}${modifiedDataMsg}`,
+            details: `Item devolvido para Arte para modificações (em lote — ${textoDoDestino(destinoEfetivo)}).${pecaTravada(currentItem) ? ` Trava removida (só vale na Gráfica) — era de ${currentItem.travadaPor ?? "Solicitação"}: ${currentItem.travadaMotivo ?? "sem motivo"}.` : ""} Observações: ${notes}${modifiedDataMsg}`,
           });
         } else {
           errors.push({ itemId, error: "Peça não encontrada." });

@@ -67,10 +67,11 @@ describe("2 · a ordem declarada e trocável", () => {
     expect(A).toContain('mesa: "o que espera decisão sua no topo"');
     expect(A).toContain('evento: "ordem alfabética"');
     expect(A).toContain("{ORDEM_REGRA[ordemPendentes]}");
-    for (const v of ["prazo", "mesa", "evento"]) {
-      expect(A).toContain(`toggle-ordem-${"${valor}"}`.replace("${valor}", "")); // testid é template
-    }
-    expect(A).toContain("data-testid={`toggle-ordem-${valor}`}");
+    // 29/09: o seletor virou o <Segmentado> da casa (a ordem troca a forma de
+    // ver a mesma lista). Os testids continuam `toggle-ordem-<id>` — prefixo
+    // do Segmentado + o id de cada uma das três ordens.
+    expect(A).toContain('prefixoDeTestId="toggle-ordem"');
+    for (const v of ["prazo", "mesa", "evento"]) expect(A).toContain(`['${v}', `);
   });
 
   it("a lista E a fila usam o MESMO comparador — senão 'Próxima peça' desencontra da tela", () => {
@@ -152,7 +153,9 @@ describe("7 · ordenar o histórico pelas mais demoradas", () => {
   it("as três ordens existem, com a regra ao lado", () => {
     expect(A).toContain('type OrdemHistorico = "recentes" | "demoradas" | "evento";');
     expect(A).toContain('demoradas: "maior tempo de jornada primeiro"');
-    expect(A).toContain("data-testid={`toggle-ordem-hist-${valor}`}");
+    // 29/09: <Segmentado> da casa; os testids seguem `toggle-ordem-hist-<id>`.
+    expect(A).toContain('prefixoDeTestId="toggle-ordem-hist"');
+    for (const v of ["recentes", "demoradas", "evento"]) expect(A).toContain(`['${v}', `);
     expect(A).toContain("{ORDEM_HIST_REGRA[ordemHistorico]}");
   });
 

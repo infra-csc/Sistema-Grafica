@@ -747,6 +747,46 @@
   }
 }
 
+/* ── ATENDIMENTO: os estados que estilo inline não alcança ─────────────────
+   Hover, foco e a entrada das linhas da fila, do placar e do histórico. Eram
+   onMouseEnter trocando style.backgroundColor (não cobria teclado) ou nada —
+   a linha da peça não respondia ao ponteiro, e a lista parecia uma imagem.
+   Tudo curto (--dur-rapida/--dur-media) e zerado por prefers-reduced-motion
+   no fim do arquivo. */
+.atd-linha { transition: background-color var(--dur-rapida) ease; }
+.atd-linha:hover { background-color: var(--n1); }
+.atd-cabeca-do-grupo { transition: background-color var(--dur-rapida) ease; }
+.atd-cabeca-do-grupo:hover { background-color: var(--n1); }
+.atd-cabeca-do-grupo:focus-visible,
+.atd-linha-do-historico:focus-visible { outline-offset: -3px; }
+.atd-linha-do-historico { transition: background-color var(--dur-rapida) ease; }
+.atd-linha-do-historico:hover { background-color: var(--n1); }
+.atd-celula-do-placar { transition: background-color var(--dur-rapida) ease, box-shadow var(--dur-media) ease; }
+.atd-celula-do-placar:hover:not([aria-pressed="true"]) { background-color: var(--n1); }
+.atd-celula-do-placar:focus-visible { outline-offset: -3px; }
+/* A miniatura promete o clique: aproxima um pouco no hover. */
+.atd-miniatura img { transition: transform var(--dur-media) var(--ease-saida); }
+.atd-miniatura:hover img { transform: scale(1.05); }
+.atd-miniatura .atd-olho { opacity: 0; transition: opacity var(--dur-rapida) ease; }
+.atd-miniatura:hover .atd-olho { opacity: 1; }
+/* Conteúdo que acabou de aparecer (grupo aberto, peça trocada no modal). */
+@keyframes atd-entrar {
+  from { opacity: 0; transform: translateY(-3px); }
+  to   { opacity: 1; transform: none; }
+}
+.atd-entrar { animation: atd-entrar var(--dur-media) var(--ease-saida) both; }
+/* A decisão de um patrocinador muda de cor quando é registrada. */
+.atd-decisao { transition: background-color var(--dur-media) ease, border-color var(--dur-media) ease; }
+/* Trilho que rola na horizontal sem a barra cinza por baixo (a rolagem
+   continua pelo dedo, pela roda e pelo teclado). */
+.atd-sem-barra { scrollbar-width: none; }
+.atd-sem-barra::-webkit-scrollbar { display: none; }
+/* No toque, o "+2" dos patrocinadores dentro da linha da peça também ganha
+   44px de LARGURA (a regra global de coarse só garante a altura). */
+@media (pointer: coarse) {
+  .atd-linha button { min-width: 44px; }
+}
+
 /* ── Pipeline de fluxo – overflow horizontal seguro ─────────── */
 .pipeline-scroll {
   overflow-x: auto;
@@ -945,6 +985,11 @@ a.ds-botao[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; filter: no
    10px em caixa-alta com reticência é ilegível no galpão e cortava "AGUARDANDO
    CONFERÊNCIA" em "AGUARDANDO CONF…". No celular sobe para 12px e QUEBRA em
    vez de cortar. !important porque o tamanho vem de estilo inline. */
+/* O contador de <Abas>/<Segmentado> é 10px no desktop (é um selo dentro de um
+   rótulo de 13) e sobe para o piso de 12px no celular. */
+@media (max-width: 767px) {
+  .ds-contador-da-aba { font-size: 12px !important; }
+}
 @media (max-width: 767px) {
   .ds-kpi-rotulo {
     font-size: 12px !important;

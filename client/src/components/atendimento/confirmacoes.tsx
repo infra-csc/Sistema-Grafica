@@ -1,13 +1,23 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // AS TRÊS CONFIRMAÇÕES DO ATENDIMENTO: desvincular um patrocinador, aprovar
 // para um patrocinador, e aprovar em lote. Cada uma diz o efeito real.
+//
+// A CASCA É A DA REVISÃO FINAL (29/09): cabeçalho compacto no celular, corpo
+// rolável, e o rodapé com Cancelar → ação na mesma linha, à direita, no
+// desktop; no celular os dois em linha cheia, a ação EM CIMA e o recorte
+// seguro embaixo (`rodapeDaConfirmacao`). Antes cada uma empilhava dois
+// botões de largura cheia até num diálogo de 440px no desktop — e a de
+// desvincular nem tinha "Cancelar": a única saída ao lado de "Desvincular"
+// era o X do canto.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Dispatch, SetStateAction } from "react";
-import { CheckCircle, XCircle } from "lucide-react";
+import { CheckCircle, Unlink } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
+import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { Botao } from "@/components/ui/botao";
+import { useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { T, TOM } from "@/lib/theme";
+import { TEXTO_DA_CONFIRMACAO, corpoDaConfirmacao, rodapeDaConfirmacao } from "@/components/revisao/estilos";
 import type { AcoesDoAtendimento } from "./use-atendimento-acoes";
 import type { AlvoDePatrocinador } from "./tipos";
 
@@ -20,37 +30,46 @@ export function ConfirmarDesvinculo({ desvincularAlvo, setDesvincularAlvo, desvi
   setDesvincularAlvo: Dispatch<SetStateAction<AlvoDePatrocinador | null>>;
   desvincularSponsorMutation: AcoesDoAtendimento["desvincularSponsorMutation"];
 }) {
+  const celular = useIsMobile();
+  // 44px no celular e no dedo; no desktop, o controle da casa (36).
+  const dedo = usePonteiroGrosso();
+  const tam = celular || dedo ? "toque" as const : "md" as const;
   return (
     <Dialog open={!!desvincularAlvo} onOpenChange={(open) => { if (!open) setDesvincularAlvo(null); }}>
       <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(460)}>
         <DialogTitle className="sr-only">Desvincular patrocinador</DialogTitle>
         <ModalHeader
           variant="confirm"
-          icon={XCircle}
+          compacto={celular}
+          icon={Unlink}
           tint={TOM.perigo.text}
           title="Desvincular patrocinador"
           onClose={() => setDesvincularAlvo(null)}
         />
-        <div style={{ padding: '20px 24px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
-          <DialogDescription style={{ fontSize: 13, color: T.apoio, lineHeight: 1.6, margin: 0 }}>
+        <div style={corpoDaConfirmacao(celular)}>
+          <DialogDescription style={{ ...TEXTO_DA_CONFIRMACAO, margin: 0 }}>
             Tirar <strong style={{ color: T.text }}>{desvincularAlvo?.sponsorName}</strong> desta peça?
             A aprovação <strong>pendente</strong> dele deixa de contar — e, se ele for o único que falta, a rodada fecha e a peça segue para a finalização da Arte. Aprovações já dadas por outros permanecem no histórico.
           </DialogDescription>
         </div>
-        <ModalFooter>
+        <div style={rodapeDaConfirmacao(celular)}>
+          <Botao variante="fantasma" tamanho={tam} larguraCheia={celular} onClick={() => setDesvincularAlvo(null)} data-testid="button-cancel-desvincular">
+            Cancelar
+          </Botao>
           {/* Perigo: tira o patrocinador da peça e a pendência dele deixa
               de contar. */}
           <Botao
             variante="perigo"
-            tamanho="toque"
-            larguraCheia
+            tamanho={tam}
+            larguraCheia={celular}
+            icone={Unlink}
             carregando={desvincularSponsorMutation.isPending}
             onClick={() => { if (desvincularAlvo) desvincularSponsorMutation.mutate({ itemId: desvincularAlvo.itemId, sponsorId: desvincularAlvo.sponsorId }); }}
             data-testid="button-confirm-desvincular"
           >
             Desvincular
           </Botao>
-        </ModalFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -61,6 +80,10 @@ export function ConfirmarAprovacao({ confirmApproveIndividual, setConfirmApprove
   setConfirmApproveIndividual: Dispatch<SetStateAction<AlvoDePatrocinador | null>>;
   individualApproveMutation: AcoesDoAtendimento["individualApproveMutation"];
 }) {
+  const celular = useIsMobile();
+  // 44px no celular e no dedo; no desktop, o controle da casa (36).
+  const dedo = usePonteiroGrosso();
+  const tam = celular || dedo ? "toque" as const : "md" as const;
   return (
     <Dialog open={!!confirmApproveIndividual} onOpenChange={(open) => { if (!open) setConfirmApproveIndividual(null); }}>
       {/* FOCO NO "APROVAR". O Radix focava o primeiro focável — o X do
@@ -69,7 +92,7 @@ export function ConfirmarAprovacao({ confirmApproveIndividual, setConfirmApprove
           revogar): Enter confirma, Esc cancela. */}
       <DialogContent
         className={HIDE_NATIVE_CLOSE}
-        style={modalSurface(440)}
+        style={modalSurface(480)}
         onOpenAutoFocus={(e) => {
           const alvo = (e.currentTarget as HTMLElement | null)?.querySelector('[data-testid="button-confirm-approve-individual"]') as HTMLElement | null;
           if (alvo) { e.preventDefault(); alvo.focus(); }
@@ -78,31 +101,32 @@ export function ConfirmarAprovacao({ confirmApproveIndividual, setConfirmApprove
         <DialogTitle className="sr-only">Confirmar aprovação</DialogTitle>
         <ModalHeader
           variant="confirm"
+          compacto={celular}
           icon={CheckCircle}
           tint={TOM.sucesso.text}
           title="Confirmar aprovação"
           onClose={() => setConfirmApproveIndividual(null)}
         />
-        {/* ALTURA: cabeçalho 80 + este corpo 82 + rodapé 120 = 282px, e em 445
-            de altura sobram 397 — este modal NÃO cortava em nenhuma das
-            alturas conferidas. A rolagem é preventiva: com o teto e o
-            `overflow: hidden` que o `modalSurface` agora traz, um nome de
-            patrocinador longo (a única parte elástica) seria recortado em
-            silêncio se não houvesse scrollport. */}
-        <div style={{ padding: '20px 24px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
-          <DialogDescription style={{ fontSize: 13, color: T.apoio, lineHeight: 1.6, margin: 0 }}>
+        {/* A rolagem é preventiva: com o teto e o `overflow: hidden` que o
+            `modalSurface` traz, um nome de patrocinador longo (a única parte
+            elástica) seria recortado em silêncio se não houvesse scrollport. */}
+        <div style={corpoDaConfirmacao(celular)}>
+          <DialogDescription style={{ ...TEXTO_DA_CONFIRMACAO, margin: 0 }}>
             Aprovar a arte para o patrocinador <strong style={{ color: T.text }}>{confirmApproveIndividual?.sponsorName}</strong>?
  Dá para revogar depois, enquanto a peça estiver em aprovação ou na finalização da Arte.
           </DialogDescription>
         </div>
-        <ModalFooter>
+        <div style={rodapeDaConfirmacao(celular)}>
+          <Botao variante="fantasma" tamanho={tam} larguraCheia={celular} onClick={() => setConfirmApproveIndividual(null)}>
+            Cancelar
+          </Botao>
           {/* TINTA, não verde: verde é o ESTADO 'aprovado' nesta tela — o
               que a peça vira DEPOIS da decisão. O CTA diz o resultado e
               para quem (rodada 4). */}
           <Botao
             variante="primario"
-            tamanho="toque"
-            larguraCheia
+            tamanho={tam}
+            larguraCheia={celular}
             icone={CheckCircle}
             carregando={individualApproveMutation.isPending}
             onClick={() => {
@@ -112,13 +136,13 @@ export function ConfirmarAprovacao({ confirmApproveIndividual, setConfirmApprove
               }
             }}
             data-testid="button-confirm-approve-individual"
+            // O nome do patrocinador pode ser longo: o rótulo quebra em vez
+            // de empurrar o botão para fora do diálogo.
+            style={{ whiteSpace: 'normal', textAlign: 'center', maxWidth: '100%' }}
           >
             {`Aprovar para ${confirmApproveIndividual?.sponsorName ?? 'o patrocinador'}`}
           </Botao>
-          <Botao variante="fantasma" larguraCheia onClick={() => setConfirmApproveIndividual(null)}>
-            Cancelar
-          </Botao>
-        </ModalFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -137,12 +161,16 @@ export function ConfirmarLote({
   batchEventId: string;
   batchSponsorMutation: AcoesDoAtendimento["batchSponsorMutation"];
 }) {
+  const celular = useIsMobile();
+  // 44px no celular e no dedo; no desktop, o controle da casa (36).
+  const dedo = usePonteiroGrosso();
+  const tam = celular || dedo ? "toque" as const : "md" as const;
   return (
     <Dialog open={confirmApproveBatch} onOpenChange={(open) => { if (!open) setConfirmApproveBatch(false); }}>
       {/* Mesmo foco inicial da confirmação individual: Enter aprova. */}
       <DialogContent
         className={HIDE_NATIVE_CLOSE}
-        style={modalSurface(440)}
+        style={modalSurface(500)}
         onOpenAutoFocus={(e) => {
           const alvo = (e.currentTarget as HTMLElement | null)?.querySelector('[data-testid="button-confirm-batch-approve"]') as HTMLElement | null;
           if (alvo) { e.preventDefault(); alvo.focus(); }
@@ -151,27 +179,28 @@ export function ConfirmarLote({
         <DialogTitle className="sr-only">Confirmar aprovação em lote</DialogTitle>
         <ModalHeader
           variant="confirm"
+          compacto={celular}
           icon={CheckCircle}
           tint={TOM.sucesso.text}
           title="Confirmar aprovação em lote"
           onClose={() => setConfirmApproveBatch(false)}
         />
-        {/* Mesma conta do modal individual acima: 282px de modal contra 397
-            disponíveis em 445 de altura — NÃO cortava. Scrollport preventivo
-            pelo teto que o `modalSurface` passou a impor. */}
-        <div style={{ padding: '20px 24px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
-          <DialogDescription style={{ fontSize: 13, color: T.apoio, lineHeight: 1.6, margin: 0 }}>
+        <div style={corpoDaConfirmacao(celular)}>
+          <DialogDescription style={{ ...TEXTO_DA_CONFIRMACAO, margin: 0 }}>
             Aprovar <strong style={{ color: T.text }}>{batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'peça' : 'peças'}</strong> para <strong style={{ color: T.text }}>{batchSponsorNome}</strong>{batchEventoNome ? <> em {batchEventoNome}</> : null}?
             Dá para revogar depois, enquanto a peça estiver em aprovação ou na finalização da Arte.
           </DialogDescription>
         </div>
-        <ModalFooter>
+        <div style={rodapeDaConfirmacao(celular)}>
+          <Botao variante="fantasma" tamanho={tam} larguraCheia={celular} onClick={() => setConfirmApproveBatch(false)}>
+            Cancelar
+          </Botao>
           {/* TINTA, não verde: verde é o ESTADO 'aprovado' nesta tela — o
               que a peça vira DEPOIS da decisão. */}
           <Botao
             variante="primario"
-            tamanho="toque"
-            larguraCheia
+            tamanho={tam}
+            larguraCheia={celular}
             icone={CheckCircle}
             carregando={batchSponsorMutation.isPending}
             onClick={() => {
@@ -179,13 +208,11 @@ export function ConfirmarLote({
               setConfirmApproveBatch(false);
             }}
             data-testid="button-confirm-batch-approve"
+            style={{ whiteSpace: 'normal', textAlign: 'center', maxWidth: '100%' }}
           >
             {`Aprovar ${batchSelectedItemIds.size} ${batchSelectedItemIds.size === 1 ? 'peça' : 'peças'} para ${batchSponsorNome}`}
           </Botao>
-          <Botao variante="fantasma" larguraCheia onClick={() => setConfirmApproveBatch(false)}>
-            Cancelar
-          </Botao>
-        </ModalFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

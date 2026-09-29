@@ -57,7 +57,10 @@ describe("a cadeia de rolagem do modal de decisão", () => {
   it("a coluna da decisão continua com scrollport próprio e rodapé fixo", () => {
     // A estrutura que a regra de CSS pressupõe. Se alguém trocar o scrollport
     // por um contêiner sem min-height, o CSS acima não salva.
-    expect(ATEND).toContain('<div style={{ padding: 24, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>');
+    // 29/09: o padding desceu para dentro da ListaDaDecisao (ela também é
+    // montada no corpo empilhado do celular, com outro respiro). O scrollport
+    // é o mesmo: overflow auto + flex 1 + minHeight 0.
+    expect(ATEND).toContain('<div style={{ overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>');
     expect(ATEND).toContain("borderTop: `1px solid ${N.n3}`,");
     expect(ATEND).toContain("flexShrink: 0,");
   });

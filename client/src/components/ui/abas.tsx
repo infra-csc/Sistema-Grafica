@@ -213,6 +213,7 @@ export function Abas({
             {item.rotulo}
             {typeof item.contador === "number" && (
               <span
+                className="ds-contador-da-aba"
                 // A contagem na cor da própria aba: "3" vermelho já é a
                 // notícia, antes de ler a palavra "Atrasados".
                 style={{
@@ -305,7 +306,7 @@ export function Segmentado({
             <IconeDaAba Icone={item.icone} tamanho={tamanho === "toque" ? 16 : 14} />
             {item.rotulo}
             {typeof item.contador === "number" && (
-              <span style={{ fontSize: FS.micro, fontWeight: FW.rotulo, color: sel ? T.apoio : T.second }}>
+              <span className="ds-contador-da-aba" style={{ fontSize: FS.micro, fontWeight: FW.rotulo, color: sel ? T.apoio : T.second }}>
                 {item.contador}
               </span>
             )}

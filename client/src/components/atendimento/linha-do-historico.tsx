@@ -11,13 +11,14 @@ import { SeloKit } from "@/components/kit/selo-kit";
 import { alvo } from "@/hooks/use-mobile";
 import { getStatusMeta, getStatusLabel, getStatusShort, PRODUCTION_STATUSES, descricaoDoStatus } from "@/lib/status";
 import { miniatura } from "@/lib/miniatura";
-import { T, N, TOM } from "@/lib/theme";
+import { FS, FW, R, T, N, TOM } from "@/lib/theme";
+import { codigoDaPeca, letra } from "./estilos";
 import { statusDeExibicao } from "@shared/molde";
 import { SITUACAO_META, aoFalharMiniatura, approvalVisual, jornadaDaPeca, situacaoDaPeca, tomDoIntervalo } from "./regras";
 import type { EventoAtendimento, Patrocinador, PecaAtendimento, PecaDoHistorico, SponsorApproval } from "./tipos";
 
 export function LinhaDoHistorico({
-  item, ev, comRegua, itemSponsorsMap, itemApprovalsMap, setHistDetailItem, cards, dedo, hoje,
+  item, ev, comRegua, itemSponsorsMap, itemApprovalsMap, setHistDetailItem, cards, dedo, hoje, toque = false,
 }: {
   item: PecaAtendimento;
   ev: EventoAtendimento | undefined;
@@ -29,6 +30,8 @@ export function LinhaDoHistorico({
   cards: boolean;
   dedo: boolean;
   hoje: Date;
+  /** Celular ou dedo: piso de 12px nas letras. */
+  toque?: boolean;
 }) {
   const itemSps = itemSponsorsMap[item.id] || [];
   const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
@@ -85,10 +88,10 @@ export function LinhaDoHistorico({
         // pai em vez de seis espalhadas — e a setima nao
         // aparece sem ela.
         fontVariantNumeric: 'tabular-nums',
-        transition: 'background-color 0.12s',
       }}
-      onMouseEnter={e => (e.currentTarget.style.backgroundColor = T.bg)}
-      onMouseLeave={e => (e.currentTarget.style.backgroundColor = T.surface)}
+      // Hover e foco pela classe (eram onMouseEnter/onMouseLeave trocando o
+      // fundo à mão — o teclado não acendia nada).
+      className="atd-linha-do-historico"
     >
       {/* Trilho do estado — 3px, o mesmo vocabulário do card do
           quadro da Gestão de Prazos e do card da peça aqui em
@@ -128,17 +131,17 @@ export function LinhaDoHistorico({
           {/* Identidade */}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 15, fontWeight: 700, color: T.text, lineHeight: 1.2 }}>{item.type}</span>
-              <span style={{ fontSize: 11, color: T.second, fontWeight: 500 }}>{item.displayId}</span>
+              <span style={{ fontSize: letra(FS.read + 0.5, toque), fontWeight: FW.forte, color: T.text, lineHeight: 1.2 }}>{item.type}</span>
+              <span style={codigoDaPeca(toque, FS.small)}>{item.displayId}</span>
               <SeloKit peca={item} />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 11, color: T.second, fontWeight: 500 }}>{ev?.name || '—'}</span>
+              <span style={{ fontSize: letra(FS.small, toque), color: T.second, fontWeight: FW.corpo }}>{ev?.name || '—'}</span>
               {/* `title` com o significado: o selo traz só o rótulo, e
                   no histórico a pergunta é o que quer dizer a peça
                   estar ali e quem age agora. */}
               <span title={descricaoDoStatus(item.status) ?? undefined} style={{
-                fontSize: 11, fontWeight: 700,
+                fontSize: letra(FS.small, toque), fontWeight: FW.forte,
                 backgroundColor: statusCfg.bg, color: statusCfg.text, border: `1px solid ${statusCfg.border}`,
                 padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap', lineHeight: 1.5,
               }}>{cards ? getStatusShort(item.status) : getStatusLabel(item.status)}</span>
@@ -159,7 +162,7 @@ export function LinhaDoHistorico({
                   title={SITUACAO_META.nova_versao.hint}
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 4,
-                    fontSize: 11, fontWeight: 700,
+                    fontSize: letra(FS.small, toque), fontWeight: FW.forte,
                     backgroundColor: TOM.alerta.bg, color: TOM.alerta.text, border: `1px solid ${TOM.alerta.border}`,
                     padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap', lineHeight: 1.5,
                   }}
@@ -183,10 +186,11 @@ export function LinhaDoHistorico({
               // 32px de alvo (44 no celular): com padding de 4px o
               // botão tinha ~22 — o menor controle da aba, e é a
               // única porta do cartão que não depende do card todo.
-              style={{ display: 'flex', alignItems: 'center', gap: 5, minHeight: alvo(32, dedo), padding: '0 12px', borderRadius: 8, background: T.surface, border: `1px solid ${T.border}`, cursor: 'pointer' }}
+              className="ds-botao"
+              style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: alvo(32, dedo), padding: '0 12px', borderRadius: R.md, background: T.surface, border: `1px solid ${T.border}`, cursor: 'pointer', fontFamily: 'inherit' }}
             >
-              <Eye aria-hidden="true" style={{ width: 12, height: 12, color: T.apoio }} />
-              <span style={{ fontSize: 12, fontWeight: 600, color: T.strong, whiteSpace: 'nowrap' }}>Ver detalhes</span>
+              <Eye aria-hidden="true" style={{ width: 13, height: 13, color: T.apoio }} />
+              <span style={{ fontSize: letra(FS.meta, toque), fontWeight: FW.medio, color: T.strong, whiteSpace: 'nowrap' }}>Ver detalhes</span>
             </button>
             {sponsorApprovals.length > 0 && (
               <div style={{
@@ -198,7 +202,7 @@ export function LinhaDoHistorico({
                 <span style={{ fontSize: 15, fontWeight: 800, color: allApproved ? TOM.sucesso.text : T.strong, lineHeight: 1 }}>
                   {approvedOnes.length} <span style={{ fontSize: 11, fontWeight: 500 }}>de</span> {sponsorApprovals.length}
                 </span>
-                <span style={{ fontSize: 11, color: allApproved ? TOM.sucesso.text : T.apoio, fontWeight: 700, marginTop: 2 }}>
+                <span style={{ fontSize: letra(FS.small, toque), color: allApproved ? TOM.sucesso.text : T.apoio, fontWeight: FW.forte, marginTop: 2 }}>
                   {allApproved ? 'todos' : 'aprovaram'}
                 </span>
               </div>
@@ -227,7 +231,7 @@ export function LinhaDoHistorico({
                           {/* O TEMPO DO TRECHO. "Criado 04/08 → Todos aprovaram
                               13/08" obrigava a contar nove dias de cabeça. */}
                           {e.desdeAnterior !== null && (
-                            <span style={{ marginTop: 3, fontSize: 10, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: tomDoIntervalo(e.desdeAnterior), whiteSpace: 'nowrap' }}>
+                            <span style={{ marginTop: 3, fontSize: letra(FS.micro, toque), fontWeight: FW.forte, fontVariantNumeric: 'tabular-nums', color: tomDoIntervalo(e.desdeAnterior), whiteSpace: 'nowrap' }}>
                               +{e.desdeAnterior}d
                             </span>
                           )}
@@ -243,12 +247,12 @@ export function LinhaDoHistorico({
                           boxShadow: e.ehAtual ? '0 0 0 3px rgba(251,146,60,0.25)' : 'none',
                         }} />
                         {(e.ehAtual || e.ms) && (
-                          <span style={{ fontSize: 10, fontWeight: e.ehAtual ? 800 : 600, color: e.ehAtual ? T.accentText : T.apoio, lineHeight: 1.2, textAlign: 'center', whiteSpace: 'nowrap' }}>
+                          <span style={{ fontSize: letra(FS.micro, toque), fontWeight: e.ehAtual ? 800 : 600, color: e.ehAtual ? T.accentText : T.apoio, lineHeight: 1.2, textAlign: 'center', whiteSpace: 'nowrap' }}>
                             {e.label}
                           </span>
                         )}
                         {e.ms && (
-                          <span style={{ fontSize: 10, color: T.second, fontVariantNumeric: 'tabular-nums', lineHeight: 1.2, whiteSpace: 'nowrap' }}>
+                          <span style={{ fontSize: letra(FS.micro, toque), color: T.second, fontVariantNumeric: 'tabular-nums', lineHeight: 1.2, whiteSpace: 'nowrap' }}>
                             {fmtDt(new Date(e.ms), true)}
                           </span>
                         )}
@@ -267,7 +271,7 @@ export function LinhaDoHistorico({
                   <span style={{ display: 'block', fontSize: 15, fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: j.concluida ? T.apoio : tomDoIntervalo(j.duracao) }}>
                     {j.duracao}d
                   </span>
-                  <span style={{ display: 'block', fontSize: 10, color: T.second, whiteSpace: 'nowrap' }}>
+                  <span style={{ display: 'block', fontSize: letra(FS.micro, toque), color: T.second, whiteSpace: 'nowrap' }}>
                     {j.concluida ? 'no total' : 'nesta etapa'}
                   </span>
                 </span>
@@ -290,24 +294,24 @@ export function LinhaDoHistorico({
                   title={v.isApproved && appr?.approvedBy ? `${appr.approvedBy} · ${fmtDt(appr.approvedAt) ?? ''}` : undefined}
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 5,
-                    height: 26, padding: '0 9px 0 7px',
-                    borderRadius: 12, background: v.bg, border: `1px solid ${v.border}`,
+                    height: toque ? 28 : 26, padding: '0 9px 0 7px',
+                    borderRadius: R.pill, background: v.bg, border: `1px solid ${v.border}`,
                     flexShrink: 0, cursor: 'default',
                   }}>
                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: v.dot, flexShrink: 0 }} />
-                  <span style={{ fontSize: 11, fontWeight: 600, color: v.text, whiteSpace: 'nowrap', lineHeight: 1 }}>
+                  <span style={{ fontSize: letra(FS.small, toque), fontWeight: FW.medio, color: v.text, whiteSpace: 'nowrap', lineHeight: 1 }}>
                     {sponsor.name}
                   </span>
                   {v.isApproved && appr?.approvedAt && (
-                    <span style={{ fontSize: 11, color: TOM.sucesso.text, fontWeight: 500, whiteSpace: 'nowrap', lineHeight: 1 }}>
+                    <span style={{ fontSize: letra(FS.small, toque), color: TOM.sucesso.text, fontWeight: FW.corpo, whiteSpace: 'nowrap', lineHeight: 1 }}>
                       {fmtDt(appr.approvedAt, true)}
                     </span>
                   )}
                   {!v.isApproved && !v.isRejected && !v.isNewVersion && !v.isAwaitingArte && (
-                    <span style={{ fontSize: 11, color: T.apoio, fontWeight: 600, lineHeight: 1, textTransform: 'uppercase', letterSpacing: '0.03em' }}>Ag.</span>
+                    <span style={{ fontSize: letra(FS.small, toque), color: T.apoio, fontWeight: FW.medio, lineHeight: 1, textTransform: 'uppercase', letterSpacing: '0.03em' }}>Ag.</span>
                   )}
-                  {(v.isRejected || v.isAwaitingArte) && <span style={{ fontSize: 11, color: TOM.perigo.text, fontWeight: 700, lineHeight: 1 }}>✕</span>}
-                  {v.isNewVersion && <span style={{ fontSize: 11, color: TOM.alerta.text, fontWeight: 700, lineHeight: 1 }}>↻</span>}
+                  {(v.isRejected || v.isAwaitingArte) && <span style={{ fontSize: letra(FS.small, toque), color: TOM.perigo.text, fontWeight: 700, lineHeight: 1 }}>✕</span>}
+                  {v.isNewVersion && <span style={{ fontSize: letra(FS.small, toque), color: TOM.alerta.text, fontWeight: 700, lineHeight: 1 }}>↻</span>}
                 </div>
               );
             })}

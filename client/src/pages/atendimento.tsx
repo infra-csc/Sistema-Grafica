@@ -40,7 +40,7 @@ import { useHistorico } from "@/components/atendimento/use-historico";
 import { usePoolDeExportacao } from "@/components/atendimento/use-pool-de-exportacao";
 import { useAtendimentoAcoes } from "@/components/atendimento/use-atendimento-acoes";
 import { PlacarDeSituacao } from "@/components/atendimento/placar-de-situacao";
-import { BarraDaFila, type ChipAtivo } from "@/components/atendimento/barra-da-fila";
+import { AbasDoAtendimento, BarraDaFila, type ChipAtivo } from "@/components/atendimento/barra-da-fila";
 import { PainelDeLote } from "@/components/atendimento/painel-de-lote";
 import { ListaPendentes } from "@/components/atendimento/lista-pendentes";
 import { AbaHistorico } from "@/components/atendimento/aba-historico";
@@ -194,6 +194,12 @@ export default function Atendimento() {
   // State para aprovações individuais de patrocinadores (no diálogo)
   const [sponsorApprovals, setSponsorApprovals] = useState<SponsorApproval[]>([]);
   const [loadingSponsorApprovals, setLoadingSponsorApprovals] = useState(false);
+  // FALHA AO LER AS DECISÕES DA PEÇA (29/09). O catch só apagava o carregando:
+  // o modal mostrava todos os patrocinadores como "Aguardando decisão", sem
+  // dizer que a leitura tinha falhado. Agora o estado é visível e há como
+  // tentar de novo (o contador refaz o mesmo pedido).
+  const [falhaNasDecisoes, setFalhaNasDecisoes] = useState(false);
+  const [tentativaDasDecisoes, setTentativaDasDecisoes] = useState(0);
   const [rejectionReason, setRejectionReason] = useState("");
   const [rejectingSponsorId, setRejectingSponsorId] = useState<string | null>(null);
 
@@ -270,6 +276,7 @@ export default function Atendimento() {
     if (dialogOpen && selectedItem) {
       let cancelled = false;
       setLoadingSponsorApprovals(true);
+      setFalhaNasDecisoes(false);
       setSponsorApprovals([]);
       setRejectionReason("");
       setRejectingSponsorId(null);
@@ -285,11 +292,12 @@ export default function Atendimento() {
           if (cancelled) return;
           console.error('Error loading sponsor approvals:', error);
           setLoadingSponsorApprovals(false);
+          setFalhaNasDecisoes(true);
         });
 
       return () => { cancelled = true; };
     }
-  }, [dialogOpen, selectedItem]);
+  }, [dialogOpen, selectedItem, tentativaDasDecisoes]);
 
   const pendingItems = awaitingItems;
 
@@ -453,7 +461,12 @@ export default function Atendimento() {
     // a tela "aparece" antes dos dados, em vez de piscar de vazio para cheio.
     return (
       <div ref={refConteudo} className="bg-stone-50" style={{ height: "100%", overflowY: "auto", padding: isMobile ? "12px 12px" : "32px" }}>
-        <CabecalhoDaPagina titulo="Atendimento" />
+        {/* A SILHUETA DA TELA, não só da lista (29/09): título, abas e o
+            lugar do placar já aparecem — quando os dados chegam, nada muda de
+            lugar. Antes a lista "subia" ~200px para dar espaço ao placar. */}
+        <CabecalhoDaPagina titulo="Atendimento" subtitulo="Aprovação do patrocinador — decida cada arte com a marca e veja quem ainda falta responder." />
+        <AbasDoAtendimento activeTab={activeTab} setActiveTab={setActiveTab} actionableCount={null} />
+        <div aria-hidden="true" className="animate-pulse" style={{ height: cards ? 118 : 124, marginBottom: 20, borderRadius: 12, backgroundColor: T.surface, border: `1px solid ${T.border}` }} />
         <EsqueletoDeFila linhas={6} />
       </div>
     );
@@ -498,7 +511,7 @@ export default function Atendimento() {
           <span
             data-testid="selo-atualizado"
             title={new Date(dataUpdatedAt).toLocaleString("pt-BR")}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: FS.small, color: T.second, whiteSpace: 'nowrap' }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: isMobile || dedo ? FS.meta : FS.small, color: T.second, whiteSpace: 'nowrap' }}
           >
             {isFetchingItems && <RotateCcw aria-hidden="true" className="animate-spin" style={{ width: 11, height: 11 }} />}
             Atualizado {fmtRelative(new Date(dataUpdatedAt).toISOString(), agora)}
@@ -518,13 +531,24 @@ export default function Atendimento() {
             alinharMotivo="end"
             data-testid="button-export-pdf"
             title={loadingSponsors ? "Aguarde: carregando os dados de aprovação das peças" : "Exportar peças em PDF"}
+            // NO CELULAR só o ícone (com nome para leitor de tela): o botão
+            // com rótulo quebrava para uma linha própria abaixo do subtítulo,
+            // 60px de altura para uma ação de escritório.
+            aria-label={isMobile ? "Exportar PDF" : undefined}
+            tamanhoDoIcone={isMobile ? 18 : 14}
+            style={isMobile ? { width: 44, padding: 0 } : undefined}
           >
-            Exportar PDF
+            {isMobile ? null : "Exportar PDF"}
           </Botao>
         }
       />
 
-      {activeTab === 'pending' && (
+      {/* AS ABAS LOGO ABAIXO DO TÍTULO (29/09): o placar, os filtros e a
+          lista são da aba Pendentes — e agora moram DENTRO do painel dela. */}
+      <AbasDoAtendimento activeTab={activeTab} setActiveTab={setActiveTab} actionableCount={actionableCount} />
+
+      {/* ─── PAINEL DA ABA PENDENTES ─────────────────────────────── */}
+      {activeTab === "pending" && <div role="tabpanel" id="tabpanel-pending" aria-labelledby="tab-pending">
         <PlacarDeSituacao
           cards={cards}
           contagemSituacao={contagemSituacao}
@@ -535,21 +559,15 @@ export default function Atendimento() {
           setAtrasadosFilter={setAtrasadosFilter}
           loadingSponsors={loadingSponsors}
         />
-      )}
-
-      <BarraDaFila
-        activeTab={activeTab} setActiveTab={setActiveTab} actionableCount={actionableCount}
-        isMobile={isMobile} dedo={dedo} searchTerm={searchTerm} setSearchTerm={setSearchTerm} chipsAtivos={chipsAtivos}
-        eventFilter={eventFilter} setEventFilter={setEventFilter} eventFilterOptions={eventFilterOptions}
-        itemTypeFilter={itemTypeFilter} setItemTypeFilter={setItemTypeFilter} typeFilterOptions={typeFilterOptions}
-        situacaoFilter={situacaoFilter} setSituacaoFilter={setSituacaoFilter} situacaoFilterOptions={situacaoFilterOptions}
-        sponsorFilter={sponsorFilter} setSponsorFilter={setSponsorFilter} sponsorFilterOptions={sponsorFilterOptions}
-        atrasadosFilter={atrasadosFilter} setAtrasadosFilter={setAtrasadosFilter} atrasadosNaBase={atrasadosNaBase}
-        limparFiltros={limparFiltros} filteredItems={filteredItems} pendingItems={pendingItems}
-      />
-
-      {/* ─── PAINEL DA ABA PENDENTES ─────────────────────────────── */}
-      {activeTab === "pending" && <div role="tabpanel" id="tabpanel-pending" aria-labelledby="tab-pending">
+        <BarraDaFila
+          isMobile={isMobile} cards={cards} dedo={dedo} searchTerm={searchTerm} setSearchTerm={setSearchTerm} chipsAtivos={chipsAtivos}
+          eventFilter={eventFilter} setEventFilter={setEventFilter} eventFilterOptions={eventFilterOptions}
+          itemTypeFilter={itemTypeFilter} setItemTypeFilter={setItemTypeFilter} typeFilterOptions={typeFilterOptions}
+          situacaoFilter={situacaoFilter} setSituacaoFilter={setSituacaoFilter} situacaoFilterOptions={situacaoFilterOptions}
+          sponsorFilter={sponsorFilter} setSponsorFilter={setSponsorFilter} sponsorFilterOptions={sponsorFilterOptions}
+          atrasadosFilter={atrasadosFilter} setAtrasadosFilter={setAtrasadosFilter} atrasadosNaBase={atrasadosNaBase}
+          limparFiltros={limparFiltros} filteredItems={filteredItems} pendingItems={pendingItems}
+        />
         <PainelDeLote
           loadingSponsors={loadingSponsors} batchEligibleSponsors={batchEligibleSponsors} canDecide={canDecide}
           batchPanelOpen={batchPanelOpen} setBatchPanelOpen={setBatchPanelOpen} cards={cards} isMobile={isMobile} tamBotao={tamBotao}
@@ -599,6 +617,7 @@ export default function Atendimento() {
         dialogOpen={dialogOpen} setDialogOpen={setDialogOpen} selectedItem={selectedItem} events={events} auditLogs={auditLogs}
         itemSponsorsMap={itemSponsorsMap} hoje={hoje} reviewQueue={reviewQueue} goToAdjacentItem={goToAdjacentItem}
         loadingSponsorApprovals={loadingSponsorApprovals} vinculosDoEvento={vinculosDoEvento} sponsorsDoEvento={sponsorsDoEvento}
+        falhaNasDecisoes={falhaNasDecisoes} aoTentarDeNovoDecisoes={() => setTentativaDasDecisoes(n => n + 1)}
         sponsors={sponsors} buscaPatrocinador={buscaPatrocinador} setBuscaPatrocinador={setBuscaPatrocinador}
         addPatrocinadorAberto={addPatrocinadorAberto} setAddPatrocinadorAberto={setAddPatrocinadorAberto}
         addingPatrocinadorId={addingPatrocinadorId} adicionarPatrocinador={acoes.adicionarPatrocinador}

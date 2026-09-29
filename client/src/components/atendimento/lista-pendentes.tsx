@@ -5,15 +5,23 @@
 import type { Dispatch, SetStateAction } from "react";
 import { CheckCircle, Play, Search, Send } from "lucide-react";
 import { Botao } from "@/components/ui/botao";
+import { Segmentado } from "@/components/ui/abas";
 import { EstadoVazio } from "@/components/ui/estados";
 import { SoQuandoMudar } from "@/components/arte/so-quando-mudar";
-import { alvo } from "@/hooks/use-mobile";
-import { R, T, TOM } from "@/lib/theme";
+import { FS, FW, T } from "@/lib/theme";
 import { ORDEM_REGRA, type OrdemPendentes } from "./regras";
+import { letra } from "./estilos";
 import { GrupoDoEvento } from "./grupo-do-evento";
 import type { PropsDoCartao } from "./cartao-da-peca";
 import type { AcoesDoAtendimento } from "./use-atendimento-acoes";
 import type { EventoAtendimento, Patrocinador, PecaAtendimento, UsuarioDaTela } from "./tipos";
+
+/** As três ordens: rótulo inteiro no desktop, curto quando a área aperta. */
+const ORDENS: readonly (readonly [OrdemPendentes, string, string])[] = [
+  ['prazo', 'Prazo de aprovação', 'Prazo'],
+  ['mesa', 'Peças na sua mesa', 'Sua mesa'],
+  ['evento', 'Nome do evento', 'Evento'],
+];
 
 export function ListaPendentes({
   filteredItems, filteredItemsBase, pendingItems, pendingGroup, atrasadosFilter, setAtrasadosFilter, chipsAtivos, limparFiltros,
@@ -49,6 +57,73 @@ export function ListaPendentes({
   toggleEventCollapsed: (id: string) => void;
 } & Omit<PropsDoCartao, "item" | "prevItem">) {
   const { cards, tamBotao, agora, itemApprovalsMap, typeToGroup, loadingSponsors } = doCartao;
+  const toque = isMobile || dedo;
+
+  // ── AS PORTAS DA FILA ─────────────────────────────────────────────────────
+  // A fila de decisão existia só DENTRO do modal (navegação no cabeçalho e
+  // "Próxima peça" no rodapé) e não havia porta de entrada. "Decidir em fila"
+  // abre a primeira peça que espera decisão SUA; "Toda a fila" (rodada 4), a
+  // primeira da lista, na ordem da tela — as peças que aguardam patrocinador
+  // ficavam atrás de eventos RECOLHIDOS. Quando há peça na sua mesa, a fila
+  // inteira é secundária (contorno); sem, é a ação do dia. Cada uma some
+  // quando não há nada para ela — botão que não faz nada é ruído.
+  // A AÇÃO PRINCIPAL À DIREITA (e em cima, no celular): a secundária vem antes
+  // dela no DOM.
+  const portasDaFila = (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8,
+      flexDirection: cards ? 'column-reverse' : 'row', flexWrap: cards ? 'nowrap' : 'wrap',
+      marginLeft: cards ? 0 : 'auto', width: cards ? '100%' : undefined,
+    }}>
+      {/* O DISPARO À MÃO DO AVISO DA GESTÃO. Fantasma de propósito: é
+          ferramenta de manutenção, não parte do trabalho de decidir — quem
+          entra aqui para aprovar não deve tropeçar nele. */}
+      {user?.role === "admin" && (
+        <Botao
+          variante="fantasma"
+          tamanho={tamBotao}
+          icone={Send}
+          larguraCheia={cards}
+          carregando={avisarGestaoMutation.isPending}
+          data-testid="button-avisar-gestao"
+          onClick={() => avisarGestaoMutation.mutate()}
+          title="Manda agora o resumo das aprovações pendentes para quem recebe o aviso das 10h, 15h e 18h. Se não houver pendência, nada é enviado."
+          style={{ flexShrink: 0 }}
+        >
+          {avisarGestaoMutation.isPending ? 'Enviando…' : 'Avisar a gestão'}
+        </Botao>
+      )}
+      {reviewQueue.length > filaDaSuaMesa.length && (
+        <Botao
+          variante={filaDaSuaMesa.length > 0 ? "secundario" : "primario"}
+          tamanho={tamBotao}
+          icone={Play}
+          larguraCheia={cards}
+          data-testid="button-fila-inteira"
+          onClick={() => { setSelectedItem(reviewQueue[0]); setDialogOpen(true); }}
+          title="Abre a primeira peça da lista, na ordem escolhida; do modal dá para seguir peça a peça sem voltar"
+          style={{ flexShrink: 0 }}
+        >
+          {filaDaSuaMesa.length > 0 ? `Toda a fila (${reviewQueue.length})` : reviewQueue.length === 1 ? 'Revisar a peça' : `Revisar as ${reviewQueue.length} em fila`}
+        </Botao>
+      )}
+      {filaDaSuaMesa.length > 0 && (
+        <Botao
+          variante="primario"
+          tamanho={tamBotao}
+          icone={Play}
+          larguraCheia={cards}
+          data-testid="button-fila-decisao"
+          onClick={() => { setSelectedItem(filaDaSuaMesa[0]); setDialogOpen(true); }}
+          title="Abre a primeira peça que espera decisão sua; do modal dá para seguir para a próxima"
+          style={{ flexShrink: 0 }}
+        >
+          Decidir {filaDaSuaMesa.length === 1 ? 'a peça' : `as ${filaDaSuaMesa.length}`} em fila
+        </Botao>
+      )}
+    </div>
+  );
+
   return (
     <>
       {filteredItems.length === 0 ? (
@@ -57,138 +132,74 @@ export function ListaPendentes({
         // recorte de atrasados tem texto próprio — com o filtro ligado,
         // "Nenhuma peça pendente" leria como "nada a fazer" enquanto a fila
         // continua ali, dentro do prazo — e o vazio por filtro diz QUANTAS
-        // peças ficaram de fora. A saída mora ao lado do problema.
-        <div data-testid="empty-atendimento">
-          <EstadoVazio
-            icone={pendingItems.length > 0 && !atrasadosFilter ? Search : CheckCircle}
-            titulo={atrasadosFilter
-              ? "Nada atrasado neste recorte"
-              : pendingItems.length === 0 ? "Nenhuma peça pendente" : "Nenhuma peça neste recorte"}
-            descricao={
-              <span data-testid="empty-atendimento-motivo">
-                {atrasadosFilter
-                  ? `A lista está vazia pelo FILTRO "Atrasados" — ${filteredItemsBase.length === 0 ? 'os demais filtros já não devolvem nenhuma peça' : `as ${filteredItemsBase.length} peças deste recorte estão todas dentro do prazo de Aprovação de Layout`}.`
-                  : pendingItems.length === 0
-                  ? "Nenhuma peça aguarda aprovação do patrocinador agora."
-                  : `${pendingItems.length} ${pendingItems.length === 1 ? 'peça pendente ficou' : 'peças pendentes ficaram'} fora ${chipsAtivos.length === 1 ? 'do filtro ativo' : `dos ${chipsAtivos.length} filtros ativos`}.`}
-              </span>
-            }
-            acao={atrasadosFilter ? (
-              <Botao variante="primario" tamanho={tamBotao} onClick={() => setAtrasadosFilter(false)} data-testid="button-clear-atrasados-empty">
-                Mostrar todas as peças
-              </Botao>
-            ) : pendingItems.length > 0 && chipsAtivos.length > 0 ? (
-              <Botao variante="secundario" tamanho={tamBotao} onClick={limparFiltros} data-testid="button-clear-filters-empty">
-                Limpar {chipsAtivos.length === 1 ? 'o filtro' : `os ${chipsAtivos.length} filtros`}
-              </Botao>
-            ) : undefined}
-          />
-        </div>
+        // peças ficaram de fora. A saída mora ao lado do problema. "Tudo em
+        // dia" de verdade (fila vazia sem filtro) ganha o ícone em verde.
+        <EstadoVazio
+          testId="empty-atendimento"
+          icone={pendingItems.length > 0 && !atrasadosFilter ? Search : CheckCircle}
+          tom={pendingItems.length === 0 && !atrasadosFilter ? "sucesso" : undefined}
+          titulo={atrasadosFilter
+            ? "Nada atrasado neste recorte"
+            : pendingItems.length === 0 ? "Nenhuma peça pendente" : "Nenhuma peça neste recorte"}
+          descricao={
+            <span data-testid="empty-atendimento-motivo">
+              {atrasadosFilter
+                ? `A lista está vazia pelo FILTRO "Atrasados" — ${filteredItemsBase.length === 0 ? 'os demais filtros já não devolvem nenhuma peça' : `as ${filteredItemsBase.length} peças deste recorte estão todas dentro do prazo de Aprovação de Layout`}.`
+                : pendingItems.length === 0
+                ? "Nenhuma peça aguarda aprovação do patrocinador agora."
+                : `${pendingItems.length} ${pendingItems.length === 1 ? 'peça pendente ficou' : 'peças pendentes ficaram'} fora ${chipsAtivos.length === 1 ? 'do filtro ativo' : `dos ${chipsAtivos.length} filtros ativos`}.`}
+            </span>
+          }
+          acao={atrasadosFilter ? (
+            <Botao variante="primario" tamanho={tamBotao} onClick={() => setAtrasadosFilter(false)} data-testid="button-clear-atrasados-empty">
+              Mostrar todas as peças
+            </Botao>
+          ) : pendingItems.length > 0 && chipsAtivos.length > 0 ? (
+            <Botao variante="secundario" tamanho={tamBotao} onClick={limparFiltros} data-testid="button-clear-filters-empty">
+              Limpar {chipsAtivos.length === 1 ? 'o filtro' : `os ${chipsAtivos.length} filtros`}
+            </Botao>
+          ) : undefined}
+        />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-          {/* Grupo: Pendentes */}
           {/* ── A ORDEM, DECLARADA ─────────────────────────────────────────
               A lista sempre teve uma ordem e a tela nunca a disse. Sem a regra
               à vista, ninguém entende por que uma peça é a terceira — e não há
               como pedir outra quando a pergunta muda ("o que vence primeiro?"
-              / "o que espera por mim?"). A regra fica escrita ao lado dos
-              alternadores, não escondida num tooltip. */}
+              / "o que espera por mim?"). A regra fica escrita logo abaixo do
+              seletor, não escondida num tooltip.
+              O seletor é o <Segmentado> da casa: a ordem troca a FORMA DE VER
+              a mesma lista (o papel dele no design system), e os três botões
+              de contorno laranja pareciam filtros ligados. */}
           {pendingGroup.length > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.second, flexShrink: 0 }}>
-                Ordem
-              </span>
-              <div role="group" aria-label="Ordem da lista" style={{ display: 'flex', gap: 6, overflowX: 'auto', maxWidth: '100%', paddingBottom: 2 }}>
-                {([['prazo', 'Prazo de aprovação'], ['mesa', 'Peças na sua mesa'], ['evento', 'Nome do evento']] as const).map(([valor, rotulo]) => {
-                  const ativo = ordemPendentes === valor;
-                  return (
-                    <button
-                      key={valor}
-                      type="button"
-                      aria-pressed={ativo}
-                      data-testid={`toggle-ordem-${valor}`}
-                      onClick={() => setOrdemPendentes(valor)}
-                      style={{
-                        height: alvo(30, dedo), padding: '0 12px', borderRadius: R.md, cursor: 'pointer',
-                        fontFamily: 'inherit', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0,
-                        border: `1px solid ${ativo ? TOM.laranja.border : T.border}`,
-                        backgroundColor: ativo ? TOM.laranja.bg : T.surface,
-                        color: ativo ? T.accentText : T.apoio,
-                      }}
-                    >
-                      {rotulo}
-                    </button>
-                  );
-                })}
+            <div style={{
+              display: 'flex', alignItems: cards ? 'stretch' : 'center', gap: cards ? 12 : 16,
+              flexDirection: cards ? 'column' : 'row', flexWrap: cards ? 'nowrap' : 'wrap', marginBottom: 4,
+            }}>
+              {cards && portasDaFila}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                  <span style={{ fontSize: letra(FS.small, toque), fontWeight: FW.rotulo, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.second, flexShrink: 0 }}>
+                    Ordem
+                  </span>
+                  <Segmentado
+                    rotuloDaLista="Ordem da lista"
+                    prefixoDeTestId="toggle-ordem"
+                    testId="ordem-da-fila"
+                    tamanho={dedo ? "toque" : "sm"}
+                    larguraCheia={cards}
+                    ativo={ordemPendentes}
+                    aoTrocar={(v) => setOrdemPendentes(v as OrdemPendentes)}
+                    itens={ORDENS.map(([valor, rotulo, curto]) => ({ id: valor, rotulo: cards ? curto : rotulo, title: rotulo }))}
+                    style={{ flex: cards ? '1 1 0%' : undefined, minWidth: 0 }}
+                  />
+                </div>
+                <span data-testid="regra-da-ordem" style={{ fontSize: letra(FS.meta, toque), color: T.second, lineHeight: 1.4 }}>
+                  {ORDEM_REGRA[ordemPendentes]}
+                </span>
               </div>
-              <span style={{ fontSize: 12, color: T.apoio }}>{ORDEM_REGRA[ordemPendentes]}</span>
-
-              {/* UM grupo à direita. Os dois botões tinham `marginLeft: auto`
-                  cada um: com os dois na tela (admin) o espaço livre se dividia
-                  entre eles e "Decidir em fila" — a ação do dia — boiava no
-                  meio da linha, longe da borda onde o olho a procura. */}
-              <div style={{ marginLeft: cards ? 0 : 'auto', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', width: cards ? '100%' : undefined }}>
-              {/* O DISPARO À MÃO DO AVISO DA GESTÃO. Discreto de propósito e
-                  encostado à direita: é ferramenta de manutenção, não parte do
-                  trabalho de decidir — quem entra aqui para aprovar não deve
-                  tropeçar nele. */}
-              {user?.role === "admin" && (
-                <Botao
-                  variante="secundario"
-                  tamanho={tamBotao}
-                  icone={Send}
-                  carregando={avisarGestaoMutation.isPending}
-                  data-testid="button-avisar-gestao"
-                  onClick={() => avisarGestaoMutation.mutate()}
-                  title="Manda agora o resumo das aprovações pendentes para quem recebe o aviso das 10h, 15h e 18h. Se não houver pendência, nada é enviado."
-                  style={{ flexShrink: 0 }}
-                >
-                  {avisarGestaoMutation.isPending ? 'Enviando…' : 'Avisar a gestão'}
-                </Botao>
-              )}
-
-              {/* ── A FILA, ALCANÇÁVEL ────────────────────────────────────────
-                  A fila de decisão existia só DENTRO do modal (navegação no
-                  cabeçalho e "Próxima peça" no rodapé) e não havia porta de
-                  entrada: era preciso caçar a primeira peça na lista e abri-la.
-                  Some quando não há nada esperando por você — botão que não faz
-                  nada é ruído. */}
-              {filaDaSuaMesa.length > 0 && (
-                // A régua dos primários da casa e largura cheia quando a área
-                // aperta: é a porta da fila.
-                <Botao
-                  variante="primario"
-                  tamanho={tamBotao}
-                  icone={Play}
-                  data-testid="button-fila-decisao"
-                  onClick={() => { setSelectedItem(filaDaSuaMesa[0]); setDialogOpen(true); }}
-                  title="Abre a primeira peça que espera decisão sua; do modal dá para seguir para a próxima"
-                  style={{ flexShrink: 0, flex: cards ? '1 1 auto' : undefined }}
-                >
-                  Decidir {filaDaSuaMesa.length === 1 ? 'a peça' : `as ${filaDaSuaMesa.length}`} em fila
-                </Botao>
-              )}
-              {/* A FILA INTEIRA (rodada 4). A porta acima só existe para "nova
-                  versão"; as peças que aguardam patrocinador — a maior parte do
-                  dia — ficavam atrás de eventos RECOLHIDOS: abrir o evento,
-                  achar a peça, Revisar. Esta abre a primeira da lista, na ordem
-                  da tela, e o modal segue com "Próxima peça". Quando há peça na
-                  sua mesa ela é secundária (contorno); sem, é a ação do dia. */}
-              {reviewQueue.length > filaDaSuaMesa.length && (
-                <Botao
-                  variante={filaDaSuaMesa.length > 0 ? "secundario" : "primario"}
-                  tamanho={tamBotao}
-                  icone={Play}
-                  data-testid="button-fila-inteira"
-                  onClick={() => { setSelectedItem(reviewQueue[0]); setDialogOpen(true); }}
-                  title="Abre a primeira peça da lista, na ordem escolhida; do modal dá para seguir peça a peça sem voltar"
-                  style={{ flexShrink: 0, flex: cards ? '1 1 auto' : undefined }}
-                >
-                  {filaDaSuaMesa.length > 0 ? `Toda a fila (${reviewQueue.length})` : reviewQueue.length === 1 ? 'Revisar a peça' : `Revisar as ${reviewQueue.length} em fila`}
-                </Botao>
-              )}
-              </div>
+              {!cards && portasDaFila}
             </div>
           )}
 
@@ -208,6 +219,8 @@ export function ListaPendentes({
               eventoAberto={eventoAberto}
               toggleEventCollapsed={toggleEventCollapsed}
               hoje={hoje}
+              isMobile={isMobile}
+              dedo={dedo}
               {...doCartao}
             />
           ))}

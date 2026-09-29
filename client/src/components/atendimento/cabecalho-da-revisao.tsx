@@ -8,14 +8,16 @@
 // tela em 390px — o modal ficava sem saída visível além do Esc.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Dispatch, SetStateAction } from "react";
-import { ChevronRight, FileText, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileText, X } from "lucide-react";
+import { Botao } from "@/components/ui/botao";
 import { format } from "date-fns";
 import { SeloKit } from "@/components/kit/selo-kit";
 import { alvo } from "@/hooks/use-mobile";
 import { prazoAprovacaoLayout } from "@/lib/atendimento-prazo";
 import { miniatura } from "@/lib/miniatura";
 import { toUTCDisplayDate } from "@/lib/utils";
-import { R, T, N, TOM, FONT } from "@/lib/theme";
+import { FS, FW, R, T, N, TOM, FONT } from "@/lib/theme";
+import { letra } from "./estilos";
 import { aoFalharMiniatura } from "./regras";
 import type { EventoAtendimento, PecaAtendimento } from "./tipos";
 
@@ -88,7 +90,7 @@ export function CabecalhoDaRevisao({
           {/* Evento e prazo em caixa normal: em versalete espaçado a
               linha de contexto gritava tanto quanto o título, e o
               nome do evento, que pode ser longo, não quebrava. */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap', rowGap: 2 }}>
+          <div style={{ display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', flexDirection: isMobile ? 'column' : 'row', columnGap: 8, rowGap: isMobile ? 1 : 2, marginTop: 4, flexWrap: 'wrap', minWidth: 0 }}>
             <span title={ev?.name || undefined} style={{ fontSize: 12, fontWeight: 600, color: T.second, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
               {ev?.name || 'Sem evento'}
             </span>
@@ -110,7 +112,9 @@ export function CabecalhoDaRevisao({
               const venceu = p.diff < 0;
               return (
                 <>
-                  <span aria-hidden="true" style={{ width: 4, height: 4, borderRadius: '50%', backgroundColor: T.bdark }} />
+                  {/* No celular o prazo vai para a linha de baixo: o ponto
+                      separador ficava órfão no fim da linha do evento. */}
+                  {!isMobile && <span aria-hidden="true" style={{ width: 4, height: 4, borderRadius: '50%', backgroundColor: T.bdark }} />}
                   <span style={{
                     fontSize: 12, fontWeight: venceu ? 700 : 600,
                     color: venceu ? TOM.perigo.text : T.second,
@@ -131,57 +135,58 @@ export function CabecalhoDaRevisao({
         const hasPrev = qIdx > 0;
         const hasNext = qIdx >= 0 && qIdx < reviewQueue.length - 1;
         // Os TRÊS botões do canto (anterior, próxima, fechar) com a
-        // mesma forma e o mesmo tamanho. O fechar era um círculo de
-        // 40 sem borda ao lado de dois quadrados de 40 com borda —
-        // três controles vizinhos, três desenhos.
-        const navBtn = (enabled: boolean): React.CSSProperties => ({
-          width: alvo(36, dedo), height: alvo(36, dedo), borderRadius: R.md,
-          border: `1px solid ${T.border}`,
-          backgroundColor: T.surface,
-          cursor: enabled ? 'pointer' : 'not-allowed',
-          opacity: enabled ? 1 : 0.4,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: T.apoio,
-        });
+        // mesma forma e o mesmo tamanho — agora o <Botao> da casa, com o
+        // hover, o foco e o desligado dele (eram <button> com opacity à mão).
+        const lado = alvo(36, dedo);
+        const quadrado = { width: lado, minWidth: lado, padding: 0 } as const;
         return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto', flexShrink: 0, width: isMobile ? '100%' : undefined }}>
             {qIdx >= 0 && reviewQueue.length > 1 && (
               <>
-                <span style={{ fontSize: 11, fontWeight: 700, color: T.second, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                <span data-testid="posicao-na-fila" style={{ fontSize: letra(FS.meta, isMobile || dedo), fontWeight: FW.forte, color: T.second, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', marginRight: isMobile ? 'auto' : 4 }}>
                   Peça {qIdx + 1} de {reviewQueue.length}
                 </span>
-                {/* aria-label: só com `title` o leitor de tela lia
+                {/* aria-label: só com o title o leitor de tela lia
                     "botão" sem nome em dois ícones de seta. */}
-                <button
+                <Botao
+                  variante="secundario"
+                  tamanho={dedo ? 'toque' : 'md'}
+                  icone={ChevronLeft}
+                  tamanhoDoIcone={16}
                   onClick={() => hasPrev && goToAdjacentItem(-1)}
                   disabled={!hasPrev}
                   data-testid="button-prev-item"
                   title="Peça anterior"
                   aria-label="Peça anterior"
-                  style={navBtn(hasPrev)}
-                >
-                  <ChevronRight aria-hidden="true" style={{ width: 16, height: 16, transform: 'rotate(180deg)' }} />
-                </button>
-                <button
+                  style={quadrado}
+                />
+                <Botao
+                  variante="secundario"
+                  tamanho={dedo ? 'toque' : 'md'}
+                  icone={ChevronRight}
+                  tamanhoDoIcone={16}
                   onClick={() => hasNext && goToAdjacentItem(1)}
                   disabled={!hasNext}
                   data-testid="button-next-item"
                   title="Próxima peça"
                   aria-label="Próxima peça"
-                  style={navBtn(hasNext)}
-                >
-                  <ChevronRight aria-hidden="true" style={{ width: 16, height: 16 }} />
-                </button>
+                  style={quadrado}
+                />
+                <span aria-hidden="true" style={{ width: 1, height: 20, backgroundColor: T.border, margin: '0 4px' }} />
               </>
             )}
-            <button
+            {isMobile && !(qIdx >= 0 && reviewQueue.length > 1) && <span style={{ marginRight: 'auto' }} />}
+            <Botao
+              variante="secundario"
+              tamanho={dedo ? 'toque' : 'md'}
+              icone={X}
+              tamanhoDoIcone={16}
               onClick={() => setDialogOpen(false)}
               data-testid="button-close-dialog"
               aria-label="Fechar"
-              style={navBtn(true)}
-            >
-              <X style={{ width: 16, height: 16 }} />
-            </button>
+              title="Fechar (Esc)"
+              style={quadrado}
+            />
           </div>
         );
       })()}

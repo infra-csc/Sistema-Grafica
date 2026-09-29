@@ -1,14 +1,22 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // A DECISÃO DE UM PATROCINADOR no modal de revisão: o estado dele, os botões
 // (aprovar, reprovar, desvincular, revogar) e o campo do motivo.
+//
+// OS BOTÕES SÃO OS DA CASA (29/09). Reprovar e Aprovar eram <button> com
+// estilo próprio — sem hover, sem anel de foco da casa, e o desligado era um
+// `opacity: 0.5` escrito à mão. Agora são <Botao>: Reprovar em
+// `perigoSecundario` (vermelho de contorno: ele só ABRE o motivo) e Aprovar em
+// secundário no tom de sucesso — o verde de TINTA fica para o estado
+// "Aprovado", que a linha inteira vira depois da decisão.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Dispatch, SetStateAction } from "react";
-import { CheckCircle, Clock, Loader2, Undo2, XCircle } from "lucide-react";
+import { format } from "date-fns";
+import { CheckCircle, Clock, RotateCcw, Undo2, XCircle } from "lucide-react";
 import { TextoComLinks } from "@/components/texto-com-links";
 import { Botao } from "@/components/ui/botao";
-import { alvo } from "@/hooks/use-mobile";
-import { FS, T, TOM } from "@/lib/theme";
+import { FS, FW, R, T, TOM } from "@/lib/theme";
 import { KBD, MOTIVO_MIN, approvalVisual, motivoCurto } from "./regras";
+import { letra } from "./estilos";
 import type { AcoesDoAtendimento } from "./use-atendimento-acoes";
 import type { AlvoDePatrocinador, Patrocinador, PecaAtendimento, SponsorApproval, TamanhoDoBotao, UsuarioDaTela } from "./tipos";
 
@@ -33,6 +41,8 @@ export interface PropsDaLinhaDeDecisao {
   acoes: Pick<AcoesDoAtendimento, "individualApproveMutation" | "individualRejectMutation" | "revertApprovalMutation" | "desvincularSponsorMutation">;
 }
 
+const dataCurta = (d: string | Date | null | undefined) => (d ? format(new Date(d), "dd/MM 'às' HH:mm") : null);
+
 export function LinhaDeDecisao({
   sponsor, sponsorApprovals, selectedItem, user, canDecide, isMobile, dedo, tamBotao, rejectingSponsorId, setRejectingSponsorId,
   rejectionReason, setRejectionReason, pecaRecemAberta, decisaoTravada, setConfirmApproveIndividual, setDesvincularAlvo, acoes,
@@ -40,6 +50,7 @@ export function LinhaDeDecisao({
   const { individualApproveMutation, individualRejectMutation, revertApprovalMutation, desvincularSponsorMutation } = acoes;
   const approval = sponsorApprovals.find(a => a.sponsorId === sponsor.id);
   const status = approval?.status || 'pending';
+  const toque = isMobile || dedo;
   // Neste modal, awaiting_arte conta como reprovado (a Arte
   // está refazendo por causa de uma reprovação).
   const v = approvalVisual(status);
@@ -53,41 +64,51 @@ export function LinhaDeDecisao({
   const podeRevogar = user?.role === "admin"
     || (canDecide && (selectedItem.status === "awaiting_sponsor_approval" || selectedItem.status === "sponsor_approved"));
 
+  // A cor da LINHA é o estado: verde decidido, vermelho reprovado, âmbar
+  // versão nova (a bola é sua), neutro aguardando.
+  const moldura = isApproved ? { bg: TOM.sucesso.bg, borda: TOM.sucesso.border }
+    : isRejected ? { bg: TOM.perigo.bg, borda: TOM.perigo.border }
+    : isNewVersion ? { bg: T.surface, borda: TOM.alerta.border }
+    : { bg: T.surface, borda: T.border };
+  const icone = isApproved
+    ? { Icone: CheckCircle, fundo: TOM.sucesso.border, cor: TOM.sucesso.text }
+    : isRejected
+    ? { Icone: XCircle, fundo: TOM.perigo.border, cor: TOM.perigo.text }
+    : isNewVersion
+    ? { Icone: RotateCcw, fundo: TOM.alerta.bg, cor: TOM.alerta.text }
+    : { Icone: Clock, fundo: TOM.laranja.bg, cor: T.accentText };
+
   return (
     <div
+      className="atd-decisao"
+      data-testid={`linha-decisao-${sponsor.id}`}
       style={{
-        padding: '14px 16px', borderRadius: 12,
-        border: '1.5px solid',
-        borderColor: isApproved ? TOM.sucesso.border : isRejected ? TOM.perigo.border : T.border,
-        backgroundColor: isApproved ? TOM.sucesso.bg : isRejected ? TOM.perigo.bg : T.bg,
+        padding: toque ? '14px' : '14px 16px', borderRadius: R.lg,
+        border: `1px solid ${moldura.borda}`,
+        // O trilho à esquerda repete a cor do estado para o olho que varre
+        // a coluna de cima a baixo.
+        boxShadow: isNewVersion ? `inset 3px 0 0 ${TOM.alerta.dot}` : undefined,
+        backgroundColor: moldura.bg,
       }}
     >
       {/* flexWrap (31/08, print 'cortando ainda'): com 3 botões
           (Reprovar/Aprovar/Desvincular) a fileira estourava a
           largura do painel e nascia rolagem horizontal. */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: isRejectingThis ? 12 : 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: '50%',
-            backgroundColor: isApproved ? TOM.sucesso.border : isRejected ? TOM.perigo.border : TOM.laranja.bg,
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: isRejectingThis ? 12 : 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: '1 1 160px' }}>
+          <div aria-hidden="true" style={{
+            width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+            backgroundColor: icone.fundo,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            border: isPending ? `1.5px solid ${TOM.laranja.border}` : 'none',
+            border: isPending && !isNewVersion ? `1px solid ${TOM.laranja.border}` : 'none',
           }}>
-            {isApproved
-              ? <CheckCircle style={{ width: 14, height: 14, color: TOM.sucesso.text }} />
-              : isRejected
-              ? <XCircle style={{ width: 14, height: 14, color: TOM.perigo.text }} />
-              : <Clock style={{ width: 14, height: 14, color: T.accent }} />}
+            <icone.Icone style={{ width: 15, height: 15, color: icone.cor }} />
           </div>
-          <div>
-            <p style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: 0 }}>{sponsor.name}</p>
-            {/* Cores de `approvalVisual`, a fonte da tela:
-                "Nova versão" era AZUL só aqui (#0369a1)
-                e âmbar em todo o resto — o mesmo estado
-                com duas cores. E #b91c1c no reprovado:
-                #dc2626 fica abaixo de AA sobre o rosa. */}
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontSize: letra(FS.read, toque), fontWeight: FW.forte, color: T.text, margin: 0, overflowWrap: 'anywhere' }}>{sponsor.name}</p>
+            {/* Cores de `approvalVisual`, a fonte da tela. */}
             <p style={{
-              fontSize: 12, margin: '2px 0 0', fontWeight: 700,
+              fontSize: letra(FS.meta, toque), margin: '2px 0 0', fontWeight: FW.forte,
               color: isApproved ? TOM.sucesso.text : isRejected ? TOM.perigo.text : isNewVersion ? TOM.alerta.text : TOM.alerta.text,
             }}>
               {isApproved ? 'Aprovado' : isRejected ? 'Reprovado' : isNewVersion ? 'Nova versão para decidir' : 'Aguardando decisão'}
@@ -96,53 +117,44 @@ export function LinhaDeDecisao({
         </div>
 
         {isPending && !isRejectingThis && (
-          <div style={{ display: 'flex', gap: 6, flexDirection: isMobile ? 'column' : 'row', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            <button
+          // No celular: Reprovar e Aprovar LADO A LADO em linha cheia (eram
+          // empilhados, um por linha — 100px de altura por patrocinador), e
+          // o Desvincular do admin na linha de baixo.
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', width: isMobile ? '100%' : undefined }}>
+            <Botao
+              variante="perigoSecundario"
+              tamanho={tamBotao}
               onClick={() => { if (!decisaoTravada()) setRejectingSponsorId(sponsor.id); }}
               disabled={individualRejectMutation.isPending || !canDecide || pecaRecemAberta}
               // "Reprovar faz o quê?" antes do clique (rodada 4).
               title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : `Abre o campo do motivo. A Arte refaz a arte por causa de ${sponsor.name}; os patrocinadores com aprovação estrita também esperam a nova versão, e os demais pendentes seguem podendo aprovar.`}
-              style={{
-                padding: '8px 16px', borderRadius: 8,
-                backgroundColor: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}`,
-                color: TOM.perigo.text, fontSize: 13, fontWeight: 700,
-                cursor: canDecide ? 'pointer' : 'not-allowed', transition: 'all 0.15s',
-                opacity: canDecide && !pecaRecemAberta ? 1 : 0.5,
-                minHeight: alvo(36, dedo),
-                width: isMobile ? '100%' : undefined,
-              }}
               aria-label={`Reprovar para ${sponsor.name}`}
+              data-testid={`button-reject-sponsor-${sponsor.id}`}
+              style={{ flex: isMobile ? '1 1 0%' : undefined }}
             >
               Reprovar
-            </button>
-            <button
+            </Botao>
+            <Botao
+              variante="secundario"
+              tom="sucesso"
+              tamanho={tamBotao}
+              icone={CheckCircle}
+              carregando={individualApproveMutation.isPending}
               onClick={() => { if (!decisaoTravada()) setConfirmApproveIndividual({ itemId: selectedItem.id, sponsorId: sponsor.id, sponsorName: sponsor.name || 'Patrocinador' }); }}
               disabled={individualApproveMutation.isPending || !canDecide || pecaRecemAberta}
               title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : `Registra a aprovação de ${sponsor.name} (dá para revogar depois)`}
               data-testid={`button-approve-sponsor-${sponsor.id}`}
-              style={{
-                padding: '8px 16px', borderRadius: 8,
-                backgroundColor: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}`,
-                color: TOM.sucesso.text, fontSize: 13, fontWeight: 700,
-                cursor: canDecide ? 'pointer' : 'not-allowed', transition: 'all 0.15s',
-                opacity: canDecide && !pecaRecemAberta ? 1 : 0.5,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                minHeight: alvo(36, dedo),
-                width: isMobile ? '100%' : undefined,
-              }}
               aria-label={`Aprovar para ${sponsor.name}`}
+              style={{ flex: isMobile ? '1 1 0%' : undefined, backgroundColor: TOM.sucesso.bg }}
             >
-              {individualApproveMutation.isPending
-                ? <Loader2 style={{ width: 12, height: 12 }} className="animate-spin" />
-                : <CheckCircle style={{ width: 12, height: 12 }} />}
               Aprovar
-            </button>
+            </Botao>
             {/* DESVINCULAR (25/08, admin): a marca não é desta
                 peça — sai, e a pendência dele deixa de contar.
                 Se era o único que faltava, a peça segue. */}
             {user?.role === "admin" && (
               <Botao
-                variante="secundario"
+                variante="fantasma"
                 tamanho={tamBotao}
                 larguraCheia={isMobile}
                 onClick={() => setDesvincularAlvo({ itemId: selectedItem.id, sponsorId: sponsor.id, sponsorName: sponsor.name || "Patrocinador" })}
@@ -174,22 +186,41 @@ export function LinhaDeDecisao({
         )}
       </div>
 
+      {/* A VERSÃO NOVA, COM A MEMÓRIA DA ANTERIOR (29/09). A linha dizia só
+          "Nova versão para decidir" — e quem apresenta a arte nova ao
+          patrocinador precisa lembrar O QUE ele tinha pedido (para conferir
+          se a correção atende) ou que ele já tinha aprovado a anterior. Os
+          dois dados já vinham na aprovação; só não eram mostrados. */}
+      {isNewVersion && !isRejectingThis && (approval?.rejectionReason || approval?.approvedAt) && (
+        <div data-testid={`contexto-versao-nova-${sponsor.id}`} style={{ marginTop: 12, padding: '10px 12px', backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: R.md, fontSize: letra(FS.meta + 0.5, toque), color: T.strong, lineHeight: 1.5 }}>
+          {approval?.rejectionReason ? (
+            <>
+              <span style={{ display: 'block', fontSize: letra(FS.small, toque), fontWeight: FW.rotulo, letterSpacing: '0.06em', textTransform: 'uppercase', color: TOM.alerta.text, marginBottom: 3 }}>
+                Pedido na reprovação anterior{approval.rejectedAt ? ` · ${dataCurta(approval.rejectedAt)}` : ''}
+              </span>
+              <span style={{ fontStyle: 'italic' }}>“<TextoComLinks texto={approval.rejectionReason} />”</span>
+            </>
+          ) : (
+            <>Tinha aprovado a versão anterior{approval?.approvedAt ? ` em ${dataCurta(approval.approvedAt)}` : ''}{approval?.approvedBy ? ` (${approval.approvedBy})` : ''}.</>
+          )}
+        </div>
+      )}
+
       {/* AVISO (dono, 31/08): a Arte está REFAZENDO por esta
           reprovação — quem reprovou só volta a decidir quando
           a nova arte chegar; os DEMAIS aprovam normalmente.
-          Largura total, fora do cabeçalho flex (a 1ª versão
-          nasceu dentro dele e virava uma coluna espremida). */}
+          Largura total, fora do cabeçalho flex. */}
       {v.isAwaitingArte && (
-        <div data-testid={`aviso-refazendo-${sponsor.id}`} style={{ marginTop: 10, padding: '10px 12px', background: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderLeft: `3px solid ${TOM.alerta.dot}`, borderRadius: 8, fontSize: 12.5, color: TOM.alerta.text, lineHeight: 1.55 }}>
+        <div data-testid={`aviso-refazendo-${sponsor.id}`} style={{ marginTop: 12, padding: '10px 12px', background: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderLeft: `3px solid ${TOM.alerta.dot}`, borderRadius: R.md, fontSize: letra(12.5, toque), color: TOM.alerta.text, lineHeight: 1.55 }}>
           A <strong>Arte está refazendo uma nova versão</strong> por causa da reprovação de <strong>{sponsor.name}</strong>{approval?.rejectionReason ? <>: <em>“{approval.rejectionReason}”</em></> : null}. Ele só volta a decidir quando a nova arte chegar — os demais patrocinadores seguem aprovando normalmente.
         </div>
       )}
       {/* Motivo de reprovação existente (o aviso acima já o
           cita quando a linha está com a Arte) */}
       {isRejected && !v.isAwaitingArte && approval?.rejectionReason && (
-        <div style={{ marginTop: 10, padding: '10px 12px', backgroundColor: T.surface, borderRadius: 8, border: `1px solid ${TOM.perigo.border}`, borderLeft: `3px solid ${TOM.perigo.text}` }}>
-          <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: TOM.perigo.text, margin: '0 0 4px' }}>Motivo</p>
-          <p style={{ fontSize: 13, fontStyle: 'italic', color: T.apoio, margin: 0, lineHeight: 1.5 }}>
+        <div style={{ marginTop: 12, padding: '10px 12px', backgroundColor: T.surface, borderRadius: R.md, border: `1px solid ${TOM.perigo.border}`, borderLeft: `3px solid ${TOM.perigo.text}` }}>
+          <p style={{ fontSize: letra(FS.small, toque), fontWeight: FW.forte, textTransform: 'uppercase', letterSpacing: '0.06em', color: TOM.perigo.text, margin: '0 0 4px' }}>Motivo</p>
+          <p style={{ fontSize: letra(FS.body, toque), fontStyle: 'italic', color: T.apoio, margin: 0, lineHeight: 1.5 }}>
             "<TextoComLinks texto={approval.rejectionReason} />"
           </p>
         </div>
@@ -197,27 +228,26 @@ export function LinhaDeDecisao({
 
       {/* Formulário de reprovação inline */}
       {isRejectingThis && (
-        <div style={{ marginTop: 12 }}>
-          {/* Label */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 }}>
-            <div style={{ width: 2, height: 12, borderRadius: 999, backgroundColor: TOM.perigo.text, flexShrink: 0 }} />
-            <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: TOM.perigo.text }}>Motivo da reprovação</span>
-            <span style={{ fontSize: 11, color: TOM.perigo.text, fontWeight: 700, lineHeight: 1 }}>*</span>
-          </div>
+        <div className="atd-entrar" style={{ marginTop: 4 }}>
+          <label htmlFor={`motivo-${sponsor.id}`} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+            <span style={{ fontSize: letra(FS.small, toque), fontWeight: FW.rotulo, textTransform: 'uppercase', letterSpacing: '0.06em', color: TOM.perigo.text }}>Motivo da reprovação</span>
+            <span aria-hidden="true" style={{ fontSize: letra(FS.small, toque), color: TOM.perigo.text, fontWeight: FW.forte, lineHeight: 1 }}>*</span>
+          </label>
           {/* O EFEITO, antes de escrever (rodada 4): a dúvida
               "reprovar trava a peça inteira?" segurava o
               clique. Não trava — só esta marca espera a
               nova arte. */}
-          <p style={{ margin: '0 0 7px', fontSize: 12, color: T.apoio, lineHeight: 1.45 }}>
+          <p style={{ margin: '0 0 8px', fontSize: letra(FS.meta, toque), color: T.apoio, lineHeight: 1.5 }}>
             A Arte recebe este motivo e refaz a arte. {sponsor.name} e os patrocinadores com aprovação estrita (que perdem a aprovação já dada) esperam a nova versão; os demais pendentes seguem podendo aprovar.
           </p>
 
-          {/* Textarea nativa — sem reset de className interferindo no foco */}
-          {/* autoFocus: "Reprovar" abre este campo para
-              ESCREVER — sem o foco, era um segundo clique
-              obrigatório em toda reprovação. Ctrl+Enter
-              confirma pela MESMA trava do botão abaixo. */}
+          {/* autoFocus: "Reprovar" abre este campo para ESCREVER — sem o
+              foco, era um segundo clique obrigatório em toda reprovação.
+              Ctrl+Enter confirma pela MESMA trava do botão abaixo. O anel
+              de foco é o da casa (sem o onFocus/onBlur que pintava a borda
+              à mão). */}
           <textarea
+            id={`motivo-${sponsor.id}`}
             autoFocus
             value={rejectionReason}
             onChange={e => setRejectionReason(e.target.value)}
@@ -231,48 +261,46 @@ export function LinhaDeDecisao({
             rows={3}
             data-testid={`textarea-reject-reason-${sponsor.id}`}
             style={{
-              width: '100%', boxSizing: 'border-box',
+              display: 'block', width: '100%', boxSizing: 'border-box', minHeight: 88,
               padding: '10px 12px', fontSize: isMobile ? FS.lead : FS.body,
               fontFamily: 'inherit', color: T.text,
               backgroundColor: T.surface,
-              border: `1.5px solid ${rejectionReason.trim() ? TOM.perigo.text : T.border}`,
-              borderRadius: 8, resize: 'none', lineHeight: 1.5,
-              transition: 'border-color 0.15s, box-shadow 0.15s',
+              border: `1px solid ${rejectionReason.trim() ? TOM.perigo.text : T.bdark}`,
+              borderRadius: R.md, resize: 'vertical', lineHeight: 1.5,
+              boxShadow: 'inset 0 1px 2px rgba(28,25,23,.04)',
+              transition: 'border-color var(--dur-rapida) ease',
             }}
-            onFocus={e => { e.currentTarget.style.borderColor = TOM.perigo.text; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(220,38,38,0.08)'; }}
-            onBlur={e => { e.currentTarget.style.borderColor = rejectionReason.trim() ? TOM.perigo.text : T.border; e.currentTarget.style.boxShadow = 'none'; }}
             aria-label={`Motivo da reprovação de ${sponsor.name}`}
             aria-required="true"
             aria-describedby={motivoCurto(rejectionReason) ? `falta-motivo-${sponsor.id}` : undefined}
           />
-          {/* A régua de 10 caracteres só existia no `title` do botão
-              (hover, e só no desktop). Dizer quanto falta, à vista,
-              é o mesmo que o "Devolver" da Arte já faz. */}
+          {/* A régua de 10 caracteres, à vista — o mesmo que o "Devolver"
+              da Arte já faz. */}
           {motivoCurto(rejectionReason) ? (
-            <p id={`falta-motivo-${sponsor.id}`} style={{ margin: '5px 0 0', fontSize: 11.5, color: T.second }}>
+            <p id={`falta-motivo-${sponsor.id}`} style={{ margin: '6px 0 0', fontSize: letra(11.5, toque), color: T.second }}>
               {rejectionReason.trim()
                 ? `Faltam ${Math.max(0, MOTIVO_MIN - rejectionReason.trim().replace(/\s+/g, " ").length)} caracteres — a Arte precisa saber o que refazer.`
                 : `Mínimo de ${MOTIVO_MIN} caracteres — a Arte precisa saber o que refazer.`}
             </p>
           ) : (
-            <p style={{ margin: '5px 0 0', fontSize: 11.5, color: T.apoio }}>
-              Pronto. <kbd style={KBD}>Ctrl</kbd>+<kbd style={KBD}>Enter</kbd> confirma.
+            <p style={{ margin: '6px 0 0', fontSize: letra(11.5, toque), color: T.apoio }}>
+              Pronto.{isMobile ? null : <> <kbd style={KBD}>Ctrl</kbd>+<kbd style={KBD}>Enter</kbd> confirma.</>}
             </p>
           )}
 
-          {/* Botões */}
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          {/* Botões — a ação à direita (e em cima, no celular). */}
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexDirection: isMobile ? 'column-reverse' : 'row' }}>
             <Botao
               variante="secundario"
               tamanho={tamBotao}
               onClick={() => { setRejectingSponsorId(null); setRejectionReason(""); }}
-              style={{ flex: 1 }}
+              style={{ flex: isMobile ? undefined : '1 1 0%' }}
+              larguraCheia={isMobile}
             >
               Cancelar
             </Botao>
-            {/* Travado pela MESMA régua do Ctrl+Enter
-                (motivoCurto); o quanto falta está escrito
-                logo acima do botão. */}
+            {/* Travado pela MESMA régua do Ctrl+Enter (motivoCurto); o
+                quanto falta está escrito logo acima do botão. */}
             <Botao
               variante="perigo"
               tamanho={tamBotao}
@@ -282,7 +310,8 @@ export function LinhaDeDecisao({
               disabled={motivoCurto(rejectionReason)}
               title={motivoCurto(rejectionReason) ? `Explique em pelo menos ${MOTIVO_MIN} caracteres — a Arte precisa saber o que refazer.` : undefined}
               data-testid={`button-confirm-reject-${sponsor.id}`}
-              style={{ flex: 2 }}
+              style={{ flex: isMobile ? undefined : '2 1 0%' }}
+              larguraCheia={isMobile}
             >
               {individualRejectMutation.isPending ? 'Registrando…' : 'Reprovar e devolver à Arte'}
             </Botao>

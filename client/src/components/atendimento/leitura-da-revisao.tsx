@@ -5,65 +5,91 @@
 // Um scrollport só para tudo isso. Antes eram TRÊS scrollports lado a lado,
 // cada um com a sua barra e a sua altura — e o histórico, que é o mais
 // comprido, era o mais estreito dos três.
+//
+// DUAS METADES EXPORTADAS (29/09): `ArteDaRevisao` e `DetalhesDaRevisao`. No
+// desktop elas moram juntas na coluna da esquerda (`LeituraDaRevisao`); no
+// celular a DECISÃO entra entre elas — a pessoa vê a arte e decide, sem rolar
+// especificações, arquivos e histórico inteiros antes de achar os botões.
 // ─────────────────────────────────────────────────────────────────────────────
-import { Clock, Download, Package } from "lucide-react";
+import { Clock, Download, FileText, Package } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { FilePreview } from "@/components/file-preview";
-import { T, N, TOM } from "@/lib/theme";
+import { fmtRelative } from "@/components/prazos/tokens";
+import { FS, FW, R, T, N } from "@/lib/theme";
 import { ACTION_CONFIG } from "./regras";
+import { letra, rotuloDeSecao } from "./estilos";
 import type { PecaAtendimento, RegistroDeAuditoria } from "./tipos";
 
-export function LeituraDaRevisao({ selectedItem, thumbUrl, finalUrl, itemLogs, isMobile }: {
+/** A arte que o patrocinador vai ver — e de quando ela é. */
+export function ArteDaRevisao({ selectedItem, thumbUrl, finalUrl, toque, compacta = false }: {
+  selectedItem: PecaAtendimento;
+  thumbUrl: string | null;
+  finalUrl: string | null;
+  toque: boolean;
+  /** Celular: menos respiro em volta (a largura é pouca). */
+  compacta?: boolean;
+}) {
+  // "DE QUANDO É ESTA ARTE" (29/09): numa versão nova, a pergunta antes de
+  // apresentar é "esta é a arte nova?". `approvalThumbUpdatedAt` é quando a
+  // Arte trocou o thumb — o mesmo campo que o card da lista lê.
+  const desde = selectedItem.approvalThumbUpdatedAt
+    ? fmtRelative(new Date(selectedItem.approvalThumbUpdatedAt).toISOString(), Date.now())
+    : null;
+  return (
+    <div style={{ padding: compacta ? '16px 16px 4px' : '24px 24px 0' }}>
+      <div style={{
+        aspectRatio: '16/9', backgroundColor: N.n2,
+        borderRadius: R.lg, overflow: 'hidden',
+        border: `1px solid ${T.border}`, position: 'relative',
+      }}>
+        {thumbUrl ? (
+          <FilePreview url={thumbUrl} linkUrl={finalUrl || thumbUrl} objectFit="contain" />
+        ) : (
+          <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <Package aria-hidden="true" style={{ width: 36, height: 36, color: T.bdark }} />
+            <p style={{ fontSize: FS.body, fontWeight: FW.medio, color: T.second, margin: 0 }}>Sem thumb de aprovação</p>
+          </div>
+        )}
+      </div>
+      {thumbUrl && desde && (
+        <p data-testid="arte-atualizada-em" title={new Date(selectedItem.approvalThumbUpdatedAt!).toLocaleString("pt-BR")} style={{ margin: '8px 2px 0', fontSize: letra(FS.meta, toque), color: T.second, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Clock aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0 }} />
+          Enviada pela Arte {desde}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Especificações, arquivos e o histórico de alterações. */
+export function DetalhesDaRevisao({ selectedItem, thumbUrl, finalUrl, itemLogs, isMobile, toque }: {
   selectedItem: PecaAtendimento;
   thumbUrl: string | null;
   finalUrl: string | null;
   itemLogs: RegistroDeAuditoria[];
   isMobile: boolean;
+  toque: boolean;
 }) {
+  const lado = isMobile ? 16 : 24;
   return (
-    <div style={{ overflowY: "auto", minWidth: 0, display: "flex", flexDirection: "column" }}>
-      <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 24 }}>
-          {/* Preview de imagem */}
-          <div style={{
-            aspectRatio: '16/9', backgroundColor: N.n2,
-            borderRadius: 12, overflow: 'hidden',
-            border: `1px solid ${T.border}`, position: 'relative',
-          }}>
-            {thumbUrl ? (
-              <FilePreview url={thumbUrl} linkUrl={finalUrl || thumbUrl} objectFit="contain" />
-            ) : (
-              <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                <Package style={{ width: 40, height: 40, color: T.muted }} />
-                <p style={{ fontSize: 13, color: T.second, margin: 0 }}>Sem thumb de aprovação</p>
-              </div>
-            )}
-          </div>
-
-      </div>
-      {/* Especificações e arquivos — abaixo da arte, não ao lado.
-
-          Sem borda e sem scroll próprios: eram de coluna, e esta
-          deixou de ser uma. Quem rola agora é o pai. */}
+    <>
+      {/* Especificações e arquivos — abaixo da arte, não ao lado. Sem borda
+          e sem scroll próprios: quem rola é o pai. */}
       <div style={{
-        padding: '0 24px 24px',
+        padding: `24px ${lado}px 24px`,
         display: 'flex', flexDirection: 'column', gap: 24,
       }}>
         <div>
-          <h4 style={{ fontSize: 11, fontWeight: 700, color: T.second, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 16px' }}>
+          <h4 style={{ ...rotuloDeSecao(toque), marginBottom: 12 }}>
             Especificações
           </h4>
-          {/* GRADE de quatro células, não quatro caixas empilhadas.
-
-              Cada uma tinha borda, raio e fundo próprios: quatro
-              molduras para quatro pares rótulo/valor que ninguém
-              lê um por vez. Numa superfície só, divididas por
-              hairline, elas viram uma tabela — que é o que sempre
-              foram. */}
+          {/* GRADE de quatro células numa superfície só, divididas por
+              hairline: uma tabela — que é o que sempre foram. */}
           <div style={{
             display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0,1fr))',
-            backgroundColor: T.surface, border: `1px solid ${N.n3}`,
-            borderRadius: 8, overflow: 'hidden',
+            backgroundColor: T.surface, border: `1px solid ${T.border}`,
+            borderRadius: R.md, overflow: 'hidden',
           }}>
             {[
               { label: 'Tipo / Formato', value: selectedItem.type || '—' },
@@ -78,135 +104,139 @@ export function LeituraDaRevisao({ selectedItem, thumbUrl, finalUrl, itemLogs, i
               })() },
             ].map(({ label, value }, i) => (
               <div key={label} style={{
-                padding: '10px 12px',
-                // Hairline de grade: a borda de baixo some na
-                // última linha e a da direita na última coluna,
-                // senão a superfície ganha uma moldura dupla.
-                borderBottom: i < 2 ? `1px solid ${N.n3}` : undefined,
+                padding: '11px 14px',
+                // Hairline de grade: some na última linha e na última coluna,
+                // senão a superfície ganha uma moldura dupla. Empilhado, cada
+                // célula é uma linha — só a última não tem régua.
+                borderBottom: (isMobile ? i < 3 : i < 2) ? `1px solid ${N.n3}` : undefined,
                 borderRight: !isMobile && i % 2 === 0 ? `1px solid ${N.n3}` : undefined,
                 minWidth: 0,
               }}>
-                <p style={{ fontSize: 10, color: T.second, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 4px' }}>{label}</p>
-                <p title={String(value)} style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</p>
+                <p style={{ fontSize: letra(FS.micro, toque), color: T.second, fontWeight: FW.rotulo, letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 4px' }}>{label}</p>
+                <p title={String(value)} style={{ fontSize: letra(FS.body, toque), fontWeight: FW.medio, color: T.text, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.4 }}>{value}</p>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Links para arquivos */}
+        {/* ARQUIVOS — linhas neutras, como o resto da ficha. Eram dois blocos
+            tingidos (laranja e azul) em caixa-alta de 11px: pareciam dois
+            avisos, e o azul era a única coisa azul do modal. */}
         <div>
-          <h4 style={{ fontSize: 11, fontWeight: 700, color: T.second, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 12px' }}>
+          <h4 style={{ ...rotuloDeSecao(toque), marginBottom: 12 }}>
             Arquivos
           </h4>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {thumbUrl && (
+            {[
+              thumbUrl ? { href: thumbUrl, rotulo: 'Arquivo para aprovação', apoio: 'o thumb que o patrocinador vê' } : null,
+              finalUrl ? { href: finalUrl, rotulo: 'Arquivo final', apoio: 'o arquivo de impressão' } : null,
+            ].filter((a): a is { href: string; rotulo: string; apoio: string } => !!a).map((a) => (
               <a
-                href={thumbUrl}
+                key={a.rotulo}
+                href={a.href}
                 target="_blank"
                 rel="noopener noreferrer"
+                className="atd-linha"
                 style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '10px 12px', borderRadius: 8,
-                  backgroundColor: 'rgba(253,118,26,0.05)',
-                  border: '1px solid rgba(253,118,26,0.15)',
-                  color: T.accentText, textDecoration: 'none',
-                  fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  minHeight: toque ? 48 : 44, padding: '8px 12px', borderRadius: R.md,
+                  backgroundColor: T.surface, border: `1px solid ${T.border}`,
+                  color: T.text, textDecoration: 'none',
                 }}
               >
-                <span>Arquivo para aprovação</span>
-                <Download style={{ width: 14, height: 14 }} />
+                <FileText aria-hidden="true" style={{ width: 16, height: 16, color: T.second, flexShrink: 0 }} />
+                <span style={{ flex: '1 1 0%', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: letra(FS.body, toque), fontWeight: FW.forte }}>{a.rotulo}</span>
+                  <span style={{ fontSize: letra(FS.small, toque), color: T.second }}>{a.apoio}</span>
+                </span>
+                <Download aria-hidden="true" style={{ width: 15, height: 15, color: T.apoio, flexShrink: 0 }} />
               </a>
-            )}
-            {finalUrl && (
-              <a
-                href={finalUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '10px 12px', borderRadius: 8,
-                  backgroundColor: 'rgba(0,99,152,0.05)',
-                  border: '1px solid rgba(0,99,152,0.15)',
-                  color: TOM.ceu.text, textDecoration: 'none',
-                  fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
-                }}
-              >
-                <span>Arquivo Final</span>
-                <Download style={{ width: 14, height: 14 }} />
-              </a>
-            )}
+            ))}
             {!thumbUrl && !finalUrl && (
-              <p style={{ fontSize: 13, color: T.second }}>Nenhum arquivo disponível</p>
+              <p style={{ margin: 0, padding: '12px 14px', borderRadius: R.md, border: `1px dashed ${T.border}`, fontSize: letra(FS.body, toque), color: T.second }}>Nenhum arquivo disponível</p>
             )}
           </div>
         </div>
       </div>
-      {/* Histórico — o bloco mais COMPRIDO da ficha, e era o mais
-          estreito dos três. Aqui ele tem a largura inteira da
-          coluna de leitura e rola junto com o resto. */}
+      {/* Histórico — o bloco mais COMPRIDO da ficha, com a largura inteira
+          da coluna de leitura, rolando junto com o resto. */}
       <div style={{
-        padding: '0 24px 24px',
-        borderTop: `1px solid ${N.n3}`, paddingTop: 24,
+        padding: `24px ${lado}px 28px`,
+        borderTop: `1px solid ${N.n3}`,
       }}>
-        <h4 style={{ fontSize: 11, fontWeight: 700, color: T.second, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 24px' }}>
+        <h4 style={{ ...rotuloDeSecao(toque), marginBottom: 18 }}>
           Histórico de Alterações
         </h4>
 
         {itemLogs.length === 0 ? (
-          <p style={{ fontSize: 13, color: T.second }}>Sem registros de histórico</p>
+          <p style={{ margin: 0, fontSize: letra(FS.body, toque), color: T.second }}>Sem registros de histórico</p>
         ) : (
           <div style={{ position: 'relative' }}>
             {/* Linha vertical */}
-            <div style={{
+            <div aria-hidden="true" style={{
               position: 'absolute', left: 10, top: 8, bottom: 8,
               width: 1, backgroundColor: T.border,
             }} />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-              {itemLogs.slice(0, 10).map((log, i) => {
-                // ACTION_CONFIG é const de módulo (topo do arquivo).
+            <ol style={{ display: 'flex', flexDirection: 'column', gap: 20, listStyle: 'none', margin: 0, padding: 0 }}>
+              {itemLogs.slice(0, 10).map((log) => {
+                // ACTION_CONFIG é const de módulo.
                 const cfg = ACTION_CONFIG[log.action] ?? { label: log.action?.replace(/_/g, ' ') ?? 'Ação', bg: T.border, iconColor: T.muted, icon: Clock };
                 const IconComp = cfg.icon;
                 const isSystemLog = ['updated', 'status_changed', 'file_uploaded', 'thumb_uploaded'].includes(log.action);
                 return (
-                  // SEM o esmaecimento por opacidade. O registro
-                  // mais antigo chegava a 40%: o cinza #746e69 a 40%
-                  // sobre branco mede ~1,8:1 — o histórico ficava
-                  // ilegível justamente no que se abre para ler. A
-                  // hierarquia agora é de PESO: log de sistema
-                  // (upload, status) em rótulo 600; decisão, 700.
-                  <div key={log.id} style={{ paddingLeft: 32, position: 'relative' }}>
-                    <div style={{
-                      position: 'absolute', left: 0, top: 2,
-                      width: 20, height: 20, borderRadius: '50%',
-                      backgroundColor: cfg.bg,
+                  // SEM esmaecimento por opacidade (o mais antigo chegava a
+                  // ~1,8:1). A hierarquia é de PESO: log de sistema 600,
+                  // decisão 700.
+                  <li key={log.id} style={{ paddingLeft: 32, position: 'relative' }}>
+                    <div aria-hidden="true" style={{
+                      position: 'absolute', left: 0, top: 1,
+                      width: 21, height: 21, borderRadius: '50%',
+                      backgroundColor: cfg.bg, boxShadow: `0 0 0 3px ${T.surface}`,
                       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1,
                     }}>
-                      <IconComp style={{ width: 10, height: 10, color: cfg.iconColor }} />
+                      <IconComp style={{ width: 11, height: 11, color: cfg.iconColor }} />
                     </div>
-                    <p style={{ fontSize: 12, fontWeight: isSystemLog ? 600 : 700, color: isSystemLog ? T.apoio : T.text, margin: 0 }}>
+                    <p style={{ fontSize: letra(FS.meta + 0.5, toque), fontWeight: isSystemLog ? FW.medio : FW.forte, color: isSystemLog ? T.apoio : T.text, margin: 0 }}>
                       {cfg.label}
                     </p>
-                    <p style={{ fontSize: 11, color: T.second, margin: '2px 0 0' }}>
-                      {log.userName && <><span style={{ fontWeight: 600, color: T.second }}>{log.userName}</span> · </>}
+                    <p style={{ fontSize: letra(FS.small, toque), color: T.second, margin: '2px 0 0', fontVariantNumeric: 'tabular-nums' }}>
+                      {log.userName && <><span style={{ fontWeight: FW.medio, color: T.apoio }}>{log.userName}</span> · </>}
                       {format(new Date(log.createdAt), "dd MMM, yyyy 'às' HH:mm", { locale: ptBR })}
                     </p>
                     {log.details && (
                       <p style={{
-                        fontSize: 11, margin: '6px 0 0',
-                        backgroundColor: T.surface, border: `1px solid ${cfg.bg}`,
-                        padding: '6px 10px', borderRadius: 6,
-                        color: T.apoio, fontStyle: 'italic',
+                        fontSize: letra(FS.meta, toque), margin: '6px 0 0', lineHeight: 1.5,
+                        backgroundColor: T.bg, border: `1px solid ${N.n3}`,
+                        padding: '7px 10px', borderRadius: R.sm,
+                        color: T.apoio,
                       }}>
-                        "{typeof log.details === 'string' ? log.details : JSON.stringify(log.details)}"
+                        {typeof log.details === 'string' ? log.details : JSON.stringify(log.details)}
                       </p>
                     )}
-                  </div>
+                  </li>
                 );
               })}
-            </div>
+            </ol>
           </div>
         )}
       </div>
+    </>
+  );
+}
+
+/** A coluna de leitura do desktop: a arte e, abaixo dela, os detalhes. */
+export function LeituraDaRevisao({ selectedItem, thumbUrl, finalUrl, itemLogs, isMobile, toque = false }: {
+  selectedItem: PecaAtendimento;
+  thumbUrl: string | null;
+  finalUrl: string | null;
+  itemLogs: RegistroDeAuditoria[];
+  isMobile: boolean;
+  toque?: boolean;
+}) {
+  return (
+    <div style={{ overflowY: "auto", minWidth: 0, display: "flex", flexDirection: "column" }}>
+      <ArteDaRevisao selectedItem={selectedItem} thumbUrl={thumbUrl} finalUrl={finalUrl} toque={toque} />
+      <DetalhesDaRevisao selectedItem={selectedItem} thumbUrl={thumbUrl} finalUrl={finalUrl} itemLogs={itemLogs} isMobile={isMobile} toque={toque} />
     </div>
   );
 }

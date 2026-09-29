@@ -80,13 +80,16 @@ describe("o custo de desenhar tudo foi tratado onde ele mora", () => {
   });
 
   it("a altura reservada é estimada de verdade, senão a rolagem pula", () => {
-    expect(TELA).toContain("128 + eventItems.length * 104");
+    // Os números mudaram com o redesenho de 29/09 (o evento virou uma folha:
+    // cabeçalho de 56px e linhas de ~100px + faixa de tipo), MEDIDOS ao vivo
+    // em 1366. O que o teste guarda é haver estimativa por peça.
+    expect(TELA).toContain("58 + eventItems.length * 120");
   });
 
   it("grupo recolhido reserva só o cabeçalho", () => {
     // Sem isto, fechar um evento deixaria um buraco do tamanho dele embaixo.
     expect(TELA).toContain("const alturaEstimada = eventoAberto(eventId)");
-    expect(TELA).toContain(": 128;");
+    expect(TELA).toContain(": 58;"); // só o cabeçalho (56px + borda), medido em 29/09
   });
 
   it("as thumbs das listas longas carregam sob demanda", () => {

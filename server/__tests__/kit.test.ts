@@ -262,7 +262,8 @@ describe("Ver como outro perfil (15/09)", () => {
   it("só o admin troca o perfil da sessão, /me devolve o perfil em uso e o menu tem a faixa de volta", () => {
     expect(AUTH).toContain('app.post("/api/auth/ver-como", requireAuth');
     expect(AUTH).toContain('const papelReal = req.session.papelReal ?? req.session.userRole;');
-    expect(AUTH).toContain('? { role: req.session.userRole, kit: req.session.userKit === true, papelReal: req.session.papelReal }');
+    // 30/09: a marca Cultura (Atendimento que cria/edita evento) vai junto.
+    expect(AUTH).toContain('? { role: req.session.userRole, kit: req.session.userKit === true, cultura: req.session.userCultura === true, papelReal: req.session.papelReal }');
     const APP = ler("client/src/App.tsx");
     expect(APP).toContain('data-testid="faixa-ver-como"');
     expect(APP).toContain('{ chave: "solicitacao-kit", role: "solicitacao", kit: true, rotulo: "Solicitação · Kit" },');

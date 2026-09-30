@@ -194,8 +194,8 @@ app.post("/api/auth/sso-exchange", async (req: Request, res: Response) => {
 
     // Fetch full user data so the frontend can hydrate auth state without a second request
     const { rows: fullUser } = await pool.query<{
-      id: string; name: string; email: string; role: string; kit: boolean | null; must_change_password: boolean;
-    }>("SELECT id, name, email, role, kit, must_change_password FROM users WHERE id = $1 LIMIT 1", [entry.userId]);
+      id: string; name: string; email: string; role: string; kit: boolean | null; cultura: boolean | null; must_change_password: boolean;
+    }>("SELECT id, name, email, role, kit, cultura, must_change_password FROM users WHERE id = $1 LIMIT 1", [entry.userId]);
     if (!fullUser[0]) return res.status(404).json({ error: "Usuário não encontrado" });
 
     // Regenerate session ID before writing auth data — prevents session fixation.
@@ -206,6 +206,7 @@ app.post("/api/auth/sso-exchange", async (req: Request, res: Response) => {
     req.session.userName = fullUser[0].name;
     req.session.userRole = fullUser[0].role;
     req.session.userKit  = fullUser[0].kit === true;
+    req.session.userCultura = fullUser[0].role === "atendimento" && fullUser[0].cultura === true;
     req.session.loginEm  = Date.now();
     // O carimbo de login — mesmo contrato do caminho por senha (routes/auth.ts):
     // fora do caminho crítico, login não falha por causa do registro.

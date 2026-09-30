@@ -27,6 +27,7 @@
 // filtros e recorte, formulário, ações sobre o evento, cartão e linha.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useMemo, useState } from "react";
+import { podeGerirEvento } from "@shared/permissoes";
 import { T } from "@/lib/theme";
 import { useAuth } from "@/contexts/auth-context";
 import { useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
@@ -52,7 +53,8 @@ export default function Eventos() {
   // admin, então misturar as duas escritas dava a impressão de regras
   // diferentes onde a regra é a mesma.
   const role = user?.role;
-  const canEdit = role === 'admin' || role === 'solicitacao';        // PATCH /api/events/:id
+  // Admin, Solicitação e o Atendimento – Cultura (30/09) — shared/permissoes.
+  const canEdit = podeGerirEvento(role, user?.cultura);               // PATCH /api/events/:id
   // O Atendimento vincula patrocinadores (dono, 15/09) sem editar o evento:
   // abre a mesma janela só com os patrocinadores e as cotas. As rotas de
   // vínculo já aceitavam o perfil; o PATCH do evento continua fora.
@@ -64,7 +66,7 @@ export default function Eventos() {
   // em POST /api/events/:id/close e /reopen.
   const canClose = role === 'admin';
   const canSetPriority = role === 'admin' || role === 'atendimento' || role === 'solicitacao';
-  const canCreate = role === 'admin' || role === 'solicitacao';       // POST /api/events
+  const canCreate = podeGerirEvento(role, user?.cultura);             // POST /api/events
 
   const isMobile = useIsMobile();
   /** Dedo (celular OU tablet do galpão): manda no TAMANHO do alvo, só nele. */

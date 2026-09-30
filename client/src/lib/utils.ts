@@ -109,3 +109,10 @@ export function userInitials(name?: string | null): string {
     .toUpperCase();
   return initials || "?";
 }
+
+/**
+ * O perfil com a MARCA (30/09): "Atendimento · Cultura" (cria e edita eventos) e
+ * "Solicitação · Kit". Só rótulo — a permissão mora no servidor.
+ */
+export const rotuloDoPerfilCompleto = (user?: { role?: string | null; kit?: boolean | null; cultura?: boolean | null } | null): string =>
+  roleLabel(user?.role) + (user?.role === "atendimento" && user?.cultura ? " · Cultura" : user?.role === "solicitacao" && user?.kit ? " · Kit" : "");

@@ -28,6 +28,15 @@
 
 export type Papel = "admin" | "solicitacao" | "arte" | "grafica" | "atendimento";
 
+/**
+ * Quem CRIA e EDITA evento (POST /api/events, PATCH /api/events/:id): admin,
+ * Solicitação — e o Atendimento com a marca CULTURA (dono, 30/09: "atendimento
+ * – cultura, que é igual mas pode criar e editar evento"). A marca não é
+ * papel: para todo o resto a pessoa é Atendimento.
+ */
+export const podeGerirEvento = (papel: string | null | undefined, cultura?: boolean | null): boolean =>
+  papel === "admin" || papel === "solicitacao" || (papel === "atendimento" && cultura === true);
+
 export interface RegraDeRota {
   metodo: "POST" | "PATCH" | "PUT" | "DELETE";
   rota: string;

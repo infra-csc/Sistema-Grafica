@@ -29,6 +29,13 @@
       "when": 1790187303365,
       "tag": "0003_arquivar-evento-e-patrocinador",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790780382603,
+      "tag": "0004_atendimento-cultura",
+      "breakpoints": true
     }
   ]
 }

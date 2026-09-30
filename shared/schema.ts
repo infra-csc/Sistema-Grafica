@@ -870,6 +870,11 @@ export const users = pgTable("users", {
   // USUÁRIO DO KIT (dono, 14/09): um usuário de Solicitação com esta marca tem
   // as mesmas telas, mas só vê e cria peças do Kit — e só as que ele criou.
   kit: boolean("kit").notNull().default(false),
+  // ATENDIMENTO – CULTURA (dono, 30/09): um usuário de Atendimento com esta
+  // marca é Atendimento em TUDO e, além disso, cria e edita EVENTOS (só os
+  // dados do evento — peças continuam com a Solicitação; excluir e encerrar,
+  // com o admin). Criar o evento NÃO lhe dá a lista de peças (canCreateItemsFor).
+  cultura: boolean("cultura").notNull().default(false),
   mustChangePassword: boolean("must_change_password").notNull().default(true),
   // QUANDO A PESSOA ENTROU PELA ÚLTIMA VEZ. Sem isto, a tela de usuários
   // lista quem TEM acesso e nunca diz quem USA: quem saiu da empresa há seis

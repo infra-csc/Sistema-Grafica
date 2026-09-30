@@ -256,8 +256,11 @@ export const quemVe = (req: Pick<Request, "userKit" | "userId">) => ({ kit: req.
 // — espelha o gate canEditLists do client. Sem isto, Gráfica/Arte/Atendimento
 // criavam itens em eventos alheios direto pela API.
 
-export async function canCreateItemsFor(req: { userRole?: string; userId?: string }, eventId?: string): Promise<boolean> {
+export async function canCreateItemsFor(req: { userRole?: string; userId?: string; userCultura?: boolean }, eventId?: string): Promise<boolean> {
   if (req.userRole === "admin" || req.userRole === "solicitacao") return true;
+  // Atendimento – Cultura cria o EVENTO, não a lista de peças (dono, 30/09):
+  // ser o criador do evento não lhe dá as peças.
+  if (req.userCultura === true) return false;
   if (!eventId || !req.userId) return false;
   const ev = await storage.getEvent(eventId);
   return !!ev && ev.createdBy === req.userId;

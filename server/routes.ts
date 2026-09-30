@@ -77,6 +77,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Usuário do Kit (14/09): a marca vem do login; mudar a marca derruba as
       // sessões da pessoa (PATCH /api/users/:id), como mudar o perfil.
       req.userKit = req.session.userKit === true;
+      // Atendimento – Cultura (30/09): a marca vem do login, como a do Kit.
+      req.userCultura = req.session.userCultura === true;
     } else {
       // Sem sessão: identidade NÃO pode vir do cliente. O header x-user-name
       // é controlado pelo navegador e era falsificável — a trilha de auditoria

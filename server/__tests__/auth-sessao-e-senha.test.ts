@@ -191,7 +191,8 @@ describe("POST /api/auth/ver-como", () => {
   it("admin empresta o perfil à sessão e guarda quem ele É em papelReal", async () => {
     const r = await verComo({ role: "grafica" });
     expect(r.status).toBe(200);
-    expect(r.body).toEqual({ role: "grafica", kit: false, papelReal: "admin" });
+    // 30/09: a resposta leva a marca Cultura (só vale no Atendimento).
+    expect(r.body).toEqual({ role: "grafica", kit: false, cultura: false, papelReal: "admin" });
     expect(r.req.session.userRole).toBe("grafica");
     expect(r.req.session.papelReal).toBe("admin");
   });
@@ -207,7 +208,8 @@ describe("POST /api/auth/ver-como", () => {
 
   it("voltar para admin limpa papelReal e a marca do Kit", async () => {
     const r = await verComo({ role: "admin" }, { userRole: "solicitacao", papelReal: "admin", userKit: true });
-    expect(r.body).toEqual({ role: "admin", kit: false, papelReal: null });
+    expect(r.body).toEqual({ role: "admin", kit: false, cultura: false, papelReal: null });
+    expect(r.req.session.userCultura).toBe(false);
     expect(r.req.session.papelReal).toBeUndefined();
     expect(r.req.session.userKit).toBe(false);
   });

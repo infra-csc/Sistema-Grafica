@@ -7,7 +7,7 @@ import {
 import { useEffect, useId, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
-import { roleLabel, userInitials } from "@/lib/utils";
+import { rotuloDoPerfilCompleto, userInitials } from "@/lib/utils";
 import { useAuth, type UserRole } from "@/contexts/auth-context";
 import { useLogout } from "@/hooks/use-logout";
 // Alvo de 44 no toque: a mesma régua das outras telas, que a casca não
@@ -553,7 +553,7 @@ export function AppSidebar() {
               fontSize: FS.small, color: T.second,
               margin: 0, lineHeight: 1.3, textTransform: "capitalize",
             }}>
-              {roleLabel(user?.role)}
+              {rotuloDoPerfilCompleto(user)}
             </p>
           </div>
 

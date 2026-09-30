@@ -17,13 +17,13 @@ import { Botao } from "@/components/ui/botao";
 import type { useToast } from "@/hooks/use-toast";
 import { eventoTemMoldeSemPrazo, AVISO_MOLDE_SEM_PRAZO } from "@shared/prazo-molde";
 import { T, TOM } from "@/lib/theme";
-import { MOTIVO_SOMENTE_LEITURA } from "./regras";
+import { motivoSomenteLeitura } from "./regras";
 import type { EventoDoDetalhe, PecaDoEvento } from "./tipos";
 
 export function AcoesDoEvento({
   event, eventId, rawItems, isMobile, canEditLists, canCloseEvent, isEventClosed, eventoFinalizado, avisoEventoFim,
   abrirEntradaDePecas, setImportDialogOpen, setCloneDialogOpen, setCloseDialogOpen, setReopenDialogOpen,
-  setDevolverParaArteOpen, setLocation, toast, children,
+  setDevolverParaArteOpen, setLocation, toast, children, cultura = false,
 }: {
   event: EventoDoDetalhe;
   eventId: string | undefined;
@@ -39,6 +39,8 @@ export function AcoesDoEvento({
   setCloneDialogOpen: (v: boolean) => void;
   setCloseDialogOpen: (v: boolean) => void;
   setReopenDialogOpen: (v: boolean) => void;
+  /** Atendimento – Cultura: o "somente leitura" diz que a lista não é dele. */
+  cultura?: boolean;
   /** Admin: devolver as peças do evento para a Arte refazer (com motivo). */
   setDevolverParaArteOpen: (v: boolean) => void;
   setLocation: (to: string) => void;
@@ -266,7 +268,7 @@ export function AcoesDoEvento({
       {/* Perfil sem edição: em vez de esconder tudo em silêncio, diz o porquê. */}
       {!canEditLists && (
         <span style={{ fontSize: 12, color: T.second, alignSelf: 'center' }}>
-          {MOTIVO_SOMENTE_LEITURA}
+          {motivoSomenteLeitura(cultura)}
         </span>
       )}
 

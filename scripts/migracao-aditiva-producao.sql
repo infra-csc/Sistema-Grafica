@@ -20,6 +20,8 @@ CREATE INDEX IF NOT EXISTS "IDX_event_inventory_allocations_item_id" ON event_in
 
 -- Usuário do Kit
 ALTER TABLE users ADD COLUMN IF NOT EXISTS kit boolean NOT NULL DEFAULT false;
+-- Atendimento – Cultura (30/09): cria e edita eventos (migração 0004).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS cultura boolean NOT NULL DEFAULT false;
 
 -- Solicitação de peças (cabeçalho)
 CREATE TABLE IF NOT EXISTS pedidos_de_peca (

@@ -26,7 +26,7 @@ import { T, N, FS } from "@/lib/theme";
 import { Botao } from "@/components/ui/botao";
 import { EstadoErro, EstadoVazio } from "@/components/ui/estados";
 import { useConfirmar } from "@/components/ui/usar-confirmar";
-import { BLOCKED_EDIT_STATUSES, MOTIVO_SOMENTE_LEITURA } from "@/components/detalhe-do-evento/regras";
+import { BLOCKED_EDIT_STATUSES, motivoSomenteLeitura } from "@/components/detalhe-do-evento/regras";
 import type { PecaDoEvento } from "@/components/detalhe-do-evento/tipos";
 import {
   useDadosDoEvento, useCatalogoDePecas, usePatrocinadoresDoEvento, useEventosParaClonar, useHistoricoDaPeca,
@@ -185,7 +185,9 @@ export default function EventDetail() {
 
   // Quem cria a lista (solicitação, admin ou criador do evento) sempre pode
   // editar uma peça, mesmo depois que ela entra em produção/entrega.
-  const canEditLists = hasPermission("admin") || user?.role === "solicitacao" || !!(event && user && event.createdBy === user.id);
+  // Criador do evento mexe na lista — MENOS o Atendimento – Cultura, que cria o
+  // evento mas não as peças (dono, 30/09; espelha canCreateItemsFor).
+  const canEditLists = hasPermission("admin") || user?.role === "solicitacao" || !!(event && user && event.createdBy === user.id && !user.cultura);
 
   // BUSCAR NO ESTOQUE: cada peça mostra quantas iguais — mesmo tipo e medida —
   // o estoque tem, e abre a busca. Estoque é só do admin.
@@ -371,6 +373,7 @@ export default function EventDetail() {
             setCloseDialogOpen={setCloseDialogOpen}
             setReopenDialogOpen={setReopenDialogOpen}
             setDevolverParaArteOpen={setDevolverParaArteOpen}
+            cultura={user?.cultura === true}
             setLocation={setLocation}
             toast={toast}
           >
@@ -528,7 +531,7 @@ export default function EventDetail() {
               </div>
             ) : (
               <p style={{ fontSize: FS.meta, color: T.second, margin: 0 }}>
-                {MOTIVO_SOMENTE_LEITURA}
+                {motivoSomenteLeitura(user?.cultura)}
               </p>
             )}
           />

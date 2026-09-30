@@ -1,5 +1,6 @@
 // Event CRUD + item submission routes. Extracted from server/routes.ts.
 import type { Express } from "express";
+import { podeGerirEvento } from "@shared/permissoes";
 import { storage } from "../storage";
 import { insertEventSchema, type Item } from "@shared/schema";
 import {
@@ -764,7 +765,9 @@ export function registerEventRoutes(app: Express): void {
   // Estava só com requireAuth: gráfica/arte podiam criar eventos por API.
   app.post("/api/events", requireAuth, async (req, res) => {
     try {
-      if (req.userRole !== "admin" && req.userRole !== "solicitacao") {
+      // Admin e Solicitação — e o Atendimento com a MARCA Cultura (30/09), que
+      // não é papel (como a do Kit): podeGerirEvento, em shared/permissoes.
+      if (req.userRole !== "admin" && req.userRole !== "solicitacao" && !podeGerirEvento(req.userRole, req.userCultura)) {
         return res.status(403).json({ error: "Sem permissão para criar eventos" });
       }
       const validatedData = insertEventSchema.parse(req.body);
@@ -858,7 +861,8 @@ export function registerEventRoutes(app: Express): void {
   app.patch("/api/events/:id", requireAuth, async (req, res) => {
     // Edição de evento é gestão (mesmos papéis que a UI mostra o lápis) — a
     // rota aceitava qualquer papel reescrever datas/dados de qualquer evento.
-    if (!["admin", "solicitacao"].includes(req.userRole ?? "")) {
+    // Admin e Solicitação — e o Atendimento com a MARCA Cultura (30/09).
+    if (req.userRole !== "admin" && req.userRole !== "solicitacao" && !podeGerirEvento(req.userRole, req.userCultura)) {
       return res.status(403).json({ error: "Sem permissão para editar eventos" });
     }
     try {

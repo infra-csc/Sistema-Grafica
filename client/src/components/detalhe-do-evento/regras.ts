@@ -39,6 +39,9 @@ export const ORDEM_DO_FLUXO = new Map(Object.keys(STATUS).map((k, i) => [k, i]))
  * não edita" sozinho mandava a pessoa procurar a permissão errada.
  */
 export const MOTIVO_SOMENTE_LEITURA = "Somente leitura — quem monta a lista deste evento é a Solicitação, um admin ou quem criou o evento.";
+/** Atendimento – Cultura (30/09): cria e edita o evento, não a lista — nem a do evento que criou. */
+export const MOTIVO_SOMENTE_LEITURA_CULTURA = "Somente leitura — a lista de peças é da Solicitação (ou de um admin). O perfil Cultura cria e edita o evento, não as peças.";
+export const motivoSomenteLeitura = (cultura?: boolean | null) => (cultura ? MOTIVO_SOMENTE_LEITURA_CULTURA : MOTIVO_SOMENTE_LEITURA);
 
 /** O que o cálculo dos marcos lê do evento: a saída e os offsets por coluna. */
 export type EventoParaMarcos = { truckDepartureDate: string | Date } & Partial<Record<MarcoDoEvento["campo"], number | null>>;

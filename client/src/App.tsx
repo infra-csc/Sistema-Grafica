@@ -21,7 +21,7 @@ import { FullPageLoader } from "@/components/full-page-loader";
 import { Search, WifiOff, RefreshCw } from "lucide-react";
 import { AuthProvider, useAuth } from "@/contexts/auth-context";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { roleLabel, userInitials } from "@/lib/utils";
+import { roleLabel, rotuloDoPerfilCompleto, userInitials } from "@/lib/utils";
 import { useToast, toast as toastGlobal } from "@/hooks/use-toast";
 import { useLogout } from "@/hooks/use-logout";
 import { useWebSocket, onConexaoTempoReal } from "@/hooks/use-websocket";
@@ -866,7 +866,7 @@ function AuthenticatedLayout() {
                       {user?.name}
                     </p>
                     <p style={{ margin: 0, fontSize: 10, color: "#746e69", textTransform: "capitalize", whiteSpace: "nowrap" }}>
-                      {roleLabel(user?.role)}
+                      {rotuloDoPerfilCompleto(user)}
                     </p>
                   </div>
                   <div
@@ -898,7 +898,7 @@ function AuthenticatedLayout() {
                     {user?.name ?? "Usuário"}
                   </p>
                   <p style={{ margin: 0, fontSize: 11, fontWeight: 500, color: "#746e69", textTransform: "capitalize" }}>
-                    {roleLabel(user?.role)}
+                    {rotuloDoPerfilCompleto(user)}
                   </p>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />

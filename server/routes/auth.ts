@@ -55,6 +55,8 @@ export function registerAuthRoutes(app: Express): void {
         ...userData,
         // Usuário do Kit só existe no perfil Solicitação (14/09).
         kit: userData.role === "solicitacao" && userData.kit === true,
+        // Atendimento – Cultura só existe no perfil Atendimento (30/09).
+        cultura: userData.role === "atendimento" && userData.cultura === true,
         passwordHash,
         mustChangePassword: false,
       });
@@ -97,6 +99,7 @@ export function registerAuthRoutes(app: Express): void {
       req.session.userName = user.name;
       req.session.userRole = user.role;
       req.session.userKit = user.kit === true;
+      req.session.userCultura = user.role === "atendimento" && user.cultura === true;
       req.session.loginEm = Date.now();
 
       // O carimbo de login. Fora do caminho crítico de propósito: se o UPDATE
@@ -142,7 +145,7 @@ export function registerAuthRoutes(app: Express): void {
       // VER COMO (15/09): enquanto o admin navega como outro perfil, a tela
       // recebe o perfil da sessão — e o perfil real, para a faixa "Voltar".
       const verComo = req.session.papelReal
-        ? { role: req.session.userRole, kit: req.session.userKit === true, papelReal: req.session.papelReal }
+        ? { role: req.session.userRole, kit: req.session.userKit === true, cultura: req.session.userCultura === true, papelReal: req.session.papelReal }
         : { papelReal: null };
       res.json({ ...userWithoutPassword, ...verComo });
     } catch (error: unknown) {
@@ -165,14 +168,17 @@ export function registerAuthRoutes(app: Express): void {
         return res.status(400).json({ error: "Perfil inválido" });
       }
       const kit = perfil === "solicitacao" && req.body?.kit === true;
+      const cultura = perfil === "atendimento" && req.body?.cultura === true;
       if (perfil === "admin") {
         req.session.userRole = "admin";
         req.session.userKit = false;
+        req.session.userCultura = false;
         delete req.session.papelReal;
       } else {
         req.session.papelReal = "admin";
         req.session.userRole = perfil;
         req.session.userKit = kit;
+        req.session.userCultura = cultura;
       }
       await new Promise<void>((ok, falhou) => req.session.save((e) => (e ? falhou(e) : ok())));
       // Nome puro: a própria troca de perfil não é ação "como" outro perfil.
@@ -181,9 +187,9 @@ export function registerAuthRoutes(app: Express): void {
         'updated',
         'user',
         req.session.userId!,
-        perfil === "admin" ? "Voltou a ver o sistema como administrador" : `Passou a ver o sistema como ${perfil}${kit ? " (Kit)" : ""}`,
+        perfil === "admin" ? "Voltou a ver o sistema como administrador" : `Passou a ver o sistema como ${perfil}${kit ? " (Kit)" : ""}${cultura ? " (Cultura)" : ""}`,
       );
-      res.json({ role: perfil, kit, papelReal: perfil === "admin" ? null : "admin" });
+      res.json({ role: perfil, kit, cultura, papelReal: perfil === "admin" ? null : "admin" });
     } catch (error: unknown) {
       sendSensitiveError(res, error, "Ver como error", 500);
     }
@@ -293,6 +299,12 @@ export function registerAuthRoutes(app: Express): void {
         }
       }
       const updateData: Partial<User> = { ...validatedData };
+      // Cultura só vale no Atendimento: mudou para outro perfil, a marca cai;
+      // marcada num perfil que não é Atendimento, não pega.
+      if (validatedData.cultura === true || validatedData.role !== undefined) {
+        const papelFinal = validatedData.role ?? (await storage.getUser(req.params.id))?.role;
+        if (papelFinal !== "atendimento") updateData.cultura = false;
+      }
 
       // If password is being updated, hash it (only path by which passwordHash is set)
       if (password) {
@@ -307,7 +319,7 @@ export function registerAuthRoutes(app: Express): void {
 
       // Perfil, marca do Kit ou senha redefinida pelo admin: todas as sessões
       // da pessoa caem — ela entra de novo com o perfil novo / a senha nova.
-      const mudouAcesso = validatedData.role !== undefined || validatedData.kit !== undefined;
+      const mudouAcesso = validatedData.role !== undefined || validatedData.kit !== undefined || validatedData.cultura !== undefined;
       if (mudouAcesso || password) {
         // Só a senha do próprio admin mudou: a sessão em uso fica.
         const manter = !mudouAcesso && req.params.id === req.userId ? req.sessionID : undefined;
@@ -322,6 +334,7 @@ export function registerAuthRoutes(app: Express): void {
         user.id,
         `Usuário "${user.name}" atualizado${validatedData.role ? ` (perfil: ${validatedData.role})` : ""}`
         + (validatedData.kit !== undefined ? (validatedData.kit ? " — marcado como usuário do Kit" : " — deixou de ser usuário do Kit") : "")
+        + (updateData.cultura !== undefined ? (updateData.cultura ? " — marcado como Atendimento – Cultura (cria e edita eventos)" : " — deixou de ser Atendimento – Cultura") : "")
       );
 
       // Don't send password hash to client

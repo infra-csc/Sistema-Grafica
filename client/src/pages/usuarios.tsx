@@ -131,6 +131,9 @@ const ROLE_CFG: Record<string, { label: string; bg: string; color: string; avata
 // Violeta do "Kit": precisa ser DIFERENTE do roxo da Arte, que mora ao lado no
 // mesmo selo de perfil. Não há violeta no theme; fica aqui, uma vez só.
 const KIT = { bg: "#f5f3ff", text: "#6d28d9", border: "#ddd6fe" } as const;
+// "Cultura" é uma marca do Atendimento (30/09): mesmo verde do perfil, com
+// borda — o selo diz "Atendimento, e também cria e edita eventos".
+const CULTURA = { bg: TOM.sucesso.bg, text: TOM.sucesso.text, border: TOM.sucesso.border } as const;
 
 // Rótulos completos para o <select> do formulário, derivados de ROLE_CFG para
 // as opções nunca divergirem dos perfis reais.
@@ -142,6 +145,8 @@ const userSchema = z.object({
   role:  z.enum(["admin", "solicitacao", "arte", "grafica", "atendimento"], { required_error: "Selecione um perfil" }),
   // Usuário do Kit (14/09): só faz sentido no perfil Solicitação.
   kit:   z.boolean(),
+  // Atendimento – Cultura (30/09): só faz sentido no perfil Atendimento.
+  cultura: z.boolean(),
 });
 type UserForm = z.infer<typeof userSchema>;
 
@@ -250,7 +255,7 @@ export default function Usuarios() {
 
   const form = useForm<UserForm>({
     resolver: zodResolver(userSchema),
-    defaultValues: { name: "", email: "", role: "solicitacao", kit: false },
+    defaultValues: { name: "", email: "", role: "solicitacao", kit: false, cultura: false },
   });
   // "SALVAR E CADASTRAR OUTRO": cadastrar a equipe da Gráfica eram N vezes
   // Novo Usuário → preencher → salvar → Novo Usuário de novo. O botão usa o
@@ -287,7 +292,7 @@ export default function Usuarios() {
         // (`perfilHerdado`), no padrão de Modelos.
         const herda = vars.role !== "admin";
         setPerfilHerdado(herda ? vars.role : null);
-        form.reset({ name: "", email: "", role: herda ? vars.role : "solicitacao", kit: herda ? vars.kit : false });
+        form.reset({ name: "", email: "", role: herda ? vars.role : "solicitacao", kit: herda ? vars.kit : false, cultura: herda ? vars.cultura : false });
         window.setTimeout(() => document.getElementById("user-form-name")?.focus(), 0);
         return;
       }
@@ -306,7 +311,7 @@ export default function Usuarios() {
       setModalOpen(false); setEditingUser(null); form.reset();
       // Mesma regra do aviso no formulário: trocar perfil ou Kit derruba as
       // sessões da pessoa no servidor — o toast confirma o efeito colateral.
-      const derrubouSessao = vars.update.role !== undefined || vars.update.kit !== undefined;
+      const derrubouSessao = vars.update.role !== undefined || vars.update.kit !== undefined || vars.update.cultura !== undefined;
       toast({
         variant: "success",
         title: "Alterações salvas",
@@ -336,14 +341,14 @@ export default function Usuarios() {
     setEditingUser(null);
     setCriadosNestaSequencia([]);
     setPerfilHerdado(null);
-    form.reset({ name: "", email: "", role: "solicitacao", kit: false });
+    form.reset({ name: "", email: "", role: "solicitacao", kit: false, cultura: false });
     setModalOpen(true);
   };
 
   const openEdit = (u: User) => {
     setEditingUser(u);
     // O perfil gravado é um dos cinco (o servidor valida na escrita).
-    form.reset({ name: u.name, email: u.email, role: u.role as UserForm["role"], kit: !!u.kit });
+    form.reset({ name: u.name, email: u.email, role: u.role as UserForm["role"], kit: !!u.kit, cultura: !!u.cultura });
     setModalOpen(true);
   };
 
@@ -367,7 +372,7 @@ export default function Usuarios() {
     }
     setModalOpen(false);
     setEditingUser(null);
-    form.reset({ name: "", email: "", role: "solicitacao", kit: false });
+    form.reset({ name: "", email: "", role: "solicitacao", kit: false, cultura: false });
   };
 
   const onSubmit = async (data: UserForm) => {
@@ -395,9 +400,11 @@ export default function Usuarios() {
       if (data.role !== editingUser.role) update.role = data.role;
       const kit = data.role === "solicitacao" && data.kit;
       if (kit !== !!editingUser.kit) update.kit = kit;
+      const cultura = data.role === "atendimento" && data.cultura;
+      if (cultura !== !!editingUser.cultura) update.cultura = cultura;
       updateMutation.mutate({ id: editingUser.id, update });
     } else {
-      createMutation.mutate({ ...data, kit: data.role === "solicitacao" && data.kit });
+      createMutation.mutate({ ...data, kit: data.role === "solicitacao" && data.kit, cultura: data.role === "atendimento" && data.cultura });
     }
   };
 
@@ -646,6 +653,12 @@ export default function Usuarios() {
                       <Selo tamanho="sm" cores={{ bg: cfg.bg, text: cfg.color, border: cfg.bg }}>
                         {cfg.label}
                       </Selo>
+                      {user.cultura && user.role === "atendimento" && (
+                        <Selo tamanho="sm" cores={CULTURA} data-testid={`badge-cultura-${user.id}`}>
+                          Cultura
+                          <span className="sr-only"> — também cria e edita eventos</span>
+                        </Selo>
+                      )}
                       {user.kit && (
                         <Selo tamanho="sm" cores={KIT} data-testid={`badge-kit-${user.id}`}>
                           Kit
@@ -736,6 +749,12 @@ export default function Usuarios() {
                           <Selo tamanho="sm" cores={{ bg: cfg.bg, text: cfg.color, border: cfg.bg }}>
                             {cfg.label}
                           </Selo>
+                          {user.cultura && user.role === "atendimento" && (
+                            <Selo tamanho="sm" cores={CULTURA} data-testid={`badge-cultura-${user.id}`} style={{ marginLeft: 6 }}>
+                              Cultura
+                              <span className="sr-only"> — também cria e edita eventos</span>
+                            </Selo>
+                          )}
                           {user.kit && (
                             <Selo tamanho="sm" cores={KIT} data-testid={`badge-kit-${user.id}`} style={{ marginLeft: 6 }}>
                               Kit
@@ -1001,7 +1020,15 @@ export default function Usuarios() {
                           uma linha de "não faz", e quem está entregando esse
                           perfil precisa ler isso antes de salvar. */}
                       {(() => {
-                        const linhas = PERMISSOES[field.value] ?? [];
+                        // Atendimento – Cultura (30/09): a linha "Não cria nem exclui
+                        // eventos" vira o que a marca concede — sem ela o bloco
+                        // desmentia a caixa marcada logo abaixo.
+                        const cultura = field.value === "atendimento" && form.watch("cultura");
+                        const linhas = (PERMISSOES[field.value] ?? []).map((l) =>
+                          cultura && l.texto === "Não cria nem exclui eventos"
+                            // POST /api/events e PATCH /api/events/:id aceitam a marca (podeGerirEvento).
+                            ? { pode: true, texto: "Cria e edita eventos (Cultura) — não exclui nem encerra, e não mexe nas peças" }
+                            : l);
                         if (linhas.length === 0) return null;
                         const ehAdmin = field.value === "admin";
                         return (
@@ -1076,6 +1103,25 @@ export default function Usuarios() {
                   )} />
                 )}
 
+                {/* ATENDIMENTO – CULTURA (30/09): só no perfil Atendimento. */}
+                {form.watch("role") === "atendimento" && (
+                  <FormField control={form.control} name="cultura" render={({ field }) => (
+                    <FormItem>
+                      <label htmlFor="user-form-cultura" style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "11px 13px", borderRadius: R.sm, border: `1px solid ${field.value ? CULTURA.border : T.border}`, backgroundColor: field.value ? CULTURA.bg : T.bg, cursor: "pointer" }}>
+                        <input id="user-form-cultura" type="checkbox" data-testid="checkbox-user-cultura"
+                          checked={field.value} onChange={(e) => field.onChange(e.target.checked)}
+                          style={{ width: 16, height: 16, marginTop: 2, accentColor: CULTURA.text, flexShrink: 0 }} />
+                        <span>
+                          <span style={{ display: "block", fontSize: FS.body, fontWeight: FW.rotulo, color: T.text }}>Atendimento – Cultura</span>
+                          <span style={{ display: "block", fontSize: FS.meta, color: T.apoio, lineHeight: 1.4, marginTop: 2 }}>
+                            Tudo do Atendimento e, além disso, cria e edita eventos. As peças do evento continuam com a Solicitação; excluir e encerrar evento, com o admin.
+                          </span>
+                        </span>
+                      </label>
+                    </FormItem>
+                  )} />
+                )}
+
                 {/* "MUDAR O PERFIL DESLOGA A PESSOA?" — sim, e ninguém dizia.
                     O PATCH /api/users/:id apaga as sessões dela quando muda
                     `role` ou `kit` (server/routes/auth.ts); o aviso aparece só
@@ -1085,7 +1131,8 @@ export default function Usuarios() {
                   if (!editingUser || me?.id === editingUser.id) return null;
                   const papel = form.watch("role");
                   const kitAgora = papel === "solicitacao" && form.watch("kit");
-                  if (papel === editingUser.role && kitAgora === !!editingUser.kit) return null;
+                  const culturaAgora = papel === "atendimento" && form.watch("cultura");
+                  if (papel === editingUser.role && kitAgora === !!editingUser.kit && culturaAgora === !!editingUser.cultura) return null;
                   return (
                     <p role="status" data-testid="aviso-sessao-encerrada" style={{ margin: 0, padding: "10px 12px", borderRadius: R.sm, backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, fontSize: FS.meta, lineHeight: 1.45, color: TOM.alerta.text }}>
                       Ao salvar, <strong>{editingUser.name}</strong> é desconectado e precisa entrar de novo pelo portal — já com o novo perfil.

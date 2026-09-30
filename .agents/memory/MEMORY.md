@@ -7,3 +7,4 @@
 - [Merge conflict resolution strategy](merge-conflict-strategy.md) — HEAD wins for: export route, awaiting_creator_review gates, draft+requested compat, 680px send-confirm dialog. REMOTE wins for: LINKING_STATUSES/DOWNSTREAM_STATUSES constants, "Solicitado" translation, awaiting_creator_review→awaiting_final_review bucket.
 - [DB Architecture](db-architecture.md) — server uses DATABASE_URL only; prod DB is separate and only reachable via Publish flow (not via shell ALTER TABLE).
 - [Resend deployment identity](resend-sender-setup.md) — use connectors SDK 0.4.3+; 0.4.2 can authenticate locally yet use stale identity in production.
+- [False-negative publish schema diff](publish-schema-diff.md) — an empty dev→prod diff cannot prove the code's schema is present when both databases have drifted.

@@ -24,11 +24,11 @@ import { alvo as alvoDeToque } from "@/hooks/use-mobile";
 import { statusDeExibicao } from "@shared/molde";
 import { EM_REVISAO } from "@shared/fluxo-peca";
 import { fraseDaFila } from "@shared/progresso-da-impressao";
-import { isInProd, qtyOf, reusedOf, reusedTotalOf, isComplement, complementsQtyOf, contractedTotalOf } from "@/lib/saldo";
+import { isInProd, qtyOf, reusedOf, reusedTotalOf, producedOf, conferredOf, deliveredOf, isComplement, complementsQtyOf, contractedTotalOf } from "@/lib/saldo";
 import { podeAumentarQuantidade } from "@/components/aumentar-quantidade-dialog";
 import type { PecaDaFila } from "@/components/grafica/tipos";
 import type { ContextoDaLinha, CorteDoEvento } from "./contexto-da-linha";
-import { CO, corTintada, rowBg } from "./aparencia";
+import { CO, corTintada, qtyChip, rowBg } from "./aparencia";
 import { complementOpen, fmtDataHora, parentDisplayIdOf } from "./regras";
 import { ProgressoImpressao } from "./progresso-impressao";
 import { DeadlineChip, SeloFilaDaImpressora, m2DaLinha } from "./selos";
@@ -392,14 +392,35 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
                 linhas. Agora só aparecem quando existem, pequenas,
                 logo abaixo do número de que são parte. Mesmas
                 contas e mesmas cores de antes. */}
-            {(item.quantityProduced ?? 0) > 0 && (
-              <div title={`${item.quantityProduced} de ${qtyOf(item)} un. produzidas`} style={{ fontSize: 11, fontWeight: 600, color: T.accentText, marginTop: 1 }}>
-                prod. {item.quantityProduced}
-              </div>
-            )}
-            {reusedTotalOf(item) > 0 && (
-              <div title={item.isReuse ? "Peça inteira reaproveitada" : `${reusedTotalOf(item)} de ${qtyOf(item)} un. reaproveitadas`} style={{ fontSize: 11, fontWeight: 600, color: TOM.esmeralda.text, marginTop: 1 }}>
-                reap. {reusedTotalOf(item)}{reusedTotalOf(item) < qtyOf(item) && <span style={{ color: T.second, fontWeight: 400 }}>/{qtyOf(item)}</span>}
+            {/* SALDO DA PEÇA — os MESMOS selos do cartão do celular
+                (Reaprov. · Prod. · Conf. · Entreg.), na mesma ordem e
+                com as mesmas contas. No desktop só apareciam "prod." e
+                "reap." em 11px, e as conferidas e entregues não
+                apareciam (dono, 02/10: "na gráfica desktop não aparece
+                quantos já foram reaproveitados e quantos conferidos").
+                Cada um só aparece quando existe. */}
+            {(reusedTotalOf(item) > 0 || producedOf(item) > 0 || conferredOf(item) > 0 || deliveredOf(item) > 0) && (
+              <div data-testid={`saldo-da-peca-${item.id}`} style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3, marginTop: 4 }}>
+                {reusedTotalOf(item) > 0 && (
+                  <span style={qtyChip(TOM.esmeralda.text, TOM.esmeralda.bg)} title={item.isReuse ? "Peça inteira reaproveitada" : `${reusedTotalOf(item)} de ${qtyOf(item)} un. reaproveitadas`}>
+                    Reaprov. {reusedTotalOf(item)}
+                  </span>
+                )}
+                {producedOf(item) > 0 && (
+                  <span style={qtyChip(T.accentText, TOM.laranja.bg)} title={`${producedOf(item)} de ${qtyOf(item)} un. produzidas`}>
+                    Prod. {producedOf(item)}
+                  </span>
+                )}
+                {conferredOf(item) > 0 && (
+                  <span style={qtyChip(TOM.ciano.text, TOM.ciano.bg)} title={`${conferredOf(item)} de ${qtyOf(item)} un. conferidas`}>
+                    Conf. {conferredOf(item)}
+                  </span>
+                )}
+                {deliveredOf(item) > 0 && (
+                  <span style={qtyChip(TOM.sucesso.text, TOM.sucesso.bg)} title={`${deliveredOf(item)} de ${qtyOf(item)} un. entregues`}>
+                    Entreg. {deliveredOf(item)}
+                  </span>
+                )}
               </div>
             )}
             {complQty > 0 && (

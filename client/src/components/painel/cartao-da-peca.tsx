@@ -8,32 +8,43 @@ import { SponsorChips } from "@/components/sponsor-chips";
 import { StatusPill } from "@/components/status-pill";
 import { DetalheProducao } from "@/components/detalhe-producao";
 import { statusDeExibicao } from "@shared/molde";
-import { N, T, TOM, FONT } from "@/lib/theme";
+import { FS, R, T, TOM, FONT } from "@/lib/theme";
+import { MiniaturaDaPeca } from "./miniatura-da-peca";
+import { diasNoEstado, idadePorExtenso, tomDaIdade } from "./regras";
 import { SELO_CALMO } from "./estilos";
 import type { LinhaProps } from "./linha-da-peca";
 
 export const CartaoDaPeca = memo(function CartaoDaPeca({
-  item, idx: ci, selo, isAdmin, canDeleteAny, restaurando, restorePending, acoes,
-}: Omit<LinhaProps, "selecionado" | "isCompact" | "relogioIdade">) {
+  item, selo, isAdmin, canDeleteAny, restaurando, restorePending, acoes, relogioIdade,
+}: Omit<LinhaProps, "selecionado" | "isCompact" | "relogioIdade"> & { relogioIdade?: number }) {
   const isDeleted = !!item.deletedAt;
+  // O mesmo "desde quando" da tabela: no celular a pílula sozinha não
+  // distinguia vazão normal de peça parada há duas semanas.
+  const dias = !isDeleted && relogioIdade !== undefined ? diasNoEstado(item, relogioIdade) : null;
+  const tomIdade = dias !== null ? tomDaIdade(dias) : null;
   return (
     <div
       data-testid={`item-row-${item.id}`}
       onClick={() => !isDeleted && acoes.abrir(item)}
+      className="pnl-cartao"
+      data-deleted={isDeleted ? "1" : "0"}
       style={{
         border: `1px solid ${isDeleted ? TOM.perigo.border : T.border}`,
-        borderRadius: 8,
-        padding: "10px 12px",
+        borderRadius: R.lg,
+        padding: 12,
         marginBottom: 8,
-        backgroundColor: isDeleted ? TOM.perigo.bg : (ci % 2 === 1 ? N.n2 : T.surface),
+        // Sem zebra: cartão já é unidade separada; a zebra só fazia metade
+        // deles parecer "selecionada".
+        backgroundColor: isDeleted ? TOM.perigo.bg : T.surface,
         display: "flex",
         alignItems: "flex-start",
-        gap: 8,
+        gap: 12,
         cursor: "pointer",
         overflow: "hidden",
         opacity: isDeleted ? 0.75 : 1,
       }}
     >
+      <MiniaturaDaPeca url={item.approvalThumbUrl} tamanho={56} apagada={isDeleted} />
       {/* Card content */}
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 5 }}>
         {/* Row 1: ID + type */}
@@ -74,8 +85,13 @@ export const CartaoDaPeca = memo(function CartaoDaPeca({
             </span>
           )}
           {isDeleted && item.deletedAt && (
-            <span style={{ fontSize: 10, color: T.second }}>
-              {format(new Date(item.deletedAt), "dd/MM/yyyy", { locale: ptBR })}
+            <span style={{ fontSize: FS.small, color: T.second }}>
+              Excluída {format(new Date(item.deletedAt), "dd/MM/yyyy", { locale: ptBR })}
+            </span>
+          )}
+          {dias !== null && tomIdade && (
+            <span style={{ fontSize: FS.small, color: tomIdade.cor, fontWeight: tomIdade.peso, whiteSpace: "nowrap" }}>
+              {idadePorExtenso(dias)}
             </span>
           )}
         </div>
@@ -120,8 +136,8 @@ export const CartaoDaPeca = memo(function CartaoDaPeca({
             onClick={(e) => { e.stopPropagation(); acoes.abrir(item); }}
             aria-label="Ver detalhes da peça" title="Ver detalhes" data-testid={`button-view-${item.id}`}
             style={{
-              background: "none", border: `1px solid ${T.border}`, cursor: "pointer",
-              borderRadius: 6, color: T.second,
+              background: T.surface, border: `1px solid ${T.border}`, cursor: "pointer",
+              borderRadius: R.md, color: T.apoio,
               display: "flex", alignItems: "center", justifyContent: "center",
               height: 44, width: 44,
             }}
@@ -135,8 +151,8 @@ export const CartaoDaPeca = memo(function CartaoDaPeca({
             data-testid={`button-delete-${item.id}`}
             title="Excluir peça" aria-label="Excluir peça"
             style={{
-              background: "none", border: `1px solid ${TOM.perigo.border}`, cursor: "pointer",
-              borderRadius: 6, color: T.second,
+              background: T.surface, border: `1px solid ${T.border}`, cursor: "pointer",
+              borderRadius: R.md, color: T.apoio,
               display: "flex", alignItems: "center", justifyContent: "center",
               height: 44, width: 44,
             }}

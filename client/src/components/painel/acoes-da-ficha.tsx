@@ -3,13 +3,12 @@
 // fechava a ficha e fazia o roteamento mental (status → tela) sem
 // ajuda nenhuma. O mapa status→tela respeita o papel: quando a
 // pessoa não entra na tela, o botão não aparece.
-import { Link } from "wouter";
 import { ArrowUpRight, Copy, Link2, Lock } from "lucide-react";
-import { Botao } from "@/components/ui/botao";
+import { Botao, BotaoLink } from "@/components/ui/botao";
 import { motivoEventoFinalizado, todayBusinessMs } from "@/lib/status";
 import { proximaTelaDoStatus } from "@/lib/painel-rotas";
 import { moldeConcluido } from "@shared/molde";
-import { FS, FW, R, H, T, TOM } from "@/lib/theme";
+import { FS, FW, R, T } from "@/lib/theme";
 import type { PecaDoPainel } from "./tipos";
 
 export function AcoesDaFicha({ selectedItem, role, onCopiarLink }: {
@@ -18,16 +17,7 @@ export function AcoesDaFicha({ selectedItem, role, onCopiarLink }: {
   onCopiarLink: () => void;
 }) {
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-      {selectedItem.eventId && (
-        <Link
-          href={`/eventos/${selectedItem.eventId}`}
-          style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: H.md, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.border}`, background: T.surface, color: T.text, fontSize: FS.meta, fontWeight: FW.forte, textDecoration: "none" }}
-        >
-          <Link2 style={{ width: 13, height: 13, color: T.second }} />
-          Abrir evento
-        </Link>
-      )}
+    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
       {(() => {
         // "Continuar em X" leva à FILA de trabalho — e as filas escondem
         // as peças de evento finalizado. Mandar a pessoa para uma tela
@@ -43,9 +33,9 @@ export function AcoesDaFicha({ selectedItem, role, onCopiarLink }: {
           return (
             <span
               data-testid="aviso-evento-finalizado-ficha"
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 34, padding: "6px 12px", borderRadius: R.md, border: `1px solid ${T.border}`, background: T.bg, color: T.apoio, fontSize: FS.meta, fontWeight: FW.medio, maxWidth: 360, lineHeight: 1.4 }}
+              style={{ display: "inline-flex", alignItems: "flex-start", gap: 8, padding: "8px 12px", borderRadius: R.md, border: `1px solid ${T.border}`, background: T.bg, color: T.apoio, fontSize: FS.meta, fontWeight: FW.medio, maxWidth: 420, lineHeight: 1.45 }}
             >
-              <Lock style={{ width: 13, height: 13, flexShrink: 0, color: T.second }} />
+              <Lock aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0, color: T.second, marginTop: 2 }} />
               {motivoFim === "encerrado"
                 ? "Evento encerrado — esta peça não avança no fluxo. Reabra o evento para voltar a trabalhar nela."
                 : "Evento já realizado — esta peça não avança no fluxo. Conferência e entrega seguem liberadas na Gráfica."}
@@ -58,21 +48,25 @@ export function AcoesDaFicha({ selectedItem, role, onCopiarLink }: {
         if (moldeConcluido(selectedItem)) return null;
         const tela = proximaTelaDoStatus(selectedItem.status, role);
         if (!tela) return null;
+        // A AÇÃO DA FICHA: é a única que leva a pessoa a TRABALHAR na peça,
+        // então é a principal (primário escuro) e vem primeiro. As outras
+        // duas são leitura e ficam secundárias.
         return (
-          <Link
-            href={tela.path}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: H.md, padding: "0 12px", borderRadius: R.md, border: `1px solid ${TOM.laranja.border}`, background: TOM.laranja.bg, color: T.accentText, fontSize: FS.meta, fontWeight: FW.rotulo, textDecoration: "none" }}
-          >
-            <ArrowUpRight style={{ width: 13, height: 13 }} />
+          <BotaoLink href={tela.path} variante="primario" icone={ArrowUpRight} data-testid="link-continuar-em">
             Continuar em {tela.label}
-          </Link>
+          </BotaoLink>
         );
       })()}
+      {selectedItem.eventId && (
+        <BotaoLink href={`/eventos/${selectedItem.eventId}`} variante="secundario" icone={Link2} data-testid="link-abrir-evento-ficha">
+          Abrir evento
+        </BotaoLink>
+      )}
       <Botao
         variante="secundario"
         icone={Copy}
         onClick={onCopiarLink}
-        style={{ fontSize: FS.meta, color: T.text }}
+        data-testid="button-copiar-link-peca"
       >
         Copiar link da peça
       </Botao>

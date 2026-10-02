@@ -1,7 +1,7 @@
 // ─── A linha da peça (tabela) — memoizada ───────────────────────────────────
 // Props primitivas ou estáveis (o objeto `acoes` nasce uma vez na página e lê
 // o estado atual por ref): um clique que não muda a lista não chega aqui.
-import { memo, useState } from "react";
+import { memo, useState, type CSSProperties } from "react";
 import { Eye, Paperclip, Trash2, FileText, RotateCcw, Loader2, MessageSquare } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -12,10 +12,20 @@ import { DetalheProducao } from "@/components/detalhe-producao";
 import { getStatusMeta } from "@/lib/status";
 import { statusDeExibicao } from "@shared/molde";
 import type { SeloEventoFinalizado } from "@/lib/painel-encerrados";
-import { T, TOM, FONT } from "@/lib/theme";
+import { R, T, TOM, FONT } from "@/lib/theme";
+import { MiniaturaDaPeca } from "./miniatura-da-peca";
 import { SELO_CALMO } from "./estilos";
 import { LIMITE_PARADA, diasNoEstado, tomDaIdade, idadePorExtenso } from "./regras";
 import type { AcoesDaLista, PecaDoPainel } from "./tipos";
+
+// As ações da linha: quadrado de 36px (a régua de ponteiro da casa), fantasma
+// até o hover — numa coluna de 60 linhas, uma borda por botão viraria grade.
+// Hover e foco por classe (.pnl-acao em estilos.ts), não por mutação de style.
+const ESTILO_ACAO: CSSProperties = {
+  width: 36, height: 36, padding: 0, borderRadius: R.md, border: "1px solid transparent",
+  background: "none", cursor: "pointer", color: T.second,
+  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+};
 
 export interface LinhaProps {
   item: PecaDoPainel;
@@ -160,8 +170,12 @@ export const LinhaDaPeca = memo(function LinhaDaPeca({
         </div>
       </td>
 
-      {/* Descrição (+ patrocinador no modo reduzido) */}
-      <td style={{ padding: "10px 18px", overflow: "hidden" }}>
+      {/* Descrição (+ patrocinador no modo reduzido), com a miniatura da arte
+          à esquerda — ver miniatura-da-peca.tsx. */}
+      <td style={{ padding: "10px 18px 10px 14px", overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+        <MiniaturaDaPeca url={item.approvalThumbUrl} apagada={isDeleted} />
+        <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, overflow: "hidden", minWidth: 0 }}>
           {item.description ? (
             /* A DESCRIÇÃO É O QUE IDENTIFICA A PEÇA. Em uma linha com
@@ -206,10 +220,12 @@ export const LinhaDaPeca = memo(function LinhaDaPeca({
           )}
         </div>
         {isCompact && !isDeleted && (
-          <div style={{ marginTop: 4, minWidth: 0, overflow: "hidden" }}>
+          <div style={{ marginTop: 5, minWidth: 0, overflow: "hidden" }}>
             <SponsorChips sponsors={item.sponsors ?? []} variant="colored" size="sm" max={3} />
           </div>
         )}
+        </div>
+        </div>
       </td>
 
       {/* Medidas */}
@@ -295,15 +311,15 @@ export const LinhaDaPeca = memo(function LinhaDaPeca({
       </td>
 
       {/* Ação */}
-      <td style={{ padding: "10px 18px", textAlign: "right" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
+      <td style={{ padding: "10px 14px 10px 6px", textAlign: "right" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
           {isDeleted && (isAdmin ? (
             <button
               onClick={(e) => { e.stopPropagation(); acoes.restaurar(item.id); }}
               disabled={restorePending}
               title="Restaurar peça" aria-label="Restaurar peça"
               data-testid={`button-restore-${item.id}`}
-              style={{ background: TOM.esmeralda.bg, border: `1px solid ${TOM.esmeralda.border}`, cursor: restorePending ? "not-allowed" : "pointer", borderRadius: 6, color: TOM.esmeralda.text, display: "flex", alignItems: "center", justifyContent: "center", padding: 6, opacity: restorePending ? 0.6 : 1 }}
+              style={{ ...ESTILO_ACAO, background: TOM.esmeralda.bg, border: `1px solid ${TOM.esmeralda.border}`, cursor: restorePending ? "not-allowed" : "pointer", color: TOM.esmeralda.text, opacity: restorePending ? 0.6 : 1 }}
             >
               {restaurando
                 ? <Loader2 className="animate-spin" style={{ width: 14, height: 14 }} />
@@ -314,7 +330,7 @@ export const LinhaDaPeca = memo(function LinhaDaPeca({
               type="button" disabled aria-disabled="true"
               title="Só um administrador pode restaurar peças excluídas"
               aria-label="Só um administrador pode restaurar peças excluídas"
-              style={{ background: "none", border: "none", padding: 4, color: T.second, display: "flex", alignItems: "center", justifyContent: "center", cursor: "not-allowed" }}
+              style={{ ...ESTILO_ACAO, color: T.muted, cursor: "not-allowed" }}
             >
               <RotateCcw style={{ width: 15, height: 15 }} />
             </button>
@@ -323,14 +339,8 @@ export const LinhaDaPeca = memo(function LinhaDaPeca({
             <button
               onClick={(e) => { e.stopPropagation(); acoes.abrir(item); }}
               aria-label="Ver detalhes da peça" title="Ver detalhes" data-testid={`button-view-${item.id}`}
-              style={{
-                background: "none", border: "none", cursor: "pointer",
-                padding: 4, borderRadius: 6, color: T.second,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                transition: "color 0.15s",
-              }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = T.accentText)}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = T.second)}
+              className="pnl-acao"
+              style={ESTILO_ACAO}
             >
               <Eye style={{ width: 16, height: 16 }} />
             </button>
@@ -340,14 +350,8 @@ export const LinhaDaPeca = memo(function LinhaDaPeca({
               onClick={(e) => { e.stopPropagation(); acoes.excluir(item.id); }}
               data-testid={`button-delete-${item.id}`}
               title="Excluir peça" aria-label="Excluir peça"
-              style={{
-                background: "none", border: "none", cursor: "pointer",
-                padding: 4, borderRadius: 6, color: T.second,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                transition: "color 0.15s",
-              }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = TOM.perigo.text)}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = T.second)}
+              className="pnl-acao pnl-acao-perigo"
+              style={ESTILO_ACAO}
             >
               <Trash2 style={{ width: 15, height: 15 }} />
             </button>

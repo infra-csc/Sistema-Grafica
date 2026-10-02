@@ -5,7 +5,7 @@ import { Botao } from "@/components/ui/botao";
 import { EstadoVazio } from "@/components/ui/estados";
 import { getStatusLabel } from "@/lib/status";
 import type { ChipOcultas } from "@/lib/painel-encerrados";
-import { FW, T, N } from "@/lib/theme";
+import { FW, R, T, N } from "@/lib/theme";
 import { DATE_FILTER_LABELS, FOCO_LABELS } from "./regras";
 import type { FiltrosDoPainel } from "./use-filtros-do-painel";
 
@@ -30,16 +30,21 @@ export function EsqueletoDaLista() {
   // Os valores abaixo são os MEDIDOS da tabela real: thead 44px em
   // #fafaf9 com filete #e7e5e4, linha 63px, zebra #ffffff/#f6f4f1.
   return (
-    <div style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }} aria-busy="true" aria-label="Carregando peças">
-      <div style={{ padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div className="animate-pulse" style={{ width: 180, height: 16, borderRadius: 4, backgroundColor: T.border }} />
-        <div className="animate-pulse" style={{ width: 70, height: 20, borderRadius: 999, backgroundColor: N.n2 }} />
+    <div style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, overflow: "hidden" }} aria-busy="true" aria-label="Carregando peças">
+      <div style={{ height: 62, boxSizing: "border-box", padding: "0 18px 0 20px", display: "flex", justifyContent: "space-between", alignItems: "center", borderLeft: `3px solid ${T.border}` }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div className="animate-pulse" style={{ width: 220, height: 14, borderRadius: 4, backgroundColor: T.border }} />
+          <div className="animate-pulse" style={{ width: 300, height: 10, borderRadius: 4, backgroundColor: N.n3 }} />
+        </div>
+        <div className="animate-pulse" style={{ width: 120, height: 6, borderRadius: 999, backgroundColor: N.n3 }} />
       </div>
       <div style={{ height: 44, backgroundColor: T.bg, borderBottom: `1px solid ${T.border}` }} />
       {[0, 1, 2, 3, 4, 5].map((i) => (
         <div key={i} style={{ display: "flex", alignItems: "center", gap: 24, height: 63, boxSizing: "border-box", padding: "0 16px", backgroundColor: i % 2 ? N.n2 : T.surface }}>
           <div className="animate-pulse" style={{ width: 48, height: 12, borderRadius: 4, backgroundColor: T.border }} />
-          <div className="animate-pulse" style={{ width: `${34 - i * 3}%`, height: 12, borderRadius: 4, backgroundColor: T.border }} />
+          {/* A miniatura da arte, do tamanho da real (44px). */}
+          <div className="animate-pulse" style={{ width: 44, height: 44, borderRadius: R.md, backgroundColor: N.n3, flexShrink: 0, marginLeft: "12%" }} />
+          <div className="animate-pulse" style={{ width: `${30 - i * 3}%`, height: 12, borderRadius: 4, backgroundColor: T.border }} />
           <div className="animate-pulse" style={{ width: 60, height: 12, borderRadius: 4, backgroundColor: N.n3, marginLeft: "auto" }} />
           <div className="animate-pulse" style={{ width: 90, height: 22, borderRadius: 999, backgroundColor: N.n3 }} />
         </div>

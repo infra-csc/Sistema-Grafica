@@ -16,12 +16,13 @@ import {
 import { useIsMobile, useElementSize, densityFromWidth, usePonteiroGrosso, type ContentDensity } from "@/hooks/use-mobile";
 import { getStatusLabel, motivoEventoFinalizado, todayBusinessMs } from "@/lib/status";
 import { chipOcultas } from "@/lib/painel-encerrados";
-import { FS, FW, R, T, TOM } from "@/lib/theme";
+import { Loader2, ShieldOff } from "lucide-react";
+import { FS, FW, N, R, SHADOW, T, TOM } from "@/lib/theme";
 import { Botao } from "@/components/ui/botao";
 import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
 import { EstadoErro } from "@/components/ui/estados";
 import { PG_CSS } from "@/components/painel/estilos";
-import { HORA_MS, STATUS_FILTER_VALUES } from "@/components/painel/regras";
+import { HORA_MS, STATUS_FILTER_VALUES, ZONA_ENTRADA, ZONA_APROVACAO, ZONA_PRODUCAO } from "@/components/painel/regras";
 import { retratoDosEventos, calcularRecorte, idadesPorEtapaDe } from "@/components/painel/recorte";
 import type { AcoesDaLista, PecaDoPainel, SortCampo, SortDir } from "@/components/painel/tipos";
 import { useFiltrosDoPainel } from "@/components/painel/use-filtros-do-painel";
@@ -34,8 +35,8 @@ import { useVisoesDoPainel } from "@/components/painel/use-visoes-do-painel";
 import { CarimboDeFrescor } from "@/components/painel/carimbo-de-frescor";
 import { PorOndeComecar, MenuExportar } from "@/components/painel/cabecalho-do-painel";
 import { FaixaDeAtencao } from "@/components/painel/faixa-de-atencao";
-import { BarraDoFluxo } from "@/components/painel/barra-do-fluxo";
-import { CartoesDeStatus } from "@/components/painel/cartoes-de-status";
+import { BarraDoFluxo, ComoLerOPainel } from "@/components/painel/barra-do-fluxo";
+import { CartoesDeStatus, TotalDoPainel } from "@/components/painel/cartoes-de-status";
 import { BarraDeFiltros } from "@/components/painel/barra-de-filtros";
 import { ChipsDosFiltros } from "@/components/painel/chips-dos-filtros";
 import { EsqueletoDaLista, VazioDaLista } from "@/components/painel/estados-da-lista";
@@ -321,6 +322,11 @@ export default function PainelGeral() {
   // falso que o travessão resolve na carga.
   const falhouSemDados = isError && itensDoServidor.length === 0;
 
+  // A manchete do painel do fluxo (o Total) e se há fluxo para distribuir —
+  // um recorte só com canceladas não tem barra.
+  const totalDoPainel = <TotalDoPainel stats={stats} isLoading={isLoading} statusFilter={statusFilter} setStatusFilter={setStatusFilter} dedo={dedo} />;
+  const temFluxo = [...ZONA_ENTRADA, ...ZONA_APROVACAO, ...ZONA_PRODUCAO].some((k) => (stats.byGroup[k] ?? 0) > 0);
+
   return (
     <div
       ref={rootRef}
@@ -350,7 +356,7 @@ export default function PainelGeral() {
           overflow:auto aqui criava um scroll-container que NÃO rola
           (min-height 100%) e prendia todo position:sticky descendente. */}
       <style>{PG_CSS}</style>
-      <div style={{ position: "sticky", top: 0, zIndex: 4, height: 4, margin: useCards ? "0 -12px" : "0 -28px", background: `linear-gradient(90deg, ${T.text} 0%, ${T.text} 72%, ${T.accent} 72%, ${T.accent} 100%)` }} />
+      <div style={{ position: "sticky", top: 0, zIndex: 4, height: 4, margin: useCards ? "0 -12px" : "0 -28px", background: T.bg }} />
 
       {/* ── Header ──
           O subtítulo é a fila de quem lê (o estado), o frescor vem ao lado
@@ -359,7 +365,7 @@ export default function PainelGeral() {
           design system não repassa testid ao <h1>. A margem negativa devolve
           os 20px que ele reserva embaixo, porque o `gap` da raiz já dá o
           respiro. */}
-      <div data-testid="title-painel-geral" style={{ paddingTop: 22, marginBottom: -18 }}>
+      <div data-testid="title-painel-geral" style={{ paddingTop: useCards ? 14 : 20, marginBottom: -20 }}>
         <CabecalhoDaPagina
           titulo="Painel Geral"
           subtitulo={!isLoading && !falhouSemDados ? (
@@ -377,8 +383,9 @@ export default function PainelGeral() {
              ele lê é verdade. Sem botão Atualizar — a tela revalida
              sozinha. O relógio de 30s mora dentro dele (ver
              CarimboDeFrescor). */
-          frescor={<CarimboDeFrescor />}
           acoes={
+            <>
+            {!useCards && <CarimboDeFrescor />}
             <MenuExportar
               useCards={useCards}
               exportMenuOpen={exportMenuOpen}
@@ -389,8 +396,10 @@ export default function PainelGeral() {
               onPdf={() => { setExportMenuOpen(false); setShowExportPDFModal(true); }}
               onXlsx={exportarXlsx}
             />
+            </>
           }
         />
+        {useCards && <div style={{ marginTop: 8 }}><CarimboDeFrescor /></div>}
       </div>
 
       <FaixaDeAtencao
@@ -407,31 +416,52 @@ export default function PainelGeral() {
         setMostrarFinalizados={setMostrarFinalizados}
       />
 
-      {!isLoading && stats.total > 0 && (
-        <BarraDoFluxo
-          stats={stats}
-          idadesPorEtapa={idadesPorEtapa}
-          statusFilter={statusFilter}
-          toggleStatusCard={toggleStatusCard}
-          useCards={useCards}
-          dedo={dedo}
-        />
-      )}
-
-      {/* Os cards somem quando a carga FALHOU sem dado nenhum: mostrariam "0"
-          em tudo ao lado do aviso "Não foi possível carregar as peças" — o
-          mesmo zero falso que o travessão resolve na carga, agora no erro. */}
-      {!falhouSemDados && (
-        <CartoesDeStatus
-          useCards={useCards}
-          stats={stats}
-          isLoading={isLoading}
-          statusFilter={statusFilter}
-          setStatusFilter={setStatusFilter}
-          toggleStatusCard={toggleStatusCard}
-          showAllKpis={showAllKpis}
-          setShowAllKpis={setShowAllKpis}
-        />
+      {/* ── O PAINEL DO FLUXO ──
+          A barra e as etapas eram duas leituras da mesma coisa em duas
+          gramáticas (uma faixa solta e treze cartões em três andares). Agora
+          moram numa superfície só: a manchete (quantas peças), a maior fila,
+          a barra e, embaixo, o razão das etapas por zona. Some quando a
+          carga FALHOU sem dado nenhum: mostraria "0" em tudo ao lado do
+          aviso de erro. */}
+      {/* Recorte sem peça nenhuma (busca sem resultado): o painel só diria
+          "0" três vezes acima do estado vazio, que já explica o porquê. */}
+      {!falhouSemDados && (isLoading || stats.total > 0) && (
+        <section
+          aria-label="Peças por etapa"
+          data-testid="painel-do-fluxo"
+          style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, boxShadow: SHADOW.sm, padding: useCards ? "14px 12px 6px" : "18px 20px 8px", display: "flex", flexDirection: "column", gap: 18 }}
+        >
+          {!isLoading && stats.total > 0 && (
+            <BarraDoFluxo
+              stats={stats}
+              idadesPorEtapa={idadesPorEtapa}
+              statusFilter={statusFilter}
+              toggleStatusCard={toggleStatusCard}
+              useCards={useCards}
+              inicio={totalDoPainel}
+            />
+          )}
+          {/* Carga, ou recorte só com canceladas/anomalias (sem fluxo para
+              distribuir): a manchete fica, e na carga o trilho vira silhueta. */}
+          {(isLoading || !temFluxo) && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {totalDoPainel}
+              {isLoading && <div aria-hidden="true" className="animate-pulse" style={{ height: 12, borderRadius: R.pill, backgroundColor: N.n3 }} />}
+            </div>
+          )}
+          <CartoesDeStatus
+            useCards={useCards}
+            dedo={dedo}
+            stats={stats}
+            isLoading={isLoading}
+            statusFilter={statusFilter}
+            setStatusFilter={setStatusFilter}
+            toggleStatusCard={toggleStatusCard}
+            showAllKpis={showAllKpis}
+            setShowAllKpis={setShowAllKpis}
+            rodape={!isLoading && stats.total > 0 ? <ComoLerOPainel dedo={dedo} /> : undefined}
+          />
+        </section>
       )}
 
       <BarraDeFiltros
@@ -455,6 +485,7 @@ export default function PainelGeral() {
         isLoading={isLoading}
         filteredItems={filteredItems}
         chipOcultasDados={chipOcultasDados}
+        semDados={falhouSemDados}
       />
 
       {hasActiveFilters && (
@@ -465,11 +496,15 @@ export default function PainelGeral() {
           exige canDeleteAny): diz o porquê e oferece a saída, em vez de uma
           lista silenciosamente vazia. Acontece via URL compartilhada. */}
       {showDeleted && !canDeleteAny && (
-        <div style={{ backgroundColor: T.surface, border: `1px solid ${TOM.perigo.border}`, borderRadius: R.lg, padding: "10px 16px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <span style={{ fontSize: FS.body, fontWeight: FW.forte, color: TOM.perigo.text }}>Você não tem permissão para ver peças excluídas.</span>
+        <div role="alert" data-testid="aviso-sem-permissao-excluidos" style={{ backgroundColor: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}`, borderRadius: R.lg, padding: "12px 12px 12px 16px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <ShieldOff aria-hidden="true" style={{ width: 18, height: 18, color: TOM.perigo.text, flexShrink: 0 }} />
+          <span style={{ flex: "1 1 240px", fontSize: FS.body, lineHeight: 1.45, color: TOM.perigo.text }}>
+            <strong style={{ fontWeight: FW.forte }}>Você não tem permissão para ver peças excluídas.</strong>{" "}
+            O link que trouxe você aqui pede a lixeira; o resto da lista continua disponível.
+          </span>
           <Botao
-            variante="primario"
-            tamanho="md"
+            variante="secundario"
+            tamanho={dedo ? "toque" : "md"}
             onClick={() => setStatusFilter(prev => prev.filter(s => s !== "deleted"))}
           >
             Remover filtro
@@ -483,8 +518,9 @@ export default function PainelGeral() {
           fica ACIMA da lista, que tem o próprio esqueleto; dois esqueletos
           empilhados leriam como duas listas chegando. */}
       {showDeleted && deletedLoading && (
-        <div role="status" style={{ backgroundColor: T.bg, border: `1px solid ${T.border}`, borderRadius: R.lg, padding: "10px 16px", fontSize: FS.body, fontWeight: FW.medio, color: T.second }}>
-          Carregando peças excluídas...
+        <div role="status" style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, padding: "12px 16px", display: "flex", alignItems: "center", gap: 10, fontSize: FS.body, fontWeight: FW.medio, color: T.apoio }}>
+          <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 15, height: 15, color: T.second }} />
+          Carregando peças excluídas…
         </div>
       )}
       {showDeleted && deletedError && (

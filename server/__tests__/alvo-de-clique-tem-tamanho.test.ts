@@ -40,8 +40,12 @@ describe("nenhum alvo interativo abaixo do mínimo", () => {
 
   it("os gatilhos de texto ganharam área de clique, não moldura", () => {
     // minHeight + inline-flex + fundo transparente: cresce o alvo, não o traço.
-    const gatilhos = painel.split('padding: "0 2px", fontSize: 11').length - 1;
-    expect(gatilhos).toBe(2);
+    // Desde o redesign de 02/10 o gatilho dos status zerados é UM só (o celular
+    // e o desktop dividem o rodapé do painel do fluxo), e o texto subiu a 12px.
+    const gatilhos = painel.split('padding: "0 2px", fontSize: FS.meta').length - 1;
+    expect(gatilhos).toBe(1);
+    const i = painel.indexOf('padding: "0 2px", fontSize: FS.meta');
+    expect(painel.slice(i - 200, i)).toContain("minHeight: dedo ? 44 : 36");
     expect(painel).not.toContain('padding: "2px 2px"');
   });
 

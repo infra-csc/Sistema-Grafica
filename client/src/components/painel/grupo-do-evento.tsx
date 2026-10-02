@@ -14,7 +14,7 @@
 // (server/__tests__/perf-painel-geral.test.ts conta as linhas re-renderizadas.)
 import { Fragment, memo, useMemo, type CSSProperties, type ReactNode } from "react";
 import { Link } from "wouter";
-import { Truck, Calendar, ArrowUpRight, Hourglass } from "lucide-react";
+import { Truck, Calendar, ArrowUpRight, Hourglass, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
@@ -70,6 +70,9 @@ export const GrupoDoEvento = memo(function GrupoDoEvento({
     [groupOpen, isExpanded, gd.items],
   );
   const hiddenCount = gd.items.length - visibleItems.length;
+  // No celular o nome do evento quebra em duas linhas em vez de virar
+  // "Night Run Curitiba 2026 (exem…" — é o dado que identifica o grupo.
+  const estiloDoTitulo = useCards ? { ...EVENT_TITLE_STYLE, whiteSpace: "normal" as const, lineHeight: 1.25 } : EVENT_TITLE_STYLE;
   const secoes = useMemo(() => secoesDoGrupo(visibleItems, typeToGroup), [visibleItems, typeToGroup]);
   // Selo de evento fora de jogo (encerrado à mão ou já realizado).
   // `null` enquanto o evento conta — a esmagadora maioria.
@@ -140,12 +143,12 @@ export const GrupoDoEvento = memo(function GrupoDoEvento({
                 className="pg-event-link"
               >
                 <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                  <h3 style={EVENT_TITLE_STYLE}>{gd.eventName}</h3>
+                  <h3 style={estiloDoTitulo}>{gd.eventName}</h3>
                   <ArrowUpRight className="pg-goto" style={{ width: 12, height: 12, color: T.accentText }} aria-hidden="true" />
                 </span>
               </Link>
             ) : (
-              <h3 style={EVENT_TITLE_STYLE}>{gd.eventName}</h3>
+              <h3 style={estiloDoTitulo}>{gd.eventName}</h3>
             )}
             {/* Ordem invertida de propósito: o CHIP DE PRAZO vem
                 primeiro e não encolhe. Com as datas primeiro e
@@ -235,8 +238,10 @@ export const GrupoDoEvento = memo(function GrupoDoEvento({
         <button
           onClick={() => acoes.abrirGrupo(eventKey, Math.min(gd.items.length, ROW_CAP))}
           data-testid={`button-open-group-${eventKey}`}
-          style={{ width: "100%", padding: "13px", background: T.bg, border: "none", color: T.text, fontWeight: FW.forte, fontSize: FS.body, cursor: "pointer" }}
+          className="pnl-abrir-grupo"
+          style={{ width: "100%", minHeight: 48, padding: "12px", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: T.bg, border: "none", color: T.strong, fontWeight: FW.forte, fontSize: FS.body, cursor: "pointer", fontFamily: "inherit" }}
         >
+          <ChevronDown aria-hidden="true" style={{ width: 15, height: 15 }} />
           Mostrar as {gd.items.length} {gd.items.length === 1 ? "peça" : "peças"} deste evento
         </button>
       ) : useCards ? (
@@ -277,6 +282,7 @@ export const GrupoDoEvento = memo(function GrupoDoEvento({
                           canDeleteAny={canDeleteAny}
                           restaurando={restoringItemId === item.id}
                           restorePending={restorePending}
+                          relogioIdade={relogioIdade}
                           acoes={acoes}
                         />
                       ))}
@@ -290,8 +296,10 @@ export const GrupoDoEvento = memo(function GrupoDoEvento({
             <button
               onClick={() => acoes.expandir(eventKey, hiddenCount)}
               data-testid={`button-show-all-${eventKey}`}
-              style={{ width: "100%", padding: "13px", marginTop: 4, background: T.bg, border: `1px solid ${T.border}`, borderRadius: R.md, color: T.text, fontWeight: FW.forte, fontSize: FS.body, cursor: "pointer" }}
+              className="pnl-abrir-grupo"
+              style={{ width: "100%", minHeight: 48, padding: "12px", marginTop: 4, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: T.bg, border: `1px solid ${T.border}`, borderRadius: R.md, color: T.strong, fontWeight: FW.forte, fontSize: FS.body, cursor: "pointer", fontFamily: "inherit" }}
             >
+              <ChevronDown aria-hidden="true" style={{ width: 15, height: 15 }} />
               Mostrar todas as {gd.items.length} peças (+{hiddenCount})
             </button>
           )}
@@ -313,20 +321,20 @@ export const GrupoDoEvento = memo(function GrupoDoEvento({
             <col style={{ width: 40 }} />
             {isCompact ? (
               <>
-                <col style={{ width: "27%" }} />
-                <col style={{ width: "40%" }} />
+                <col style={{ width: "21%" }} />
+                <col style={{ width: "46%" }} />
                 <col style={{ width: "17%" }} />
               </>
             ) : (
               <>
-                <col style={{ width: "15%" }} />
-                <col style={{ width: "27%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "31%" }} />
                 <col style={{ width: "12%" }} />
-                <col style={{ width: "17%" }} />
-                <col style={{ width: "12%" }} />
+                <col style={{ width: "16%" }} />
+                <col style={{ width: "13%" }} />
               </>
             )}
-            <col style={{ width: 96 }} />
+            <col style={{ width: 104 }} />
           </colgroup>
           <thead>
             <tr>
@@ -488,8 +496,10 @@ export const GrupoDoEvento = memo(function GrupoDoEvento({
                   <button
                     onClick={() => acoes.expandir(eventKey, hiddenCount)}
                     data-testid={`button-show-all-${eventKey}`}
-                    style={{ width: "100%", padding: "13px", background: T.bg, border: "none", borderTop: `1px solid ${T.border}`, color: T.text, fontWeight: FW.forte, fontSize: FS.body, cursor: "pointer" }}
+                    className="pnl-abrir-grupo"
+                    style={{ width: "100%", minHeight: 48, padding: "12px", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: T.bg, border: "none", borderTop: `1px solid ${T.border}`, color: T.strong, fontWeight: FW.forte, fontSize: FS.body, cursor: "pointer", fontFamily: "inherit" }}
                   >
+                    <ChevronDown aria-hidden="true" style={{ width: 15, height: 15 }} />
                     Mostrar todas as {gd.items.length} peças (+{hiddenCount})
                   </button>
                 </td>

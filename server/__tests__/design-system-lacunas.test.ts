@@ -591,8 +591,13 @@ describe("index.css — tema claro de verdade, foco, movimento e alvo", () => {
   });
 
   it("alvo de 44px no toque também para o <a> com cara de botão", () => {
-    const i = css.lastIndexOf("@media (pointer: coarse)");
-    expect(css.slice(i, css.indexOf("}", css.indexOf("{", i) + 1) + 1)).toMatch(/a\.ds-botao\s*\{\s*min-height:\s*44px\s*!important/);
+    // Procura em TODOS os blocos "pointer: coarse" — as telas acrescentam os
+    // delas no fim do arquivo (evd-, vinc-…), e o último deixou de ser o da casa.
+    const blocos: string[] = [];
+    for (let i = css.indexOf("@media (pointer: coarse)"); i >= 0; i = css.indexOf("@media (pointer: coarse)", i + 1)) {
+      blocos.push(css.slice(i, css.indexOf("}", css.indexOf("{", i) + 1) + 1));
+    }
+    expect(blocos.some((b) => /a\.ds-botao\s*\{\s*min-height:\s*44px\s*!important/.test(b))).toBe(true);
   });
 
   it("prefers-reduced-motion continua zerando transição e animação (spinner incluído)", () => {

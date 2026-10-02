@@ -187,6 +187,12 @@ interface FilterSelectProps {
   triggerStyle?: React.CSSProperties;
   triggerClassName?: string;
   showAllLabelWhenEmpty?: boolean;
+  /**
+   * Texto do GATILHO quando nada está escolhido (só o gatilho: a opção
+   * "todos" dentro do menu continua dizendo `allLabel`). Para faixas densas
+   * em que o nome da dimensão ("Tipo", "Saída") basta como rótulo vazio.
+   */
+  rotuloQuandoVazio?: string;
   disabled?: boolean;
   dropdownAlign?: "left" | "right";
   hideClear?: boolean;
@@ -279,6 +285,7 @@ export function FilterSelect({
   triggerStyle,
   triggerClassName,
   showAllLabelWhenEmpty = false,
+  rotuloQuandoVazio,
   disabled = false,
   dropdownAlign = "left",
   hideClear = false,
@@ -566,7 +573,7 @@ export function FilterSelect({
   let triggerText: string;
   if (multiple) {
     if (values!.length === 0) {
-      triggerText = allLabelText;
+      triggerText = rotuloQuandoVazio ?? allLabelText;
     } else if (values!.length === 1) {
       triggerText = sorted.find(o => o.value === values![0])?.label ?? values![0];
     } else {
@@ -585,7 +592,7 @@ export function FilterSelect({
     triggerText = selected?.label ?? placeholder ?? label;
   } else {
     const selected = sorted.find(o => o.value === value);
-    const emptyText_ = showAllLabelWhenEmpty ? allLabelText : label;
+    const emptyText_ = rotuloQuandoVazio ?? (showAllLabelWhenEmpty ? allLabelText : label);
     triggerText = isActive ? (selected?.label ?? label) : emptyText_;
   }
 
@@ -968,7 +975,9 @@ export function FilterSelect({
         // ações"): lido isolado, "3 ações" não diz de que campo se trata. Como
         // contém o texto visível, continua valendo a regra "label in name".
         // Quando o gatilho já mostra o próprio nome do campo, não repete.
-        aria-label={triggerText === label ? label : `${label}: ${triggerText}`}
+        // Com `rotuloQuandoVazio` o gatilho vazio mostra só a dimensão; o nome
+        // acessível diz o estado inteiro ("Tipo: Todos os tipos").
+        aria-label={!isActive && rotuloQuandoVazio ? `${label}: ${allLabelText}` : triggerText === label ? label : `${label}: ${triggerText}`}
         aria-expanded={open}
         aria-haspopup="listbox"
         onMouseDown={() => { pointerRef.current = true; }}

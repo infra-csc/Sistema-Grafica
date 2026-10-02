@@ -1,7 +1,8 @@
 // ─── Barra de ações em lote ─────────────────────────────────────────────────
 // O ExportPdfDialog já tinha seleção interna, mas ela não conversava com
 // a lista: o usuário filtrava fora e re-selecionava dentro.
-import { Copy, FileSpreadsheet, Printer } from "lucide-react";
+import { Copy, FileSpreadsheet, Printer, X } from "lucide-react";
+import { Botao } from "@/components/ui/botao";
 import { alvo } from "@/hooks/use-mobile";
 import { getStatusMeta } from "@/lib/status";
 import { FS, FW, R, H, T } from "@/lib/theme";
@@ -19,7 +20,8 @@ export function BarraDeSelecao({ selecionadas, dedo, isExportingXlsx, onPdf, onX
   return (
     <div
       role="region" aria-label="Ações para as peças selecionadas"
-      style={{ position: "fixed", left: "50%", bottom: 20, transform: "translateX(-50%)", zIndex: 30, display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 999, backgroundColor: T.text, boxShadow: "0 8px 24px rgba(28,25,23,.28)", flexWrap: "wrap", maxWidth: "94vw" }}
+      className="pnl-lote"
+      style={{ position: "fixed", left: "50%", bottom: dedo ? 16 : 24, transform: "translateX(-50%)", zIndex: 30, display: "flex", alignItems: "center", justifyContent: "center", gap: 14, padding: "8px 8px 8px 20px", borderRadius: dedo ? R.xl : R.pill, backgroundColor: T.text, boxShadow: "0 12px 32px -8px rgba(28,25,23,.45), 0 0 0 1px rgba(255,255,255,0.06) inset", flexWrap: "wrap", width: dedo ? "calc(100vw - 24px)" : undefined, maxWidth: "94vw", boxSizing: "border-box" }}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
         <span style={{ fontSize: FS.body, fontWeight: FW.rotulo, color: T.surface, whiteSpace: "nowrap" }}>
@@ -51,18 +53,28 @@ export function BarraDeSelecao({ selecionadas, dedo, isExportingXlsx, onPdf, onX
           );
         })()}
       </div>
-      <button onClick={onPdf} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.22)", borderRadius: R.pill, color: T.surface, fontSize: FS.meta, fontWeight: FW.forte, padding: "6px 12px", minHeight: alvo(H.md, dedo), cursor: "pointer" }}>
-        <Printer style={{ width: 13, height: 13 }} /> PDF
-      </button>
-      <button onClick={onXlsx} disabled={isExportingXlsx} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.22)", borderRadius: R.pill, color: T.surface, fontSize: FS.meta, fontWeight: FW.forte, padding: "6px 12px", minHeight: alvo(H.md, dedo), cursor: "pointer" }}>
-        <FileSpreadsheet style={{ width: 13, height: 13 }} /> Excel
-      </button>
-      <button onClick={onCopiarIds} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.22)", borderRadius: R.pill, color: T.surface, fontSize: FS.meta, fontWeight: FW.forte, padding: "6px 12px", minHeight: alvo(H.md, dedo), cursor: "pointer" }}>
-        <Copy style={{ width: 13, height: 13 }} /> Copiar IDs
-      </button>
-      <button onClick={onLimpar} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.75)", fontSize: FS.meta, fontWeight: FW.forte, padding: "6px 8px", minHeight: alvo(H.md, dedo), cursor: "pointer", textDecoration: "underline" }}>
-        Limpar seleção
-      </button>
+      {/* As ações do lote: os botões do sistema para fundo ESCURO
+          (claroFantasma), e não quatro pílulas desenhadas à mão — mesmo foco,
+          mesmo hover e mesma altura do resto do app. Limpar fica por último,
+          separado por um filete: ele desfaz a seleção, não age sobre ela. */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+        <Botao variante="claroFantasma" tamanho={dedo ? "toque" : "md"} icone={Printer} onClick={onPdf} data-testid="button-lote-pdf">PDF</Botao>
+        <Botao variante="claroFantasma" tamanho={dedo ? "toque" : "md"} icone={FileSpreadsheet} onClick={onXlsx} carregando={isExportingXlsx} data-testid="button-lote-xlsx">Excel</Botao>
+        <Botao variante="claroFantasma" tamanho={dedo ? "toque" : "md"} icone={Copy} onClick={onCopiarIds} data-testid="button-lote-copiar-ids">Copiar IDs</Botao>
+        <span aria-hidden="true" style={{ width: 1, height: 22, backgroundColor: "rgba(255,255,255,0.18)", margin: "0 4px" }} />
+        <button
+          type="button"
+          onClick={onLimpar}
+          aria-label="Limpar seleção"
+          title="Limpar seleção"
+          className="pnl-lote-fechar"
+          data-testid="button-lote-limpar"
+          style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", color: "rgba(255,255,255,0.78)", fontSize: FS.meta, fontWeight: FW.forte, padding: "0 10px", minHeight: alvo(H.md, dedo), borderRadius: R.pill, cursor: "pointer", fontFamily: "inherit" }}
+        >
+          <X aria-hidden="true" style={{ width: 14, height: 14 }} />
+          {!dedo && "Limpar"}
+        </button>
+      </div>
     </div>
   );
 }

@@ -158,15 +158,18 @@ describe("as zonas da barra do fluxo", () => {
     expect(tela).toContain("const fechaZona = i < segmentos.length - 1 && segmentos[i + 1].zona !== seg.zona;");
   });
 
-  it("cada marca tem a largura da soma da sua zona, com elipse", () => {
+  it("cada marca diz o peso da sua zona, com elipse", () => {
+    // Redesign 02/10: a marca deixou de ser uma régua proporcional sob a barra
+    // e virou o CABEÇALHO da coluna da zona no razão das etapas — mesmo nome,
+    // mesmo tom, mesma conta (soma da zona sobre a soma do fluxo).
     expect(tela).toContain("data-testid={`zona-tick-${z.nome}`}");
-    expect(tela).toContain('borderLeft: `1px solid ${T.border}`, paddingLeft: 7, overflow: "hidden"');
-    // Zona estreita não pode empurrar as outras.
+    expect(tela).toContain("const pct = (n / soma) * 100;");
+    // Nome longo de zona não pode empurrar a contagem para fora.
     expect(tela).toContain('textOverflow: "ellipsis"');
   });
 
-  it("no celular as marcas somem — três rótulos não cabem em 390px", () => {
-    expect(tela).toContain("{!useCards && (");
+  it("no celular as zonas empilham, e as etapas vão em duas colunas", () => {
+    expect(tela).toContain('gridTemplateColumns: "repeat(2, minmax(0, 1fr))", columnGap: 6');
   });
 
   it("a zona e a idade entram no title do segmento", () => {

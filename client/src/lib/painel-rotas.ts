@@ -24,7 +24,7 @@ const TELAS = {
   vincular:    { path: "/vincular-patrocinadores", label: "Vincular Patrocinadores", roles: ["arte", "solicitacao", "atendimento", "admin"] },
   arte:        { path: "/arte",                    label: "Arte",                    roles: ["arte", "atendimento", "admin"] },
   atendimento: { path: "/atendimento",             label: "Atendimento",             roles: ["atendimento", "arte", "admin"] },
-  solicitacao: { path: "/solicitacao",             label: "Solicitação",             roles: ["solicitacao", "admin"] },
+  solicitacao: { path: "/solicitacao",             label: "Revisão Final",           roles: ["solicitacao", "admin"] },
   grafica:     { path: "/grafica",                 label: "Gráfica",                 roles: ["grafica", "solicitacao", "admin"] },
 } as const satisfies Record<string, ProximaTela>;
 

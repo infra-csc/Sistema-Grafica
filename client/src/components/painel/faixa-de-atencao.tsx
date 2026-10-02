@@ -15,7 +15,7 @@ import type { CSSProperties, Dispatch, SetStateAction } from "react";
 import { Link } from "wouter";
 import { AlertTriangle, ArrowUpRight, CheckCircle2, Truck, XCircle } from "lucide-react";
 import type { ChipOcultas } from "@/lib/painel-encerrados";
-import { FS, FW, R, T, N, TOM, FONT } from "@/lib/theme";
+import { FS, FW, R, SHADOW, T, N, TOM, FONT } from "@/lib/theme";
 import { fmtN } from "./regras";
 
 export function FaixaDeAtencao({
@@ -74,8 +74,8 @@ export function FaixaDeAtencao({
       // "147 peças ocultas · evento encerrado ou já realizado · mostrar" não
       // cabe em 366px, e com altura fixa o texto vazava do chip.
       const chipBase: CSSProperties = {
-        display: "flex", alignItems: "center", gap: 8, minHeight: 38, padding: "7px 14px",
-        borderRadius: useCards ? 10 : 999, cursor: "pointer", fontSize: 13, fontWeight: 600, lineHeight: 1.3,
+        display: "flex", alignItems: "center", gap: 8, minHeight: useCards ? 44 : 38, padding: "7px 14px",
+        borderRadius: useCards ? R.md + 2 : R.pill, cursor: "pointer", fontSize: FS.body, fontWeight: FW.medio, lineHeight: 1.3,
         textAlign: "left", width: useCards ? "100%" : undefined,
       };
       return (
@@ -84,7 +84,7 @@ export function FaixaDeAtencao({
           // O cartão só existe quando há ALERTA: é o que faz a faixa ser a
           // primeira coisa lida sem precisar de cor extra. "Fora da lista"
           // sozinho continua sendo uma nota de rodapé, sem moldura.
-          ...(temAlerta ? { backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: useCards ? 12 : "10px 12px 10px 16px", boxShadow: "0 1px 3px rgba(28,25,23,0.05)" } : null),
+          ...(temAlerta ? { backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, padding: useCards ? 12 : "10px 12px 10px 16px", boxShadow: SHADOW.sm } : null),
         }}
       >
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6, marginRight: 6, fontSize: 13, fontWeight: 700, color: temAlerta ? T.text : T.apoio, width: useCards ? "100%" : undefined }}>
@@ -131,7 +131,8 @@ export function FaixaDeAtencao({
           <Link
             href="/prazos?atrasados=1"
             data-testid="link-atrasados-quem-age"
-            style={{ display: "inline-flex", alignItems: "center", gap: 4, minHeight: 38, fontSize: 13, fontWeight: 700, color: T.accentText, textDecoration: "underline", textUnderlineOffset: 2, whiteSpace: "nowrap" }}
+            className="pnl-link"
+            style={{ display: "inline-flex", alignItems: "center", gap: 4, minHeight: useCards ? 44 : 38, padding: "0 4px", fontSize: FS.body, fontWeight: FW.medio, color: T.accentText, textDecoration: "underline", textUnderlineOffset: 3, textDecorationColor: TOM.laranja.border, whiteSpace: "nowrap" }}
           >
             Quem precisa agir <ArrowUpRight aria-hidden="true" style={{ width: 13, height: 13 }} />
           </Link>

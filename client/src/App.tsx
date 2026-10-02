@@ -105,7 +105,8 @@ const ChangePassword = lazyPage(() => import("@/pages/change-password"));
 const Usuarios = lazyPage(() => import("@/pages/usuarios"));
 const Patrocinadores = lazyPage(() => import("@/pages/patrocinadores"));
 const PainelGeral = lazyPage(() => import("@/pages/painel-geral"));
-const DashboardAnalises = lazyPage(() => import("@/pages/dashboard-analises"));
+// A Análises virou tela de abas (02/10); o painel antigo é a aba Desempenho.
+const Analises = lazyPage(() => import("@/pages/analises"));
 const Eventos = lazyPage(() => import("@/pages/eventos"));
 const EventDetail = lazyPage(() => import("@/pages/event-detail"));
 const RelatorioEvento = lazyPage(() => import("@/pages/relatorio-evento"));
@@ -465,7 +466,7 @@ function Router() {
         {() => <ProtectedRoute component={PainelGeral} />}
       </Route>
       <Route path="/analises">
-        {() => <RoleProtectedRoute component={DashboardAnalises} allowedRoles={ROLES_ADMIN} />}
+        {() => <RoleProtectedRoute component={Analises} allowedRoles={ROLES_ADMIN} />}
       </Route>
       <Route path="/prazos">
         {/* Aberta a todo usuário autenticado: o recorte de quem PODE AGIR

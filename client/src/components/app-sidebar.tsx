@@ -160,7 +160,7 @@ const DESCRICAO_DA_TELA: Record<string, string> = {
   "/historico": "Tudo o que foi feito no sistema, por quem e quando",
   "/versoes": "Qual versão da arte cada patrocinador aprovou, e os books",
   "/registros": "Fotos de conferência e de entrega de todas as peças",
-  "/analises": "Indicadores do fluxo: tempos, volume e carga que vai vencer",
+  "/analises": "Status de todas as fases: atrasos, gargalos, filas e desempenho",
   "/patrocinadores": "Cadastro, executivo responsável e regra de aprovação de cada patrocinador",
   "/configurar-cotas": "Quais grupos de peças cada cota de patrocinador recebe",
   "/triagem-retorno": "Peças que voltaram de evento: avaliar a condição e decidir o destino",

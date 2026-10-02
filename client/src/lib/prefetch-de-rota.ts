@@ -39,7 +39,7 @@ const IMPORTADORES: Record<string, () => Promise<unknown>> = {
   "/historico": () => import("@/pages/historico"),
   "/versoes": () => import("@/pages/versoes"),
   "/registros": () => import("@/pages/registros"),
-  "/analises": () => import("@/pages/dashboard-analises"),
+  "/analises": () => import("@/pages/analises"),
   "/patrocinadores": () => import("@/pages/patrocinadores"),
   "/configurar-cotas": () => import("@/pages/configurar-cotas"),
   "/triagem-retorno": () => import("@/pages/triagem-retorno"),

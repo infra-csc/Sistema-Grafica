@@ -1,6 +1,8 @@
 // Agregados da tela de Análises que o CLIENTE não tem como calcular.
 //
-// Hoje é um só: "Tempo por etapa". Ele existe aqui, e não no front, por um
+// São dois, ambos SÓ ADMIN (a Análises é tela do admin — antes daqui qualquer
+// logado chamava o tempo por etapa):
+//   · "Tempo por etapa" (abaixo). Ele existe aqui, e não no front, por um
 // motivo de custo — a permanência sai da diferença entre carimbos consecutivos
 // de `audit_logs`, e a tela não pode baixar a trilha para descobrir isso. Os
 // outros blocos da Análises continuam calculados no cliente sobre
@@ -9,12 +11,18 @@
 // Esta camada é I/O + montagem. A REGRA (ler a frase da trilha, fechar as
 // passagens, mediana, planejado) mora em `../services/tempo-etapas.ts`, testada
 // em `server/__tests__/analises-tempo-etapas.test.ts`.
+//   · "Operação" (GET /api/analises/operacao): aprovação, máquinas, tubos,
+// pessoas, estoque e arte — o contrato em shared/analises-operacao-contract.ts;
+// regra e SQL em `../services/analises-operacao.ts`.
 import { ehBookCompleto } from "@shared/fluxo-peca";
 import type { Express } from "express";
 import { storage } from "../storage";
 import type { ItemTransitionLog } from "../storage";
 import { TRANSITION_LOGS_MAX } from "../storage";
-import { requireAuth } from "./shared";
+import { requireAdmin, SYSTEM_ACTOR } from "./shared";
+import { db } from "../db";
+import type { OperacaoDaAnalise } from "@shared/analises-operacao-contract";
+import { carregarOperacao, lerJanela } from "../services/analises-operacao";
 import { OUT_OF_FUNNEL } from "../services/prazo-domain";
 import { eventDayMs } from "@shared/prazo-dates";
 import type { TempoPorEtapa } from "@shared/tempo-etapas-contract";
@@ -37,22 +45,37 @@ import {
  * o bastante para absorver a rajada de quem está mexendo nos filtros.
  */
 const TTL_MS = 60_000;
-const memo = new Map<string, { em: number; payload: TempoPorEtapa }>();
+/**
+ * Teto de recortes guardados por memo. O TTL sozinho não basta: dentro de
+ * 60s alguém pode variar a querystring à vontade (de/ate são livres na
+ * Operação) e cada variação seria uma entrada.
+ */
+const MAXIMO_DE_RECORTES = 50;
 
-function doMemo(chave: string, agora: number): TempoPorEtapa | null {
-  const hit = memo.get(chave);
-  if (!hit || agora - hit.em > TTL_MS) return null;
-  return hit.payload;
+function criarMemo<T>() {
+  const memo = new Map<string, { em: number; payload: T }>();
+  return {
+    ler(chave: string, agora: number): T | null {
+      const hit = memo.get(chave);
+      if (!hit || agora - hit.em > TTL_MS) return null;
+      return hit.payload;
+    },
+    guardar(chave: string, agora: number, payload: T): void {
+      // O mapa não pode crescer sem fim: o recorte entra por querystring, e
+      // querystring é do usuário. Expira o que venceu antes de inserir.
+      const vencidas: string[] = [];
+      memo.forEach((v, k) => { if (agora - v.em > TTL_MS) vencidas.push(k); });
+      for (const k of vencidas) memo.delete(k);
+      // Cheio mesmo assim: sai o mais antigo (o Map itera na ordem de inserção).
+      while (memo.size >= MAXIMO_DE_RECORTES) memo.delete(memo.keys().next().value as string);
+      memo.set(chave, { em: agora, payload });
+    },
+    limpar(): void { memo.clear(); },
+  };
 }
 
-function guardarNoMemo(chave: string, agora: number, payload: TempoPorEtapa): void {
-  // O mapa não pode crescer sem fim: o recorte entra por querystring, e
-  // querystring é do usuário. Expira o que venceu antes de inserir.
-  const vencidas: string[] = [];
-  memo.forEach((v, k) => { if (agora - v.em > TTL_MS) vencidas.push(k); });
-  for (const k of vencidas) memo.delete(k);
-  memo.set(chave, { em: agora, payload });
-}
+const memoTempo = criarMemo<TempoPorEtapa>();
+const memoOperacao = criarMemo<OperacaoDaAnalise>();
 
 /**
  * Uma linha de trilha pode valer para VÁRIAS peças: as rotas em lote gravam
@@ -103,7 +126,7 @@ export function registerAnaliseRoutes(app: Express): void {
    * `evento` e `patrocinador`. Se o recorte daqui divergisse do de lá, o
    * rodapé do bloco declararia uma cobertura sobre outra população.
    */
-  app.get("/api/analises/tempo-por-etapa", requireAuth, async (req, res) => {
+  app.get("/api/analises/tempo-por-etapa", requireAdmin, async (req, res) => {
     try {
       const periodo = typeof req.query.periodo === "string" ? req.query.periodo : "all";
       const evento = typeof req.query.evento === "string" ? req.query.evento : "all";
@@ -112,7 +135,7 @@ export function registerAnaliseRoutes(app: Express): void {
 
       const agora = Date.now();
       const chave = `${periodo}|${evento}|${patrocinador}`;
-      const cache = doMemo(chave, agora);
+      const cache = memoTempo.ler(chave, agora);
       if (cache) return res.json(cache);
 
       const janela = janelaDeCiclo(periodo, agora);
@@ -191,16 +214,48 @@ export function registerAnaliseRoutes(app: Express): void {
         truncado,
       });
 
-      guardarNoMemo(chave, agora, payload);
+      memoTempo.guardar(chave, agora, payload);
       res.json(payload);
     } catch (error) {
       console.error("[analises] tempo por etapa falhou:", error);
       res.status(500).json({ error: "Não foi possível calcular o tempo por etapa agora. Tente de novo em instantes." });
     }
   });
+
+  /**
+   * GET /api/analises/operacao — os agregados das abas Aprovação, Gráfica,
+   * Pessoas, Estoque e Arte (contrato em shared/analises-operacao-contract.ts).
+   *
+   * ?de=&ate= (ISO ou AAAA-MM-DD; sem `de`, os últimos 30 dias), ?evento=,
+   * ?patrocinador=. Entrada torta → 400 com a frase; a regra da janela mora
+   * em lerJanela, junto da conta.
+   */
+  app.get("/api/analises/operacao", requireAdmin, async (req, res) => {
+    try {
+      const agora = Date.now();
+      const lida = lerJanela(req.query as Record<string, unknown>, agora);
+      if (!lida.ok) return res.status(400).json({ error: lida.erro });
+      const { janela } = lida;
+
+      // A chave é o que o usuário PEDIU, não a janela resolvida: sem `de`/`ate`
+      // a janela anda com o relógio e nenhuma chamada repetiria a chave.
+      const q = req.query as Record<string, unknown>;
+      const chave = [q.de ?? "", q.ate ?? "", janela.evento ?? "", janela.patrocinador ?? ""].map(String).join("|");
+      const cache = memoOperacao.ler(chave, agora);
+      if (cache) return res.json(cache);
+
+      const payload = await carregarOperacao(db, janela, agora, { ignorarNomes: new Set([SYSTEM_ACTOR]) });
+      memoOperacao.guardar(chave, agora, payload);
+      res.json(payload);
+    } catch (error) {
+      console.error("[analises] operação falhou:", error);
+      res.status(500).json({ error: "Não foi possível montar a Análises agora. Tente de novo em instantes." });
+    }
+  });
 }
 
 /** Só para o teste — o memo é global e vazaria de um caso para o outro. */
 export function limparMemoAnalises(): void {
-  memo.clear();
+  memoTempo.limpar();
+  memoOperacao.limpar();
 }

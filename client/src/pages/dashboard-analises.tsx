@@ -344,7 +344,7 @@ const GraficoCarga = memo(function GraficoCarga({
               />
             )}
             {/* Piso de 10px da casa: o rótulo de 9 do eixo X subiu um degrau. */}
-            <XAxis dataKey="label" tick={{ fontSize: FS.micro, fontWeight: FW.forte, fill: T.second, fontFamily: FONT.mono }} axisLine={{ stroke: T.bdark }} tickLine={false} interval={1} />
+            <XAxis dataKey="label" tick={{ fontSize: FS.micro, fontWeight: FW.forte, fill: T.second, fontFamily: FONT.corpo }} axisLine={{ stroke: T.bdark }} tickLine={false} interval={1} />
             <YAxis tick={{ fontSize: FS.micro, fill: T.second }} axisLine={false} tickLine={false} width={54}
               label={{ value: "m²", position: "top", offset: 12, fill: T.second, fontSize: FS.micro, fontWeight: FW.rotulo }} />
             <Tooltip content={<CargaTip />} cursor={{ fill: "rgba(28,25,23,0.05)" }} />
@@ -421,7 +421,29 @@ const SEM_EVENTOS: AnaliseEvent[] = [];
 const SEM_ITENS: AnaliseItem[] = [];
 const SEM_PATROCINADORES: AnaliseSponsor[] = [];
 
+/**
+ * O RECORTE QUE VEM DE FORA (02/10). A Análises virou uma tela de abas, e
+ * este painel passou a ser a aba "Desempenho e tempo". Evento e patrocinador
+ * agora moram na faixa do TOPO da página, que vale para todas as abas — duas
+ * faixas escolhendo o mesmo evento seriam duas verdades. Com `recorteExterno`
+ * o painel lê os dois de lá, não os escreve na URL (quem escreve é a página),
+ * esconde os dois gatilhos e fica só com o PERÍODO, que é dele: a janela de
+ * ciclos encerrados não faz sentido nas abas de status. Sem a prop, a tela é
+ * exatamente a de antes.
+ */
+export interface RecorteExterno {
+  evento: string;
+  patrocinador: string;
+  /** "Limpar tudo" daqui também limpa evento e patrocinador do topo. */
+  aoLimpar: () => void;
+}
+
 export default function DashboardAnalises() {
+  return <PainelDeDesempenho />;
+}
+
+export function PainelDeDesempenho({ recorteExterno }: { recorteExterno?: RecorteExterno } = {}) {
+  const embutido = !!recorteExterno;
   const isMobile = useIsMobile();
   // RÉGUA PELA ÁREA ÚTIL para o que é LAYOUT (grade dos KPIs, rolagem do
   // gráfico): com a barra lateral aberta num tablet a janela diz "desktop" e
@@ -435,8 +457,10 @@ export default function DashboardAnalises() {
   const queryClient = useQueryClient();
   const inicial = useMemo(lerFiltrosDaUrl, []);
   const [period, setPeriod] = useState(inicial.period);
-  const [eventFilter, setEventFilter] = useState(inicial.event);
-  const [sponsorFilter, setSponsorFilter] = useState(inicial.sponsor);
+  const [eventFilterLocal, setEventFilter] = useState(inicial.event);
+  const [sponsorFilterLocal, setSponsorFilter] = useState(inicial.sponsor);
+  const eventFilter = recorteExterno ? recorteExterno.evento : eventFilterLocal;
+  const sponsorFilter = recorteExterno ? recorteExterno.patrocinador : sponsorFilterLocal;
   const [dim, setDim] = useState<OfensorDim>(inicial.dim);
   const [ordem, setOrdem] = useState<OfensorOrdem>(inicial.ordem);
   /* Enquanto ligado, o período ainda não foi escolhido por ninguém: a tela
@@ -525,15 +549,18 @@ export default function DashboardAnalises() {
       const p = new URLSearchParams(window.location.search);
       const set = (k: string, v: string, padrao: string) => { if (v === padrao) p.delete(k); else p.set(k, v); };
       set(URL_KEYS.period, period, "all");
-      set(URL_KEYS.event, eventFilter, "all");
-      set(URL_KEYS.sponsor, sponsorFilter, "all");
+      // Embutido, evento e patrocinador são da página — ela que os escreve.
+      if (!embutido) {
+        set(URL_KEYS.event, eventFilter, "all");
+        set(URL_KEYS.sponsor, sponsorFilter, "all");
+      }
       set(URL_KEYS.dim, dim, "evento");
       set(URL_KEYS.ordem, ordem, "atraso");
       const qs = p.toString();
       window.history.replaceState(null, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
     }, 250);
     return () => { if (urlTimer.current) clearTimeout(urlTimer.current); };
-  }, [period, eventFilter, sponsorFilter, dim, ordem]);
+  }, [period, eventFilter, sponsorFilter, dim, ordem, embutido]);
 
   useEffect(() => {
     const onPop = () => {
@@ -556,6 +583,7 @@ export default function DashboardAnalises() {
   const limparFiltros = () => {
     setPeriodoAutomatico(false); setPeriodoPadraoAplicado(false);
     setPeriod("all"); setEventFilter("all"); setSponsorFilter("all");
+    recorteExterno?.aoLimpar();
   };
 
   // Ciclo do evento (saída do caminhão) — é por ele que o período recorta e é
@@ -938,6 +966,8 @@ export default function DashboardAnalises() {
         panelWidth={isMobile ? undefined : 250}
         triggerStyle={gatilhoDesktop}
       />
+      {/* Embutido, evento e patrocinador vêm da faixa do topo da página. */}
+      {!embutido && <>
       <FilterSelect
         showAllLabelWhenEmpty hideWhenEmpty={false}
         label="Evento" allLabel="Todos os eventos"
@@ -965,6 +995,7 @@ export default function DashboardAnalises() {
         // borda direita da janela.
         dropdownAlign="right"
       />
+      </>}
     </>
   );
 
@@ -1029,9 +1060,9 @@ export default function DashboardAnalises() {
           : filtrosAtivos > 0 && (
             <>{filtrosAtivos} filtro{filtrosAtivos === 1 ? "" : "s"} ativo{filtrosAtivos === 1 ? "" : "s"}{" · "}</>
           )}
-        <strong style={{ color: T.text, fontFamily: FONT.mono }}>{int(atual.pecasTotal)}</strong>
+        <strong style={{ color: T.text, fontVariantNumeric: "tabular-nums" }}>{int(atual.pecasTotal)}</strong>
         {" de "}
-        <span style={{ fontFamily: FONT.mono }}>{int(contagens.totalFunil)}</span>
+        <span style={{ fontVariantNumeric: "tabular-nums" }}>{int(contagens.totalFunil)}</span>
         {" peças"}
       </span>
 
@@ -1053,6 +1084,35 @@ export default function DashboardAnalises() {
       </Botao>
     </div>
   );
+
+  // O frescor e o exportar existem nas duas formas da tela (página e aba).
+  const seloDeFrescor = (
+    <span
+      data-testid="selo-frescor-analises"
+      title={`Dados de ${new Date(atualizadoEmMs).toLocaleString("pt-BR")}. A tela se atualiza sozinha quando alguém muda uma peça ou evento, ao voltar para a aba e, por segurança, a cada 5 minutos.`}
+      style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: FS.small, color: dadoVelho ? TOM.alerta.text : T.second, fontWeight: dadoVelho ? FW.forte : 400 }}
+    >
+      {isFetching && <RotateCcw aria-hidden="true" className="animate-spin" style={{ width: 11, height: 11 }} />}
+      Atualizado {fmtRelative(new Date(atualizadoEmMs).toISOString(), agora)}
+    </span>
+  );
+  const botaoExportar = (
+    <Botao
+      icone={Download}
+      tamanho={isMobile ? "toque" : "md"}
+      onClick={exportarCsv}
+      data-testid="button-export-analises"
+      title="Baixar os números desta tela em CSV, com os filtros aplicados"
+    >
+      Exportar CSV
+    </Botao>
+  );
+
+  // Embutido como aba, quem rola e dá o respiro é a página das abas: uma
+  // segunda caixa de rolagem aqui dentro prenderia a roda do mouse.
+  const CASCA: React.CSSProperties = embutido
+    ? {}
+    : { backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: PADDING_PAGINA(isMobile) };
 
   if (isError) {
     // O <EstadoErro> da casa: diz o que falhou e oferece tentar de novo.
@@ -1077,7 +1137,7 @@ export default function DashboardAnalises() {
   // provoca um salto no primeiro paint.
   if (isLoading) {
     return naRaiz(
-      <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: PADDING_PAGINA(isMobile) }} role="status" aria-busy="true">
+      <div style={CASCA} role="status" aria-busy="true">
         {/* Texto de verdade, não `aria-label`: num <div> sem papel o rótulo não
             era lido, e a carga passava em silêncio para o leitor de tela. Mesma
             solução do esqueleto da Gestão de Prazos. */}
@@ -1105,34 +1165,39 @@ export default function DashboardAnalises() {
   }
 
   return naRaiz(
-    <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: PADDING_PAGINA(isMobile) }}>
+    <div style={CASCA}>
 
       {/* Cabeçalho da casa: o ESTADO do dado (frescor) fica colado ao título e a
           ação (exportar) à direita. A frase de escopo, com os dois links, desce
-          para a linha de baixo — é explicação, não estado. */}
+          para a linha de baixo — é explicação, não estado. Embutido como aba,
+          o <h1> é da página: aqui o título vira <h2> da seção. */}
+      {embutido ? (
+        /* EMBUTIDO COMO ABA (02/10): o cabeçalho, o frescor e o recorte de
+           evento/patrocinador já estão no topo da página. Aqui fica só o que é
+           DESTA aba — o universo (ciclos encerrados, não o estado de hoje), o
+           período e o CSV —, numa linha, sem uma segunda faixa cinza com outro
+           "Limpar tudo" e outro "x de y peças" disputando com os do topo. */
+        <div data-testid="desempenho-escopo" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: 16, rowGap: 10, marginBottom: SP.bloco }}>
+          <p style={{ flex: "1 1 320px", minWidth: 0, margin: 0, fontSize: FS.small, color: T.second, lineHeight: 1.5, maxWidth: 640 }}>
+            Um universo diferente das outras abas: aqui contam os <strong style={{ fontWeight: FW.forte, color: T.text }}>ciclos já encerrados</strong> (saída
+            do caminhão dentro do período) e a carga que ainda vai vencer — não o estado de hoje.
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, width: isMobile ? "100%" : undefined }}>
+            {camposDeRecorte}
+            <span role="status" aria-live="polite" data-testid="recorte-analises" style={{ fontSize: FS.body, color: T.second, fontWeight: FW.medio }}>
+              <strong style={{ color: T.text, fontVariantNumeric: "tabular-nums" }}>{int(atual.pecasTotal)}</strong>
+              {period === "all"
+                ? ` ${atual.pecasTotal === 1 ? "peça" : "peças"} em todos os ciclos`
+                : ` ${atual.pecasTotal === 1 ? "peça" : "peças"} de ciclos encerrados no período`}
+            </span>
+            {botaoExportar}
+          </div>
+        </div>
+      ) : (<>
       <CabecalhoDaPagina
         titulo="Análises"
-        frescor={
-          <span
-            data-testid="selo-frescor-analises"
-            title={`Dados de ${new Date(atualizadoEmMs).toLocaleString("pt-BR")}. A tela se atualiza sozinha quando alguém muda uma peça ou evento, ao voltar para a aba e, por segurança, a cada 5 minutos.`}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: FS.small, color: dadoVelho ? TOM.alerta.text : T.second, fontWeight: dadoVelho ? FW.forte : 400 }}
-          >
-            {isFetching && <RotateCcw aria-hidden="true" className="animate-spin" style={{ width: 11, height: 11 }} />}
-            Atualizado {fmtRelative(new Date(atualizadoEmMs).toISOString(), agora)}
-          </span>
-        }
-        acoes={
-          <Botao
-            icone={Download}
-            tamanho={isMobile ? "toque" : "md"}
-            onClick={exportarCsv}
-            data-testid="button-export-analises"
-            title="Baixar os números desta tela em CSV, com os filtros aplicados"
-          >
-            Exportar CSV
-          </Botao>
-        }
+        frescor={seloDeFrescor}
+        acoes={botaoExportar}
       />
       <div style={{ marginTop: -8, marginBottom: SP.bloco }}>
         <div style={{ minWidth: 0 }}>
@@ -1181,6 +1246,7 @@ export default function DashboardAnalises() {
           </div>
         )}
       </div>
+      </>)}
 
       <section aria-labelledby="h-desempenho" style={{ marginBottom: SP.secao }}>
         <h2 id="h-desempenho" className="sr-only">Indicadores do período</h2>
@@ -1218,13 +1284,13 @@ export default function DashboardAnalises() {
         </p>
       </section>
 
-      <section aria-labelledby="h-carga" style={{ backgroundColor: T.surface, border: `1px solid ${T.bdark}`, padding: isMobile ? "20px 16px" : "24px 28px 20px", marginBottom: SP.secao }}>
+      <section aria-labelledby="h-carga" style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, padding: isMobile ? "16px 14px" : "20px 22px", marginBottom: SP.secao }}>
         {/* rowGap maior que o columnGap: quando a legenda não cabe ao lado do
             título (1366px com a barra lateral aberta), ela quebra para baixo e
             colava no parágrafo, que é de outro assunto. */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", columnGap: 16, rowGap: SP.junto, flexWrap: "wrap", marginBottom: SP.bloco }}>
           <div style={{ minWidth: 0 }}>
-            <h2 id="h-carga" style={{ fontSize: FS.title, fontWeight: FW.forte, color: T.text, margin: `0 0 ${SP.intra}px`, fontFamily: FONT.display, letterSpacing: "-0.02em", fontStyle: "italic" }}>
+            <h2 id="h-carga" style={{ fontSize: FS.title, fontWeight: FW.forte, color: T.text, margin: `0 0 ${SP.intra}px`, fontFamily: FONT.display, letterSpacing: "-0.02em" }}>
               Capacidade × Demanda
             </h2>
             <p style={{ fontSize: FS.small, color: T.second, margin: 0, lineHeight: 1.45, maxWidth: 640 }}>
@@ -1319,7 +1385,9 @@ export default function DashboardAnalises() {
                 apertado={apertado}
               />
             </figure>
-            <table className="sr-only">
+            {/* sr-only num <div>: na <table> o width:1px não vale (a tabela se
+                estica ao conteúdo) e ela abria 650px de rolagem lateral no celular. */}
+            <div className="sr-only"><table>
               <caption>m² por semana: o que vence e o que foi concluído</caption>
               <thead>
                 <tr>
@@ -1339,7 +1407,7 @@ export default function DashboardAnalises() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </>
         )}
 
@@ -1370,9 +1438,9 @@ export default function DashboardAnalises() {
           A DECISÃO ANTERIOR CONTINUA VALENDO e é o `temBaseParaExibir` abaixo:
           recorte sem base suficiente não ganha bloco vazio — ganha silêncio. */}
       {tempo && (
-        <section aria-labelledby="h-tempo" style={{ backgroundColor: T.surface, border: `1px solid ${T.bdark}`, padding: isMobile ? "20px 16px" : "24px 28px 20px", marginBottom: SP.secao }}>
+        <section aria-labelledby="h-tempo" style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, padding: isMobile ? "16px 14px" : "20px 22px", marginBottom: SP.secao }}>
           <div style={{ marginBottom: SP.bloco }}>
-            <h2 id="h-tempo" style={{ fontSize: FS.title, fontWeight: FW.forte, color: T.text, margin: `0 0 ${SP.intra}px`, fontFamily: FONT.display, letterSpacing: "-0.02em", fontStyle: "italic" }}>
+            <h2 id="h-tempo" style={{ fontSize: FS.title, fontWeight: FW.forte, color: T.text, margin: `0 0 ${SP.intra}px`, fontFamily: FONT.display, letterSpacing: "-0.02em" }}>
               Tempo por etapa
             </h2>
             <p style={{ fontSize: FS.small, color: T.second, margin: 0, lineHeight: 1.45, maxWidth: 700 }}>
@@ -1408,19 +1476,19 @@ export default function DashboardAnalises() {
                       <th scope="row" style={{ textAlign: "left", padding: "11px 12px", fontSize: FS.body, fontWeight: FW.forte, color: T.text }}>
                         {e.label}
                       </th>
-                      <td style={{ textAlign: "right", padding: "11px 12px", fontSize: FS.body, fontWeight: FW.forte, color: T.text, fontFamily: FONT.mono }}>
+                      <td style={{ textAlign: "right", padding: "11px 12px", fontSize: FS.body, fontWeight: FW.forte, color: T.text, fontVariantNumeric: "tabular-nums" }}>
                         {dias(e.medianaDias)}
                       </td>
-                      <td style={{ textAlign: "right", padding: "11px 12px", fontSize: FS.body, color: T.second, fontFamily: FONT.mono }}>
+                      <td style={{ textAlign: "right", padding: "11px 12px", fontSize: FS.body, color: T.second, fontVariantNumeric: "tabular-nums" }}>
                         {e.planejadoDias == null ? "sem marco anterior" : dias(e.planejadoDias)}
                       </td>
                       <td style={{ textAlign: "left", padding: "11px 12px", fontSize: FS.small, fontWeight: FW.forte, color: dif ? CORES_TOM[dif.tom] : T.second }}>
                         {dif ? dif.texto : "—"}
                       </td>
-                      <td style={{ textAlign: "right", padding: "11px 12px", fontSize: FS.small, color: T.second, fontFamily: FONT.mono }}>
+                      <td style={{ textAlign: "right", padding: "11px 12px", fontSize: FS.small, color: T.second, fontVariantNumeric: "tabular-nums" }}>
                         {int(e.pecas)}
                       </td>
-                      <td style={{ textAlign: "right", padding: "11px 12px", fontSize: FS.small, color: T.second, fontFamily: FONT.mono }}>
+                      <td style={{ textAlign: "right", padding: "11px 12px", fontSize: FS.small, color: T.second, fontVariantNumeric: "tabular-nums" }}>
                         {int(e.emAberto)}
                       </td>
                     </tr>
@@ -1438,11 +1506,11 @@ export default function DashboardAnalises() {
         </section>
       )}
 
-      <section aria-labelledby="h-ofensores" style={{ backgroundColor: T.surface, border: `1px solid ${T.bdark}` }}>
-        <div style={{ padding: isMobile ? "20px 16px 16px" : "24px 28px 16px", borderBottom: `1px solid ${T.low}` }}>
+      <section aria-labelledby="h-ofensores" style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg }}>
+        <div style={{ padding: isMobile ? "16px 14px 14px" : "20px 22px 14px", borderBottom: `1px solid ${T.low}` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", columnGap: 16, rowGap: SP.junto, flexWrap: "wrap" }}>
             <div style={{ minWidth: 0 }}>
-              <h2 id="h-ofensores" style={{ fontSize: FS.title, fontWeight: FW.forte, color: T.text, margin: `0 0 ${SP.intra}px`, fontFamily: FONT.display, letterSpacing: "-0.02em", fontStyle: "italic" }}>
+              <h2 id="h-ofensores" style={{ fontSize: FS.title, fontWeight: FW.forte, color: T.text, margin: `0 0 ${SP.intra}px`, fontFamily: FONT.display, letterSpacing: "-0.02em" }}>
                 Ofensores
               </h2>
               <p style={{ fontSize: FS.small, color: T.second, margin: 0, lineHeight: 1.45 }}>
@@ -1548,7 +1616,7 @@ export default function DashboardAnalises() {
                         </span>
                       </td>
                       <td style={{ padding: "13px 20px", textAlign: "right" }}>
-                        <span style={{ fontFamily: FONT.mono, fontSize: FS.small, fontWeight: FW.forte, color: o.foraPrazo > 0 ? RUIM : T.text }}>
+                        <span style={{ fontVariantNumeric: "tabular-nums", fontSize: FS.small, fontWeight: FW.forte, color: o.foraPrazo > 0 ? RUIM : T.text }}>
                           {o.prazoAvaliadas > 0 ? `${int(o.foraPrazo)} de ${int(o.prazoAvaliadas)}` : "—"}
                         </span>
                         <span style={{ display: "block", fontSize: FS.micro, color: T.second, marginTop: 3 }}>
@@ -1556,18 +1624,18 @@ export default function DashboardAnalises() {
                         </span>
                       </td>
                       <td style={{ padding: "13px 20px", textAlign: "right" }}>
-                        <span style={{ fontFamily: FONT.mono, fontSize: FS.small, fontWeight: FW.forte, color: o.retrabalhoPecas > 0 ? ACCENT_TEXT : T.text }}>
+                        <span style={{ fontVariantNumeric: "tabular-nums", fontSize: FS.small, fontWeight: FW.forte, color: o.retrabalhoPecas > 0 ? ACCENT_TEXT : T.text }}>
                           {int(o.retrabalhoPecas)} de {int(o.pecas)}
                         </span>
                         <span style={{ display: "block", fontSize: FS.micro, color: T.second, marginTop: 3 }}>{pct(o.retrabalhoRate, 0)}</span>
                       </td>
-                      <td style={{ padding: "13px 20px", textAlign: "right", fontFamily: FONT.mono, fontSize: FS.small, fontWeight: FW.forte, color: T.text }}>
+                      <td style={{ padding: "13px 20px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontSize: FS.small, fontWeight: FW.forte, color: T.text }}>
                         {dias(o.cicloMedianaDias)}
                       </td>
-                      <td style={{ padding: "13px 20px", textAlign: "right", fontFamily: FONT.mono, fontSize: FS.small, fontWeight: FW.forte, color: T.text }}>
+                      <td style={{ padding: "13px 20px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontSize: FS.small, fontWeight: FW.forte, color: T.text }}>
                         {m2(o.m2)}
                       </td>
-                      <td style={{ padding: "13px 20px", textAlign: "right", fontFamily: FONT.mono, fontSize: FS.small, fontWeight: FW.forte, color: T.text }}>
+                      <td style={{ padding: "13px 20px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontSize: FS.small, fontWeight: FW.forte, color: T.text }}>
                         {int(o.emAberto)}
                       </td>
                       <td style={{ padding: "13px 12px 13px 0" }}>
@@ -1582,7 +1650,7 @@ export default function DashboardAnalises() {
         )}
 
         {ofensores.length > 0 && (
-          <p style={{ padding: isMobile ? "12px 16px 18px" : "14px 28px 20px", fontSize: FS.micro, color: T.second, margin: 0, lineHeight: 1.5 }}>
+          <p style={{ padding: isMobile ? "12px 14px 16px" : "12px 22px 18px", fontSize: FS.micro, color: T.second, margin: 0, lineHeight: 1.5 }}>
             {ofensores.length > 12 && `Mostrando as 12 primeiras de ${int(ofensores.length)} linhas — o CSV leva todas. `}
             "Fora do prazo" só considera peças entregues com data registrada, comparadas com a saída do caminhão do evento delas.
             {dim === "patrocinador" && " Uma peça com vários patrocinadores conta em cada linha, então a soma da coluna é maior que o total da tela."}

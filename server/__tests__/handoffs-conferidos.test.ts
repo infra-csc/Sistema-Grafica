@@ -106,8 +106,15 @@ describe("Revisão", () => {
     // 25/09: o teto (e a rolagem própria) vale no DESKTOP. No celular as duas
     // metades empilham sem teto: o corpo da ficha já rola, e uma caixa rolando
     // dentro de outra prendia o dedo — e lá os botões moram no rodapé fixo.
-    expect((REV.match(/maxHeight: isMobile \? undefined : "32vh", overflowY: isMobile \? undefined : "auto"/g) ?? []).length).toBe(2);
-    expect(REV).toContain('height: isMobile ? "94dvh" : "87vh", maxHeight: 900');
+    // 02/10 (dono: "as artes são o herói"): a faixa horizontal deu lugar à
+    // COLUNA da decisão à direita, com rolagem própria — a decisão continua à
+    // vista na abertura sem roubar altura da comparação; no tablet e no
+    // celular, Liberar/Devolver moram no rodapé fixo. O teto de 32vh saiu.
+    expect(REV).toContain('data-testid="coluna-da-decisao"');
+    expect(REV).toContain('minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", borderLeft');
+    expect(REV).toContain("{!lado && (");
+    expect(REV).toContain('data-testid="rodape-da-decisao"');
+    expect(REV).toContain('height: isMobile ? "94dvh" : "90vh"');
   });
 
   it("8 · a ordem é a da saída do caminhão, com os dias à vista", () => {

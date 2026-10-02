@@ -7,7 +7,7 @@ import { Botao } from "@/components/ui/botao";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { alvo, useIsMobile } from "@/hooks/use-mobile";
 import { lerMotivo, SUGESTOES_DE_MOTIVO, MOTIVO_MINIMO } from "@shared/trava-da-peca";
-import { T, TOM, FS, R } from "@/lib/theme";
+import { T, TOM, FS, R, MOTION } from "@/lib/theme";
 import { CAMPO_DO_MOTIVO, rodapeDaConfirmacao } from "./estilos";
 import type { PecaDaRevisao } from "./tipos";
 
@@ -52,7 +52,9 @@ export function DialogoTravar({
                 type="button"
                 onClick={() => setMotivoDaTrava(sug)}
                 aria-pressed={motivoDaTrava === sug}
-                style={{ minHeight: alvo(30, dedo || celular), padding: "0 12px", borderRadius: R.pill, border: `1px solid ${T.border}`, background: motivoDaTrava === sug ? TOM.perigo.bg : T.surface, color: T.strong, fontSize: FS.meta, fontWeight: 600, cursor: "pointer" }}
+                // Escolhido, o chip assume a família da trava (borda e texto) — só o
+                // fundo rosado mal se distinguia do branco ao lado.
+                style={{ minHeight: alvo(30, dedo || celular), padding: "0 12px", borderRadius: R.pill, border: `1px solid ${motivoDaTrava === sug ? TOM.perigo.border : T.border}`, background: motivoDaTrava === sug ? TOM.perigo.bg : T.surface, color: motivoDaTrava === sug ? TOM.perigo.text : T.strong, fontSize: FS.meta, fontWeight: 600, cursor: "pointer", transition: `background-color ${MOTION.rapida} ease, border-color ${MOTION.rapida} ease` }}
               >
                 {sug}
               </button>
@@ -68,7 +70,8 @@ export function DialogoTravar({
             style={{ ...CAMPO_DO_MOTIVO, fontSize: fonteDeCampo }}
           />
           {!motivoDaTravaLido.ok && (
-            <p aria-live="polite" style={{ margin: 0, fontSize: FS.meta, color: TOM.alerta.text }}>
+            // Campo vazio: a régua em tom neutro; começou a escrever, âmbar.
+            <p aria-live="polite" style={{ margin: 0, fontSize: FS.meta, color: motivoDaTrava.trim() ? TOM.alerta.text : T.apoio }}>
               {`Escreva o motivo (pelo menos ${MOTIVO_MINIMO} letras) — é o que a Gráfica vai ler.`}
             </p>
           )}

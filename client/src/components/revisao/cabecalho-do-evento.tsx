@@ -3,7 +3,20 @@
 import { Truck } from "lucide-react";
 import { Selo } from "@/components/ui/selo";
 import { parseDateLocal } from "@/lib/utils";
-import { T, TOM, FS, FONT } from "@/lib/theme";
+import { T, TOM, FS, FONT, ESCURO } from "@/lib/theme";
+
+/**
+ * As pílulas da faixa escura: o fundo e a borda translúcidos da casa sobre o
+ * escuro (ESCURO.realce/borda) e a COR DO TEXTO dizendo a urgência — o tom
+ * claro (border) de cada família, que passa de 9:1 sobre o n10. Eram quatro
+ * trios rgba/hex digitados à mão, sem relação com a paleta.
+ */
+const PILULA_NO_ESCURO = {
+  display: "inline-flex", alignItems: "center", gap: 5, flexShrink: 0,
+  backgroundColor: ESCURO.realce, border: `1px solid ${ESCURO.borda}`, borderRadius: 999,
+  padding: "3px 9px", fontSize: FS.micro, fontWeight: 700, letterSpacing: "0.04em",
+  whiteSpace: "nowrap", textTransform: "none",
+} as const;
 import type { EventoDaPeca } from "./tipos";
 
 /**
@@ -59,7 +72,7 @@ export function CabecalhoDoEvento({ eventId, event, total, grupoMarcado, aoMarca
           <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
             <span style={{
               fontFamily: FONT.display,
-              fontSize: FS.small, fontWeight: 900,
+              fontSize: FS.meta, fontWeight: 900,
               color: T.surface, textTransform: "uppercase", letterSpacing: "0.06em",
             }}>
               {event?.name || "Sem Evento"}
@@ -69,9 +82,9 @@ export function CabecalhoDoEvento({ eventId, event, total, grupoMarcado, aoMarca
             </Selo>
           </div>
           {event && (
-            <div style={{ display: "flex", gap: "6px 12px", fontSize: 10, color: T.bdark, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", flexWrap: "wrap", alignItems: "center", minWidth: 0 }}>
+            <div style={{ display: "flex", gap: "6px 10px", fontSize: FS.micro, color: ESCURO.apoio, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", flexWrap: "wrap", alignItems: "center", minWidth: 0 }}>
               {event.startDate && (
-                <span>Início: <span style={{ color: T.bdark }}>{parseDateLocal(event.startDate).toLocaleDateString("pt-BR")}</span></span>
+                <span>Início <span style={{ color: ESCURO.texto, fontFamily: FONT.mono, letterSpacing: 0 }}>{parseDateLocal(event.startDate).toLocaleDateString("pt-BR")}</span></span>
               )}
               {/* ── A SAÍDA DO CAMINHÃO, COM OS DIAS ──
                   Os eventos já vêm na ordem da saída (ver `itemsByEvent`), mas
@@ -81,12 +94,12 @@ export function CabecalhoDoEvento({ eventId, event, total, grupoMarcado, aoMarca
                   urgência no mesmo cabeçalho. */}
               {event.truckDepartureDate && (() => {
                 const s = saidaDoCaminhao(event);
-                const cor = s.nivel === "perigo" ? TOM.perigo.border : s.nivel === "laranja" ? TOM.laranja.border : "rgba(255,255,255,0.7)";
+                const cor = s.nivel === "perigo" ? TOM.perigo.border : s.nivel === "laranja" ? TOM.laranja.border : ESCURO.texto;
                 return (
                   <span
                     data-testid={`chip-caminhao-${eventId}`}
                     title={s.title}
-                    style={{ display: "inline-flex", alignItems: "center", gap: 5, flexShrink: 0, backgroundColor: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 999, padding: "3px 9px", fontSize: 10, fontWeight: 700, color: cor, letterSpacing: "0.04em", whiteSpace: "nowrap", textTransform: "none" }}
+                    style={{ ...PILULA_NO_ESCURO, color: cor }}
                   >
                     <Truck aria-hidden="true" style={{ width: 11, height: 11 }} />
                     {event.datasDoKit ? "Entrega do material" : "Caminhão"} {s.data}
@@ -106,16 +119,16 @@ export function CabecalhoDoEvento({ eventId, event, total, grupoMarcado, aoMarca
                   d.setHours(0,0,0,0);
                   const diff = Math.ceil((d.getTime() - tod.getTime()) / 86400000);
                   const ds = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-                  const s = diff < 0
-                    ? { bg: "rgba(255,80,80,0.22)", border: "rgba(255,80,80,0.38)", text: "#ffb3b3" }
-                    : diff === 0
-                    ? { bg: "rgba(255,200,80,0.28)", border: "rgba(255,200,80,0.45)", text: "#ffe59c" }
-                    : diff <= 3
-                    ? { bg: "rgba(255,160,50,0.22)", border: "rgba(255,160,50,0.38)", text: "#ffc78a" }
-                    : { bg: "rgba(255,255,255,0.12)", border: "rgba(255,255,255,0.2)", text: "rgba(255,255,255,0.72)" };
+                  // Vencido, hoje, em até 3 dias, folgado — a mesma régua de
+                  // antes, agora no vocabulário da paleta.
+                  const cor = diff < 0 ? TOM.perigo.border
+                    : diff === 0 ? TOM.alerta.border
+                    : diff <= 3 ? TOM.laranja.border
+                    : ESCURO.apoio;
                   return (
-                    <span key={label} style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 999, padding: "3px 9px", fontSize: 10, fontWeight: 700, color: s.text, letterSpacing: "0.04em", whiteSpace: "nowrap", textTransform: "none" }}>
-                      {label} · {ds}{diff >= 0 && diff <= 14 && <span style={{ opacity: 0.65, fontWeight: 500 }}> ({diff}d)</span>}
+                    <span key={label} title={diff < 0 ? `${label}: prazo vencido em ${ds}` : `${label}: até ${ds}`} style={{ ...PILULA_NO_ESCURO, gap: 4, color: cor }}>
+                      {diff < 0 && <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: TOM.perigo.dot }} />}
+                      {label} · {ds}{diff >= 0 && diff <= 14 && <span style={{ fontWeight: 500, color: ESCURO.apoio }}> ({diff}d)</span>}
                     </span>
                   );
                 });

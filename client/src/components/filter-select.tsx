@@ -893,7 +893,8 @@ export function FilterSelect({
         }}
         style={{
           width: "100%", display: "flex", alignItems: "center", gap: 9,
-          padding: "8px 14px", border: "none", cursor: "pointer", textAlign: "left",
+          // Alvo de 44 no celular (régua da casa), como o gatilho acima — só a altura.
+          padding: "8px 14px", minHeight: isMobile ? 44 : undefined, border: "none", cursor: "pointer", textAlign: "left",
           backgroundColor: bgDe(isSel, isCursor),
           boxShadow: isCursor ? `inset 3px 0 0 ${C.text}` : "none",
           transition: "background 0.1s",
@@ -1152,7 +1153,7 @@ export function FilterSelect({
                 }}
                 style={{
                   width: "100%", display: "flex", alignItems: "center", gap: 8,
-                  padding: "9px 14px", border: "none", cursor: "pointer", textAlign: "left",
+                  padding: "9px 14px", minHeight: isMobile ? 44 : undefined, border: "none", cursor: "pointer", textAlign: "left",
                   backgroundColor: !isActive ? C.bg50 : activeIdx === 0 ? "#F3F4F6" : "transparent",
                   boxShadow: activeIdx === 0 ? `inset 3px 0 0 ${C.text}` : "none",
                   color: !isActive ? C.text : "#44403c",

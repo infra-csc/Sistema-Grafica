@@ -269,18 +269,22 @@ export default function Solicitacao() {
   // caminhão. A saída é gravada no "horário de exibição" (UTC = relógio de São
   // Paulo), como lê o chip do cabeçalho do evento na tabela — sem timeZone
   // "UTC" a ficha mostrava a hora 3h antes da lista.
-  const subtituloDaFicha = (() => {
+  const eventoDaFicha = (() => {
     if (!selectedItem) return undefined;
     const ev = events.find((e) => e.id === selectedItem.eventId);
     const saida = ev?.truckDepartureDate ? new Date(ev.truckDepartureDate) : null;
-    const linhaDoEvento = ev
+    return ev
       ? ev.name + (saida
         ? " · caminhão " + saida.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", timeZone: "UTC" }).replace(".", "").replace(" de ", " ")
           + " · " + saida.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })
         : "")
-      : "";
-    return [selectedItem.description, linhaDoEvento].filter(Boolean).join(" — ") || undefined;
+      : undefined;
   })();
+  // No celular a ficha escreve as duas metades em lugares diferentes: a
+  // descrição no cabeçalho e o evento na tira da fila (ver ModalDeDecisao).
+  const subtituloDaFicha = selectedItem
+    ? [selectedItem.description, eventoDaFicha].filter(Boolean).join(" — ") || undefined
+    : undefined;
 
   const filaIdx = useMemo(
     () => (selectedItem ? filteredItems.findIndex((i) => i.id === selectedItem.id) : -1),
@@ -510,12 +514,20 @@ export default function Solicitacao() {
 
   if (itemsError || eventsError) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", height: "100%", padding: "0 24px", maxWidth: 560, margin: "0 auto" }}>
-        <EstadoErro
-          titulo={itemsError ? "Não foi possível carregar as peças" : "Não foi possível carregar os eventos"}
-          detalhe="Verifique sua conexão e tente novamente."
-          aoTentarDeNovo={() => { refetchItems(); refetchEvents(); }}
-        />
+      // O TÍTULO FICA NO LUGAR, como no carregando: o erro era uma caixa rosa
+      // solta no meio de uma página sem nome — quem chegava pelo sino não
+      // sabia em que tela estava.
+      <div style={{ backgroundColor: TI.bg, height: "100%", overflowY: "auto" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto", padding: isMobile ? "16px 12px" : "20px 32px" }}>
+          <CabecalhoDaPagina titulo="Revisão Final" subtitulo={<span style={{ color: T.apoio }}>A fila de revisão não carregou.</span>} />
+          <div style={{ maxWidth: 520, margin: isMobile ? "24px auto 0" : "56px auto 0" }}>
+            <EstadoErro
+              titulo={itemsError ? "Não foi possível carregar as peças" : "Não foi possível carregar os eventos"}
+              detalhe="Verifique sua conexão e tente novamente."
+              aoTentarDeNovo={() => { refetchItems(); refetchEvents(); }}
+            />
+          </div>
+        </div>
       </div>
     );
   }
@@ -536,6 +548,7 @@ export default function Solicitacao() {
 
       <CabecalhoDaRevisao
         isMobile={isMobile}
+        enxuto={listaEmCartoes}
         dedo={dedo}
         fraseDeResolucao={fraseDeResolucao}
         admin={admin}
@@ -575,6 +588,7 @@ export default function Solicitacao() {
         toggleAll={toggleAll}
         totalDeEventoFinalizado={selosPorItem.size}
         emTabela={!listaEmCartoes}
+        estreita={listaEmCartoes && !isMobile}
       >
         {selecaoLote.ids.length > 0 && (
           <BarraDoLote
@@ -596,7 +610,17 @@ export default function Solicitacao() {
       </BarraDeFiltros>
 
       {/* A FILA: vazia, em cartões ou em tabela. */}
-      <section style={{ padding: isMobile ? "12px 12px" : listaEmCartoes ? "20px" : "32px", maxWidth: 1200, margin: "0 auto", paddingBottom: isMobile ? (selecaoLote.ids.length > 0 ? 180 : 24) : 80 }}>
+      {/* Longos, sem o atalho `padding`: misturar o atalho com o
+          paddingBottom fazia o React avisar "conflicting property" a cada
+          troca de largura — e o fundo de 180 (o lote fixo no celular) podia
+          ser zerado pela releitura do atalho. */}
+      <section style={{
+        maxWidth: 1200, margin: "0 auto",
+        paddingTop: isMobile ? 12 : listaEmCartoes ? 20 : 28,
+        paddingLeft: isMobile ? 12 : listaEmCartoes ? 20 : 32,
+        paddingRight: isMobile ? 12 : listaEmCartoes ? 20 : 32,
+        paddingBottom: isMobile ? (selecaoLote.ids.length > 0 ? 180 : 24) : 80,
+      }}>
         {filteredItems.length === 0 ? (
           <EstadoVazio
             icone={pendingItems.length === 0 ? CheckCircle : Search}
@@ -681,6 +705,7 @@ export default function Solicitacao() {
         fonteDeCampo={fonteDeCampo}
         selectedItem={selectedItem}
         subtitulo={subtituloDaFicha}
+        eventoDaFicha={eventoDaFicha}
         filaIdx={filaIdx}
         totalNaFila={filteredItems.length}
         temAnterior={temAnterior}

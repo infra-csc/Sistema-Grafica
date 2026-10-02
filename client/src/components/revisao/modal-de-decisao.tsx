@@ -28,7 +28,7 @@
 // estava no último render aberto.
 // ─────────────────────────────────────────────────────────────────────────────
 import { Fragment, useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Eye } from "lucide-react";
+import { ChevronLeft, ChevronRight, Eye, Truck } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { SeloKit } from "@/components/kit/selo-kit";
 import { Selo } from "@/components/ui/selo";
@@ -36,7 +36,7 @@ import { Botao } from "@/components/ui/botao";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { alvo } from "@/hooks/use-mobile";
 import { T, N, FS, R, FONT } from "@/lib/theme";
-import { TI } from "./regras";
+import { TI, prontaParaLiberar } from "./regras";
 import { FichaComparacao } from "./ficha-comparacao";
 import { FichaMetadados } from "./ficha-metadados";
 import { BotoesDoRodape, FichaDecisao } from "./ficha-decisao";
@@ -51,6 +51,8 @@ export type ModalDeDecisaoProps = FichaDecisaoProps & Omit<PropsDaMetadados, "se
   onOpenChange: (open: boolean) => void;
   aoFechar: () => void;
   subtitulo: string | undefined;
+  /** O evento com a saída do caminhão — no celular desce para a tira da fila. */
+  eventoDaFicha?: string;
   /** Posição da peça na lista filtrada (-1 = fora dela). */
   filaIdx: number;
   totalNaFila: number;
@@ -124,20 +126,36 @@ function NavDaFila({ sobreEscuro, dedo, filaIdx, totalNaFila, temAnterior, temPr
  * em largura cheia, patrocinadores e histórico embaixo.
  */
 const LARGURA_PARA_DUAS_COLUNAS = 1200;
-function useFaixaEmpilhada() {
-  const medir = () => typeof window !== "undefined" && window.innerWidth < LARGURA_PARA_DUAS_COLUNAS;
-  const [empilhada, setEmpilhada] = useState(medir);
+/** Monitor largo: a ficha cresce (1680) e as artes crescem com ela. */
+const LARGURA_DE_MONITOR_LARGO = 1600;
+function useLarguraDaJanela() {
+  const medir = () => (typeof window === "undefined" ? 1280 : window.innerWidth);
+  const [largura, setLargura] = useState(medir);
   useEffect(() => {
-    const aoMudar = () => setEmpilhada(medir());
+    const aoMudar = () => setLargura(medir());
     window.addEventListener("resize", aoMudar);
     return () => window.removeEventListener("resize", aoMudar);
   }, []);
-  return empilhada;
+  return largura;
 }
 
 export function ModalDeDecisao(p: ModalDeDecisaoProps) {
   const { open, isMobile, dedo, selectedItem, filaIdx, totalNaFila, temAnterior, temProxima, irParaFila } = p;
-  const empilhada = useFaixaEmpilhada() || isMobile;
+  const largura = useLarguraDaJanela();
+  const empilhada = largura < LARGURA_PARA_DUAS_COLUNAS || isMobile;
+  /**
+   * AS ARTES SÃO O HERÓI (02/10, pedido do dono). A ficha empilhava cinco
+   * faixas, e na conta para a decisão caber sem rolar a comparação ficava no
+   * piso — ~140px de arte a 1366×768, numa tela que existe para COMPARAR.
+   *   · LADO A LADO (≥1200): as duas artes à esquerda, ocupando toda a altura
+   *     útil; a decisão numa COLUNA à direita, com rolagem própria — sempre à
+   *     vista, sem disputar altura com a comparação.
+   *   · EMPILHADA (tablet, notebook estreito, celular): o corpo rola com as
+   *     artes grandes no topo, e Liberar/Devolver moram num RODAPÉ FIXO.
+   */
+  const lado = !empilhada;
+  const largo = largura >= LARGURA_DE_MONITOR_LARGO;
+  const larguraDaColuna = largo ? 420 : 380;
   const temFila = filaIdx >= 0 && totalNaFila > 1;
   const nav = temFila ? (
     <NavDaFila
@@ -159,7 +177,7 @@ export function ModalDeDecisao(p: ModalDeDecisaoProps) {
       <DialogContent
         data-testid="modal-revisao"
         className={`gap-0 ${HIDE_NATIVE_CLOSE}`}
-        style={{ ...modalSurface(1152), height: isMobile ? "94dvh" : "87vh", maxHeight: 900 }}
+        style={{ ...modalSurface(largo ? 1680 : 1280), height: isMobile ? "94dvh" : "90vh", maxHeight: largo ? 1040 : 900 }}
         onInteractOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
@@ -186,7 +204,10 @@ export function ModalDeDecisao(p: ModalDeDecisaoProps) {
           tint={T.accentText}
           compacto={isMobile}
           title={`${selectedItem?.displayId ?? ""} · ${selectedItem?.type ?? ""}`}
-          subtitle={p.subtitulo}
+          // No celular só a descrição: com o evento junto, o subtítulo
+          // ocupava quatro linhas do cabeçalho escuro. O evento desce para a
+          // tira logo abaixo, ao lado da fila.
+          subtitle={isMobile ? (selectedItem?.description || undefined) : p.subtitulo}
           onClose={p.aoFechar}
           trailing={
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -201,89 +222,136 @@ export function ModalDeDecisao(p: ModalDeDecisaoProps) {
           }
         />
 
-        {/* A FILA NO CELULAR: uma tira clara, fora da rolagem. */}
-        {isMobile && nav && (
-          <div data-testid="fila-da-ficha-celular" style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "6px 12px", backgroundColor: T.surface, borderBottom: `1px solid ${T.border}` }}>
-            <span style={{ fontSize: FS.meta, fontWeight: 700, color: T.apoio }}>Peça da fila</span>
+        {/* A FILA NO CELULAR: uma tira clara, fora da rolagem — com o
+            EVENTO e o caminhão à esquerda (era "Peça da fila", um rótulo que
+            não dizia nada que as setas já não dissessem). */}
+        {isMobile && (nav || p.eventoDaFicha) && (
+          <div data-testid="fila-da-ficha-celular" style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, minHeight: 56, padding: "6px 12px", backgroundColor: T.surface, borderBottom: `1px solid ${T.border}` }}>
+            <span style={{ display: "flex", alignItems: "flex-start", gap: 6, minWidth: 0, fontSize: FS.meta, lineHeight: 1.35, fontWeight: 600, color: T.apoio }}>
+              {p.eventoDaFicha ? (
+                <>
+                  <Truck aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0, marginTop: 1 }} />
+                  {/* Nome numa linha, a saída do caminhão noutra: corrido,
+                      o texto quebrava em três linhas ao lado das setas. */}
+                  <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>
+                    {(() => {
+                      const [nome, ...resto] = p.eventoDaFicha.split(" · caminhão ");
+                      return (
+                        <>
+                          <span style={{ display: "block", fontWeight: 700, color: T.strong }}>{nome}</span>
+                          {resto.length > 0 && <span style={{ display: "block", fontWeight: 500 }}>caminhão {resto.join(" · caminhão ")}</span>}
+                        </>
+                      );
+                    })()}
+                  </span>
+                </>
+              ) : "Peça da fila"}
+            </span>
             {nav}
           </div>
         )}
 
-        {/* O CORPO ROLA. No desktop a conta das faixas foi feita para caber e
-            a barra nem aparece; numa janela baixa, ou no celular, o excesso
-            ROLA em vez de ser cortado em silêncio. O cabeçalho fica fora da
-            rolagem, então a fila e o X continuam à mão. */}
-        <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", display: "flex", flexDirection: "column" }}>
-          <FichaComparacao selectedItem={selectedItem} isMobile={isMobile} dedo={dedo} />
-
-          <FichaMetadados
-            selectedItem={selectedItem}
-            isMobile={isMobile}
-            dedo={dedo}
-            fonteDeCampo={p.fonteDeCampo}
-            seloSelecionado={p.seloSelecionado}
-            editingQuantity={p.editingQuantity}
-            setEditingQuantity={p.setEditingQuantity}
-            quantityValue={p.quantityValue}
-            setQuantityValue={p.setQuantityValue}
-            quantityInputRef={p.quantityInputRef}
-            salvandoQuantidade={p.salvandoQuantidade}
-            aoSalvarQuantidade={p.aoSalvarQuantidade}
-            aoCopiarCaminho={p.aoCopiarCaminho}
-          />
-
-          {/* ── 4 · DECISÃO — faixa clara, largura cheia ──
-              Nada de caixa escura em volta dos botões: o escuro é do
-              cabeçalho. À esquerda os botões LADO A LADO com as observações
-              abaixo; à direita patrocinadores e histórico. As duas colunas com
-              teto de 32vh e rolagem própria — sem o teto elas crescem até a
-              altura do conteúdo e o modal inteiro passa a rolar, deixando as
-              decisões fora de vista na abertura. No celular os botões estão
-              no rodapé fixo e as colunas empilham sem teto (o corpo rola). */}
-          <div style={{ flexShrink: 0, borderTop: `1px solid ${T.border}`, backgroundColor: T.bg, padding: isMobile ? 12 : "14px 20px", display: "flex", flexDirection: empilhada ? "column" : "row", gap: isMobile ? 16 : empilhada ? 18 : 24 }}>
-            <FichaDecisao {...p} botoesNoRodape={isMobile} empilhado={empilhada} />
+        {(() => {
+          const comparacao = (
+            <FichaComparacao selectedItem={selectedItem} isMobile={isMobile} dedo={dedo} modo={isMobile ? "celular" : lado ? "lado" : "empilhada"} />
+          );
+          const metadados = (
+            <FichaMetadados
+              selectedItem={selectedItem}
+              isMobile={isMobile}
+              estreita={!isMobile && !largo}
+              dedo={dedo}
+              fonteDeCampo={p.fonteDeCampo}
+              seloSelecionado={p.seloSelecionado}
+              editingQuantity={p.editingQuantity}
+              setEditingQuantity={p.setEditingQuantity}
+              quantityValue={p.quantityValue}
+              setQuantityValue={p.setQuantityValue}
+              quantityInputRef={p.quantityInputRef}
+              salvandoQuantidade={p.salvandoQuantidade}
+              aoSalvarQuantidade={p.aoSalvarQuantidade}
+              aoCopiarCaminho={p.aoCopiarCaminho}
+            />
+          );
+          const historico = (
             <FichaHistorico
               selectedItem={selectedItem}
               isMobile={isMobile}
-              empilhado={empilhada}
+              empilhado
               historicoCarregando={p.historicoCarregando}
               itemAuditLogs={p.itemAuditLogs}
             />
-          </div>
-
-          {/* ── 5 · RODAPÉ de atalhos: só no desktop — no mobile não há
-              teclado físico e o rodapé roubava altura do modal. */}
-          {!isMobile && (
-            <div style={{ padding: "12px 20px", backgroundColor: T.bg, borderTop: `1px solid ${N.n3}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                <span style={{ fontSize: FS.micro, fontWeight: 700, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.08em" }}>Atalhos:</span>
-                {([
-                  // A confirmação abre com o foco no "Liberar": Enter de
-                  // novo confirma. Dito aqui para ninguém procurar o mouse.
-                  ["Enter", "liberar (Enter de novo confirma)"],
-                  ["D", "devolver"],
-                  ["← →", "peça anterior / próxima"],
-                  ["Esc", "fechar"],
-                ] as const).map(([tecla, oque]) => (
-                  <Fragment key={tecla}>
-                    <kbd style={{ fontFamily: "inherit", fontSize: FS.micro, fontWeight: 900, backgroundColor: T.border, padding: "2px 6px", borderRadius: R.sm, color: TI.text, whiteSpace: "nowrap" }}>{tecla}</kbd>
-                    <span style={{ fontSize: FS.micro, color: TI.secondary, whiteSpace: "nowrap" }}>{oque}</span>
-                  </Fragment>
-                ))}
+          );
+          return lado ? (
+            // ── LADO A LADO: as artes à esquerda, a decisão à direita ──
+            // Nada rola no conjunto: a esquerda dá às artes toda a altura que
+            // sobra dos metadados; a coluna da decisão rola sozinha, com
+            // Liberar/Devolver/Reaproveitar no topo dela — sempre à vista.
+            <div style={{ flex: "1 1 auto", minHeight: 0, display: "flex" }}>
+              <div style={{ flex: "1 1 auto", minWidth: 0, display: "flex", flexDirection: "column" }}>
+                {comparacao}
+                {metadados}
+              </div>
+              {/* ── 4 · DECISÃO — coluna clara à direita, rolagem própria ── */}
+              <aside
+                data-testid="coluna-da-decisao"
+                aria-label="Decisão"
+                style={{ flex: `0 0 ${larguraDaColuna}px`, minWidth: 0, minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", borderLeft: `1px solid ${T.border}`, backgroundColor: T.bg, padding: "16px 20px 20px", display: "flex", flexDirection: "column", gap: 20 }}
+              >
+                <FichaDecisao {...p} emColuna />
+                {historico}
+              </aside>
+            </div>
+          ) : (
+            // ── EMPILHADA: o corpo rola, as artes grandes no topo ──
+            // Liberar e Devolver no rodapé fixo, logo abaixo.
+            <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", display: "flex", flexDirection: "column" }}>
+              {comparacao}
+              {metadados}
+              <div style={{ flexShrink: 0, borderTop: `1px solid ${T.border}`, backgroundColor: T.bg, padding: isMobile ? 12 : "16px 20px", display: "flex", flexDirection: "column", gap: isMobile ? 16 : 20 }}>
+                <FichaDecisao {...p} botoesNoRodape empilhado />
+                {historico}
               </div>
             </div>
-          )}
-        </div>
+          );
+        })()}
 
-        {/* ── RODAPÉ FIXO DA DECISÃO (celular) ──
+        {/* ── ATALHOS: só no lado a lado (mouse e teclado) — no celular e no
+            tablet não há teclado físico, e a faixa roubava altura das artes. */}
+        {lado && (
+          <div style={{ padding: "10px 20px", backgroundColor: T.bg, borderTop: `1px solid ${N.n3}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <span style={{ fontSize: FS.micro, fontWeight: 700, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.08em" }}>Atalhos:</span>
+              {([
+                // A confirmação abre com o foco no "Liberar": Enter de
+                // novo confirma. Dito aqui para ninguém procurar o mouse.
+                // SÓ O QUE FUNCIONA NESTA PEÇA: o atalho se cala sem arquivo
+                // final e em evento finalizado (a mesma checagem do handler,
+                // na página) — anunciar "Enter liberar" com o Liberar
+                // apagado era prometer o que a tecla não faz.
+                ...(!p.seloSelecionado && selectedItem && prontaParaLiberar(selectedItem) ? [["Enter", "liberar (Enter de novo confirma)"] as const] : []),
+                ...(!p.seloSelecionado ? [["D", "devolver"] as const] : []),
+                ...(temFila ? [["← →", "peça anterior / próxima"] as const] : []),
+                ["Esc", "fechar"] as const,
+              ] as Array<readonly [string, string]>).map(([tecla, oque]) => (
+                <Fragment key={tecla}>
+                  <kbd style={{ fontFamily: "inherit", fontSize: FS.micro, fontWeight: 900, backgroundColor: T.border, padding: "2px 6px", borderRadius: R.sm, color: TI.text, whiteSpace: "nowrap" }}>{tecla}</kbd>
+                  <span style={{ fontSize: FS.micro, color: TI.secondary, whiteSpace: "nowrap" }}>{oque}</span>
+                </Fragment>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── RODAPÉ FIXO DA DECISÃO (celular e tablet) ──
             Liberar e Devolver sempre à vista, na zona do polegar, com o recorte
             seguro embaixo. LONGOS: o atalho com env() some no parser do jsdom. */}
-        {isMobile && (
+        {!lado && (
           <div
             data-testid="rodape-da-decisao"
-            style={{ flexShrink: 0, paddingTop: 10, paddingLeft: 12, paddingRight: 12, paddingBottom: "calc(10px + env(safe-area-inset-bottom))", borderTop: `1px solid ${T.border}`, backgroundColor: T.surface, boxShadow: "0 -4px 16px rgba(28,25,23,0.06)" }}
+            style={{ flexShrink: 0, paddingTop: 10, paddingLeft: isMobile ? 12 : 20, paddingRight: isMobile ? 12 : 20, paddingBottom: "calc(10px + env(safe-area-inset-bottom))", borderTop: `1px solid ${T.border}`, backgroundColor: T.surface, boxShadow: "0 -4px 16px rgba(28,25,23,0.06)" }}
           >
-            <BotoesDoRodape {...p} />
+            <BotoesDoRodape {...p} rotulosLongos={!isMobile} />
           </div>
         )}
         </FreezeWhileClosing>

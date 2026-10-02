@@ -7,9 +7,15 @@ import { T, FS } from "@/lib/theme";
 import { TI } from "./regras";
 
 export function CabecalhoDaRevisao({
-  isMobile, dedo, fraseDeResolucao, admin, avisando, aoAvisar, totalNaFila, aoComecarFila,
+  isMobile, enxuto = isMobile, dedo, fraseDeResolucao, admin, avisando, aoAvisar, totalNaFila, aoComecarFila,
 }: {
   isMobile: boolean;
+  /**
+   * Área útil estreita (a lista em cartões: celular, ou tablet com a barra
+   * lateral aberta). A explicação de duas linhas sai — a 768 ela quebrava em
+   * seis, ao lado do botão — e a ficha diz o mesmo, peça a peça.
+   */
+  enxuto?: boolean;
   dedo: boolean;
   fraseDeResolucao: string;
   admin: boolean;
@@ -21,7 +27,7 @@ export function CabecalhoDaRevisao({
   // Enxuto de propósito: o título padrão das páginas, sem bloco escuro nem
   // contadores — o único contador da tela mora na barra de filtros.
   return (
-    <section style={{ backgroundColor: TI.surface, padding: isMobile ? "16px 12px 0" : "20px 32px 0", borderBottom: `1px solid ${TI.border}` }}>
+    <section style={{ backgroundColor: TI.surface, padding: isMobile ? "16px 12px 0" : enxuto ? "20px 20px 0" : "20px 32px 0", borderBottom: `1px solid ${TI.border}` }}>
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         <CabecalhoDaPagina
           titulo="Revisão Final"
@@ -39,7 +45,7 @@ export function CabecalhoDaRevisao({
                   empurrando a primeira peça para baixo da dobra, e a ficha diz
                   o mesmo, peça a peça, logo acima da decisão
                   (`destino-da-decisao`). */}
-              {!isMobile && <span data-testid="explicacao-revisao" style={{ display: "block", margin: "2px 0 0", fontSize: FS.meta, color: T.apoio, maxWidth: 680 }}>
+              {!enxuto && <span data-testid="explicacao-revisao" style={{ display: "block", margin: "2px 0 0", fontSize: FS.meta, color: T.apoio, maxWidth: 680 }}>
                 Última conferência antes da Gráfica: compare o aprovado pelo patrocinador com o arquivo final da Arte.
                 {" "}<strong style={{ fontWeight: 700, color: T.strong }}>Liberar</strong> manda para a fila da Gráfica;
                 {" "}<strong style={{ fontWeight: 700, color: T.strong }}>Devolver</strong> volta para a Arte com o seu motivo.

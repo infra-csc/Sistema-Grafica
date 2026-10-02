@@ -4,7 +4,7 @@
 // as ações chegam como funções estáveis (useCallback na página) e tudo o que
 // muda por peça chega já resolvido (selo, estoque, falha, desfazendo).
 import { memo } from "react";
-import { Check, ChevronRight, Clock, Recycle, Trash2 } from "lucide-react";
+import { Check, ChevronRight, Clock, Recycle, Trash2, Undo2 } from "lucide-react";
 import { SeloKit } from "@/components/kit/selo-kit";
 import { SeloPrazoMolde } from "@/components/prazo-do-molde";
 import { SeloDoEstoqueNaLinha } from "@/components/consulta-de-estoque/na-revisao";
@@ -18,7 +18,7 @@ import { T, TOM, N, FS, R, FONT } from "@/lib/theme";
 import { FalhaNaLinha, SeloTravaNaLinha } from "./selos-da-linha";
 import { medidaDaPeca } from "./regras";
 import type { PecaDaRevisao } from "./tipos";
-import { DESLIGADO_LEGIVEL } from "./estilos";
+import { estiloDoReaproveitar } from "./estilos";
 
 /** O Selo comum escreve em 11px; no cartão (a lista do celular) o piso é 12. */
 const LETRA_DO_SELO = { fontSize: FS.meta } as const;
@@ -91,6 +91,12 @@ export const CartaoDaPeca = memo(function CartaoDaPeca({
             </Selo>
           )}
           <SeloTravaNaLinha item={item} onde="cartao" agora={agora} />
+          {/* REAPROVEITADA é fato da peça: selo, como na tabela. */}
+          {item.isReuse && (
+            <Selo data-testid={`selo-reaproveitada-${item.id}`} tom="sucesso" icone={Recycle} tamanho="sm" forma="retangulo" style={LETRA_DO_SELO}>
+              Reaproveitada
+            </Selo>
+          )}
         </div>
         <div style={{minWidth:0}}>
           <span style={{fontSize:FS.strong,fontWeight:700,color:T.text,overflowWrap:"anywhere"}}>{item.type}</span>
@@ -151,7 +157,7 @@ export const CartaoDaPeca = memo(function CartaoDaPeca({
         <Botao
           variante="secundario"
           tamanho="toque"
-          icone={Recycle}
+          icone={item.isReuse && !selo ? Undo2 : Recycle}
           onClick={() => {
             if (selo) return;
             aoReaproveitar(item);
@@ -159,15 +165,13 @@ export const CartaoDaPeca = memo(function CartaoDaPeca({
           disabled={!!selo || desfazendo}
           data-testid={`button-reuse-${item.id}`}
           aria-pressed={!!item.isReuse}
-          title={selo ? motivoAcaoBloqueada(selo.motivo, "marcar reaproveitamento") : undefined}
-          // O verde é a identidade do reaproveitamento na tela. Em evento
-          // finalizado, o cinza legível das decisões da ficha.
+          title={selo ? motivoAcaoBloqueada(selo.motivo, "marcar reaproveitamento") : item.isReuse ? "Desfazer o reaproveitamento — a peça volta a precisar de arquivo final e de produção" : "Reaproveitar — total ou parte das unidades, sem nova produção"}
+          // Um desenho só para os três estados (ver estiloDoReaproveitar); o
+          // "já reaproveitada" é o selo lá em cima.
           style={{ flex: "1 1 0%", minWidth: 0, whiteSpace: "normal", lineHeight: 1.15, textAlign: "center",
-            ...(selo ? DESLIGADO_LEGIVEL : item.isReuse
-              ? { color: TOM.sucesso.text, backgroundColor: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}` }
-              : { color: TOM.sucesso.text, border: `1px solid ${TOM.sucesso.border}` }) }}
+            ...estiloDoReaproveitar(selo ? "indisponivel" : item.isReuse ? "reaproveitada" : "disponivel") }}
         >
-          {desfazendo ? "Desfazendo…" : item.isReuse ? "Reaproveitada · desfazer" : "Reaproveitar"}
+          {desfazendo ? "Desfazendo…" : item.isReuse && !selo ? "Desfazer" : "Reaproveitar"}
         </Botao>
         {admin && (
           <Botao

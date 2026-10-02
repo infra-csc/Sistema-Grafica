@@ -3,7 +3,6 @@
 // sem hook: mora dentro do FreezeWhileClosing do modal.
 import { Clock } from "lucide-react";
 import { Selo } from "@/components/ui/selo";
-import { EstadoVazio } from "@/components/ui/estados";
 import { STATUS, getStatusMeta } from "@/lib/status";
 import { T, TOM, N, FS, R, FONT } from "@/lib/theme";
 import { TI } from "./regras";
@@ -50,7 +49,8 @@ export function FichaHistorico({ selectedItem, isMobile, empilhado = isMobile, h
   return (
     // No celular sem teto nem rolagem própria: o corpo da ficha já rola, e uma
     // caixa rolando dentro de outra prendia o dedo.
-    <div style={{ flex: empilhado ? undefined : "1 1 0", minWidth: 0, minHeight: 0, maxHeight: isMobile ? undefined : "32vh", overflowY: isMobile ? undefined : "auto", display: "flex", flexDirection: "column", gap: 14 }}>
+    // Sem teto próprio (02/10): quem rola é a coluna da decisão ou o corpo.
+    <div style={{ flex: empilhado ? undefined : "1 1 0", minWidth: 0, display: "flex", flexDirection: "column", gap: 14 }}>
       {(selectedItem?.sponsors?.length ?? 0) > 0 && (
         <div>
           <h3 style={{ fontSize: letra(FS.small, isMobile), fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: TI.secondary, paddingBottom: 8, borderBottom: `1px solid ${N.n3}`, margin: "0 0 10px" }}>
@@ -71,9 +71,18 @@ export function FichaHistorico({ selectedItem, isMobile, empilhado = isMobile, h
           Histórico
         </h3>
         {historicoCarregando ? (
-          <p role="status" style={{ fontSize: FS.body, color: T.apoio, margin: 0 }}>Carregando o histórico…</p>
+          <p role="status" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: FS.body, color: T.apoio, margin: 0 }}>
+            <span aria-hidden="true" className="animate-pulse" style={{ width: 10, height: 10, borderRadius: "50%", backgroundColor: T.bdark, flexShrink: 0 }} />
+            Carregando o histórico…
+          </p>
         ) : itemAuditLogs.length === 0 ? (
-          <EstadoVazio compacto icone={Clock} titulo="Sem histórico disponível." />
+          // Uma linha discreta, e não o cartão tracejado de estado vazio: a
+          // ausência de histórico é rara e não é notícia — o cartão de 130px
+          // em negrito pesava mais que os botões de decisão ao lado.
+          <p data-testid="historico-vazio" style={{ display: "flex", alignItems: "center", gap: 8, margin: 0, fontSize: FS.body, color: T.apoio }}>
+            <Clock aria-hidden="true" style={{ width: 14, height: 14, color: T.muted, flexShrink: 0 }} />
+            Nenhum registro desta peça ainda.
+          </p>
         ) : (
           <div style={{ position: "relative", paddingLeft: 24 }}>
             <div style={{ position: "absolute", left: 11, top: 8, bottom: 0, width: 2, backgroundColor: N.n3 }} />

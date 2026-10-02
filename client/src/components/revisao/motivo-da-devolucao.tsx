@@ -76,10 +76,33 @@ export function SeletorDeDestino({ destino, aoEscolher }: {
  * à vista enquanto se digita, com a mesma régua de `motivoCurto`.
  */
 export function ContadorDoMotivo({ texto }: { texto: string }) {
-  const falta = Math.max(0, MOTIVO_MIN - texto.trim().replace(/\s+/g, " ").length);
+  const escrito = texto.trim().replace(/\s+/g, " ").length;
+  const falta = Math.max(0, MOTIVO_MIN - escrito);
+  // CAMPO AINDA VAZIO: a régua em tom neutro, não o âmbar de pendência — o
+  // diálogo abria já "reclamando" de algo que a pessoa nem tinha começado.
+  // Começou a escrever, a conta passa a valer (e a cor com ela).
+  const cor = escrito === 0 ? T.apoio : falta > 0 ? TOM.alerta.text : TOM.esmeralda.text;
   return (
-    <p aria-live="polite" style={{ margin: "4px 0 0", fontSize: FS.meta, lineHeight: 1.4, color: falta > 0 ? TOM.alerta.text : TOM.esmeralda.text }}>
-      {falta > 0 ? `Faltam ${falta} ${falta === 1 ? "caractere" : "caracteres"} — a Arte precisa saber o que corrigir.` : "Motivo pronto."}
+    <p aria-live="polite" data-testid="contador-do-motivo" style={{ margin: "6px 0 0", fontSize: FS.meta, lineHeight: 1.4, color: cor }}>
+      {escrito === 0
+        ? `Pelo menos ${MOTIVO_MIN} caracteres — a Arte precisa saber o que corrigir.`
+        : falta > 0
+        ? `${falta === 1 ? "Falta 1 caractere" : `Faltam ${falta} caracteres`} — a Arte precisa saber o que corrigir.`
+        : "Motivo pronto."}
     </p>
+  );
+}
+
+/**
+ * O RÓTULO VISÍVEL do motivo — o campo só tinha o placeholder (que some ao
+ * digitar) e um aria-label. Mesmo desenho do "O que a Arte precisa refazer?"
+ * logo acima: as duas perguntas do diálogo se leem como um formulário.
+ */
+export function RotuloDoMotivo({ htmlFor, children }: { htmlFor: string; children: string }) {
+  const celular = useIsMobile();
+  return (
+    <label htmlFor={htmlFor} style={{ display: "block", margin: "0 0 6px", fontSize: letra(FS.small, celular), fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: T.apoio }}>
+      {children}
+    </label>
   );
 }

@@ -8,6 +8,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { TOM } from "@/lib/theme";
 import { TEXTO_DA_CONFIRMACAO, corpoDaConfirmacao, rodapeDaConfirmacao } from "./estilos";
+import { FicamDeFora, LINHA_DE_FORA } from "./ficam-de-fora";
 import type { useFilaDaRevisao } from "./use-fila-da-revisao";
 
 type Fila = ReturnType<typeof useFilaDaRevisao>;
@@ -44,9 +45,11 @@ export function ConfirmarLoteReaproveitar({
             <div style={TEXTO_DA_CONFIRMACAO}>
               {selecaoLote.vivas.length === 1 ? "A peça será marcada" : "As peças serão marcadas"} como reaproveitamento <strong>total</strong> e enviadas direto à Gráfica como produzidas — sem nova impressão. Para reaproveitar só parte das unidades de uma peça, use o Reaproveitar da própria peça (o ícone ♻ na tabela, o botão no cartão ou na ficha).
               {selecaoLote.finalizadas > 0 && (
-                <span data-testid="aviso-bulk-reuse-finalizadas" style={{ display: "block", marginTop: 8 }}>
-                  {avisoLoteFinalizadas()}
-                </span>
+                <FicamDeFora>
+                  <span data-testid="aviso-bulk-reuse-finalizadas" style={LINHA_DE_FORA}>
+                    {avisoLoteFinalizadas()}
+                  </span>
+                </FicamDeFora>
               )}
             </div>
           </AlertDialogDescription>
@@ -68,7 +71,7 @@ export function ConfirmarLoteReaproveitar({
               data-testid="button-bulk-reuse-confirm"
             >
               {reaproveitando
-                ? "Reaproveitando..."
+                ? "Reaproveitando…"
                 : selecaoLote.finalizadas > 0 ? `Reaproveitar as ${selecaoLote.vivas.length}` : "Reaproveitar todas"}
             </Botao>
           </AlertDialogPrimitive.Action>

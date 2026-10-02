@@ -56,7 +56,7 @@ export function ConfirmarExclusao({
               disabled={excluindo}
               data-testid="button-delete-confirm"
             >
-              {excluindo ? "Excluindo..." : "Excluir peça"}
+              {excluindo ? "Excluindo…" : "Excluir peça"}
             </Botao>
           </AlertDialogPrimitive.Action>
         </div>

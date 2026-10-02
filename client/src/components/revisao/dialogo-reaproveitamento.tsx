@@ -89,7 +89,9 @@ export function DialogoReaproveitamento({
                     icone={Recycle}
                     onClick={() => aoReaproveitarTudo(dialogItem)}
                     disabled={ocupado}
-                    style={{ marginBottom: 10, height: 44 }}
+                    // Quebra em vez de vazar: num aparelho de 360 o rótulo inteiro não
+                    // cabe numa linha, e o Botao é nowrap por padrão.
+                    style={{ marginBottom: 10, height: "auto", minHeight: 44, whiteSpace: "normal", lineHeight: 1.25, paddingTop: 8, paddingBottom: 8, textAlign: "center" }}
                   >
                     Reaproveitar tudo ({qty} un.) — pula produção
                   </Botao>
@@ -114,7 +116,9 @@ export function DialogoReaproveitamento({
                         <span style={{ fontSize: FS.body, color: T.second }}>de {qty} un. reaproveitadas</span>
                       </div>
                       <p style={{ margin: "0 0 10px", fontSize: letra(FS.small, isMobile), color: T.apoio }}>
-                        As outras <strong>{qty - partialReuseQty}</strong> un. seguirão para produção normal.
+                        {qty - partialReuseQty === 1
+                          ? <>A outra <strong>1</strong> un. segue para produção normal.</>
+                          : <>As outras <strong>{qty - partialReuseQty}</strong> un. seguem para produção normal.</>}
                       </p>
                       {/* O parcial LIBERA o restante para produção — e produção
                           pede arquivo final. Dito aqui, antes do 409 do
@@ -135,7 +139,7 @@ export function DialogoReaproveitamento({
                         }}
                         disabled={ocupado || !arquivoFinalOk(dialogItem)}
                       >
-                        {salvandoParte ? "Salvando..." : `Confirmar ${partialReuseQty} un. reaproveitadas`}
+                        {salvandoParte ? "Salvando…" : `Confirmar ${partialReuseQty} un. reaproveitadas`}
                       </Botao>
                     </div>
                   )}

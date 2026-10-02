@@ -1,7 +1,7 @@
 // A casca das confirmações da Revisão Final e o "desligado" legível das
 // decisões da ficha — estilos compartilhados por vários diálogos.
 import type { CSSProperties } from "react";
-import { T, N, FS, R } from "@/lib/theme";
+import { T, TOM, N, FS, R } from "@/lib/theme";
 
 /** Corpo rolável: com o teto do `modalSurface`, é ele que cede numa janela baixa. */
 export const CORPO_DA_CONFIRMACAO: CSSProperties = { padding: "4px 24px 18px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 };
@@ -59,4 +59,22 @@ export function rodapeDaConfirmacao(celular: boolean): CSSProperties {
 /** O corpo da confirmação no celular: menos margem lateral (a largura é pouca). */
 export function corpoDaConfirmacao(celular: boolean): CSSProperties {
   return celular ? { ...CORPO_DA_CONFIRMACAO, padding: "4px 16px 16px" } : CORPO_DA_CONFIRMACAO;
+}
+
+/**
+ * O BOTÃO DE REAPROVEITAR — um desenho só, nas linhas, nos cartões e na ficha
+ * (eram três: caixa cinza, ícone verde solto, verde com caixa). O FORMATO é
+ * sempre o mesmo botão contornado em papel branco; o ESTADO vem da cor, do
+ * ícone e do `title`:
+ *   · disponível     — verde (a identidade do reaproveitamento), ♻;
+ *   · reaproveitada  — neutro, ícone de desfazer: a ação agora é desfazer, e
+ *                      o FATO "reaproveitada" é dito por um selo na peça;
+ *   · indisponível   — cinza de ícone desligado (evento finalizado), sem
+ *                      fundo cinza: o porquê está no selo e no `title`.
+ */
+export type EstadoDoReaproveitar = "disponivel" | "reaproveitada" | "indisponivel";
+export function estiloDoReaproveitar(estado: EstadoDoReaproveitar): CSSProperties {
+  if (estado === "disponivel") return { backgroundColor: T.surface, color: TOM.sucesso.text, border: `1px solid ${TOM.sucesso.border}`, opacity: 1 };
+  if (estado === "reaproveitada") return { backgroundColor: T.surface, color: T.strong, border: `1px solid ${T.bdark}`, opacity: 1 };
+  return { backgroundColor: T.surface, color: T.muted, border: `1px solid ${T.border}`, opacity: 1, cursor: "not-allowed" };
 }

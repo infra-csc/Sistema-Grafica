@@ -54,6 +54,13 @@ export interface BarraDeFiltrosProps {
   totalDeEventoFinalizado: number;
   /** A lista está em tabela? O cabeçalho da tabela já tem o "selecionar todos". */
   emTabela: boolean;
+  /**
+   * Área útil estreita SEM ser celular (tablet com a barra lateral aberta:
+   * ~510px para a lista). A faixa de uma linha quebrava em quatro, cada chip
+   * sozinho numa delas. Aqui ela vira três linhas com ordem: a busca inteira;
+   * Evento e Tipo meio a meio; as facetas e o contador.
+   */
+  estreita?: boolean;
   children?: ReactNode;
 }
 
@@ -73,13 +80,15 @@ export function BarraDeFiltros(p: BarraDeFiltrosProps) {
   // Campo branco com borda, como a busca da Arte e da Gráfica (era cinza sem
   // borda: 1,1:1 contra o branco da faixa — o campo não se desenhava).
   const campoBusca = (
-    <div style={{ position: "relative", flex: isMobile ? "1 1 0%" : "1 1 240px", minWidth: isMobile ? 0 : 200 }}>
+    <div style={{ position: "relative", flex: isMobile ? "1 1 0%" : p.estreita ? "1 1 100%" : "1 1 240px", minWidth: isMobile ? 0 : 200 }}>
       <Search aria-hidden="true" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: T.apoio, pointerEvents: "none" }} />
       <input
         ref={searchRef}
         // O placeholder diz tudo o que a busca casa — inclusive o evento. O
         // "/" é o atalho de teclado: no celular não há teclado para ele.
-        placeholder={isMobile || dedo ? "Buscar ID, tipo, descrição ou evento" : "ID, tipo, descrição ou evento   /"}
+        // No celular a frase longa era cortada no meio ("…descrição ou"):
+        // a curta cabe, e o aria-label continua dizendo tudo o que casa.
+        placeholder={isMobile ? "Buscar peça ou evento" : dedo ? "Buscar ID, tipo, descrição ou evento" : "ID, tipo, descrição ou evento   /"}
         aria-label="Buscar peça por ID, tipo, descrição ou evento"
         aria-keyshortcuts="/"
         value={searchTerm}
@@ -160,7 +169,7 @@ export function BarraDeFiltros(p: BarraDeFiltrosProps) {
   const selecionarEContar = (
     <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, minWidth: 0, ...(isMobile ? { marginLeft: 0, width: "100%", justifyContent: "space-between" } : {}) }}>
       {p.totalFiltradas > 0 && !p.emTabela && (
-        <label style={{ display: "flex", alignItems: "center", gap: 8, minHeight: alturaControle, fontSize: isMobile ? FS.read : FS.body, fontWeight: 600, color: T.strong, cursor: "pointer", userSelect: "none" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, minHeight: alturaControle, fontSize: isMobile ? FS.read : FS.body, fontWeight: 600, color: T.strong, cursor: "pointer", userSelect: "none", whiteSpace: "nowrap", flexShrink: 0 }}>
           <input
             type="checkbox"
             checked={p.totalSelecionadas === p.totalFiltradas && p.totalFiltradas > 0}
@@ -212,7 +221,7 @@ export function BarraDeFiltros(p: BarraDeFiltrosProps) {
           </div>
           {/* O Evento à vista: é o recorte de todo dia ("o que sai primeiro"). */}
           <div data-testid="filtro-evento-mobile" style={{ width: "100%" }}>
-            <EventFilterDropdown values={eventFilter} onValuesChange={p.setEventFilter} options={p.eventFilterOptions} fullWidth />
+            <EventFilterDropdown values={eventFilter} onValuesChange={p.setEventFilter} options={p.eventFilterOptions} allLabel="Todos os eventos" fullWidth />
           </div>
           {selecionarEContar}
         </div>
@@ -275,7 +284,7 @@ export function BarraDeFiltros(p: BarraDeFiltrosProps) {
 
   return (
     <section data-testid="barra-de-filtros-revisao" style={{
-      backgroundColor: T.surface, padding: "12px 32px",
+      backgroundColor: T.surface, padding: p.estreita ? "12px 20px" : "12px 32px",
       borderBottom: `1px solid ${TI.border}`,
       position: "sticky", top: 0, zIndex: 30,
       boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
@@ -283,13 +292,27 @@ export function BarraDeFiltros(p: BarraDeFiltrosProps) {
       <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
         {campoBusca}
 
-        <EventFilterDropdown
-          values={eventFilter}
-          onValuesChange={p.setEventFilter}
-          options={p.eventFilterOptions}
-        />
-
-        {seletorDeTipo(false)}
+        {p.estreita ? (
+          // Evento e Tipo meio a meio, numa linha própria.
+          <div style={{ display: "flex", gap: 10, flex: "1 1 100%", minWidth: 0 }}>
+            <div style={{ flex: "1 1 0%", minWidth: 0 }}>
+              <EventFilterDropdown values={eventFilter} onValuesChange={p.setEventFilter} options={p.eventFilterOptions} allLabel="Todos os eventos" fullWidth />
+            </div>
+            <div style={{ flex: "1 1 0%", minWidth: 0 }}>{seletorDeTipo(true)}</div>
+          </div>
+        ) : (
+          <>
+            {/* "Todos os eventos", minúsculo como o "Todos os tipos" ao lado
+                e como as outras telas (o padrão do componente é maiúsculo). */}
+            <EventFilterDropdown
+              values={eventFilter}
+              onValuesChange={p.setEventFilter}
+              options={p.eventFilterOptions}
+              allLabel="Todos os eventos"
+            />
+            {seletorDeTipo(false)}
+          </>
+        )}
 
         {chips}
 

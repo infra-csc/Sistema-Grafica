@@ -10,6 +10,7 @@ import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from
 import { resumoDoLoteComEstoque } from "@shared/consultas-de-estoque";
 import { T, TOM } from "@/lib/theme";
 import { TEXTO_DA_CONFIRMACAO, corpoDaConfirmacao, rodapeDaConfirmacao } from "./estilos";
+import { FicamDeFora, LINHA_DE_FORA } from "./ficam-de-fora";
 import type { useFilaDaRevisao } from "./use-fila-da-revisao";
 
 type Fila = ReturnType<typeof useFilaDaRevisao>;
@@ -68,20 +69,24 @@ export function ConfirmarLoteLiberar({
                   (reaproveitamento total não conta — não imprime), e travada
                   pede a escolha da trava, que é da ficha. Nenhuma das duas vai;
                   as duas seguem marcadas com o motivo na linha. */}
-              {loteDeLiberar.nSemArquivo > 0 && (
-                <span data-testid="aviso-bulk-release-sem-arquivo" style={{ display: "block", marginTop: 8 }}>
-                  {loteDeLiberar.nSemArquivo === 1 ? "1 ainda não tem" : `${loteDeLiberar.nSemArquivo} ainda não têm`} arquivo final da Arte e {loteDeLiberar.nSemArquivo === 1 ? "fica de fora — continua marcada" : "ficam de fora — continuam marcadas"}.
-                </span>
-              )}
-              {loteDeLiberar.nTravadas > 0 && (
-                <span data-testid="aviso-bulk-release-travadas" style={{ display: "block", marginTop: 8 }}>
-                  {loteDeLiberar.nTravadas === 1 ? "1 está travada" : `${loteDeLiberar.nTravadas} estão travadas`} pela Solicitação e {loteDeLiberar.nTravadas === 1 ? "fica" : "ficam"} de fora: libere pela ficha, escolhendo destravar ou manter a trava.
-                </span>
-              )}
-              {selecaoLote.finalizadas > 0 && (
-                <span data-testid="aviso-bulk-release-finalizadas" style={{ display: "block", marginTop: 8 }}>
-                  {avisoLoteFinalizadas()}
-                </span>
+              {(loteDeLiberar.nSemArquivo > 0 || loteDeLiberar.nTravadas > 0 || selecaoLote.finalizadas > 0) && (
+                <FicamDeFora>
+                  {loteDeLiberar.nSemArquivo > 0 && (
+                    <span data-testid="aviso-bulk-release-sem-arquivo" style={LINHA_DE_FORA}>
+                      {loteDeLiberar.nSemArquivo === 1 ? "1 ainda não tem" : `${loteDeLiberar.nSemArquivo} ainda não têm`} arquivo final da Arte e {loteDeLiberar.nSemArquivo === 1 ? "fica de fora — continua marcada" : "ficam de fora — continuam marcadas"}.
+                    </span>
+                  )}
+                  {loteDeLiberar.nTravadas > 0 && (
+                    <span data-testid="aviso-bulk-release-travadas" style={LINHA_DE_FORA}>
+                      {loteDeLiberar.nTravadas === 1 ? "1 está travada" : `${loteDeLiberar.nTravadas} estão travadas`} pela Solicitação e {loteDeLiberar.nTravadas === 1 ? "fica" : "ficam"} de fora: libere pela ficha, escolhendo destravar ou manter a trava.
+                    </span>
+                  )}
+                  {selecaoLote.finalizadas > 0 && (
+                    <span data-testid="aviso-bulk-release-finalizadas" style={LINHA_DE_FORA}>
+                      {avisoLoteFinalizadas()}
+                    </span>
+                  )}
+                </FicamDeFora>
               )}
             </div>
           </AlertDialogDescription>
@@ -100,7 +105,7 @@ export function ConfirmarLoteLiberar({
               data-testid="button-bulk-release-confirm"
             >
               {liberando
-                ? "Liberando..."
+                ? "Liberando…"
                 : selecaoLote.finalizadas > 0 || loteDeLiberar.nFora > 0 ? `Liberar ${loteDeLiberar.prontas.length === 1 ? "a pronta" : `as ${loteDeLiberar.prontas.length} prontas`}` : "Liberar todas"}
             </Botao>
           </AlertDialogPrimitive.Action>

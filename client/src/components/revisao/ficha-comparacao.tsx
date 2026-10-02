@@ -11,7 +11,28 @@ import { TI } from "./regras";
 import { letra } from "./estilos";
 import type { PecaDaRevisao } from "./tipos";
 
-export function FichaComparacao({ selectedItem, isMobile, dedo = false }: { selectedItem: PecaDaRevisao | null; isMobile: boolean; dedo?: boolean }) {
+const ESTILO_DA_ARTE_EMPILHADA = "[data-arte-empilhada] img{max-height:min(56vh,520px) !important}";
+
+export function FichaComparacao({ selectedItem, isMobile, dedo = false, modo = isMobile ? "celular" : "lado" }: {
+  selectedItem: PecaDaRevisao | null;
+  isMobile: boolean;
+  dedo?: boolean;
+  /**
+   * "lado": a ficha larga — a comparação ocupa toda a altura da coluna das
+   * artes (flexiona). "empilhada" (tablet) e "celular": o corpo rola, e cada
+   * arte tem uma altura própria, generosa, em vez do piso de 140px.
+   */
+  modo?: "lado" | "empilhada" | "celular";
+}) {
+  const flexiona = modo === "lado";
+  /**
+   * EMPILHADAS no celular e no tablet (02/10, dono): lado a lado, cada quadro
+   * tinha ~150px de largura e a arte 2:1 saía com ~90px de altura num quadro
+   * alto e branco. Empilhadas, cada uma usa a LARGURA TODA e o quadro segue a
+   * proporção da arte (altura automática); arte vertical tem teto de altura
+   * (ver ESTILO_DA_ARTE_EMPILHADA). Só o lado a lado (desktop) as põe juntas.
+   */
+  const empilha = modo !== "lado";
   return (
     <>
       {/* ── 1b · POR QUE ELA VOLTOU ──
@@ -40,12 +61,20 @@ export function FichaComparacao({ selectedItem, isMobile, dedo = false }: { sele
           comparação que esta tela existe para mostrar. `min-height: 200`
           fecha as duas contas — sem piso a faixa colapsa; com 300px ela
           empurra os botões abaixo da dobra numa janela de 540px.
-          NO CELULAR TAMBÉM LADO A LADO (25/09): empilhados, cada arquivo
-          tinha 180px de altura e o segundo só aparecia rolando — comparar,
-          que é o que a tela existe para fazer, virava lembrar do primeiro.
-          Lado a lado os dois cabem na primeira dobra; o ampliar abre cada
-          um em tela cheia. Os rótulos encurtam para caber em ~150px. */}
-      <div data-testid="faixa-comparacao" style={{ flex: isMobile ? "0 0 auto" : "1 1 auto", minHeight: 200, overflow: "hidden", backgroundColor: N.n2, padding: isMobile ? 12 : "14px 20px", display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: isMobile ? 8 : 14 }}>
+          CELULAR E TABLET (02/10): EMPILHADOS, cada um na largura toda e
+          com o quadro na PROPORÇÃO da arte. O "lado a lado no celular" de
+          25/09 usava quadros de altura fixa: a arte 2:1 saía com ~90px num
+          quadro alto e branco. Com o quadro na proporção, as duas artes
+          horizontais cabem juntas na primeira dobra do celular. */}
+      {/* O teto da arte VERTICAL empilhada: a <img> do FilePreview limita a
+          altura a 100% do quadro — que aqui é automático, e 100% de "auto" não
+          limita nada. Escopado ao atributo do quadro; só esta ficha o usa.
+          `!important` porque o limite da <img> é estilo inline. */}
+      {empilha && <style>{ESTILO_DA_ARTE_EMPILHADA}</style>}
+      <div data-testid="faixa-comparacao" style={{ flex: isMobile ? "0 0 auto" : "1 1 auto", minHeight: 200, overflow: "hidden", backgroundColor: N.n2, padding: isMobile ? 12 : "14px 20px", display: "grid", gridTemplateColumns: empilha ? "minmax(0, 1fr)" : "minmax(0, 1fr) minmax(0, 1fr)", gap: isMobile ? 12 : 14,
+        // Empilhada (tablet): o corpo rola — a faixa não flexiona, e cada arte
+        // ganha altura própria, generosa (abaixo).
+        ...(flexiona || isMobile ? {} : { flex: "0 0 auto" }) }}>
         {[
           { label: "Aprovado pelo patrocinador", curto: "Aprovado", url: selectedItem?.approvalThumbUrl, empty: "Sem thumb aprovado" },
           { label: "Arquivo final da Arte", curto: "Arquivo final", url: selectedItem?.finalFileUrl, empty: ehMolde(selectedItem) ? "Molde não tem arquivo final — revise pelo thumb" : "A Arte ainda não subiu o arquivo final" },
@@ -58,7 +87,7 @@ export function FichaComparacao({ selectedItem, isMobile, dedo = false }: { sele
             <div key={label} style={{ display: "flex", flexDirection: "column", gap: 6, minHeight: 0, overflow: "hidden" }}>
               <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: letra(FS.small, isMobile), fontWeight: 800, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.08em", margin: 0, flexShrink: 0 }}>
                 <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: url ? TOM.sucesso.text : T.accentText, flexShrink: 0 }} />
-                <span title={label} style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{isMobile ? curto : label}</span>
+                <span title={label} style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{/* Largura toda também no celular (empilhadas): o rótulo inteiro cabe. */}{label}</span>
                 {url && isWebUrl(url) && (
                   <a
                     href={url}
@@ -86,7 +115,7 @@ export function FichaComparacao({ selectedItem, isMobile, dedo = false }: { sele
                   </p>
                 </div>
               ) : (
-              <div style={{ flex: "1 1 auto", minHeight: isMobile ? 150 : 140, height: isMobile ? "clamp(150px, 32dvh, 260px)" : undefined, width: "100%", backgroundColor: T.surface, borderRadius: R.md, overflow: "hidden", border: `1px solid ${T.border}`, boxShadow: "inset 0 1px 4px rgba(0,0,0,0.06)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ flex: "1 1 auto", minHeight: isMobile ? 150 : 140, height: isMobile ? "clamp(150px, 32dvh, 260px)" : undefined, width: "100%", backgroundColor: T.surface, borderRadius: R.md, overflow: "hidden", border: `1px solid ${T.border}`, boxShadow: "inset 0 1px 4px rgba(0,0,0,0.06)", display: "flex", alignItems: "center", justifyContent: "center", ...(empilha ? { flex: "0 0 auto", height: "auto", minHeight: 120 } : {}) }} data-arte-empilhada={empilha ? "" : undefined}>
                 {url ? (
                   <FilePreview url={url} noLink objectFit="contain" />
                 ) : (

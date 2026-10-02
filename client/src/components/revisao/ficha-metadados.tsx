@@ -19,12 +19,18 @@ import { letra } from "./estilos";
 import type { PecaDaRevisao } from "./tipos";
 
 export function FichaMetadados({
-  selectedItem, isMobile, dedo, fonteDeCampo, seloSelecionado,
+  selectedItem, isMobile, estreita = false, dedo, fonteDeCampo, seloSelecionado,
   editingQuantity, setEditingQuantity, quantityValue, setQuantityValue, quantityInputRef,
   salvandoQuantidade, aoSalvarQuantidade, aoCopiarCaminho,
 }: {
   selectedItem: PecaDaRevisao | null;
   isMobile: boolean;
+  /**
+   * Modal mais estreito que 1200 (tablet, notebook): cinco blocos e o botão
+   * dividindo ~700px cortavam "ACABAMEN…" e "DIMENSÕES…" em reticências. Aqui
+   * o rótulo da dimensão e o do botão encurtam — cortar não é desfecho.
+   */
+  estreita?: boolean;
   dedo: boolean;
   fonteDeCampo: number;
   seloSelecionado: SeloPecaEventoFinalizado | null;
@@ -48,7 +54,7 @@ export function FichaMetadados({
         { label: "M²", value: selectedItem?.calculatedM2 || "—" },
       ].map(({ label, value }, i) => (
         <div key={label} style={isMobile ? { minWidth: 0 } : { flex: "1 1 0", minWidth: 0, padding: "2px 14px 2px " + (i === 0 ? "0" : "14px"), borderLeft: i === 0 ? "none" : `1px solid ${T.border}` }}>
-          <p style={{ fontSize: letra(FS.micro, isMobile), color: T.apoio, textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{isMobile && label === "Dimensões (ARQ.)" ? "Dim. (arq.)" : label}</p>
+          <p style={{ fontSize: letra(FS.micro, isMobile), color: T.apoio, textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{(isMobile || estreita) && label === "Dimensões (ARQ.)" ? "Dim. (arq.)" : label}</p>
           <p title={String(value)} style={{ fontSize: FS.body, fontWeight: 700, color: T.text, margin: "2px 0 0", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere", lineHeight: 1.3 }}>{value}</p>
         </div>
       ))}
@@ -158,7 +164,7 @@ export function FichaMetadados({
           onClick={() => aoCopiarCaminho(selectedItem.finalFileUrl!)}
           style={isMobile ? { justifySelf: "start", alignSelf: "center", minWidth: 44, padding: "0 12px" } : { flexShrink: 0, marginLeft: 14, minWidth: alvo(32, dedo) }}
         >
-          {isMobile ? "Copiar" : "Copiar caminho da rede"}
+          {isMobile ? "Copiar" : estreita ? "Copiar caminho" : "Copiar caminho da rede"}
         </Botao>
       )}
     </div>

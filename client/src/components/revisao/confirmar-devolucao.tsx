@@ -10,7 +10,7 @@ import { ehMolde } from "@shared/molde";
 import { T, N, FS, R } from "@/lib/theme";
 import { CAMPO_DO_MOTIVO, TEXTO_DA_CONFIRMACAO, corpoDaConfirmacao, rodapeDaConfirmacao } from "./estilos";
 import { avisoMotivoCurto, motivoCurto } from "./regras";
-import { ContadorDoMotivo, SeletorDeDestino } from "./motivo-da-devolucao";
+import { ContadorDoMotivo, RotuloDoMotivo, SeletorDeDestino } from "./motivo-da-devolucao";
 import type { DestinoDaDevolucao, PecaDaRevisao } from "./tipos";
 
 export function ConfirmarDevolucao({
@@ -51,7 +51,9 @@ export function ConfirmarDevolucao({
               Molde não tem Finalização: ele volta para o começo da Arte, <strong>com o thumb</strong>, que a Arte corrige e reenvia.
             </p>
           ) : <SeletorDeDestino destino={destino} aoEscolher={aoEscolherDestino} />}
+          <RotuloDoMotivo htmlFor="motivo-devolucao">Motivo da devolução</RotuloDoMotivo>
           <textarea
+            id="motivo-devolucao"
             placeholder="Descreva as alterações necessárias..."
             aria-label="Motivo da devolução para a Arte"
             value={motivo}
@@ -76,7 +78,7 @@ export function ConfirmarDevolucao({
               title={motivoCurto(motivo) ? avisoMotivoCurto : undefined}
               data-testid="button-return-confirm"
             >
-              {devolvendo ? "Devolvendo..." : "Devolver para Arte"}
+              {devolvendo ? "Devolvendo…" : "Devolver para Arte"}
             </Botao>
           </AlertDialogPrimitive.Action>
         </div>

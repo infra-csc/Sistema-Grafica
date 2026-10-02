@@ -57,7 +57,9 @@ export function ConfirmarLiberacao({
           confirmação continua existindo porque a peça sai para impressão. */}
       <AlertDialogContent
         className={HIDE_NATIVE_CLOSE}
-        style={modalSurface(470)}
+        // Travada, três saídas no rodapé: a 470 o "Liberar mantendo a trava"
+        // caía sozinho numa segunda linha, à direita. A 540 as três cabem.
+        style={modalSurface(fichaTravada ? 540 : 470)}
         onOpenAutoFocus={(e) => { e.preventDefault(); botaoConfirmarRef.current?.focus(); }}
       >
         {/* POR QUE congelar aqui: o mesmo onSuccess que fecha esta confirmação
@@ -140,7 +142,7 @@ export function ConfirmarLiberacao({
               disabled={liberando}
               data-testid="button-release-confirm"
             >
-              {liberando ? "Liberando..." : fichaTravada ? "Liberar mantendo a trava" : "Liberar"}
+              {liberando ? "Liberando…" : fichaTravada ? "Liberar mantendo a trava" : "Liberar"}
             </Botao>
           </AlertDialogPrimitive.Action>
         </div>

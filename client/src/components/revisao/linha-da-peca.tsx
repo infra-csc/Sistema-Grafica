@@ -4,7 +4,7 @@
 // isso as ações chegam como funções estáveis (useCallback na página) e tudo o
 // que muda por peça chega já resolvido (selo, estoque, falha, desfazendo).
 import { Fragment, memo } from "react";
-import { Check, Clock, Paperclip, Recycle, Trash2 } from "lucide-react";
+import { Check, Clock, Paperclip, Recycle, Trash2, Undo2 } from "lucide-react";
 import { SeloKit } from "@/components/kit/selo-kit";
 import { SeloPrazoMolde } from "@/components/prazo-do-molde";
 import { SeloDoEstoqueNaLinha } from "@/components/consulta-de-estoque/na-revisao";
@@ -16,9 +16,9 @@ import { ehMolde } from "@shared/molde";
 import { hrefSeguro } from "@shared/url-segura";
 import { motivoAcaoBloqueada } from "@/lib/status";
 import type { SeloPecaEventoFinalizado } from "@/lib/status";
-import { T, TOM, N, FS, R, FONT } from "@/lib/theme";
+import { T, TOM, N, FS, R, FONT, MOTION } from "@/lib/theme";
 import { TI, medidaDaPeca } from "./regras";
-import { DESLIGADO_LEGIVEL } from "./estilos";
+import { estiloDoReaproveitar } from "./estilos";
 import { FalhaNaLinha, SeloTravaNaLinha } from "./selos-da-linha";
 import type { PecaDaRevisao } from "./tipos";
 
@@ -76,7 +76,7 @@ export const LinhaDaPeca = memo(function LinhaDaPeca({
       style={{
         borderBottom: isLast ? "none" : `1px solid ${N.n3}`,
         backgroundColor: isSelected ? TOM.laranja.bg : T.surface,
-        transition: "background-color 0.1s",
+        transition: `background-color ${MOTION.rapida} ease`,
         cursor: "pointer",
       }}
       onClick={() => aoAbrir(item)}
@@ -135,10 +135,12 @@ export const LinhaDaPeca = memo(function LinhaDaPeca({
               <Paperclip aria-hidden="true" style={{ width: 14, height: 14 }} />
             </a>
           )}
+          {/* REAPROVEITADA é um FATO da peça: selo, ao lado dos outros. O
+              botão da coluna de ações só oferece desfazer. */}
           {item.isReuse && (
-            <span title="Reaproveitamento" aria-label="Reaproveitamento" style={{ display: "inline-flex", color: TOM.sucesso.text, flexShrink: 0 }}>
-              <Recycle aria-hidden="true" style={{ width: 13, height: 13 }} />
-            </span>
+            <Selo data-testid={`selo-reaproveitada-${item.id}`} tom="sucesso" icone={Recycle} tamanho="sm" forma="retangulo" style={{ flexShrink: 0 }}>
+              Reaproveitada
+            </Selo>
           )}
           <SeloDoEstoqueNaLinha linha={estoque} />
           {/* EVENTO FINALIZADO — sem este selo, a linha mostra "Revisar" e
@@ -221,9 +223,9 @@ export const LinhaDaPeca = memo(function LinhaDaPeca({
               identidade do reaproveitamento; em evento finalizado, o cinza
               legível das decisões da ficha. */}
           <Botao
-            variante="fantasma"
+            variante="secundario"
             tamanho={dedo ? "toque" : "sm"}
-            icone={Recycle}
+            icone={item.isReuse && !selo ? Undo2 : Recycle}
             tamanhoDoIcone={15}
             onClick={() => {
               if (selo) return;
@@ -232,16 +234,15 @@ export const LinhaDaPeca = memo(function LinhaDaPeca({
             }}
             disabled={!!selo || desfazendo}
             data-testid={`button-reuse-${item.id}`}
-            aria-label={`Reaproveitamento de ${item.displayId}`}
+            aria-label={item.isReuse && !selo ? `Desfazer o reaproveitamento de ${item.displayId}` : `Reaproveitar ${item.displayId}`}
             aria-pressed={!!item.isReuse}
             title={selo
               ? motivoAcaoBloqueada(selo.motivo, "marcar reaproveitamento")
-              : item.isReuse ? "Remover marcação de reaproveitamento" : "Marcar para reaproveitamento"}
+              : item.isReuse ? "Desfazer o reaproveitamento — a peça volta a precisar de arquivo final e de produção" : "Reaproveitar — total ou parte das unidades, sem nova produção"}
+            // Um desenho só para os três estados (ver estiloDoReaproveitar).
             style={{
               width: alvo(32, dedo), padding: 0, flexShrink: 0,
-              ...(selo ? DESLIGADO_LEGIVEL
-                : item.isReuse ? { color: TOM.sucesso.text, backgroundColor: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}` }
-                : { color: TOM.sucesso.text }),
+              ...estiloDoReaproveitar(selo ? "indisponivel" : item.isReuse ? "reaproveitada" : "disponivel"),
             }}
           />
           {/* Toda peça desta tela está em awaiting_final_review — status

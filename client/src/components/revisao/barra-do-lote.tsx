@@ -104,7 +104,7 @@ export function BarraDoLote({
           data-testid="button-bulk-release-hero"
         >
           {liberando
-            ? "Liberando..."
+            ? "Liberando…"
             : loteDeLiberar.nFora > 0
             ? `Liberar ${loteDeLiberar.prontas.length === 1 ? "a pronta" : `as ${loteDeLiberar.prontas.length} prontas`}`
             : `Liberar ${loteDeLiberar.prontas.length}`}

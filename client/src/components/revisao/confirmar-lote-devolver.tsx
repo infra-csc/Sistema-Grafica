@@ -8,8 +8,9 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { T, N, FS, R } from "@/lib/theme";
 import { CAMPO_DO_MOTIVO, TEXTO_DA_CONFIRMACAO, corpoDaConfirmacao, rodapeDaConfirmacao } from "./estilos";
+import { FicamDeFora, LINHA_DE_FORA } from "./ficam-de-fora";
 import { avisoMotivoCurto, motivoCurto } from "./regras";
-import { ContadorDoMotivo, SeletorDeDestino } from "./motivo-da-devolucao";
+import { ContadorDoMotivo, RotuloDoMotivo, SeletorDeDestino } from "./motivo-da-devolucao";
 import type { DestinoDaDevolucao } from "./tipos";
 import type { useFilaDaRevisao } from "./use-fila-da-revisao";
 
@@ -56,9 +57,11 @@ export function ConfirmarLoteDevolver({
             <div style={{ ...TEXTO_DA_CONFIRMACAO, marginBottom: 12 }}>
               {selecaoLote.vivas.length === 1 ? "A peça sai" : `As ${selecaoLote.vivas.length} peças saem`} da Revisão Final e {selecaoLote.vivas.length === 1 ? "volta" : "voltam"} para a Arte, que é avisada com o motivo escrito abaixo.
               {selecaoLote.finalizadas > 0 && (
-                <span data-testid="aviso-bulk-return-finalizadas" style={{ display: "block", marginTop: 8 }}>
-                  {avisoLoteFinalizadas()}
-                </span>
+                <FicamDeFora>
+                  <span data-testid="aviso-bulk-return-finalizadas" style={LINHA_DE_FORA}>
+                    {avisoLoteFinalizadas()}
+                  </span>
+                </FicamDeFora>
               )}
             </div>
           </AlertDialogDescription>
@@ -70,7 +73,9 @@ export function ConfirmarLoteDevolver({
                 : (moldesNoLote === 1 ? "1 molde volta" : `${moldesNoLote} moldes voltam`)} para o começo da Arte, com o thumb — molde não tem Finalização{loteSoDeMoldes ? "." : ", seja qual for a escolha acima."}
             </p>
           )}
+          <RotuloDoMotivo htmlFor="motivo-devolucao-lote">Motivo da devolução</RotuloDoMotivo>
           <textarea
+            id="motivo-devolucao-lote"
             placeholder="Descreva o motivo da devolução..."
             aria-label="Motivo da devolução das peças para a Arte"
             value={motivo}
@@ -98,7 +103,7 @@ export function ConfirmarLoteDevolver({
               title={motivoCurto(motivo) ? avisoMotivoCurto : undefined}
               data-testid="button-bulk-return-confirm"
             >
-              {devolvendo ? "Devolvendo..." : "Devolver para Arte"}
+              {devolvendo ? "Devolvendo…" : "Devolver para Arte"}
             </Botao>
           </AlertDialogPrimitive.Action>
         </div>

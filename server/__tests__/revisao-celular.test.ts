@@ -220,8 +220,10 @@ describe("celular (390): a ficha", () => {
     const tira = tid("tira-de-metadados")!;
     expect(tira.style.display).toBe("grid");
     expect(tira.style.overflowX).not.toBe("auto");
-    // Os dois arquivos lado a lado também aqui.
-    expect(tid("faixa-comparacao")!.style.gridTemplateColumns).toBe("minmax(0, 1fr) minmax(0, 1fr)");
+    // 02/10 (dono): no celular as artes EMPILHAM, cada uma na largura toda e
+    // com o quadro na proporção da arte — lado a lado, a arte 2:1 saía com
+    // ~90px de altura num quadro alto e branco.
+    expect(tid("faixa-comparacao")!.style.gridTemplateColumns).toBe("minmax(0, 1fr)");
     const modal = tid("modal-revisao")!;
     expect(letrasPequenas(modal)).toEqual([]);
     expect(alvosPequenos(modal)).toEqual([]);

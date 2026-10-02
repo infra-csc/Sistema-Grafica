@@ -38,8 +38,10 @@ describe("o botão da ficha", () => {
   it("existe, na faixa de decisão, depois de Liberar e Devolver", () => {
     expect(i).toBeGreaterThan(FICHA.indexOf('data-testid="button-return-toggle"'));
     // O ícone do reaproveitamento, agora pelo <Botao icone>.
-    expect(bloco).toContain("icone={Recycle}");
-    expect(bloco).toContain('selectedItem?.isReuse ? "Reaproveitada · desfazer" : "Reaproveitar"}');
+    // Marcada, o ícone vira o de desfazer (o FATO "reaproveitada" é dito
+    // pelo aviso verde da ficha e pelo selo na linha — redesenho 02/10).
+    expect(bloco).toContain("icone={selectedItem?.isReuse && !seloSelecionado ? Undo2 : Recycle}");
+    expect(bloco).toContain('selectedItem?.isReuse ? "Desfazer reaproveitamento" : "Reaproveitar"}');
   });
 
   it("dispara o MESMO fluxo do botão da linha", () => {

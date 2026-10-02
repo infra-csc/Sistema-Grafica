@@ -53,7 +53,9 @@ describe("a comparação se vê de uma vez", () => {
     // 180px e o segundo só aparecia rolando — o mesmo defeito que este teste
     // nasceu para impedir no desktop. minmax(0, 1fr): a coluna encolhe em vez
     // de o conteúdo largo empurrar a outra para fora.
-    expect(tela).toContain('gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)"');
+    // 02/10: lado a lado no DESKTOP; no celular e no tablet empilham, cada
+    // arte na largura toda com o quadro na proporção dela (pedido do dono).
+    expect(tela).toContain('gridTemplateColumns: empilha ? "minmax(0, 1fr)" : "minmax(0, 1fr) minmax(0, 1fr)"');
     expect(codigo).not.toContain('gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr"');
     // O empilhamento por rolagem sumiu: a faixa não rola.
     expect(codigo).not.toContain('height: isMobile ? 220 : "32vh"');
@@ -323,7 +325,8 @@ describe("o resto do que estava certo", () => {
   it.each([
     ["quantidade editável por teclado", 'data-testid="input-quantity-edit"'],
     ["observações do item", 'data-testid="textarea-item-observations"'],
-    ["rodapé de atalhos só no desktop", "{!isMobile && ("],
+    // 02/10: só no lado a lado (mouse e teclado) — tablet e celular não têm.
+    ["rodapé de atalhos só no desktop", "{lado && ("],
     ["atalho da barra de busca", 'data-testid="input-search"'],
     ["filtros espelhados na URL", "filtrosRevisaoParaQuery"],
     ["alvo de toque do checkbox no celular", "44"],

@@ -2,7 +2,7 @@
 // Reaproveitar lado a lado, a trava, para onde a peça vai, os avisos e as
 // observações do item. Só props, sem hook: mora dentro do FreezeWhileClosing
 // do modal e não pode redesenhar enquanto ele sai.
-import { AlertCircle, Check, Lock, Recycle, RotateCcw, Unlock } from "lucide-react";
+import { Check, Lock, Recycle, RotateCcw, Undo2, Unlock } from "lucide-react";
 import { Botao } from "@/components/ui/botao";
 import { RespostaDoEstoqueNaFicha } from "@/components/consulta-de-estoque/na-revisao";
 import { SOLICITACAO_AO_ESTOQUE_ATIVA } from "@shared/consultas-de-estoque";
@@ -10,8 +10,8 @@ import { fraseDaTrava, seloDaTrava } from "@shared/trava-da-peca";
 import { motivoAcaoBloqueada } from "@/lib/status";
 import type { SeloPecaEventoFinalizado } from "@/lib/status";
 import { T, TOM, N, FS, R } from "@/lib/theme";
-import { DESLIGADO_LEGIVEL, letra } from "./estilos";
-import { prontaParaLiberar, reaproveitamentoTotal } from "./regras";
+import { CAMPO_DO_MOTIVO, DESLIGADO_LEGIVEL, estiloDoReaproveitar, letra } from "./estilos";
+import { TI, prontaParaLiberar, reaproveitamentoTotal } from "./regras";
 import type { PecaDaRevisao } from "./tipos";
 
 export interface FichaDecisaoProps {
@@ -53,7 +53,7 @@ type PropsDosBotoes = Pick<FichaDecisaoProps,
  * da faixa de decisão. No celular Liberar e Devolver moram no rodapé fixo da
  * ficha (BotoesDoRodape, no fim deste arquivo).
  */
-function BotoesDaDecisao(p: PropsDosBotoes) {
+function BotoesDaDecisao(p: PropsDosBotoes & { emColuna?: boolean }) {
   const { isMobile, seloSelecionado, semArquivoParaLiberar, liberando, rotuloDaProposta, aoLiberar, aoDevolver } = p;
   return (
     // PATCH creator-review (liberar) e PATCH return-to-arte (devolver) são
@@ -79,10 +79,12 @@ function BotoesDaDecisao(p: PropsDosBotoes) {
         title={seloSelecionado
           ? motivoAcaoBloqueada(seloSelecionado.motivo, "liberar para produção")
           : semArquivoParaLiberar ? "Arquivo final não enviado" : ""}
-        style={{ flex: "1 1 auto", minWidth: 0, height: 48, fontSize: FS.read, ...(seloSelecionado || semArquivoParaLiberar ? DESLIGADO_LEGIVEL : {}) }}
+        // Na COLUNA da decisão o Liberar ocupa a linha inteira, sozinho em
+        // cima: é a principal, e Devolver + Reaproveitar dividem a de baixo.
+        style={{ flex: "1 1 auto", minWidth: 0, height: 48, width: p.emColuna ? "100%" : undefined, fontSize: FS.read, ...(seloSelecionado || semArquivoParaLiberar ? DESLIGADO_LEGIVEL : {}) }}
       >
         <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
-          {liberando ? "Liberando..."
+          {liberando ? "Liberando…"
             : rotuloDaProposta ? rotuloDaProposta
             : "Liberar para produção"}
         </span>
@@ -112,12 +114,12 @@ function BotoesDaDecisao(p: PropsDosBotoes) {
  * frequente); no celular fica no corpo, ao lado do Travar — o rodapé fixo é
  * só de Liberar e Devolver.
  */
-function BotaoReaproveitar({ isMobile, selectedItem, seloSelecionado, aoReaproveitar, reaproveitando, desfazendo, naFileira }: PropsDosBotoes & { naFileira: boolean }) {
+function BotaoReaproveitar({ isMobile, selectedItem, seloSelecionado, aoReaproveitar, reaproveitando, desfazendo, naFileira, emColuna = false }: PropsDosBotoes & { naFileira: boolean; emColuna?: boolean }) {
   return (
     <Botao
       variante="secundario"
       tamanho={naFileira ? undefined : "toque"}
-      icone={Recycle}
+      icone={selectedItem?.isReuse && !seloSelecionado ? Undo2 : Recycle}
       onClick={() => {
         if (seloSelecionado || !selectedItem) return;
         aoReaproveitar(selectedItem);
@@ -125,26 +127,30 @@ function BotaoReaproveitar({ isMobile, selectedItem, seloSelecionado, aoReaprove
       disabled={!!seloSelecionado || reaproveitando}
       title={seloSelecionado
         ? motivoAcaoBloqueada(seloSelecionado.motivo, "marcar reaproveitamento")
-        : selectedItem?.isReuse ? "Remover marcação de reaproveitamento" : "Reaproveitar — total ou parte das unidades, sem nova produção"}
-      aria-label={selectedItem?.isReuse ? "Remover marcação de reaproveitamento" : "Reaproveitar"}
+        : selectedItem?.isReuse ? "Desfazer o reaproveitamento — a peça volta a precisar de arquivo final e de produção" : "Reaproveitar — total ou parte das unidades, sem nova produção"}
+      aria-label={selectedItem?.isReuse ? "Desfazer o reaproveitamento" : "Reaproveitar"}
       aria-pressed={!!selectedItem?.isReuse}
       data-testid="button-reuse-modal"
       style={{
         ...(naFileira
-          ? { flex: isMobile ? "1 1 100%" : "0 0 auto", height: 48, padding: "0 16px", fontSize: FS.read }
+          ? { flex: isMobile ? "1 1 100%" : "0 0 auto", height: 48, padding: "0 16px", fontSize: FS.read,
+            // Na coluna, "Desfazer reaproveitamento" não cabe ao lado do
+            // Devolver: os três empilham em largura cheia, alinhados.
+            width: emColuna && selectedItem?.isReuse ? "100%" : undefined }
           : { flex: "1 1 0%", minWidth: 0 }),
         // Marcada, o verde do reaproveitamento (#15803d sobre #dcfce7 = 4,6:1).
-        ...(selectedItem?.isReuse && !seloSelecionado
-          ? { border: `1px solid ${TOM.sucesso.border}`, backgroundColor: TOM.sucesso.bg, color: TOM.sucesso.text }
-          : seloSelecionado ? DESLIGADO_LEGIVEL : {}),
+        // O desenho único do reaproveitar (linha, cartão e ficha): o estado
+        // pela cor e pelo ícone; "reaproveitada" é o aviso verde logo abaixo.
+        ...estiloDoReaproveitar(seloSelecionado ? "indisponivel" : selectedItem?.isReuse ? "reaproveitada" : "disponivel"),
       }}
     >
-      {selectedItem && desfazendo ? "Desfazendo…" : selectedItem?.isReuse ? "Reaproveitada · desfazer" : "Reaproveitar"}
+      {/* Meia largura (celular e tablet): "Desfazer" cabe; a frase longa cortava. */}
+      {selectedItem && desfazendo ? "Desfazendo…" : !naFileira && selectedItem?.isReuse ? "Desfazer" : selectedItem?.isReuse ? "Desfazer reaproveitamento" : "Reaproveitar"}
     </Botao>
   );
 }
 
-export function FichaDecisao(p: FichaDecisaoProps & { botoesNoRodape?: boolean; empilhado?: boolean }) {
+export function FichaDecisao(p: FichaDecisaoProps & { botoesNoRodape?: boolean; empilhado?: boolean; emColuna?: boolean }) {
   const {
     isMobile, dedo, fonteDeCampo, selectedItem, seloSelecionado,
     pecaDaFicha, fichaTravada, podeTravar, destravando, aoTravar, aoDestravar,
@@ -157,7 +163,11 @@ export function FichaDecisao(p: FichaDecisaoProps & { botoesNoRodape?: boolean; 
     // meio e a página não descia).
     // EMPILHADA (celular e tablet) sem base zero: numa coluna de altura
     // automática, "1 1 0" com minHeight 0 pode colapsar a caixa.
-    <div style={{ flex: empilhado ? undefined : "1 1 0", minWidth: 0, minHeight: 0, maxHeight: isMobile ? undefined : "32vh", overflowY: isMobile ? undefined : "auto", display: "flex", flexDirection: "column", gap: 10 }}>
+    // SEM TETO PRÓPRIO (02/10): quem rola é a coluna da decisão (lado a lado)
+    // ou o corpo da ficha (empilhada) — o teto de 32vh existia para a faixa
+    // horizontal antiga não empurrar os botões para fora, e caixa rolando
+    // dentro de caixa prende a roda e o dedo.
+    <div style={{ flex: empilhado || p.emColuna ? undefined : "1 1 0", minWidth: 0, display: "flex", flexDirection: "column", gap: p.emColuna ? 14 : 10 }}>
       {botoesNoRodape ? (
         // O Liberar e o Devolver estão no rodapé fixo; aqui ficam as duas
         // ações de apoio, lado a lado.
@@ -177,7 +187,7 @@ export function FichaDecisao(p: FichaDecisaoProps & { botoesNoRodape?: boolean; 
             </Botao>
           )}
         </div>
-      ) : <BotoesDaDecisao {...p} />}
+      ) : <BotoesDaDecisao {...p} emColuna={p.emColuna} />}
       {/* A TRAVA DA SOLICITAÇÃO, também aqui: travada, o selo com o motivo e
           o Destravar; livre, o Travar (com motivo) — as mesmas rotas e o
           mesmo texto da Gráfica. */}
@@ -198,18 +208,6 @@ export function FichaDecisao(p: FichaDecisaoProps & { botoesNoRodape?: boolean; 
             </Botao>
           )}
         </div>
-      ) : podeTravar && !seloSelecionado && !botoesNoRodape ? (
-        <Botao
-          variante="secundario"
-          tamanho={dedo || isMobile ? "toque" : "sm"}
-          icone={Lock}
-          onClick={() => aoTravar(pecaDaFicha)}
-          data-testid="button-travar-revisao"
-          title="Travar a peça: mesmo liberada, a Gráfica não consegue fazê-la andar até alguém da Solicitação destravar"
-          style={{ alignSelf: "flex-start", color: TOM.perigo.text }}
-        >
-          Travar
-        </Botao>
       ) : null)}
       {/* PARA ONDE A PEÇA VAI, dito ANTES do clique: o rótulo do botão diz a
           ação, esta linha diz o destino. Sem arquivo final, o porquê do
@@ -219,8 +217,13 @@ export function FichaDecisao(p: FichaDecisaoProps & { botoesNoRodape?: boolean; 
       {SOLICITACAO_AO_ESTOQUE_ATIVA && selectedItem && (
         <RespostaDoEstoqueNaFicha item={selectedItem} usar={usarMenos} onUsar={setUsarMenos} />
       )}
+      {/* O DESTINO e o TRAVAR na mesma linha (desktop): o Travar sozinho
+          numa linha própria gastava uma faixa inteira de altura — e a faixa de
+          decisão tem teto de 32vh. Ele é a decisão menos frequente: fica à
+          direita, pequeno, na altura da frase. */}
       {!seloSelecionado && selectedItem && (
-        <p data-testid="destino-da-decisao" style={{ margin: 0, fontSize: FS.meta, lineHeight: 1.5, color: T.apoio }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+        <p data-testid="destino-da-decisao" style={{ flex: "1 1 auto", minWidth: 0, margin: 0, fontSize: FS.meta, lineHeight: 1.5, color: T.apoio }}>
           {prontaParaLiberar(selectedItem) ? (
             <>
               <strong style={{ color: T.text }}>Liberar</strong>: {reaproveitamentoTotal(selectedItem)
@@ -235,6 +238,20 @@ export function FichaDecisao(p: FichaDecisaoProps & { botoesNoRodape?: boolean; 
             </>
           )}
         </p>
+        {pecaDaFicha && !fichaTravada && podeTravar && !botoesNoRodape && (
+          <Botao
+            variante="secundario"
+            tamanho={dedo || isMobile ? "toque" : "sm"}
+            icone={Lock}
+            onClick={() => aoTravar(pecaDaFicha)}
+            data-testid="button-travar-revisao"
+            title="Travar a peça: mesmo liberada, a Gráfica não consegue fazê-la andar até alguém da Solicitação destravar"
+            style={{ flexShrink: 0, color: TOM.perigo.text }}
+          >
+            Travar
+          </Botao>
+        )}
+        </div>
       )}
       {seloSelecionado && (
         <p
@@ -256,25 +273,26 @@ export function FichaDecisao(p: FichaDecisaoProps & { botoesNoRodape?: boolean; 
 
       {/* Observações do item — campo próprio, sempre editável. Existe para
           anotar sem ter de devolver a peça. */}
-      <div style={{ backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: R.md, padding: "10px 12px", display: "flex", gap: 8 }}>
-        <AlertCircle style={{ width: 14, height: 14, color: TOM.alerta.text, flexShrink: 0, marginTop: 2 }} />
-        <div style={{ flex: 1, minWidth: 0 }}>
+      {/* O RECADO, em papel neutro (era um bloco âmbar com ícone de alerta:
+          lia-se como AVISO, e competia com os três botões de decisão logo
+          acima). O rótulo tem o desenho dos títulos da coluna ao lado
+          (Patrocinadores, Histórico); o campo, o dos motivos da tela. */}
+      <div style={{ paddingTop: 2 }}>
+        <div>
           {/* "Salvar observação libera a peça?" — não. A frase curta separa o
               recado da decisão, que é o que o bloco existe para permitir. */}
-          <p style={{ fontSize: letra(FS.small, isMobile), fontWeight: 700, color: TOM.alerta.text, margin: "0 0 6px" }}>
-            Observações do item <span style={{ fontWeight: 500 }}>· fica gravada na peça, sem liberar nem devolver</span>
-          </p>
+          <label htmlFor="observacoes-da-peca" style={{ display: "block", fontSize: letra(FS.small, isMobile), lineHeight: 1.4, margin: "0 0 6px", color: T.apoio }}>
+            <span style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: TI.secondary }}>Observações do item</span>
+            <span style={{ fontWeight: 500 }}> · fica gravada na peça, sem liberar nem devolver</span>
+          </label>
           <textarea
-            placeholder="Deixe um recado sobre esta peça (cor, acabamento, posição...)"
+            id="observacoes-da-peca"
+            placeholder="Deixe um recado sobre esta peça (cor, acabamento, posição…)"
             value={cardObservations}
             onChange={e => setCardObservations(e.target.value)}
             data-testid="textarea-item-observations"
-            style={{
-              width: "100%", minHeight: 48, padding: "8px 10px", borderRadius: R.sm,
-              border: `1px solid ${TOM.alerta.border}`, backgroundColor: TOM.alerta.bg,
-              color: TOM.alerta.text, fontSize: fonteDeCampo, resize: "vertical",
-              fontFamily: "inherit", boxSizing: "border-box",
-            }}
+            className="placeholder:text-muted-foreground"
+            style={{ ...CAMPO_DO_MOTIVO, minHeight: 56, fontSize: fonteDeCampo }}
           />
           {cardObservations !== (selectedItem?.observations || "") && (
             <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
@@ -290,13 +308,12 @@ export function FichaDecisao(p: FichaDecisaoProps & { botoesNoRodape?: boolean; 
                 motivo={seloSelecionado ? motivoAcaoBloqueada(seloSelecionado.motivo, "salvar a observação") : undefined}
                 data-testid="button-save-observations"
               >
-                {salvandoObservacao ? "Salvando..." : "Salvar observação"}
+                {salvandoObservacao ? "Salvando…" : "Salvar observação"}
               </Botao>
               <Botao
                 variante="fantasma"
                 tamanho={dedo || isMobile ? "toque" : "sm"}
                 onClick={() => setCardObservations(selectedItem?.observations || "")}
-                style={{ color: TOM.alerta.text }}
               >
                 Descartar
               </Botao>
@@ -316,7 +333,7 @@ export function FichaDecisao(p: FichaDecisaoProps & { botoesNoRodape?: boolean; 
  * para onde a peça vai; e o porquê do botão apagado sobe para uma linha LOGO
  * ACIMA dele (o `title` não existe no toque). O Reaproveitar fica no corpo.
  */
-export function BotoesDoRodape(p: PropsDosBotoes) {
+export function BotoesDoRodape(p: PropsDosBotoes & { rotulosLongos?: boolean }) {
   const { selectedItem, seloSelecionado, semArquivoParaLiberar, liberando, rotuloDaProposta, aoLiberar, aoDevolver } = p;
   const liberarApagado = !!seloSelecionado || semArquivoParaLiberar;
   return (
@@ -338,7 +355,7 @@ export function BotoesDoRodape(p: PropsDosBotoes) {
           data-testid="button-return-toggle"
           style={{ flex: "1 1 0%", minWidth: 0, minHeight: 48, ...(seloSelecionado ? DESLIGADO_LEGIVEL : {}) }}
         >
-          Devolver
+          {p.rotulosLongos ? "Devolver para Arte" : "Devolver"}
         </Botao>
         <Botao
           variante="primario"
@@ -351,7 +368,7 @@ export function BotoesDoRodape(p: PropsDosBotoes) {
           style={{ flex: "1.4 1 0%", minWidth: 0, minHeight: 48, ...(liberarApagado ? DESLIGADO_LEGIVEL : {}) }}
         >
           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {liberando ? "Liberando..." : rotuloDaProposta ? rotuloDaProposta : "Liberar"}
+            {liberando ? "Liberando…" : rotuloDaProposta ? rotuloDaProposta : p.rotulosLongos ? "Liberar para produção" : "Liberar"}
           </span>
         </Botao>
       </div>

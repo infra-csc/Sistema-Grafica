@@ -52,7 +52,11 @@ export function AbasDoAtendimento({ activeTab, setActiveTab, actionableCount }: 
       aoTrocar={(id) => setActiveTab(id as AbaDoAtendimento)}
       style={{ marginBottom: 20 }}
       itens={[
-        { id: 'pending', rotulo: 'Pendentes', contador: actionableCount ?? undefined, idDoElemento: 'tab-pending', ariaControls: 'tabpanel-pending' },
+        // O title diz O QUE o número conta (o mesmo critério de
+        // actionableCount) — ele difere da fila quando há peça com a Arte
+        // refazendo, e a legenda da lista diz quantas.
+        { id: 'pending', rotulo: 'Pendentes', contador: actionableCount ?? undefined, idDoElemento: 'tab-pending', ariaControls: 'tabpanel-pending',
+          title: actionableCount === null ? undefined : `${actionableCount} ${actionableCount === 1 ? 'peça pede' : 'peças pedem'} decisão agora — não conta as que têm patrocinador com a Arte refazendo` },
         { id: 'history', rotulo: 'Histórico', idDoElemento: 'tab-history', ariaControls: 'tabpanel-history' },
       ]}
     />
@@ -203,7 +207,7 @@ export function BarraDaFila({
           <input
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            placeholder="Buscar ID, tipo ou descrição"
+            placeholder="Buscar peça"
             aria-label="Buscar por ID, tipo ou descrição"
             data-testid="input-search"
             style={{

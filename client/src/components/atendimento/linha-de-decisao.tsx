@@ -11,7 +11,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Dispatch, SetStateAction } from "react";
 import { format } from "date-fns";
-import { CheckCircle, Clock, RotateCcw, Undo2, XCircle } from "lucide-react";
+import { CheckCircle, Clock, RotateCcw, Undo2, Unlink, XCircle } from "lucide-react";
 import { TextoComLinks } from "@/components/texto-com-links";
 import { Botao } from "@/components/ui/botao";
 import { FS, FW, R, T, TOM } from "@/lib/theme";
@@ -91,11 +91,14 @@ export function LinhaDeDecisao({
         backgroundColor: moldura.bg,
       }}
     >
-      {/* flexWrap (31/08, print 'cortando ainda'): com 3 botões
-          (Reprovar/Aprovar/Desvincular) a fileira estourava a
-          largura do painel e nascia rolagem horizontal. */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: isRejectingThis ? 12 : 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: '1 1 160px' }}>
+      {/* DUAS LINHAS (29/09, 2ª passada): em cima QUEM é e em que estado está
+          — com a ação de manutenção (Desvincular, admin) ou a de desfazer
+          (Revogar) encostada à direita; embaixo as DUAS decisões, lado a lado
+          e de largura igual. Numa fileira só, com três botões, o nome do
+          patrocinador quebrava em duas linhas e o "Desvincular" parecia um
+          texto solto ao lado das decisões. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: '1 1 0%' }}>
           <div aria-hidden="true" style={{
             width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
             backgroundColor: icone.fundo,
@@ -116,56 +119,25 @@ export function LinhaDeDecisao({
           </div>
         </div>
 
-        {isPending && !isRejectingThis && (
-          // No celular: Reprovar e Aprovar LADO A LADO em linha cheia (eram
-          // empilhados, um por linha — 100px de altura por patrocinador), e
-          // o Desvincular do admin na linha de baixo.
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', width: isMobile ? '100%' : undefined }}>
-            <Botao
-              variante="perigoSecundario"
-              tamanho={tamBotao}
-              onClick={() => { if (!decisaoTravada()) setRejectingSponsorId(sponsor.id); }}
-              disabled={individualRejectMutation.isPending || !canDecide || pecaRecemAberta}
-              // "Reprovar faz o quê?" antes do clique (rodada 4).
-              title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : `Abre o campo do motivo. A Arte refaz a arte por causa de ${sponsor.name}; os patrocinadores com aprovação estrita também esperam a nova versão, e os demais pendentes seguem podendo aprovar.`}
-              aria-label={`Reprovar para ${sponsor.name}`}
-              data-testid={`button-reject-sponsor-${sponsor.id}`}
-              style={{ flex: isMobile ? '1 1 0%' : undefined }}
-            >
-              Reprovar
-            </Botao>
-            <Botao
-              variante="secundario"
-              tom="sucesso"
-              tamanho={tamBotao}
-              icone={CheckCircle}
-              carregando={individualApproveMutation.isPending}
-              onClick={() => { if (!decisaoTravada()) setConfirmApproveIndividual({ itemId: selectedItem.id, sponsorId: sponsor.id, sponsorName: sponsor.name || 'Patrocinador' }); }}
-              disabled={individualApproveMutation.isPending || !canDecide || pecaRecemAberta}
-              title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : `Registra a aprovação de ${sponsor.name} (dá para revogar depois)`}
-              data-testid={`button-approve-sponsor-${sponsor.id}`}
-              aria-label={`Aprovar para ${sponsor.name}`}
-              style={{ flex: isMobile ? '1 1 0%' : undefined, backgroundColor: TOM.sucesso.bg }}
-            >
-              Aprovar
-            </Botao>
-            {/* DESVINCULAR (25/08, admin): a marca não é desta
-                peça — sai, e a pendência dele deixa de contar.
-                Se era o único que faltava, a peça segue. */}
-            {user?.role === "admin" && (
-              <Botao
-                variante="fantasma"
-                tamanho={tamBotao}
-                larguraCheia={isMobile}
-                onClick={() => setDesvincularAlvo({ itemId: selectedItem.id, sponsorId: sponsor.id, sponsorName: sponsor.name || "Patrocinador" })}
-                disabled={desvincularSponsorMutation.isPending}
-                title="Desvincular este patrocinador da peça — a aprovação pendente dele deixa de contar (admin)"
-                data-testid={`button-desvincular-sponsor-${sponsor.id}`}
-              >
-                Desvincular
-              </Botao>
-            )}
-          </div>
+        {/* DESVINCULAR (25/08, admin): a marca não é desta peça — sai, e a
+            pendência dele deixa de contar. Se era o único que faltava, a
+            peça segue. Ação TERCIÁRIA e destrutiva: fantasma em vermelho,
+            com ícone, longe das decisões — e a mesma confirmação de antes. */}
+        {isPending && !isRejectingThis && user?.role === "admin" && (
+          <Botao
+            variante="fantasma"
+            tom="perigo"
+            tamanho={dedo ? "toque" : "sm"}
+            icone={Unlink}
+            onClick={() => setDesvincularAlvo({ itemId: selectedItem.id, sponsorId: sponsor.id, sponsorName: sponsor.name || "Patrocinador" })}
+            disabled={desvincularSponsorMutation.isPending}
+            title="Desvincular este patrocinador da peça — a aprovação pendente dele deixa de contar (admin)"
+            aria-label={`Desvincular ${sponsor.name}`}
+            data-testid={`button-desvincular-sponsor-${sponsor.id}`}
+            style={{ flexShrink: 0 }}
+          >
+            Desvincular
+          </Botao>
         )}
 
         {/* Revogar a aprovação / reverter a reprovação: volta a
@@ -180,11 +152,46 @@ export function LinhaDeDecisao({
             onClick={() => revertApprovalMutation.mutate({ itemId: selectedItem.id, sponsorId: sponsor.id })}
             title={`${isApproved ? 'Revogar a aprovação' : 'Reverter a reprovação'} — volta a aguardar decisão${selectedItem.status === 'sponsor_approved' ? '; a peça volta para a aprovação e a Arte é avisada' : ''}`}
             data-testid={`button-revert-approval-${sponsor.id}`}
+            style={{ flexShrink: 0 }}
           >
             {isApproved ? 'Revogar' : 'Reverter'}
           </Botao>
         )}
       </div>
+
+      {isPending && !isRejectingThis && (
+        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+          <Botao
+            variante="perigoSecundario"
+            tamanho={tamBotao}
+            onClick={() => { if (!decisaoTravada()) setRejectingSponsorId(sponsor.id); }}
+            disabled={individualRejectMutation.isPending || !canDecide || pecaRecemAberta}
+            // "Reprovar faz o quê?" antes do clique (rodada 4).
+            title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : `Abre o campo do motivo. A Arte refaz a arte por causa de ${sponsor.name}; os patrocinadores com aprovação estrita também esperam a nova versão, e os demais pendentes seguem podendo aprovar.`}
+            aria-label={`Reprovar para ${sponsor.name}`}
+            data-testid={`button-reject-sponsor-${sponsor.id}`}
+            style={{ flex: '1 1 0%' }}
+          >
+            Reprovar
+          </Botao>
+          <Botao
+            variante="secundario"
+            tom="sucesso"
+            tamanho={tamBotao}
+            icone={CheckCircle}
+            carregando={individualApproveMutation.isPending}
+            onClick={() => { if (!decisaoTravada()) setConfirmApproveIndividual({ itemId: selectedItem.id, sponsorId: sponsor.id, sponsorName: sponsor.name || 'Patrocinador' }); }}
+            disabled={individualApproveMutation.isPending || !canDecide || pecaRecemAberta}
+            title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : `Registra a aprovação de ${sponsor.name} (dá para revogar depois)`}
+            data-testid={`button-approve-sponsor-${sponsor.id}`}
+            aria-label={`Aprovar para ${sponsor.name}`}
+            style={{ flex: '1 1 0%', backgroundColor: TOM.sucesso.bg }}
+          >
+            Aprovar
+          </Botao>
+        </div>
+      )}
+      {isRejectingThis && <div style={{ height: 12 }} />}
 
       {/* A VERSÃO NOVA, COM A MEMÓRIA DA ANTERIOR (29/09). A linha dizia só
           "Nova versão para decidir" — e quem apresenta a arte nova ao

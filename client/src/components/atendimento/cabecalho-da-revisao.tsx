@@ -2,24 +2,49 @@
 // O CABEÇALHO DO MODAL DE REVISÃO: a peça, o evento com o prazo de Aprovação
 // de Layout, e a navegação da fila (anterior, próxima, fechar).
 //
-// NO CELULAR o cabeçalho QUEBRA em duas linhas (peça em cima, navegação da
-// fila embaixo). Numa fileira só, o bloco da peça não tinha `minWidth: 0` e
-// não encolhia: com "Peça 3 de 41", as duas setas e o fechar, o X saía da
-// tela em 390px — o modal ficava sem saída visível além do Esc.
+// NO CELULAR (29/09, 2ª passada) o cabeçalho tem DUAS linhas e não três: o
+// título divide a primeira com o X (onde se procura o fechar), e o prazo
+// divide a segunda com "7/17 ‹ ›". A fileira só de navegação custava 56px
+// entre o título e a arte — era ela que empurrava a primeira decisão para
+// baixo do rodapé fixo em 360×740. A miniatura some no celular: a arte
+// inteira vem logo abaixo.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Dispatch, SetStateAction } from "react";
 import { ChevronLeft, ChevronRight, FileText, X } from "lucide-react";
-import { Botao } from "@/components/ui/botao";
 import { format } from "date-fns";
 import { SeloKit } from "@/components/kit/selo-kit";
-import { alvo } from "@/hooks/use-mobile";
+import { Botao } from "@/components/ui/botao";
 import { prazoAprovacaoLayout } from "@/lib/atendimento-prazo";
 import { miniatura } from "@/lib/miniatura";
 import { toUTCDisplayDate } from "@/lib/utils";
 import { FS, FW, R, T, N, TOM, FONT } from "@/lib/theme";
-import { letra } from "./estilos";
-import { aoFalharMiniatura } from "./regras";
+import { aoFalharMiniatura, posicaoNaFila } from "./regras";
+import { botaoQuadrado, codigoDaPeca, letra } from "./estilos";
 import type { EventoAtendimento, PecaAtendimento } from "./tipos";
+
+/** O prazo de Aprovação de Layout da peça, vermelho quando venceu. */
+function PrazoDaPeca({ ev, hoje, toque }: { ev: EventoAtendimento | undefined; hoje: Date; toque: boolean }) {
+  // O prazo desta tela é o marco de APROVAÇÃO DE LAYOUT, não a saída do
+  // caminhão: aqui o patrocinador decide. A conta é a mesma regra pura do
+  // card da lista e do filtro "Atrasados".
+  const p = prazoAprovacaoLayout(ev, hoje);
+  if (!p) return null;
+  // VENCIDO fica vermelho e POR EXTENSO: a tela inteira existe para não
+  // deixar vencer, e a cor sozinha não basta (WCAG 1.4.1).
+  const venceu = p.diff < 0;
+  return (
+    <span data-testid="prazo-da-peca" style={{
+      fontSize: letra(FS.meta, toque), fontWeight: venceu ? FW.forte : FW.medio,
+      color: venceu ? TOM.perigo.text : T.second,
+      // No toque a linha divide espaço com as setas: quebra em vez de vazar
+      // por cima do contador "8/18" (visto a 375px, 02/10).
+      fontVariantNumeric: 'tabular-nums', whiteSpace: toque ? 'normal' : 'nowrap',
+    }}>
+      Aprovação até {format(toUTCDisplayDate(p.limite.toISOString()), "dd/MM HH:mm")}
+      {venceu && " · vencida"}
+    </span>
+  );
+}
 
 export function CabecalhoDaRevisao({
   selectedItem, ev, thumbUrl, isMobile, dedo, hoje, reviewQueue, goToAdjacentItem, setDialogOpen,
@@ -34,18 +59,116 @@ export function CabecalhoDaRevisao({
   goToAdjacentItem: (dir: 1 | -1) => void;
   setDialogOpen: Dispatch<SetStateAction<boolean>>;
 }) {
+  const toque = isMobile || dedo;
+  const { indice, temAnterior, temProxima, total } = posicaoNaFila(reviewQueue, selectedItem.id);
+  const naFila = indice >= 0 && total > 1;
+  const tamanho = dedo || isMobile ? 'toque' as const : 'md' as const;
+  const quadrado = botaoQuadrado(dedo || isMobile);
+
+  // Os TRÊS botões do canto (anterior, próxima, fechar) com a mesma forma —
+  // o <Botao> da casa, com hover, foco e desligado dele. As setas anunciam o
+  // atalho de teclado (aria-keyshortcuts) e o mostram no title.
+  const setas = naFila && (
+    <>
+      <span data-testid="posicao-na-fila" style={{ fontSize: letra(FS.meta, toque), fontWeight: FW.forte, color: T.second, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', marginRight: 4 }}>
+        {isMobile ? `${indice + 1}/${total}` : `Peça ${indice + 1} de ${total}`}
+      </span>
+      {/* aria-label: só com o title o leitor de tela lia "botão" sem nome
+          em dois ícones de seta. */}
+      <Botao
+        variante="secundario"
+        tamanho={tamanho}
+        icone={ChevronLeft}
+        tamanhoDoIcone={16}
+        onClick={() => temAnterior && goToAdjacentItem(-1)}
+        disabled={!temAnterior}
+        data-testid="button-prev-item"
+        title="Peça anterior (←)"
+        aria-label="Peça anterior"
+        aria-keyshortcuts="ArrowLeft"
+        style={quadrado}
+      />
+      <Botao
+        variante="secundario"
+        tamanho={tamanho}
+        icone={ChevronRight}
+        tamanhoDoIcone={16}
+        onClick={() => temProxima && goToAdjacentItem(1)}
+        disabled={!temProxima}
+        data-testid="button-next-item"
+        title="Próxima peça (→)"
+        aria-label="Próxima peça"
+        aria-keyshortcuts="ArrowRight"
+        style={quadrado}
+      />
+    </>
+  );
+  const fechar = (
+    <Botao
+      variante="secundario"
+      tamanho={tamanho}
+      icone={X}
+      tamanhoDoIcone={16}
+      onClick={() => setDialogOpen(false)}
+      data-testid="button-close-dialog"
+      aria-label="Fechar"
+      title="Fechar (Esc)"
+      style={quadrado}
+    />
+  );
+  // O TÍTULO diz o que é a peça (era "REVISÃO DE ATIVO #3524": três palavras
+  // sobre o modal e nenhuma sobre a PEÇA), com o código em mono ao lado.
+  const titulo = (
+    <h2 title={selectedItem.type || undefined} style={{
+      fontFamily: FONT.display,
+      fontSize: isMobile ? 17 : 18, fontWeight: FW.forte, letterSpacing: '-0.02em',
+      color: T.text, margin: 0, lineHeight: 1.25,
+      display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0,
+    }}>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {selectedItem.type || 'Peça'}
+      </span>
+      <span style={codigoDaPeca(toque, FS.body)}>{selectedItem.displayId}</span>
+      <SeloKit peca={selectedItem} style={{ flexShrink: 0 }} />
+    </h2>
+  );
+  const nomeDoEvento = (
+    <span title={ev?.name || undefined} style={{ fontSize: letra(FS.meta, toque), fontWeight: FW.medio, color: T.second, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
+      {ev?.name || 'Sem evento'}
+    </span>
+  );
+
+  if (isMobile) {
+    return (
+      <div data-testid="cabecalho-da-revisao" style={{ padding: '10px 10px 10px 16px', borderBottom: `1px solid ${N.n3}`, backgroundColor: T.bg, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <div style={{ flex: '1 1 0%', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+            {titulo}
+            {nomeDoEvento}
+          </div>
+          {fechar}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+          <div style={{ flex: '1 1 0%', minWidth: 0 }}>
+            <PrazoDaPeca ev={ev} hoje={hoje} toque />
+          </div>
+          {setas}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div style={{
-      padding: isMobile ? '14px 16px' : '20px 24px', borderBottom: `1px solid ${N.n3}`,
-      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      flexWrap: isMobile ? 'wrap' : 'nowrap', gap: isMobile ? 10 : 16,
+    <div data-testid="cabecalho-da-revisao" style={{
+      padding: '18px 20px 18px 24px', borderBottom: `1px solid ${N.n3}`,
+      display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16,
       backgroundColor: T.bg, flexShrink: 0,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 16, minWidth: 0, flex: '1 1 auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, flex: '1 1 auto' }}>
         <div style={{
-          width: 38, height: 38, borderRadius: 10, overflow: 'hidden', flexShrink: 0,
-          backgroundColor: T.text, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          position: 'relative',
+          width: 40, height: 40, borderRadius: R.md + 2, overflow: 'hidden', flexShrink: 0,
+          backgroundColor: N.n2, border: `1px solid ${T.border}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
         }}>
           {thumbUrl
             ? <>
@@ -57,139 +180,27 @@ export function CabecalhoDaRevisao({
                   onError={aoFalharMiniatura}
                 />
                 <div data-fallback="1" style={{ display: 'none', position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center' }}>
-                  <FileText style={{ width: 20, height: 20, color: T.surface }} />
+                  <FileText aria-hidden="true" style={{ width: 18, height: 18, color: T.second }} />
                 </div>
               </>
-            : <FileText style={{ width: 20, height: 20, color: T.surface }} />}
+            : <FileText aria-hidden="true" style={{ width: 18, height: 18, color: T.second }} />}
         </div>
         <div style={{ minWidth: 0 }}>
-          {/* O TÍTULO diz o que é a peça.
-
-              Era "REVISÃO DE ATIVO #3524" — três palavras sobre o
-              modal (que a pessoa acabou de abrir e já sabe que é uma
-              revisão) e nenhuma sobre a PEÇA. Agora nomeia o objeto,
-              com o código ao lado em mono para o olho achar o número
-              sem ler a frase. */}
-          <h2 title={selectedItem.type || undefined} style={{
-            fontFamily: FONT.display,
-            fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em',
-            color: T.text, margin: 0, lineHeight: 1.2,
-            display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0,
-          }}>
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {selectedItem.type || 'Peça'}
-            </span>
-            <span style={{
-              fontFamily: FONT.mono, fontSize: 13, fontWeight: 700,
-              color: T.second, fontVariantNumeric: 'tabular-nums', flexShrink: 0,
-            }}>
-              {selectedItem.displayId}
-            </span>
-            <SeloKit peca={selectedItem} style={{ flexShrink: 0 }} />
-          </h2>
-          {/* Evento e prazo em caixa normal: em versalete espaçado a
-              linha de contexto gritava tanto quanto o título, e o
-              nome do evento, que pode ser longo, não quebrava. */}
-          <div style={{ display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', flexDirection: isMobile ? 'column' : 'row', columnGap: 8, rowGap: isMobile ? 1 : 2, marginTop: 4, flexWrap: 'wrap', minWidth: 0 }}>
-            <span title={ev?.name || undefined} style={{ fontSize: 12, fontWeight: 600, color: T.second, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
-              {ev?.name || 'Sem evento'}
-            </span>
-            {(() => {
-              // O prazo desta tela é o marco de APROVAÇÃO DE LAYOUT,
-              // não a saída do caminhão: aqui o patrocinador decide,
-              // e cobrar pela saída dava ao atendimento semanas de
-              // folga que ele não tem. A conta era uma cópia da do
-              // card da lista — agora as duas (e o filtro
-              // "Atrasados") leem a mesma regra pura.
-              const p = prazoAprovacaoLayout(ev, hoje);
-              if (!p) return null;
-              const limite = p.limite;
-              // VENCIDO fica vermelho. O prazo era cinza nos dois
-              // casos, com a data por extenso: quem abre a ficha
-              // tinha de comparar a data com a de hoje de cabeça
-              // para saber se estava atrasado — na tela cujo
-              // trabalho inteiro é não deixar vencer.
-              const venceu = p.diff < 0;
-              return (
-                <>
-                  {/* No celular o prazo vai para a linha de baixo: o ponto
-                      separador ficava órfão no fim da linha do evento. */}
-                  {!isMobile && <span aria-hidden="true" style={{ width: 4, height: 4, borderRadius: '50%', backgroundColor: T.bdark }} />}
-                  <span style={{
-                    fontSize: 12, fontWeight: venceu ? 700 : 600,
-                    color: venceu ? TOM.perigo.text : T.second,
-                    fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
-                  }}>
-                    Aprovação até {format(toUTCDisplayDate(limite.toISOString()), "dd/MM HH:mm")}
-                    {venceu && " · vencida"}
-                  </span>
-                </>
-              );
-            })()}
+          {titulo}
+          {/* Evento e prazo em caixa normal, separados por um ponto. */}
+          <div style={{ display: 'flex', alignItems: 'center', columnGap: 8, rowGap: 2, marginTop: 4, flexWrap: 'wrap', minWidth: 0 }}>
+            {nomeDoEvento}
+            {prazoAprovacaoLayout(ev, hoje) && <span aria-hidden="true" style={{ width: 4, height: 4, borderRadius: '50%', backgroundColor: T.bdark }} />}
+            <PrazoDaPeca ev={ev} hoje={hoje} toque={toque} />
           </div>
         </div>
       </div>
-      {/* Navegação da fila + fechar */}
-      {(() => {
-        const qIdx = reviewQueue.findIndex((i) => i.id === selectedItem.id);
-        const hasPrev = qIdx > 0;
-        const hasNext = qIdx >= 0 && qIdx < reviewQueue.length - 1;
-        // Os TRÊS botões do canto (anterior, próxima, fechar) com a
-        // mesma forma e o mesmo tamanho — agora o <Botao> da casa, com o
-        // hover, o foco e o desligado dele (eram <button> com opacity à mão).
-        const lado = alvo(36, dedo);
-        const quadrado = { width: lado, minWidth: lado, padding: 0 } as const;
-        return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto', flexShrink: 0, width: isMobile ? '100%' : undefined }}>
-            {qIdx >= 0 && reviewQueue.length > 1 && (
-              <>
-                <span data-testid="posicao-na-fila" style={{ fontSize: letra(FS.meta, isMobile || dedo), fontWeight: FW.forte, color: T.second, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', marginRight: isMobile ? 'auto' : 4 }}>
-                  Peça {qIdx + 1} de {reviewQueue.length}
-                </span>
-                {/* aria-label: só com o title o leitor de tela lia
-                    "botão" sem nome em dois ícones de seta. */}
-                <Botao
-                  variante="secundario"
-                  tamanho={dedo ? 'toque' : 'md'}
-                  icone={ChevronLeft}
-                  tamanhoDoIcone={16}
-                  onClick={() => hasPrev && goToAdjacentItem(-1)}
-                  disabled={!hasPrev}
-                  data-testid="button-prev-item"
-                  title="Peça anterior"
-                  aria-label="Peça anterior"
-                  style={quadrado}
-                />
-                <Botao
-                  variante="secundario"
-                  tamanho={dedo ? 'toque' : 'md'}
-                  icone={ChevronRight}
-                  tamanhoDoIcone={16}
-                  onClick={() => hasNext && goToAdjacentItem(1)}
-                  disabled={!hasNext}
-                  data-testid="button-next-item"
-                  title="Próxima peça"
-                  aria-label="Próxima peça"
-                  style={quadrado}
-                />
-                <span aria-hidden="true" style={{ width: 1, height: 20, backgroundColor: T.border, margin: '0 4px' }} />
-              </>
-            )}
-            {isMobile && !(qIdx >= 0 && reviewQueue.length > 1) && <span style={{ marginRight: 'auto' }} />}
-            <Botao
-              variante="secundario"
-              tamanho={dedo ? 'toque' : 'md'}
-              icone={X}
-              tamanhoDoIcone={16}
-              onClick={() => setDialogOpen(false)}
-              data-testid="button-close-dialog"
-              aria-label="Fechar"
-              title="Fechar (Esc)"
-              style={quadrado}
-            />
-          </div>
-        );
-      })()}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+        {/* A dica do atalho ← → mora no rodapé (barra de ações), uma vez só. */}
+        {setas}
+        {naFila && <span aria-hidden="true" style={{ width: 1, height: 20, backgroundColor: T.border, margin: '0 4px' }} />}
+        {fechar}
+      </div>
     </div>
   );
 }

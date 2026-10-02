@@ -33,6 +33,24 @@ export function codigoDaPeca(toque: boolean, tamanho: number = FS.meta): CSSProp
   };
 }
 
+/**
+ * O botão QUADRADO só de ícone (setas da fila, fechar dos modais): 36 no
+ * mouse, 44 no dedo. Era o mesmo objeto de estilo escrito em três arquivos.
+ */
+export function botaoQuadrado(dedo: boolean): CSSProperties {
+  const lado = dedo ? 44 : 36;
+  return { width: lado, minWidth: lado, minHeight: lado, padding: 0, flexShrink: 0 };
+}
+
+/** Botão de TEXTO ("Limpar filtros"): desfazer não é ação primária. */
+export function botaoDeTexto(altura: number, toque: boolean): CSSProperties {
+  return {
+    height: altura, padding: "0 10px", borderRadius: R.md,
+    background: "none", border: "none", cursor: "pointer", fontFamily: "inherit",
+    color: T.accentText, fontSize: letra(FS.body, toque), fontWeight: FW.forte, whiteSpace: "nowrap",
+  };
+}
+
 /** Superfície de lista: papel branco, hairline, raio de card — sem sombra. */
 export const SUPERFICIE: CSSProperties = {
   backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, overflow: "hidden",

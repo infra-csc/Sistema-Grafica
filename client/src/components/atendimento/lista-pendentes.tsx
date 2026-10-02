@@ -25,7 +25,7 @@ const ORDENS: readonly (readonly [OrdemPendentes, string, string])[] = [
 
 export function ListaPendentes({
   filteredItems, filteredItemsBase, pendingItems, pendingGroup, atrasadosFilter, setAtrasadosFilter, chipsAtivos, limparFiltros,
-  ordemPendentes, setOrdemPendentes, user, avisarGestaoMutation, filaDaSuaMesa, reviewQueue, setSelectedItem, setDialogOpen,
+  ordemPendentes, setOrdemPendentes, actionableCount = null, user, avisarGestaoMutation, filaDaSuaMesa, reviewQueue, setSelectedItem, setDialogOpen,
   itemsByEvent, events, expandedEvents, isMobile, dedo, hoje, itemSponsorsMap, getEventInfo, eventoAberto, toggleEventCollapsed,
   ...doCartao
 }: {
@@ -39,6 +39,8 @@ export function ListaPendentes({
   limparFiltros: () => void;
   ordemPendentes: OrdemPendentes;
   setOrdemPendentes: Dispatch<SetStateAction<OrdemPendentes>>;
+  /** O número da aba Pendentes (use-ordem-da-fila) — só para explicar a diferença. */
+  actionableCount?: number | null;
   user: UsuarioDaTela;
   avisarGestaoMutation: AcoesDoAtendimento["avisarGestaoMutation"];
   filaDaSuaMesa: PecaAtendimento[];
@@ -58,6 +60,17 @@ export function ListaPendentes({
 } & Omit<PropsDoCartao, "item" | "prevItem">) {
   const { cards, tamBotao, agora, itemApprovalsMap, typeToGroup, loadingSponsors } = doCartao;
   const toque = isMobile || dedo;
+
+  // POR QUE A ABA DIZ 16 E A FILA TEM 17 (29/09). As duas contagens estão
+  // certas e contam coisas diferentes — a tela só não dizia qual. A aba
+  // (`actionableCount`, em use-ordem-da-fila) conta as peças com decisão em
+  // aberto (patrocinador pendente, reprovado ou com versão nova) e DEIXA DE
+  // FORA as que têm alguém com a Arte refazendo. A fila ("Toda a fila") tem
+  // todas as que não foram aprovadas por todos. A frase abaixo sai do MESMO
+  // critério — nenhuma contagem mudou.
+  const comArte = pendingGroup.filter(i => (itemApprovalsMap[i.id] || []).some(a => a.status === 'awaiting_arte')).length;
+  const semDecisaoEmAberto = actionableCount === null ? 0 : Math.max(0, reviewQueue.length - actionableCount - comArte);
+  const explicaAba = actionableCount !== null && actionableCount !== reviewQueue.length;
 
   // ── AS PORTAS DA FILA ─────────────────────────────────────────────────────
   // A fila de decisão existia só DENTRO do modal (navegação no cabeçalho e
@@ -198,6 +211,13 @@ export function ListaPendentes({
                 <span data-testid="regra-da-ordem" style={{ fontSize: letra(FS.meta, toque), color: T.second, lineHeight: 1.4 }}>
                   {ORDEM_REGRA[ordemPendentes]}
                 </span>
+                {explicaAba && (
+                  <span data-testid="explica-contagem-da-aba" style={{ fontSize: letra(FS.meta, toque), color: T.second, lineHeight: 1.45 }}>
+                    <strong style={{ color: T.text, fontWeight: FW.forte }}>{actionableCount}</strong> {actionableCount === 1 ? 'pede' : 'pedem'} decisão agora (o número da aba) · a fila tem {reviewQueue.length}
+                    {comArte > 0 && <>, {comArte === 1 ? '1 com a Arte refazendo' : `${comArte} com a Arte refazendo`}</>}
+                    {semDecisaoEmAberto > 0 && <>, {semDecisaoEmAberto === 1 ? '1 sem decisão em aberto' : `${semDecisaoEmAberto} sem decisão em aberto`}</>}
+                  </span>
+                )}
               </div>
               {!cards && portasDaFila}
             </div>

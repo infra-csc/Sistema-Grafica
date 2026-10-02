@@ -61,22 +61,15 @@ export function GrupoDoEvento({
         containIntrinsicSize: `auto ${alturaEstimada}px`,
       } as React.CSSProperties}
     >
-      {/* Cabeçalho do evento — recolhe/expande. Era só onClick num <div>:
-          recolher grupo, que é o principal recurso de navegação desta tela,
-          existia apenas para quem usa mouse. */}
+      {/* Cabeçalho do evento — recolhe/expande.
+          O BOTÃO MORA DENTRO DO <h2> (29/09, 2ª passada). Era um
+          role="button" em volta do título: o papel de botão apaga a
+          semântica de tudo o que tem dentro, e o leitor de tela perdia o
+          <h2> — a navegação por títulos, que é como se percorre a lista de
+          eventos, não achava nenhum. A faixa inteira continua clicável (o
+          onClick de fora); o teclado usa o botão do título. */}
       <div
-        role="button"
-        tabIndex={0}
-        aria-expanded={eventoAberto(eventId)}
         onClick={() => toggleEventCollapsed(eventId)}
-        onKeyDown={e => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            toggleEventCollapsed(eventId);
-          }
-        }}
-        data-testid={`toggle-event-${eventId}`}
-        title={aberto ? 'Recolher evento' : 'Expandir evento'}
         className="atd-cabeca-do-grupo"
         // NO CELULAR a linha QUEBRA: nome, selo de prazo por extenso e
         // contagem numa fileira `nowrap` pediam ~600px; em 390 o nome
@@ -91,14 +84,6 @@ export function GrupoDoEvento({
           cursor: 'pointer', userSelect: 'none',
         }}
       >
-        <ChevronDown
-          aria-hidden="true"
-          style={{
-            width: 16, height: 16, color: T.second, flexShrink: 0,
-            transform: aberto ? 'none' : 'rotate(-90deg)',
-            transition: 'transform var(--dur-media) var(--ease-saida)',
-          }}
-        />
         {/* <h2> e não <h4>: a página tem um <h1> e pulava direto para
             o nível 4. A peça abaixo é <h3>. 16/700: o nome se repete a
             cada grupo e não pode pesar mais que o título da tela. */}
@@ -106,16 +91,40 @@ export function GrupoDoEvento({
           fontFamily: FONT.display,
           fontSize: 16, fontWeight: FW.forte, letterSpacing: '-0.02em',
           color: T.text, margin: 0, minWidth: 0, lineHeight: 1.3,
-          flex: cards ? '1 1 calc(100% - 32px)' : '0 1 auto',
+          flex: cards ? '1 1 100%' : '0 1 auto',
           // No celular o nome QUEBRA em vez de cortar: a linha é só dele.
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: cards ? 'normal' : 'nowrap',
         }}>
-          {ev?.name || 'Sem Evento'}
+          <button
+            type="button"
+            aria-expanded={eventoAberto(eventId)}
+            onClick={(e) => { e.stopPropagation(); toggleEventCollapsed(eventId); }}
+            data-testid={`toggle-event-${eventId}`}
+            title={aberto ? 'Recolher evento' : 'Expandir evento'}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 10, maxWidth: '100%',
+              padding: 0, margin: 0, border: 'none', background: 'none', cursor: 'pointer',
+              font: 'inherit', color: 'inherit', letterSpacing: 'inherit', textAlign: 'left',
+              borderRadius: R.sm,
+            }}
+          >
+            <ChevronDown
+              aria-hidden="true"
+              style={{
+                width: 16, height: 16, color: T.second, flexShrink: 0,
+                transform: aberto ? 'none' : 'rotate(-90deg)',
+                transition: 'transform var(--dur-media) var(--ease-saida)',
+              }}
+            />
+            <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: cards ? 'normal' : 'nowrap' }}>
+              {ev?.name || 'Sem Evento'}
           {ev?.startDate && (
             <span style={{ fontFamily: FONT.corpo, color: T.second, fontWeight: FW.corpo, marginLeft: 10, fontSize: letra(FS.meta, toque), letterSpacing: 0 }}>
               {format(parseDateLocal(ev.startDate), "MMMM yyyy", { locale: ptBR })}
             </span>
           )}
+            </span>
+          </button>
         </h2>
         {(() => {
           // Marco de Aprovação de Layout — regra única em

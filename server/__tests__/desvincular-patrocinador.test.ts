@@ -28,8 +28,8 @@ describe("o botão no modal de decisão do Atendimento", () => {
     // dentro do bloco isPending — aprovada tem o Revogar, não o Desvincular
     const i = TELA.indexOf("button-desvincular-sponsor");
     const antes = TELA.slice(Math.max(0, i - 6000), i);
-    expect(antes).toContain("{isPending && !isRejectingThis && (");
-    expect(TELA).toContain('user?.role === "admin" && (');
+    // (redesign 30/09: a condição de admin entrou na mesma guarda)
+    expect(antes).toContain('{isPending && !isRejectingThis && user?.role === "admin" && (');
     expect(TELA).toContain('data-testid="button-confirm-desvincular"');
     expect(TELA).toContain("se ele for o único que falta, a rodada fecha e a peça segue");
   });

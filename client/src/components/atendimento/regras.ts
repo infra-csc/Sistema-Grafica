@@ -434,3 +434,18 @@ export function aoFalharMiniatura(e: React.SyntheticEvent<HTMLImageElement>) {
 // Quantos cards do histórico renderizar por vez. Cada card tem timeline e
 // chips; com centenas de peças o navegador engasgava ao montar tudo de uma vez.
 export const PAGE_SIZE = 25;
+
+/**
+ * ONDE A PEÇA ESTÁ NA FILA DE REVISÃO — a conta que o cabeçalho (setas), o
+ * rodapé ("Próxima peça") e os atalhos ← → do modal fazem. Era repetida em
+ * três lugares; uma cópia errada faria a seta e o atalho discordarem.
+ */
+export function posicaoNaFila(fila: readonly { id: string }[], id: string | undefined) {
+  const indice = fila.findIndex((i) => i.id === id);
+  return {
+    indice,
+    temAnterior: indice > 0,
+    temProxima: indice >= 0 && indice < fila.length - 1,
+    total: fila.length,
+  };
+}

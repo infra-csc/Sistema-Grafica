@@ -109,7 +109,7 @@ export function AbaHistorico({
           <input
             value={histSearchTerm}
             onChange={e => setHistSearchTerm(e.target.value)}
-            placeholder="Buscar ID, tipo ou descrição"
+            placeholder="Buscar peça"
             aria-label="Buscar no histórico por ID, tipo ou descrição"
             data-testid="input-search-historico"
             style={{

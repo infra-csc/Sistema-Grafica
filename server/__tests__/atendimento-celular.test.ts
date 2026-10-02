@@ -179,23 +179,28 @@ describe("o rodapé da fila no modal", () => {
     expect(r.style.flexShrink).toBe("0");
     expect(r.style.paddingBottom).toContain("safe-area-inset-bottom");
     expect(tid("button-next-item-footer")).not.toBeNull();
-    expect(tid("button-approve-item")).not.toBeNull();
+    // (30/09) "Aprovar todos" desceu para logo abaixo dos patrocinadores —
+    // no rodapé fixo ficam só a navegação e a saída.
+    expect(tid("button-approve-item")).toBeNull();
   });
 
-  it("no celular o Fechar sai quando há outra ação (o X do cabeçalho já fecha) — e volta quando é a única saída", async () => {
+  it("no celular o Fechar fica SEMPRE no rodapé (30/09) — cede a largura à Próxima peça quando há fila", async () => {
     const { RodapeDaDecisao } = await import("@/components/atendimento/decisao-da-revisao");
     const { unmount } = render(h(RodapeDaDecisao, { ...base, fixoNoCelular: true }));
-    expect(Array.from(tid("rodape-da-decisao")!.querySelectorAll("button")).some(b => b.textContent === "Fechar")).toBe(false);
+    expect(tid("button-close-footer")!.style.flex).toBe("0 0 auto");
     unmount();
     render(h(RodapeDaDecisao, { ...base, fixoNoCelular: true, allDecided: true, reviewQueue: [peca({ id: "p1" })] }));
-    expect(Array.from(tid("rodape-da-decisao")!.querySelectorAll("button")).some(b => b.textContent === "Fechar")).toBe(true);
+    expect(tid("button-close-footer")!.style.flex).toBe("1 1 0%");
+    expect(tid("button-next-item-footer")).toBeNull();
   });
 
-  it("no desktop o Fechar continua à esquerda e o rodapé fecha a coluna", async () => {
+  it("no desktop a dica do teclado fica à esquerda e as ações agrupadas à direita (Fechar → Aprovar todos → Próxima)", async () => {
     const { RodapeDaDecisao } = await import("@/components/atendimento/decisao-da-revisao");
     render(h(RodapeDaDecisao, { ...base, tamBotao: "md" as const }));
-    const fechar = Array.from(tid("rodape-da-decisao")!.querySelectorAll("button")).find(b => b.textContent === "Fechar")!;
-    expect(fechar.style.marginRight).toBe("auto");
+    expect(tid("dica-atalhos")!.style.marginRight).toBe("auto");
+    const ids = Array.from(tid("rodape-da-decisao")!.querySelectorAll("button")).map(b => b.getAttribute("data-testid"));
+    expect(ids.indexOf("button-close-footer")).toBeLessThan(ids.indexOf("button-approve-item"));
+    expect(ids.indexOf("button-approve-item")).toBeLessThan(ids.indexOf("button-next-item-footer"));
   });
 });
 

@@ -16,6 +16,8 @@ import { Botao } from "@/components/ui/botao";
 import { alvo } from "@/hooks/use-mobile";
 import { FS, FW, R, T, N, TOM } from "@/lib/theme";
 import { letra, rotuloDeSecao } from "./estilos";
+import { KBD, posicaoNaFila } from "./regras";
+import { FichaDaPeca } from "./leitura-da-revisao";
 import { LinhaDeDecisao, type PropsDaLinhaDeDecisao } from "./linha-de-decisao";
 import type { AcoesDoAtendimento } from "./use-atendimento-acoes";
 import type { CandidatoAPatrocinador, Patrocinador, PecaAtendimento, VinculoDoEvento } from "./tipos";
@@ -62,6 +64,8 @@ type PropsDaLista = {
   compacta?: boolean;
   /** A leitura das decisões falhou: diz isso e oferece tentar de novo. */
   falhaNasDecisoes?: boolean;
+  /** Empilhado: o "Aprovar para todos" mora logo abaixo dos patrocinadores. */
+  acaoDaPecaInteira?: ReactNode;
   aoTentarDeNovoDecisoes?: () => void;
 } & Omit<PropsDaLinhaDeDecisao, "sponsor">;
 
@@ -69,7 +73,7 @@ type PropsDaLista = {
 export function ListaDaDecisao({
   dialogSponsors, allDecided, allApproved, loadingSponsorApprovals, vinculosDoEvento, sponsorsDoEvento, sponsors,
   buscaPatrocinador, setBuscaPatrocinador, addPatrocinadorAberto, setAddPatrocinadorAberto, addingPatrocinadorId,
-  adicionarPatrocinador, compacta = false, falhaNasDecisoes = false, aoTentarDeNovoDecisoes, ...daLinha
+  adicionarPatrocinador, compacta = false, falhaNasDecisoes = false, aoTentarDeNovoDecisoes, acaoDaPecaInteira, ...daLinha
 }: PropsDaLista) {
   const { canDecide, user, isMobile, dedo, selectedItem, sponsorApprovals } = daLinha;
   const toque = isMobile || dedo;
@@ -171,6 +175,7 @@ export function ListaDaDecisao({
           {dialogSponsors.map((sponsor) => (
             <LinhaDeDecisao key={sponsor.id} sponsor={sponsor} {...daLinha} />
           ))}
+          {acaoDaPecaInteira}
         </div>
       )}
 
@@ -198,17 +203,29 @@ export function ListaDaDecisao({
         ];
         return (
           <div style={{ marginTop: 16, borderTop: `1px dashed ${T.border}`, paddingTop: 10 }}>
-            <button
-              type="button"
-              onClick={() => setAddPatrocinadorAberto(v => !v)}
-              aria-expanded={addPatrocinadorAberto}
-              data-testid="button-add-patrocinador"
-              className="ds-botao ds-botao-fantasma"
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "none", border: "none", borderRadius: R.sm, minHeight: alvo(32, dedo), padding: "0 6px", marginLeft: -6, fontFamily: 'inherit', fontSize: letra(FS.meta, toque), fontWeight: FW.forte, color: T.apoio, cursor: "pointer", textAlign: 'left' }}
-            >
-              <PlusCircle aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0 }} />
-              Adicionar patrocinador{doEvento.length > 0 ? ` (${doEvento.length} do evento)` : " — buscar no catálogo"} · admin
-            </button>
+            {/* A AÇÃO ESCRITA COMO AÇÃO (29/09): era uma frase só —
+                "Adicionar patrocinador — buscar no catálogo · admin" —, e o
+                "· admin" parecia lixo de texto. Agora o botão diz o verbo, a
+                linha de apoio diz de onde vem o patrocinador, e o papel é um
+                selo discreto. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <Botao
+                variante="secundario"
+                tamanho={dedo ? "toque" : "sm"}
+                icone={PlusCircle}
+                onClick={() => setAddPatrocinadorAberto(v => !v)}
+                aria-expanded={addPatrocinadorAberto}
+                data-testid="button-add-patrocinador"
+              >
+                Adicionar patrocinador
+              </Botao>
+              <span style={{ fontSize: letra(FS.small, toque), color: T.second }}>
+                {doEvento.length > 0 ? `${doEvento.length} do evento, ou busca no catálogo` : 'busca no catálogo'}
+              </span>
+              <span title="Só administradores veem esta ação" style={{ marginLeft: 'auto', fontSize: letra(FS.micro, toque), fontWeight: FW.rotulo, letterSpacing: '0.06em', textTransform: 'uppercase', color: T.second, padding: '2px 7px', borderRadius: R.pill, border: `1px solid ${T.border}`, backgroundColor: T.surface }}>
+                Só admin
+              </span>
+            </div>
             {addPatrocinadorAberto && (
               <div className="atd-entrar" style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
                 <p style={{ margin: 0, fontSize: letra(FS.small, toque), color: T.second, lineHeight: 1.5 }}>
@@ -256,17 +273,73 @@ export function ListaDaDecisao({
 }
 
 /**
- * O rodapé da fila. Ele atravessava as três colunas no pé do modal, longe da
- * lista de patrocinadores que os botões afetam; agora fecha a coluna de
- * decisão (desktop) ou fica fixo no pé do modal (celular).
+ * "APROVAR PARA TODOS" — o atalho da peça inteira. Um componente só, porque
+ * mora em dois lugares: no rodapé do desktop e, empilhado, logo abaixo dos
+ * patrocinadores (no rodapé fixo do celular não cabiam três botões).
  *
- * PRÓXIMA PEÇA em tinta: numa fila, seguir é a ação principal. "Aprovar para
- * todos" sem preenchimento: ele decide a peça inteira de uma vez e não pode
- * convidar mais que as decisões por patrocinador, que são o caminho normal.
+ * Só enquanto há decisões em aberto. Antes aparecia justamente quando
+ * allApproved — e o servidor devolvia 409, porque o item já tinha saído de
+ * awaiting_sponsor_approval.
+ *
+ * O "Reprovar Ativo" FOI EMBORA (decisão do dono, 17/08):
+ * reprovar a peça inteira e reprovar por patrocinador eram
+ * duas portas para o MESMO fato e levavam a peça para
+ * lugares diferentes — a individual a deixava em
+ * "Aguardando aprovação" e ela caía na aba Correção; esta
+ * a jogava para "Aguardando envio", no meio de 1.120 peças
+ * que nunca tinham sido enviadas. A Arte perdia a diferença
+ * entre RETRABALHO e trabalho novo — foi assim que a #1527
+ * se escondeu.
+ */
+export function BotaoAprovarTodos({
+  dialogSponsors, allDecided, allApproved, sponsorApproveMutation, selectedItem, canDecide, tamBotao, pecaRecemAberta, decisaoTravada, larguraCheia = false,
+}: {
+  dialogSponsors: Patrocinador[];
+  allDecided: boolean;
+  allApproved: boolean;
+  sponsorApproveMutation: AcoesDoAtendimento["sponsorApproveMutation"];
+  selectedItem: PecaAtendimento;
+  canDecide: boolean;
+  tamBotao: PropsDaLinhaDeDecisao["tamBotao"];
+  pecaRecemAberta: boolean;
+  decisaoTravada: () => boolean;
+  larguraCheia?: boolean;
+}) {
+  if (!(dialogSponsors.length > 0 && !allApproved && !allDecided)) return null;
+  return (
+    <Botao
+      variante="secundario"
+      tamanho={tamBotao}
+      icone={CheckCircle}
+      larguraCheia={larguraCheia}
+      carregando={sponsorApproveMutation.isPending}
+      onClick={() => { if (!decisaoTravada()) sponsorApproveMutation.mutate(selectedItem.id); }}
+      disabled={!canDecide || pecaRecemAberta}
+      title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : `Aprova ${selectedItem.displayId} para TODOS os patrocinadores de uma vez`}
+      data-testid="button-approve-item"
+    >
+      Aprovar para todos
+    </Botao>
+  );
+}
+
+/**
+ * O RODAPÉ DA FILA — uma barra de ações do sistema (29/09, 2ª passada).
+ *
+ * DESKTOP: largura inteira do modal. À esquerda, discreta, a dica do
+ * teclado; à direita, AGRUPADAS na ordem da casa, Fechar (secundário) ·
+ * Aprovar para todos · Próxima peça (primário). Antes o "Fechar" era texto
+ * solto na ponta esquerda, longe das outras ações.
+ *
+ * CELULAR/EMPILHADO: fixo no pé do modal, fora da rolagem, com o recorte
+ * seguro — Fechar SEMPRE à vista ao lado de Próxima peça. O "Aprovar para
+ * todos" desce para logo abaixo dos patrocinadores (ver BotaoAprovarTodos).
+ *
+ * PRÓXIMA PEÇA em tinta: numa fila, seguir é a ação principal.
  */
 export function RodapeDaDecisao({
   dialogSponsors, allDecided, allApproved, setDialogOpen, reviewQueue, goToAdjacentItem, sponsorApproveMutation,
-  selectedItem, canDecide, tamBotao, pecaRecemAberta, decisaoTravada, fixoNoCelular = false,
+  selectedItem, canDecide, tamBotao, pecaRecemAberta, decisaoTravada, fixoNoCelular = false, dedo = false,
 }: {
   dialogSponsors: Patrocinador[];
   allDecided: boolean;
@@ -280,98 +353,98 @@ export function RodapeDaDecisao({
   tamBotao: PropsDaLinhaDeDecisao["tamBotao"];
   pecaRecemAberta: boolean;
   decisaoTravada: () => boolean;
-  /** Celular: rodapé fixo no pé do modal, botões em linha cheia. */
+  /** Celular/empilhado: rodapé fixo no pé do modal, botões em linha cheia. */
   fixoNoCelular?: boolean;
+  /** Ponteiro de dedo: sem a dica de teclado. */
+  dedo?: boolean;
 }) {
-  const qIdx = reviewQueue.findIndex((i) => i.id === selectedItem.id);
-  const hasNext = qIdx >= 0 && qIdx < reviewQueue.length - 1;
-  const temAprovarTodos = dialogSponsors.length > 0 && !allApproved && !allDecided;
-  // No celular o "Fechar" só aparece quando é a ÚNICA saída do rodapé: o X
-  // do cabeçalho (44px) já fecha, e três botões não cabem numa linha de 360.
-  const mostraFechar = !fixoNoCelular || (!temAprovarTodos && !hasNext);
+  const { temProxima: hasNext, total } = posicaoNaFila(reviewQueue, selectedItem.id);
+  const fechar = (
+    <Botao
+      variante="secundario"
+      tamanho={tamBotao}
+      onClick={() => setDialogOpen(false)}
+      data-testid="button-close-footer"
+      title="Fechar (Esc)"
+      style={fixoNoCelular ? { flex: hasNext ? '0 0 auto' : '1 1 0%', padding: '0 18px' } : undefined}
+    >
+      Fechar
+    </Botao>
+  );
+  const proxima = hasNext && (
+    <Botao
+      variante="primario"
+      tamanho={tamBotao}
+      onClick={() => goToAdjacentItem(1)}
+      data-testid="button-next-item-footer"
+      title="Abrir a próxima peça da fila sem voltar para a lista (→)"
+      aria-keyshortcuts="ArrowRight"
+      style={fixoNoCelular ? { flex: '1 1 0%' } : undefined}
+    >
+      Próxima peça
+      <ChevronRight aria-hidden="true" style={{ width: 15, height: 15 }} />
+    </Botao>
+  );
+
+  if (fixoNoCelular) {
+    return (
+      <div
+        data-testid="rodape-da-decisao"
+        style={{
+          // LONGOS: o atalho `padding` com env() some no parser do jsdom.
+          flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8,
+          paddingTop: 10, paddingLeft: 12, paddingRight: 12, paddingBottom: "calc(10px + env(safe-area-inset-bottom))",
+          borderTop: `1px solid ${T.border}`, backgroundColor: T.surface, boxShadow: "0 -4px 16px rgba(28,25,23,0.06)",
+        }}
+      >
+        {fechar}
+        {proxima}
+      </div>
+    );
+  }
+
   return (
     <div
       data-testid="rodape-da-decisao"
-      style={fixoNoCelular ? {
-        // LONGOS: o atalho `padding` com env() some no parser do jsdom.
-        flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8,
-        paddingTop: 10, paddingLeft: 12, paddingRight: 12, paddingBottom: "calc(10px + env(safe-area-inset-bottom))",
-        borderTop: `1px solid ${T.border}`, backgroundColor: T.surface, boxShadow: "0 -4px 16px rgba(28,25,23,0.06)",
-      } : {
-        padding: '12px 24px', borderTop: `1px solid ${N.n3}`,
-        backgroundColor: T.surface, flexShrink: 0,
+      style={{
+        padding: '12px 20px 12px 24px', borderTop: `1px solid ${N.n3}`,
+        backgroundColor: T.surface,
+        flexShrink: 0,
         display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
       }}
     >
-      {mostraFechar && (
-        <Botao
-          variante="fantasma"
-          tamanho={tamBotao}
-          onClick={() => setDialogOpen(false)}
-          style={{ marginRight: fixoNoCelular ? undefined : 'auto', flex: fixoNoCelular ? '1 1 0%' : undefined }}
-        >
-          Fechar
-        </Botao>
+      {/* A dica do teclado, só onde há teclado. */}
+      {!dedo && total > 1 && (
+        <span data-testid="dica-atalhos" aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: FS.small, color: T.second, marginRight: 'auto' }}>
+          <kbd style={KBD}>←</kbd><kbd style={KBD}>→</kbd> peça anterior / próxima
+          <span style={{ width: 3, height: 3, borderRadius: '50%', backgroundColor: T.bdark, margin: '0 4px' }} />
+          <kbd style={KBD}>Esc</kbd> fechar
+        </span>
       )}
-
-      {/* Atalho de peça inteira: só enquanto há decisões em aberto. Antes
-          aparecia justamente quando allApproved — e o servidor devolvia 409,
-          porque o item já tinha saído de awaiting_sponsor_approval.
-
-          O "Reprovar Ativo" FOI EMBORA (decisão do dono, 17/08):
-          reprovar a peça inteira e reprovar por patrocinador eram
-          duas portas para o MESMO fato e levavam a peça para
-          lugares diferentes — a individual a deixava em
-          "Aguardando aprovação" e ela caía na aba Correção; esta
-          a jogava para "Aguardando envio", no meio de 1.120 peças
-          que nunca tinham sido enviadas. A Arte perdia a diferença
-          entre RETRABALHO e trabalho novo — foi assim que a #1527
-          se escondeu. */}
-      {dialogSponsors.length > 0 && !allApproved && !allDecided && (
-        <Botao
-          variante="secundario"
-          tamanho={tamBotao}
-          // No rodapé fixo do celular, sem ícone e com a letra de 14: os dois
-          // botões dividem 340px, e "Aprovar para todos" com ícone empurrava
-          // o "Próxima peça" para fora da borda.
-          icone={fixoNoCelular ? undefined : CheckCircle}
-          carregando={sponsorApproveMutation.isPending}
-          onClick={() => { if (!decisaoTravada()) sponsorApproveMutation.mutate(selectedItem.id); }}
-          disabled={!canDecide || pecaRecemAberta}
-          title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : `Aprova ${selectedItem.displayId} para TODOS os patrocinadores de uma vez`}
-          data-testid="button-approve-item"
-          style={fixoNoCelular ? { flex: '1 1 auto', minWidth: 0, padding: '0 12px', fontSize: FS.read, whiteSpace: 'normal', lineHeight: 1.15 } : undefined}
-        >
-          Aprovar para todos
-        </Botao>
-      )}
-
-      {hasNext && (
-        <Botao
-          variante="primario"
-          tamanho={tamBotao}
-          onClick={() => goToAdjacentItem(1)}
-          data-testid="button-next-item-footer"
-          title="Abrir a próxima peça da fila sem voltar para a lista"
-          style={fixoNoCelular ? { flex: '1 0 auto', padding: '0 14px', fontSize: FS.read } : { marginLeft: !mostraFechar ? 'auto' : undefined }}
-        >
-          Próxima peça
-          <ChevronRight aria-hidden="true" style={{ width: 15, height: 15 }} />
-        </Botao>
-      )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        {fechar}
+        <BotaoAprovarTodos
+          dialogSponsors={dialogSponsors} allDecided={allDecided} allApproved={allApproved}
+          sponsorApproveMutation={sponsorApproveMutation} selectedItem={selectedItem} canDecide={canDecide}
+          tamBotao={tamBotao} pecaRecemAberta={pecaRecemAberta} decisaoTravada={decisaoTravada}
+        />
+        {proxima}
+      </div>
     </div>
   );
 }
 
-/** A coluna da direita no desktop: a lista rola, o rodapé fecha a coluna. */
-export function DecisaoDaRevisao({
-  setDialogOpen, reviewQueue, goToAdjacentItem, sponsorApproveMutation, ...daLista
-}: PropsDaLista & {
-  setDialogOpen: Dispatch<SetStateAction<boolean>>;
-  reviewQueue: PecaAtendimento[];
-  goToAdjacentItem: (dir: 1 | -1) => void;
-  sponsorApproveMutation: AcoesDoAtendimento["sponsorApproveMutation"];
+/**
+ * A coluna da direita no desktop: a DECISÃO e, logo abaixo, a FICHA da peça
+ * (especificações e arquivos). Com um patrocinador só, a coluna era um
+ * cartão no topo e 400px de branco até o rodapé; agora o que se decide vem
+ * com o que a peça é — dados que já estavam no modal, na coluna errada.
+ */
+export function DecisaoDaRevisao({ thumbUrl, finalUrl, ...daLista }: PropsDaLista & {
+  thumbUrl: string | null;
+  finalUrl: string | null;
 }) {
+  const toque = daLista.isMobile || daLista.dedo;
   return (
     <div style={{
       borderLeft: `1px solid ${N.n3}`,
@@ -380,21 +453,10 @@ export function DecisaoDaRevisao({
     }}>
       <div style={{ overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
         <ListaDaDecisao {...daLista} />
+        <div style={{ borderTop: `1px solid ${N.n3}` }}>
+          <FichaDaPeca selectedItem={daLista.selectedItem} thumbUrl={thumbUrl} finalUrl={finalUrl} toque={toque} />
+        </div>
       </div>
-      <RodapeDaDecisao
-        dialogSponsors={daLista.dialogSponsors}
-        allDecided={daLista.allDecided}
-        allApproved={daLista.allApproved}
-        setDialogOpen={setDialogOpen}
-        reviewQueue={reviewQueue}
-        goToAdjacentItem={goToAdjacentItem}
-        sponsorApproveMutation={sponsorApproveMutation}
-        selectedItem={daLista.selectedItem}
-        canDecide={daLista.canDecide}
-        tamBotao={daLista.tamBotao}
-        pecaRecemAberta={daLista.pecaRecemAberta}
-        decisaoTravada={daLista.decisaoTravada}
-      />
     </div>
   );
 }

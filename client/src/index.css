@@ -722,7 +722,10 @@
   min-height: 0;
   overflow: hidden;
   display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(320px, 2fr);
+  /* 29/09: a ARTE fica com o que sobra e a decisão com uma coluna de
+     largura de leitura (360–420px) — com 3fr/2fr, num modal de 1240, a arte
+     era um quadro de 700px e a decisão sobrava vazia com 500px. */
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 420px);
 }
 .review-modal-body > * {
   min-height: 0;
@@ -775,6 +778,13 @@
   to   { opacity: 1; transform: none; }
 }
 .atd-entrar { animation: atd-entrar var(--dur-media) var(--ease-saida) both; }
+/* MESA DE LUZ do modal de revisão: a arte ocupa o quadro (contain — nunca
+   corta), em vez de ficar no tamanho natural da miniatura no meio do cinza.
+   O FilePreview é compartilhado; só aqui a imagem estica. */
+.atd-mesa-de-luz img {
+  width: 100% !important; height: 100% !important; max-width: none !important; max-height: none !important;
+  object-fit: contain !important;
+}
 /* A decisão de um patrocinador muda de cor quando é registrada. */
 .atd-decisao { transition: background-color var(--dur-media) ease, border-color var(--dur-media) ease; }
 /* Trilho que rola na horizontal sem a barra cinza por baixo (a rolagem

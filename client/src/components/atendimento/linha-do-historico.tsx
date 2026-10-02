@@ -62,20 +62,14 @@ export function LinhaDoHistorico({
     : item.status === 'ready_for_production' ? TOM.info.text
     : T.border;
 
-  // Cartão do histórico: abre o detalhe de aprovações. Era um <div> com
-  // onClick, então por teclado o histórico inteiro ficava sem como ser aberto.
+  // Cartão do histórico: o clique na linha abre o detalhe de aprovações.
+  // O TECLADO usa o botão "Ver detalhes" (29/09, 2ª passada): a linha era um
+  // role="button" com OUTRO botão dentro — interativo aninhado, que o leitor
+  // de tela anuncia errado e que dava duas paradas de Tab para a mesma ação.
   return (
     <div
-      role="button"
-      tabIndex={0}
-      aria-label={`Ver histórico de aprovações de ${item.displayId}`}
+      data-testid={`linha-historico-${item.id}`}
       onClick={() => setHistDetailItem({ ...item, _ev: ev })}
-      onKeyDown={e => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          setHistDetailItem({ ...item, _ev: ev });
-        }
-      }}
       style={{
         backgroundColor: T.surface,
         // A régua entre linhas some na última: a borda da
@@ -101,7 +95,10 @@ export function LinhaDoHistorico({
 
       <div style={{ flex: 1, minWidth: 0 }}>
         {/* ── Cabeçalho — empilha no mobile para não estourar a largura ── */}
-        <div style={{ display: 'flex', flexDirection: cards ? 'column' : 'row', alignItems: cards ? 'stretch' : 'center', gap: 12, padding: '14px 16px 12px' }}>
+        {/* No celular (02/10): miniatura AO LADO da identidade, e o resumo
+            (Ver detalhes · N de M) numa linha cheia embaixo — empilhar tudo
+            deixava a miniatura sozinha no topo e três blocos soltos. */}
+        <div style={{ display: 'flex', flexDirection: 'row', flexWrap: cards ? 'wrap' : 'nowrap', alignItems: cards ? 'flex-start' : 'center', gap: 12, padding: '14px 16px 12px' }}>
           {/* Thumb */}
           <div style={{
             width: 44, height: 44, borderRadius: 8, overflow: 'hidden',
@@ -175,7 +172,7 @@ export function LinhaDoHistorico({
           </div>
 
           {/* Resumo + detalhes — empilha no mobile */}
-          <div style={{ display: 'flex', flexDirection: cards ? 'column' : 'row', alignItems: cards ? 'flex-start' : 'center', gap: 10, flexShrink: 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: cards ? 'space-between' : undefined, gap: 10, flexShrink: 0, ...(cards ? { flexBasis: '100%' } : null) }}>
             {/* Afordância REAL (decisão do item 24 do backlog): parecia
                 botão mas era um <div> decorativo — agora é um <button>
                 com a mesma ação do card, utilizável também por teclado
@@ -183,6 +180,7 @@ export function LinhaDoHistorico({
             <button
               onClick={e => { e.stopPropagation(); setHistDetailItem({ ...item, _ev: ev }); }}
               data-testid={`button-hist-details-${item.id}`}
+              aria-label={`Ver histórico de aprovações de ${item.displayId}`}
               // 32px de alvo (44 no celular): com padding de 4px o
               // botão tinha ~22 — o menor controle da aba, e é a
               // única porta do cartão que não depende do card todo.
@@ -194,7 +192,7 @@ export function LinhaDoHistorico({
             </button>
             {sponsorApprovals.length > 0 && (
               <div style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                display: 'flex', flexDirection: cards ? 'row' : 'column', alignItems: cards ? 'baseline' : 'center', gap: cards ? 6 : 0,
                 background: allApproved ? TOM.sucesso.bg : T.bg,
                 border: `1px solid ${allApproved ? TOM.sucesso.border : T.border}`,
                 borderRadius: 8, padding: '4px 10px', minWidth: 48,
@@ -202,7 +200,7 @@ export function LinhaDoHistorico({
                 <span style={{ fontSize: 15, fontWeight: 800, color: allApproved ? TOM.sucesso.text : T.strong, lineHeight: 1 }}>
                   {approvedOnes.length} <span style={{ fontSize: 11, fontWeight: 500 }}>de</span> {sponsorApprovals.length}
                 </span>
-                <span style={{ fontSize: letra(FS.small, toque), color: allApproved ? TOM.sucesso.text : T.apoio, fontWeight: FW.forte, marginTop: 2 }}>
+                <span style={{ fontSize: letra(FS.small, toque), color: allApproved ? TOM.sucesso.text : T.apoio, fontWeight: FW.forte, marginTop: cards ? 0 : 2 }}>
                   {allApproved ? 'todos' : 'aprovaram'}
                 </span>
               </div>
@@ -308,7 +306,7 @@ export function LinhaDoHistorico({
                     </span>
                   )}
                   {!v.isApproved && !v.isRejected && !v.isNewVersion && !v.isAwaitingArte && (
-                    <span style={{ fontSize: letra(FS.small, toque), color: T.apoio, fontWeight: FW.medio, lineHeight: 1, textTransform: 'uppercase', letterSpacing: '0.03em' }}>Ag.</span>
+                    <span style={{ fontSize: letra(FS.small, toque), color: T.apoio, fontWeight: FW.medio, lineHeight: 1 }}>aguardando</span>
                   )}
                   {(v.isRejected || v.isAwaitingArte) && <span style={{ fontSize: letra(FS.small, toque), color: TOM.perigo.text, fontWeight: 700, lineHeight: 1 }}>✕</span>}
                   {v.isNewVersion && <span style={{ fontSize: letra(FS.small, toque), color: TOM.alerta.text, fontWeight: 700, lineHeight: 1 }}>↻</span>}

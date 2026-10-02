@@ -104,19 +104,11 @@ export function PainelDeLote({
           style={{ marginBottom: 16, backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, overflow: 'hidden' }}
         >
           {/* ── Header do painel — clique recolhe de volta para a barra ── */}
+          {/* A faixa inteira recolhe (onClick); o TECLADO usa o botão do
+              título — um role="button" em volta do <h3> apagava o título
+              para o leitor de tela (29/09, 2ª passada). */}
           <div
-            role="button"
-            tabIndex={0}
-            aria-expanded={true}
-            title="Recolher painel de lote"
             onClick={() => setBatchPanelOpen(false)}
-            onKeyDown={e => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                setBatchPanelOpen(false);
-              }
-            }}
-            data-testid="button-batch-panel-collapse"
             /* FAIXA CLARA. O cabeçalho era um bloco quase preto com gradiente,
                um ladrilho laranja com sombra colorida e três bolinhas — a coisa
                mais pesada da página, para um painel auxiliar que fica ACIMA da
@@ -132,15 +124,27 @@ export function PainelDeLote({
               </div>
               <div>
                 <h3 style={{ fontFamily: FONT.display, fontSize: 15, fontWeight: FW.forte, letterSpacing: '-0.01em', margin: 0, color: T.text }}>
-                  Aprovação em lote
+                  <button
+                    type="button"
+                    aria-expanded={true}
+                    title="Recolher painel de lote"
+                    onClick={(e) => { e.stopPropagation(); setBatchPanelOpen(false); }}
+                    data-testid="button-batch-panel-collapse"
+                    style={{ padding: 0, margin: 0, border: 'none', background: 'none', cursor: 'pointer', font: 'inherit', color: 'inherit', letterSpacing: 'inherit', textAlign: 'left', borderRadius: R.sm }}
+                  >
+                    Aprovação em lote
+                  </button>
                 </h3>
                 <p style={{ color: T.second, fontSize: letra(FS.meta, isMobile), margin: 0 }}>
                   {batchEligibleSponsors.length} {batchEligibleSponsors.length === 1 ? 'patrocinador com' : 'patrocinadores com'} itens pendentes
                 </p>
               </div>
             </div>
-            {/* Indicador de progresso */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {/* Indicador de progresso. No celular (375px) os três passos +
+                a seta não cabiam e cortavam à direita (02/10): conectores
+                curtos, sem a seta decorativa (o título já recolhe) e, se
+                ainda faltar largura, quebra em vez de vazar. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 4 : 6, flexWrap: 'wrap', rowGap: 6, minWidth: 0 }}>
               {[
                 { n: 1, label: 'Patrocinador', done: !!batchSponsorId },
                 { n: 2, label: 'Evento', done: !!batchEventId },
@@ -163,11 +167,11 @@ export function PainelDeLote({
                         : <span style={{ fontVariantNumeric: 'tabular-nums' }}>{step.n}</span>}
                       {step.label}
                     </span>
-                    {idx < 2 && <div style={{ width: 16, height: 1, background: step.done ? TOM.sucesso.border : T.border }} />}
+                    {idx < 2 && <div style={{ width: isMobile ? 8 : 16, height: 1, background: step.done ? TOM.sucesso.border : T.border }} />}
                   </Fragment>
                 );
               })}
-              <ChevronDown aria-hidden="true" style={{ width: 16, height: 16, color: T.second, marginLeft: 10, flexShrink: 0, transform: 'rotate(180deg)' }} />
+              {!isMobile && <ChevronDown aria-hidden="true" style={{ width: 16, height: 16, color: T.second, marginLeft: 10, flexShrink: 0, transform: 'rotate(180deg)' }} />}
             </div>
           </div>
 

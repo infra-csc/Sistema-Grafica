@@ -55,8 +55,11 @@ describe("1. os gradientes decorativos saíram", () => {
 });
 
 describe("2. o modal de revisão tem duas colunas", () => {
-  it("o grid é 3fr + 2fr com piso na coluna de decisão", () => {
-    expect(css).toContain("grid-template-columns: minmax(0, 3fr) minmax(320px, 2fr);");
+  it("o grid dá o que sobra à arte e uma coluna de leitura (com piso) à decisão", () => {
+    // 29/09 (2ª passada do redesign): era 3fr + 2fr; a arte agora fica com o
+    // resto e a decisão com 360–420px. O que o teste guarda é o piso da
+    // coluna de decisão, onde vivem os botões e o motivo da reprovação.
+    expect(css).toContain("grid-template-columns: minmax(0, 1fr) minmax(360px, 420px);");
   });
 
   it("e um scrollport de leitura, não três", () => {

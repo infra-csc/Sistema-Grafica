@@ -582,7 +582,7 @@ export default function Atendimento() {
         <ListaPendentes
           filteredItems={filteredItems} filteredItemsBase={filteredItemsBase} pendingItems={pendingItems} pendingGroup={pendingGroup}
           atrasadosFilter={atrasadosFilter} setAtrasadosFilter={setAtrasadosFilter} chipsAtivos={chipsAtivos} limparFiltros={limparFiltros}
-          ordemPendentes={ordemPendentes} setOrdemPendentes={setOrdemPendentes} user={user}
+          ordemPendentes={ordemPendentes} setOrdemPendentes={setOrdemPendentes} actionableCount={actionableCount} user={user}
           avisarGestaoMutation={acoes.avisarGestaoMutation} filaDaSuaMesa={filaDaSuaMesa} reviewQueue={reviewQueue}
           setSelectedItem={setSelectedItem} setDialogOpen={setDialogOpen} itemsByEvent={itemsByEvent} events={events}
           expandedEvents={expandedEvents} isMobile={isMobile} dedo={dedo} hoje={hoje} itemSponsorsMap={itemSponsorsMap}

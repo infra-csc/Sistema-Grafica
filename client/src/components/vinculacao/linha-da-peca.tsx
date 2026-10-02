@@ -24,6 +24,7 @@ import { alvo } from "@/hooks/use-mobile";
 import { TOM, T, N, R, FS, FW, FONT, darkenToContrast } from "@/lib/theme";
 import { UI_STATUS_LABEL, UI_STATUS_SIGNIFICADO } from "./constantes";
 import { hexToRgba, safeRefUrl } from "./regras";
+import { CaixaDeToque } from "./pecas-de-escolha";
 import type { ItemChanges, PatrocinadorDaVinculacao, PecaDaVinculacao, UIStatus } from "./tipos";
 
 /**
@@ -98,6 +99,15 @@ function LinhaDaPecaSemMemo(props: PropsDaLinha) {
   // No cartão do celular, cada célula vira bloco (ver o topo do arquivo).
   const celula: CSSProperties = emCartoes ? { display: 'block', width: '100%' } : {};
 
+  // NO CARTÃO OS CHIPS VIRAM LADRILHOS. Pílulas de largura natural, com 44px
+  // de altura no dedo, empilhavam uma por linha em zigue-zague — cinco marcas
+  // e o cartão passava de 400px. Em grade de duas colunas, com o nome
+  // quebrando em vez de esticar a pílula, a mesma escolha cabe na metade e
+  // fica alinhada. Por cima da casca do chip (que continua a mesma no desktop).
+  const chipNoCartao: CSSProperties = emCartoes
+    ? { height: 'auto', minHeight: alvo(26, dedo), borderRadius: R.md, whiteSpace: 'normal', textAlign: 'left', padding: '6px 10px', lineHeight: 1.25, justifyContent: 'flex-start' }
+    : {};
+
   return (
     <tr
       data-testid={`item-row-${item.id}`}
@@ -123,7 +133,9 @@ function LinhaDaPecaSemMemo(props: PropsDaLinha) {
       <td onClick={e => e.stopPropagation()} style={emCartoes
         ? { display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gridRow: '1 / span 4', paddingTop: 2 }
         : { width: 46, textAlign: 'center', padding: '8px 0', borderLeft: `3px solid ${corDaBorda}` }}>
+        <CaixaDeToque dedo={dedo}>
         <Checkbox
+          data-alvo-natural=""
           checked={selecionada}
           onCheckedChange={() => podeSelecionar && toggleItemSelection(item.id)}
           disabled={!podeSelecionar}
@@ -131,6 +143,7 @@ function LinhaDaPecaSemMemo(props: PropsDaLinha) {
           aria-label={`Selecionar ${item.displayId}`}
           data-testid={`checkbox-item-${item.id}`}
         />
+        </CaixaDeToque>
       </td>
 
       {/* ── Peça ── */}
@@ -144,7 +157,7 @@ function LinhaDaPecaSemMemo(props: PropsDaLinha) {
             onClick={e => { e.stopPropagation(); setSelectedItemForDetails(item); }}
             aria-label={`Ver detalhes da peça ${item.displayId}`}
             data-testid={`text-display-id-${item.id}`}
-            style={{ fontFamily: FONT.mono, fontSize: FS.small, fontWeight: FW.forte, color: T.second, background: 'none', border: 'none', padding: 0, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
+            style={{ fontFamily: FONT.mono, fontSize: FS.small, fontWeight: FW.forte, color: T.second, background: 'none', border: 'none', padding: 0, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap', minWidth: dedo ? 44 : undefined, textAlign: 'left' }}
           >
             {item.displayId}
           </button>
@@ -224,7 +237,9 @@ function LinhaDaPecaSemMemo(props: PropsDaLinha) {
         ) : eventSponsors.length === 0 ? (
           <span style={{ fontSize: FS.meta, color: T.apoio, fontStyle: 'italic' }}>Sem patrocinadores no evento</span>
         ) : (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
+          <div style={emCartoes && estado !== 'ENVIADO'
+            ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(116px, 1fr))', gap: 6 }
+            : { display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
             {/* ENVIADA SEM NENHUMA MARCA.
 
                 Sem esta linha a celula fica VAZIA — e vazio se le como
@@ -268,7 +283,9 @@ function LinhaDaPecaSemMemo(props: PropsDaLinha) {
                     backgroundColor: todosMarcados ? T.text : T.surface,
                     color: todosMarcados ? T.surface : T.strong,
                     cursor: 'pointer', font: 'inherit', fontSize: FS.meta, fontWeight: FW.forte, whiteSpace: 'nowrap',
+                    ...chipNoCartao,
                   }}
+                  className="vinc-chip"
                 >
                   <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: todosMarcados ? T.surface : T.second, flexShrink: 0 }} />
                   Todos
@@ -329,7 +346,9 @@ function LinhaDaPecaSemMemo(props: PropsDaLinha) {
                     cursor: editavel ? 'pointer' : 'not-allowed',
                     font: 'inherit', fontSize: FS.meta, fontWeight: FW.medio,
                     whiteSpace: 'nowrap', transition: 'background 0.12s, border-color 0.12s',
+                    ...chipNoCartao,
                   }}
+                  className="vinc-chip"
                 >
                   <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: marcado ? marca : T.bdark, flexShrink: 0 }} />
                   {sp.name}
@@ -357,7 +376,9 @@ function LinhaDaPecaSemMemo(props: PropsDaLinha) {
                   backgroundColor: semPatrocinador ? TOM.alerta.bg : T.surface,
                   color: semPatrocinador ? TOM.alerta.text : T.apoio,
                   cursor: 'pointer', font: 'inherit', fontSize: FS.meta, fontWeight: FW.forte, whiteSpace: 'nowrap',
+                  ...chipNoCartao,
                 }}
+                className="vinc-chip"
               >
                 <EyeOff aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0 }} />
                 Sem patrocinador
@@ -369,14 +390,23 @@ function LinhaDaPecaSemMemo(props: PropsDaLinha) {
 
       {/* ── Status e a ação daquele estado ── */}
       <td onClick={e => e.stopPropagation()} style={emCartoes ? celula : { padding: '8px 16px 8px 12px', whiteSpace: 'nowrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: emCartoes ? 'flex-start' : 'flex-end', gap: 6, flexWrap: 'wrap' }}>
+        {/* SELO EM CIMA, AÇÕES EMBAIXO, as duas alinhadas à direita. Num flex
+            que quebrava linha, o rascunho virava uma escada (selo, Descartar,
+            Salvar, um em cada altura). No cartão: selo à esquerda e ações à
+            direita, como o rodapé de um cartão. */}
+        <div style={emCartoes
+          ? { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }
+          : { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
           <Selo
             data-testid={`badge-status-${item.id}`}
             title={`${UI_STATUS_LABEL[estado] ?? estado}: ${UI_STATUS_SIGNIFICADO[estado as UIStatus] ?? ''}`}
             icone={estado === 'RASCUNHO' ? Save : estado === 'PRONTO' ? CheckCircle2 : estado === 'ENVIADO' ? Lock : Info}
             cores={estado === 'RASCUNHO' ? TOM.laranja
               : estado === 'PRONTO' ? TOM.sucesso
-              : estado === 'ENVIADO' ? { bg: T.text, text: T.surface, border: T.text }
+              // Enviado é o estado CONCLUÍDO aqui: contorno com cadeado, não
+              // a pílula preta cheia — 36 delas em preto eram o que mais
+              // pesava na fila, e é o que menos pede atenção.
+              : estado === 'ENVIADO' ? { bg: T.surface, text: T.apoio, border: T.bdark }
               : { bg: N.n3, text: T.strong, border: N.n3 }}
           >
             {UI_STATUS_LABEL[estado] ?? estado}
@@ -386,6 +416,8 @@ function LinhaDaPecaSemMemo(props: PropsDaLinha) {
               o significado só no `title`: um disquete e um avião de papel
               lado a lado, e a diferença entre salvar e ENVIAR — que tira a
               peça da tela — ficava por conta de quem adivinhasse. */}
+          {(estado === 'RASCUNHO' || estado === 'PRONTO') && editavel && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: emCartoes ? 'auto' : undefined }}>
           {estado === 'RASCUNHO' && editavel && (
             <Botao
               variante="fantasma"
@@ -422,6 +454,9 @@ function LinhaDaPecaSemMemo(props: PropsDaLinha) {
             >
               Enviar
             </Botao>
+          )}
+
+          </div>
           )}
 
           {/* O menu "…" desta linha SAIU. Tinha três entradas: "Sem

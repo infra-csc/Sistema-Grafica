@@ -29,18 +29,23 @@ export function BarraDeStatus({
 }: Props) {
   return (
     <div style={{
-      borderTop: `1px solid ${T.border}`, borderBottom: `1px solid ${T.border}`,
-      padding: '12px 0 14px', marginBottom: 20,
+      // Só a linha de baixo: em cima, os trilhos dos três passos já fecham
+      // o cabeçalho — duas réguas seguidas eram uma a mais.
+      borderBottom: `1px solid ${T.border}`,
+      padding: '2px 0 14px', marginBottom: 18,
       display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
     }}>
       {/* Proporção + total */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
         <div aria-hidden="true" style={{ width: 132, height: 8, backgroundColor: T.border, borderRadius: 999, overflow: 'hidden', display: 'flex' }}>
+          {/* O FEITO ENCHE DA ESQUERDA, como toda barra de progresso: o
+              pendente (cinza) abria a barra e o enviado ficava no fim —
+              lida de relance, a barra dizia o contrário do número ao lado. */}
           {([
-            ['PENDENTE', T.second],
-            ['RASCUNHO', T.accentText],
-            ['PRONTO',   TOM.sucesso.text],
             ['ENVIADO',  T.text],
+            ['PRONTO',   TOM.sucesso.text],
+            ['RASCUNHO', T.accentText],
+            ['PENDENTE', T.bdark],
           ] as const)
             .map(([k, cor]) => ({ k, cor, pct: (contagemPorEstado[k] / (totalDoContexto || 1)) * 100 }))
             .filter(seg => seg.pct > 0)

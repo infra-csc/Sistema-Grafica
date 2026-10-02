@@ -35,14 +35,35 @@ export function BarraDeLote({
   const enviadasSelecionadas = idsSelecionados
     .filter(id => optimisticSentIds.has(id) || (itemUIStates[id] || 'PENDENTE') === 'ENVIADO').length;
   const naVinculacao = idsSelecionados.length - enviadasSelecionadas;
+  // No celular as ações de lote dividem a largura (cada uma com flex) e o
+  // "Limpar" sobe para a linha da contagem: em fila, os três botões no
+  // tamanho natural deixavam o principal sozinho e torto na última linha.
+  const acao = isMobile ? { flex: '1 1 auto' } : undefined;
+  const limpar = (
+    <Botao
+      variante="fantasma"
+      tamanho={dedo ? "toque" : "md"}
+      onClick={() => setSelectedItemIds(new Set())}
+      data-testid="button-clear-selection"
+    >
+      Limpar
+    </Botao>
+  );
   return (
-    <div style={{ position: 'fixed', bottom: isMobile ? 12 : 32, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 720, padding: isMobile ? '0 12px' : '0 24px', zIndex: 50, boxSizing: 'border-box' }}>
+    // GRUDADA NO RODAPÉ DA ÁREA DE CONTEÚDO, não da janela. Era `fixed`
+    // centrada na JANELA: com a barra lateral aberta (tablet, notebook) ela
+    // ficava deslocada para a esquerda e cobria o menu. `sticky` dentro do
+    // contêiner que rola centra na coluna da lista — e, como ocupa lugar no
+    // fluxo, a última linha nunca fica escondida atrás dela.
+    <div style={{ position: 'sticky', bottom: isMobile ? 12 : 24, width: '100%', maxWidth: 720, margin: '16px auto 0', zIndex: 50, boxSizing: 'border-box' }}>
       {/* BARRA CLARA, como o resto da tela. Era escura (#1c1917) com
           botões translúcidos — e o primário do design system é escuro:
           sobre fundo escuro ele sumiria. A sombra grande é que a separa
           da tabela que rola por baixo. */}
-      <div style={{ backgroundColor: T.surface, color: T.text, padding: isMobile ? '12px 14px' : '14px 20px', borderRadius: R.lg, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, boxShadow: `${SHADOW.lg}, 0 4px 24px rgba(28,25,23,0.12)`, border: `1px solid ${T.bdark}` }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+      {/* Sobe do rodapé ao aparecer (vinc-subir, 180ms): surgir seco no meio
+          da leitura parecia um aviso. Zerado por prefers-reduced-motion. */}
+      <div role="region" aria-label="Ações em lote" className="vinc-subir" style={{ backgroundColor: T.surface, color: T.text, padding: isMobile ? '12px 14px' : '14px 20px', borderRadius: R.lg, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, boxShadow: `${SHADOW.lg}, 0 4px 24px rgba(28,25,23,0.12)`, border: `1px solid ${T.bdark}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 14, width: isMobile ? '100%' : undefined }}>
           <div style={{ width: 40, height: 40, backgroundColor: T.accentText, borderRadius: R.md, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: FS.title, fontWeight: FW.forte, fontFamily: FONT.display, color: T.surface, flexShrink: 0 }}>
             {selectedItemIds.size}
           </div>
@@ -62,16 +83,10 @@ export function BarraDeLote({
               </p>
             )}
           </div>
+          {isMobile && <div style={{ marginLeft: 'auto' }}>{limpar}</div>}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginLeft: 'auto' }}>
-          <Botao
-            variante="fantasma"
-            tamanho={dedo ? "toque" : "md"}
-            onClick={() => setSelectedItemIds(new Set())}
-            data-testid="button-clear-selection"
-          >
-            Limpar
-          </Botao>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 10, flexWrap: 'wrap', marginLeft: 'auto', width: isMobile ? '100%' : undefined }}>
+          {!isMobile && limpar}
           {(() => {
             const dirtySelected = Array.from(selectedItemIds).filter(id => (itemUIStates[id] || 'PENDENTE') === 'RASCUNHO');
             if (dirtySelected.length === 0) return null;
@@ -83,6 +98,7 @@ export function BarraDeLote({
                 onClick={() => salvarSelecionadas(dirtySelected)}
                 carregando={salvando}
                 data-testid="button-save-selected"
+                style={acao}
               >
                 {salvando ? 'Salvando...' : `Salvar ${dirtySelected.length} rascunho${dirtySelected.length !== 1 ? 's' : ''}`}
               </Botao>
@@ -97,6 +113,7 @@ export function BarraDeLote({
             icone={PlusCircle}
             onClick={abrirAcrescentar}
             data-testid="button-acrescentar-sponsor"
+            style={acao}
             title="Acrescenta UM patrocinador às peças selecionadas, sem mexer nos vínculos que elas já têm — funciona mesmo depois do envio à Arte"
           >
             Acrescentar em {idsSelecionados.length}
@@ -112,6 +129,7 @@ export function BarraDeLote({
               icone={Users}
               onClick={handleOpenBulkApplyDialog}
               data-testid="button-apply-bulk-sponsors"
+              style={acao}
               title={enviadasSelecionadas > 0 ? `Reescreve os patrocinadores das ${naVinculacao} que ainda estão na vinculação` : undefined}
             >
               Aplicar{enviadasSelecionadas > 0 ? ` em ${naVinculacao}` : ' patrocinadores'}

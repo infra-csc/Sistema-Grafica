@@ -51,6 +51,7 @@ export function BarraDeFiltros({
           placeholder="Peça, descrição ou evento   /"
           aria-label="Buscar por peça, descrição ou evento"
           data-testid="input-search-events"
+          className="vinc-campo"
           style={{
             // 44 no toque (alvo da casa) e fonte 16 no toque ou no celular:
             // abaixo de 16px o Safari do iPhone/iPad dá zoom ao focar a busca.

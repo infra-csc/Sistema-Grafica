@@ -20,7 +20,7 @@ export function ModalResultadoDoLote({ resultadoDoLote, setResultadoDoLote }: Pr
       {/* Casca padrão (modalSurface + ModalHeader + ModalFooter), como todo
           modal da tela: era o único com o Dialog cru, X nativo e sem saída
           clara além do X. */}
-      <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(560)}>
+      <DialogContent className={HIDE_NATIVE_CLOSE} style={{ ...modalSurface(560), gap: 0 }}>
         <FreezeWhileClosing open={!!resultadoDoLote}>
         <DialogTitle className="sr-only">{resultadoDoLote?.titulo ?? 'Peças recusadas'}</DialogTitle>
         <DialogDescription className="sr-only">As peças que não receberam o patrocinador, cada uma com o motivo</DialogDescription>
@@ -32,11 +32,14 @@ export function ModalResultadoDoLote({ resultadoDoLote, setResultadoDoLote }: Pr
           subtitle="Nenhuma dessas peças foi alterada — cada linha diz o porquê."
           onClose={() => setResultadoDoLote(null)}
         />
-        <div style={{ padding: '14px 24px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
-        <div style={{ border: `1px solid ${T.border}`, borderRadius: R.md }}>
+        {/* Peça à esquerda (mono, coluna fixa: os motivos alinham), motivo à
+            direita. Sem divisória dobrada no fim: a última linha encosta na
+            borda da caixa. */}
+        <div style={{ padding: '16px 24px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
+        <div role="list" style={{ border: `1px solid ${T.border}`, borderRadius: R.md, overflow: 'hidden' }}>
           {(resultadoDoLote?.recusadas ?? []).map((rec, i) => (
-            <div key={i} style={{ display: 'flex', gap: 10, padding: '9px 12px', borderBottom: `1px solid ${N.n3}`, fontSize: FS.body }}>
-              <span style={{ fontFamily: FONT.mono, fontWeight: FW.forte, color: T.accentText, whiteSpace: 'nowrap' }}>{rec.displayId}</span>
+            <div role="listitem" key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 12, padding: '10px 14px', borderTop: i === 0 ? 'none' : `1px solid ${N.n3}`, fontSize: FS.body, lineHeight: 1.45 }}>
+              <span style={{ fontFamily: FONT.mono, fontSize: FS.meta, fontWeight: FW.forte, color: T.second, whiteSpace: 'nowrap', minWidth: 48 }}>{rec.displayId}</span>
               <span style={{ color: T.strong }}>{rec.motivo}</span>
             </div>
           ))}

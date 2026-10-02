@@ -797,6 +797,25 @@
   .atd-linha button { min-width: 44px; }
 }
 
+/* ── VINCULAR PATROCINADORES: os estados que estilo inline não alcança ─────
+   Aditivo e com prefixo próprio (vinc-), como o atd- acima: só a tela de
+   vinculação usa. Hover nas opções dos diálogos e nos chips desmarcados da
+   linha (antes não respondiam ao ponteiro), foco do campo de busca e a
+   entrada da barra de lote. Zerado por prefers-reduced-motion no fim. */
+/* Só onde há hover de verdade: no toque o :hover gruda depois do toque e a
+   opção recém-desmarcada ficava cinza, parecendo um terceiro estado. */
+@media (hover: hover) {
+  .vinc-opcao:hover:not([aria-checked="true"]):not([aria-pressed="true"]) { background-color: var(--n1) !important; border-color: var(--n5) !important; }
+  .vinc-chip:hover:not(:disabled):not([aria-checked="true"]):not([aria-pressed="true"]) { border-color: var(--n5) !important; color: var(--n9) !important; }
+}
+.vinc-campo { transition: border-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease; }
+.vinc-campo:focus { border-color: var(--n6) !important; box-shadow: 0 0 0 3px var(--n3); }
+@keyframes vinc-subir {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: none; }
+}
+.vinc-subir { animation: vinc-subir var(--dur-media) var(--ease-saida) both; }
+
 /* ── Pipeline de fluxo – overflow horizontal seguro ─────────── */
 .pipeline-scroll {
   overflow-x: auto;

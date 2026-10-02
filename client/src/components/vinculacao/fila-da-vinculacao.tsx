@@ -21,6 +21,7 @@ import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { TOM, T, N, R, FS, FW, FONT, onColor } from "@/lib/theme";
 import { ITEM_RENDER_CAP, THC } from "./constantes";
 import { secaoDaPeca } from "./regras";
+import { CaixaDeToque } from "./pecas-de-escolha";
 import type {
   Agrupamento, EventoDaVinculacao, GrupoDaLista, PatrocinadorDaVinculacao, PecaDaVinculacao, UIStatus,
 } from "./tipos";
@@ -157,13 +158,17 @@ export function FilaDaVinculacao({
                     ? `Todas as peças deste evento já têm ${sponsor.name}`
                     : `Vincular ${sponsor.name} às ${faltando.length} peças que ainda não têm — entra como rascunho`}
                   data-testid={`button-link-remaining-${sponsor.id}`}
+                  larguraCheia={emCartoes}
                   style={{ flexShrink: 0 }}
                 >
                   {/* Desabilitado, o próprio rótulo é o motivo. */}
                   {faltando.length === 0 ? 'Todas vinculadas' : `Vincular restantes (${faltando.length})`}
                 </Botao>
               ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', flexShrink: 0 }}>
+                // No cartão as duas ações dividem a largura: lado a lado, no
+                // tamanho natural, o "5 patrocinadores" vazava pela borda do
+                // grupo e saía cortado.
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', flexShrink: 0, ...(emCartoes ? { width: '100%' } : {}) }}>
                 {/* AUTO-VINCULAR NO PRÓPRIO EVENTO. O do topo exige filtrar
                     exatamente um evento antes; aqui o evento já está
                     escolhido pelo grupo. Mesmo diálogo, mesma pré-visualização
@@ -177,6 +182,7 @@ export function FilaDaVinculacao({
                     onClick={() => abrirAutoVinculo(event.id)}
                     data-testid={`button-auto-vincular-evento-${event.id}`}
                     title="Pré-visualiza os vínculos pelas regras de cota deste evento — nada é gravado antes de confirmar"
+                    style={emCartoes ? { flex: '1 1 auto' } : undefined}
                   >
                     Auto-vincular por cota
                   </Botao>
@@ -188,6 +194,7 @@ export function FilaDaVinculacao({
                   onClick={() => handleOpenSponsorDialog(event)}
                   data-testid={`button-manage-event-sponsors-${event.id}`}
                   title={eventSponsors.length === 0 ? 'Adicionar patrocinadores a este evento' : 'Escolher quem participa deste evento'}
+                  style={emCartoes ? { flex: '1 1 auto' } : undefined}
                 >
                   {eventSponsors.length === 0
                     ? 'Adicionar patrocinadores'
@@ -204,7 +211,9 @@ export function FilaDaVinculacao({
                   <thead style={{ display: emCartoes ? 'none' : 'table-header-group' }}>
                     <tr style={{ backgroundColor: T.bg, borderBottom: `1px solid ${T.border}` }}>
                       <th style={{ ...THC, width: 46, textAlign: 'center', padding: '9px 0' }}>
+                        <CaixaDeToque dedo={dedo}>
                         <Checkbox
+                          data-alvo-natural=""
                           /* "indeterminate" em seleção parcial: sem isto o
                              checkbox aparecia vazio mesmo com metade das
                              linhas marcadas. */
@@ -214,6 +223,7 @@ export function FilaDaVinculacao({
                           aria-label={`Selecionar todas as peças de ${sponsor ? sponsor.name : event.name}`}
                           data-testid={`checkbox-select-all-${chave}`}
                         />
+                        </CaixaDeToque>
                       </th>
                       <th style={THC}>Peça</th>
                       <th style={{ ...THC, whiteSpace: 'nowrap' }}>Qtd · m²</th>
@@ -245,7 +255,13 @@ export function FilaDaVinculacao({
                         const selecionaveisDoTipo = doTipo.filter(i => { const st = itemUIStates[i.id] || 'PENDENTE'; return st === 'PENDENTE' || st === 'RASCUNHO'; });
                         const tudoEnviado = enviadas === doTipo.length;
                         const tudoVinculado = semPatrocinador === 0;
-                        const corDoLote = tudoEnviado ? T.text : tudoVinculado ? TOM.sucesso.text : T.accentText;
+                        // O QUE JÁ SAIU FICA QUIETO. "Tudo enviado" em preto
+                        // forte, com faixa preta, era o que mais gritava na
+                        // fila — e é justamente o que não pede nada. A cor
+                        // alta fica para o que falta (laranja) e o que está
+                        // pronto para sair (verde).
+                        const corDoLote = tudoEnviado ? T.bdark : tudoVinculado ? TOM.sucesso.text : T.accentText;
+                        const corDoTextoDoLote = tudoEnviado ? T.second : corDoLote;
                         const textoDoLote = tudoEnviado ? 'tudo enviado'
                           : tudoVinculado ? 'tudo vinculado'
                           : `${semPatrocinador} sem patrocinador`;
@@ -275,7 +291,9 @@ export function FilaDaVinculacao({
                                   é HTML inválido, e clicar no checkbox
                                   fecharia o grupo junto. */}
                               <span onClick={e => e.stopPropagation()} style={{ width: 46, flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
+                                <CaixaDeToque dedo={dedo}>
                                 <Checkbox
+                                  data-alvo-natural=""
                                   checked={(() => {
                                     const sel = selecionaveisDoTipo;
                                     if (sel.length === 0) return false;
@@ -287,6 +305,7 @@ export function FilaDaVinculacao({
                                   aria-label={`Selecionar as peças do tipo ${item.type}`}
                                   data-testid={`checkbox-group-${item.type}`}
                                 />
+                                </CaixaDeToque>
                               </span>
                               <button
                                 type="button"
@@ -310,7 +329,7 @@ export function FilaDaVinculacao({
                                 <span style={{ fontFamily: FONT.mono, fontSize: FS.meta, color: T.apoio, flexShrink: 0 }}>
                                   {doTipo.length}
                                 </span>
-                                <span style={{ marginLeft: 'auto', fontSize: FS.meta, fontWeight: FW.medio, color: corDoLote, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                                <span style={{ marginLeft: 'auto', fontSize: FS.meta, fontWeight: tudoEnviado ? FW.corpo : FW.medio, color: corDoTextoDoLote, whiteSpace: 'nowrap', flexShrink: 0 }}>
                                   {textoDoLote}
                                 </span>
                               </button>

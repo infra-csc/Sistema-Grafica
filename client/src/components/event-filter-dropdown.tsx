@@ -42,6 +42,8 @@ interface Props {
   onValuesChange?: (v: string[]) => void;
   options: EventOption[];
   allLabel?: string;
+  /** Texto do gatilho sem nada escolhido (ver FilterSelect). */
+  rotuloQuandoVazio?: string;
   /** Ocupa a largura do contêiner (linha do celular). Padrão: largura do conteúdo, como sempre. */
   fullWidth?: boolean;
 }
@@ -52,7 +54,8 @@ export function EventFilterDropdown({
   values,
   onValuesChange,
   options,
-  allLabel = "Todos os Eventos",
+  allLabel = "Todos os eventos",
+  rotuloQuandoVazio,
   fullWidth = false,
 }: Props) {
   const multiple = values !== undefined && onValuesChange !== undefined;
@@ -64,6 +67,7 @@ export function EventFilterDropdown({
       // O gatilho vazio dizia "Todos os Eventos", não "Evento" — sem isto, sete
       // telas mudariam de texto de uma vez.
       showAllLabelWhenEmpty
+      rotuloQuandoVazio={rotuloQuandoVazio}
       // Este menu SEMPRE apareceu, inclusive com zero eventos na fila; o
       // FilterSelect some por padrão. Some-lo agora arrancaria o controle da
       // faixa exatamente no momento em que o operador precisa entender por que

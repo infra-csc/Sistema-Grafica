@@ -14,7 +14,7 @@ import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { useDensidadeDoConteudo, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { EsqueletoDeFila } from "@/components/esqueleto-de-fila";
 import { EstadoVazio, EstadoErro } from "@/components/ui/estados";
-import { T, N, R } from "@/lib/theme";
+import { T, N, R, FS, FW, FONT } from "@/lib/theme";
 import { useVinculacao } from "@/components/vinculacao/use-vinculacao";
 import { useAcoesDaVinculacao } from "@/components/vinculacao/use-acoes-da-vinculacao";
 import { LinhaDaPeca, type AcoesDaLinha } from "@/components/vinculacao/linha-da-peca";
@@ -113,14 +113,49 @@ function TelaDaVinculacao({ emCartoes, isMobile }: { emCartoes: boolean; isMobil
 
   // Carregamento e vazio no mesmo estilo inline do resto da tela, e o vazio
   // diz por quê e o que fazer — quem cai aqui não pode ficar sem saída.
+  // A MESMA CAIXA DA TELA nos três estados de exceção (carregando, erro,
+  // vazio): container, margens e o título no mesmo lugar. A silhueta tinha
+  // largura e recuo próprios (1100px, 18px) e a tela "pulava" 7px quando os
+  // dados chegavam; erro e vazio apareciam sem título nenhum, soltos no meio
+  // do branco — sem dizer em que tela a pessoa estava.
+  const caixa = "container mx-auto p-4 max-w-6xl 2xl:max-w-[1440px]";
+  const titulo = (
+    <>
+      <div style={{ marginBottom: 8, fontSize: FS.micro, fontWeight: FW.rotulo, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.accentText }}>
+        Antes da Arte
+      </div>
+      <h1 style={{ margin: '0 0 24px', fontFamily: FONT.display, fontSize: FS.h1, fontWeight: FW.rotulo, letterSpacing: '-0.03em', lineHeight: 1.15, color: T.text }}>
+        Vincular Patrocinadores
+      </h1>
+    </>
+  );
+
   if (v.itemsLoading || v.eventsLoading) {
     // Silhueta em vez de spinner central: reserva o espaço da lista e a
-    // chegada dos dados não empurra a tela.
+    // chegada dos dados não empurra a tela. Desenha o cabeçalho, os passos,
+    // a barra de situação e os filtros, nas alturas reais.
+    const barra = (w: number | string, h: number, cor: string = N.n3, mb = 0) => (
+      <div className="animate-pulse" style={{ width: w, height: h, borderRadius: R.sm, backgroundColor: cor, marginBottom: mb, maxWidth: '100%' }} />
+    );
     return (
-      <div key="carregando" aria-busy="true" style={{ padding: '18px 18px 64px', maxWidth: 1100, margin: '0 auto' }}>
-        <div className="animate-pulse" style={{ width: 260, height: 22, borderRadius: R.sm, backgroundColor: T.border, marginBottom: 8 }} />
-        <div className="animate-pulse" style={{ width: 360, height: 13, borderRadius: 4, backgroundColor: N.n3, marginBottom: 20 }} />
-        <EsqueletoDeFila linhas={9} />
+      <div key="carregando" aria-busy="true" className={caixa}>
+        {barra(84, 10, N.n3, 10)}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', marginBottom: 22 }}>
+          <div>{barra(280, 28, T.border, 10)}{barra(240, 14)}</div>
+          {isMobile
+            ? <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8 }}>{barra('100%', 44, T.border)}{barra('100%', 44, N.n2)}</div>
+            : <div style={{ display: 'flex', gap: 10 }}>{barra(200, 44, N.n2)}{barra(170, 44, T.border)}</div>}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: emCartoes ? '1fr' : 'repeat(3, minmax(0, 1fr))', gap: emCartoes ? 8 : 20, maxWidth: 920, marginBottom: 24 }}>
+          {[0, 1, 2].map(i => <div key={i}>{!emCartoes && barra('100%', 2, i === 0 ? T.border : N.n3, 10)}{barra('80%', 12)}</div>)}
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', paddingBottom: 14, borderBottom: `1px solid ${T.border}`, marginBottom: 18 }}>
+          {barra(132, 8, T.border)}{barra(90, 12)}{barra(100, 32, N.n2)}{barra(90, 32, N.n2)}
+        </div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
+          {barra(isMobile ? '100%' : 280, 36, N.n2)}{barra(150, 36, N.n2)}{barra(190, 36, N.n2)}{barra(140, 36, N.n2)}
+        </div>
+        <EsqueletoDeFila linhas={isMobile ? 5 : 8} />
       </div>
     );
   }
@@ -131,35 +166,41 @@ function TelaDaVinculacao({ emCartoes, isMobile }: { emCartoes: boolean; isMobil
   // também fica inutilizável (nenhum chip para vincular).
   if (v.itemsError || v.eventsError || v.sponsorsError) {
     return (
-      <div key="erro" data-testid="button-retry-items" style={{ maxWidth: 520, margin: '10vh auto 0', padding: 24 }}>
-        {/* O testid antigo fica na caixa: o botão agora é o do EstadoErro. */}
-        <EstadoErro
-          titulo="Não foi possível carregar as peças"
-          detalhe="Verifique sua conexão e tente novamente."
-          aoTentarDeNovo={() => { v.refetchItems(); v.refetchEvents(); v.refetchSponsors(); }}
-        />
+      <div key="erro" className={caixa}>
+        {titulo}
+        <div data-testid="button-retry-items" style={{ maxWidth: 520, margin: '40px auto 0' }}>
+          {/* O testid antigo fica na caixa: o botão agora é o do EstadoErro. */}
+          <EstadoErro
+            titulo="Não foi possível carregar as peças"
+            detalhe="Verifique sua conexão e tente novamente. Nada do que já estava salvo foi perdido."
+            aoTentarDeNovo={() => { v.refetchItems(); v.refetchEvents(); v.refetchSponsors(); }}
+          />
+        </div>
       </div>
     );
   }
 
   if (v.visibleItems.length === 0) {
     return (
-      <div key="vazio" style={{ maxWidth: 520, margin: '10vh auto 0', padding: 24 }}>
-        <EstadoVazio
-          icone={CheckCircle2}
-          titulo="Nada para vincular agora"
-          descricao="Esta tela mostra apenas peças de eventos que ainda vão acontecer. Assim que a Solicitação cadastrar peças em um evento futuro, elas aparecem aqui para receber os patrocinadores."
-        />
+      <div key="vazio" className={caixa}>
+        {titulo}
+        <div style={{ maxWidth: 520, margin: '40px auto 0' }}>
+          <EstadoVazio
+            icone={CheckCircle2}
+            titulo="Nada para vincular agora"
+            descricao="Esta tela mostra apenas peças de eventos que ainda vão acontecer. Assim que a Solicitação cadastrar peças em um evento futuro, elas aparecem aqui para receber os patrocinadores."
+          />
+        </div>
       </div>
     );
   }
 
-  // O respiro de baixo acompanha a barra de lote FIXA, que no celular quebra
   // Cada estado (carregando, erro, vazio, tela) tem a sua `key`: sem ela o React
   // reaproveita a mesma <div> e mistura `padding` com `paddingBottom` ao trocar.
-  // em duas linhas — é a janela que manda nela, não a caixa da tela.
+  // Com seleção, o respiro de baixo encolhe: a barra de lote é `sticky` e já
+  // ocupa o próprio lugar no fim do fluxo.
   return (
-    <div key="tela" className="container mx-auto p-4 max-w-6xl pb-24" style={{ height: "100%", overflowY: "auto", paddingBottom: selectedItemIds.size > 0 ? (isMobile ? 260 : 150) : undefined }}>
+    <div key="tela" className="container mx-auto p-4 max-w-6xl 2xl:max-w-[1440px] pb-24" style={{ height: "100%", overflowY: "auto", paddingBottom: selectedItemIds.size > 0 ? 24 : undefined }}>
 
       <ModalReferenciaVisual
         previewRefUrl={a.previewRefUrl}
@@ -181,12 +222,17 @@ function TelaDaVinculacao({ emCartoes, isMobile }: { emCartoes: boolean; isMobil
       />
 
       <CabecalhoDaVinculacao
-        fraseDeResolucao={v.fraseDeResolucao}
+        // Com filtro que zerou a lista, a frase do contexto dizia "Tudo enviado
+        // à Arte" — falso: só não há nada À VISTA. O estado vazio logo abaixo
+        // explica o filtro; o cabeçalho não pode contradizê-lo.
+        fraseDeResolucao={v.temFiltroAtivo && v.totalDoContexto === 0 ? 'Nenhuma peça com os filtros atuais.' : v.fraseDeResolucao}
         contextStatusCounts={v.contextStatusCounts}
         eventFilter={v.eventFilter}
         abrirAutoVinculo={a.abrirAutoVinculo}
         abrirEnvioDasProntas={a.abrirEnvioDasProntas}
         enviando={sendToArteMutation.isPending}
+        isMobile={isMobile}
+        estreito={emCartoes}
       />
 
       <BarraDeStatus
@@ -220,19 +266,6 @@ function TelaDaVinculacao({ emCartoes, isMobile }: { emCartoes: boolean; isMobil
         dedo={dedo}
       />
 
-      <BarraDeLote
-        selectedItemIds={selectedItemIds}
-        setSelectedItemIds={v.setSelectedItemIds}
-        optimisticSentIds={optimisticSentIds}
-        itemUIStates={itemUIStates}
-        salvarSelecionadas={a.salvarSelecionadas}
-        salvando={saveLinkingMutation.isPending}
-        podeAcrescentar={podeAcrescentar}
-        abrirAcrescentar={a.abrirAcrescentar}
-        handleOpenBulkApplyDialog={a.handleOpenBulkApplyDialog}
-        isMobile={isMobile}
-        dedo={dedo}
-      />
 
       <FilaDaVinculacao
         gruposDaLista={v.gruposDaLista}
@@ -256,6 +289,23 @@ function TelaDaVinculacao({ emCartoes, isMobile }: { emCartoes: boolean; isMobil
         agrupamento={v.agrupamento}
         setAgrupamento={v.setAgrupamento}
         emCartoes={emCartoes}
+        dedo={dedo}
+      />
+
+      {/* Depois da lista, de propósito: é `sticky` (ver barra-de-lote) e
+          precisa vir no fim do fluxo para grudar no rodapé da área. */}
+      <BarraDeLote
+        selectedItemIds={selectedItemIds}
+        setSelectedItemIds={v.setSelectedItemIds}
+        optimisticSentIds={optimisticSentIds}
+        itemUIStates={itemUIStates}
+        salvarSelecionadas={a.salvarSelecionadas}
+        salvando={saveLinkingMutation.isPending}
+        podeAcrescentar={podeAcrescentar}
+        abrirAcrescentar={a.abrirAcrescentar}
+        handleOpenBulkApplyDialog={a.handleOpenBulkApplyDialog}
+        // Caixa estreita (lista em cartões) usa o arranjo empilhado da barra.
+        isMobile={isMobile || emCartoes}
         dedo={dedo}
       />
 

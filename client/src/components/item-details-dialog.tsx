@@ -51,12 +51,18 @@ interface ItemDetailsDialogProps<TPeca extends ItemDaFicha> {
   acaoNoRodape?: React.ReactNode;
   /** Um bloco de largura cheia ACIMA dos botões do rodapé (ex.: o motivo obrigatório de uma troca). */
   acimaDaAcaoNoRodape?: React.ReactNode;
+  /**
+   * "Fechar" em contorno mesmo sem ação no rodapé (aditivo, 02/10): quando o
+   * corpo já tem a ação primária da fase (o "Enviar para aprovação" da Arte),
+   * dois botões pretos disputavam o mesmo clique. Sem ela, nada muda.
+   */
+  fecharSecundario?: boolean;
   onEditSave?: (editedItem: TPeca) => void;
 }
 
 export function ItemDetailsDialog<TPeca extends ItemDaFicha>({
   item, auditLogs = [], open, onOpenChange,
-  customActions, topActions, onEditSave, acaoNoRodape, acimaDaAcaoNoRodape,
+  customActions, topActions, onEditSave, acaoNoRodape, acimaDaAcaoNoRodape, fecharSecundario = false,
 }: ItemDetailsDialogProps<TPeca>) {
   const [editMode, setEditMode]     = useState(false);
   const [editedItem, setEditedItem] = useState<TPeca | null>(item);
@@ -268,7 +274,7 @@ export function ItemDetailsDialog<TPeca extends ItemDaFicha>({
 
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: acaoNoRodape && isMobile ? "nowrap" : "wrap", flex: acaoNoRodape && isMobile ? "1 1 100%" : undefined }}>
             <Botao
-              variante={acaoNoRodape ? "secundario" : "primario"}
+              variante={acaoNoRodape || fecharSecundario ? "secundario" : "primario"}
               tamanho="toque"
               onClick={() => onOpenChange(false)}
               data-testid="button-fechar-rodape"

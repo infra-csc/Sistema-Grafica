@@ -150,11 +150,14 @@ function IconeDoBotao({ carregando, Icone, tamanho }: { carregando: boolean; Ico
 }
 
 /** Coluna com a frase do motivo embaixo — nunca `title`: no toque não há hover. */
-function ComMotivo({ children, id, motivo, alinhar }: {
-  children: React.ReactNode; id: string; motivo: React.ReactNode; alinhar: "start" | "center" | "end";
+function ComMotivo({ children, id, motivo, alinhar, larguraCheia = false }: {
+  children: React.ReactNode; id: string; motivo: React.ReactNode; alinhar: "start" | "center" | "end"; larguraCheia?: boolean;
 }) {
+  // `larguraCheia`: o invólucro também ocupa a linha. Inline-flex, ele
+  // encolhia no conteúdo e o botão "de largura cheia" ficava com a largura do
+  // rótulo justamente quando estava travado (com o motivo embaixo).
   return (
-    <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "stretch", maxWidth: "100%" }}>
+    <span style={{ display: larguraCheia ? "flex" : "inline-flex", width: larguraCheia ? "100%" : undefined, flexDirection: "column", alignItems: "stretch", maxWidth: "100%" }}>
       {children}
       <MotivoBloqueio id={id} alinhar={alinhar}>{motivo}</MotivoBloqueio>
     </span>
@@ -215,7 +218,7 @@ export const Botao = React.forwardRef<HTMLButtonElement, BotaoProps>(function Bo
   );
 
   if (!mostraMotivo) return botao;
-  return <ComMotivo id={idMotivo} motivo={motivo} alinhar={alinharMotivo}>{botao}</ComMotivo>;
+  return <ComMotivo id={idMotivo} motivo={motivo} alinhar={alinharMotivo} larguraCheia={larguraCheia}>{botao}</ComMotivo>;
 });
 
 export interface BotaoLinkProps

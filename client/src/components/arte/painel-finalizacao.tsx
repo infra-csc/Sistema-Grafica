@@ -220,7 +220,11 @@ export function PainelDeFinalizacao({
           const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(url) || selectedItem.approvalThumbUrl.startsWith('/objects/');
           const isPdf = !isImage;
           return (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: T.bg, borderRadius: 8, border: `1px solid ${N.n3}`, flexWrap: 'wrap' }}>
+            // Sozinho no bloco (só a troca do thumb), sem a segunda caixa: era
+            // um cartão cinza dentro do cartão branco — moldura sobre moldura.
+            <div style={comArquivoFinal
+              ? { display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: T.bg, borderRadius: 8, border: `1px solid ${N.n3}`, flexWrap: 'wrap' }
+              : { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <div style={{ width: 40, height: 40, borderRadius: 6, backgroundColor: TOM.perigo.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 {isPdf
                   ? <FileText style={{ width: 20, height: 20, color: TOM.perigo.dot }} />
@@ -357,7 +361,10 @@ export function PainelDeFinalizacao({
             <FolderOpen aria-hidden="true" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: T.apoio }} />
             <Input
               id="finalFilePath"
-              placeholder="Cole o caminho do ARQUIVO (com nome e extensão)…"
+              // Sem a palavra em caixa alta (gritava no meio da frase) e curto
+              // no celular — cortava em "(com n". O "com nome e extensão"
+              // segue dito pelo aviso de pasta logo abaixo quando faz falta.
+              placeholder={isMobile ? "Cole o caminho do arquivo…" : "Cole o caminho do arquivo, com nome e extensão…"}
               value={finalFileUrl}
               onChange={(e) => { setFinalFileUrl(e.target.value); setFinalDirty(true); }}
               data-testid="input-final-file-path"

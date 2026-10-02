@@ -72,7 +72,7 @@ export function VazioDaFila({ tabId, activeFilterCount, atrasadoFilter, setAtras
                 ? "O marco desta fase é a própria saída do caminhão, que numa peça já pronta passou por definição — a lista está vazia pelo filtro, não porque falte trabalho."
                 : `A lista está vazia pelo FILTRO "Prazo: atrasados"${outrosFiltros > 0 ? ` (e mais ${outrosFiltros} ${outrosFiltros === 1 ? 'filtro' : 'filtros'})` : ''} — as peças desta fase estão todas dentro do marco de ${marco}.`
               : porFiltro
-              ? `${activeFilterCount} ${activeFilterCount === 1 ? 'filtro ativo' : 'filtros ativos'} estão escondendo o resto da fila`
+              ? (activeFilterCount === 1 ? 'Um filtro ativo está escondendo o resto da fila' : `${activeFilterCount} filtros ativos estão escondendo o resto da fila`)
               : tabId === "criar-aprovacoes" ? "Todo thumb desta fase já foi enviado"
               : tabId === "aguardando-patrocinador" ? "Nenhuma peça em aprovação pelo patrocinador"
               : tabId === "finalizar-layouts" ? "Nenhuma peça aprovada aguardando arquivo final"

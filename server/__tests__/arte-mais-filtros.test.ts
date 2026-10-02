@@ -112,7 +112,8 @@ describe("Arte 1280px — só busca, Evento e Ordenar à vista", { timeout: 60_0
   it("fechada: nenhum dos outros filtros aparece; o botão diz o que controla", async () => {
     await montar(1280);
     expect(tid("input-search-filter")).not.toBeNull();
-    expect(document.body.textContent).toContain("Evento");
+    // O seletor de Evento à vista ("Todos os eventos", em minúscula desde 02/10).
+    expect(document.body.textContent).toMatch(/Todos os eventos/);
     for (const id of ESCONDIDOS) expect(presente(id), id).toBe(false);
     const botao = tid("button-mais-filtros")!;
     expect(botao.getAttribute("aria-expanded")).toBe("false");

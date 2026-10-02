@@ -229,7 +229,11 @@ export function SponsorChips({
               border: ap?.tone === "waiting" ? `1.5px solid ${ap.dot}` : undefined,
               boxSizing: "border-box" as const,
             }} />
-            {s.name}
+            {/* As reticências moram NUM SPAN: num contêiner inline-flex o
+                `textOverflow` do chip não vale (o texto vira item flex), e o
+                nome era decepado na borda sem reticência nenhuma —
+                "Banco Aurora (exem". */}
+            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</span>
             {pendente && <Clock aria-hidden="true" style={{ width: 10, height: 10, flexShrink: 0 }} />}
             {aprovado && <Check aria-hidden="true" style={{ width: 10, height: 10, flexShrink: 0, color: "#15803d" }} />}
             {ap && <span style={SR_ONLY}>{` — ${ap.label}`}</span>}

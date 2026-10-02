@@ -167,7 +167,13 @@ export function DialogoPdfCompartilhado({
 
         </div>
         <ModalFooter>
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center' }}>
+          {/* NO CELULAR, EMPILHADO: lado a lado o envio (com o motivo
+              embaixo) empurrava o "Cancelar" para fora da borda esquerda do
+              modal. Em coluna, o envio vem em cima e o Cancelar embaixo, os
+              dois na largura toda. */}
+          <div style={isMobile
+            ? { display: 'flex', flexDirection: 'column-reverse', gap: 8, alignItems: 'stretch' }
+            : { display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center' }}>
             {/* QUEM FICA DE FORA, ANTES do clique (rodada 4). A seleção
                 atravessa abas, e só "aguardando envio" aceita o PDF; o aviso
                 existia só como toast DEPOIS de enviar. */}
@@ -175,14 +181,14 @@ export function DialogoPdfCompartilhado({
               const fora = Array.from(selectedItemIds).filter(id => itemPorId.get(id)?.status !== 'awaiting_submission').length;
               if (fora === 0) return null;
               return (
-                <span data-testid="aviso-fora-do-lote" style={{ marginRight: 'auto', fontSize: 12, color: TOM.alerta.text, lineHeight: 1.4 }}>
+                <span data-testid="aviso-fora-do-lote" style={{ marginRight: isMobile ? undefined : 'auto', order: isMobile ? 3 : undefined, fontSize: 12, color: TOM.alerta.text, lineHeight: 1.4 }}>
                   {fora} {fora === 1 ? 'selecionada não está' : 'selecionadas não estão'} aguardando envio e {fora === 1 ? 'fica' : 'ficam'} fora
                 </span>
               );
             })()}
             {/* Cancelar com contorno, como nos modais de dispensa e devolução:
                 transparente e sem borda ele lia como legenda, não como saída. */}
-            <Botao variante="secundario" tamanho={dedo ? "toque" : "md"} onClick={() => { setShowBulkDialog(false); setSharedPdfUrl(""); }}>
+            <Botao variante="secundario" tamanho={dedo ? "toque" : "md"} larguraCheia={isMobile} onClick={() => { setShowBulkDialog(false); setSharedPdfUrl(""); }}>
               Cancelar
             </Botao>
             {/* O rótulo diz QUANTAS vão — as mesmas que o envio aceita (só
@@ -195,7 +201,8 @@ export function DialogoPdfCompartilhado({
               carregando={submitBulkForApprovalMutation.isPending}
               disabled={!sharedPdfUrl}
               motivo="Suba o PDF para liberar o envio"
-              alinharMotivo="end"
+              alinharMotivo={isMobile ? "center" : "end"}
+              larguraCheia={isMobile}
               onClick={handleBulkSubmit}
               data-testid="button-submit-bulk-pdf"
             >

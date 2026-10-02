@@ -1,5 +1,5 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
-import { RotateCcw, Send, Upload, X } from "lucide-react";
+import { Check, RotateCcw, Send, Upload, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, modalSurface, ModalHeader, FreezeWhileClosing } from "@/components/modal-shell";
 import { FileUploader } from "@/components/FileUploader";
@@ -48,7 +48,10 @@ export function DialogoCorrecao({
   const correcaoDestinatarios: string[] = correcaoAprovacoes.filter((a) => a.status !== 'approved').map((a) => a.sponsorId);
   return (
     <Dialog open={!!correcaoItem} onOpenChange={(open) => { if (!open) void fecharCorrecaoModal(); }}>
-      {/* overflowY vence o overflow:hidden do modalSurface — este modal rola. */}
+      {/* QUEM ROLA É O CORPO, não o modal inteiro (revisão 02/10): com o
+          DialogContent rolando, o "Enviar nova arte" — a única ação do modal
+          — ficava abaixo da dobra em 1366×768 e no celular, cortado ao meio.
+          Agora cabeçalho e rodapé ficam fixos, como nos outros modais. */}
       <DialogContent
         // `max-h-[90vh]` saiu: o teto de altura mora no `modalSurface`
         // (100vh − 48, simétrico porque o Radix centra o Content). Dois tetos
@@ -56,7 +59,7 @@ export function DialogoCorrecao({
         // era mais frouxo, então prometia 10vh de respiro que a casca já
         // tinha decidido que eram 48px.
         className={cn("p-0 gap-0", HIDE_NATIVE_CLOSE)}
-        style={{ ...modalSurface(472), overflowY: 'auto' }}
+        style={modalSurface(472)}
         // Com uma nova arte JÁ ENVIADA ao storage, um clique no overlay
         // (o Radix fecha por padrão) descartava o arquivo sem perguntar.
         onInteractOutside={e => { if (correcaoThumbUrl) e.preventDefault(); }}
@@ -105,7 +108,7 @@ export function DialogoCorrecao({
             também é coluna flex por causa do `modalSurface`. Sem travar o
             encolhimento, uma janela baixa espremeria cabeçalho, corpo e rodapé
             em vez de rolar. */}
-        <div style={{ padding: '20px 24px 0', flexShrink: 0 }}>
+        <div style={{ padding: '20px 24px 4px', flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain' }}>
           {correcaoItem && (
             <>
               {/* Rejection cards */}
@@ -128,7 +131,7 @@ export function DialogoCorrecao({
                         inclinado sobre rosa. As aspas já marcam a citação. */}
                     <div style={{ backgroundColor: T.surface, padding: '10px 14px 8px' }}>
                       <p style={{ fontSize: 12, color: T.strong, margin: 0, lineHeight: 1.55 }}>
-                        {approval.rejectionReason ? <>"<TextoComLinks texto={approval.rejectionReason} />"</> : <span style={{ color: T.second }}>Sem motivo informado.</span>}
+                        {approval.rejectionReason ? <>“<TextoComLinks texto={approval.rejectionReason} />”</> : <span style={{ color: T.second }}>Sem motivo informado.</span>}
                       </p>
                       {(approval.rejectedBy || approval.rejectedAt) && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 6 }}>
@@ -187,13 +190,21 @@ export function DialogoCorrecao({
                 ) : (
                   /* Empty state. A zona dizia "Arraste ou" mas nunca teve
                      handler de drag — só o link e o Ctrl+V funcionavam. */
+                  // A MESMA ZONA DO THUMB DE APROVAÇÃO (ficha): círculo com o
+                  // ícone DENTRO da caixa, título, dica e os dois caminhos lado
+                  // a lado — "Escolher arquivo" e "Buscar arte já feita". Era
+                  // uma caixa de altura fixa (130px) com cinco linhas dentro: o
+                  // ícone vazava pela borda de cima, "Arraste ou" e o link
+                  // vermelho quebravam em linhas soltas. Vermelho fica para a
+                  // recusa, lá em cima; a zona de envio é neutra.
                   <div style={{
-                    height: 130, border: (isPasteUploading || isDragOverCorrecao) ? `1.5px dashed ${TOM.perigo.text}` : `1.5px dashed ${T.border}`, borderRadius: 10,
-                    backgroundColor: (isPasteUploading || isDragOverCorrecao) ? TOM.perigo.bg : T.bg, display: 'flex', flexDirection: 'column',
-                    alignItems: 'center', justifyContent: 'center', gap: 2, transition: 'all 0.15s', cursor: 'default'
+                    border: (isPasteUploading || isDragOverCorrecao) ? `1.5px dashed ${T.apoio}` : `1.5px dashed ${T.bdark}`, borderRadius: R.lg,
+                    backgroundColor: (isPasteUploading || isDragOverCorrecao) ? N.n2 : T.bg, display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', justifyContent: 'center', gap: 10, padding: dedo ? '18px 14px' : '20px 20px', textAlign: 'center',
+                    transition: 'background-color 0.15s, border-color 0.15s',
                   }}
-                    onMouseEnter={e => { if (!isPasteUploading && !isDragOverCorrecao) { (e.currentTarget as HTMLElement).style.backgroundColor = N.n2; (e.currentTarget as HTMLElement).style.borderColor = T.bdark; } }}
-                    onMouseLeave={e => { if (!isPasteUploading && !isDragOverCorrecao) { (e.currentTarget as HTMLElement).style.backgroundColor = T.bg; (e.currentTarget as HTMLElement).style.borderColor = T.border; } }}
+                    onMouseEnter={e => { if (!isPasteUploading && !isDragOverCorrecao) (e.currentTarget as HTMLElement).style.backgroundColor = N.n2; }}
+                    onMouseLeave={e => { if (!isPasteUploading && !isDragOverCorrecao) (e.currentTarget as HTMLElement).style.backgroundColor = T.bg; }}
                     onDragOver={e => { e.preventDefault(); setIsDragOverCorrecao(true); }}
                     onDragEnter={e => { e.preventDefault(); setIsDragOverCorrecao(true); }}
                     // Só apaga o destaque quando o arrasto SAI da zona: o dragleave
@@ -215,42 +226,41 @@ export function DialogoCorrecao({
                       uploadFileDirect(file, (localPath) => setCorrecaoThumbUrl(localPath));
                     }}
                   >
-                    {/* Hairline no lugar da sombra: uma sombra difusa dentro
-                        de uma caixa tracejada dá dois contornos concorrentes
-                        para o mesmo objeto. */}
-                    <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: T.surface, border: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: T.surface, border: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       {isPasteUploading
-                        ? <div style={{ width: 18, height: 18, borderRadius: '50%', border: `2.5px solid ${TOM.perigo.border}`, borderTopColor: TOM.perigo.text, animation: 'spin 0.8s linear infinite' }} />
-                        : <Upload style={{ width: 18, height: 18, color: TOM.perigo.text }} />
+                        ? <div aria-hidden="true" style={{ width: 18, height: 18, borderRadius: '50%', border: `2.5px solid ${T.border}`, borderTopColor: T.text, animation: 'spin 0.8s linear infinite' }} />
+                        : <Upload aria-hidden="true" style={{ width: 18, height: 18, color: T.strong }} />
                       }
                     </div>
-                    <p style={{ fontSize: 12, fontWeight: 600, color: T.strong, margin: 0 }}>
-                      {isPasteUploading ? 'Enviando...' : 'Arraste ou'}
-                    </p>
+                    <div>
+                      <p style={{ fontSize: FS.body, fontWeight: 700, color: T.text, margin: '0 0 3px' }}>
+                        {isPasteUploading ? 'Subindo a nova versão…' : dedo ? 'Escolha a nova versão' : 'Arraste a nova versão aqui'}
+                      </p>
+                      {/* O atalho que JÁ existe, desenhado como tecla. */}
+                      <p style={{ fontSize: fsToque(11.5, dedo), color: T.apoio, margin: 0 }}>
+                        {isPasteUploading ? 'Aguarde o upload concluir' : dedo ? 'PDF, PNG ou SVG' : <>PDF, PNG ou SVG · ou cole com <kbd style={KBD}>Ctrl</kbd>+<kbd style={KBD}>V</kbd></>}
+                      </p>
+                    </div>
                     {!isPasteUploading && (
-                      <FileUploader
-                        onGetUploadParameters={getUploadUrl}
-                        onFileSelect={(file) => { setCorrecaoFileName(file.name); }}
-                        onComplete={(result) => { setCorrecaoThumbUrl(convertGCSUrlToLocalPath(result.url)); }}
-                        accept="image/*,application/pdf"
-                        data-testid="uploader-correcao-thumb"
-                        buttonVariant="ghost"
-                        buttonClassName="h-auto py-0 px-0 text-[12px] font-semibold underline decoration-2 underline-offset-2 text-red-700 hover:bg-transparent"
-                      >
-                        escolha um arquivo
-                      </FileUploader>
-                    )}
-                    {/* O atalho que JÁ existe, desenhado como tecla: escrito no
-                        meio da frase ele passava por texto de rodapé. */}
-                    <p style={{ fontSize: fsToque(11, dedo), color: T.apoio, margin: '3px 0 0' }}>
-                      {isPasteUploading ? 'Aguarde…' : dedo ? 'PDF, PNG ou SVG' : <>PDF, PNG, SVG · ou cole com <kbd style={KBD}>Ctrl</kbd>+<kbd style={KBD}>V</kbd></>}
-                    </p>
-                    {!isPasteUploading && correcaoItem && (
-                      <BotaoBuscarArte
-                        variante="discreto"
-                        testId="button-buscar-arte-correcao"
-                        onClick={() => setBuscaDeArte({ itemId: correcaoItem.id, displayId: correcaoItem.displayId, destino: "thumb-correcao" })}
-                      />
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <FileUploader
+                          onGetUploadParameters={getUploadUrl}
+                          onFileSelect={(file) => { setCorrecaoFileName(file.name); }}
+                          onComplete={(result) => { setCorrecaoThumbUrl(convertGCSUrlToLocalPath(result.url)); }}
+                          accept="image/*,application/pdf"
+                          data-testid="uploader-correcao-thumb"
+                          buttonVariant="ghost"
+                          buttonClassName={`${dedo ? "h-11 min-h-[44px] text-[14px]" : "h-11 text-[13px]"} font-semibold bg-white text-stone-900 border border-stone-300 px-4 rounded-lg hover:bg-stone-50 hover:text-stone-900`}
+                        >
+                          Escolher arquivo
+                        </FileUploader>
+                        {correcaoItem && (
+                          <BotaoBuscarArte
+                            testId="button-buscar-arte-correcao"
+                            onClick={() => setBuscaDeArte({ itemId: correcaoItem.id, displayId: correcaoItem.displayId, destino: "thumb-correcao" })}
+                          />
+                        )}
+                      </div>
                     )}
                   </div>
                 )}
@@ -293,9 +303,14 @@ export function DialogoCorrecao({
                         <Selo forma="retangulo" cores={est ? { bg: est.bg, text: est.text, border: est.border } : undefined} style={{ padding: '2px 8px', letterSpacing: '0.04em', fontSize: fsToque(11, dedo) }}>
                           {estadoTexto}
                         </Selo>
-                        <Selo forma="retangulo" tom={recebe ? "laranja" : "sucesso"} style={{ padding: '2px 8px', fontSize: fsToque(11, dedo) }}>
+                        {/* O DESTINO EM TEXTO, não num segundo selo: eram duas
+                            pílulas coloridas por linha (estado + destino) e o
+                            olho não sabia qual ler. O estado é o selo; o
+                            destino é a seta. */}
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: dedo ? undefined : 112, justifyContent: 'flex-end', fontSize: fsToque(11.5, dedo), fontWeight: 700, color: recebe ? T.text : TOM.sucesso.text, whiteSpace: 'nowrap' }}>
+                          {recebe ? <Send aria-hidden="true" style={{ width: 11, height: 11 }} /> : <Check aria-hidden="true" style={{ width: 12, height: 12 }} />}
                           {recebe ? 'vai receber' : 'mantém aprovação'}
-                        </Selo>
+                        </span>
                       </div>
                     );
                   })}
@@ -351,7 +366,7 @@ export function DialogoCorrecao({
         // quando o dado local estava errado.
         const travado = !correcaoThumbUrl || enviando;
         return (
-        <div style={{ padding: '16px 24px 24px', borderTop: `1px solid ${N.n3}`, flexShrink: 0 }}>
+        <div style={{ padding: '14px 24px', paddingBottom: dedo ? 'calc(14px + env(safe-area-inset-bottom))' : 18, borderTop: `1px solid ${N.n3}`, flexShrink: 0, background: T.surface }}>
           {/* TINTA (primário), não vermelho: vermelho é a cor do problema (a
               recusa), não da solução. O rótulo diz a QUEM vai. Travado, o
               botão diz o que falta (`motivo`, à vista) — as duas razões

@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import { createPortal } from "react-dom";
 import { Calendar, ChevronDown, Filter, Search, Truck, X } from "lucide-react";
 import { Botao } from "@/components/ui/botao";
 import { FilterSelect, ShortcutPill } from "@/components/filter-select";
@@ -80,7 +81,9 @@ export function BarraDeFiltros({
         type="text"
         value={searchFilter}
         onChange={e => setSearchFilter(e.target.value)}
-        placeholder="Buscar por ID, peça, descrição ou evento..."
+        // No celular a frase longa era cortada no meio ("descriçã"): a
+        // versão curta diz o mesmo em 336px. O aria-label segue completo.
+        placeholder={isMobile || semOrdenar ? "Buscar peça, ID ou evento…" : "Buscar por ID, peça, descrição ou evento…"}
         aria-label="Buscar por ID, peça, descrição ou evento"
         data-testid="input-search-filter"
         // 16px no toque: abaixo disso o Safari dá zoom na página ao focar.
@@ -317,7 +320,7 @@ export function BarraDeFiltros({
             evento. */}
         <div data-testid="filtro-evento-mobile" style={{ display: 'flex', gap: 8, alignItems: 'center', width: '100%' }}>
           <div style={{ flex: '1 1 0', minWidth: 0 }}>
-            <EventFilterDropdown values={eventFilter} onValuesChange={setEventFilter} options={eventFilterOptions} fullWidth />
+            <EventFilterDropdown values={eventFilter} onValuesChange={setEventFilter} options={eventFilterOptions} fullWidth allLabel="Todos os eventos" />
           </div>
           {eventFilter.length > 0 && (
             <button type="button" onClick={() => setEventFilter([])} data-testid="button-limpar-evento-mobile"
@@ -330,7 +333,11 @@ export function BarraDeFiltros({
         </div>
       </div>
 
-      {filtrosAbertosMobile && (
+      {/* PORTAL: a folha é tela cheia, mas nascia DENTRO do topo da Arte —
+          que é `position: relative; zIndex: 40` e por isso um contexto de
+          empilhamento. O zIndex 90 dela valia só lá dentro, e a barra do app
+          cobria o título "Filtros" e o X de fechar (revisão 02/10). */}
+      {filtrosAbertosMobile && createPortal(
         <div
           ref={folhaFiltrosRef}
           id="arte-folha-filtros"
@@ -373,7 +380,7 @@ export function BarraDeFiltros({
             </Botao>
           </div>
         </div>
-      )}
+      , document.body)}
     </>
   );
 
@@ -381,7 +388,9 @@ export function BarraDeFiltros({
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
         {campoBusca}
-        <EventFilterDropdown values={eventFilter} onValuesChange={setEventFilter} options={eventFilterOptions} />
+        {/* "Todos os eventos" em minúscula, como os vizinhos ("Todos os
+            patrocinadores", "Todos os tipos") e o mesmo menu no lote. */}
+        <EventFilterDropdown values={eventFilter} onValuesChange={setEventFilter} options={eventFilterOptions} allLabel="Todos os eventos" />
         {saida10}
         <button
           type="button"

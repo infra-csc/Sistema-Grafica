@@ -67,7 +67,9 @@ export function DialogoDispensar({ dispenseItem, setDispenseItem, dispenseReason
               </div>
             </div>
           )}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
+          {/* Sem margem embaixo: o corpo já tem 24 de respiro antes do rodapé —
+              os 20 a mais deixavam um vão vazio sob o aviso de "Faltam". */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {/* Motivo OBRIGATÓRIO: pular a aprovação sem dizer por quê
                 deixava a Revisão e o Atendimento sem saber se foi combinado. */}
             <label htmlFor="motivo-dispensa-arte" style={{ fontSize: fsToque(11, dedo), fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio }}>
@@ -75,11 +77,14 @@ export function DialogoDispensar({ dispenseItem, setDispenseItem, dispenseReason
             </label>
             <textarea
               id="motivo-dispensa-arte"
+              // O cursor já no campo, como em "Devolver ao solicitante": o
+              // motivo é a única coisa a fazer aqui.
+              autoFocus
               value={dispenseReason}
               onChange={e => setDispenseReason(e.target.value)}
               placeholder="Ex: patrocinador já aprovou por fora; peça sem marca..."
               data-testid="textarea-dispense-reason"
-              style={{ width: '100%', backgroundColor: T.bg, border: `1px solid ${faltamNoMotivo(dispenseReason, MOTIVO_DISPENSA_MIN) > 0 ? T.border : TOM.sucesso.text}`, borderRadius: 8, padding: '10px 12px', fontSize: dedo ? 16 : 12, resize: 'none', height: 72, fontFamily: 'inherit', color: T.text, boxSizing: 'border-box' }}
+              style={{ width: '100%', backgroundColor: T.bg, border: `1px solid ${faltamNoMotivo(dispenseReason, MOTIVO_DISPENSA_MIN) > 0 ? T.border : TOM.sucesso.text}`, borderRadius: R.md, padding: '10px 12px', fontSize: dedo ? 16 : 13, lineHeight: 1.5, resize: 'none', height: 84, fontFamily: 'inherit', color: T.text, boxSizing: 'border-box' }}
             />
             {faltamNoMotivo(dispenseReason, MOTIVO_DISPENSA_MIN) > 0 && (
               <p data-testid="dispense-faltam" style={{ margin: 0, fontSize: fsToque(11, dedo), color: P.amber.text }}>
@@ -92,7 +97,9 @@ export function DialogoDispensar({ dispenseItem, setDispenseItem, dispenseReason
             ordem dos outros quatro modais desta tela. */}
         <ModalFooter>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
-            <Botao variante="secundario" tamanho={dedo ? "toque" : "md"} onClick={() => { setDispenseItem(null); setDispenseReason(""); }}>
+            {/* No toque o primário ocupa o que sobra: lado a lado em 334px os
+                dois rótulos não cabiam e o "Cancelar" saía pela borda. */}
+            <Botao variante="secundario" tamanho={dedo ? "toque" : "md"} onClick={() => { setDispenseItem(null); setDispenseReason(""); }} style={dedo ? { flex: '0 0 auto' } : undefined}>
               Cancelar
             </Botao>
             {/* CONTORNO ÂMBAR, não cheio: a ação pula a aprovação do
@@ -108,7 +115,7 @@ export function DialogoDispensar({ dispenseItem, setDispenseItem, dispenseReason
               onClick={() => dispenseItem && faltamNoMotivo(dispenseReason, MOTIVO_DISPENSA_MIN) === 0 && dispenseMutation.mutate({ itemId: dispenseItem.id, reason: dispenseReason.trim().replace(/\s+/g, " ") })}
               disabled={faltamNoMotivo(dispenseReason, MOTIVO_DISPENSA_MIN) > 0}
               data-testid="button-confirm-dispense"
-              style={faltamNoMotivo(dispenseReason, MOTIVO_DISPENSA_MIN) > 0 ? undefined : { borderColor: P.amber.text, color: P.amber.text }}
+              style={{ ...(dedo ? { flex: '1 1 0', minWidth: 0 } : null), ...(faltamNoMotivo(dispenseReason, MOTIVO_DISPENSA_MIN) > 0 ? null : { borderColor: P.amber.text, color: P.amber.text }) }}
             >
               {dispenseMutation.isPending ? 'Enviando…' : 'Mandar para finalização'}
             </Botao>

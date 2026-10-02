@@ -8,6 +8,9 @@ import { T, TOM, N, FS, FONT } from "@/lib/theme";
 import { ehMolde } from "@shared/molde";
 import { BotaoBuscarArte } from "./botao-buscar-arte";
 import { KBD } from "./constantes";
+
+/** Nome gerado pelo storage (UUID, com ou sem extensão) — não é para leitura humana. */
+const ehNomeDeMaquina = (nome: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(.[a-z0-9]+)?$/i.test(nome);
 import type { BuscaDeArte, PecaDaArte } from "./tipos";
 import type { AcoesDaArte } from "./use-acoes-da-arte";
 import type { UploadsDaArte } from "./use-uploads-da-arte";
@@ -108,12 +111,19 @@ export function PainelDoThumbDeAprovacao({
                     <span style={{ fontSize: 12, fontWeight: 600, color: TOM.sucesso.text, flexShrink: 0 }}>Thumb carregado</span>
                   </>
                 ) : null}
-                {!approvalThumbPreview.startsWith('data:') && (
+                {/* O nome só quando é um NOME: o storage grava o arquivo com um
+                    UUID ("190dc6ba-8848-…"), que não confere nada para quem
+                    lê — vira ruído ao lado do "Thumb carregado". */}
+                {!approvalThumbPreview.startsWith('data:') && !ehNomeDeMaquina(approvalThumbPreview.split('/').pop() || '') && (
                   <span title={approvalThumbPreview.split('/').pop() || undefined} style={{ fontSize: isMobile ? 12 : 11, color: T.apoio, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
                     {approvalThumbPreview.split('/').pop()}
                   </span>
                 )}
               </div>
+              {/* TROCAR e REAPROVEITAR na mesma linha, com o mesmo desenho
+                  (link sublinhado com ícone): eram dois estilos empilhados e
+                  desalinhados — um texto sem ícone e um botão-fantasma. */}
+              <div style={{ display: 'flex', alignItems: 'center', columnGap: 16, rowGap: 0, flexWrap: 'wrap', marginLeft: -2 }}>
               <FileUploader
                 onGetUploadParameters={getUploadUrl}
                 onComplete={(result) => {
@@ -127,8 +137,9 @@ export function PainelDoThumbDeAprovacao({
                 disabled={thumbEnviando || isPasteUploading}
                 accept="image/*"
                 buttonVariant="ghost"
-                buttonClassName={`${dedo ? "min-h-[44px] px-0" : "h-auto p-0"} self-start text-[12px] font-semibold text-stone-700 underline underline-offset-2 hover:text-stone-900 hover:bg-transparent`}
+                buttonClassName={`h-11 min-h-[44px] gap-1.5 px-0.5 text-[12px] font-semibold text-stone-800 underline underline-offset-2 hover:text-stone-950 hover:bg-transparent`}
               >
+                <Upload aria-hidden="true" style={{ width: 13, height: 13 }} />
                 Trocar thumb
               </FileUploader>
               <BotaoBuscarArte
@@ -136,6 +147,7 @@ export function PainelDoThumbDeAprovacao({
                 testId="button-buscar-arte-trocar"
                 onClick={() => setBuscaDeArte({ itemId: selectedItem.id, displayId: selectedItem.displayId, destino: "thumb-aprovacao" })}
               />
+              </div>
             </div>
           </div>
 
@@ -272,7 +284,10 @@ export function PainelDoThumbDeAprovacao({
               {isPasteUploading ? 'Aguarde o upload concluir' : isMobile ? 'Escolha a imagem no aparelho ou reaproveite uma arte já feita' : <>Arraste aqui, escolha o arquivo ou cole com <kbd style={KBD}>Ctrl</kbd>+<kbd style={KBD}>V</kbd></>}
             </p>
           </div>
+          {/* Os dois caminhos LADO A LADO e na mesma altura (44): empilhados,
+              com 40 e 44px, pareciam dois passos em vez de duas escolhas. */}
           {!isPasteUploading && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap', marginTop: 2 }}>
             <FileUploader
               onGetUploadParameters={getUploadUrl}
               onComplete={(result) => {
@@ -285,21 +300,20 @@ export function PainelDoThumbDeAprovacao({
               onFileSelect={iniciarEnvioDoThumb}
               accept="image/*"
               buttonVariant="ghost"
-              buttonClassName={`mt-1 ${dedo ? "h-11 min-h-[44px] text-[14px]" : "h-10 text-[13px]"} font-semibold bg-white text-stone-900 border border-stone-300 px-5 rounded-lg hover:bg-stone-50 hover:text-stone-900`}
+              buttonClassName={`${dedo ? "h-11 min-h-[44px] text-[14px]" : "h-11 text-[13px]"} font-semibold bg-white text-stone-900 border border-stone-300 px-5 rounded-lg hover:bg-stone-50 hover:text-stone-900`}
             >
               Escolher arquivo
             </FileUploader>
-          )}
           {/* O SEGUNDO CAMINHO, ao lado do primeiro (dono, 21/09):
               a arte deste patrocinador já existe no app, num evento
               do mesmo circuito. Reaproveitar é só não subir o
               arquivo de novo — daqui para a frente é o envio de
               sempre. */}
-          {!isPasteUploading && (
             <BotaoBuscarArte
               testId="button-buscar-arte-aprovacao"
               onClick={() => setBuscaDeArte({ itemId: selectedItem.id, displayId: selectedItem.displayId, destino: "thumb-aprovacao" })}
             />
+            </div>
           )}
           {/* A linha "ou Ctrl+V para colar direto" saiu: repetia, em
               roxo, o atalho que a frase logo acima já ensina. */}

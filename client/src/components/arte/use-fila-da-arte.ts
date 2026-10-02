@@ -561,10 +561,18 @@ export function useFilaDaArte({
   );
 
   // ── Pool de itens para exportação ────────────────────────────────────────
-  const arteItemsPool = useMemo(() =>
-    [...allItems.filter((i) => ARTE_POOL_STATUSES.includes(i.status)), ...correcaoItems],
-    [allItems, correcaoItems]
-  );
+  // Deduplicado por id, como a seleção (arte.tsx, selectedItems): a peça
+  // reprovada que voltou para "Aguardando envio" também vem na fila da
+  // Correção — entrava DUAS vezes no Exportar PDF (contada em dobro e com
+  // a key repetida no React).
+  const arteItemsPool = useMemo(() => {
+    const vistos = new Set<string>();
+    return [...allItems.filter((i) => ARTE_POOL_STATUSES.includes(i.status)), ...correcaoItems].filter((i) => {
+      if (vistos.has(i.id)) return false;
+      vistos.add(i.id);
+      return true;
+    });
+  }, [allItems, correcaoItems]);
 
   return {
     events, eventsLoading, isLoading, isError, error, refetch,

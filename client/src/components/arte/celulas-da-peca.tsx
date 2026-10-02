@@ -239,7 +239,11 @@ export function BotaoPrimario({ item, tabId, largura, podeEditar, dedo, enviando
       // minWidth 0 + flexShrink: numa coluna estreita o botão encolhe com
       // reticências em vez de empurrar o menu "⋯" para outra linha. A mesma
       // altura do "⋯" ao lado (36 no mouse, 44 no dedo).
-      style={{ width: largura, minWidth: 0, flexShrink: 1, minHeight: alvo(36, dedo), overflow: 'hidden', textOverflow: 'ellipsis' }}
+      // LARGURA ÚNICA NA TABELA (mouse): "Enviar", "Enviar direto", "Subir
+      // thumb" e "Finalizar" tinham cada um a sua largura, e a coluna de
+      // ações virava uma borda serrilhada — o "⋯" mudava de lugar de linha
+      // para linha. 104px cabe o rótulo mais longo ("Enviar direto", ~97).
+      style={{ width: largura ?? (dedo ? undefined : 104), minWidth: 0, flexShrink: 1, minHeight: alvo(36, dedo), overflow: 'hidden', textOverflow: 'ellipsis', justifyContent: 'center' }}
     >
       {enviando ? "Enviando…" : acao.label}
     </Botao>
@@ -285,7 +289,10 @@ export function PrazoDaPeca({ item, tabId, hoje, dedo = false, emLinha = false }
         <span
           data-testid={`cell-idade-${item.id}`}
           title={`Há ${dias} ${dias === 1 ? 'dia' : 'dias'} nesta fase (desde ${new Date(item.statusChangedAt ?? item.status_changed_at ?? "").toLocaleDateString('pt-BR')})`}
-          style={{ fontFamily: "'DM Mono', monospace", fontSize: fsToque(11, dedo), fontWeight: tom.peso, color: tom.cor, whiteSpace: 'nowrap' }}
+          // A família do prazo logo acima (Inter, números tabulares): em DM
+          // Mono a frase "há 2d na fase" saía espaçada letra a letra, com
+          // outra voz que a data da mesma célula.
+          style={{ fontSize: fsToque(11, dedo), fontWeight: tom.peso, color: tom.cor, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}
         >
           {/* "há 0d na fase" não dizia nada a quem lê: a peça do dia diz que
               chegou hoje. */}

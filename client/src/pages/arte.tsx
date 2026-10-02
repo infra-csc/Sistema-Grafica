@@ -640,6 +640,7 @@ export default function Arte() {
             handleClickExportButton={handleClickExportButton}
             openBookModal={book.openBookModal}
             setShowBulkDialog={setShowBulkDialog}
+            carga={isLoading || correcaoLoading ? 'carregando' : isError || finalizadosIsError || correcaoIsError ? 'erro' : 'ok'}
           />
 
           <BarraDeFiltros
@@ -817,6 +818,9 @@ export default function Arte() {
         auditLogs={selectedItem ? auditLogs.filter((log) => log.entityType === 'item' && log.entityId === selectedItem.id) : []}
         open={!!selectedItem}
         onOpenChange={(open) => !open && setSelectedItemId(null)}
+        // Com o bloco de ação da fase no corpo (thumb, finalização ou troca),
+        // o primário é ELE — o "Fechar" do rodapé passa a contorno.
+        fecharSecundario={!!painelDaFicha && !trocaTodaNegada}
         // No celular o envio do arquivo final vai para o rodapé fixo da ficha:
         // no corpo ele ficava abaixo da dobra (medido: 765px numa tela de 780).
         acimaDaAcaoNoRodape={trocaThumbNoRodape && thumbPedeMotivo ? (

@@ -1,9 +1,9 @@
-import { Clock, Eye, FileImage, FileText, Send } from "lucide-react";
+import { Clock, Eye, FileImage, FileText, Send, Truck, User } from "lucide-react";
 import { Link } from "wouter";
 import { SeloKit } from "@/components/kit/selo-kit";
 import { TextoComLinks } from "@/components/texto-com-links";
 import { Botao } from "@/components/ui/botao";
-import { Selo } from "@/components/ui/selo";
+import { PrazoInline } from "@/components/prazo-inline";
 import { phaseDeadline } from "@/lib/arte-rules";
 import { miniatura } from "@/lib/miniatura";
 import { toUTCDisplayDate } from "@/lib/utils";
@@ -84,7 +84,7 @@ export function CartaoDaCorrecao({ item, correcaoSponsorFilter, emCartoes, hoje,
             )}
           </div>
         </div>
-        <span style={{ fontFamily: FONT.display, fontSize: fsToque(FS.small, emCartoes), fontWeight: 800, color: T.apoio, background: T.bg, border: `1px solid ${T.border}`, borderRadius: R.sm, padding: '3px 7px', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{item.displayId}</span>
+        <span style={{ fontFamily: FONT.mono, fontSize: fsToque(FS.small, emCartoes), fontWeight: 600, color: T.apoio, background: T.bg, border: `1px solid ${T.border}`, borderRadius: R.sm, padding: '3px 7px', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{item.displayId}</span>
         <SeloKit peca={item} style={{ flexShrink: 0 }} />
       </div>
 
@@ -98,29 +98,29 @@ export function CartaoDaCorrecao({ item, correcaoSponsorFilter, emCartoes, hoje,
       {(() => {
         const pr = phaseDeadline(item.event, "correcao", hoje);
         const saida = item.event?.truckDepartureDate ? toUTCDisplayDate(item.event.truckDepartureDate) : null;
-        const urgente = pr != null && pr.diff <= 3;
         if (!item.event?.name && !saida && !pr) return null;
+        // A MESMA LÍNGUA DA FILA. Era "06/10" sem rótulo ao lado de um selo
+        // "16d atrasado" em âmbar — duas datas diferentes (a saída e o marco)
+        // lidas como uma só, e o atraso de 16 dias no tom de "vencendo".
+        // Agora a saída diz que é a saída, e o prazo é o PrazoInline da coluna
+        // Prazo: data do marco + estado, na régua de cor de lá.
         return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderBottom: `1px solid ${N.n3}`, background: T.bg }}>
+          <div style={{ display: 'flex', alignItems: 'center', columnGap: 10, rowGap: 2, flexWrap: emCartoes ? 'wrap' : 'nowrap', padding: '8px 16px', borderBottom: `1px solid ${N.n3}`, background: T.bg }}>
             {item.event?.name && (
-              <span title={item.event.name} style={{ fontSize: fsToque(11, emCartoes), fontWeight: 600, color: T.apoio, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.event.name}</span>
+              <span title={item.event.name} style={{ fontSize: fsToque(11, emCartoes), fontWeight: 600, color: T.strong, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: '0 1 auto' }}>{item.event.name}</span>
             )}
-            {item.event?.name && saida && <span aria-hidden="true" style={{ width: 1, height: 11, background: T.border, flexShrink: 0 }} />}
             {saida && (
-              <span style={{ fontSize: fsToque(11, emCartoes), fontWeight: 600, color: T.apoio, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
-                {String(saida.getDate()).padStart(2, '0')}/{String(saida.getMonth() + 1).padStart(2, '0')}
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: fsToque(11, emCartoes), fontWeight: 600, color: T.apoio, fontVariantNumeric: 'tabular-nums', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                <Truck aria-hidden="true" style={{ width: 12, height: 12 }} />
+                Saída {String(saida.getDate()).padStart(2, '0')}/{String(saida.getMonth() + 1).padStart(2, '0')}
               </span>
             )}
             <span style={{ flex: 1 }} />
-            {pr && (() => {
-              const texto = pr.diff < 0
-                ? `${Math.abs(pr.diff)}d atrasado`
-                : pr.diff === 0 ? 'vence hoje' : `${pr.diff}d`;
-              // Selo só quando aperta (≤3d): folga é texto, não cor.
-              return urgente
-                ? <Selo tom="alerta" style={{ flexShrink: 0, padding: '2px 8px', fontWeight: 700, fontVariantNumeric: 'tabular-nums', fontSize: fsToque(11, emCartoes) }}>{texto}</Selo>
-                : <span style={{ fontSize: fsToque(FS.small, emCartoes), fontWeight: 700, flexShrink: 0, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', color: T.second, padding: '2px 8px' }}>{texto}</span>;
-            })()}
+            {pr && (
+              <span style={{ flexShrink: 0 }}>
+                <PrazoInline diff={pr.diff} date={pr.date} label={pr.label} testId={`correcao-prazo-${item.id}`} fonte={fsToque(11, emCartoes)} />
+              </span>
+            )}
           </div>
         );
       })()}
@@ -176,26 +176,29 @@ export function CartaoDaCorrecao({ item, correcaoSponsorFilter, emCartoes, hoje,
           {approvalsToShow.map((approval) => (
             <div key={approval.id} style={{ flex: 1, borderRadius: 12, overflow: 'hidden', border: `1px solid ${TOM.perigo.border}` }}>
               {/* Sponsor bar */}
-              <div style={{ background: TOM.perigo.bg, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 6, borderBottom: approval.rejectionReason ? `1px solid ${TOM.perigo.border}` : 'none' }}>
+              {/* No celular o nome e o "quem/quando" quebram em duas linhas
+                  em vez de espremer os dois numa só ("Banco / Aurora" ao lado
+                  de "Aline Atendimento (loca…"). */}
+              <div style={{ background: TOM.perigo.bg, padding: '6px 12px', display: 'flex', alignItems: 'center', columnGap: 6, rowGap: 2, flexWrap: 'wrap', borderBottom: approval.rejectionReason ? `1px solid ${TOM.perigo.border}` : 'none' }}>
                 {approval.sponsor?.color && <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: approval.sponsor.color, flexShrink: 0 }} />}
-                <span style={{ fontSize: 12, fontWeight: 700, color: TOM.perigo.text, flex: 1 }}>{approval.sponsor?.name || 'Patrocinador'}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: TOM.perigo.text, flex: '1 1 auto', minWidth: 0 }}>{approval.sponsor?.name || 'Patrocinador'}</span>
                 {/* Log: quem + quando */}
                 {(approval.rejectedBy || approval.rejectedAt) && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 3, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, maxWidth: '100%' }}>
                     {approval.rejectedBy && (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, minWidth: 0, fontSize: fsToque(11, emCartoes), fontWeight: 600, color: T.apoio, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={approval.rejectedBy}>
-                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                        <User aria-hidden="true" style={{ width: 10, height: 10, flexShrink: 0 }} />
                         {/* Nome INTEIRO. O `split(' ')[0]` cortava no
                             primeiro nome — numa empresa com dois
                             "Felipe" isso não identifica ninguém, e a
                             reticência já resolvia o espaço. */}
-                        {approval.rejectedBy}
+                        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{approval.rejectedBy}</span>
                       </span>
                     )}
                     {approval.rejectedBy && approval.rejectedAt && <span aria-hidden="true" style={{ color: T.bdark, fontSize: fsToque(11, emCartoes) }}>·</span>}
                     {approval.rejectedAt && (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: fsToque(11, emCartoes), fontWeight: 600, color: T.apoio, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
-                        <Clock style={{ width: 9, height: 9, flexShrink: 0 }} />
+                        <Clock aria-hidden="true" style={{ width: 10, height: 10, flexShrink: 0 }} />
                         {(() => { const d = new Date(approval.rejectedAt); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; })()}
                       </span>
                     )}
@@ -208,7 +211,7 @@ export function CartaoDaCorrecao({ item, correcaoSponsorFilter, emCartoes, hoje,
                   {/* Sem itálico: as aspas já marcam a citação, e
                       itálico em 12px pesa a leitura do texto que a
                       pessoa veio ler. */}
-                  <p style={{ fontSize: 12, color: T.strong, margin: 0, lineHeight: 1.5 }}>"<TextoComLinks texto={approval.rejectionReason} />"</p>
+                  <p style={{ fontSize: 12, color: T.strong, margin: 0, lineHeight: 1.5 }}>“<TextoComLinks texto={approval.rejectionReason} />”</p>
                 </div>
               )}
             </div>

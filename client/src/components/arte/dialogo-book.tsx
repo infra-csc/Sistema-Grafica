@@ -137,7 +137,7 @@ export function DialogoBook({ book, groupOf, dedo }: {
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {bookUploading ? 'Enviando arquivo…' : bookFileName || (existingBookUrl ? 'Escolher o novo PDF…' : 'Arraste o PDF aqui ou clique para escolher')}
+                  {bookUploading ? 'Enviando arquivo…' : bookFileName || (existingBookUrl ? 'Escolher o novo PDF…' : dedo ? 'Toque para escolher o PDF' : 'Arraste o PDF aqui ou clique para escolher')}
                 </p>
                 {!bookFileUrl && !bookUploading && (
                   <p style={{ fontSize: 12, color: T.apoio, margin: '2px 0 0' }}>Só arquivos .pdf, de qualquer tamanho</p>
@@ -235,16 +235,19 @@ export function DialogoBook({ book, groupOf, dedo }: {
         </div>
 
         <ModalFooter>
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* No toque o "o que falta" ganha a linha de cima e os dois botões
+              dividem a de baixo — eram três pedaços em duas linhas tortas,
+              com o Salvar sozinho à direita. */}
+          <div style={{ display: 'flex', gap: dedo ? 8 : 10, justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap' }}>
           {/* O QUE FALTA para salvar, escrito (rodada 4) — a mesma conta do
               `title` do botão, que só aparecia no hover. */}
           {!saveBookMutation.isPending && (!bookFileUrl || bookSelectedIds.size === 0 || bookComentarioFalta) && (
-            <span data-testid="book-falta" style={{ marginRight: 'auto', fontSize: 12, color: T.apoio, lineHeight: 1.4 }}>
+            <span data-testid="book-falta" style={{ marginRight: dedo ? undefined : 'auto', flexBasis: dedo ? '100%' : undefined, fontSize: 12, color: T.apoio, lineHeight: 1.4 }}>
               {!bookFileUrl ? 'Falta o PDF do book.' : bookSelectedIds.size === 0 ? 'Marque ao menos uma peça.' : 'Escreva o que mudou nesta versão.'}
             </span>
           )}
           {/* Cancelar com contorno: mesma gramática dos outros rodapés da Arte. */}
-          <Botao variante="secundario" tamanho={dedo ? "toque" : "md"} onClick={() => setShowBookModal(false)}>Cancelar</Botao>
+          <Botao variante="secundario" tamanho={dedo ? "toque" : "md"} onClick={() => setShowBookModal(false)} style={dedo ? { flex: '0 0 auto' } : undefined}>Cancelar</Botao>
           {/* O que falta para salvar já está escrito à esquerda (book-falta). */}
           <Botao
             variante="primario"
@@ -253,6 +256,7 @@ export function DialogoBook({ book, groupOf, dedo }: {
             carregando={saveBookMutation.isPending}
             onClick={() => saveBookMutation.mutate()}
             disabled={!bookFileUrl || bookSelectedIds.size === 0 || bookComentarioFalta}
+            style={dedo ? { flex: '1 1 0', minWidth: 0 } : undefined}
             title={!bookFileUrl ? 'Adicione o arquivo PDF antes de salvar' : bookSelectedIds.size === 0 ? 'Selecione ao menos uma peça' : bookComentarioFalta ? 'Este evento já tem book — escreva o que mudou nesta versão' : undefined}
           >
             {saveBookMutation.isPending

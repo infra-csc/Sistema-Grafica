@@ -70,11 +70,13 @@ describe("1 · idade na fase", () => {
     expect(IDADE).toContain('return { cor: "#78716c", peso: 600 };');
   });
 
-  it("aparece abaixo da data, em DM Mono 11, com o title por extenso — e o prazo continua texto", () => {
+  it("aparece abaixo da data, em 11px na família do prazo (Inter tabular), com o title por extenso — e o prazo continua texto", () => {
     expect(ARTE).toContain("data-testid={`cell-idade-${item.id}`}");
     expect(ARTE).toContain("há {dias}d na fase");
     // 11px no mouse; no TOQUE o piso de 12 (fsToque, revisão de celular 24/09).
-    expect(ARTE).toContain("fontFamily: \"'DM Mono', monospace\", fontSize: fsToque(11, dedo), fontWeight: tom.peso, color: tom.cor");
+    // Revisão 02/10: saiu do DM Mono (a frase ficava espaçada letra a letra,
+    // noutra voz que a data da mesma célula) — mesma família do PrazoInline.
+    expect(ARTE).toContain("style={{ fontSize: fsToque(11, dedo), fontWeight: tom.peso, color: tom.cor, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}");
     expect(ARTE).toContain("title={`Há ${dias} ${dias === 1 ? 'dia' : 'dias'} nesta fase");
     // O PrazoInline segue intocado — o prazo é texto, não selo.
     expect(ARTE).toContain("testId={`cell-prazo-${item.id}`}");

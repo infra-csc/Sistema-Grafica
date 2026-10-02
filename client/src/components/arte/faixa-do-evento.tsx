@@ -5,6 +5,7 @@ import { Selo } from "@/components/ui/selo";
 import { alvo } from "@/hooks/use-mobile";
 import { ARTE_MARCOS_FAIXA, phaseDeadline } from "@/lib/arte-rules";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
+import { P } from "@/lib/status";
 import { T, N, FS, FONT } from "@/lib/theme";
 import { fsToque, semaforoPrazo } from "./constantes";
 import type { EventoDaPeca } from "./tipos";
@@ -13,16 +14,23 @@ import type { EventoDaPeca } from "./tipos";
  * A faixa no topo de cada bloco de evento: o nome, o que falta nesta fase, a
  * saída, o marco DESTA fase e as datas do evento num popover.
  */
-export function FaixaDoEvento({ bloco, prog, evTotal, tabId, hoje, emCartoes, dedo }: {
+export function FaixaDoEvento({ bloco, prog, evTotal, noBloco, prioritarias = false, tabId, hoje, emCartoes, dedo }: {
   bloco: { eventName: string; eventObj: EventoDaPeca | null };
   prog: { semThumb: number; semFinal: number } | undefined;
   evTotal: number;
+  /** Peças DESTE bloco (o evento pode vir em dois: Kit/prioritárias furam a fila). */
+  noBloco?: number;
+  /** O bloco inteiro é de peças prioritárias. */
+  prioritarias?: boolean;
   tabId: string;
   hoje: Date;
   emCartoes: boolean;
   dedo: boolean;
 }) {
   const prazo = phaseDeadline(bloco.eventObj, tabId, hoje);
+  // O evento partido em dois blocos (Kit e prioritárias furam a fila): este
+  // bloco diz quantas peças TEM do total — "1 de 17", não "17" duas vezes.
+  const parcial = noBloco !== undefined && noBloco > 0 && noBloco < evTotal;
   // Só o que FALTA. "1 sem thumb · 0 com thumb" gastava metade da
   // frase afirmando que zero peças estão prontas; e quando tudo já
   // está resolvido a frase virava "0 sem thumb · 5 com thumb", que
@@ -58,6 +66,13 @@ export function FaixaDoEvento({ bloco, prog, evTotal, tabId, hoje, emCartoes, de
         <span title={bloco.eventName} style={{ color: T.text, fontFamily: FONT.display, fontWeight: 700, fontSize: FS.strong, letterSpacing: '-0.02em', ...(emCartoes ? { overflowWrap: 'anywhere' } : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }) }}>
           {bloco.eventName}
         </span>
+        {/* POR QUE ESTE BLOCO VEIO ANTES: só peças prioritárias de um
+            evento que tem mais peças abaixo. */}
+        {parcial && prioritarias && (
+          <Selo data-testid="faixa-prioritarias" title="Peças marcadas como prioritárias pela Solicitação sobem para o topo da fila; as demais deste evento vêm mais abaixo" cores={{ bg: P.pink.bg, text: P.pink.text, border: P.pink.border }} forma="retangulo" style={{ padding: '1px 7px', fontSize: fsToque(11, dedo), fontWeight: 700, flexShrink: 0 }}>
+            {noBloco === 1 ? 'Prioritária' : 'Prioritárias'}
+          </Selo>
+        )}
         {/* Quanto daquele evento já está resolvido NESTA fase. */}
         {faltando && (
           <span style={{ fontSize: fsToque(11, dedo), fontWeight: 600, color: T.second, whiteSpace: 'nowrap' }}>
@@ -98,7 +113,9 @@ export function FaixaDoEvento({ bloco, prog, evTotal, tabId, hoje, emCartoes, de
           return (
             <Selo data-testid="marco-da-fase" title={`Marco desta fase. ${todos}`} cores={s}
               style={{ padding: '3px 9px', fontWeight: 700, ...(dedo ? { fontSize: 12 } : null) }}>
-              {prazo.label} · {ds}{prazo.diff >= 0 && prazo.diff <= 14 && <span style={{ opacity: 0.8, fontWeight: 500 }}> ({prazo.diff}d)</span>}
+              {/* marginLeft e não o espaço do texto: o selo é inline-flex e o
+                  espaço no começo de um item flex some — saía "06/10(4d)". */}
+              {prazo.label} · {ds}{prazo.diff >= 0 && prazo.diff <= 14 && <span style={{ opacity: 0.8, fontWeight: 500, marginLeft: 4 }}>({prazo.diff}d)</span>}
             </Selo>
           );
         })()}
@@ -137,13 +154,15 @@ export function FaixaDoEvento({ bloco, prog, evTotal, tabId, hoje, emCartoes, de
                   <Info aria-hidden="true" style={{ width: 14, height: 14 }} />
                 </button>
               </PopoverTrigger>
-              <PopoverContent align="end" style={{ width: 240, padding: 12 }} data-testid="popover-datas-da-faixa">
+              {/* 320 e nada quebra (rótulo e valor): em 240 a saída ("06/10/2026 às 08:00")
+                  e "Aprovação de Layout" quebravam em duas linhas cada. */}
+              <PopoverContent align="end" collisionPadding={12} style={{ width: 320, maxWidth: 'calc(100vw - 24px)', padding: 12 }} data-testid="popover-datas-da-faixa">
                 <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 800, color: T.second, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Datas do evento</p>
                 <dl style={{ margin: 0, display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 12, rowGap: 6, fontSize: 13 }}>
                   {datas.map(([rotulo, valor]) => (
                     <Fragment key={rotulo}>
-                      <dt style={{ color: T.apoio, fontWeight: 600 }}>{rotulo}</dt>
-                      <dd style={{ margin: 0, color: T.text, fontWeight: 700, fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>{valor}</dd>
+                      <dt style={{ color: T.apoio, fontWeight: 600, whiteSpace: 'nowrap' }}>{rotulo}</dt>
+                      <dd style={{ margin: 0, color: T.text, fontWeight: 700, fontVariantNumeric: 'tabular-nums', textAlign: 'right', whiteSpace: 'nowrap' }}>{valor}</dd>
                     </Fragment>
                   ))}
                 </dl>
@@ -153,8 +172,8 @@ export function FaixaDoEvento({ bloco, prog, evTotal, tabId, hoje, emCartoes, de
         })()}
         {/* "peças", não "ITENS": a tela inteira fala em peça, e o
             contador era a única palavra em versalete da faixa. */}
-        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, color: T.apoio, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
-          {evTotal} {evTotal === 1 ? 'peça' : 'peças'}
+        <span data-testid="faixa-contagem" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, color: T.apoio, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+          {parcial ? <>{noBloco} de {evTotal} peças</> : <>{evTotal} {evTotal === 1 ? 'peça' : 'peças'}</>}
         </span>
       </div>
     </div>

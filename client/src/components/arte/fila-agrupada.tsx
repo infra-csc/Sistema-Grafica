@@ -345,12 +345,61 @@ export const FilaAgrupada = memo(function FilaAgrupada({
       }}>
         <div style={{ minWidth: emCartoes ? undefined : minW, display: 'flex', flexDirection: 'column', gap: emCartoes ? 10 : 16 }}>
           {blocos.map(bloco => {
+            // A SELEÇÃO DO GRUPO, uma conta só para o cabeçalho e as linhas.
+            const selecaoDoGrupo = (grupo: { nome: string; items: PecaDaArte[] }) => {
+              // Peças do grupo que podem entrar na seleção em lote.
+              const selecionaveis = tabId === "finalizados"
+                ? grupo.items
+                : grupo.items.filter((i) => i.status === 'awaiting_submission');
+              const marcadas = selecionaveis.filter((i) => selectedItemIds.has(i.id)).length;
+              // 3 de 5 marcadas devolvia o checkbox DESMARCADO, dizendo
+              // "nada selecionado aqui" num controle que alimenta ações
+              // em lote. O Radix suporta o estado indeterminado.
+              const estado: boolean | "indeterminate" =
+                selecionaveis.length > 0 && marcadas === selecionaveis.length ? true
+                : marcadas > 0 ? "indeterminate" : false;
+              const alternar = () => {
+                const s = new Set(selectedItemIds);
+                if (marcadas === selecionaveis.length) selecionaveis.forEach((i) => s.delete(i.id));
+                else selecionaveis.forEach((i) => s.add(i.id));
+                setSelectedItemIds(s);
+              };
+              return { selecionaveis, marcadas, estado, alternar };
+            };
+            const caixaDoGrupo = (grupo: { nome: string; items: PecaDaArte[] }, gi: number) => {
+              const g = selecaoDoGrupo(grupo);
+              return (
+                <label style={dedo ? { display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, minHeight: 44, margin: '-4px 0', cursor: 'pointer' } : { display: 'contents' }}>
+                  <Checkbox
+                    checked={g.estado}
+                    aria-label={`Selecionar as ${g.selecionaveis.length} peças de ${grupo.nome || bloco.eventName}`}
+                    title={g.marcadas > 0 ? `${g.marcadas} de ${g.selecionaveis.length} selecionadas` : `Selecionar as ${g.selecionaveis.length} peças`}
+                    onCheckedChange={g.alternar}
+                    data-testid={`checkbox-group-${bloco.key}-${gi}`}
+                    data-alvo-natural=""
+                  />
+                </label>
+              );
+            };
+            // UM GRUPO SÓ (o caso comum): a caixa de "todas" mora no
+            // CABEÇALHO da tabela, como em toda tabela com seleção — era uma
+            // linha inteira "Selecionar as N peças deste grupo" em cada bloco.
+            const grupoUnico = bloco.grupos.length === 1 && comSelecao && selecaoDoGrupo(bloco.grupos[0]).selecionaveis.length > 1;
+            // O MESMO EVENTO EM DOIS BLOCOS: Kit e prioritárias furam a fila
+            // (use-fila-da-arte), então o evento pode reaparecer mais abaixo.
+            // A faixa diz quantas peças ESTE bloco tem do total do evento e
+            // por que ele veio antes — eram dois cabeçalhos iguais, os dois
+            // dizendo "17 peças".
+            const noBloco = bloco.grupos.reduce((n, g) => n + g.items.length, 0);
+            const todasPrioritarias = bloco.grupos.every((g) => g.items.every((i) => i.isPriority));
             return (
               <div key={bloco.key} style={{ borderRadius: 12, overflow: 'hidden', backgroundColor: T.surface, border: `1px solid ${T.border}` }}>
                 <FaixaDoEvento
                   bloco={bloco}
                   prog={evProgresso.get(bloco.eventKey)}
                   evTotal={evSumMap.get(bloco.eventKey)?.count ?? 0}
+                  noBloco={noBloco}
+                  prioritarias={todasPrioritarias}
                   tabId={tabId}
                   hoje={hoje}
                   emCartoes={emCartoes}
@@ -397,22 +446,21 @@ export const FilaAgrupada = memo(function FilaAgrupada({
                     </colgroup>
                     <thead>
                       <tr style={{ backgroundColor: T.bg, borderBottom: `1px solid ${T.border}`, boxShadow: `0 1px 0 ${T.border}` }}>
-                        {comSelecao && <th style={{ padding: '10px 12px' }}><span className="sr-only">Selecionar</span></th>}
+                        {comSelecao && (
+                          <th style={{ padding: dedo && grupoUnico ? 0 : '10px 12px', verticalAlign: 'middle' }}>
+                            {grupoUnico ? caixaDoGrupo(bloco.grupos[0], 0) : <span className="sr-only">Selecionar</span>}
+                          </th>
+                        )}
                         {cols.map((col, ci) => <th key={ci} style={thStyle(col)}><span title={DICA_DA_COLUNA[col.label]} style={{ cursor: DICA_DA_COLUNA[col.label] ? 'help' : undefined }}>{col.label}</span></th>)}
                       </tr>
                     </thead>
                     {bloco.grupos.map((grupo, gi) => {
-                      // Peças do grupo que podem entrar na seleção em lote.
-                      const selecionaveis = tabId === "finalizados"
-                        ? grupo.items
-                        : grupo.items.filter((i) => i.status === 'awaiting_submission');
-                      const marcadas = selecionaveis.filter((i) => selectedItemIds.has(i.id)).length;
-                      // 3 de 5 marcadas devolvia o checkbox DESMARCADO, dizendo
-                      // "nada selecionado aqui" num controle que alimenta ações
-                      // em lote. O Radix suporta o estado indeterminado.
-                      const estadoGrupo: boolean | "indeterminate" =
-                        selecionaveis.length > 0 && marcadas === selecionaveis.length ? true
-                        : marcadas > 0 ? "indeterminate" : false;
+                      const { selecionaveis, marcadas } = selecaoDoGrupo(grupo);
+                      // Vários grupos: a caixa do grupo vai NA LINHA DO NOME
+                      // dele; só um grupo sem nome com várias peças ainda
+                      // precisa de uma linha própria (o cabeçalho cobre o
+                      // grupo único).
+                      const caixaNaLinha = comSelecao && !grupoUnico && selecionaveis.length > 1;
                       return (
                         <tbody key={gi}>
                           {/* O chip do grupo era suprimido no PRIMEIRO bloco de
@@ -426,34 +474,35 @@ export const FilaAgrupada = memo(function FilaAgrupada({
                                   numa faixa cheia, para nomear um grupo — e
                                   disputava atenção com o dado das linhas logo
                                   abaixo. Um rótulo entre dois hairlines separa
-                                  igual e não pinta nada. */}
-                              <td colSpan={totalColunas} style={{ padding: '7px 12px', background: T.bg, borderTop: `1px solid ${N.n3}`, borderBottom: `1px solid ${N.n3}` }}>
-                                <span style={{ display: 'inline-block', fontSize: 10, fontWeight: 800, color: T.second, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
-                                  {grupo.nome}
+                                  igual e não pinta nada. Com seleção, a caixa
+                                  do grupo mora NESTA linha, à esquerda do nome. */}
+                              {caixaNaLinha && (
+                                <td style={{ padding: dedo ? 0 : '7px 12px', background: T.bg, borderTop: `1px solid ${N.n3}`, borderBottom: `1px solid ${N.n3}` }}>
+                                  {caixaDoGrupo(grupo, gi)}
+                                </td>
+                              )}
+                              <td colSpan={caixaNaLinha ? totalColunas - 1 : totalColunas} style={{ padding: '7px 12px', background: T.bg, borderTop: `1px solid ${N.n3}`, borderBottom: `1px solid ${N.n3}` }}>
+                                <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 8 }}>
+                                  <span style={{ fontSize: 10, fontWeight: 800, color: T.second, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+                                    {grupo.nome}
+                                  </span>
+                                  {caixaNaLinha && marcadas > 0 && (
+                                    <span style={{ fontSize: fsToque(11, dedo), color: T.apoio, fontVariantNumeric: 'tabular-nums' }}>
+                                      {marcadas} de {selecionaveis.length} selecionadas
+                                    </span>
+                                  )}
                                 </span>
                               </td>
                             </tr>
                           )}
-                          {/* Com UMA peça selecionável o controle de grupo não
-                              se justifica: gastava uma linha inteira da
-                              tabela para oferecer o mesmo que o checkbox da
-                              própria linha, e ainda escrevia "Selecionar as 1
-                              peças deste grupo". A partir de duas ele volta,
-                              e aí o plural está sempre correto. */}
-                          {comSelecao && selecionaveis.length > 1 && (
+                          {/* Grupo SEM nome entre outros grupos: a caixa ainda
+                              precisa de uma linha. Com UMA peça selecionável
+                              o controle não se justifica (o checkbox da
+                              própria linha já faz o mesmo). */}
+                          {caixaNaLinha && !grupo.nome && (
                             <tr>
-                              <td style={{ padding: '4px 12px', borderBottom: `1px solid ${N.n2}` }}>
-                                <Checkbox
-                                  checked={estadoGrupo}
-                                  aria-label={`Selecionar as ${selecionaveis.length} peças de ${grupo.nome || bloco.eventName}`}
-                                  onCheckedChange={() => {
-                                    const s = new Set(selectedItemIds);
-                                    if (marcadas === selecionaveis.length) selecionaveis.forEach((i) => s.delete(i.id));
-                                    else selecionaveis.forEach((i) => s.add(i.id));
-                                    setSelectedItemIds(s);
-                                  }}
-                                  data-testid={`checkbox-group-${bloco.key}-${gi}`}
-                                />
+                              <td style={{ padding: dedo ? 0 : '4px 12px', borderBottom: `1px solid ${N.n2}` }}>
+                                {caixaDoGrupo(grupo, gi)}
                               </td>
                               <td colSpan={totalColunas - 1} style={{ padding: '4px 12px', borderBottom: `1px solid ${N.n2}`, fontSize: fsToque(11, dedo), color: T.apoio }}>
                                 {marcadas > 0 ? `${marcadas} de ${selecionaveis.length} selecionadas` : `Selecionar as ${selecionaveis.length} peças deste grupo`}

@@ -64,7 +64,9 @@ export function DialogoDevolver({ devolverItem, setDevolverItem, devolverMotivo,
               </div>
             </div>
           )}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
+          {/* Sem margem embaixo: o corpo já tem 24 de respiro antes do rodapé —
+              os 20 a mais deixavam um vão vazio sob o aviso de "Faltam". */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label htmlFor="motivo-devolucao-arte" style={{ fontSize: fsToque(11, dedo), fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio }}>
               Motivo <span style={{ color: P.red.text }}>*</span>
             </label>
@@ -75,7 +77,7 @@ export function DialogoDevolver({ devolverItem, setDevolverItem, devolverMotivo,
               onChange={e => setDevolverMotivo(e.target.value)}
               placeholder="Ex: a medida não fecha com o layout enviado — confirmar largura antes de refazer."
               data-testid="textarea-devolver-motivo"
-              style={{ width: '100%', backgroundColor: T.bg, border: `1px solid ${motivoCurto(devolverMotivo) ? T.border : TOM.sucesso.text}`, borderRadius: R.md, padding: '10px 12px', fontSize: dedo ? 16 : 12, resize: 'none', height: 84, fontFamily: 'inherit', color: T.text, boxSizing: 'border-box' }}
+              style={{ width: '100%', backgroundColor: T.bg, border: `1px solid ${motivoCurto(devolverMotivo) ? T.border : TOM.sucesso.text}`, borderRadius: R.md, padding: '10px 12px', fontSize: dedo ? 16 : 13, lineHeight: 1.5, resize: 'none', height: 84, fontFamily: 'inherit', color: T.text, boxSizing: 'border-box' }}
             />
             {/* #b45309 sobre #fafaf9 = 4,79:1 ✓ nos 11px */}
             {motivoCurto(devolverMotivo) && (
@@ -89,7 +91,7 @@ export function DialogoDevolver({ devolverItem, setDevolverItem, devolverMotivo,
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
             {/* Cancelar com contorno (secundário), não legenda solta: a saída
                 é o caminho que a pessoa procura quando abriu por engano. */}
-            <Botao variante="secundario" tamanho={dedo ? "toque" : "md"} onClick={() => { setDevolverItem(null); setDevolverMotivo(""); }}>
+            <Botao variante="secundario" tamanho={dedo ? "toque" : "md"} onClick={() => { setDevolverItem(null); setDevolverMotivo(""); }} style={dedo ? { flex: '0 0 auto' } : undefined}>
               Cancelar
             </Botao>
             {/* O porquê do desabilitado já está escrito embaixo do campo
@@ -102,8 +104,10 @@ export function DialogoDevolver({ devolverItem, setDevolverItem, devolverMotivo,
               onClick={() => devolverItem && devolverMutation.mutate({ itemId: devolverItem.id, motivo: devolverMotivo })}
               disabled={motivoCurto(devolverMotivo)}
               data-testid="button-confirm-devolver"
+              // No toque o primário ocupa o que sobra (mesma razão da dispensa).
+              style={dedo ? { flex: '1 1 0', minWidth: 0 } : undefined}
             >
-              {devolverMutation.isPending ? 'Devolvendo…' : 'Devolver ao solicitante'}
+              {devolverMutation.isPending ? 'Devolvendo…' : dedo ? 'Devolver' : 'Devolver ao solicitante'}
             </Botao>
           </div>
         </ModalFooter>

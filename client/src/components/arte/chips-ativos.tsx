@@ -39,7 +39,7 @@ export function useChipsAtivos(filtros: FiltrosDaArte, { events, uniqueSponsors,
       const m = months.find(x => x.value === v);
       chips.push({ kind: 'month', id: v, label: `Mês: ${m?.label || v}` });
     });
-    if (next10DaysFilter) chips.push({ kind: 'next10', label: "Próximos 10 dias" });
+    if (next10DaysFilter) chips.push({ kind: 'next10', label: "Saída 10 dias" });
     if (periodFilter !== "Todos") chips.push({ kind: 'period', label: `Período: ${periodFilter}` });
     if (urgenteFilter) chips.push({ kind: 'urgente', label: "Urgente" });
     if (atrasadoFilter) chips.push({ kind: 'atrasado', label: "Só atrasadas" });

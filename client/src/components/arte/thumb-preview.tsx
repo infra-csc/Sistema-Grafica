@@ -35,6 +35,7 @@ export function ThumbPreview({ url, label }: { url?: string | null; label: strin
     });
   };
   const aberto = caixa !== null;
+  const [falhou, setFalhou] = useState(false);
   if (!url) {
     return (
       <span title="Sem thumb" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: N.n2, color: T.second, flexShrink: 0 }}>
@@ -54,9 +55,15 @@ export function ThumbPreview({ url, label }: { url?: string | null; label: strin
         onMouseLeave={() => setCaixa(null)}
         onFocus={abrir}
         onBlur={() => setCaixa(null)}
-        style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: TOM.sucesso.bg, color: TOM.sucesso.text, border: `1px solid ${TOM.sucesso.border}` }}
+        // A PRÓPRIA ARTE no quadrado, e não um ícone verde: quem fez a peça
+        // a reconhece pela imagem antes de ler o código — o cartão do celular
+        // já mostrava a miniatura, a linha da tabela não. O contorno verde
+        // continua dizendo "subiu"; PDF segue com o ícone.
+        style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: TOM.sucesso.bg, color: TOM.sucesso.text, border: `1px solid ${TOM.sucesso.border}`, overflow: 'hidden', boxSizing: 'border-box' }}
       >
-        <FileImage style={{ width: 13, height: 13 }} />
+        {isImage && !falhou
+          ? <img loading="lazy" decoding="async" src={miniatura(url)} alt="" onError={() => setFalhou(true)} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          : <FileImage style={{ width: 13, height: 13 }} />}
       </a>
       {aberto && isImage && caixa && (
         <span

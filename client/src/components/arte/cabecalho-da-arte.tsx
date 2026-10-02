@@ -6,11 +6,22 @@ import { alvo } from "@/hooks/use-mobile";
 import { T, TOM, N, R, FS } from "@/lib/theme";
 import { GUIA_DA_FASE } from "./constantes";
 
+/** As fases na ordem em que a peça anda — os MESMOS rótulos das abas. */
+const FASES_DO_GUIA: ReadonlyArray<readonly [string, string]> = [
+  ["criar-aprovacoes", "Aguardando envio"],
+  ["aguardando-patrocinador", "Aguardando patrocinador"],
+  ["correcao", "Correção"],
+  ["finalizar-layouts", "Finalizar arte"],
+  ["finalizados", "Finalizados"],
+];
+
 /** O topo da Arte: título, o estado numa linha, as ações e o aviso de modo consulta. */
 export function CabecalhoDaArte({
   isMobile, dedo, podeEditar, activeTab, pendingCount, correcaoCount, needsFinalFileCount, selectedItemIds,
-  handleBulkThumbFilesAdded, handleClickExportButton, openBookModal, setShowBulkDialog,
+  handleBulkThumbFilesAdded, handleClickExportButton, openBookModal, setShowBulkDialog, carga = 'ok',
 }: {
+  /** A fila ainda não chegou ou falhou: o contador não pode afirmar "tudo em dia". */
+  carga?: 'carregando' | 'erro' | 'ok';
   isMobile: boolean;
   dedo: boolean;
   podeEditar: boolean;
@@ -82,7 +93,15 @@ export function CabecalhoDaArte({
               data-testid="contexto-arte"
               title="Soma de Aguardando envio, Correção e Finalizar arte — as fases em que a peça depende da Arte"
             >
-              {(pendingCount + correcaoCount + needsFinalFileCount) > 0
+              {/* ENQUANTO CARREGA OU QUANDO FALHA, o contador não sabe nada:
+                  dizia "Tudo em dia — nenhuma peça esperando a Arte" em cima
+                  do esqueleto e da caixa de erro, a mesma mentira que o
+                  ErroDeCarga existe para evitar. */}
+              {carga === 'carregando'
+                ? <span style={{ color: T.apoio }}>Carregando a fila…</span>
+                : carga === 'erro'
+                ? <span style={{ color: T.apoio }}>Fila indisponível no momento</span>
+                : (pendingCount + correcaoCount + needsFinalFileCount) > 0
                 ? <><b style={{ fontWeight: 700, color: T.text }}>{pendingCount + correcaoCount + needsFinalFileCount}</b> {(pendingCount + correcaoCount + needsFinalFileCount) === 1 ? 'peça esperando' : 'peças esperando'} a Arte</>
                 : 'Tudo em dia — nenhuma peça esperando a Arte'}
             </span>
@@ -99,17 +118,30 @@ export function CabecalhoDaArte({
                   <HelpCircle aria-hidden="true" style={{ width: 16, height: 16 }} />
                 </button>
               </PopoverTrigger>
-              <PopoverContent align="start" style={{ width: 300, padding: 14 }}>
+              <PopoverContent align="start" style={{ width: 320, maxWidth: 'calc(100vw - 24px)', padding: 14 }}>
                 {/* O fluxo em ordem, com verbo (rodada 4), e o guia da fase
-                    aberta. */}
-                <p style={{ margin: 0, fontSize: FS.body, fontWeight: 700, color: T.text }}>
+                    aberta. As cinco fases em trilho (revisão 02/10): a
+                    pessoa vê ONDE está no caminho, e o guia mora debaixo da
+                    fase aberta — era um parágrafo solto sem dizer de qual. */}
+                <p style={{ margin: 0, fontSize: FS.body, fontWeight: 700, color: T.text, lineHeight: 1.4 }}>
                   Suba o thumb, envie para aprovação, corrija o que voltar e finalize o arquivo
                 </p>
-                {GUIA_DA_FASE[activeTab] && (
-                  <p data-testid="guia-da-fase" style={{ margin: '8px 0 0', fontSize: 12.5, color: T.strong, lineHeight: 1.5 }}>
-                    {GUIA_DA_FASE[activeTab]}
-                  </p>
-                )}
+                <ol style={{ listStyle: 'none', margin: '12px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {FASES_DO_GUIA.map(([id, rotulo], i) => {
+                    const aberta = id === activeTab;
+                    return (
+                      <li key={id} aria-current={aberta ? 'step' : undefined} style={{ display: 'grid', gridTemplateColumns: '20px 1fr', columnGap: 8, padding: aberta ? '8px 8px 9px' : '3px 8px', borderRadius: R.md, background: aberta ? N.n2 : 'transparent' }}>
+                        <span aria-hidden="true" style={{ width: 20, height: 20, borderRadius: R.pill, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums', background: aberta ? T.text : T.surface, color: aberta ? T.surface : T.apoio, border: `1px solid ${aberta ? T.text : T.border}` }}>{i + 1}</span>
+                        <span style={{ fontSize: 12.5, fontWeight: aberta ? 700 : 500, color: aberta ? T.text : T.apoio, alignSelf: 'center' }}>{rotulo}</span>
+                        {aberta && GUIA_DA_FASE[id] && (
+                          <p data-testid="guia-da-fase" style={{ gridColumn: 2, margin: '4px 0 0', fontSize: 12.5, color: T.strong, lineHeight: 1.5 }}>
+                            {GUIA_DA_FASE[id]}
+                          </p>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ol>
               </PopoverContent>
             </Popover>
           }

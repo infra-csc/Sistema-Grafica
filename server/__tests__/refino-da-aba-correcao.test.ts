@@ -140,7 +140,9 @@ describe("7. o que a segunda passada fechou", () => {
   it("e o círculo do upload troca sombra por hairline", () => {
     // Escopo: a MESMA sombra e usada por outro modal fora deste handoff, entao
     // a asserção é sobre o círculo, não sobre o valor solto no arquivo.
-    expect(arte).toContain("borderRadius: '50%', backgroundColor: T.surface, border: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 6");
+    // Revisão 02/10: o círculo mora DENTRO da zona (sem a margem que o fazia
+    // vazar pela borda de cima); a hairline continua.
+    expect(arte).toContain("borderRadius: '50%', backgroundColor: T.surface, border: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0");
   });
 });
 

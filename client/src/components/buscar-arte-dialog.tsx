@@ -257,7 +257,7 @@ export function BuscarArteDialog({ item, querArquivoFinal, onUsar, onClose }: {
 
         <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
           {(isLoading || digitando) && (
-            <div aria-busy="true" aria-label="Procurando artes" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 }}>
+            <div aria-busy="true" aria-label="Procurando artes" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 148px), 1fr))", gap: 12 }}>
               {[0, 1, 2, 3, 4, 5].map((i) => (
                 <div key={i} className="animate-pulse" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
                   <div style={{ width: "100%", aspectRatio: "4 / 3", borderRadius: R.md, background: T.border }} />
@@ -296,7 +296,7 @@ export function BuscarArteDialog({ item, querArquivoFinal, onUsar, onClose }: {
           )}
 
           {!isLoading && !isError && !digitando && artes.length > 0 && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 148px), 1fr))", gap: 12 }}>
               {artes.map((a) => (
                 <Cartao key={a.id} arte={a} escolhida={a.id === escolhidaId} onEscolher={() => setEscolhidaId(a.id)} />
               ))}

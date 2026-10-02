@@ -37,7 +37,12 @@ export const CartaoDaArte = memo(function CartaoDaArte({
       tabIndex={0}
       data-testid={`card-arte-${item.id}`}
       aria-label={`Abrir a peça ${item.displayId}${item.type ? ` — ${item.type}` : ''}`}
-      style={{ backgroundColor: selecionada ? TOM_FORTE.laranja.bg : T.surface, border: `1px solid ${selecionada ? TOM_FORTE.laranja.border : T.border}`, borderRadius: R.md, padding: 12, cursor: 'pointer', minWidth: 0 }}
+      // Resposta ao ponteiro (tablet com mouse): a borda escurece no hover,
+      // como a linha da tabela clareia — o cartão inteiro abre a peça e
+      // precisava dizer isso antes do clique.
+      style={{ backgroundColor: selecionada ? TOM_FORTE.laranja.bg : T.surface, border: `1px solid ${selecionada ? TOM_FORTE.laranja.border : T.border}`, borderRadius: R.md, padding: 12, cursor: 'pointer', minWidth: 0, transition: 'border-color 0.15s' }}
+      onMouseEnter={e => { if (!selecionada) e.currentTarget.style.borderColor = T.bdark; }}
+      onMouseLeave={e => { if (!selecionada) e.currentTarget.style.borderColor = T.border; }}
       onClick={() => acoes.verDetalhes(item)}
       onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); acoes.verDetalhes(item); } }}>
       <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>

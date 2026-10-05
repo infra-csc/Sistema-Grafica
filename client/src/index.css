@@ -1124,3 +1124,68 @@ a.ds-botao[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; filter: no
   .evd-ref-x::after { content: ""; position: absolute; inset: -11px; }
   .evd-ref-anexar { min-width: 44px !important; height: 44px !important; }
 }
+
+/* ── CASCA (csc-): barra lateral, barra de cima, busca, sino e avisos ───────
+   Os estados que o estilo inline não alcança (hover, foco, pressionado) dos
+   elementos que aparecem em TODA tela. Cores dos tokens --n*; movimento curto
+   e anulado por prefers-reduced-motion (regra global acima). */
+
+/* Trilho de ícones (barra recolhida): 56px para o alvo de 36/44 caber com
+   respiro — os 48px do padrão deixavam 6px de cada lado do quadrado. */
+[data-slot="sidebar"]:has(.csc-sidebar) { --sidebar-width-icon: 3.5rem; }
+.csc-trilho-item { transition: background-color var(--dur-rapida) ease, color var(--dur-rapida) ease; }
+.csc-trilho-item:hover:not([data-active="true"]),
+.csc-trilho-item:focus-visible:not([data-active="true"]) { background-color: var(--n2); color: var(--n10) !important; }
+.csc-trilho-item:active { transform: scale(0.96); }
+.csc-fechar-menu:hover { background-color: var(--n2) !important; color: var(--n10) !important; }
+
+/* Controles da barra de cima: a mesma peça (contorno, raio 9) com o mesmo
+   retorno — realce no ponteiro, afundar ao pressionar, aberto = marcado. */
+.csc-barra-btn { transition: background-color var(--dur-rapida) ease, border-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease; }
+.csc-barra-btn:hover { background-color: var(--n1) !important; border-color: var(--n5) !important; }
+.csc-barra-btn:active { background-color: var(--n2) !important; }
+.csc-barra-btn[aria-expanded="true"]:not([data-sidebar="trigger"]),
+.csc-barra-btn[data-state="open"] { background-color: var(--n2) !important; border-color: var(--n5) !important; }
+.csc-barra-btn:hover .csc-kbd { border-color: var(--n5); }
+/* Tablet do galpão (dedo, tela larga): a régua global já sobe a ALTURA para
+   44; sem a largura junto, os botões quadrados viravam retângulos de 36×44. */
+@media (pointer: coarse) { .csc-barra-btn { min-width: 44px; min-height: 44px; } }
+
+/* Menu da conta: itens com ícone, e o "Sair" no tom de perigo também sob
+   o teclado (o realce do Radix pinta só o fundo). */
+.csc-menu-item { gap: 10px; min-height: 36px; font-size: 13px; font-weight: 500; color: var(--n9); cursor: pointer; }
+.csc-menu-item svg { width: 15px; height: 15px; color: var(--n7); flex-shrink: 0; }
+.csc-menu-item[data-highlighted] svg { color: var(--n9); }
+.csc-menu-sair, .csc-menu-sair svg { color: var(--perigo-text) !important; }
+.csc-menu-sair[data-highlighted] { background-color: var(--perigo-bg) !important; }
+@media (pointer: coarse) { .csc-menu-item { min-height: 44px; } }
+
+/* Busca global e sino: linhas de resultado/aviso com realce de ponteiro e
+   de teclado (o ativo da busca vem do estado; aqui só o hover). */
+.csc-aviso { transition: background-color var(--dur-rapida) ease; }
+.csc-aviso:hover { background-color: var(--n1); }
+.csc-aviso:focus-visible { outline-offset: -3px; background-color: var(--n1); }
+.csc-acao-texto { transition: background-color var(--dur-rapida) ease, color var(--dur-rapida) ease; }
+.csc-acao-texto:hover:not(:disabled) { background-color: var(--n2) !important; color: var(--n10) !important; }
+.csc-acao-laranja { transition: background-color var(--dur-rapida) ease; }
+.csc-acao-laranja:hover:not(:disabled) { background-color: var(--orange-soft) !important; }
+.csc-busca-fechar:hover { background-color: var(--n2) !important; color: var(--n10) !important; }
+.csc-busca-input::placeholder { color: var(--n7); opacity: 1; }
+.csc-duas-linhas { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+
+/* Toast: o fechar ganha realce sem quatro handlers de mouse. */
+.csc-toast-fechar { transition: background-color var(--dur-rapida) ease, color var(--dur-rapida) ease; }
+.csc-toast-fechar:hover, .csc-toast-fechar:focus-visible { background-color: var(--n2) !important; color: var(--n9) !important; }
+
+/* Carregamento de página inteira: a faixa que anda sob a marca. Com
+   prefers-reduced-motion a animação some (regra global) e a faixa fica
+   parada — continua dizendo "carregando" sem se mexer. */
+@keyframes csc-faixa { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+.csc-faixa { animation: csc-faixa 1.1s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+@media (prefers-reduced-motion: reduce) { .csc-faixa { animation: none; transform: translateX(75%); } }
+
+/* ── Detalhe do Evento · produção interna (02/10) ───────────────────────────
+   O ícone "Enviar direto para a Gráfica" nas ações da peça: o hover na tinta
+   fria (a mesma família do selo "Direto para a Gráfica"), como o reuso tem a
+   dele. Base, tamanho e foco vêm de .evd-acao. */
+.evd-acao-grafica:hover:not(:disabled) { color: var(--info-text); background-color: var(--info-bg); }

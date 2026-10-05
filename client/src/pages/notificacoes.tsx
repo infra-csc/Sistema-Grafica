@@ -250,7 +250,10 @@ export default function Notificacoes() {
       <button type="button" aria-expanded={aberta} aria-controls="detalhe-da-edicao"
         aria-label={`${rotulo}: ${texto}. Ver o desfecho`}
         onClick={() => setDetalhe(aberta ? null : { rotulo, texto, desfecho: title })}
-        style={{ ...selo, border: "none", cursor: "pointer", font: "inherit", fontSize: FS.small, fontWeight: FW.forte, outline: aberta ? `2px solid ${cor}` : undefined, outlineOffset: 1, minHeight: emCartao ? alvo(28, ponteiroGrosso || isMobile) : undefined }}>
+        // fontFamily (e não o atalho `font: inherit`): no objeto, o `font`
+        // vinha DEPOIS do fontSize herdado do selo e o apagava — a célula
+        // clicável saía em 16px normal ao lado das de 11px em negrito.
+        style={{ ...selo, border: "none", cursor: "pointer", fontFamily: "inherit", lineHeight: 1.4, outline: aberta ? `2px solid ${cor}` : undefined, outlineOffset: 1, minHeight: emCartao ? alvo(28, ponteiroGrosso || isMobile) : undefined }}>
         {texto}
       </button>
     ) : (
@@ -384,7 +387,7 @@ export default function Notificacoes() {
                     type="email"
                     value={novoEmail[c.canal] ?? ""}
                     onChange={(e) => setNovoEmail((p) => ({ ...p, [c.canal]: e.target.value }))}
-                    placeholder="nome.sobrenome@nortemkt.com"
+                    placeholder="nome@nortemkt.com"
                     aria-label={`E-mail para adicionar em ${c.titulo}`}
                     data-testid={`input-destinatario-${c.canal}`}
                     style={{ flex: 1, minWidth: 0, height: toque, padding: "0 10px", borderRadius: R.md, border: `1px solid ${T.bdark}`, fontSize: isMobile ? FS.lead : FS.body, color: T.text, background: T.surface }}

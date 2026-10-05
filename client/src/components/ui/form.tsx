@@ -95,7 +95,9 @@ const FormLabel = React.forwardRef<
   return (
     <Label
       ref={ref}
-      className={cn(error && "text-destructive", className)}
+      // #b91c1c (TOM.perigo.text) e não o --destructive (#ef4444, 3,8:1 sobre
+      // branco): o rótulo e a mensagem de erro são TEXTO e precisam de AA.
+      className={cn(error && "text-[#b91c1c]", className)}
       htmlFor={formItemId}
       {...props}
     />
@@ -157,7 +159,7 @@ const FormMessage = React.forwardRef<
     <p
       ref={ref}
       id={formMessageId}
-      className={cn("text-sm font-medium text-destructive", className)}
+      className={cn("text-sm font-medium text-[#b91c1c]", className)}
       {...props}
     >
       {body}

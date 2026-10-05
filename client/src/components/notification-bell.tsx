@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Bell, Package, CheckCircle, AlertTriangle, Truck, FileText, ClipboardCheck, CalendarClock, PlusCircle, MinusCircle, ChevronRight, Inbox, RotateCcw, Link2, Palette } from "lucide-react";
+import { Bell, CheckCheck, Package, CheckCircle, AlertTriangle, Truck, FileText, ClipboardCheck, CalendarClock, PlusCircle, MinusCircle, ChevronRight, Inbox, RotateCcw, Link2, Palette } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { T, FS, R, N, FW, FONT, TOM } from "@/lib/theme";
 
@@ -53,7 +53,7 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
   itemAdded: {
     Icon: Package,
     border: TOM.info.dot,
-    bgIcon: TOM.info.border, iconColor: TOM.info.text,
+    bgIcon: TOM.info.bg, iconColor: TOM.info.text,
     label: "Chegou à sua fila",
   },
   arteApproved: {
@@ -83,13 +83,13 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
   itemsSubmitted: {
     Icon: Link2,
     border: TOM.info.dot,
-    bgIcon: TOM.info.border, iconColor: TOM.info.text,
+    bgIcon: TOM.info.bg, iconColor: TOM.info.text,
     label: "Vinculação",
   },
   itemsSentToArte: {
     Icon: Palette,
     border: TOM.info.dot,
-    bgIcon: TOM.info.border, iconColor: TOM.info.text,
+    bgIcon: TOM.info.bg, iconColor: TOM.info.text,
     label: "Chegou à sua fila",
   },
   itemReturnedToCreation: {
@@ -106,8 +106,8 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
   },
   itemDelivered: {
     Icon: Truck,
-    border: "#a855f7",
-    bgIcon: "#f3e8ff", iconColor: "#9333ea",
+    border: TOM.roxo.dot,
+    bgIcon: TOM.roxo.bg, iconColor: TOM.roxo.text,
     label: "Entrega",
   },
   eventCompleted: {
@@ -118,8 +118,8 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
   },
   eventCreated: {
     Icon: FileText,
-    border: "#06b6d4",
-    bgIcon: "#cffafe", iconColor: "#0891b2",
+    border: TOM.ciano.dot,
+    bgIcon: TOM.ciano.bg, iconColor: TOM.ciano.text,
     label: "Evento",
   },
   prazoAlert: {
@@ -234,8 +234,10 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
 const DEFAULT_CONFIG: TypeConfig = {
   Icon: Bell,
   border: T.muted,
-  bgIcon: T.border, iconColor: T.second,
-  label: "Sistema",
+  // N.n2 e T.apoio: o ladrilho cinza do genérico era a BORDA (n4) com ícone
+  // em n7 — o mais apagado da lista, justo no aviso que o sino não reconhece.
+  bgIcon: N.n2, iconColor: T.apoio,
+  label: "Aviso",
 };
 
 // "Não lida" era um fundo por categoria (cfg.bgRow): metade dos tipos tinha
@@ -395,24 +397,23 @@ export function NotificationBell({
         // fantasma de 44 sem borda, raio 6. Na barra eram dois botões
         // contornados e um solto entre eles. flexShrink: 0 segue impedindo a
         // topbar de 375px de esmagá-lo.
-        className="h-9 w-9 max-md:h-11 max-md:w-11"
+        // Realce, pressionado e "aberto" vêm da classe da barra (index.css,
+        // csc-barra-btn) — os mesmos dos vizinhos, e alcançam o teclado.
+        className="csc-barra-btn h-9 w-9 max-md:h-11 max-md:w-11"
         style={{
           position: "relative",
           flexShrink: 0,
           padding: 0,
           borderRadius: 9,
           border: `1px solid ${T.border}`,
-          background: open ? T.low : T.surface,
+          background: T.surface,
           cursor: "pointer",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          transition: "background 0.15s",
         }}
-        onMouseEnter={(e) => { if (!open) (e.currentTarget as HTMLButtonElement).style.background = T.bg; }}
-        onMouseLeave={(e) => { if (!open) (e.currentTarget as HTMLButtonElement).style.background = T.surface; }}
       >
-        <Bell aria-hidden="true" style={{ width: 17, height: 17, color: T.apoio }} />
+        <Bell aria-hidden="true" style={{ width: 17, height: 17, color: unreadCount > 0 ? T.strong : T.apoio }} />
         {unreadCount > 0 && (
           <span
             data-testid="badge-notification-count"
@@ -431,7 +432,7 @@ export function NotificationBell({
               fontSize: 10, fontWeight: 700,
               fontVariantNumeric: "tabular-nums",
               height: 17, minWidth: 17, padding: "0 4px",
-              borderRadius: 999, border: `2px solid ${T.bg}`,
+              borderRadius: 999, border: `2px solid ${T.surface}`,
               display: "flex", alignItems: "center", justifyContent: "center",
               lineHeight: 1,
             }}
@@ -453,39 +454,48 @@ export function NotificationBell({
       )}
 
       {/* Popover */}
+      {/* NO CELULAR, UM VÉU por baixo do painel: o painel cobre a tela quase
+          inteira e o conteúdo atrás competia com ele. Tocar no véu fecha —
+          o mesmo gesto do toque fora, agora com um alvo visível. */}
+      {open && isMobile && (
+        <div aria-hidden="true" onClick={() => setOpen(false)} data-testid="veu-do-sino"
+          style={{ position: "fixed", left: 0, right: 0, top: 64, bottom: 0, zIndex: 90, backgroundColor: "rgba(28,25,23,0.32)" }} />
+      )}
       {open && (
         <div
           id="notification-popover"
           ref={popoverRef}
           role="dialog"
-          aria-label="Alertas recentes"
+          aria-label="Notificações"
           // Recebe o foco ao abrir (dialog): antes o foco ficava no sino e o
           // teclado tinha de atravessar o resto da topbar para chegar aqui.
           tabIndex={-1}
           className="norte-surge"
           style={{
             outline: "none",
-            /* DESKTOP: ancorado ao sino (right -8), com teto de 376px.
-               CELULAR: fixo, 12px de cada lado, logo abaixo da topbar de 64.
+            /* DESKTOP: ancorado ao sino (right -8), com teto de 400px.
+               CELULAR: fixo, 8px de cada lado, logo abaixo da topbar de 64.
                A âncora no sino dava `100vw - 96px` = 279px num aparelho de
                375 — mensagens de duas linhas viravam quatro, e sobravam 96px
                de tela sem uso. */
             ...(isMobile
-              ? { position: "fixed" as const, top: 72, left: 12, right: 12, width: "auto" }
-              : { position: "absolute" as const, top: "calc(100% + 12px)", right: -8, width: "min(376px, calc(100vw - 96px))" }),
+              ? { position: "fixed" as const, top: 72, left: 8, right: 8, width: "auto" }
+              : { position: "absolute" as const, top: "calc(100% + 10px)", right: -8, width: "min(400px, calc(100vw - 96px))" }),
             backgroundColor: T.surface,
-            borderRadius: 12,
-            boxShadow: "0 32px 64px -16px rgba(28,25,23,0.18)",
-            border: `1px solid ${T.low}`,
+            borderRadius: R.lg,
+            boxShadow: "0 24px 48px -12px rgba(28,25,23,0.22), 0 2px 6px rgba(28,25,23,0.06)",
+            border: `1px solid ${T.border}`,
             zIndex: 100, overflow: "hidden",
+            display: "flex", flexDirection: "column",
           }}
         >
-          {/* Header */}
+          {/* Header — título de verdade, não rótulo de 11px em caixa-alta: é
+              o nome do painel, e é para onde o foco volta depois de "Marcar
+              todas". A contagem fica ao lado, na mesma linha de leitura. */}
           <div style={{
-            padding: "14px 20px",
-            backgroundColor: T.bg,
+            padding: "12px 10px 12px 18px",
             borderBottom: `1px solid ${T.border}`,
-            display: "flex", alignItems: "center", justifyContent: "space-between",
+            display: "flex", alignItems: "center", gap: 8,
           }}>
             <h3
               ref={headingRef}
@@ -493,43 +503,48 @@ export function NotificationBell({
               tabIndex={-1}
               style={{
                 fontFamily: FONT.display,
-                fontSize: 11, fontWeight: 700,
-                color: T.text, textTransform: "uppercase", letterSpacing: "0.1em",
+                fontSize: FS.strong, fontWeight: FW.forte,
+                color: T.text, letterSpacing: "-0.01em",
                 margin: 0, outline: "none",
               }}
             >
-              Alertas Recentes
+              Notificações
             </h3>
             {unreadCount > 0 && (
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <span style={{
-                  fontSize: 10, fontWeight: 700, color: T.accentText,
-                  backgroundColor: TOM.laranja.bg,
-                  padding: "2px 8px", borderRadius: 4,
-                  textTransform: "uppercase", letterSpacing: "0.05em",
-                }}>
-                  {unreadCount} NÃO LIDA{unreadCount !== 1 ? "S" : ""}
-                </span>
-                {/* Com 9+ acumuladas, marcar era clique a clique. */}
+              <span style={{
+                fontSize: FS.small, fontWeight: FW.forte, color: T.accentText,
+                backgroundColor: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`,
+                padding: "1px 8px", borderRadius: R.pill, fontVariantNumeric: "tabular-nums",
+                whiteSpace: "nowrap",
+              }}>
+                {unreadCount} não lida{unreadCount !== 1 ? "s" : ""}
+              </span>
+            )}
+            {unreadCount > 0 && (
+                /* Com 9+ acumuladas, marcar era clique a clique. */
                 <button
                   data-testid="button-mark-all-read"
+                  type="button"
                   onClick={() => onMarkAllRead?.()}
                   // Sem o disabled, cada clique extra disparava outro PATCH.
                   disabled={isMarkingAll}
+                  className="csc-acao-texto"
                   style={{
+                    marginLeft: "auto",
+                    display: "inline-flex", alignItems: "center", gap: 6,
                     background: "none", border: "none",
-                    cursor: isMarkingAll ? "default" : "pointer",
+                    cursor: isMarkingAll ? "wait" : "pointer",
                     // Texto, não link sublinhado em caixa alta de 10px: era o
                     // único sublinhado da casca, num controle que não navega.
                     // O alvo continua em 36 por `minHeight`, sem inflar a faixa.
-                    minHeight: 36, padding: "0 8px", borderRadius: 6,
-                    fontSize: 12, fontWeight: 600, color: T.second,
-                    opacity: isMarkingAll ? 0.6 : 1,
+                    minHeight: 36, padding: "0 10px", borderRadius: R.md,
+                    fontSize: FS.meta, fontWeight: FW.medio, color: T.apoio,
+                    opacity: isMarkingAll ? 0.6 : 1, whiteSpace: "nowrap",
                   }}
                 >
+                  <CheckCheck aria-hidden="true" style={{ width: 15, height: 15 }} />
                   {isMarkingAll ? "Marcando…" : "Marcar todas"}
                 </button>
-              </div>
             )}
           </div>
 
@@ -540,33 +555,45 @@ export function NotificationBell({
             {isLoading ? (
               <SkeletonRows />
             ) : isError ? (
-              <div style={{ padding: "28px 24px", textAlign: "center" }}>
-                <p style={{ margin: "0 0 12px", color: T.apoio, fontSize: 13, fontWeight: 500 }}>
+              <div role="alert" style={{ padding: "28px 24px 26px", textAlign: "center" }}>
+                <span aria-hidden="true" style={{ width: 40, height: 40, borderRadius: R.pill, margin: "0 auto 12px", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: TOM.perigo.bg }}>
+                  <AlertTriangle style={{ width: 18, height: 18, color: TOM.perigo.text }} />
+                </span>
+                <p style={{ margin: "0 0 4px", color: T.text, fontSize: FS.read, fontWeight: FW.forte }}>
                   Não foi possível carregar as notificações
+                </p>
+                <p style={{ margin: "0 0 14px", color: T.second, fontSize: FS.meta, lineHeight: 1.5 }}>
+                  Confira a conexão. Nada foi marcado como lido.
                 </p>
                 <button
                   data-testid="button-retry-notifications"
+                  type="button"
                   onClick={() => onRetry?.()}
+                  className="ds-botao"
                   style={{
                     // #d6d3d1 dava ~1.5:1 com o fundo — a borda do único
                     // controle acionável do estado de erro quase sumia.
-                    background: T.surface, border: `1px solid ${T.second}`, borderRadius: 8,
-                    padding: "8px 16px", cursor: "pointer",
-                    fontSize: 12, fontWeight: 700, color: T.text,
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    background: T.surface, border: `1px solid ${T.bdark}`, borderRadius: R.md,
+                    minHeight: 36, padding: "0 14px", cursor: "pointer",
+                    fontSize: FS.meta, fontWeight: FW.forte, color: T.text,
                   }}
                 >
+                  <RotateCcw aria-hidden="true" style={{ width: 14, height: 14 }} />
                   Tentar de novo
                 </button>
               </div>
             ) : notifications.length === 0 ? (
-              <div style={{ padding: "32px 24px", textAlign: "center" }}>
-                <Bell aria-hidden="true" style={{ width: 28, height: 28, color: T.bdark, margin: "0 auto 10px", display: "block" }} />
-                <p style={{ margin: "0 0 4px", color: T.apoio, fontSize: 13, fontWeight: 600 }}>
-                  Nenhuma notificação
+              <div style={{ padding: "34px 24px 32px", textAlign: "center" }}>
+                <span aria-hidden="true" style={{ width: 44, height: 44, borderRadius: R.pill, margin: "0 auto 12px", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: N.n2 }}>
+                  <Bell style={{ width: 20, height: 20, color: T.second }} />
+                </span>
+                <p style={{ margin: "0 0 4px", color: T.text, fontSize: FS.read, fontWeight: FW.forte }}>
+                  Tudo em dia
                 </p>
                 {/* #a8a29e era ~2.4:1 sobre branco — abaixo do AA. */}
-                <p style={{ margin: 0, color: T.second, fontSize: 12 }}>
-                  Você será avisado quando algo precisar da sua ação
+                <p style={{ margin: 0, color: T.second, fontSize: FS.meta, lineHeight: 1.5 }}>
+                  Nenhuma notificação. Você será avisado quando algo precisar da sua ação.
                 </p>
               </div>
             ) : (
@@ -577,8 +604,12 @@ export function NotificationBell({
                 // AÇÃO fica no topo, o informativo vem agrupado por evento, com
                 // "marcar lidas" por grupo.
                 const TIPOS_DE_ACAO = new Set(["itemPriority", "itemRejected", "deadlineAlert", "quantityReduced"]);
+                // Só o RÓTULO do grupo. Aceita `evento "X"` em minúscula e nome
+                // com travessão ("Maratona Grande — 60 peças"): antes os dois
+                // caíam em "Geral", e o painel mostrava dois grupos "Geral"
+                // seguidos, de eventos diferentes.
                 const nomeDoEvento = (msg: string) => {
-                  const m = /Evento:\s*([^—·]+?)\s*$/.exec(msg) ?? /Evento\s+"([^"]+)"/.exec(msg);
+                  const m = /evento\s+"([^"]+)"/i.exec(msg) ?? /Evento:\s*([^·]+?)\s*$/.exec(msg);
                   return m ? m[1].trim() : null;
                 };
                 const acao = notifications.filter((n) => TIPOS_DE_ACAO.has(n.type));
@@ -590,26 +621,35 @@ export function NotificationBell({
                   if (g) { g.itens.push(n); if (g.rotulo === "Geral") g.rotulo = nomeDoEvento(n.message) ?? g.rotulo; }
                   else grupos.set(chave, { rotulo: nomeDoEvento(n.message) ?? "Geral", itens: [n] });
                 }
+                // "Geral" não dizia o que reunia: são avisos sem evento (ou de
+                // evento que a mensagem não nomeia).
+                for (const g of Array.from(grupos.values())) if (g.rotulo === "Geral") g.rotulo = "Outros avisos";
                 const cabecalho = (texto: string, itens: Notification[], destaque = false) => {
                   const naoLidas = itens.filter((x) => !x.isRead);
                   return (
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px 4px", backgroundColor: destaque ? TOM.laranja.bg : T.bg, borderBottom: `1px solid ${T.low}` }}>
-                      <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: destaque ? T.accentText : T.second, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    // Faixa GRUDADA no topo da lista enquanto o grupo rola:
+                    // com 30 avisos, o nome do evento sumia logo no primeiro
+                    // giro da roda e as linhas ficavam sem dono.
+                    <div style={{ position: "sticky", top: 0, zIndex: 1, display: "flex", alignItems: "center", gap: 8, minHeight: 32, padding: "0 10px 0 18px", backgroundColor: destaque ? TOM.laranja.bg : N.n1, borderBottom: `1px solid ${destaque ? TOM.laranja.border : N.n3}`, borderTop: `1px solid ${destaque ? TOM.laranja.border : N.n3}`, marginTop: -1 }}>
+                      {destaque && <AlertTriangle aria-hidden="true" style={{ width: 12, height: 12, color: T.accentText, flexShrink: 0 }} />}
+                      <span style={{ fontSize: FS.micro, fontWeight: FW.rotulo, textTransform: "uppercase", letterSpacing: "0.08em", color: destaque ? T.accentText : T.apoio, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
                         {texto}
                       </span>
                       {/* #78716c: #a8a29e é proibido como texto (2,5:1). */}
-                      <span style={{ fontSize: 10, fontWeight: 700, color: T.second }}>{itens.length}</span>
+                      <span style={{ fontSize: FS.micro, fontWeight: FW.forte, color: T.second, fontVariantNumeric: "tabular-nums" }}>{itens.length}</span>
                       {naoLidas.length > 0 && (
                         <button
                           type="button"
                           aria-label={`Marcar como lidas as ${naoLidas.length} de ${texto}`}
                           onClick={(e) => { e.stopPropagation(); naoLidas.forEach((x) => onMarkAsRead(x.id)); }}
+                          className="csc-acao-laranja"
                           // 28 de altura: era um alvo de texto de 10px com 2px
                           // de folga — o toque caía na notificação de baixo e
-                          // navegava em vez de marcar.
-                          style={{ border: "none", background: "none", minHeight: 28, padding: "0 8px", margin: "-4px -8px -4px auto", borderRadius: 6, fontSize: 10.5, fontWeight: 700, color: T.accentText, cursor: "pointer", whiteSpace: "nowrap" }}
+                          // navegava em vez de marcar. (No toque, 44: regra
+                          // global de pointer: coarse.)
+                          style={{ border: "none", background: "none", minHeight: 28, padding: "0 8px", marginLeft: "auto", borderRadius: R.sm, fontSize: FS.small, fontWeight: FW.forte, color: T.accentText, cursor: "pointer", whiteSpace: "nowrap" }}
                         >
-                          marcar lidas
+                          Marcar lidas
                         </button>
                       )}
                     </div>
@@ -636,11 +676,13 @@ export function NotificationBell({
                     style={{
                       position: "relative",
                       display: "flex", alignItems: "flex-start", gap: 12,
-                      // 32px à direita: o ponto de não lida ficava por cima do
+                      // 34px à direita: o ponto de não lida ficava por cima do
                       // fim do texto em mensagens longas.
-                      padding: "14px 32px 14px 16px",
-                      // 3px, o mesmo trilho das outras telas.
-                      borderLeft: `3px solid ${cfg.border}`,
+                      padding: "13px 34px 13px 18px",
+                      // SEM o trilho colorido à esquerda: ele repetia a cor do
+                      // ladrilho do ícone logo ao lado (dois sinais para a
+                      // mesma categoria) e, empilhado, virava uma régua de
+                      // cores que competia com o texto.
                       // O FUNDO DE "NÃO LIDA" SAIU. `#fffbf5` é um creme que se
                       // confunde com o `#fff7ed` da família laranja usada aqui
                       // ao lado (o selo "N não lidas", o ponto do item), e com
@@ -649,11 +691,10 @@ export function NotificationBell({
                       // peso do título — dois canais, nenhum deles ambíguo.
                       backgroundColor: "transparent",
                       cursor: "pointer",
-                      transition: "background-color 0.15s",
-                      borderBottom: `1px solid ${T.low}`,
+                      borderBottom: `1px solid ${N.n3}`,
                     }}
-                    onMouseEnter={(e) => ((e.currentTarget as HTMLDivElement).style.backgroundColor = T.bg)}
-                    onMouseLeave={(e) => ((e.currentTarget as HTMLDivElement).style.backgroundColor = "transparent")}
+                    // Realce de ponteiro e de teclado pela classe (csc-aviso).
+                    className="csc-aviso"
                   >
                     {/* Icon box */}
                     <div style={{
@@ -662,7 +703,7 @@ export function NotificationBell({
                       // 30x30 fixo: com `padding: 8` o ladrilho mudava de
                       // tamanho conforme o ícone, e a coluna da esquerda
                       // ficava serrilhada ao longo da lista.
-                      width: 30, height: 30, borderRadius: 9,
+                      width: 32, height: 32, borderRadius: R.md,
                       display: "flex", alignItems: "center", justifyContent: "center",
                     }}>
                       <Icon aria-hidden="true" style={{ width: 16, height: 16, color: cfg.iconColor } as React.CSSProperties} />
@@ -731,8 +772,8 @@ export function NotificationBell({
               para trás quando o texto virou #c2410c: laranja escuro sobre
               #1c1917 dá ~3:1 e reprovava justamente o único link do rodapé. */}
           <div style={{
-            padding: "4px 8px",
-            backgroundColor: T.bg,
+            padding: 4,
+            backgroundColor: N.n1,
             borderTop: `1px solid ${T.border}`,
             textAlign: "center",
           }}>
@@ -749,12 +790,11 @@ export function NotificationBell({
                 // sobre escuro, o único bloco invertido de toda a casca, para
                 // hospedar um link.
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                width: "100%", minHeight: 40, padding: "10px 16px",
-                fontSize: 12, fontWeight: 700, color: T.accentText,
-                transition: "background-color 0.15s",
+                width: "100%", minHeight: 40, padding: "0 16px", borderRadius: R.md,
+                fontSize: FS.meta, fontWeight: FW.forte, color: T.accentText,
               }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = T.low)}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent")}
+              type="button"
+              className="csc-acao-laranja"
             >
               {/* Diz o destino: o botão leva ao Histórico (registro de tudo),
                   não a uma lista maior de avisos — "Ver todas" prometia outra. */}

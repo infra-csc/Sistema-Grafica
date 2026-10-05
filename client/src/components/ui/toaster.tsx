@@ -1,7 +1,7 @@
 import { cloneElement, isValidElement, useEffect, useRef, useState } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { CheckCircle2, AlertCircle, AlertTriangle, X } from "lucide-react"
-import { R, T, TOM } from "@/lib/theme"
+import { N, R, T, TOM } from "@/lib/theme"
 
 // A AÇÃO DE VOLTA — 36px, e não os 32 do shadcn.
 //
@@ -13,8 +13,8 @@ import { R, T, TOM } from "@/lib/theme"
 // cor, mas este componente é global e não pode depender dos tokens de uma tela.
 const ESTILO_ACAO: React.CSSProperties = {
   height: 36, padding: "0 12px", borderRadius: R.md,
-  border: `1px solid ${T.border}`, backgroundColor: "#ffffff",
-  fontSize: 12, fontWeight: 700, color: "#1c1917",
+  border: `1px solid ${T.bdark}`, backgroundColor: T.surface,
+  fontSize: 12, fontWeight: 700, color: T.text,
   cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
 }
 
@@ -167,13 +167,13 @@ function NorteToast({ toast, onDismiss, devolverFoco }: { toast: ToastItem; onDi
         width: 360,
         maxWidth: "calc(100vw - 32px)",
         boxSizing: "border-box",
-        backgroundColor: "#ffffff",
-        borderRadius: 12,
+        backgroundColor: T.surface,
+        borderRadius: R.lg,
         padding: "14px 16px",
         // Uma sombra só, e mais curta: o toast flutua, mas não precisa de
         // halo duplo para parecer que flutua.
-        boxShadow: "0 8px 24px rgba(28,25,23,0.12)",
-        border: "1px solid #e7e5e4",
+        boxShadow: "0 12px 28px -8px rgba(28,25,23,0.18), 0 2px 4px rgba(28,25,23,0.04)",
+        border: `1px solid ${T.border}`,
         cursor: "pointer",
         position: "relative",
         overflow: "hidden",
@@ -182,25 +182,25 @@ function NorteToast({ toast, onDismiss, devolverFoco }: { toast: ToastItem; onDi
         transform: visible && !leaving ? "translateY(0)" : "translateY(12px)",
       }}
     >
-      {/* Left accent bar */}
-      <div aria-hidden="true" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, backgroundColor: accent }} />
-
+      {/* Sem a barra colorida na borda esquerda: num cartão de raio 12 ela
+          virava uma meia-lua cortada, e repetia o tom que o ladrilho do ícone
+          já carrega. O tom fica no ladrilho e na barra de tempo, embaixo. */}
       {/* Icon */}
-      <div aria-hidden="true" style={{ width: 32, height: 32, borderRadius: 9, backgroundColor: iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginLeft: 2 }}>
+      <div aria-hidden="true" style={{ width: 32, height: 32, borderRadius: R.md, backgroundColor: iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
         <Icon style={{ width: 17, height: 17, color: accent }} />
       </div>
 
       {/* Text */}
       <div style={{ flex: 1, minWidth: 0, paddingTop: 1 }}>
         {toast.title && (
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#1c1917", lineHeight: 1.3, marginBottom: toast.description ? 3 : 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.text, lineHeight: 1.35, marginBottom: toast.description ? 3 : 0, overflowWrap: "anywhere" }}>
             {toast.title}
           </div>
         )}
         {toast.description && (
           // #57534e (e não #746e69): a descrição do erro é a instrução, não
           // um metadado — merece o tom de leitura.
-          <div style={{ fontSize: 12, color: "#57534e", lineHeight: 1.45, maxHeight: 88, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 5, WebkitBoxOrient: "vertical" }}>
+          <div style={{ fontSize: 12, color: T.apoio, lineHeight: 1.45, overflowWrap: "anywhere", maxHeight: 88, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 5, WebkitBoxOrient: "vertical" }}>
             {toast.description}
           </div>
         )}
@@ -231,9 +231,8 @@ function NorteToast({ toast, onDismiss, devolverFoco }: { toast: ToastItem; onDi
         // 36x36: eram 24, que passa no mínimo AA da WCAG 2.5.8 mas fica
         // abaixo da régua de 36 que o resto do app segue. O glifo continua
         // com 13px — cresceu o ALVO, não o desenho.
-        style={{ width: 36, height: 36, borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#746e69", flexShrink: 0, marginTop: -4, marginRight: -6 }}
-        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#f5f4f0"; (e.currentTarget as HTMLButtonElement).style.color = "#57534e" }}
-        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#746e69" }}
+        className="csc-toast-fechar"
+        style={{ width: 36, height: 36, borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: T.second, flexShrink: 0, marginTop: -4, marginRight: -6 }}
       >
         <X aria-hidden="true" style={{ width: 13, height: 13 }} />
       </button>
@@ -242,7 +241,7 @@ function NorteToast({ toast, onDismiss, devolverFoco }: { toast: ToastItem; onDi
           com o relógio via animation-play-state, sem render. Com
           prefers-reduced-motion a regra global zera a duração: a barra some
           de uma vez, e o toast continua respeitando o tempo. */}
-      <div aria-hidden="true" style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 2, backgroundColor: "#f0efec" }}>
+      <div aria-hidden="true" style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 2, backgroundColor: N.n3 }}>
         <div
           ref={barra}
           style={{

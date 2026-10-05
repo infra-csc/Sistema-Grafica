@@ -7,8 +7,8 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { CorpoDoLogin, UsuarioSemSenha } from "@shared/api";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle, Lock, Loader2, AlertTriangle, ChevronDown, ChevronUp, ArrowRight, Eye, EyeOff } from "lucide-react";
-import { T, FS, R, N, FW, FONT, TOM } from "@/lib/theme";
+import { Compass, Lock, Loader2, AlertTriangle, ChevronDown, ArrowRight, Eye, EyeOff, Info } from "lucide-react";
+import { T, FS, R, N, FW, FONT, TOM, ESCURO, H } from "@/lib/theme";
 
 const SSO_ERROR_MESSAGES: Record<string, { title: string; description: string }> = {
   sso_user_not_found: {
@@ -34,6 +34,58 @@ const loginSchema = z.object({
 });
 
 type LoginForm = z.infer<typeof loginSchema>;
+
+/**
+ * O CAMINHO DA PEÇA — a coluna da marca conta o que o sistema FAZ.
+ *
+ * Eram dois cartões de vitrine ("Notificações em tempo real", "Rastreamento
+ * completo") que caberiam em qualquer SaaS. O que distingue este produto é o
+ * trajeto que toda peça percorre, na mesma ordem do menu "Fluxo da peça" —
+ * quem chega pela primeira vez já aprende o vocabulário da casa. Só texto:
+ * nenhuma regra, permissão ou rota nasce daqui.
+ */
+const CAMINHO_DA_PECA: Array<{ etapa: string; detalhe: string }> = [
+  { etapa: "Vincular patrocinadores", detalhe: "quais marcas aparecem em cada peça" },
+  { etapa: "Arte", detalhe: "o layout e o arquivo final" },
+  { etapa: "Atendimento", detalhe: "a aprovação de cada patrocinador" },
+  { etapa: "Revisão final", detalhe: "a conferência antes de produzir" },
+  { etapa: "Gráfica", detalhe: "produção, conferência e entrega" },
+];
+
+/** Rótulo de campo: a mesma régua de caixa-alta da casa. */
+const ROTULO: React.CSSProperties = {
+  fontSize: FS.micro, fontWeight: FW.forte,
+  textTransform: "uppercase", letterSpacing: "0.1em",
+  color: T.apoio,
+};
+
+/** A marca NORTE — o mesmo desenho da barra lateral (bússola + nome + linha). */
+function MarcaNorte({ escura = false }: { escura?: boolean }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <span aria-hidden="true" style={{
+        width: 40, height: 40, borderRadius: R.lg, flexShrink: 0,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        backgroundColor: escura ? ESCURO.fundoAlto : T.text,
+        border: `1px solid ${escura ? ESCURO.borda : T.text}`,
+      }}>
+        <Compass style={{ width: 20, height: 20, color: ESCURO.foco, strokeWidth: 2.2 }} />
+      </span>
+      <span style={{ display: "flex", flexDirection: "column" }}>
+        <span style={{
+          fontFamily: FONT.display, fontSize: 17, fontWeight: FW.rotulo,
+          letterSpacing: "-0.04em", textTransform: "uppercase", lineHeight: 1,
+          color: escura ? ESCURO.texto : T.text,
+        }}>NORTE</span>
+        <span style={{
+          fontFamily: FONT.display, fontSize: FS.micro, fontWeight: FW.forte,
+          letterSpacing: "0.22em", textTransform: "uppercase", lineHeight: 1, marginTop: 5,
+          color: escura ? ESCURO.apoio : T.second,
+        }}>Marketing Esportivo</span>
+      </span>
+    </div>
+  );
+}
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -106,128 +158,155 @@ export default function Login() {
     loginMutation.mutate(data);
   };
 
+  const erroEmail = form.formState.errors.email;
+  const erroSenha = form.formState.errors.password;
+
   return (
     <main className="login-main" style={{
       display: "flex",
-      height: "100vh",
-      width: "100vw",
+      height: "100dvh",
+      width: "100%",
       overflow: "hidden",
       // Corpo em Inter: a tela de login é formulário, não título. O display
-      // fica para o nome do sistema, logo abaixo.
+      // fica para o nome do sistema e os títulos.
       fontFamily: FONT.corpo,
+      backgroundColor: T.bg,
     }}>
-      {/* Responsivo: em telas pequenas empilha, esconde o branding e permite
-          rolar — os estilos inline vencem media queries, por isso o !important. */}
+      {/* Responsivo: em telas pequenas esconde a coluna da marca e a marca
+          compacta aparece no topo do formulário — os estilos inline vencem
+          media queries, por isso o !important. Estados (:hover, :focus) do
+          campo e dos botões também moram aqui, onde o inline não alcança. */}
       <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .login-submit-btn:hover:not(:disabled) { background-color: ${T.accentText} !important; }
+        .login-campo { transition: border-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease; }
+        .login-campo:hover { border-color: ${N.n5} !important; }
+        .login-campo:focus { outline: none; border-color: ${T.accent} !important; box-shadow: 0 0 0 3px rgba(249,115,22,0.14); }
+        .login-campo[aria-invalid="true"] { border-color: ${TOM.perigo.dot} !important; }
+        .login-campo::placeholder { color: ${T.second}; opacity: 1; }
+        .login-submit-btn { transition: background-color var(--dur-rapida) ease, transform var(--dur-rapida) ease; }
+        .login-submit-btn:hover:not(:disabled) { background-color: ${T.strong} !important; }
+        .login-submit-btn:active:not(:disabled) { transform: translateY(1px); }
+        .login-submit-btn:hover:not(:disabled) .login-seta { transform: translateX(2px); }
+        .login-seta { transition: transform var(--dur-media) var(--ease-saida); }
+        .login-alternar { transition: border-color var(--dur-rapida) ease, background-color var(--dur-rapida) ease; }
+        .login-alternar:hover { border-color: ${N.n5} !important; background-color: ${N.n0} !important; }
+        .login-alternar[aria-expanded="true"] .login-chevron { transform: rotate(180deg); }
+        .login-chevron { transition: transform var(--dur-media) var(--ease-saida); }
+        .login-olho:hover { color: ${T.text} !important; background-color: ${N.n2} !important; }
+        .login-portal:hover { background-color: ${T.strong} !important; }
+        .login-marca-celular { display: none; }
         @media (max-width: 900px) {
-          .login-main { flex-direction: column !important; height: auto !important; min-height: 100vh !important; overflow: auto !important; }
           .login-brand-col { display: none !important; }
-          .login-form-col { width: 100% !important; padding: 40px 24px !important; }
-          /* O selo absoluto no canto caía POR CIMA do formulário aberto em
-             telas baixas. Empilhado, ele desce para o fim do fluxo. */
-          .login-seal { position: static !important; margin-top: 32px; }
+          .login-form-col { width: 100% !important; }
+          .login-form-miolo { padding: 32px 20px 28px !important; }
+          .login-marca-celular { display: block; margin-bottom: 36px; }
+          .login-titulo { font-size: 30px !important; }
         }
       `}</style>
 
-      {/* ── LEFT COLUMN: Branding (42%) ── */}
-      <section className="login-brand-col" style={{
+      {/* ── COLUNA DA MARCA (42%) ── */}
+      <section className="login-brand-col" aria-label="Sobre o NORTE" style={{
         position: "relative",
-        width: "42%",
-        backgroundColor: T.text,
+        // Teto de 720px: num monitor de 1920 a coluna escura passava de 800px
+        // com o conteúdo encostado à esquerda e meia coluna vazia.
+        width: "clamp(420px, 42%, 720px)", flexShrink: 0,
+        backgroundColor: ESCURO.fundo,
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
-        padding: "48px",
+        gap: 32,
+        padding: "44px 48px",
         overflow: "hidden",
       }}>
-        <div style={{
-          position: "absolute", bottom: "-96px", right: "-96px",
-          width: "384px", height: "384px", borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(249,115,22,0.20) 0%, transparent 65%)",
+        {/* Um único brilho, no canto, na cor da marca — o fundo escuro não
+            fica chapado e nada compete com o texto. */}
+        <div aria-hidden="true" style={{
+          position: "absolute", bottom: "-120px", right: "-120px",
+          width: "420px", height: "420px", borderRadius: "50%",
+          background: "radial-gradient(circle, rgba(249,115,22,0.18) 0%, transparent 65%)",
           filter: "blur(60px)", pointerEvents: "none",
         }} />
 
-        <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{
-            width: 48, height: 48, backgroundColor: T.accent, borderRadius: 8,
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            <span style={{ fontFamily: FONT.display, fontWeight: 700, fontSize: 24, color: "white" }}>N</span>
-          </div>
-          <p style={{
-            fontFamily: FONT.display, fontWeight: 700, fontSize: 20,
-            letterSpacing: "-0.02em", color: T.bg, margin: 0,
-          }}>NORTE Marketing Esportivo</p>
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <MarcaNorte escura />
         </div>
 
         <div style={{ position: "relative", zIndex: 1, maxWidth: 420 }}>
-          <div style={{ width: 48, height: 4, backgroundColor: T.accent, marginBottom: 8, borderRadius: 2 }} />
+          <div aria-hidden="true" style={{ width: 40, height: 3, backgroundColor: T.accent, marginBottom: 18, borderRadius: 2 }} />
           <h2 style={{
             fontFamily: FONT.display,
-            fontSize: 46, fontWeight: 700, color: "white",
-            lineHeight: 1.1, letterSpacing: "-0.04em", margin: "0 0 32px 0",
+            fontSize: "clamp(34px, 3.4vw, 46px)", fontWeight: FW.forte, color: ESCURO.texto,
+            lineHeight: 1.08, letterSpacing: "-0.04em", margin: "0 0 32px 0",
           }}>
             Sistema de Gestão de Produção Gráfica
           </h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {[
-              { title: "Notificações em tempo real", sub: "Acompanhamento instantâneo de pedidos." },
-              { title: "Rastreamento completo", sub: "Visibilidade total da cadeia de produção." },
-            ].map((f) => (
-              <div key={f.title} style={{
-                backgroundColor: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.10)",
-                borderRadius: 12, padding: "20px",
-                display: "flex", alignItems: "center", gap: 16,
-              }}>
-                <div style={{
-                  width: 32, height: 32, borderRadius: "50%",
-                  backgroundColor: "rgba(249,115,22,0.20)",
-                  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                }}>
-                  <CheckCircle style={{ width: 16, height: 16, color: T.accent }} />
-                </div>
-                <div>
-                  <p style={{ color: "white", fontWeight: 500, fontSize: 14, margin: 0 }}>{f.title}</p>
-                  <p style={{ color: "rgba(255,255,255,0.72)", fontSize: 12, margin: "2px 0 0 0" }}>{f.sub}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+
+          <p style={{ ...ROTULO, color: ESCURO.apoio, margin: "0 0 14px" }}>O caminho de cada peça</p>
+          <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column" }}>
+            {CAMINHO_DA_PECA.map((p, i) => {
+              const ultima = i === CAMINHO_DA_PECA.length - 1;
+              return (
+                <li key={p.etapa} style={{ display: "flex", gap: 14, position: "relative", paddingBottom: ultima ? 0 : 14 }}>
+                  {/* O fio que liga as etapas: a peça anda, não pula. */}
+                  {!ultima && (
+                    <span aria-hidden="true" style={{ position: "absolute", left: 11, top: 24, bottom: 0, width: 1, backgroundColor: ESCURO.borda }} />
+                  )}
+                  <span aria-hidden="true" style={{
+                    width: 23, height: 23, borderRadius: R.pill, flexShrink: 0,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    border: `1px solid ${ESCURO.borda}`,
+                    backgroundColor: ESCURO.fundoAlto,
+                    fontFamily: FONT.display, fontSize: FS.small, fontWeight: FW.forte,
+                    color: ESCURO.foco, fontVariantNumeric: "tabular-nums",
+                  }}>
+                    {i + 1}
+                  </span>
+                  <span style={{ paddingTop: 2, minWidth: 0 }}>
+                    <span style={{ display: "block", fontSize: FS.read, fontWeight: FW.medio, color: ESCURO.texto, lineHeight: 1.3 }}>{p.etapa}</span>
+                    <span style={{ display: "block", fontSize: FS.meta, color: ESCURO.apoio, lineHeight: 1.4, marginTop: 1 }}>{p.detalhe}</span>
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
         </div>
 
         <footer style={{ position: "relative", zIndex: 1 }}>
-          <p style={{ color: "rgba(255,255,255,0.64)", fontSize: 11, margin: 0 }}>
+          <p style={{ color: ESCURO.apoio, fontSize: FS.small, margin: 0 }}>
             © {new Date().getFullYear()} NORTE Marketing Esportivo. Todos os direitos reservados.
           </p>
         </footer>
       </section>
 
-      {/* ── RIGHT COLUMN (58%) ── */}
+      {/* ── COLUNA DO FORMULÁRIO (58%) ──
+          ROLA quando não cabe. Era `justify-content: center` numa coluna de
+          100vh com `overflow: hidden` no <main>: ao abrir o formulário num
+          notebook de 768px de altura, o conteúdo transbordava PARA CIMA e para
+          baixo — o título sumia sob a borda e o botão Entrar ficava fora de
+          alcance, sem rolagem. Agora a coluna rola, e as margens automáticas do
+          miolo centralizam quando sobra espaço (e viram 0 quando falta). */}
       <section className="login-form-col" style={{
-        width: "58%", backgroundColor: T.bg,
+        flex: 1, minWidth: 0, backgroundColor: T.bg,
         display: "flex", flexDirection: "column",
-        alignItems: "center", justifyContent: "center",
-        position: "relative", padding: "0 32px",
+        alignItems: "center",
+        overflowY: "auto",
+        overscrollBehavior: "contain",
       }}>
-        <div style={{ width: "100%", maxWidth: 448 }}>
+        <div className="login-form-miolo" style={{ width: "100%", maxWidth: 448 + 64, padding: "48px 32px 32px", margin: "auto 0", boxSizing: "border-box" }}>
           <h1 className="sr-only">Entrar no sistema — NORTE Marketing Esportivo</h1>
 
-          {/* Header */}
-          <header style={{ marginBottom: 40 }}>
-            <div style={{ width: 32, height: 4, backgroundColor: T.accent, marginBottom: 16, borderRadius: 2 }} />
-            <h3 style={{
+          <div className="login-marca-celular"><MarcaNorte /></div>
+
+          <header style={{ marginBottom: 32 }}>
+            <h3 className="login-titulo" style={{
               fontFamily: FONT.display,
-              fontSize: 36, fontWeight: 700, color: T.text,
-              letterSpacing: "-0.04em", margin: "0 0 8px 0",
+              fontSize: 36, fontWeight: FW.forte, color: T.text,
+              letterSpacing: "-0.04em", lineHeight: 1.1, margin: "0 0 8px 0",
             }}>
               {/* "Bem-vindo de volta" pressupunha visita anterior — a primeira
                   tela de quem nunca entrou dizia que ele já tinha estado aqui. */}
               Entrar no NORTE
             </h3>
-            <p style={{ color: T.second, fontWeight: 500, fontSize: 14, margin: 0 }}>
+            <p style={{ color: T.second, fontWeight: FW.corpo, fontSize: FS.read, margin: 0, lineHeight: 1.5 }}>
               Acesse o sistema pelo portal NORTE.
             </p>
           </header>
@@ -237,16 +316,17 @@ export default function Login() {
           {sessaoExpirada && !ssoError && (
             <div
               data-testid="banner-sessao-expirada"
+              role="status"
               style={{
                 display: "flex", alignItems: "flex-start", gap: 12,
-                backgroundColor: TOM.alerta.bg, border: `1.5px solid ${TOM.alerta.border}`,
-                borderRadius: 8, padding: "14px 16px", marginBottom: 24,
+                backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`,
+                borderRadius: R.lg, padding: "14px 16px", marginBottom: 20,
               }}
             >
-              <AlertTriangle style={{ width: 18, height: 18, color: TOM.alerta.text, flexShrink: 0, marginTop: 1 }} />
+              <AlertTriangle aria-hidden="true" style={{ width: 18, height: 18, color: TOM.alerta.text, flexShrink: 0, marginTop: 1 }} />
               <div>
-                <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: TOM.alerta.text }}>Sua sessão expirou</p>
-                <p style={{ margin: "4px 0 0 0", fontSize: 12, color: TOM.alerta.text, lineHeight: 1.5 }}>
+                <p style={{ margin: 0, fontWeight: FW.forte, fontSize: FS.body, color: TOM.alerta.text }}>Sua sessão expirou</p>
+                <p style={{ margin: "4px 0 0 0", fontSize: FS.meta, color: TOM.alerta.text, lineHeight: 1.5 }}>
                   Entre novamente para continuar de onde parou.
                 </p>
               </div>
@@ -257,49 +337,45 @@ export default function Login() {
           {ssoError && (
             <div
               data-testid="banner-sso-error"
+              role="alert"
               style={{
                 display: "flex", alignItems: "flex-start", gap: 12,
-                backgroundColor: TOM.perigo.bg, border: `1.5px solid ${TOM.perigo.border}`,
-                borderRadius: 8, padding: "14px 16px", marginBottom: 24,
+                backgroundColor: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}`,
+                borderRadius: R.lg, padding: "14px 16px", marginBottom: 20,
               }}
             >
-              <AlertTriangle style={{ width: 18, height: 18, color: TOM.perigo.text, flexShrink: 0, marginTop: 1 }} />
+              <AlertTriangle aria-hidden="true" style={{ width: 18, height: 18, color: TOM.perigo.text, flexShrink: 0, marginTop: 1 }} />
               <div>
-                <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: TOM.perigo.text }}>{ssoError.title}</p>
-                <p style={{ margin: "4px 0 0 0", fontSize: 12, color: TOM.perigo.text, lineHeight: 1.5 }}>{ssoError.description}</p>
+                <p style={{ margin: 0, fontWeight: FW.forte, fontSize: FS.body, color: TOM.perigo.text }}>{ssoError.title}</p>
+                <p style={{ margin: "4px 0 0 0", fontSize: FS.meta, color: TOM.perigo.text, lineHeight: 1.5 }}>{ssoError.description}</p>
               </div>
             </div>
           )}
 
-          {/* Primary SSO info card */}
+          {/* O caminho principal: a conta Microsoft pelo portal. */}
           <div style={{
             backgroundColor: T.surface,
-            border: `1.5px solid ${T.border}`,
-            borderRadius: 12,
-            padding: "28px 24px",
-            display: "flex", alignItems: "flex-start", gap: 18,
-            marginBottom: 24,
+            border: `1px solid ${T.border}`,
+            borderRadius: R.lg,
+            padding: "22px 22px",
+            display: "flex", alignItems: "flex-start", gap: 16,
+            boxShadow: "0 1px 2px rgba(28,25,23,0.04)",
           }}>
-            {/* Microsoft logo */}
-            <div style={{ flexShrink: 0, marginTop: 2 }}>
-              <svg width="28" height="28" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
+            {/* Logotipo da Microsoft — as quatro cores são da marca dela. */}
+            <div aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }}>
+              <svg width="24" height="24" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
                 <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
                 <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
                 <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
                 <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
               </svg>
             </div>
-            <div>
-              <p style={{ margin: "0 0 4px 0", fontWeight: 700, fontSize: 15, color: T.text }}>
+            <div style={{ minWidth: 0 }}>
+              <p style={{ margin: "0 0 4px 0", fontWeight: FW.forte, fontSize: FS.strong, color: T.text }}>
                 Login via Microsoft
               </p>
-              <p style={{ margin: 0, fontSize: 13, color: T.second, lineHeight: 1.5 }}>
+              <p style={{ margin: 0, fontSize: FS.body, color: T.apoio, lineHeight: 1.55 }}>
                 O acesso ao sistema é feito pelo portal NORTE. Use sua conta Microsoft corporativa para entrar.
-              </p>
-              {/* O caso que travava o primeiro uso: o e-mail não cadastrado
-                  só descobria isso DEPOIS de ir ao portal e voltar com erro. */}
-              <p style={{ margin: "8px 0 0", fontSize: 12, color: T.apoio, lineHeight: 1.5 }}>
-                Ainda sem acesso? Peça ao administrador do sistema para cadastrar o seu e-mail.
               </p>
               {/* O card mandava ir ao portal e não levava até ele. Só aparece
                   quando o endereço do portal está configurado — o mesmo
@@ -308,31 +384,48 @@ export default function Login() {
                 <a
                   href={hubUrl}
                   data-testid="link-portal-norte"
-                  style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 12, minHeight: 36, padding: "0 14px", borderRadius: 8, backgroundColor: T.text, color: T.surface, fontSize: 13, fontWeight: 700, textDecoration: "none" }}
+                  className="login-portal"
+                  style={{ display: "inline-flex", alignItems: "center", gap: 8, marginTop: 14, minHeight: 40, padding: "0 16px", borderRadius: R.md, backgroundColor: T.text, color: T.surface, fontSize: FS.body, fontWeight: FW.forte, textDecoration: "none" }}
                 >
                   Ir para o portal NORTE
-                  <ArrowRight aria-hidden="true" style={{ width: 14, height: 14 }} />
+                  <ArrowRight aria-hidden="true" style={{ width: 15, height: 15 }} />
                 </a>
               )}
+              {/* O caso que travava o primeiro uso: o e-mail não cadastrado
+                  só descobria isso DEPOIS de ir ao portal e voltar com erro. */}
+              <p style={{ display: "flex", alignItems: "flex-start", gap: 6, margin: "12px 0 0", paddingTop: 12, borderTop: `1px solid ${N.n3}`, fontSize: FS.meta, color: T.second, lineHeight: 1.5 }}>
+                <Info aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0, marginTop: 2 }} />
+                <span>Ainda sem acesso? Peça ao administrador do sistema para cadastrar o seu e-mail.</span>
+              </p>
             </div>
           </div>
 
-          {/* Admin fallback toggle */}
+          {/* "ou" — o segundo caminho é alternativo, não uma seção do primeiro. */}
+          <div aria-hidden="true" style={{ display: "flex", alignItems: "center", gap: 12, margin: "22px 0 14px" }}>
+            <span style={{ flex: 1, height: 1, backgroundColor: T.border }} />
+            <span style={{ fontSize: FS.meta, fontWeight: FW.medio, color: T.second }}>ou</span>
+            <span style={{ flex: 1, height: 1, backgroundColor: T.border }} />
+          </div>
+
+          {/* O segundo caminho, como BOTÃO de verdade. Era uma linha cinza em
+              caixa-alta de 12px que lia como título de seção — ninguém
+              adivinhava que abria alguma coisa. */}
           <button
             type="button"
             data-testid="button-toggle-admin-login"
+            className="login-alternar"
             onClick={() => setShowAdminForm((v) => !v)}
             aria-expanded={showAdminForm}
             aria-controls="admin-login-form"
             style={{
-              width: "100%",
-              background: "none", border: "none",
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "10px 0",
+              width: "100%", minHeight: H.toque,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              padding: "0 16px",
               cursor: "pointer",
-              color: T.second,
-              fontSize: 12, fontWeight: 600,
-              textTransform: "uppercase", letterSpacing: "0.08em",
+              backgroundColor: showAdminForm ? N.n0 : "transparent",
+              border: `1px solid ${T.border}`, borderRadius: R.md,
+              color: T.strong,
+              fontSize: FS.body, fontWeight: FW.medio,
               fontFamily: "inherit",
             }}
           >
@@ -341,23 +434,22 @@ export default function Login() {
                 fazia quem tem senha cadastrada sem ser admin achar que ali não
                 era para ele — e não havia outro lugar para usá-la. */}
             <span>Entrar com e-mail e senha</span>
-            {showAdminForm
-              ? <ChevronUp style={{ width: 15, height: 15 }} />
-              : <ChevronDown style={{ width: 15, height: 15 }} />
-            }
+            <ChevronDown aria-hidden="true" className="login-chevron" style={{ width: 15, height: 15, color: T.second }} />
           </button>
 
           {/* Admin email/password form */}
           {showAdminForm && (
             <form
               id="admin-login-form"
+              className="norte-surge"
               onSubmit={form.handleSubmit(onSubmit)}
+              noValidate
               style={{
-                display: "flex", flexDirection: "column", gap: 20,
-                marginTop: 4,
+                display: "flex", flexDirection: "column", gap: 18,
+                marginTop: 12,
                 padding: "20px",
-                backgroundColor: T.low,
-                borderRadius: 10,
+                backgroundColor: T.surface,
+                borderRadius: R.lg,
                 border: `1px solid ${T.border}`,
               }}
             >
@@ -367,86 +459,63 @@ export default function Login() {
                   no primeiro acesso" também não vale: o boot do servidor zera
                   must_change_password de todos (server/index.ts). A frase
                   antiga mandava gente esperar uma senha que ninguém entrega. */}
-              <p style={{ margin: 0, fontSize: 12, color: T.apoio, lineHeight: 1.5 }}>
+              <p style={{ margin: 0, fontSize: FS.meta, color: T.apoio, lineHeight: 1.55 }}>
                 Só para contas que já têm senha cadastrada. A equipe entra pelo portal NORTE, com a conta Microsoft — o cadastro de usuários não cria senha.
               </p>
 
               {/* Email */}
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <label htmlFor="email" style={{
-                  fontSize: 10, fontWeight: 700,
-                  textTransform: "uppercase", letterSpacing: "0.1em",
-                  color: T.second,
-                }}>Endereço de E-mail</label>
+                <label htmlFor="email" style={ROTULO}>E-mail</label>
                 <input
                   id="email"
                   type="email"
                   autoComplete="username"
+                  inputMode="email"
                   placeholder="nome@norte.com.br"
                   {...form.register("email")}
-                  aria-invalid={form.formState.errors.email ? true : undefined}
-                  aria-describedby={form.formState.errors.email ? "email-erro" : undefined}
+                  aria-invalid={erroEmail ? true : undefined}
+                  aria-describedby={erroEmail ? "email-erro" : undefined}
                   data-testid="input-email"
+                  className="login-campo"
                   style={{
-                    width: "100%", height: 48,
+                    width: "100%", height: 46,
                     backgroundColor: T.surface,
-                    border: `1.5px solid ${T.border}`,
-                    borderRadius: 8, padding: "0 14px",
-                    fontSize: 14, fontWeight: 500, color: T.text,
-                    boxSizing: "border-box", fontFamily: "inherit", outline: "none",
-                    transition: "border-color 0.2s, box-shadow 0.2s",
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = T.accent;
-                    e.currentTarget.style.boxShadow = "0 0 0 3px rgba(249,115,22,0.12)";
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = T.border;
-                    e.currentTarget.style.boxShadow = "none";
+                    border: `1px solid ${N.n5}`,
+                    borderRadius: R.md, padding: "0 14px",
+                    // 16px: abaixo disso o iOS dá zoom ao focar o campo.
+                    fontSize: FS.lead, fontWeight: FW.corpo, color: T.text,
+                    boxSizing: "border-box", fontFamily: "inherit",
                   }}
                 />
                 {/* #b91c1c: #dc2626 sobre o #f5f5f4 do formulário ficava abaixo
                     de 4,5:1 num texto de 12px. */}
-                {form.formState.errors.email && (
-                  <p id="email-erro" style={{ color: TOM.perigo.text, fontSize: 12, margin: 0 }}>{form.formState.errors.email.message}</p>
+                {erroEmail && (
+                  <p id="email-erro" style={{ color: TOM.perigo.text, fontSize: FS.meta, fontWeight: FW.medio, margin: 0 }}>{erroEmail.message}</p>
                 )}
               </div>
 
               {/* Password */}
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <label htmlFor="password" style={{
-                  fontSize: 10, fontWeight: 700,
-                  textTransform: "uppercase", letterSpacing: "0.1em",
-                  color: T.second,
-                }}>Senha de Acesso</label>
+                <label htmlFor="password" style={ROTULO}>Senha</label>
                 <div style={{ position: "relative" }}>
                   <input
                     id="password"
                     type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
-                    placeholder="••••••••••••"
                     {...form.register("password")}
-                    aria-invalid={form.formState.errors.password ? true : undefined}
-                    aria-describedby={[form.formState.errors.password ? "senha-erro" : "", capsLock ? "senha-caps" : ""].filter(Boolean).join(" ") || undefined}
+                    aria-invalid={erroSenha ? true : undefined}
+                    aria-describedby={[erroSenha ? "senha-erro" : "", capsLock ? "senha-caps" : ""].filter(Boolean).join(" ") || undefined}
                     onKeyUp={(e) => setCapsLock(e.getModifierState("CapsLock"))}
                     onKeyDown={(e) => setCapsLock(e.getModifierState("CapsLock"))}
                     data-testid="input-password"
+                    className="login-campo"
                     style={{
-                      width: "100%", height: 48,
+                      width: "100%", height: 46,
                       backgroundColor: T.surface,
-                      border: `1.5px solid ${T.border}`,
-                      borderRadius: 8, padding: "0 44px 0 14px",
-                      fontSize: 14, fontWeight: 500, color: T.text,
-                      boxSizing: "border-box", fontFamily: "inherit", outline: "none",
-                      transition: "border-color 0.2s, box-shadow 0.2s",
-                    }}
-                    onFocus={(e) => {
-                      e.currentTarget.style.borderColor = T.accent;
-                      e.currentTarget.style.boxShadow = "0 0 0 3px rgba(249,115,22,0.12)";
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = T.border;
-                      e.currentTarget.style.boxShadow = "none";
+                      border: `1px solid ${N.n5}`,
+                      borderRadius: R.md, padding: "0 48px 0 14px",
+                      fontSize: FS.lead, fontWeight: FW.corpo, color: T.text,
+                      boxSizing: "border-box", fontFamily: "inherit",
                     }}
                   />
                   <button
@@ -454,19 +523,22 @@ export default function Login() {
                     onClick={() => setShowPassword(v => !v)}
                     title={showPassword ? "Ocultar senha" : "Mostrar senha"}
                     aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                    aria-pressed={showPassword}
+                    className="login-olho"
+                    data-alvo-natural=""
                     // 36x36: o alvo era o ícone de 18px com 6 de folga.
-                    style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", width: 36, height: 36, borderRadius: 6, background: "none", border: "none", cursor: "pointer", color: T.second, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}
+                    style={{ position: "absolute", right: 5, top: "50%", transform: "translateY(-50%)", width: 36, height: 36, borderRadius: R.sm, background: "none", border: "none", cursor: "pointer", color: T.second, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}
                   >
                     {showPassword ? <EyeOff aria-hidden="true" style={{ width: 18, height: 18 }} /> : <Eye aria-hidden="true" style={{ width: 18, height: 18 }} />}
                   </button>
                 </div>
                 {capsLock && (
-                  <p id="senha-caps" role="status" style={{ color: TOM.alerta.text, fontSize: 12, margin: 0, fontWeight: 600 }}>
+                  <p id="senha-caps" role="status" style={{ color: TOM.alerta.text, fontSize: FS.meta, margin: 0, fontWeight: FW.medio }}>
                     Caps Lock está ligado.
                   </p>
                 )}
-                {form.formState.errors.password && (
-                  <p id="senha-erro" style={{ color: TOM.perigo.text, fontSize: 12, margin: 0 }}>{form.formState.errors.password.message}</p>
+                {erroSenha && (
+                  <p id="senha-erro" style={{ color: TOM.perigo.text, fontSize: FS.meta, fontWeight: FW.medio, margin: 0 }}>{erroSenha.message}</p>
                 )}
               </div>
 
@@ -476,61 +548,62 @@ export default function Login() {
                   data-testid="login-error-inline"
                   style={{
                     display: "flex", alignItems: "flex-start", gap: 10,
-                    backgroundColor: TOM.perigo.bg, border: `1.5px solid ${TOM.perigo.border}`,
-                    borderRadius: 8, padding: "12px 14px",
+                    backgroundColor: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}`,
+                    borderRadius: R.md, padding: "11px 14px",
                   }}
                 >
-                  <AlertTriangle style={{ width: 16, height: 16, color: TOM.perigo.text, flexShrink: 0, marginTop: 1 }} />
-                  <p style={{ margin: 0, fontSize: 12, color: TOM.perigo.text, lineHeight: 1.5 }}>{loginError}</p>
+                  <AlertTriangle aria-hidden="true" style={{ width: 16, height: 16, color: TOM.perigo.text, flexShrink: 0, marginTop: 1 }} />
+                  <p style={{ margin: 0, fontSize: FS.body, fontWeight: FW.medio, color: TOM.perigo.text, lineHeight: 1.5 }}>{loginError}</p>
                 </div>
               )}
 
               <button
                 type="submit"
                 disabled={loginMutation.isPending}
+                aria-busy={loginMutation.isPending || undefined}
                 data-testid="button-login"
                 className="login-submit-btn"
                 style={{
-                  width: "100%", height: 48,
+                  width: "100%", height: 46,
                   backgroundColor: T.text,
-                  color: "white", border: "none", borderRadius: 8,
-                  fontSize: 14, fontFamily: FONT.display, fontWeight: 700,
-                  cursor: loginMutation.isPending ? "not-allowed" : "pointer",
-                  opacity: loginMutation.isPending ? 0.8 : 1,
+                  color: T.surface, border: "none", borderRadius: R.md,
+                  fontSize: FS.read, fontFamily: FONT.display, fontWeight: FW.forte,
+                  cursor: loginMutation.isPending ? "wait" : "pointer",
+                  opacity: loginMutation.isPending ? 0.85 : 1,
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                  transition: "background-color 0.25s",
                 }}
               >
                 {loginMutation.isPending ? (
                   <>
-                    <Loader2 style={{ width: 16, height: 16, animation: "spin 0.8s linear infinite" }} />
-                    Entrando...
+                    <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 16, height: 16 }} />
+                    Entrando…
                   </>
                 ) : (
                   <>
-                    <span>Entrar no Sistema</span>
-                    <ArrowRight style={{ width: 16, height: 16 }} />
+                    <span>Entrar</span>
+                    <ArrowRight aria-hidden="true" className="login-seta" style={{ width: 16, height: 16 }} />
                   </>
                 )}
               </button>
             </form>
           )}
-        </div>
 
-        {/* Security seal */}
-        {/* "SSL 256-bit" era jargão de selo de template — promessa técnica
-            que ninguém confere e que não é deste sistema garantir. Fica o
-            fato que importa a quem digita a senha. */}
-        <footer className="login-seal" style={{
-          position: "absolute", bottom: 48, right: 48,
-          display: "flex", alignItems: "center", gap: 6,
-        }}>
-          <Lock aria-hidden="true" style={{ width: 13, height: 13, color: T.second }} />
-          <span style={{
-            fontSize: 10, fontWeight: 700,
-            textTransform: "uppercase", letterSpacing: "0.1em", color: T.second,
-          }}>Conexão segura</span>
-        </footer>
+          {/* "SSL 256-bit" era jargão de selo de template — promessa técnica
+              que ninguém confere e que não é deste sistema garantir. Fica o
+              fato que importa a quem digita a senha. No FLUXO, abaixo do
+              conteúdo: o selo absoluto no canto caía por cima do formulário
+              aberto em telas baixas. */}
+          <footer className="login-seal" style={{
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+            marginTop: 28,
+          }}>
+            <Lock aria-hidden="true" style={{ width: 12, height: 12, color: T.second }} />
+            <span style={{
+              fontSize: FS.micro, fontWeight: FW.forte,
+              textTransform: "uppercase", letterSpacing: "0.1em", color: T.second,
+            }}>Conexão segura</span>
+          </footer>
+        </div>
       </section>
     </main>
   );

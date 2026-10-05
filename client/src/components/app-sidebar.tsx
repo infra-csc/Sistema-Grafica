@@ -2,7 +2,7 @@ import {
   Calendar, CalendarRange, Palette, Printer, Layers, LayoutDashboard,
   Activity, BarChart3, Users, Building2, UserCheck, ClipboardCheck,
   Link2, LogOut, ScrollText, Archive, ScanSearch, Compass, Settings2, Camera, Wand2,
-  Timer, GitBranch, Bell, Inbox, Cog, PackageSearch,
+  Timer, GitBranch, Bell, Inbox, Cog, PackageSearch, X,
 } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -19,6 +19,7 @@ import { Botao } from "@/components/ui/botao";
 import { prefetchRota } from "@/lib/prefetch-de-rota";
 import { T, FS, R, N, H, FW, FONT, TOM } from "@/lib/theme";
 import { SOLICITACAO_AO_ESTOQUE_ATIVA } from "@shared/consultas-de-estoque";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import {
   Sidebar,
   SidebarContent,
@@ -195,8 +196,18 @@ const rotuloDoNumero = (url: string, n: number): string =>
     ? `${n} ${n === 1 ? "solicitação ao estoque esperando" : "solicitações ao estoque esperando"} resposta`
     : `${n} ${n === 1 ? "solicitação esperando" : "solicitações esperando"} ação`;
 
-function NavItem({ item, isActive, badge, grosso }: { item: MenuItem; isActive: boolean; badge?: number; grosso: boolean }) {
+/**
+ * DICA DO TRILHO — o nome do destino quando a barra está recolhida.
+ *
+ * Recolhida, a barra mostra só os ícones; o rótulo passa para a dica à
+ * direita, escura (a mesma superfície do avatar), para não ser confundida com
+ * um cartão da página.
+ */
+const CLASSE_DICA_DO_TRILHO = "border-0 bg-[#1c1917] px-2.5 py-1.5 text-[12px] font-semibold text-[#fafaf9] shadow-md";
+
+function NavItem({ item, isActive, badge, grosso, recolhida = false }: { item: MenuItem; isActive: boolean; badge?: number; grosso: boolean; recolhida?: boolean }) {
   const Icon = item.icon;
+  const testId = item.testId ?? `nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`;
   // `grosso` chega do AppSidebar (perf-7): eram 23 useIsMobile, um por item
   // — 23 listeners de matchMedia e 23 re-renders extras a cada montagem da
   // casca, para responder a mesma pergunta. Continua UM hook só, lá em cima.
@@ -209,12 +220,74 @@ function NavItem({ item, isActive, badge, grosso }: { item: MenuItem; isActive: 
   const [focus, setFocus] = useState(false);
   const highlighted = !isActive && (hover || focus);
 
+  // ── RECOLHIDA: o trilho de ícones ─────────────────────────────────────────
+  // Antes, recolher a barra a fazia SUMIR (offcanvas): para trocar de tela era
+  // preciso abri-la de novo, e a navegação inteira ficava a um clique extra. O
+  // trilho mantém cada destino a um clique, com o nome na dica. Mesmo link,
+  // mesma pré-carga, mesmo `aria-current` — só sem o rótulo visível.
+  if (recolhida) {
+    const lado = alvo(H.md, grosso);
+    const contagem = badge !== undefined && badge > 0 ? rotuloDoNumero(item.url, badge) : null;
+    return (
+      <SidebarMenuItem style={{ margin: 0, display: "flex", justifyContent: "center" }}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Link
+              href={item.url}
+              data-testid={testId}
+              data-sidebar="menu-button"
+              data-active={isActive}
+              aria-current={isActive ? "page" : undefined}
+              aria-label={contagem ? `${item.title} — ${contagem}` : item.title}
+              aria-description={DESCRICAO_DA_TELA[item.url]}
+              className="csc-trilho-item"
+              onMouseEnter={() => prefetchRota(item.url)}
+              onFocus={() => prefetchRota(item.url)}
+              onTouchStart={() => prefetchRota(item.url)}
+              style={{
+                position: "relative",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                width: lado, height: lado, flexShrink: 0,
+                borderRadius: 9,
+                color: isActive ? T.accentText : T.apoio,
+                backgroundColor: isActive ? TOM.laranja.bg : undefined,
+                boxShadow: isActive ? `inset 0 0 0 1px ${TOM.laranja.border}` : undefined,
+                textDecoration: "none",
+              }}
+            >
+              <Icon aria-hidden="true" style={{ width: 18, height: 18, color: isActive ? T.accentText : undefined }} />
+              {contagem && (
+                <span
+                  data-testid={`badge-${item.url.replace(/^\//, "")}`}
+                  aria-hidden="true"
+                  style={{
+                    position: "absolute", top: -3, right: -3,
+                    minWidth: 16, height: 16, padding: "0 4px", boxSizing: "border-box",
+                    borderRadius: R.pill, border: `2px solid ${T.surface}`,
+                    backgroundColor: T.accentText, color: T.surface,
+                    fontSize: FS.micro, fontWeight: FW.forte, lineHeight: "12px", textAlign: "center",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {badge! > 9 ? "9+" : badge}
+                </span>
+              )}
+            </Link>
+          </TooltipTrigger>
+          <TooltipContent side="right" sideOffset={10} className={CLASSE_DICA_DO_TRILHO}>
+            {item.title}{contagem ? ` · ${badge}` : ""}
+          </TooltipContent>
+        </Tooltip>
+      </SidebarMenuItem>
+    );
+  }
+
   return (
     <SidebarMenuItem style={{ margin: "0 8px" }}>
       <SidebarMenuButton
         asChild
         isActive={isActive}
-        data-testid={item.testId ?? `nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+        data-testid={testId}
       >
         <Link
           href={item.url}
@@ -243,11 +316,10 @@ function NavItem({ item, isActive, badge, grosso }: { item: MenuItem; isActive: 
             // distingue a cor.
             color: isActive ? T.accentText : highlighted ? T.strong : T.apoio,
             backgroundColor: isActive ? TOM.laranja.bg : highlighted ? T.bg : "transparent",
-            // undefined (não "none"): "none" sobrescrevia o focus-ring que o
-            // CSS global aplica via box-shadow.
-            // 2px: com o item mais baixo, 3px de trilho ficavam grossos demais
-            // para a altura da linha.
-            boxShadow: isActive ? `inset 2px 0 0 ${T.accent}` : undefined,
+            // O "ativo" para quem não distingue a cor é a marquinha à esquerda
+            // (abaixo). Era um `inset 2px` de box-shadow, que no canto de raio
+            // 9 virava um arco — uma meia-lua laranja, não uma marca.
+            position: "relative",
             textDecoration: "none",
             transition: "background-color 0.12s ease, color 0.12s ease",
             boxSizing: "border-box",
@@ -261,6 +333,9 @@ function NavItem({ item, isActive, badge, grosso }: { item: MenuItem; isActive: 
           onTouchStart={() => prefetchRota(item.url)}
           onBlur={() => setFocus(false)}
         >
+          {isActive && (
+            <span aria-hidden="true" style={{ position: "absolute", left: 0, top: "50%", width: 3, height: 16, marginTop: -8, borderRadius: "0 3px 3px 0", backgroundColor: T.accent }} />
+          )}
           <Icon
             aria-hidden="true"
             style={{
@@ -269,9 +344,10 @@ function NavItem({ item, isActive, badge, grosso }: { item: MenuItem; isActive: 
               // `#a8a29e` é a exceção que o próprio theme.ts documenta —
               // proibido como texto, permitido em ícone.
               width: 17, height: 17, flexShrink: 0,
-              color: isActive ? T.accentText : T.muted,
-              filter: isActive ? "drop-shadow(0 0 3px rgba(249,115,22,0.25))" : "none",
-              transition: "filter 0.12s ease, color 0.12s ease",
+              // Sem o brilho laranja no ícone ativo: o fundo, o peso e a
+              // marquinha já dizem "você está aqui" — um quarto sinal era enfeite.
+              color: isActive ? T.accentText : highlighted ? T.apoio : T.muted,
+              transition: "color 0.12s ease",
             }}
           />
           {/* `title` + reticência: "Vincular Patrocinadores" é o rótulo mais
@@ -320,6 +396,7 @@ function NavGroup({
   badges,
   first = false,
   grosso,
+  recolhida = false,
 }: {
   // null = grupo único visível para o papel; o rótulo vira ruído e some.
   label: string | null;
@@ -329,25 +406,29 @@ function NavGroup({
   badges?: Record<string, number | undefined>;
   first?: boolean;
   grosso: boolean;
+  /** Barra recolhida em trilho de ícones (desktop). */
+  recolhida?: boolean;
 }) {
   // O rótulo visual da seção não nomeava a lista para leitores de tela —
   // todos os grupos eram anunciados como listas anônimas.
   const labelId = useId();
   return (
-    <SidebarGroup style={{ padding: first ? "8px 0 4px" : "12px 0 4px" }}>
+    <SidebarGroup style={{ padding: first ? "8px 0 4px" : recolhida ? "4px 0 4px" : "12px 0 4px" }}>
       {/* RÉGUA no lugar de vão.
 
           A separação entre grupos era 20px de ar em cima de cada um. Com
           quatro grupos e 18 itens isso é ~80px gastos em espaço vazio numa
           coluna que precisa caber inteira sem rolar. Um hairline separa com
           1px o que o vão separava com 20 — e a régua diz "grupo novo" de
-          forma mais explícita que a distância. */}
-      {!first && <div aria-hidden="true" style={{ height: 1, backgroundColor: N.n3, margin: "14px 18px 0" }} />}
-      {label !== null && <span id={labelId} style={sectionLabelStyle}>{label}</span>}
+          forma mais explícita que a distância. No trilho, a régua é o ÚNICO
+          sinal de grupo (o rótulo não cabe), e encurta para a largura dele. */}
+      {!first && <div aria-hidden="true" style={{ height: 1, backgroundColor: N.n3, margin: "14px 18px 0", ...(recolhida ? { margin: "6px 14px 8px" } : {}) }} />}
+      {/* No trilho o rótulo sai da vista mas continua nomeando a lista. */}
+      {label !== null && <span id={labelId} className={recolhida ? "sr-only" : undefined} style={recolhida ? undefined : sectionLabelStyle}>{label}</span>}
       <SidebarGroupContent>
-        <SidebarMenu style={{ gap: 1 }} aria-labelledby={label !== null ? labelId : undefined}>
+        <SidebarMenu style={{ gap: recolhida ? 4 : 1 }} aria-labelledby={label !== null ? labelId : undefined}>
           {items.map((item) => (
-            <NavItem key={item.title} item={item} isActive={isItemActive(item.url)} badge={badges?.[item.url]} grosso={grosso} />
+            <NavItem key={item.title} item={item} isActive={isItemActive(item.url)} badge={badges?.[item.url]} grosso={grosso} recolhida={recolhida} />
           ))}
         </SidebarMenu>
       </SidebarGroupContent>
@@ -371,8 +452,11 @@ export function AppSidebar() {
   // tela; tocar num item trocava a página POR BAIXO dele e o menu continuava
   // aberto, cobrindo justamente o destino. Eram dois toques para cada
   // navegação, e o segundo (fechar) não tinha nada a ver com a intenção.
-  const { setOpenMobile } = useSidebar();
+  const { setOpenMobile, state: estadoDaBarra, isMobile: barraEmFolha } = useSidebar();
   useEffect(() => { setOpenMobile(false); }, [location, setOpenMobile]);
+  // Recolhida = trilho de ícones. Só no desktop: no celular a barra é folha e
+  // abre sempre inteira.
+  const recolhida = estadoDaBarra === "collapsed" && !barraEmFolha;
 
   // 19 itens nao cabem numa tela de 768: a lista rola, e a barra fica sempre
   // com a mesma largura para nada se mover quando o ponteiro entra — o que
@@ -429,6 +513,10 @@ export function AppSidebar() {
   // nada de nada — é só ruído acima da lista.
   const singleGroup = groups.length === 1;
 
+
+  const nomeDoUsuario = user?.name ?? "Usuário";
+  const perfil = rotuloDoPerfilCompleto(user);
+
   return (
     // backgroundColor/borderRight ficavam no style — que o Sheet mobile
     // descarta. Como className, o desktop os aplica e o mobile herda o
@@ -437,53 +525,86 @@ export function AppSidebar() {
     // O hex fica LITERAL aqui: valor arbitrário de Tailwind é lido em tempo de
     // build, e uma classe montada em runtime a partir do token simplesmente
     // não existiria na folha gerada. É o mesmo #e7e5e4 de T.border.
-    <Sidebar className="bg-white border-r border-[#e7e5e4]">
+    //
+    // `collapsible="icon"`: recolher vira TRILHO de ícones, não sumiço (ver
+    // NavItem). `csc-sidebar` alarga o trilho para o alvo de 36/44 caber
+    // com respiro (index.css, bloco csc-).
+    <Sidebar collapsible="icon" className="csc-sidebar bg-white border-r border-[#e7e5e4]">
       {/* ── Header ── */}
       {/* O cabeçalho da marca fecha com hairline em vez de flutuar sobre a
-          lista, e devolve ~14px de altura útil para os 18 itens. */}
-      <SidebarHeader style={{ padding: "22px 18px 18px", borderBottom: `1px solid ${N.n3}` }}>
+          lista, e devolve ~14px de altura útil para os 18 itens. A marca é a
+          MESMA da tela de entrada: bússola laranja num quadrado escuro. */}
+      <SidebarHeader style={{ height: 64, flexShrink: 0, padding: recolhida ? 0 : "0 12px 0 16px", borderBottom: `1px solid ${N.n3}`, justifyContent: "center", alignItems: recolhida ? "center" : "stretch" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Compass
-            style={{
-              width: 20, height: 20, color: T.accent, flexShrink: 0, strokeWidth: 2.2,
-              filter: "drop-shadow(0 2px 4px rgba(249,115,22,0.15))",
-            }}
-          />
-          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-            <span style={{
-              fontFamily: FONT.display,
-              fontSize: 16,
-              fontWeight: 800,
-              letterSpacing: "-0.05em",
-              textTransform: "uppercase",
-              color: T.text,
-              lineHeight: 0.9,
-            }}>
-              NORTE
-            </span>
-            <span style={{
-              fontFamily: FONT.display,
-              fontSize: 9,
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: "0.25em",
-              color: T.second,
-              lineHeight: 1,
-              marginTop: 3,
-            }}>
-              Marketing Esportivo
-            </span>
-          </div>
+          <span aria-hidden="true" style={{
+            width: 30, height: 30, borderRadius: R.md, flexShrink: 0,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            backgroundColor: T.text,
+          }}>
+            <Compass style={{ width: 16, height: 16, color: "#fb923c", strokeWidth: 2.2 }} />
+          </span>
+          {!recolhida && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 0, flex: 1, minWidth: 0 }}>
+              <span style={{
+                fontFamily: FONT.display,
+                fontSize: 16,
+                fontWeight: 800,
+                letterSpacing: "-0.04em",
+                textTransform: "uppercase",
+                color: T.text,
+                lineHeight: 1,
+              }}>
+                NORTE
+              </span>
+              {/* 10px (FS.micro), não 9: abaixo do piso de leitura da casa. */}
+              <span style={{
+                fontFamily: FONT.display,
+                fontSize: FS.micro,
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.2em",
+                color: T.second,
+                lineHeight: 1,
+                marginTop: 4,
+                whiteSpace: "nowrap",
+              }}>
+                Marketing Esportivo
+              </span>
+            </div>
+          )}
+          {/* NO CELULAR A FOLHA TEM UM "FECHAR". Antes só tocar no escuro ao
+              lado fechava o menu — gesto que ninguém adivinha de primeira. */}
+          {barraEmFolha && (
+            <button
+              type="button"
+              onClick={() => setOpenMobile(false)}
+              aria-label="Fechar menu"
+              data-testid="button-fechar-menu"
+              className="csc-fechar-menu"
+              style={{
+                width: 44, height: 44, marginRight: -6, flexShrink: 0,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                border: "none", borderRadius: R.md, background: "transparent",
+                color: T.apoio, cursor: "pointer",
+              }}
+            >
+              <X aria-hidden="true" style={{ width: 18, height: 18 }} />
+            </button>
+          )}
         </div>
       </SidebarHeader>
 
       {/* ── Content ── */}
       {/* O hover da barra de rolagem saiu do React e foi para o CSS: era
           estado que redesenhava a sidebar inteira a cada entrada e saída do
-          ponteiro, para trocar uma classe. `:hover` faz o mesmo sem render. */}
+          ponteiro, para trocar uma classe. `:hover` faz o mesmo sem render.
+          No trilho a lista também ROLA: o padrão do shadcn esconde o excesso,
+          e os 26 itens do admin não cabem numa janela de 768px. */}
       <SidebarContent
         className="sidebar-scroll"
         style={{
+          // Inline vence a classe do shadcn que esconde o excesso no trilho.
+          overflowY: "auto", overflowX: "hidden",
           padding: "0 0 8px",
           display: "flex",
           flexDirection: "column",
@@ -502,6 +623,7 @@ export function AppSidebar() {
               badges={badges}
               first={i === 0}
               grosso={grosso}
+              recolhida={recolhida}
             />
           ))}
         </nav>
@@ -510,11 +632,37 @@ export function AppSidebar() {
       {/* ── Footer: user + logout ── */}
       <SidebarFooter
         style={{
-          padding: "16px 16px",
-          borderTop: `1px solid ${T.low}`,
+          padding: recolhida ? "12px 0" : "14px 14px 14px 16px",
+          borderTop: `1px solid ${N.n3}`,
           marginTop: "auto",
+          alignItems: recolhida ? "center" : "stretch",
         }}
       >
+        {recolhida ? (
+          // No trilho, só o avatar — com o nome e o perfil na dica. "Sair"
+          // continua no menu da conta, no canto da barra de cima.
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                tabIndex={0}
+                role="img"
+                aria-label={`${nomeDoUsuario} — ${perfil}`}
+                data-testid="avatar-trilho"
+                style={{
+                  width: 34, height: 34, borderRadius: "50%",
+                  backgroundColor: T.text,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontFamily: FONT.display, color: "#fb923c", fontSize: FS.meta, fontWeight: FW.forte, letterSpacing: "-0.02em",
+                }}
+              >
+                {userInitials(user?.name)}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="right" sideOffset={10} className={CLASSE_DICA_DO_TRILHO}>
+              {nomeDoUsuario} · {perfil}
+            </TooltipContent>
+          </Tooltip>
+        ) : (
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {/* Avatar — mesma identidade do avatar da topbar */}
           <div style={{
@@ -546,14 +694,14 @@ export function AppSidebar() {
               overflow: "hidden", wordBreak: "break-word",
               display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
             }}>
-              {user?.name ?? "Usuário"}
+              {nomeDoUsuario}
             </p>
             <p style={{
-              fontFamily: FONT.display,
-              fontSize: FS.small, color: T.second,
-              margin: 0, lineHeight: 1.3, textTransform: "capitalize",
+              fontFamily: FONT.corpo,
+              fontSize: FS.small, fontWeight: FW.medio, color: T.second,
+              margin: "1px 0 0", lineHeight: 1.3,
             }}>
-              {rotuloDoPerfilCompleto(user)}
+              {perfil}
             </p>
           </div>
 
@@ -568,6 +716,7 @@ export function AppSidebar() {
             .sair-da-casca:focus-visible {
               color: ${TOM.perigo.text} !important;
               border-color: ${TOM.perigo.border} !important;
+              background-color: ${TOM.perigo.bg} !important;
             }
           `}</style>
           <Botao
@@ -585,6 +734,7 @@ export function AppSidebar() {
             }}
           />
         </div>
+        )}
       </SidebarFooter>
 
       <SidebarRail />

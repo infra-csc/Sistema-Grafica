@@ -19,7 +19,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { KeyRound, Eye, EyeOff, Check, X, AlertCircle, ArrowLeft } from "lucide-react";
+import { KeyRound, Eye, EyeOff, Check, AlertCircle, ArrowLeft, Loader2 } from "lucide-react";
+import { T, TOM, FW, FONT } from "@/lib/theme";
 
 // Fundo da casa, e não o degradê primário→acento do template: dentro da casca
 // autenticada ele virava uma mancha laranja atrás de um formulário de três
@@ -165,12 +166,15 @@ export default function ChangePassword() {
             </button>
           )}
           <div className="flex justify-center mb-4">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ backgroundColor: "#fff7ed" }}>
-              <KeyRound className="w-7 h-7" style={{ color: "#c2410c" }} aria-hidden="true" />
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ backgroundColor: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}` }}>
+              <KeyRound className="w-7 h-7" style={{ color: T.accentText }} aria-hidden="true" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">
-            {isFirstLogin ? "Primeiro Acesso" : "Alterar Senha"}
+          <CardTitle className="text-2xl font-bold" style={{ fontFamily: FONT.display, letterSpacing: "-0.03em" }}>
+            {/* <h1> da página: a barra de cima esconde o título dela enquanto
+                este está à vista — sem ele, "Alterar senha" aparecia duas
+                vezes, uma em cima da outra. */}
+            <h1 style={{ font: "inherit", letterSpacing: "inherit", margin: 0 }}>{isFirstLogin ? "Primeiro acesso" : "Alterar senha"}</h1>
           </CardTitle>
           <CardDescription>
             {/* O QUE ACONTECE DEPOIS, antes do clique. No primeiro acesso: para
@@ -189,7 +193,7 @@ export default function ChangePassword() {
                 type="button"
                 onClick={() => setShowPasswords(v => !v)}
                 aria-pressed={showPasswords}
-                className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                className="flex items-center gap-1.5 min-h-9 -ml-2 px-2 rounded-md text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-[#f5f5f4] transition-colors"
               >
                 {showPasswords ? <EyeOff className="w-3.5 h-3.5" aria-hidden="true" /> : <Eye className="w-3.5 h-3.5" aria-hidden="true" />}
                 {showPasswords ? "Ocultar senhas" : "Mostrar senhas"}
@@ -200,11 +204,10 @@ export default function ChangePassword() {
                   name="currentPassword"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Senha Atual</FormLabel>
+                      <FormLabel>Senha atual</FormLabel>
                       <FormControl>
                         <Input
                           type={passwordType}
-                          placeholder="••••••••"
                           autoComplete="current-password"
                           data-testid="input-current-password"
                           {...field}
@@ -223,11 +226,10 @@ export default function ChangePassword() {
                 name="newPassword"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Nova Senha</FormLabel>
+                    <FormLabel>Nova senha</FormLabel>
                     <FormControl>
                       <Input
                         type={passwordType}
-                        placeholder="••••••••"
                         autoComplete="new-password"
                         data-testid="input-new-password"
                         {...field}
@@ -245,11 +247,10 @@ export default function ChangePassword() {
                 name="confirmPassword"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Confirmar Nova Senha</FormLabel>
+                    <FormLabel>Confirmar a nova senha</FormLabel>
                     <FormControl>
                       <Input
                         type={passwordType}
-                        placeholder="••••••••"
                         autoComplete="new-password"
                         data-testid="input-confirm-password"
                         {...field}
@@ -266,9 +267,14 @@ export default function ChangePassword() {
                 {requirements.map(req => (
                   <li
                     key={req.label}
-                    className={`flex items-center gap-1.5 text-xs ${req.ok ? "text-green-700" : "text-muted-foreground"}`}
+                    className="flex items-center gap-2 text-xs"
+                    style={{ color: req.ok ? TOM.sucesso.text : T.second, fontWeight: req.ok ? FW.medio : FW.corpo, transition: "color 0.12s ease" }}
                   >
-                    {req.ok ? <Check className="w-3.5 h-3.5" aria-hidden="true" /> : <X className="w-3.5 h-3.5" aria-hidden="true" />}
+                    {/* Bolinha que ENCHE quando o requisito é atendido — o X
+                        cinza lia como erro antes mesmo de a pessoa digitar. */}
+                    <span aria-hidden="true" className="inline-flex items-center justify-center w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: req.ok ? TOM.sucesso.bg : "transparent", border: `1px solid ${req.ok ? TOM.sucesso.border : T.bdark}`, transition: "background-color 0.12s ease, border-color 0.12s ease" }}>
+                      {req.ok && <Check className="w-2.5 h-2.5" strokeWidth={3} />}
+                    </span>
                     <span>
                       {req.label}
                       <span className="sr-only">{req.ok ? " — atendido" : " — pendente"}</span>
@@ -282,6 +288,7 @@ export default function ChangePassword() {
                 disabled={changePasswordMutation.isPending}
                 data-testid="button-change-password"
               >
+                {changePasswordMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" aria-hidden="true" />}
                 {changePasswordMutation.isPending ? "Salvando…" : isFirstLogin ? "Criar senha e entrar" : "Salvar nova senha"}
               </Button>
             </form>

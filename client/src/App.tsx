@@ -5,7 +5,7 @@ import { haVersaoNova, onVersaoNova } from "@/lib/versao-do-app";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarTrigger, SidebarInset, useSidebar } from "@/components/ui/sidebar";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -18,7 +18,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { NotificationBell, type Notification } from "@/components/notification-bell";
 import { BuscaGlobal, abrirBuscaGlobal } from "@/components/busca-global";
 import { FullPageLoader } from "@/components/full-page-loader";
-import { Search, WifiOff, RefreshCw } from "lucide-react";
+import { Search, WifiOff, RefreshCw, ChevronDown, Check, Eye, KeyRound, LogOut, Loader2 } from "lucide-react";
 import { AuthProvider, useAuth } from "@/contexts/auth-context";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { roleLabel, rotuloDoPerfilCompleto, userInitials } from "@/lib/utils";
@@ -26,7 +26,7 @@ import { useToast, toast as toastGlobal } from "@/hooks/use-toast";
 import { useLogout } from "@/hooks/use-logout";
 import { useWebSocket, onConexaoTempoReal } from "@/hooks/use-websocket";
 import { useEffect, useState, Component, lazy, Suspense, type ReactNode, type ComponentType } from "react";
-import { T, N, R } from "@/lib/theme";
+import { T, N, R, FS, FW, FONT, TOM, ESCURO } from "@/lib/theme";
 
 /**
  * lazy() com rede: se o chunk falhar ao baixar (deploy trocou os arquivos no
@@ -610,16 +610,46 @@ function AvisoDeConexao() {
       role="status"
       data-testid="aviso-conexao"
       style={{
-        display: "flex", alignItems: "center", justifyContent: "center", gap: 8, flexWrap: "wrap",
-        padding: "7px 16px", backgroundColor: "#fffbeb", borderBottom: "1px solid #fde68a",
-        color: "#78350f", fontSize: 12.5, fontWeight: 600, textAlign: "center",
+        // Sem quebrar o ícone para uma linha própria: no celular o texto
+        // quebra AO LADO dele, alinhado à esquerda.
+        display: "flex", alignItems: "center", justifyContent: "center", gap: 8, flexWrap: "nowrap",
+        padding: "7px 16px", backgroundColor: TOM.alerta.bg, borderBottom: `1px solid ${TOM.alerta.border}`,
+        // TOM_FORTE.alerta.text (#92400e): 7,1:1 sobre o âmbar claro — o
+        // #b45309 do TOM.alerta.text fica no limite num texto de 13px.
+        color: "#92400e", fontSize: FS.body, fontWeight: FW.medio, textAlign: "left", lineHeight: 1.4,
       }}
     >
       <Icone aria-hidden="true" className={semInternet ? undefined : "animate-spin"} style={{ width: 14, height: 14, flexShrink: 0, animationDuration: "2s" }} />
-      {semInternet
-        ? "Sem internet. O que você fizer agora pode não chegar ao servidor."
-        : "Reconectando ao tempo real… As telas podem estar desatualizadas até voltar."}
+      <span style={{ minWidth: 0 }}>
+        {semInternet
+          ? "Sem internet. O que você fizer agora pode não chegar ao servidor."
+          : "Reconectando ao tempo real… As telas podem estar desatualizadas até voltar."}
+      </span>
     </div>
+  );
+}
+
+/**
+ * O AVATAR DA CASCA — iniciais em laranja claro sobre o escuro.
+ *
+ * O mesmo desenho do avatar do rodapé da barra lateral, agora também no
+ * cabeçalho do menu da conta (antes só nome e perfil, sem rosto). `ESCURO.foco` (#fb923c) é o
+ * laranja que passa sobre o escuro (6,4:1 no pior ponto).
+ */
+function AvatarDaCasca({ nome, tamanho }: { nome?: string | null; tamanho: number }) {
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        width: tamanho, height: tamanho, borderRadius: "50%", flexShrink: 0,
+        backgroundColor: ESCURO.fundo,
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        fontFamily: FONT.display, fontSize: Math.round(tamanho * 0.42), fontWeight: FW.forte,
+        color: ESCURO.foco, letterSpacing: "-0.02em", lineHeight: 1,
+      }}
+    >
+      {userInitials(nome)}
+    </span>
   );
 }
 
@@ -674,6 +704,10 @@ function AuthenticatedLayout() {
   // o hook compartilhado.
   const logoutMutation = useLogout();
 
+  // O gatilho da barra lateral diz o que vai acontecer ao clicar.
+  const { state: estadoDaBarra, isMobile: barraEmFolha, openMobile: barraAbertaNoCelular } = useSidebar();
+  const rotuloDoGatilho = barraEmFolha ? "Abrir menu" : estadoDaBarra === "expanded" ? "Recolher menu" : "Expandir menu";
+
   // Título de página: um rótulo por rota, visível na topbar e na aba do
   // navegador — antes toda aba se chamava igual.
   const pageLabel = getRouteLabel(location);
@@ -693,6 +727,7 @@ function AuthenticatedLayout() {
   const [h1Visivel, setH1Visivel] = useState(false);
   useEffect(() => {
     let obs: IntersectionObserver | null = null;
+    let espera: MutationObserver | null = null;
     let raf = 0;
     const ligar = () => {
       const alvo = document.querySelector("main h1");
@@ -707,8 +742,21 @@ function AuthenticatedLayout() {
       return true;
     };
     setH1Visivel(false);
-    if (!ligar()) raf = requestAnimationFrame(() => { ligar(); });
-    return () => { if (raf) cancelAnimationFrame(raf); obs?.disconnect(); };
+    // As telas são carregadas sob demanda (lazy) e o <h1> chega DEPOIS do
+    // esqueleto — às vezes segundos depois. Um único quadro de espera não
+    // bastava: o observador desistia, e o título ficava duplicado na barra
+    // em cima do <h1> da página ("Painel Geral" / "Painel Geral"). Agora a
+    // casca espera o <h1> aparecer no <main> e só então liga o observador.
+    if (!ligar()) {
+      raf = requestAnimationFrame(() => {
+        if (ligar()) return;
+        const main = document.getElementById("conteudo");
+        if (!main) return;
+        espera = new MutationObserver(() => { if (ligar()) { espera?.disconnect(); espera = null; } });
+        espera.observe(main, { childList: true, subtree: true });
+      });
+    }
+    return () => { if (raf) cancelAnimationFrame(raf); espera?.disconnect(); obs?.disconnect(); };
   }, [location]);
   // A aba conta as não lidas: quem trabalha com o NORTE numa aba de fundo
   // (planilha na frente) via o aviso só quando voltava por outro motivo.
@@ -754,9 +802,12 @@ function AuthenticatedLayout() {
           className="sticky top-0 z-50 w-full px-6 max-md:px-3"
           style={{
             height: 64,
-            backgroundColor: "rgba(249,249,248,0.85)",
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
+            // BRANCO, como o cabeçalho da barra lateral: os dois fecham um "L"
+            // contínuo de moldura em volta da tela, e a página (n1) fica como
+            // a área de trabalho. O vidro fosco (blur + 85%) não tinha o que
+            // borrar — a rolagem mora no <main>, abaixo da barra, e nada passa
+            // por trás dela.
+            backgroundColor: T.surface,
             // Borda, não sombra. A sombra caía sobre um fundo quase da mesma
             // cor da barra: em vez de destacar, sujava a linha de baixo com um
             // degradê de 32px que nunca chegava a parecer separação.
@@ -773,10 +824,15 @@ function AuthenticatedLayout() {
                 formas: fantasma de 44, fantasma redondo e pílula sem borda.
                 Agora são a mesma peça — 36 no ponteiro, 44 no toque, contorno
                 de 1px e raio 9 — e a barra passa a ter uma gramática só. */}
+            {/* O gatilho diz o que VAI fazer: "Recolher menu" com a barra
+                aberta, "Expandir menu" com ela em trilho, "Abrir menu" no
+                celular (onde ela é folha). Era um "Abrir/fechar" para tudo. */}
             <SidebarTrigger
               data-testid="button-sidebar-toggle"
-              className="h-9 w-9 md:h-9 md:w-9 max-md:h-11 max-md:w-11 rounded-[9px] border border-[#e7e5e4] bg-white shrink-0"
-              title={`Abrir/fechar menu (${IS_MAC ? "⌘B" : "Ctrl+B"})`}
+              className="csc-barra-btn h-9 w-9 md:h-9 md:w-9 max-md:h-11 max-md:w-11 rounded-[9px] border border-[#e7e5e4] bg-white shrink-0 text-[#57534e]"
+              title={`${rotuloDoGatilho} (${IS_MAC ? "⌘B" : "Ctrl+B"})`}
+              aria-label={rotuloDoGatilho}
+              aria-expanded={barraEmFolha ? barraAbertaNoCelular : estadoDaBarra === "expanded"}
             />
             {pageLabel && (
               <span
@@ -787,8 +843,9 @@ function AuthenticatedLayout() {
                 // controles da direita não dão um pulo lateral a cada rolagem.
                 aria-hidden={h1Visivel ? "true" : undefined}
                 style={{
-                  fontFamily: "'Space Grotesk', sans-serif",
-                  fontSize: 14, fontWeight: 700, color: "#1c1917",
+                  fontFamily: FONT.display,
+                  fontSize: FS.strong, fontWeight: FW.forte, color: T.text, letterSpacing: "-0.01em",
+                  paddingLeft: 4,
                   flex: "1 1 auto", minWidth: 0,
                   whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                   opacity: h1Visivel ? 0 : 1,
@@ -815,11 +872,15 @@ function AuthenticatedLayout() {
               // guardava o Ctrl+K num `title` que só aparece para quem para o
               // ponteiro em cima — quem nunca usou não descobria nenhum dos dois.
               // Abaixo de 1024 volta a ser o quadrado de 36/44 dos vizinhos.
-              className="h-9 w-9 max-md:h-11 max-md:w-11 lg:w-auto lg:px-3 lg:gap-2 rounded-[9px] border border-[#e7e5e4] bg-white shrink-0 flex items-center justify-center cursor-pointer"
+              // Em tela bem larga (≥1280) ela vira um CAMPO de busca de 240px —
+              // a forma que todo mundo reconhece como "digite aqui" — com o
+              // atalho encostado à direita.
+              className="csc-barra-btn h-9 w-9 max-md:h-11 max-md:w-11 lg:w-auto lg:px-3 lg:gap-2 xl:w-60 xl:justify-start rounded-[9px] border border-[#e7e5e4] bg-white shrink-0 flex items-center justify-center cursor-pointer"
             >
-              <Search aria-hidden="true" style={{ width: 16, height: 16, color: "#57534e" }} />
-              <span aria-hidden="true" className="hidden lg:inline" style={{ fontSize: 12.5, fontWeight: 600, color: "#57534e" }}>Buscar</span>
-              <kbd aria-hidden="true" className="hidden lg:inline" style={{ fontFamily: "inherit", fontSize: 10.5, fontWeight: 700, color: "#746e69", backgroundColor: "#f5f5f4", border: "1px solid #e7e5e4", borderRadius: 5, padding: "1px 5px" }}>
+              <Search aria-hidden="true" style={{ width: 16, height: 16, color: T.apoio, flexShrink: 0 }} />
+              <span aria-hidden="true" className="hidden lg:inline xl:hidden" style={{ fontSize: FS.body, fontWeight: FW.medio, color: T.apoio }}>Buscar</span>
+              <span aria-hidden="true" className="hidden xl:inline" style={{ fontSize: FS.body, fontWeight: FW.corpo, color: T.second, whiteSpace: "nowrap" }}>Buscar peça ou evento…</span>
+              <kbd aria-hidden="true" className="csc-kbd hidden lg:inline xl:ml-auto" style={{ fontFamily: FONT.corpo, fontSize: FS.micro, fontWeight: FW.forte, color: T.second, backgroundColor: N.n1, border: `1px solid ${T.border}`, borderRadius: 5, padding: "1px 6px", lineHeight: "16px", whiteSpace: "nowrap", transition: "border-color 0.12s ease" }}>
                 {IS_MAC ? "⌘K" : "Ctrl K"}
               </kbd>
             </button>
@@ -853,69 +914,63 @@ function AuthenticatedLayout() {
                   // Altura pela classe: a mesma régua dos vizinhos (36 no
                   // ponteiro, 44 no toque). No inline ela ficava em 36 também
                   // no celular — o único controle da barra abaixo do alvo.
-                  className="h-9 max-md:h-11 max-md:!pl-[9px]"
+                  className="csc-barra-btn h-9 max-md:h-11 max-md:!pl-[9px]"
                   style={{
                     display: "flex", alignItems: "center", gap: 8,
                     padding: "0 5px 0 12px",
-                    backgroundColor: "#ffffff", border: "1px solid #e7e5e4",
-                    borderRadius: 999,
+                    backgroundColor: T.surface, border: `1px solid ${T.border}`,
+                    borderRadius: R.pill,
                     cursor: "pointer", flexShrink: 0,
                   }}
                 >
                   <div className="hidden md:block" style={{ textAlign: "right", lineHeight: 1.2 }}>
-                    <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: "#1c1917", whiteSpace: "nowrap" }}>
+                    <p style={{ margin: 0, fontSize: FS.meta, fontWeight: FW.forte, color: T.text, whiteSpace: "nowrap" }}>
                       {user?.name}
                     </p>
-                    <p style={{ margin: 0, fontSize: 10, color: "#746e69", textTransform: "capitalize", whiteSpace: "nowrap" }}>
+                    {/* 11 e não 10: o perfil é informação (inclusive "· Cultura"
+                        e "· Kit", que mudam o que a pessoa pode fazer). */}
+                    <p style={{ margin: 0, fontSize: FS.small, fontWeight: FW.corpo, color: T.second, whiteSpace: "nowrap" }}>
                       {rotuloDoPerfilCompleto(user)}
                     </p>
                   </div>
-                  <div
-                    style={{
-                      // 26 e sem o anel duplo: o `boxShadow` desenhava dois
-                      // círculos concêntricos em volta do avatar para separá-lo
-                      // de um fundo do qual ele já se separava por ser preto —
-                      // e agora a borda da pílula faz esse papel.
-                      width: 26, height: 26,
-                      borderRadius: "50%",
-                      backgroundColor: "#1c1917",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <span style={{
-                      fontFamily: "'Space Grotesk', sans-serif",
-                      fontSize: 12, fontWeight: 700,
-                      color: "#fb923c", letterSpacing: "-0.02em",
-                    }}>
-                      {userInitials(user?.name)}
-                    </span>
-                  </div>
+                  <AvatarDaCasca nome={user?.name} tamanho={26} />
+                  <ChevronDown aria-hidden="true" className="hidden md:block" style={{ width: 14, height: 14, color: T.second, marginLeft: -2, marginRight: 2 }} />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" style={{ minWidth: 200 }}>
-                <DropdownMenuLabel>
-                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#1c1917" }}>
-                    {user?.name ?? "Usuário"}
-                  </p>
-                  <p style={{ margin: 0, fontSize: 11, fontWeight: 500, color: "#746e69", textTransform: "capitalize" }}>
-                    {rotuloDoPerfilCompleto(user)}
-                  </p>
+              {/* O MENU DA CONTA: quem eu sou em cima (avatar, nome, perfil),
+                  depois o que posso fazer — cada ação com o ícone dela, e
+                  "Sair" separado e no tom de perigo, também sob o teclado. */}
+              <DropdownMenuContent align="end" sideOffset={8} style={{ minWidth: 248, padding: 6, borderRadius: R.lg }}>
+                <DropdownMenuLabel style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 8px 10px" }}>
+                  <AvatarDaCasca nome={user?.name} tamanho={36} />
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ display: "block", fontSize: FS.body, fontWeight: FW.forte, color: T.text, lineHeight: 1.3, overflowWrap: "anywhere" }}>
+                      {user?.name ?? "Usuário"}
+                    </span>
+                    <span style={{ display: "block", fontSize: FS.small, fontWeight: FW.corpo, color: T.second, lineHeight: 1.35 }}>
+                      {rotuloDoPerfilCompleto(user)}
+                    </span>
+                  </span>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {/* VER COMO (dono, 15/09): o admin navega como outro perfil
                     para conferir o que cada um vê. */}
                 {(user?.role === "admin" || user?.papelReal === "admin") && (
                   <>
-                    <DropdownMenuLabel style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#746e69" }}>
+                    <DropdownMenuLabel style={{ fontSize: FS.micro, fontWeight: FW.rotulo, textTransform: "uppercase", letterSpacing: "0.08em", color: T.second, padding: "8px 8px 4px" }}>
                       Ver o sistema como
                     </DropdownMenuLabel>
                     {PERFIS_VER_COMO.map((p) => {
                       const atual = (user?.role ?? "") === p.role && !!user?.kit === !!p.kit;
                       return (
                         <DropdownMenuItem key={p.chave} data-testid={`menu-ver-como-${p.chave}`} disabled={atual}
+                          className="csc-menu-item"
                           onSelect={() => { void verComo(p.role, !!p.kit); }}>
-                          {p.rotulo}{atual ? " · atual" : ""}
+                          {/* O perfil em uso ganha o check e o "atual" —
+                              desabilitado sozinho parecia só um item apagado. */}
+                          {atual ? <Check aria-hidden="true" style={{ color: T.accentText }} /> : <Eye aria-hidden="true" />}
+                          <span style={{ flex: 1 }}>{p.rotulo}</span>
+                          {atual && <span style={{ fontSize: FS.small, fontWeight: FW.medio, color: T.second }}>atual</span>}
                         </DropdownMenuItem>
                       );
                     })}
@@ -924,8 +979,10 @@ function AuthenticatedLayout() {
                 )}
                 <DropdownMenuItem
                   data-testid="menu-item-change-password"
+                  className="csc-menu-item"
                   onSelect={() => setLocation("/change-password")}
                 >
+                  <KeyRound aria-hidden="true" />
                   Alterar senha
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
@@ -933,9 +990,10 @@ function AuthenticatedLayout() {
                   data-testid="menu-item-logout"
                   disabled={logoutMutation.isPending}
                   onSelect={() => logoutMutation.mutate()}
-                  className="text-red-600 focus:text-red-600"
+                  className="csc-menu-item csc-menu-sair"
                 >
-                  {logoutMutation.isPending ? "Saindo..." : "Sair"}
+                  {logoutMutation.isPending ? <Loader2 aria-hidden="true" className="animate-spin" /> : <LogOut aria-hidden="true" />}
+                  {logoutMutation.isPending ? "Saindo…" : "Sair"}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -951,11 +1009,18 @@ function AuthenticatedLayout() {
           <div style={{ position: "sticky", top: 0, zIndex: 41 }}>
           <AvisoDeConexao />
           {user?.papelReal === "admin" && (
+            // Azul de INFORMAÇÃO (TOM.info.text, 6,7:1 com o branco): é um
+            // modo de visualização, não um alerta. O "Voltar" é o caminho de
+            // saída — botão claro, com alvo de 32/44.
             <div role="status" data-testid="faixa-ver-como"
-              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, flexWrap: "wrap", padding: "8px 16px", backgroundColor: "#1d4ed8", color: "#fff", fontSize: 13 }}>
-              <span>Você está vendo o sistema como <strong>{PERFIS_VER_COMO.find((p) => p.role === user?.role && !!p.kit === !!user?.kit)?.rotulo ?? roleLabel(user?.role)}</strong>.</span>
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, flexWrap: "wrap", padding: "7px 16px", backgroundColor: TOM.info.text, color: T.surface, fontSize: FS.body, lineHeight: 1.4 }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <Eye aria-hidden="true" style={{ width: 15, height: 15, flexShrink: 0 }} />
+                <span>Você está vendo o sistema como <strong>{PERFIS_VER_COMO.find((p) => p.role === user?.role && !!p.kit === !!user?.kit)?.rotulo ?? roleLabel(user?.role)}</strong>.</span>
+              </span>
               <button type="button" data-testid="button-voltar-admin" onClick={() => { void verComo("admin"); }}
-                style={{ height: 30, padding: "0 12px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.6)", background: "#fff", color: "#1d4ed8", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
+                className="ds-botao"
+                style={{ minHeight: 32, padding: "0 14px", borderRadius: R.pill, border: "none", background: T.surface, color: TOM.info.text, fontSize: FS.meta, fontWeight: FW.rotulo, cursor: "pointer" }}>
                 Voltar ao admin
               </button>
             </div>
@@ -1015,18 +1080,25 @@ function AvisoDeVersaoNova() {
       data-testid="aviso-versao-nova"
       style={{
         position: "fixed", left: "50%", bottom: 12, transform: "translateX(-50%)", zIndex: 2147483000,
-        display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "center",
-        maxWidth: "calc(100vw - 24px)", padding: "8px 10px 8px 14px", borderRadius: 12,
-        backgroundColor: "#1c1917", color: "#ffffff", fontSize: 13, fontWeight: 600,
-        boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+        display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", justifyContent: "center",
+        // max-content: com left 50% a caixa só tinha METADE da tela para
+        // crescer e, no celular, quebrava em três linhas (ícone, texto, botão).
+        width: "max-content", maxWidth: "calc(100vw - 24px)", boxSizing: "border-box",
+        padding: "8px 8px 8px 16px", borderRadius: R.lg,
+        backgroundColor: ESCURO.fundo, color: ESCURO.texto, fontSize: FS.body, fontWeight: FW.medio,
+        border: `1px solid ${ESCURO.borda}`,
+        boxShadow: "0 12px 28px -8px rgba(28,25,23,0.35)",
       }}
+      className="norte-surge"
     >
+      <RefreshCw aria-hidden="true" style={{ width: 15, height: 15, color: ESCURO.foco, flexShrink: 0 }} />
       Há uma versão nova do NORTE
       <button
         type="button"
         data-testid="button-recarregar-versao"
         onClick={() => window.location.reload()}
-        style={{ minHeight: 36, padding: "0 14px", borderRadius: 8, border: "none", cursor: "pointer", backgroundColor: "#ffffff", color: "#1c1917", fontSize: 13, fontWeight: 800 }}
+        className="ds-botao"
+        style={{ minHeight: 36, padding: "0 14px", borderRadius: R.md, border: "none", cursor: "pointer", backgroundColor: T.surface, color: T.text, fontSize: FS.body, fontWeight: FW.rotulo }}
       >
         Recarregar
       </button>

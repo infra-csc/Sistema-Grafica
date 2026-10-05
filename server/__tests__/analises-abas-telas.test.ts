@@ -32,6 +32,11 @@ if (typeof window !== "undefined" && !window.matchMedia) {
 }
 
 const DIA = 86_400_000;
+// Relógio FIXO numa quarta-feira: o atraso na etapa conta dias úteis, e com o
+// relógio real o mesmo cenário mudava de resultado conforme o dia da semana
+// em que a suíte rodava (falhou numa segunda, 05/10).
+vi.useFakeTimers({ toFake: ["Date"] });
+vi.setSystemTime(new Date("2026-09-30T15:00:00Z"));
 const hoje = businessDayMs(Date.now());
 const dia = (n: number) => new Date(hoje + n * DIA).toISOString();
 

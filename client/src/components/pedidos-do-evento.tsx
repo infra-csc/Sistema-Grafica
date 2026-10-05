@@ -22,7 +22,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { FilterSelect } from "@/components/filter-select";
-import { T, FS, R } from "@/lib/theme";
+import { T, N, TOM, FONT, FS, FW, R, SHADOW } from "@/lib/theme";
 import { MotivoDoPedidoDialog, descricaoDoAviso, enviarAcaoComMotivo, tituloDoAviso, type AlvoDaAcao } from "@/components/motivo-do-pedido-dialog";
 import { CartaoDoPedido, type AcaoDoCartao } from "@/components/pedidos/cartao-do-pedido";
 import { DetalheDoPedido } from "@/components/pedidos/detalhe-do-pedido";
@@ -163,16 +163,16 @@ export function PedidosDoEvento({ eventId, pecas, podeVer, podeAtender, motivoEv
             value={pecaEscolhida} onChange={setPecaEscolhida} options={opcoesDePeca}
             searchPlaceholder="Buscar por código, tipo ou descrição…" emptyText="Nenhuma peça livre."
             testId={`select-peca-linha-${l.id}`}
-            triggerStyle={{ height: toque, borderRadius: R.md, border: "1px solid #d6d3d1", padding: "0 10px", fontSize: 13, background: "#fff", width: "100%" }} />
+            triggerStyle={{ height: toque, borderRadius: R.md, border: `1px solid ${T.bdark}`, padding: "0 10px", fontSize: FS.body, background: T.surface, width: "100%" }} />
         </div>
         <button type="button" disabled={!pecaEscolhida || atender.isPending} onClick={() => atender.mutate({ linhaId: l.id, itemId: pecaEscolhida })}
-          style={{ height: toque, padding: "0 12px", borderRadius: R.md, border: "none", fontSize: 12.5, fontWeight: 800, background: pecaEscolhida ? "#047857" : "#e7e5e4", color: pecaEscolhida ? "#fff" : "#78716c", cursor: pecaEscolhida ? "pointer" : "not-allowed" }}>
+          className="ds-botao" style={{ height: toque, padding: "0 12px", borderRadius: R.md, border: "none", fontSize: FS.meta, fontWeight: FW.forte, background: pecaEscolhida ? TOM.esmeralda.text : T.border, color: pecaEscolhida ? T.surface : T.second, cursor: pecaEscolhida ? "pointer" : "not-allowed" }}>
           {atender.isPending ? "Ligando…" : "Ligar à solicitação"}
         </button>
-        <button type="button" onClick={() => setLigando(null)} style={{ height: toque, padding: "0 10px", border: "none", background: "none", color: "#57534e", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Voltar</button>
+        <button type="button" className="ds-botao ds-botao-fantasma" onClick={() => setLigando(null)} style={{ height: toque, padding: "0 10px", border: "none", borderRadius: R.md, background: "none", color: T.apoio, fontSize: FS.meta, fontWeight: FW.forte, cursor: "pointer" }}>Voltar</button>
       </div>
       {jaAtendemOutras > 0 && (
-        <span style={{ fontSize: FS.small, color: "#57534e" }}>{jaAtendemOutras} {jaAtendemOutras === 1 ? "peça já atende outra solicitação e não aparece" : "peças já atendem outras solicitações e não aparecem"} na lista.</span>
+        <span style={{ fontSize: FS.small, color: T.apoio }}>{jaAtendemOutras} {jaAtendemOutras === 1 ? "peça já atende outra solicitação e não aparece" : "peças já atendem outras solicitações e não aparecem"} na lista.</span>
       )}
     </div>
   ) : null;
@@ -184,36 +184,41 @@ export function PedidosDoEvento({ eventId, pecas, podeVer, podeAtender, motivoEv
       id="pedidos-do-atendimento"
       data-testid="painel-pedidos-do-evento"
       aria-labelledby="titulo-pedidos-do-evento"
-      style={{ backgroundColor: "#fff", border: "1px solid #e7e5e4", borderLeft: `3px solid ${qtdAbertas || qtdAjustes ? "#b45309" : "#d6d3d1"}`, borderRadius: R.lg, boxShadow: "0 1px 4px rgba(0,0,0,0.05)", marginBottom: 32, overflow: "hidden" }}
+      // O MESMO desenho do card de rascunhos (ladrilho do ícone, título em
+      // display, contagem ao lado): os dois são "o que espera por você neste
+      // evento". As cores eram hex escritos aqui; agora são tokens.
+      style={{ backgroundColor: T.surface, border: `1px solid ${qtdAbertas || qtdAjustes ? TOM.alerta.border : T.border}`, borderRadius: R.lg, boxShadow: SHADOW.sm, marginBottom: isMobile ? 28 : 40, overflow: "hidden" }}
     >
-      <div style={{ padding: "16px 20px 10px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <Inbox style={{ width: 16, height: 16, color: "#b45309", flexShrink: 0 }} aria-hidden="true" />
-        <h2 id="titulo-pedidos-do-evento" style={{ margin: 0, fontSize: 13, fontWeight: 800, color: T.text, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+      <div style={{ padding: isMobile ? "16px 16px 10px" : "20px 24px 12px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div aria-hidden="true" style={{ width: 36, height: 36, borderRadius: R.md, backgroundColor: qtdAbertas || qtdAjustes ? TOM.alerta.bg : N.n2, border: `1px solid ${qtdAbertas || qtdAjustes ? TOM.alerta.border : T.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <Inbox style={{ width: 17, height: 17, color: qtdAbertas || qtdAjustes ? TOM.alerta.text : T.second }} />
+        </div>
+        <h2 id="titulo-pedidos-do-evento" style={{ margin: 0, fontFamily: FONT.display, fontSize: FS.title, fontWeight: FW.forte, letterSpacing: "-0.02em", color: T.text }}>
           Solicitações de peças
         </h2>
-        <span style={{ backgroundColor: qtdAbertas ? "#fffbeb" : "#f5f5f4", color: qtdAbertas ? "#92400e" : "#57534e", border: `1px solid ${qtdAbertas ? "#fde68a" : "#e7e5e4"}`, borderRadius: R.pill, padding: "2px 10px", fontSize: FS.small, fontWeight: 800 }}>
+        <span style={{ backgroundColor: qtdAbertas ? TOM.alerta.bg : N.n2, color: qtdAbertas ? TOM.alerta.text : T.apoio, border: `1px solid ${qtdAbertas ? TOM.alerta.border : T.border}`, borderRadius: R.pill, padding: "2px 10px", fontSize: FS.small, fontWeight: FW.forte }}>
           {qtdAbertas} {qtdAbertas === 1 ? "peça aberta" : "peças abertas"}
         </span>
         {qtdAjustes > 0 && (
-          <span data-testid="chip-ajustes-do-evento" style={{ backgroundColor: "#fffbeb", color: "#92400e", border: "1px solid #fde68a", borderRadius: R.pill, padding: "2px 10px", fontSize: FS.small, fontWeight: 800 }}>
+          <span data-testid="chip-ajustes-do-evento" style={{ backgroundColor: TOM.alerta.bg, color: TOM.alerta.text, border: `1px solid ${TOM.alerta.border}`, borderRadius: R.pill, padding: "2px 10px", fontSize: FS.small, fontWeight: FW.forte }}>
             {qtdAjustes} {qtdAjustes === 1 ? "ajuste pendente" : "ajustes pendentes"}
           </span>
         )}
         <SeloDoEventoChip selo={selo} pedidoId={eventId} />
-        {!podeAtender && qtdAbertas > 0 && <span style={{ fontSize: FS.body, color: "#57534e" }}>Quem atende é a Solicitação.</span>}
+        {!podeAtender && qtdAbertas > 0 && <span style={{ fontSize: FS.body, color: T.apoio }}>Quem atende é a Solicitação.</span>}
       </div>
       {/* PARA QUE SERVE E O QUE FAZER — em uma frase. Quem nunca atendeu uma
           solicitação via três botões e nenhuma pista de qual escolher, nem de
           que "Criar peça" já liga e avisa sozinho. Só para quem atende e só
           quando há o que atender. */}
       {podeAtender && (qtdAbertas > 0 || qtdAjustes > 0) && (
-        <p data-testid="texto-como-atender" style={{ margin: 0, padding: "0 20px 12px", fontSize: FS.body, color: "#57534e", lineHeight: 1.5 }}>
+        <p data-testid="texto-como-atender" style={{ margin: 0, padding: isMobile ? "0 16px 14px" : "0 24px 16px", fontSize: FS.body, color: T.second, lineHeight: 1.5, maxWidth: 860 }}>
           Peças que o Atendimento pediu para este evento. <strong style={{ color: T.text }}>Criar peça</strong> abre o formulário já preenchido — a peça sai ligada e quem pediu é avisado. Se a peça já existe, use <strong style={{ color: T.text }}>Já criei a peça</strong>; se não vai ser feita, <strong style={{ color: T.text }}>Recusar</strong> pede o motivo.
         </p>
       )}
 
       {comAtivas.length > 0 && (
-        <ul style={{ margin: 0, padding: 0, borderTop: "1px solid #f1f0ef" }}>
+        <ul style={{ margin: 0, padding: 0, borderTop: `1px solid ${T.border}` }}>
           {comAtivas.map((p) => (
             <CartaoDoPedido key={p.id} pedido={p} linhas={ativas(p)} agora={agora} seloDe={seloDe} mostrarEvento={false}
               acoesDaLinha={acoesDaLinha(p)} extraDaLinha={escolherPeca} onAbrir={() => setDetalhe(p.id)} />
@@ -222,9 +227,9 @@ export function PedidosDoEvento({ eventId, pecas, podeVer, podeAtender, motivoEv
       )}
 
       {qtdResolvidas > 0 && (
-        <div style={{ padding: "10px 20px 14px", borderTop: "1px solid #f1f0ef" }}>
+        <div style={{ padding: isMobile ? "10px 16px 14px" : "10px 24px 14px", borderTop: `1px solid ${T.border}` }}>
           <button type="button" aria-expanded={verResolvidas} onClick={() => setVerResolvidas((v) => !v)} data-testid="button-ver-pedidos-resolvidos"
-            style={{ border: "none", background: "none", padding: 0, minHeight: isMobile ? 44 : undefined, display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 800, color: "#57534e", cursor: "pointer" }}>
+            style={{ border: "none", background: "none", padding: 0, minHeight: isMobile ? 44 : undefined, display: "inline-flex", alignItems: "center", gap: 6, fontSize: FS.meta, fontWeight: FW.forte, color: T.apoio, cursor: "pointer" }}>
             <ChevronDown size={14} style={{ transform: verResolvidas ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
             {verResolvidas ? "Esconder" : "Ver"} {qtdResolvidas} {qtdResolvidas === 1 ? "peça recusada ou cancelada" : "peças recusadas ou canceladas"}
           </button>

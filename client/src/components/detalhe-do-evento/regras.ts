@@ -79,6 +79,21 @@ export function calcularMarcos(event: EventoParaMarcos, today: Date): { marcos: 
 
 export const plural = (n: number, um: string, muitos: string) => (n === 1 ? um : muitos);
 
+/**
+ * NÚMERO NA LÍNGUA DA TELA. O toFixed escrevia "528.61 m²" — ponto decimal de
+ * planilha americana numa tela em português. Só apresentação: a conta é a
+ * mesma, com duas casas.
+ */
+const M2 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export const formatarM2 = (n: number) => M2.format(Number.isFinite(n) ? n : 0);
+
+/** Medida em metros sem zeros à toa: "10.00" → "10", "0.60" → "0,6". */
+const MEDIDA = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 });
+export const formatarMedida = (v: string | number | null | undefined) => {
+  const n = typeof v === "number" ? v : parseFloat(String(v ?? ""));
+  return Number.isFinite(n) ? MEDIDA.format(n) : "";
+};
+
 // A lista única de tipos (com o Molde) mora em shared/molde.ts.
 export const itemTypes = [...TIPOS_DE_PECA];
 export const materials = ["Adesivo", "Lona", "Madeira", "Sanett", "Tecido", "Tecido Pet"];

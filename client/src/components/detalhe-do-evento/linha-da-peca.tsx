@@ -4,13 +4,12 @@
 // que chegam em `PropsDaPeca`.
 // ─────────────────────────────────────────────────────────────────────────────
 import { Link } from "wouter";
-import { Plus, Pencil, Trash2, Lock, Paperclip, X, Recycle, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, Trash2, Lock, Recycle, AlertTriangle } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { DetalheProducao } from "@/components/detalhe-producao";
 import { faseDaArte } from "@/components/prazos/tokens";
 import { SeloKit } from "@/components/kit/selo-kit";
 import { SeloPrazoMolde } from "@/components/prazo-do-molde";
-import { ObjectUploader } from "@/components/ObjectUploader";
 import { Botao } from "@/components/ui/botao";
 import { Selo } from "@/components/ui/selo";
 import type { useToast } from "@/hooks/use-toast";
@@ -20,8 +19,10 @@ import { FINAL_STATUSES, PRODUCTION_STATUSES } from "@/lib/status";
 import { refsDaPeca } from "@/lib/refs-da-peca";
 import { miniatura } from "@/lib/miniatura";
 import { statusDeExibicao } from "@shared/molde";
-import { T, N, TOM, FONT } from "@/lib/theme";
+import { T, TOM, FONT, FS, FW, R } from "@/lib/theme";
 import { SeloDoEstoque } from "./selo-do-estoque";
+import { MiniaturasDaPeca } from "./miniaturas-da-peca";
+import { formatarM2, formatarMedida } from "./regras";
 import type { EventoDoDetalhe, PecaDoEvento, ResumoDoEstoque } from "./tipos";
 
 /** O que a linha e o cartão precisam da tela: permissões e gestos. */
@@ -45,93 +46,223 @@ export interface PropsDaPeca {
 }
 
 /**
+ * AS MEDIDAS NA LÍNGUA DA CASA: ARQ. primeiro e escuro (é dele que sai o m² e
+ * é o que a impressora recebe), VIS. depois e apagado — e só quando difere do
+ * ARQ. Antes a coluna mostrava "10.00 × 4.00m / 10.00 × 4.00m" (o mesmo par
+ * duas vezes, quebrando em duas linhas) e uma peça só com medida de arquivo
+ * virava "—".
+ */
+function medidas(item: PecaDoEvento): { arq: string | null; vis: string | null } {
+  const par = (l: unknown, a: unknown) => (l && a ? `${formatarMedida(String(l))} × ${formatarMedida(String(a))} m` : null);
+  const arq = par(item.fileWidth, item.fileHeight);
+  const vis = par(item.visualWidth, item.visualHeight);
+  return { arq, vis: vis && vis !== arq ? vis : null };
+}
+
+function Medidas({ item, comM2 }: { item: PecaDoEvento; comM2?: boolean }) {
+  const { arq, vis } = medidas(item);
+  return (
+    <div style={{ fontVariantNumeric: 'tabular-nums', lineHeight: 1.45 }}>
+      {arq ? (
+        <div title="ARQ. — o que a impressora recebe (é dele que sai o m²)" style={{ fontSize: FS.body, color: T.text, fontWeight: FW.corpo, whiteSpace: 'nowrap' }}>
+          {arq}
+        </div>
+      ) : null}
+      {vis ? (
+        <div title="VIS. — o que se vê na peça montada" style={{ fontSize: FS.small, color: T.second, whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: FS.micro, fontWeight: FW.forte, letterSpacing: '0.04em', marginRight: 4 }}>VIS.</span>{vis}
+        </div>
+      ) : null}
+      {!arq && !vis && <span style={{ color: T.muted, fontSize: FS.body }}>—</span>}
+      {/* No compacto o m² acompanha a medida, que é de onde ele sai — não
+          some, muda de lugar. */}
+      {comM2 && (
+        <div style={{ fontSize: FS.meta, fontWeight: FW.forte, color: T.text, marginTop: 2 }}>
+          {formatarM2(parseFloat(item.calculatedM2 || '0'))} m²
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Os selos de contexto da peça (complemento, reaproveitamento) e, no fim, o
+ * do estoque — que chega pronto de quem chama (`estoque`), escrito nas DUAS
+ * montagens (cartão e linha).
+ */
+function SelosDaPeca({ item, estoque }: { item: PecaDoEvento; estoque: React.ReactNode }) {
+  const temSelo = !!item.parentItemId || (item.complements?.length ?? 0) > 0
+    || (item.isReuse && !(PRODUCTION_STATUSES as readonly string[]).includes(item.status)) || !!estoque;
+  if (!temSelo) return null;
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+      {/* Parentesco do complemento. Badge OUTLINE e sem tingir a linha: aqui
+          ninguém precisa de alarme (o alarme é da fila da Gráfica), só de
+          entender por que #0062-C1 existe. O motivo vai no title. */}
+      {item.parentItemId && (
+        <Selo
+          tom="laranja" forma="retangulo" tamanho="sm" icone={Plus}
+          title={item.complementReason ? `Motivo: ${item.complementReason}` : undefined}
+          data-testid={`badge-complemento-${item.id}`}
+          style={{ gap: 4, padding: "2px 7px" }}
+        >
+          Compl. de {item.parent?.displayId ?? "peça original"}
+        </Selo>
+      )}
+      {!item.parentItemId && (item.complements?.length ?? 0) > 0 && (
+        <Selo
+          forma="retangulo" tamanho="sm"
+          cores={{ bg: T.surface, text: T.accentText, border: TOM.laranja.border }}
+          title={`Complementos: ${(item.complements ?? []).map((c) => `${c.displayId} (+${c.quantity})`).join(", ")}`}
+          data-testid={`badge-tem-complemento-${item.id}`}
+          style={{ padding: "2px 7px" }}
+        >
+          Tem complemento (+{(item.complements ?? []).reduce((a, c) => a + (Number(c.quantity) || 0), 0)})
+        </Selo>
+      )}
+      {item.isReuse && !(PRODUCTION_STATUSES as readonly string[]).includes(item.status) && (
+        <Selo
+          forma="retangulo" tamanho="sm" icone={Recycle}
+          // Cheio (branco sobre esmeralda escuro): reaproveitamento pula a produção.
+          cores={{ bg: TOM.esmeralda.text, text: T.surface, border: TOM.esmeralda.text }}
+          style={{ gap: 4, padding: "2px 7px" }}
+        >
+          Reaproveit.
+        </Selo>
+      )}
+      {estoque}
+    </div>
+  );
+}
+
+/**
  * Card com onClick e sem foco: no celular o toque resolve, mas com teclado
  * externo (ou leitor de tela) não havia como abrir a peça. O ID vira o alvo
  * focável — é o rótulo natural do card. #f97316 sobre branco dá 2.80:1; o
  * laranja de ação escuro passa e mantém a identidade.
+ *
+ * O CARTÃO GANHOU A IMAGEM. No celular a peça era só texto — e é pela arte
+ * que se reconhece uma peça de longe. A primeira referência abre o cartão à
+ * esquerda; o toque nela abre a imagem, o resto do cartão abre a ficha.
  */
 export function CartaoDaPeca({
   item, event, canEditLists, canDeleteAny, isEditBlocked, motivoEdicaoBloqueada, canDeleteItem,
   setSelectedItemForDetails, handleEditItem, handleDeleteItem, estoqueResumo, setEstoqueDaPeca,
 }: PropsDaPeca & { item: PecaDoEvento }) {
+  const refs = refsDaPeca(item);
+  const { arq, vis } = medidas(item);
   return (
-    <div onClick={() => setSelectedItemForDetails(item)}
-      style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: '12px 12px', marginBottom: 8, cursor: 'pointer' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-        <button
-          onClick={e => { e.stopPropagation(); setSelectedItemForDetails(item); }}
-          aria-label={`Ver detalhes da peça ${item.displayId}`}
-          style={{ fontFamily: FONT.mono, fontWeight: 700, color: T.accentText, fontSize: 13, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
-        >
-          {item.displayId}
-        </button>
-        <StatusBadge status={statusDeExibicao(item)} />
-      </div>
-      <SeloPrazoMolde item={item} evento={event} />
-      <DetalheProducao item={item} style={{ marginTop: 0, marginBottom: 6, textAlign: 'right' }} />
-      <SeloKit peca={item} style={{ marginBottom: 4, marginRight: 4 }} />
-      {item.isPriority && (
-        <Selo tom="perigo" forma="retangulo" tamanho="sm" icone={AlertTriangle} title="Peça prioritária — fura a fila da Arte" data-testid={`tag-prioritaria-card-${item.id}`} style={{ gap: 4, padding: '2px 7px', marginBottom: 4, marginRight: 4 }}>
-          PRIORITÁRIA
-        </Selo>
-      )}
-      {item.parentItemId && (
-        <Selo tom="laranja" forma="retangulo" tamanho="sm" icone={Plus} style={{ gap: 4, padding: '2px 7px', marginBottom: 4 }}>
-          Compl. de {item.parent?.displayId ?? 'peça original'}
-        </Selo>
-      )}
-      <div style={{ fontWeight: 700, fontSize: 13, color: T.text, marginBottom: 2 }}>{item.type}</div>
-      {item.description && <div style={{ fontSize: 13, color: T.second, marginBottom: 4 }}>{item.description}</div>}
-      {item.parentItemId && item.complementReason && (
-        <div style={{ fontSize: 11, color: T.accentText, marginBottom: 4, lineHeight: 1.4 }}>
-          {item.complementRequestedBy ? <strong>{item.complementRequestedBy}: </strong> : null}{item.complementReason}
+    <div
+      onClick={() => setSelectedItemForDetails(item)}
+      className="evd-cartao"
+      data-testid={`card-item-${item.id}`}
+      style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, padding: 14, cursor: 'pointer' }}
+    >
+      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+        {/* A imagem — só a primeira, grande, com quantas mais existem. No
+            cartão ela é para RECONHECER a peça; anexar e remover moram na
+            ficha (o toque aqui abre a referência em tela cheia). */}
+        {refs.length > 0 && (
+          <a
+            href={refs[0]}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            data-testid={`link-reference-card-${item.id}`}
+            title={refs.length > 1 ? `Ver referência 1 de ${refs.length}` : 'Ver referência'}
+            style={{ position: 'relative', flexShrink: 0, display: 'inline-flex', borderRadius: R.md }}
+          >
+            <img
+              loading="lazy"
+              decoding="async"
+              src={miniatura(refs[0])}
+              alt={`Referência visual de ${item.displayId ?? 'a peça'}`}
+              style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.low, display: 'block' }}
+              onError={e => { (e.currentTarget as HTMLImageElement).style.visibility = 'hidden'; }}
+            />
+            {refs.length > 1 && (
+              <span aria-label={`mais ${refs.length - 1}`} style={{ position: 'absolute', right: -6, bottom: -6, minWidth: 22, height: 22, padding: '0 6px', borderRadius: R.pill, backgroundColor: T.text, color: T.surface, border: `2px solid ${T.surface}`, fontSize: FS.small, fontWeight: FW.forte, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontVariantNumeric: 'tabular-nums' }}>
+                +{refs.length - 1}
+              </span>
+            )}
+          </a>
+        )}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', minWidth: 0 }}>
+              <button
+                onClick={e => { e.stopPropagation(); setSelectedItemForDetails(item); }}
+                aria-label={`Ver detalhes da peça ${item.displayId}`}
+                data-testid={`text-display-id-card-${item.id}`}
+                style={{ fontFamily: FONT.mono, fontWeight: FW.forte, color: T.accentText, fontSize: FS.body, background: 'none', border: 'none', padding: 0, cursor: 'pointer', minHeight: 24 }}
+              >
+                {item.displayId}
+              </button>
+              <SeloKit peca={item} style={{ marginRight: 2 }} />
+              {item.isPriority && (
+                <Selo tom="perigo" forma="retangulo" tamanho="sm" icone={AlertTriangle} title="Peça prioritária — fura a fila da Arte" data-testid={`tag-prioritaria-card-${item.id}`} style={{ gap: 4, padding: '2px 7px' }}>
+                  PRIORITÁRIA
+                </Selo>
+              )}
+            </div>
+            <StatusBadge status={statusDeExibicao(item)} />
+          </div>
+          <div style={{ fontWeight: FW.forte, fontSize: FS.read, color: T.text, marginTop: 4, lineHeight: 1.35, overflowWrap: 'anywhere' }}>
+            {item.description || item.type}
+          </div>
+          <div style={{ display: 'flex', gap: '2px 10px', flexWrap: 'wrap', fontSize: FS.meta, color: T.second, marginTop: 3, fontVariantNumeric: 'tabular-nums' }}>
+            {item.description && <span>{item.type}</span>}
+            {item.quantity && <span>{item.quantity} un.</span>}
+            {arq && <span>ARQ. {arq}</span>}
+            {vis && <span>VIS. {vis}</span>}
+            {item.material && <span>{[item.material, item.finish].filter(Boolean).join(' · ')}</span>}
+          </div>
+          {item.parentItemId && item.complementReason && (
+            <div style={{ fontSize: FS.small, color: T.accentText, marginTop: 4, lineHeight: 1.4 }}>
+              {item.complementRequestedBy ? <strong>{item.complementRequestedBy}: </strong> : null}{item.complementReason}
+            </div>
+          )}
+          <SeloPrazoMolde item={item} evento={event} />
+          <DetalheProducao item={item} style={{ marginTop: 4, marginBottom: 0 }} />
+          <SelosDaPeca item={item} estoque={estoqueResumo[item.id] ? <SeloDoEstoque item={item} est={estoqueResumo[item.id]} onAbrir={setEstoqueDaPeca} /> : null} />
         </div>
-      )}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11, color: T.second }}>
-        {item.quantity && <span>{item.quantity}×</span>}
-        {item.visualWidth && item.visualHeight && <span>{item.visualWidth}×{item.visualHeight}m</span>}
-        {item.material && <span>{item.material}</span>}
       </div>
-      {estoqueResumo[item.id] && (
-        <div style={{ marginTop: 6 }}><SeloDoEstoque item={item} est={estoqueResumo[item.id]} onAbrir={setEstoqueDaPeca} /></div>
-      )}
       {canEditLists && (
-        <div style={{ display: 'flex', gap: 6, marginTop: 8 }} onClick={e => e.stopPropagation()}>
-          {/* handleEditItem (não setEditingItem cru): hidrata o
-              formData — sem isso, salvar apagava a peça. */}
-          {/* `disabled` real, e não só o early-return de
-              handleEditItem: no celular um botão que
-              aceita o toque e não abre nada lê como app
-              travado. O title carrega o motivo. */}
+        <div style={{ display: 'flex', gap: 8, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}` }} onClick={e => e.stopPropagation()}>
+          {/* handleEditItem (não setEditingItem cru): hidrata o formData —
+              sem isso, salvar apagava a peça. `disabled` real: no celular um
+              botão que aceita o toque e não abre nada lê como app travado. */}
           <Botao
             variante="secundario"
             tamanho="toque"
+            icone={isEditBlocked(item.status) ? Lock : Pencil}
             onClick={() => handleEditItem(item)}
             disabled={isEditBlocked(item.status)}
             title={motivoEdicaoBloqueada(item.status) ?? undefined}
+            data-testid={`button-edit-item-card-${item.id}`}
             style={{ flex: 1 }}
           >
             Editar
           </Botao>
-          {/* Aumentar quantidade NÃO mora aqui: o gatilho
-              é exclusivo da tela da Gráfica (decisão do dono). */}
-          {/* Mesmos gates do desktop: sem eles, no celular um
-              não-admin abria exclusão de peça já em produção. */}
+          {/* Aumentar quantidade NÃO mora aqui: o gatilho é exclusivo da
+              tela da Gráfica (decisão do dono). Mesmos gates do desktop. */}
           {canDeleteAny && canDeleteItem(item.status) && (
             <button onClick={() => handleDeleteItem(item)}
-              aria-label="Excluir peça" title="Excluir peça"
-              style={{ minHeight: 44, width: 44, borderRadius: 6, border: `1px solid ${TOM.perigo.border}`, background: T.surface, color: TOM.perigo.text, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Trash2 style={{ width: 14, height: 14 }} />
+              aria-label={`Excluir a peça ${item.displayId ?? ''}`} title="Excluir peça"
+              data-testid={`button-delete-item-card-${item.id}`}
+              className="evd-acao evd-acao-perigo"
+              style={{ minHeight: 44, width: 44, border: `1px solid ${T.border}`, background: T.surface }}>
+              <Trash2 aria-hidden="true" style={{ width: 16, height: 16 }} />
             </button>
           )}
         </div>
       )}
-      {/* O MOTIVO DO "EDITAR" TRAVADO, À VISTA. No celular o
-          `title` nunca aparece (não há hover): o botão cinza
-          sem explicação lia como app quebrado. */}
+      {/* O MOTIVO DO "EDITAR" TRAVADO, À VISTA. No celular o `title` nunca
+          aparece (não há hover): o botão cinza sem explicação lia como app
+          quebrado. */}
       {canEditLists && isEditBlocked(item.status) && (
-        <p style={{ margin: '6px 0 0', fontSize: 11.5, color: T.apoio, lineHeight: 1.4, display: 'flex', alignItems: 'flex-start', gap: 5 }}>
-          <Lock aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0, marginTop: 2 }} />
+        <p style={{ margin: '8px 0 0', fontSize: FS.meta, color: T.apoio, lineHeight: 1.45, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+          <Lock aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0, marginTop: 2 }} />
           {motivoEdicaoBloqueada(item.status)}
         </p>
       )}
@@ -144,219 +275,119 @@ export function LinhaDaPeca({
   canDeleteItem, setSelectedItemForDetails, handleEditItem, handleDeleteItem, estoqueResumo, setEstoqueDaPeca,
   salvarReferenciasMutation, updateItemIsReuseMutation, getUploadUrl, toast,
 }: PropsDaPeca & { item: PecaDoEvento; compacto: boolean }) {
+  const celula: React.CSSProperties = { padding: '12px 10px', verticalAlign: 'middle' };
   return (
     <tr
-      className="group"
-      style={{ borderTop: `1px solid ${N.n2}`, cursor: 'pointer', transition: 'background-color 0.1s' }}
-      onMouseEnter={e => (e.currentTarget.style.backgroundColor = T.bg)}
-      onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+      className="evd-linha"
+      style={{ borderTop: `1px solid ${T.border}`, cursor: 'pointer' }}
       onClick={() => setSelectedItemForDetails(item)}
       data-testid={`row-item-${item.id}`}
     >
-      {/* ID */}
-      {/* A linha abre o detalhe no clique, mas <tr> não
-          recebe foco: sem mouse não havia como abrir peça
-          nenhuma. O ID é o alvo focável.
-          displayId já vem com a cerquilha do backend
-          ("#2341"); prefixar de novo mostrava "##2341". */}
-      {/* Complemento recua 12px e ganha um conector em L: como
-          a ordenação já o cola na mãe, o recuo é o que faz a
-          relação ser lida sem legenda. */}
-      <td style={{ padding: '14px 14px', paddingLeft: item.parentItemId ? 26 : undefined }}>
-        {item.parentItemId && (
-          <span aria-hidden style={{ display: 'inline-block', width: 9, height: 7, marginRight: 5, marginBottom: 2, borderLeft: `1px solid ${TOM.laranja.border}`, borderBottom: `1px solid ${TOM.laranja.border}`, borderBottomLeftRadius: 3, verticalAlign: 'middle' }} />
-        )}
-        <button
-          onClick={e => { e.stopPropagation(); setSelectedItemForDetails(item); }}
-          aria-label={`Ver detalhes da peça ${item.displayId}`}
-          style={{ fontWeight: 700, color: T.accentText, fontSize: '13px', fontFamily: FONT.mono, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
-          data-testid={`text-display-id-${item.id}`}
-        >
-          {item.displayId}
-        </button>
-        <SeloKit peca={item} style={{ marginLeft: 6 }} />
-        {item.isPriority && (
-          <Selo tom="perigo" forma="retangulo" tamanho="sm" icone={AlertTriangle} title="Peça prioritária — fura a fila da Arte" data-testid={`tag-prioritaria-${item.id}`} style={{ gap: 3, marginLeft: 6, padding: '1px 6px', verticalAlign: 'middle' }}>
-            PRIORITÁRIA
-          </Selo>
-        )}
+      {/* ID — a linha abre o detalhe no clique, mas <tr> não recebe foco:
+          sem mouse não havia como abrir peça nenhuma. O ID é o alvo focável.
+          displayId já vem com a cerquilha do backend.
+          Complemento recua e ganha um conector em L: como a ordenação já o
+          cola na mãe, o recuo é o que faz a relação ser lida sem legenda.
+          (paddingLeft SEMPRE com número: `undefined` ao lado do `padding`
+          zerava o recuo de todas as outras linhas — o ID colava na borda.) */}
+      <td style={{ ...celula, paddingLeft: item.parentItemId ? 26 : 16, paddingRight: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px 0' }}>
+          {item.parentItemId && (
+            <span aria-hidden style={{ display: 'inline-block', width: 9, height: 7, marginRight: 5, marginBottom: 2, borderLeft: `1px solid ${TOM.laranja.border}`, borderBottom: `1px solid ${TOM.laranja.border}`, borderBottomLeftRadius: 3, verticalAlign: 'middle' }} />
+          )}
+          <button
+            onClick={e => { e.stopPropagation(); setSelectedItemForDetails(item); }}
+            aria-label={`Ver detalhes da peça ${item.displayId}`}
+            className="evd-id"
+            style={{ fontWeight: FW.forte, color: T.accentText, fontSize: FS.body, fontFamily: FONT.mono, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+            data-testid={`text-display-id-${item.id}`}
+          >
+            {item.displayId}
+          </button>
+          {/* Prioritária: o triângulo junto do ID (o selo por extenso vai
+              na descrição — na coluna de 8% ele vazava sobre a miniatura). */}
+          {item.isPriority && <AlertTriangle aria-hidden="true" style={{ width: 12, height: 12, color: TOM.perigo.text, marginLeft: 4 }} />}
+          <SeloKit peca={item} style={{ marginLeft: 6 }} />
+        </div>
       </td>
-      {/* Ref. — VÁRIAS por peça: o clipe ADICIONA em
-          vez de trocar, e cada miniatura tem o seu ×. */}
-      <td style={{ padding: '14px 14px' }} onClick={e => e.stopPropagation()}>
+      {/* Ref. — VÁRIAS por peça: o anexar ADICIONA em vez de trocar, e cada
+          miniatura tem o seu ×. */}
+      <td style={celula} onClick={e => e.stopPropagation()}>
         {(() => {
           const refs = refsDaPeca(item);
           const podeEditarRef = canUploadReference && !(FINAL_STATUSES as readonly string[]).includes(item.status);
           return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-          {refs.map((url, k) => (
-            <span key={`${url}-${k}`} style={{ position: 'relative', display: 'inline-flex' }}>
-              <a href={url} target="_blank" rel="noopener noreferrer" title={refs.length > 1 ? `Ver referência ${k + 1} de ${refs.length}` : "Ver referência"} data-testid={k === 0 ? `link-reference-table-${item.id}` : `link-reference-table-${item.id}-${k + 1}`}>
-                <img loading="lazy" decoding="async" src={miniatura(url)} style={{ height: 32, width: 32, objectFit: 'cover', borderRadius: 6, border: `1px solid ${T.border}` }} alt={`Referência visual ${k + 1}`} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-              </a>
-              {podeEditarRef && (
-                <button
-                  type="button"
-                  title="Remover esta referência"
-                  aria-label={`Remover referência ${k + 1} de ${item.displayId}`}
-                  data-testid={k === 0 ? `button-remove-reference-table-${item.id}` : `button-remove-reference-table-${item.id}-${k + 1}`}
-                  onClick={() => salvarReferenciasMutation.mutate({ itemId: item.id, referenceUrls: refs.filter((_, j) => j !== k) })}
-                  style={{ position: 'absolute', top: -6, right: -6, width: 16, height: 16, borderRadius: '50%', border: `1px solid ${T.bdark}`, background: T.surface, color: T.apoio, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
-                >
-                  <X style={{ width: 9, height: 9 }} />
-                </button>
-              )}
-            </span>
-          ))}
-          {podeEditarRef && (
-            <ObjectUploader
-              onGetUploadParameters={getUploadUrl}
-              onComplete={({ url }) => salvarReferenciasMutation.mutate({ itemId: item.id, referenceUrls: [...refs, url] })}
-              buttonVariant="ghost"
-              buttonClassName="h-7 w-7 p-0"
-            >
-              {/* O `title` estava no ícone lucide, que não
-                  aceita a prop e a descartava: a dica nunca
-                  apareceu. Num <span> ela funciona, e o
-                  aria-label nomeia o controle para quem usa
-                  leitor de tela. */}
-              <span
-                title={refs.length > 0 ? "Adicionar mais uma referência" : "Adicionar referência"}
-                aria-label={refs.length > 0 ? "Adicionar mais uma referência" : "Adicionar referência"}
-                style={{ display: 'inline-flex' }}
-              >
-                <Paperclip style={{ width: 13, height: 13, color: refs.length > 0 ? T.accentText : T.second }} />
-              </span>
-            </ObjectUploader>
-          )}
-          {!podeEditarRef && refs.length === 0 && (
-            <span style={{ color: T.second, fontSize: 13 }}>—</span>
-          )}
-        </div>
+            <MiniaturasDaPeca
+              refs={refs}
+              podeEditar={podeEditarRef}
+              rotuloDaPeca={item.displayId ?? 'a peça'}
+              tamanho={32}
+              idDoLink={(k) => (k === 0 ? `link-reference-table-${item.id}` : `link-reference-table-${item.id}-${k + 1}`)}
+              idDoRemover={(k) => (k === 0 ? `button-remove-reference-table-${item.id}` : `button-remove-reference-table-${item.id}-${k + 1}`)}
+              onRemover={(k) => salvarReferenciasMutation.mutate({ itemId: item.id, referenceUrls: refs.filter((_, j) => j !== k) })}
+              onAdicionar={(url) => salvarReferenciasMutation.mutate({ itemId: item.id, referenceUrls: [...refs, url] })}
+              getUploadUrl={getUploadUrl}
+            />
           );
         })()}
       </td>
-      {/* Descrição — Material/Acabamento entram aqui como
-          2ª linha, em vez de duas colunas próprias. O gate
-          do badge usa PRODUCTION_STATUSES canônico (os
-          nomes antigos não existem e nunca escondiam nada). */}
-      <td style={{ padding: '14px 14px' }}>
-        {/* Parentesco do complemento. Aqui é badge OUTLINE e
-            sem tingir a linha: nesta tela ninguém precisa de
-            alarme (o alarme é da fila da Gráfica), só de
-            entender por que #0062-C1 existe. O motivo vai no
-            title — a linha da tabela não tem espaço para ele
-            e a ficha mostra por extenso. */}
-        {item.parentItemId && (
-          <Selo
-            tom="laranja" forma="retangulo" tamanho="sm" icone={Plus}
-            title={item.complementReason ? `Motivo: ${item.complementReason}` : undefined}
-            data-testid={`badge-complemento-${item.id}`}
-            style={{ gap: 4, padding: "2px 7px", marginBottom: 4 }}
-          >
-            Compl. de {item.parent?.displayId ?? "peça original"}
-          </Selo>
-        )}
-        {!item.parentItemId && (item.complements?.length ?? 0) > 0 && (
-          <Selo
-            forma="retangulo" tamanho="sm"
-            cores={{ bg: T.surface, text: T.accentText, border: TOM.laranja.border }}
-            title={`Complementos: ${(item.complements ?? []).map((c) => `${c.displayId} (+${c.quantity})`).join(", ")}`}
-            data-testid={`badge-tem-complemento-${item.id}`}
-            style={{ padding: "2px 7px", marginBottom: 4 }}
-          >
-            Tem complemento (+{(item.complements ?? []).reduce((a, c) => a + (Number(c.quantity) || 0), 0)})
-          </Selo>
-        )}
-        {item.isReuse && !(PRODUCTION_STATUSES as readonly string[]).includes(item.status) && (
-          <Selo
-            forma="retangulo" tamanho="sm" icone={Recycle}
-            // Cheio (branco sobre esmeralda escuro): reaproveitamento pula a produção.
-            cores={{ bg: TOM.esmeralda.text, text: T.surface, border: TOM.esmeralda.text }}
-            style={{ gap: 4, padding: "2px 7px", marginBottom: 4 }}
-          >
-            Reaproveit.
-          </Selo>
-        )}
-        <SeloDoEstoque item={item} est={estoqueResumo[item.id]} onAbrir={setEstoqueDaPeca} />
+      {/* Descrição — Material/Acabamento entram aqui como 2ª linha, em vez
+          de duas colunas próprias. Os selos de contexto vêm DEPOIS do texto:
+          a descrição é a primeira leitura da linha. */}
+      <td style={celula}>
         {item.description ? (
-          <div style={{ fontWeight: '500', color: T.text, fontSize: '13px' }}>{item.description}</div>
+          <div style={{ fontWeight: FW.medio, color: T.text, fontSize: FS.body, lineHeight: 1.4, overflowWrap: 'anywhere' }}>{item.description}</div>
         ) : (
-          <div style={{ color: T.second, fontSize: '13px' }}>—</div>
+          <div style={{ color: T.second, fontSize: FS.body }}>{item.type || '—'}</div>
         )}
         {(item.material || item.finish) && (
-          <div style={{ fontSize: '11px', color: T.second, marginTop: 2 }}>
+          <div style={{ fontSize: FS.small, color: T.second, marginTop: 2 }}>
             {[item.material, item.finish].filter(Boolean).join(' · ')}
           </div>
         )}
-        {/* No compacto o patrocinador vem para cá: é texto
-            livre e longo, e era a coluna que mais empurrava
-            a tabela para fora da tela. */}
+        {/* No compacto o patrocinador vem para cá: é texto livre e longo, e
+            era a coluna que mais empurrava a tabela para fora da tela. */}
         {compacto && item.sponsors && item.sponsors.length > 0 && (
-          <div style={{ fontSize: '11px', color: T.apoio, marginTop: 2, overflowWrap: 'anywhere' }}>
+          <div style={{ fontSize: FS.small, color: T.apoio, marginTop: 2, overflowWrap: 'anywhere' }}>
             {item.sponsors.map((s) => s.name).join(", ")}
           </div>
         )}
+        {item.isPriority && (
+          <Selo tom="perigo" forma="retangulo" tamanho="sm" icone={AlertTriangle} title="Peça prioritária — fura a fila da Arte" data-testid={`tag-prioritaria-${item.id}`} style={{ gap: 3, marginTop: 6, padding: '2px 7px' }}>
+            PRIORITÁRIA
+          </Selo>
+        )}
+        <SelosDaPeca item={item} estoque={estoqueResumo[item.id] ? <SeloDoEstoque item={item} est={estoqueResumo[item.id]} onAbrir={setEstoqueDaPeca} /> : null} />
       </td>
       {/* Qtd — sem padStart: "05" parecia código, não quantidade. */}
-      <td style={{ padding: '14px 14px', fontSize: '13px', color: T.text, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+      <td style={{ ...celula, fontSize: FS.body, fontWeight: FW.medio, color: T.text, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
         {item.quantity}
       </td>
-      {/* Dimensões */}
-      {/* Coluna SECUNDÁRIA: cinza de apoio e 12px, sem o
-          itálico (que em número só atrapalha a leitura);
-          dígitos tabulares para as medidas alinharem. */}
-      <td style={{ padding: '14px 14px', fontSize: '12px', color: T.second, fontVariantNumeric: 'tabular-nums' }}>
-        {(item.visualWidth && item.visualHeight) ? (
-          <>
-            {item.visualWidth} × {item.visualHeight}m
-            {(item.fileWidth && item.fileHeight) ? ` / ${item.fileWidth} × ${item.fileHeight}m` : ''}
-          </>
-        ) : '—'}
-        {/* No compacto o m² acompanha a medida, que é de
-            onde ele sai — não some, muda de lugar. */}
-        {compacto && (
-          <span style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: T.text }}>
-            {parseFloat(item.calculatedM2 || '0').toFixed(2)} m²
-          </span>
-        )}
+      {/* Medidas — ARQ primeiro e escuro, VIS depois e apagado. */}
+      <td style={celula}>
+        <Medidas item={item} comM2={compacto} />
       </td>
       {/* M² */}
       {!compacto && (
-        <td style={{ padding: '14px 14px', fontSize: '13px', fontWeight: 700, color: T.text, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-          {parseFloat(item.calculatedM2 || '0').toFixed(2)}
+        <td style={{ ...celula, fontSize: FS.body, fontWeight: FW.forte, color: T.text, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+          {formatarM2(parseFloat(item.calculatedM2 || '0'))}
         </td>
       )}
-      {/* Patrocinador */}
-      {/* Antes era "—" hardcoded: o vínculo existia no dado
-          (enrich do /api/items/:eventId) e nunca aparecia. */}
+      {/* Patrocinador — o vínculo vem do enrich do /api/items/:eventId. */}
       {!compacto && (
-        <td style={{ padding: '14px 14px', fontSize: '12px', color: T.apoio, overflowWrap: 'anywhere' }}>
+        <td style={{ ...celula, fontSize: FS.meta, color: T.apoio, lineHeight: 1.4 }}>
           {(item.sponsors && item.sponsors.length > 0)
-            ? item.sponsors.map((s) => s.name).join(", ")
-            : <span style={{ color: T.second }}>—</span>}
+            ? <span className="evd-duas-linhas" title={item.sponsors.map((s) => s.name).join(", ")}>{item.sponsors.map((s) => s.name).join(", ")}</span>
+            : <span aria-label="Sem patrocinador" style={{ color: T.muted }}>—</span>}
         </td>
       )}
-      {/* Status — rótulo curto: com tableLayout fixed o
-          rótulo completo ("Aguardando Vinculação") vazava
-          por baixo dos ícones de Ações.
-
-          E o selo virou ATALHO para a Arte (regra do dono):
-          quem lê "Aguardando Envio" aqui está a um clique de
-          onde a peça se resolve, em vez de abrir a Arte e
-          refazer o filtro à mão.
-
-          `faseDaArte` deriva de TAB_STATUSES (lib/arte-rules),
-          que é A definição do que cada aba da Arte atende —
-          não um segundo mapa escrito aqui. Quando ela devolve
-          `null` a Arte não trata aquele status (peça entregue,
-          cancelada, em produção) e o selo continua sendo só um
-          selo: link que abre a tela errada é pior que nenhum.
-
-          Os três parâmetros são os que a Arte já lê: a ABA, o
-          EVENTO e a BUSCA pelo código da peça — o recorte mais
-          estreito que ela sabe aplicar. */}
-      <td style={{ padding: '14px 14px' }}>
+      {/* Status — rótulo curto (com tableLayout fixed o completo vazava sob
+          as Ações). E o selo é ATALHO para a Arte (regra do dono): quem lê
+          "Aguardando Envio" aqui está a um clique de onde a peça se resolve.
+          `faseDaArte` deriva de TAB_STATUSES (lib/arte-rules); quando ela
+          devolve `null` a Arte não trata aquele status e o selo continua
+          sendo só um selo: link que abre a tela errada é pior que nenhum. */}
+      <td style={celula}>
         {(() => {
           const fase = faseDaArte(item.status);
           // Fora da Arte = produção em diante: o selo ganha a linha discreta
@@ -369,6 +400,8 @@ export function LinhaDaPeca({
               href={alvo}
               title={`Abrir esta peça na Arte, já na aba e no evento dela`}
               data-testid={`link-arte-${item.id}`}
+              className="evd-link-arte"
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
               style={{ textDecoration: "none", display: "inline-block", borderRadius: 999 }}
             >
               <StatusBadge status={item.status} short />
@@ -378,21 +411,16 @@ export function LinhaDaPeca({
           );
         })()}
       </td>
-      {/* Ações — sempre visíveis (hover esconderia; no toque
-          não há hover), mas SÓ para quem edita a lista: o
-          mesmo gate canEditLists do mobile. Antes o desktop
-          não tinha gate nenhum. */}
-      <td style={{ padding: '14px 14px' }}>
+      {/* Ações — sempre visíveis (hover esconderia; no toque não há hover),
+          mas SÓ para quem edita a lista: o mesmo gate canEditLists do mobile.
+          Hover e foco no CSS (.evd-acao), não em onMouseEnter. */}
+      <td style={{ ...celula, paddingLeft: 4, paddingRight: 10 }}>
         {canEditLists && (
-        <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end', alignItems: 'center' }}>
-          {/* Aumentar quantidade — só depois que a peça entrou
-              em produção, e nunca num complemento (o segundo
-              aumento se pede na mãe). Antes deste botão, o
-              único gesto disponível era editar o número, que o
-              servidor agora recusa com 409. */}
-          {/* Toggle reaproveitamento — disponível enquanto não estiver em produção/entregue */}
+        <div style={{ display: 'flex', gap: 0, justifyContent: 'flex-end', alignItems: 'center' }}>
+          {/* Toggle reaproveitamento — enquanto não estiver em produção/entregue. */}
           {!isEditBlocked(item.status) && (
             <button
+              type="button"
               title={item.isReuse ? "Reaproveitamento ativo — clique para desativar" : "Marcar como reaproveitamento"}
               aria-label={item.isReuse ? "Desativar reaproveitamento" : "Marcar como reaproveitamento"}
               aria-pressed={item.isReuse}
@@ -411,11 +439,10 @@ export function LinhaDaPeca({
                 );
               }}
               data-testid={`button-reuse-item-${item.id}`}
-              style={{ background: item.isReuse ? TOM.esmeralda.bg : 'none', border: item.isReuse ? `1px solid ${TOM.esmeralda.border}` : 'none', borderRadius: '6px', padding: '6px', cursor: updateItemIsReuseMutation.isPending ? 'wait' : 'pointer', opacity: updateItemIsReuseMutation.isPending ? 0.5 : 1, color: item.isReuse ? TOM.esmeralda.text : T.second, transition: 'all 0.15s', display: 'flex', alignItems: 'center' }}
-              onMouseEnter={e => { if (!item.isReuse) { e.currentTarget.style.color = TOM.esmeralda.text; e.currentTarget.style.backgroundColor = TOM.esmeralda.bg; } }}
-              onMouseLeave={e => { if (!item.isReuse) { e.currentTarget.style.color = T.second; e.currentTarget.style.backgroundColor = 'transparent'; } }}
+              className={item.isReuse ? "evd-acao evd-acao-reuso-ativo" : "evd-acao evd-acao-reuso"}
+              style={{ cursor: updateItemIsReuseMutation.isPending ? 'wait' : 'pointer' }}
             >
-              <Recycle className="h-4 w-4" />
+              <Recycle aria-hidden="true" className="h-4 w-4" />
             </button>
           )}
           {isEditBlocked(item.status) ? (
@@ -425,44 +452,44 @@ export function LinhaDaPeca({
               aria-disabled="true"
               title={motivoEdicaoBloqueada(item.status) ?? undefined}
               aria-label={`Edição bloqueada: ${motivoEdicaoBloqueada(item.status) ?? ""}`}
-              style={{ color: T.second, padding: '6px', cursor: 'not-allowed', background: 'none', border: 'none' }}
+              className="evd-acao"
+              onClick={e => e.stopPropagation()}
               data-testid={`button-edit-item-${item.id}`}
             >
-              <Lock className="h-4 w-4" />
+              <Lock aria-hidden="true" className="h-4 w-4" />
             </button>
           ) : (
             <button
-              style={{ color: T.second, background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'color 0.15s, background-color 0.15s' }}
-              onMouseEnter={e => { e.currentTarget.style.color = T.text; e.currentTarget.style.backgroundColor = N.n3; }}
-              onMouseLeave={e => { e.currentTarget.style.color = T.second; e.currentTarget.style.backgroundColor = 'transparent'; }}
+              type="button"
+              className="evd-acao"
               onClick={e => { e.stopPropagation(); handleEditItem(item); }}
               data-testid={`button-edit-item-${item.id}`}
-              title="Editar peça" aria-label="Editar peça"
+              title="Editar peça" aria-label={`Editar a peça ${item.displayId ?? ''}`}
             >
-              <Pencil className="h-4 w-4" />
+              <Pencil aria-hidden="true" className="h-4 w-4" />
             </button>
           )}
           {canDeleteAny && (
             canDeleteItem(item.status) ? (
               <button
-                style={{ color: T.second, background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'color 0.15s, background-color 0.15s' }}
-                onMouseEnter={e => { e.currentTarget.style.color = TOM.perigo.dot; e.currentTarget.style.backgroundColor = TOM.perigo.bg; }}
-                onMouseLeave={e => { e.currentTarget.style.color = T.second; e.currentTarget.style.backgroundColor = 'transparent'; }}
+                type="button"
+                className="evd-acao evd-acao-perigo"
                 onClick={e => { e.stopPropagation(); handleDeleteItem(item); }}
                 data-testid={`button-delete-item-${item.id}`}
-                title="Excluir peça" aria-label="Excluir peça"
+                title="Excluir peça" aria-label={`Excluir a peça ${item.displayId ?? ''}`}
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 aria-hidden="true" className="h-4 w-4" />
               </button>
             ) : (
               <button
                 type="button"
                 disabled
                 aria-disabled="true"
-                style={{ color: T.second, padding: '6px', cursor: 'not-allowed', background: 'none', border: 'none' }}
+                className="evd-acao"
+                onClick={e => e.stopPropagation()}
                 title="Exclusão bloqueada — peça já está em Arte ou produção"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 aria-hidden="true" className="h-4 w-4" />
               </button>
             )
           )}

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Copy, Loader2, Search } from "lucide-react";
+import { Copy, Loader2, Search, ListChecks } from "lucide-react";
+import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { FilterSelect } from "@/components/filter-select";
 import { getStatusLabel } from "@/lib/status";
 import { Botao } from "@/components/ui/botao";
 import { EstadoVazio, Esqueleto } from "@/components/ui/estados";
-import { T, N, TOM, FONT, FS } from "@/lib/theme";
+import { T, N, TOM, FONT, FS, R } from "@/lib/theme";
 import {
   Dialog,
   DialogContent,
@@ -151,22 +152,25 @@ export function CloneItemsDialog({
         // ancorado DENTRO dele por causa do Radix — não tinha onde abrir.
         // 480px dão ~250px de painel abaixo do gatilho; o min() protege
         // janelas baixas.
-        style={{ maxWidth: 520, padding: 0, gap: 0, borderRadius: 12, overflow: 'hidden', minHeight: 'min(480px, calc(100vh - 48px))', maxHeight: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '24px 28px 20px', borderBottom: `1px solid ${N.n3}`, flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-            <Copy style={{ width: 18, height: 18, color: TOM.info.dot }} />
-            <DialogTitle style={{ fontFamily: FONT.display, fontSize: 18, fontWeight: 800, letterSpacing: '-0.03em', color: T.text, margin: 0 }}>
-              Clonar Peças de Outro Evento
-            </DialogTitle>
-          </div>
-          <DialogDescription style={{ fontSize: 13, color: T.second, margin: 0, paddingLeft: 28 }}>
-            Copia as peças que você escolher de um evento anterior para este evento
-          </DialogDescription>
-        </div>
+        // A superfície e o cabeçalho da casa (modalSurface + ModalHeader de
+        // trabalho), como Adicionar peça e Devolver para a Arte: este modal
+        // tinha um cabeçalho claro próprio, com um ícone solto.
+        className={HIDE_NATIVE_CLOSE}
+        style={{ ...modalSurface(560), gap: 0, minHeight: 'min(480px, calc(100vh - 48px))' }}>
+        <DialogTitle className="sr-only">Clonar peças de outro evento</DialogTitle>
+        <DialogDescription className="sr-only">Copia as peças que você escolher de um evento anterior para este evento</DialogDescription>
+        <ModalHeader
+          icon={Copy}
+          tint={TOM.info.text}
+          title="Clonar peças de outro evento"
+          subtitle={eventName ? `Para ${eventName}` : "Copia as peças escolhidas para este evento"}
+          onClose={() => { onOpenChange(false); setCloneSourceId(""); }}
+          testIdDoFechar="button-fechar-clone"
+        />
 
-        <div style={{ padding: '24px 28px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
+        <div style={{ padding: '20px 24px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
           <label style={{ fontSize: 11, fontWeight: 700, color: T.second, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 8 }}>
-            Selecionar evento de origem
+            Evento de origem
           </label>
           {/* kind="field" — escolher o evento de ORIGEM preenche um dado da
               operação, não recorta uma lista (vocabulário em
@@ -201,6 +205,16 @@ export function CloneItemsDialog({
               <Loader2 className="animate-spin" style={{ position: 'absolute', right: 34, top: '50%', transform: 'translateY(-50%)', width: 15, height: 15, color: T.second, pointerEvents: 'none' }} />
             )}
           </div>
+
+          {/* Antes da escolha: o que acontece depois, no lugar do vazio. */}
+          {!cloneSourceId && (
+            <div data-testid="clone-antes-de-escolher" style={{ marginTop: 20, padding: '18px 16px', borderRadius: R.md, border: `1px dashed ${T.bdark}`, display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+              <ListChecks aria-hidden="true" style={{ width: 18, height: 18, color: T.second, flexShrink: 0, marginTop: 1 }} />
+              <p style={{ margin: 0, fontSize: FS.body, color: T.apoio, lineHeight: 1.5 }}>
+                Escolha o evento de origem para ver as peças dele. Todas vêm marcadas (menos as canceladas) — desmarque as que não quer copiar.
+              </p>
+            </div>
+          )}
 
           {cloneSourceId && pecasCarregando && (
             <div style={{ marginTop: 16 }}>
@@ -306,8 +320,8 @@ export function CloneItemsDialog({
           )}
         </div>
 
-        <div style={{ flexShrink: 0, padding: '16px 28px 24px', borderTop: `1px solid ${N.n3}`, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-          <Botao variante="fantasma" onClick={() => { onOpenChange(false); setCloneSourceId(""); }}>
+        <div style={{ flexShrink: 0, padding: '16px 24px 20px', borderTop: `1px solid ${T.border}`, display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start', gap: 10 }}>
+          <Botao variante="secundario" onClick={() => { onOpenChange(false); setCloneSourceId(""); }}>
             Cancelar
           </Botao>
           <Botao
@@ -326,7 +340,7 @@ export function CloneItemsDialog({
           >
             {isCloning
               ? "Clonando..."
-              : escolhidas.size > 0 ? `Clonar ${escolhidas.size} ${escolhidas.size === 1 ? "Peça" : "Peças"}` : "Clonar Peças"}
+              : escolhidas.size > 0 ? `Clonar ${escolhidas.size} ${escolhidas.size === 1 ? "peça" : "peças"}` : "Clonar peças"}
           </Botao>
         </div>
       </DialogContent>

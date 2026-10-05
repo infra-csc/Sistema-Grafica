@@ -140,13 +140,17 @@ describe("Mudança 3 · agrupar por tipo ou por status", () => {
 });
 
 describe("restrições", () => {
-  it("a tabela tem 9 colunas em porcentagens somando 100, Status com 19%", () => {
-    const i = ED.indexOf("['ID', '7%'],");
+  // Status desceu de 19% para 14% no redesign (02/10): a pílula é o rótulo
+  // CURTO ("Ag. Vinculação") e cabe; os 5% foram para o ID (o triângulo de
+  // prioridade) e a Referência (as miniaturas em leque). A regra que importa
+  // continua: 9 colunas, porcentagens somando 100, nenhuma `auto`.
+  it("a tabela tem 9 colunas em porcentagens somando 100, Status com 14%", () => {
+    const i = ED.indexOf("['ID', '9%'],");
     const bloco = ED.slice(i, i + 400);
     const pcts = [...bloco.matchAll(/'(\d+)%'\]/g)].map(m => Number(m[1]));
     expect(pcts).toHaveLength(9);
     expect(pcts.reduce((a, b) => a + b, 0)).toBe(100);
-    expect(bloco).toContain("['Status', '19%']");
+    expect(bloco).toContain("['Status', '14%']");
     // Nenhuma coluna `auto` ao lado das outras — com fixed ela vira zero.
     expect(bloco).not.toContain("undefined]");
   });

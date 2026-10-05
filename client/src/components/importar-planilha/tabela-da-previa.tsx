@@ -1,4 +1,5 @@
 // O PAINEL DA TABELA: busca, recorte da triagem e as linhas agrupadas por tipo.
+import { formatarM2 } from "@/components/detalhe-do-evento/regras";
 import { Fragment } from "react";
 import { List, Search } from "lucide-react";
 import { T, N, TOM, FONT } from "@/lib/theme";
@@ -126,7 +127,7 @@ export function TabelaDaPrevia({
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                             {groupM2 > 0 && (
-                              <span style={{ fontSize: 11, fontFamily: FONT.mono, fontWeight: 700, color: TOM.alerta.text }}>{groupM2.toFixed(2)} m²</span>
+                              <span style={{ fontSize: 11, fontFamily: FONT.mono, fontWeight: 700, color: TOM.alerta.text }}>{formatarM2(groupM2)} m²</span>
                             )}
                             <span style={{ fontSize: 11, color: groupLinked === groupItems.length ? TOM.sucesso.text : TOM.alerta.text, fontWeight: 600 }}>
                               {groupLinked}/{groupItems.length} vinculados

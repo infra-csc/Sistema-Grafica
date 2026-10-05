@@ -6,7 +6,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useRoute, Link, useLocation } from "wouter";
-import { ArrowLeft, Package, Plus, Upload, Copy, Search, Loader2 } from "lucide-react";
+import { ArrowLeft, Package, Plus, Upload, Copy, Search, Loader2, Info } from "lucide-react";
 import { motivoEventoFinalizado, todayBusinessMs } from "@/lib/status";
 import { EstoqueSemelhantesDialog } from "@/components/estoque-semelhantes-dialog";
 import { PedidosDoEvento } from "@/components/pedidos-do-evento";
@@ -20,7 +20,8 @@ import { EncerrarEventoDialog } from "@/components/encerrar-evento-dialog";
 import { useEventImport, useEventClone } from "@/hooks/use-event-import";
 import { useEventReference } from "@/hooks/use-event-reference";
 import { useEventItemFlags } from "@/hooks/use-event-item-flags";
-import { useDensidadeDoConteudo, usePonteiroGrosso } from "@/hooks/use-mobile";
+import { useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
+import { AreaDaLista } from "@/components/detalhe-do-evento/area-da-lista";
 import { AumentarQuantidadeDialog, ComplementoDaFicha, temBlocoDeComplemento } from "@/components/aumentar-quantidade-dialog";
 import { T, N, FS } from "@/lib/theme";
 import { Botao } from "@/components/ui/botao";
@@ -38,7 +39,8 @@ import { useFormularioDaPeca, useColarPrintNaReferencia } from "@/components/det
 import { getUploadUrl, useAcoesDasPecas, useEncerrarEReabrir } from "@/components/detalhe-do-evento/use-detalhe-do-evento-acoes";
 import { EsqueletoDoEvento, EventoIndisponivel } from "@/components/detalhe-do-evento/estados-da-tela";
 import { FaixasDoEvento } from "@/components/detalhe-do-evento/faixas-do-evento";
-import { TituloDoEvento } from "@/components/detalhe-do-evento/titulo-do-evento";
+import { TituloDoEvento, ResumoDoEvento } from "@/components/detalhe-do-evento/titulo-do-evento";
+import { eventoTemMoldeSemPrazo, AVISO_MOLDE_SEM_PRAZO } from "@shared/prazo-molde";
 import { AcoesDoEvento } from "@/components/detalhe-do-evento/acoes-do-evento";
 import { DevolverEventoParaArteDialog } from "@/components/detalhe-do-evento/devolver-evento-para-arte-dialog";
 import { ModalDeEntradaDePecas } from "@/components/detalhe-do-evento/modal-de-entrada-de-pecas";
@@ -82,7 +84,7 @@ export default function EventDetail() {
   const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
   // Régua única (use-mobile.tsx): a lista de peças escolhe tabela ou cartões
   // pela ÁREA ÚTIL medida, e o alvo de toque segue o PONTEIRO.
-  const { ref: listaRef, cards: emCards, compacto, isMobile } = useDensidadeDoConteudo<HTMLDivElement>();
+  const isMobile = useIsMobile();
   const ponteiroGrosso = usePonteiroGrosso();
   /** Dedo (celular OU tablet do galpão): manda no TAMANHO do alvo, só nele. */
   const dedo = ponteiroGrosso || isMobile;
@@ -284,7 +286,7 @@ export default function EventDetail() {
   }
 
   if (!event) {
-    return <EventoIndisponivel eventError={eventError} refetchEvent={() => refetchEvent()} />;
+    return <EventoIndisponivel eventError={eventError} refetchEvent={() => refetchEvent()} isMobile={isMobile} />;
   }
 
   // O que a linha da tabela e o cartão do celular precisam da tela.
@@ -295,19 +297,17 @@ export default function EventDetail() {
   };
 
   return (
-    <div style={{ padding: isMobile ? '12px 12px' : '28px 40px', height: '100%', overflowY: 'auto', maxWidth: '1400px', margin: '0 auto', backgroundColor: N.n2 }}>
-      {/* Breadcrumb */}
-      <Link href="/eventos">
-        <a
-          data-testid="button-back"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '13px', fontWeight: '500', color: T.second, marginBottom: '22px', textDecoration: 'none', transition: 'color 0.15s', letterSpacing: '0.02em' }}
-          onMouseEnter={e => (e.currentTarget.style.color = T.accentText)}
-          onMouseLeave={e => (e.currentTarget.style.color = T.second)}
-        >
-          <ArrowLeft className="h-3 w-3" />
+    <div style={{ padding: isMobile ? '12px 12px' : '28px 40px', height: '100%', overflowY: 'auto', width: '100%', maxWidth: '1400px', margin: '0 auto' }}>
+      {/* Breadcrumb — o <Link> do wouter JÁ é o <a>: o <a> de dentro que
+          havia aqui gerava âncora dentro de âncora (aviso de DOM no console
+          e dois alvos de foco para o mesmo gesto). Hover e foco no CSS
+          (.evd-voltar), não em onMouseEnter. */}
+      <nav aria-label="Navegação" style={{ marginBottom: isMobile ? 14 : 20 }}>
+        <Link href="/eventos" data-testid="button-back" className="evd-voltar">
+          <ArrowLeft aria-hidden="true" className="h-3.5 w-3.5" />
           Voltar para eventos
-        </a>
-      </Link>
+        </Link>
+      </nav>
 
       <FaixasDoEvento
         isEventClosed={isEventClosed}
@@ -319,30 +319,15 @@ export default function EventDetail() {
         onReabrir={() => setReopenDialogOpen(true)}
       />
 
-      {/* Header principal */}
-      <div style={{ marginBottom: '40px' }}>
-        {/* flex-start: o bloco do título cresce (frase, barra, chips) e as
-            ações ficam na altura do NOME, não boiando no meio da coluna. O
-            título ocupa o que sobrar (flex 1) e as ações quebram para baixo
-            quando não cabem. */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: isMobile ? 20 : 28, gap: isMobile ? 16 : 24, flexWrap: 'wrap' }}>
+      {/* Header principal — título e ações numa linha; o resumo (progresso,
+          total e chips) ganha a largura inteira logo abaixo. */}
+      <header style={{ marginBottom: isMobile ? 24 : 32 }}>
+        {/* flex-start: as ações ficam na altura do NOME, não boiando no meio
+            da coluna; quebram para baixo do título quando não cabem. */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: isMobile ? 16 : 24, flexWrap: 'wrap' }}>
           <TituloDoEvento
             event={event}
             fraseResolucao={fraseResolucao}
-            fases={fases}
-            pecasNaConta={pecasNaConta}
-            entregues={entregues}
-            totalDePecas={items.length}
-            complementCount={complementCount}
-            totalM2={totalM2}
-            canceladasForaDaConta={canceladasForaDaConta}
-            statusChips={statusChips}
-            statusFilter={statusFilter}
-            setStatusFilter={setStatusFilter}
-            rascunhos={draftItems.length}
-            irParaRascunhos={irParaRascunhos}
-            canEditLists={canEditLists}
-            eventoFinalizado={eventoFinalizado}
             isMobile={isMobile}
           />
           {/* ── AÇÕES DO CABEÇALHO: HIERARQUIA ──
@@ -358,9 +343,7 @@ export default function EventDetail() {
                   a MESMA condição de perfil e o MESMO bloqueio de evento
                   finalizado do botão que substituiu. */}
           <AcoesDoEvento
-            event={event}
             eventId={eventId}
-            rawItems={rawItems}
             isMobile={isMobile}
             canEditLists={canEditLists}
             canCloseEvent={canCloseEvent}
@@ -397,6 +380,35 @@ export default function EventDetail() {
           </AcoesDoEvento>
         </div>
 
+        <ResumoDoEvento
+          fases={fases}
+          pecasNaConta={pecasNaConta}
+          entregues={entregues}
+          totalDePecas={items.length}
+          complementCount={complementCount}
+          totalM2={totalM2}
+          canceladasForaDaConta={canceladasForaDaConta}
+          statusChips={statusChips}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          rascunhos={draftItems.length}
+          irParaRascunhos={irParaRascunhos}
+          canEditLists={canEditLists}
+          eventoFinalizado={eventoFinalizado}
+          isMobile={isMobile}
+        >
+          {/* PRAZO DO MOLDE: aviso discreto, sem bloquear nada — o campo é
+              opcional e mora no formulário do evento (Eventos). */}
+          {eventoTemMoldeSemPrazo(event, rawItems) && (
+            <span data-testid="aviso-molde-sem-prazo" title="Cadastre em Eventos → editar o evento → Prazo do molde (opcional). Não entra na Gestão de Prazos." style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: FS.meta, color: T.second, lineHeight: 1.4 }}>
+              <Info aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0 }} />
+              {AVISO_MOLDE_SEM_PRAZO}
+            </span>
+          )}
+        </ResumoDoEvento>
+      </header>
+
+      <section aria-label="Agenda operacional" style={{ marginBottom: isMobile ? 28 : 40 }}>
         {/* ── Agenda Operacional ───────────────────────────────── */}
         <AgendaOperacional
           event={event}
@@ -407,7 +419,7 @@ export default function EventDetail() {
           marcoFiltro={marcoFiltro}
           setMarcoFiltro={setMarcoFiltro}
         />
-      </div>
+      </section>
 
       {/* Kit: remessas com as datas do Kit. */}
       <PainelDoKit
@@ -537,10 +549,10 @@ export default function EventDetail() {
           />
         )
       ) : (
-        /* `listaRef` mede a ÁREA ÚTIL da lista de peças — é ela, e não a
+        /* <AreaDaLista> mede a ÁREA ÚTIL da lista de peças — é ela, e não a
            janela, que decide entre a tabela de 9 colunas e os cartões
-           (ver a régua em use-mobile.tsx). */
-        <div ref={listaRef} style={{ display: 'flex', flexDirection: 'column', gap: '48px' }}>
+           (ver a régua em use-mobile.tsx e o porquê em area-da-lista.tsx). */
+        <AreaDaLista gap={isMobile ? 16 : 14}>{({ emCards, compacto }) => (<>
           {/* Busca local de peças — evita rolagem cega em eventos grandes. */}
           <BarraDaLista
             filtros={filtros}
@@ -579,7 +591,7 @@ export default function EventDetail() {
               Mostrar todas as {searchedItems.length} peças (+{hiddenItemCount})
             </Botao>
           )}
-        </div>
+        </>)}</AreaDaLista>
       )}
 
       {/* Dialog de Detalhes do Item — a ficha vira editável (o componente já

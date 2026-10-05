@@ -19,7 +19,7 @@ import { HIDE_NATIVE_CLOSE, ModalHeader, modalSurface } from "@/components/modal
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { alvo, useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
-import { T, FS, R, N, TOM, FONT, FW } from "@/lib/theme";
+import { T, FS, R, N, TOM, FONT, FW, SHADOW } from "@/lib/theme";
 import { Botao } from "@/components/ui/botao";
 
 const ROTULO: React.CSSProperties = { display: "block", fontSize: FS.small, fontWeight: FW.rotulo, letterSpacing: "0.08em", textTransform: "uppercase", color: T.apoio, marginBottom: 5 };
@@ -229,16 +229,36 @@ export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, podeCriar
     </div>
   );
 
+  // OCIOSO: o painel aparece em TODO evento para quem pode criar remessa, e
+  // a imensa maioria dos eventos não tem Kit. Sem remessa (e para quem não é
+  // do Kit) ele vira uma linha discreta — tracejada, sem a faixa roxa — para
+  // não disputar com a lista algo que quase nunca se usa. Com remessa, ou para
+  // o usuário do Kit, volta a ser o painel cheio.
+  const ocioso = remessas.length === 0 && !usuarioDoKit;
   return (
     <section data-testid="painel-do-kit" aria-labelledby="titulo-painel-do-kit"
-      style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderLeft: `3px solid ${TOM.roxo.text}`, borderRadius: R.lg, padding: "14px 20px", marginBottom: 24, display: "flex", flexDirection: "column", gap: 10 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <Package style={{ width: 16, height: 16, color: TOM.roxo.text }} aria-hidden="true" />
-        <h2 id="titulo-painel-do-kit" style={{ margin: 0, fontSize: FS.body, fontWeight: FW.rotulo, color: T.text, textTransform: "uppercase", letterSpacing: "0.04em" }}>Kit</h2>
+      style={ocioso
+        ? { backgroundColor: "transparent", border: `1px dashed ${T.bdark}`, borderRadius: R.lg, padding: isMobile ? "10px 12px" : "8px 10px 8px 16px", marginBottom: isMobile ? 24 : 32, display: "flex", flexDirection: "column", gap: 10 }
+        // Cheio: o MESMO desenho dos cards de rascunhos e de solicitações
+        // (borda inteira na tinta da família, ladrilho do ícone, título em
+        // display) — a faixa lateral de 3px era um terceiro jeito de dizer
+        // "card com assunto".
+        : { backgroundColor: T.surface, border: `1px solid ${TOM.roxo.border}`, borderRadius: R.lg, boxShadow: SHADOW.sm, padding: isMobile ? "16px" : "18px 24px 20px", marginBottom: isMobile ? 24 : 32, display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: ocioso ? 10 : 12, flexWrap: "wrap" }}>
+        {ocioso
+          ? <Package style={{ width: 16, height: 16, color: T.second }} aria-hidden="true" />
+          : (
+            <div aria-hidden="true" style={{ width: 36, height: 36, borderRadius: R.md, backgroundColor: TOM.roxo.bg, border: `1px solid ${TOM.roxo.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Package style={{ width: 17, height: 17, color: TOM.roxo.text }} />
+            </div>
+          )}
+        <h2 id="titulo-painel-do-kit" style={ocioso
+          ? { margin: 0, fontSize: FS.body, fontWeight: FW.rotulo, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.04em" }
+          : { margin: 0, fontFamily: FONT.display, fontSize: FS.title, fontWeight: FW.forte, letterSpacing: "-0.02em", color: T.text }}>Kit</h2>
         {/* Sem remessa, o painel aparece em TODO evento para quem pode criar:
             a frase diz para que ele serve, e que ignorá-lo é normal quando o
             evento não tem Kit. */}
-        <span style={{ fontSize: FS.body, color: T.apoio }}>
+        <span style={{ fontSize: ocioso ? FS.meta : FS.body, color: ocioso ? T.second : T.apoio, flex: "1 1 240px", minWidth: 0 }}>
           {remessas.length === 0
             ? (usuarioDoKit ? "Nenhuma remessa do Kit neste evento." : "Nenhuma remessa. Só é usado se o evento tiver Kit, com datas próprias de entrega e caminhão.")
             : `${remessas.length} ${remessas.length === 1 ? "remessa" : "remessas"} — datas próprias do Kit`}
@@ -247,10 +267,12 @@ export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, podeCriar
           /* Secundário no roxo do Kit (a identidade do painel). O motivo do
              desabilitado deixa o `title` e fica VISÍVEL embaixo do botão. */
           <span style={{ marginLeft: "auto" }}>
-            <Botao variante="secundario" icone={Plus} data-testid="button-nova-remessa-kit" disabled={eventoFinalizado} onClick={() => setAberto(true)}
+            <Botao variante={ocioso ? "fantasma" : "secundario"} icone={Plus} data-testid="button-nova-remessa-kit" disabled={eventoFinalizado} onClick={() => setAberto(true)}
               title={eventoFinalizado ? "Evento finalizado — não recebe peças" : undefined}
               motivo={eventoFinalizado ? "Evento finalizado — não recebe peças." : undefined} alinharMotivo="end"
-              style={{ minHeight: alvo(34, dedo), padding: "0 14px", borderColor: TOM.roxo.border, background: TOM.roxo.bg, color: TOM.roxo.text, fontSize: FS.meta, fontWeight: FW.rotulo }}>
+              style={ocioso
+                ? { minHeight: alvo(32, dedo), padding: "0 12px", color: TOM.roxo.text, fontSize: FS.meta, fontWeight: FW.forte }
+                : { minHeight: alvo(34, dedo), padding: "0 14px", borderColor: TOM.roxo.border, background: TOM.roxo.bg, color: TOM.roxo.text, fontSize: FS.meta, fontWeight: FW.rotulo }}>
               Nova remessa do Kit
             </Botao>
           </span>

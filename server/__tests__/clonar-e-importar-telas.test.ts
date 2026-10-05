@@ -52,7 +52,8 @@ describe("Clonar peças: o que vem marcado", () => {
     expect((screen.getByTestId("linha-peca-clone-a").querySelector("input") as HTMLInputElement).checked).toBe(true);
     expect(screen.getByText(/1 complemento \(aumento pós-produção\) fica de fora/)).toBeTruthy();
     const botao = screen.getByTestId("button-confirm-clone");
-    expect(botao.textContent).toContain("Clonar 1 Peça");
+    // Caixa de frase (02/10): "Clonar 1 peça", como os outros botões da tela.
+    expect(botao.textContent).toContain("Clonar 1 peça");
     fireEvent.click(botao);
     expect(onConfirmClone).toHaveBeenCalledWith(["a"]);
   });

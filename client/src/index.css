@@ -1036,3 +1036,91 @@ a.ds-botao[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; filter: no
   a.ds-botao { min-height: 44px !important; }
 }
 
+/* ── DETALHE DO EVENTO (evd-): os estados que estilo inline não alcança ─────
+   Hover, foco e o que só aparece com ponteiro fino. As cores vêm dos tokens
+   (--n*) ou de var() passada pelo componente. */
+.evd-voltar {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 32px; padding: 0 10px 0 6px; margin-left: -6px;
+  border-radius: var(--r-md);
+  font-size: 13px; font-weight: 600; color: var(--n7); text-decoration: none;
+  transition: color var(--dur-rapida) ease, background-color var(--dur-rapida) ease;
+}
+.evd-voltar:hover { color: var(--n10); background-color: var(--n3); }
+.evd-voltar:hover svg { transform: translateX(-2px); }
+.evd-voltar svg { transition: transform var(--dur-media) var(--ease-saida); }
+
+.evd-chip { transition: border-color var(--dur-rapida) ease, background-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease; }
+.evd-chip[aria-pressed="false"]:hover { border-color: var(--evd-chip-borda, var(--n5)) !important; background-color: var(--evd-chip-tinta, var(--n2)) !important; }
+.evd-chip:active { transform: translateY(0.5px); }
+.evd-chip-rascunho:hover { border-style: solid !important; }
+@media (max-width: 767px) { .evd-resumo-divisor { display: none; } }
+
+/* A linha da tabela e o cartão: o realce de hover mora aqui. */
+.evd-linha { transition: background-color var(--dur-rapida) ease; }
+.evd-linha:hover { background-color: var(--n1); }
+.evd-linha:hover .evd-id { text-decoration: underline; text-underline-offset: 3px; }
+.evd-cartao { transition: border-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease; }
+.evd-cartao:hover { border-color: var(--n5) !important; box-shadow: var(--sh-sm); }
+.evd-cartao:active { background-color: var(--n1) !important; }
+.evd-duas-linhas { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+
+/* Botões de ícone da linha (reaproveitar, editar, excluir). */
+.evd-acao {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; padding: 0; border: none; border-radius: var(--r-md);
+  background: transparent; color: var(--n7); cursor: pointer;
+  transition: color var(--dur-rapida) ease, background-color var(--dur-rapida) ease;
+}
+.evd-acao:hover:not(:disabled) { color: var(--n10); background-color: var(--n3); }
+.evd-acao:disabled { color: var(--n6); cursor: not-allowed; }
+.evd-acao-perigo:hover:not(:disabled) { color: var(--perigo-text); background-color: var(--perigo-bg); }
+.evd-acao-reuso:hover:not(:disabled) { color: var(--ok-text); background-color: var(--ok-bg); }
+.evd-acao-reuso-ativo { color: var(--ok-text); background-color: var(--ok-bg); box-shadow: inset 0 0 0 1px var(--ok-border); }
+@media (pointer: coarse) { .evd-acao { width: 44px; height: 44px; } }
+
+/* As miniaturas da peça: em leque na tabela, lado a lado no toque. */
+.evd-refs-pilha .evd-ref + .evd-ref { margin-left: calc(var(--evd-ref, 34px) * -0.6); }
+.evd-ref { transition: transform var(--dur-media) var(--ease-saida); }
+.evd-refs-pilha .evd-ref:hover,
+.evd-refs-pilha .evd-ref:focus-within { z-index: 20 !important; transform: translateY(-2px) scale(1.06); }
+.evd-ref-link img { transition: box-shadow var(--dur-rapida) ease; }
+.evd-ref-link:hover img { box-shadow: 0 0 0 1px var(--n6), var(--sh-md) !important; }
+.evd-ref-x {
+  position: absolute; top: -6px; right: -6px; z-index: 2;
+  width: 18px; height: 18px; padding: 0; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--n5); background: var(--n0); color: var(--n8); cursor: pointer;
+  opacity: 0; transition: opacity var(--dur-rapida) ease, color var(--dur-rapida) ease, background-color var(--dur-rapida) ease;
+}
+.evd-ref:hover .evd-ref-x, .evd-ref:focus-within .evd-ref-x { opacity: 1; }
+.evd-ref-x:hover { color: var(--perigo-text); border-color: var(--perigo-border); background: var(--perigo-bg); }
+.evd-ref-anexar {
+  height: var(--evd-ref, 34px) !important; min-width: calc(var(--evd-ref, 34px) * 0.875) !important; width: auto !important; padding: 0 !important;
+  border: 1px dashed var(--n5) !important; border-radius: var(--r-sm) !important;
+  color: var(--n7) !important; background: transparent !important;
+}
+.evd-ref-anexar-rotulo { padding: 0 12px !important; font-size: 12px !important; font-weight: 600 !important; }
+.evd-ref-anexar:hover { border-color: var(--orange-deep) !important; color: var(--orange-deep) !important; background: var(--orange-soft) !important; }
+/* A barra da lista: busca, agrupar e limpar. */
+.evd-busca { transition: border-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease; }
+.evd-busca:hover { border-color: var(--n5) !important; }
+.evd-busca:focus { outline: none; border-color: var(--orange-deep) !important; box-shadow: 0 0 0 3px var(--orange-soft); }
+.evd-busca::placeholder { color: var(--n7); }
+.evd-segmento { transition: color var(--dur-rapida) ease, background-color var(--dur-rapida) ease; }
+.evd-segmento[aria-checked="false"]:hover { color: var(--n10) !important; background-color: var(--n2) !important; }
+.evd-limpar:hover { background-color: var(--orange-soft) !important; }
+
+/* Dica de atalho de teclado: não existe no celular. */
+@media (max-width: 767px) { .evd-so-teclado { display: none !important; } }
+
+/* Opção marcável dentro de modal (lista de peças a devolver). */
+.evd-opcao { transition: background-color var(--dur-rapida) ease; }
+.evd-opcao:hover { background-color: var(--n1); }
+
+@media (pointer: coarse) {
+  .evd-refs-pilha .evd-ref + .evd-ref { margin-left: 6px; }
+  .evd-ref-x { opacity: 1; width: 22px; height: 22px; top: -7px; right: -7px; box-shadow: var(--sh-sm); }
+  .evd-ref-x::after { content: ""; position: absolute; inset: -11px; }
+  .evd-ref-anexar { min-width: 44px !important; height: 44px !important; }
+}

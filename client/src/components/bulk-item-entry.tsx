@@ -643,14 +643,16 @@ export function BulkItemEntry({
         backgroundColor: N.n2,
         borderTop: `1px solid ${T.border}`,
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        flexWrap: 'wrap', gap: '10px 16px',
         flexShrink: 0,
       }}>
-        {/* Status chips */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+        {/* Status chips — a dica do Enter é de teclado: some no celular,
+            onde só espremia os botões para fora da tela. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px', minWidth: 0 }}>
+          <div className="evd-so-teclado" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           {/* No lugar do selo "Cálculo Automático" (que não pedia nem
               ensinava nada): o atalho que torna a grade rápida. Enter já
               avançava de campo e criava a linha seguinte — só ninguém sabia. */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <kbd style={{ fontSize: '10px', fontWeight: '700', color: T.strong, backgroundColor: T.surface, border: `1px solid ${T.bdark}`, borderBottomWidth: 2, borderRadius: 4, padding: '0 5px', fontFamily: FONT.mono }}>Enter</kbd>
             <span style={{ fontSize: '10px', fontWeight: '700', color: T.second, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: FONT.display }}>
               próximo campo · nova linha no fim
@@ -659,13 +661,13 @@ export function BulkItemEntry({
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <div style={{ width: '7px', height: '7px', borderRadius: '999px', backgroundColor: validCount > 0 ? TOM.sucesso.dot : T.bdark }} />
             <span style={{ fontSize: '10px', fontWeight: '700', color: T.second, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: FONT.display }}>
-              {validCount} {validCount === 1 ? 'Peça Válida' : 'Peças Válidas'}
+              {validCount} {validCount === 1 ? 'peça válida' : 'peças válidas'}
             </span>
           </div>
         </div>
 
         {/* Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
           <Botao
             variante="fantasma"
             onClick={async () => {

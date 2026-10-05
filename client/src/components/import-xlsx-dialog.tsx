@@ -14,6 +14,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useConfirmar } from "@/components/ui/usar-confirmar";
 import { BarraLateralDaImportacao } from "@/components/importar-planilha/barra-lateral";
 import { TabelaDaPrevia } from "@/components/importar-planilha/tabela-da-previa";
+import { PreviaVazia } from "@/components/importar-planilha/previa-vazia";
 import {
   chaveDaPeca, colunasDaImportacao, defeitosDaLinha, quantidadeValida, repetidasNaPlanilha, type DefeitoImport,
 } from "@/components/importar-planilha/regras";
@@ -171,7 +172,7 @@ export function ImportXlsxDialog({
            rolando dentro do próprio recorte. Agora só a barra lateral e o
            painel da tabela rolam; o cartão do arquivo e o botão de importar
            — o começo e o fim da tarefa — ficam fixos. */
-        style={{ maxWidth: '98vw', width: importPreviewItems ? 1320 : 540, height: importPreviewItems ? 'calc(100vh - 48px)' : undefined, maxHeight: 'calc(100vh - 48px)', padding: 0, gap: 0, borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column', transition: 'width 0.3s' }}
+        style={{ maxWidth: '98vw', width: importPreviewItems ? 1320 : (isMobile ? 540 : 820), height: importPreviewItems ? 'calc(100vh - 48px)' : undefined, maxHeight: 'calc(100vh - 48px)', padding: 0, gap: 0, borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column', transition: 'width 0.3s' }}
       >
         {/* Abaixo de 768px a sidebar empilha ACIMA da tabela (largura total) —
             lado a lado, os 260px fixos esmagavam o preview no celular. */}
@@ -202,7 +203,8 @@ export function ImportXlsxDialog({
           setEscolhendoDestino={setEscolhendoDestino}
         />
 
-        {/* ── Right panel: table ── */}
+        {/* ── Right panel: table (ou, antes da planilha, o lugar dela) ── */}
+        {!importPreviewItems && !isMobile && <PreviaVazia />}
         {importPreviewItems && (
           <TabelaDaPrevia
             importPreviewItems={importPreviewItems}

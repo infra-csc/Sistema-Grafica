@@ -1,4 +1,5 @@
 // A LINHA DO PREVIEW — cada célula edita no lugar; a linha se pinta com os defeitos.
+import { formatarM2 } from "@/components/detalhe-do-evento/regras";
 import { useState } from "react";
 import { X } from "lucide-react";
 import { FilterSelect } from "@/components/filter-select";
@@ -221,7 +222,7 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
             cinza se lê como "não se aplica", e aqui se aplica — é orçamento
             que não fecha. A escala de cor do valor positivo continua a mesma. */}
         <span style={{ fontSize: 13, fontWeight: 700, color: semM2 ? TOM.perigo.text : m2Color, fontFamily: FONT.mono, letterSpacing: '-0.02em' }}>
-          {m2 > 0 ? m2.toFixed(2) : '—'}
+          {m2 > 0 ? formatarM2(m2) : '—'}
         </span>
       </td>
 

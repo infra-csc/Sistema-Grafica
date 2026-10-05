@@ -9,13 +9,13 @@
 // fora COM o porquê; o motivo vai para a Arte na peça e no aviso.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useMemo, useState } from "react";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, Inbox } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Botao } from "@/components/ui/botao";
 import { HIDE_NATIVE_CLOSE, ModalFooter, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { getStatusLabel } from "@/lib/status";
-import { FS, FW, R, T, TOM } from "@/lib/theme";
+import { FS, FW, N, R, T, TOM } from "@/lib/theme";
 import type { useToast } from "@/hooks/use-toast";
 import {
   situacaoParaVoltarAArte, ROTULO_DE_FORA, MOTIVO_DEVOLVER_EVENTO_MIN, type ForaDaDevolucao,
@@ -96,6 +96,10 @@ export function DevolverEventoParaArteDialog({ open, onFechar, eventId, nomeDoEv
   }
 
   const letra = (n: number) => (isMobile ? Math.max(12, n) : n);
+  // NADA PODE VOLTAR: em vez do formulário inteiro com um botão "Devolver 0
+  // peças" apagado, o modal diz que não há o que devolver e por quê.
+  const semNada = voltam.length === 0;
+  const totalDeFora = Array.from(deFora.values()).reduce((n, l) => n + l.length, 0);
   const chip = (ativo: boolean): React.CSSProperties => ({
     minHeight: isMobile ? 44 : 32, padding: "0 12px", borderRadius: R.pill, cursor: "pointer",
     border: `1px solid ${ativo ? T.text : T.border}`, background: ativo ? T.text : T.surface, color: ativo ? T.surface : T.text,
@@ -104,12 +108,35 @@ export function DevolverEventoParaArteDialog({ open, onFechar, eventId, nomeDoEv
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) fechar(); }}>
-      <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(600)} data-testid="dialogo-devolver-evento-para-arte">
+      <DialogContent
+        className={HIDE_NATIVE_CLOSE}
+        style={modalSurface(600)}
+        data-testid="dialogo-devolver-evento-para-arte"
+        // O foco abre no MOTIVO (o primeiro trabalho do modal), não no X do
+        // cabeçalho — que abria aceso, como se fechar fosse a sugestão.
+        onOpenAutoFocus={(e) => {
+          const alvo = document.getElementById(semNada ? "button-fechar-devolver-evento" : "motivo-devolver-evento");
+          if (alvo) { e.preventDefault(); alvo.focus(); }
+        }}
+      >
         <DialogTitle className="sr-only">Devolver peças para a Arte</DialogTitle>
         <DialogDescription className="sr-only">Escolha as peças, escreva o motivo e devolva para a Arte refazer.</DialogDescription>
         <ModalHeader icon={RotateCcw} tint={TOM.perigo.text} title="Devolver peças para a Arte" subtitle={nomeDoEvento} onClose={fechar} compacto={isMobile} />
 
-        <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", padding: isMobile ? 16 : 20, display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", padding: isMobile ? 16 : "20px 24px", display: "flex", flexDirection: "column", gap: 18 }}>
+          {semNada ? (
+            <div data-testid="lista-devolver-evento" style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 8, padding: "18px 8px 6px" }}>
+              <div aria-hidden="true" style={{ width: 44, height: 44, borderRadius: R.pill, backgroundColor: N.n2, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 4 }}>
+                <Inbox style={{ width: 20, height: 20, color: T.second }} />
+              </div>
+              <p style={{ margin: 0, fontSize: letra(FS.strong), fontWeight: FW.forte, color: T.text }}>Nenhuma peça deste evento pode voltar para a Arte agora.</p>
+              <p style={{ margin: 0, fontSize: letra(FS.body), color: T.second, lineHeight: 1.5, maxWidth: 440 }}>
+                {totalDeFora > 0
+                  ? "As peças daqui ainda não chegaram à Arte ou já estão numa etapa que não volta — veja abaixo onde cada uma está."
+                  : "Só voltam peças que já passaram pela Arte. Quando houver alguma, ela aparece aqui para você escolher."}
+              </p>
+            </div>
+          ) : (<>
           <p style={{ margin: 0, fontSize: letra(13), color: T.second, lineHeight: 1.45 }}>
             As peças voltam para <strong style={{ color: T.text }}>Aguardando envio</strong> na Arte, sem thumb, sem arquivo final e sem a aprovação — para refazer a arte (ex.: data nova troca os logos). Saem da fila do Atendimento, da Revisão e da Gráfica.
           </p>
@@ -158,7 +185,7 @@ export function DevolverEventoParaArteDialog({ open, onFechar, eventId, nomeDoEv
               <div key={etapa} style={{ marginBottom: 8 }}>
                 <p style={{ margin: "6px 0 2px", fontSize: letra(FS.small), color: T.second }}>{etapa} · {lista.length}</p>
                 {lista.map((p) => (
-                  <label key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: isMobile ? 44 : 36, cursor: "pointer", fontSize: letra(13), color: T.text }}>
+                  <label key={p.id} className="evd-opcao" style={{ display: "flex", alignItems: "center", gap: 10, minHeight: isMobile ? 44 : 36, padding: "0 8px", margin: "0 -8px", borderRadius: R.md, cursor: "pointer", fontSize: letra(13), color: T.text }}>
                     <input type="checkbox" checked={!desmarcadas.has(p.id)} onChange={() => alternar(p.id)} data-testid={`checkbox-devolver-${p.id}`}
                       style={{ width: 18, height: 18, flexShrink: 0, accentColor: T.text }} />
                     <span style={{ fontWeight: FW.forte, color: T.accentText, fontVariantNumeric: "tabular-nums" }}>{p.displayId}</span>
@@ -173,6 +200,7 @@ export function DevolverEventoParaArteDialog({ open, onFechar, eventId, nomeDoEv
               </div>
             ))}
           </div>
+          </>)}
 
           {deFora.size > 0 && (
             <details data-testid="de-fora-devolver-evento">
@@ -189,11 +217,11 @@ export function DevolverEventoParaArteDialog({ open, onFechar, eventId, nomeDoEv
         </div>
 
         <ModalFooter style={{ flexDirection: "row", gap: 10, flexWrap: "wrap", justifyContent: "flex-end", paddingBottom: "calc(12px + env(safe-area-inset-bottom))" }}>
-          <Botao tamanho={isMobile ? "toque" : "md"} onClick={fechar} disabled={enviando} style={isMobile ? { flex: "1 1 0%" } : undefined}>Cancelar</Botao>
-          <Botao variante="perigo" tamanho={isMobile ? "toque" : "md"} icone={RotateCcw} onClick={devolver} disabled={!pode} carregando={enviando}
+          <Botao id="button-fechar-devolver-evento" tamanho={isMobile ? "toque" : "md"} onClick={fechar} disabled={enviando} style={isMobile ? { flex: "1 1 0%" } : undefined}>{semNada ? "Fechar" : "Cancelar"}</Botao>
+          {!semNada && <Botao variante="perigo" tamanho={isMobile ? "toque" : "md"} icone={RotateCcw} onClick={devolver} disabled={!pode} carregando={enviando}
             data-testid="button-confirmar-devolver-evento" style={isMobile ? { flex: "2 1 0%" } : undefined}>
             Devolver {marcadas.length} peça{marcadas.length !== 1 ? "s" : ""} para a Arte
-          </Botao>
+          </Botao>}
         </ModalFooter>
       </DialogContent>
     </Dialog>

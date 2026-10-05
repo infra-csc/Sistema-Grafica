@@ -9,10 +9,11 @@ import { ObjectUploader } from "@/components/ObjectUploader";
 import { ModalFooter } from "@/components/modal-shell";
 import { AumentarQuantidadeButton } from "@/components/aumentar-quantidade-dialog";
 import { calculateM2 } from "@/lib/calculateM2";
-import { T, N, TOM } from "@/lib/theme";
+import { T, N, TOM, FS, FONT, R } from "@/lib/theme";
 import { rotuloDaRemessa, type RemessaDoKit } from "@shared/kit";
 import { alinharTipo } from "@shared/tipo-da-peca";
 import type { ItemFormData, ModeloDePeca } from "./tipos";
+import { formatarM2 } from "./regras";
 
 // Tipografia e controles do formulário de peça — a MESMA cara nos dois fluxos.
 const FIELD_LABEL: React.CSSProperties = { fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: T.second };
@@ -112,7 +113,7 @@ export function ItemForm({
             o nome do modelo e a Qtd. virava um campo de dois dígitos. */}
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "3fr 1fr 1fr", gap: 16 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 6, gridColumn: isMobile ? "1 / -1" : undefined }}>
-            <label htmlFor="item-type" style={FIELD_LABEL}>Tipo de Peça</label>
+            <label htmlFor="item-type" style={FIELD_LABEL}>Tipo de peça</label>
             {isEdit ? (
               <input
                 id="item-type"
@@ -248,32 +249,35 @@ export function ItemForm({
               onFocus={focusRing}
               onBlur={blurRing}
             />
-            {quantityLocked && (
-              <>
-                <p id="item-quantity-hint" style={{ margin: 0, fontSize: 10, lineHeight: 1.4, color: T.second }}>
-                  Em produção: dá para <strong>reduzir</strong> até {quantityFloor}
-                  {quantityFloor > 0 ? " (já produzidas/conferidas/entregues)" : ""}. Para <strong>aumentar</strong>, o pedido vira uma peça complementar.
-                </p>
-                {onAumentarQuantidade && (
-                  <AumentarQuantidadeButton variant="link" onClick={onAumentarQuantidade} testId="button-aumentar-quantidade-form" />
-                )}
-              </>
-            )}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <label htmlFor="item-m2-total" style={FIELD_LABEL}>M2 Total</label>
+            <label htmlFor="item-m2-total" style={FIELD_LABEL}>M² total</label>
             <input
               id="item-m2-total"
               readOnly
               tabIndex={-1}
               value={formData.fileWidth && formData.fileHeight
-                ? calculateM2(formData.quantity, parseFloat(formData.fileWidth) || 0, parseFloat(formData.fileHeight) || 0).toFixed(2) + " m²"
+                ? formatarM2(calculateM2(formData.quantity, parseFloat(formData.fileWidth) || 0, parseFloat(formData.fileHeight) || 0)) + " m²"
                 : "—"
               }
               // #c2410c: o total é TEXTO de 15px — o #f97316 dava 2,6:1 sobre #f3f4f3.
               style={{ ...FIELD_INPUT, fontWeight: 700, color: formData.fileWidth && formData.fileHeight ? T.accentText : T.second, cursor: "default" }}
             />
           </div>
+          {/* A regra da quantidade em produção ocupa a LINHA INTEIRA, embaixo
+              dos três campos: espremida na coluna da Qtd. ela virava seis
+              linhas de 10px e abria um buraco ao lado do Tipo. */}
+          {quantityLocked && (
+            <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap", padding: "10px 12px", borderRadius: R.md, backgroundColor: N.n1, border: `1px solid ${T.border}`, marginTop: -4 }}>
+              <p id="item-quantity-hint" style={{ margin: 0, fontSize: FS.meta, lineHeight: 1.5, color: T.apoio, flex: "1 1 320px" }}>
+                Em produção: dá para <strong>reduzir</strong> até {quantityFloor}
+                {quantityFloor > 0 ? " (já produzidas/conferidas/entregues)" : ""}. Para <strong>aumentar</strong>, o pedido vira uma peça complementar.
+              </p>
+              {onAumentarQuantidade && (
+                <AumentarQuantidadeButton variant="link" onClick={onAumentarQuantidade} testId="button-aumentar-quantidade-form" />
+              )}
+            </div>
+          )}
         </div>
 
         {/* Reaproveitamento — banner topo (só na edição) */}
@@ -311,7 +315,7 @@ export function ItemForm({
 
         {/* Descrição */}
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <label htmlFor="item-description" style={FIELD_LABEL}>Descrição do Item <span style={{ color: T.second, fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: 10 }}>(opcional)</span></label>
+          <label htmlFor="item-description" style={FIELD_LABEL}>Descrição da peça <span style={{ color: T.second, fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: 10 }}>(opcional)</span></label>
           <input
             id="item-description"
             value={formData.description}
@@ -328,7 +332,7 @@ export function ItemForm({
         <div style={{ backgroundColor: "rgba(243,244,243,0.6)", padding: "24px", borderRadius: "12px" }}>
           <div style={{ ...FIELD_LABEL, marginBottom: "16px", display: "flex", alignItems: "center", gap: "8px" }}>
             <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: T.accent, display: "inline-block", flexShrink: 0 }}></span>
-            Dimensões de Produção
+            Dimensões de produção
           </div>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: "12px" }}>
             {/* A bolinha LARANJA marca o par que alimenta o m² — e estava
@@ -524,7 +528,7 @@ export function ItemForm({
 
         {/* Observações */}
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          <label htmlFor="item-observations" style={FIELD_LABEL}>Observações Internas <span style={{ color: T.second, fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: 10 }}>(opcional)</span></label>
+          <label htmlFor="item-observations" style={FIELD_LABEL}>Observações internas <span style={{ color: T.second, fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: 10 }}>(opcional)</span></label>
           <textarea
             id="item-observations"
             value={formData.observations}
@@ -580,30 +584,48 @@ export function ItemForm({
         )}
       </div>
 
-      {/* Rodapé — o primário é o preto da casa nos dois modos (era #c2410c
-          só aqui); carregando trava o duplo clique que criava peça repetida. */}
-      <ModalFooter>
+      {/* Rodapé — o primário é o preto da casa nos dois modos; carregando
+          trava o duplo clique que criava peça repetida. No computador os dois
+          botões ficam à direita, lado a lado (Cancelar antes, como em todo
+          diálogo do app); no celular, empilhados com o primário em cima,
+          cheios, ao alcance do polegar. */}
+      <ModalFooter
+        fundo={T.bg}
+        style={isMobile
+          ? { flexDirection: "column", gap: 8, padding: "12px 16px calc(12px + env(safe-area-inset-bottom))" }
+          : { flexDirection: "row-reverse", justifyContent: "flex-start", alignItems: "center", gap: 10, padding: "14px 28px" }}
+      >
         <Botao
           type="submit"
           variante="primario"
           tamanho="toque"
-          larguraCheia
+          larguraCheia={isMobile}
           carregando={isPending}
           icone={isEdit ? Check : Plus}
           data-testid={isEdit ? "button-save-edit" : "button-submit-item"}
+          style={isMobile ? undefined : { minWidth: 168, padding: "0 20px" }}
         >
           {isEdit
-            ? (isPending ? "Salvando..." : "Salvar Alterações")
-            : (isPending ? "Adicionando..." : "Adicionar Peça")}
+            ? (isPending ? "Salvando..." : "Salvar alterações")
+            : (isPending ? "Adicionando..." : "Adicionar peça")}
         </Botao>
         <Botao
-          variante="fantasma"
-          larguraCheia
+          variante={isMobile ? "fantasma" : "secundario"}
+          tamanho="toque"
+          larguraCheia={isMobile}
           onClick={onCancel}
+          disabled={isPending}
           data-testid={isEdit ? "button-cancel-edit" : "button-cancel-item"}
         >
           Cancelar
         </Botao>
+        {/* O atalho que ninguém descobria: Enter envia o formulário. */}
+        {!isMobile && (
+          <span aria-hidden="true" style={{ marginRight: "auto", fontSize: FS.meta, color: T.second, display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <kbd style={{ fontFamily: FONT.mono, fontSize: FS.small, padding: "1px 6px", borderRadius: R.sm, border: `1px solid ${T.border}`, backgroundColor: T.surface, color: T.apoio }}>Enter</kbd>
+            {isEdit ? "salva" : "adiciona"}
+          </span>
+        )}
       </ModalFooter>
     </form>
   );

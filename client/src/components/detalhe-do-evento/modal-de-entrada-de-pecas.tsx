@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import type { useConfirmar } from "@/components/ui/usar-confirmar";
 import { BulkItemEntry } from "@/components/bulk-item-entry";
-import { ModalHeader, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
+import { ModalHeader, HIDE_NATIVE_CLOSE, FreezeWhileClosing, modalSurface } from "@/components/modal-shell";
 import { T, FS, FW, R } from "@/lib/theme";
 import { ItemForm } from "./formulario-da-peca";
 import { itemTypes } from "./regras";
@@ -62,7 +62,7 @@ export function ModalDeEntradaDePecas({
         className={`${bulkMode && !editingItem ? "max-w-[95vw] h-[90vh] p-0 gap-0 flex flex-col" : "p-0 gap-0"} ${HIDE_NATIVE_CLOSE}`}
         style={bulkMode && !editingItem
           ? { display: 'flex', flexDirection: 'column', overflow: 'hidden' }
-          : { maxWidth: isMobile ? '95vw' : '800px', width: '100%', padding: 0, backgroundColor: T.surface, borderRadius: '16px', overflow: 'hidden', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
+          : modalSurface(780)}
         // Bloquear ESC/clique-fora SÓ no modo lote (onde há grade com
         // linhas não salvas). No modo simples o fechamento acidental
         // não custa nada e o bloqueio só irritava.
@@ -90,8 +90,9 @@ export function ModalDeEntradaDePecas({
         <ModalHeader
           icon={bulkMode && !editingItem ? List : Plus}
           tint={T.accentText}
-          title={bulkMode && !editingItem ? "Entrada Rápida" : "Adicionar Peça"}
-          subtitle={bulkMode && !editingItem ? "Modo Lote — entrada rápida de peças" : (pedidoEmAtendimento ? `Atendendo solicitação do Atendimento — ${pedidoEmAtendimento.linha.quantidade} un. · ${patrocinadoresDaLinha(pedidoEmAtendimento.linha)}` : (event.name || "Nova peça de produção"))}
+          compacto={isMobile}
+          title={bulkMode && !editingItem ? "Entrada rápida" : "Adicionar peça"}
+          subtitle={isMobile && !pedidoEmAtendimento ? undefined : bulkMode && !editingItem ? `Várias peças de uma vez — ${event.name}` : (pedidoEmAtendimento ? `Atendendo solicitação do Atendimento — ${pedidoEmAtendimento.linha.quantidade} un. · ${patrocinadoresDaLinha(pedidoEmAtendimento.linha)}` : (event.name || "Nova peça de produção"))}
           // Pergunta SÓ se a grade tem algo digitado: com ela vazia, a
           // confirmação era um clique a mais para não perder nada.
           onClose={bulkMode && !editingItem
@@ -119,10 +120,14 @@ export function ModalDeEntradaDePecas({
               className="ds-botao"
               onClick={() => setBulkMode(!bulkMode)}
               data-testid="button-toggle-mode"
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', backgroundColor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)', borderRadius: R.md, border: '1px solid rgba(255,255,255,0.12)', cursor: 'pointer', fontSize: FS.body, fontWeight: FW.forte, whiteSpace: 'nowrap', flexShrink: 0 }}
+              // No celular, só o ícone (o nome vai no aria-label/title): com o
+              // rótulo, o título do modal virava uma coluna de 4 linhas.
+              aria-label={bulkMode ? "Uma peça por vez" : "Várias de uma vez"}
+              title={bulkMode ? "Uma peça por vez" : "Várias de uma vez (Entrada rápida)"}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: isMobile ? 0 : '8px 14px', width: isMobile ? 44 : undefined, height: isMobile ? 44 : undefined, backgroundColor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)', borderRadius: R.md, border: '1px solid rgba(255,255,255,0.12)', cursor: 'pointer', fontSize: FS.body, fontWeight: FW.forte, whiteSpace: 'nowrap', flexShrink: 0 }}
             >
               {bulkMode ? <Plus className="h-3.5 w-3.5" /> : <List className="h-3.5 w-3.5" />}
-              {bulkMode ? "Modo Simples" : "Entrada Rápida"}
+              {!isMobile && (bulkMode ? "Uma peça por vez" : "Várias de uma vez")}
             </button>
           ) : undefined}
         />

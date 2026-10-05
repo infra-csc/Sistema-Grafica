@@ -65,80 +65,78 @@ export function AgendaOperacional({ event, isEventClosed, isMobile, marcosDoEven
     : countdownDays === 0 ? 'Hoje'
     : `Faltam ${countdownDays} dia${countdownDays !== 1 ? 's' : ''}`;
 
-  // DENSIDADE NO CELULAR: os dois cartões tinham 210px de largura
-  // mínima e empilhavam — ~200px de altura antes da timeline, que já
-  // repete as datas, e a lista de peças ia parar na terceira tela.
-  // Lado a lado (metade da linha cada), sem o ladrilho do ícone e com
-  // a data a 18px, a agenda cabe numa faixa só. No desktop, igual.
-  const cartaoLogistica: React.CSSProperties = {
-    flex: isMobile ? '1 1 0' : '0 0 auto', minWidth: isMobile ? 0 : 210,
-    backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg,
-    padding: isMobile ? '12px 14px' : '20px 24px', display: 'flex', alignItems: 'center', gap: isMobile ? 0 : 18,
-    // Sem sombra de hover: o cartão não é clicável, e realce é promessa de clique.
-    boxShadow: SHADOW.sm,
+  // UM PAINEL SÓ. Eram dois cartões de 250px à esquerda (com 500px de
+  // vazio ao lado) e a timeline num terceiro cartão embaixo: três caixas
+  // para uma informação só — "quando". Agora as duas datas que mandam (saída
+  // do caminhão e dia do evento) são a coluna da esquerda do mesmo painel, e
+  // a timeline dos seis marcos ocupa o resto. No celular as datas ficam lado
+  // a lado no topo do painel e a timeline rola embaixo delas.
+  const blocoData: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', gap: 14, minWidth: 0,
+    padding: isMobile ? '14px 14px' : '18px 22px',
   };
-  const ladrilhoLogistica: React.CSSProperties = {
-    width: 50, height: 50, borderRadius: R.lg, display: isMobile ? 'none' : 'flex',
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  };
+  const ladrilho = (fundo: string): React.CSSProperties => ({
+    width: 38, height: 38, borderRadius: R.md, display: isMobile ? 'none' : 'flex',
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0, backgroundColor: fundo,
+  });
+  const rotuloData: React.CSSProperties = { fontSize: FS.micro, fontWeight: FW.forte, textTransform: 'uppercase', letterSpacing: isMobile ? '0.06em' : '0.12em', color: T.second, marginBottom: 4, fontFamily: FONT.corpo };
+  const valorData: React.CSSProperties = { fontSize: isMobile ? FS.title : FS.h2, fontWeight: FW.forte, color: T.text, fontFamily: FONT.display, lineHeight: 1.1, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' };
 
   return (
-    <div style={{ marginTop: '8px' }}>
+    <div>
 
       {/* Section divider */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '18px' }}>
-        <span style={{ fontSize: FS.micro, fontWeight: FW.forte, textTransform: 'uppercase', letterSpacing: '0.16em', color: T.second, fontFamily: FONT.corpo, whiteSpace: 'nowrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '14px' }}>
+        <h2 style={{ margin: 0, fontSize: FS.micro, fontWeight: FW.forte, textTransform: 'uppercase', letterSpacing: '0.16em', color: T.second, fontFamily: FONT.corpo, whiteSpace: 'nowrap' }}>
           Agenda Operacional
-        </span>
+        </h2>
         <div style={{ flex: 1, height: '1px', backgroundColor: T.border }} />
       </div>
 
-      {/* ── Cards de logística ── */}
-      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '16px', alignItems: 'stretch' }}>
+      {/* O LAYOUT SE DOBRA SOZINHO, pela largura do PAINEL (não da janela):
+          as datas pedem ~248px e a timeline ~520. Cabendo, ficam lado a lado;
+          não cabendo (tablet com a barra lateral aberta, celular), a timeline
+          desce para a linha de baixo e as duas datas se abrem lado a lado em
+          cima. As linhas divisórias são o `gap` de 1px sobre o fundo da borda
+          — certas em qualquer um dos arranjos. */}
+      <div data-testid="painel-agenda" style={{ display: 'flex', flexWrap: 'wrap', gap: 1, backgroundColor: T.border, border: `1px solid ${T.border}`, borderRadius: R.lg, boxShadow: SHADOW.sm, overflow: 'hidden' }}>
 
-        {/* Card: SAÍDA DO CAMINHÃO */}
-        <div style={cartaoLogistica}>
-          <div aria-hidden="true" style={{ ...ladrilhoLogistica, backgroundColor: TOM.laranja.bg }}>
-            <Truck size={22} color={T.accent} />
+      {/* ── As duas datas que mandam ── */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 1, flex: '1 1 248px', minWidth: 0, backgroundColor: T.border }}>
+
+        {/* SAÍDA DO CAMINHÃO */}
+        <div data-testid="data-saida-caminhao" style={{ ...blocoData, flex: isMobile ? '1 1 140px' : '1 1 200px', backgroundColor: N.n1 }}>
+          <div aria-hidden="true" style={ladrilho(TOM.laranja.bg)}>
+            <Truck size={18} color={T.accentText} />
           </div>
-          <div>
-            <div style={{ fontSize: FS.micro, fontWeight: FW.forte, textTransform: 'uppercase', letterSpacing: isMobile ? '0.06em' : '0.14em', color: T.second, marginBottom: '7px', fontFamily: FONT.corpo }}>
-              Saída do Caminhão
-            </div>
-            <div style={{ fontSize: isMobile ? FS.title : FS.h2, fontWeight: FW.rotulo, color: T.text, fontFamily: FONT.display, lineHeight: 1.1, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>
-              {depLabel}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px 8px', marginTop: '6px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: FS.body, fontWeight: FW.corpo, color: T.second, fontFamily: FONT.corpo, letterSpacing: '0.01em' }}>{depTime}</span>
-              <span style={{ width: '3px', height: '3px', borderRadius: '50%', backgroundColor: T.bdark, display: 'inline-block', flexShrink: 0 }} />
-              <span style={{ fontSize: FS.body, fontWeight: FW.medio, color: countdownColor, fontFamily: FONT.corpo, letterSpacing: '0.01em' }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={rotuloData}>Saída do Caminhão</div>
+            <div style={valorData}>{depLabel}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '2px 8px', marginTop: 5, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: FS.meta, fontWeight: FW.corpo, color: T.second, fontFamily: FONT.corpo, fontVariantNumeric: 'tabular-nums' }}>{depTime}</span>
+              <span aria-hidden="true" style={{ width: '3px', height: '3px', borderRadius: '50%', backgroundColor: T.bdark, display: 'inline-block', flexShrink: 0 }} />
+              <span data-testid="text-contagem-saida" style={{ fontSize: FS.meta, fontWeight: FW.medio, color: countdownColor, fontFamily: FONT.corpo }}>
                 {countdownText}
               </span>
             </div>
           </div>
         </div>
 
-        {/* Card: INÍCIO DA MONTAGEM */}
-        <div style={cartaoLogistica}>
-          <div aria-hidden="true" style={{ ...ladrilhoLogistica, backgroundColor: N.n3 }}>
-            <Calendar size={22} color={T.second} />
+        {/* DIA DO EVENTO */}
+        <div data-testid="data-dia-do-evento" style={{ ...blocoData, flex: isMobile ? '1 1 140px' : '1 1 200px', backgroundColor: N.n1 }}>
+          <div aria-hidden="true" style={ladrilho(N.n3)}>
+            <Calendar size={18} color={T.apoio} />
           </div>
-          <div>
-            <div style={{ fontSize: FS.micro, fontWeight: FW.forte, textTransform: 'uppercase', letterSpacing: isMobile ? '0.06em' : '0.14em', color: T.second, marginBottom: '7px', fontFamily: FONT.corpo }}>
-              Dia do Evento
-            </div>
-            <div style={{ fontSize: isMobile ? FS.title : FS.h2, fontWeight: FW.rotulo, color: T.text, fontFamily: FONT.display, lineHeight: 1.1, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>
-              {startLabel}
-            </div>
-            <div style={{ marginTop: '6px' }}>
-              <span style={{ fontSize: FS.body, fontWeight: FW.corpo, color: T.second, fontFamily: FONT.corpo, letterSpacing: '0.01em' }}>Início do evento</span>
-            </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={rotuloData}>Dia do Evento</div>
+            <div style={valorData}>{startLabel}</div>
+            <div style={{ marginTop: 5, fontSize: FS.meta, fontWeight: FW.corpo, color: T.second, fontFamily: FONT.corpo }}>Início do evento</div>
           </div>
         </div>
       </div>
 
       {/* ── Timeline de Prazos ── */}
-      <div style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, padding: isMobile ? '16px 8px 12px' : '22px 28px', boxShadow: SHADOW.sm }}>
+      <div style={{ flex: '999 1 520px', minWidth: 0, backgroundColor: T.surface, padding: isMobile ? '16px 8px 12px' : '22px 24px 18px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
         {/* No celular os seis marcos passam da largura e rolam de lado
             aqui dentro: região rolável precisa ser alcançável pelo
             teclado (setas), senão os marcos da direita ficam fora. */}
@@ -260,6 +258,9 @@ export function AgendaOperacional({ event, isEventClosed, isMobile, marcosDoEven
                     textAlign: 'center', lineHeight: 1.45,
                     fontFamily: FONT.corpo,
                     maxWidth: '88px', display: 'block',
+                    // Duas linhas reservadas: rótulo de uma linha ("Finalização")
+                    // deixava a data e a pílula daquele marco mais altas que as vizinhas.
+                    minHeight: '2.9em',
                   }}>
                     {label}
                   </span>
@@ -298,6 +299,7 @@ export function AgendaOperacional({ event, isEventClosed, isMobile, marcosDoEven
               : 'Clique num marco com peças para ver só as que ainda não passaram por ele.'}
           </p>
         )}
+      </div>
       </div>
 
     </div>

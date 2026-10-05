@@ -42,7 +42,7 @@ export function BarraLateralDaImportacao({
   const { toast } = useToast();
 
   return (
-    <div style={{ width: isMobile ? '100%' : 260, minWidth: isMobile ? 0 : 260, maxHeight: isMobile && importPreviewItems ? '42vh' : undefined, backgroundColor: T.surface, borderRight: isMobile ? 'none' : `1px solid ${T.border}`, borderBottom: isMobile ? `1px solid ${T.border}` : 'none', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}>
+    <div style={{ width: isMobile ? '100%' : (importPreviewItems ? 260 : 300), minWidth: isMobile ? 0 : 260, maxHeight: isMobile && importPreviewItems ? '52vh' : undefined, backgroundColor: T.surface, borderRight: isMobile ? 'none' : `1px solid ${T.border}`, borderBottom: isMobile ? `1px solid ${T.border}` : 'none', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}>
       {/* TOPO FIXO: título e o cartão do arquivo — o começo da tarefa. */}
       <div style={{ flexShrink: 0, padding: '22px 18px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Title */}
@@ -52,9 +52,9 @@ export function BarraLateralDaImportacao({
         </div>
         <div>
           <DialogTitle style={{ fontFamily: FONT.display, fontSize: 15, fontWeight: 800, letterSpacing: '-0.02em', color: T.text, margin: 0, lineHeight: 1.2 }}>
-            Importar Peças
+            Importar peças
           </DialogTitle>
-          <DialogDescription style={{ fontSize: 10, color: T.second, margin: 0, marginTop: 1 }}>
+          <DialogDescription style={{ fontSize: 11, color: T.second, margin: 0, marginTop: 1, overflowWrap: 'anywhere' }}>
             {importFileName || 'Formato padrão NORTE'}
           </DialogDescription>
         </div>
@@ -68,7 +68,16 @@ export function BarraLateralDaImportacao({
         if (f) { setImportFile(f); setImportPreview(null); setImportPreviewItems(null); }
         e.target.value = "";
       }} />
-      {/* Drop zone */}
+      {/* Drop zone — no celular, com a prévia aberta, vira UMA linha (o
+          arquivo e "Trocar"): o cartão grande comia a metade de cima da
+          barra e empurrava o botão Importar para fora da tela. */}
+      {isMobile && importPreviewItems && importFile ? (
+        <label htmlFor="xlsx-upload" data-testid="dropzone-xlsx" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, border: `1px solid ${TOM.sucesso.border}`, backgroundColor: TOM.sucesso.bg, cursor: 'pointer', minHeight: 44 }}>
+          <CheckCircle2 aria-hidden="true" style={{ width: 16, height: 16, color: TOM.sucesso.text, flexShrink: 0 }} />
+          <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 700, color: TOM.sucesso.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{importFile.name}</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: T.apoio }}>Trocar</span>
+        </label>
+      ) : (
       <label
         htmlFor="xlsx-upload"
         data-testid="dropzone-xlsx"
@@ -116,6 +125,7 @@ export function BarraLateralDaImportacao({
           </>
         )}
       </label>
+      )}
       </div>
 
       {/* MEIO ROLÁVEL: resumo, triagem e a dica de formato. */}
@@ -219,11 +229,12 @@ export function BarraLateralDaImportacao({
         );
       })()}
 
-      {/* Format tip */}
-      <div style={{ padding: '10px 12px', backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 8, display: 'flex', gap: 8 }}>
-        <AlertTriangle style={{ width: 13, height: 13, color: TOM.alerta.text, flexShrink: 0, marginTop: 1 }} />
-        <div style={{ fontSize: 10, color: TOM.alerta.text, lineHeight: 1.6 }}>
-          <strong style={{ color: TOM.alerta.text }}>Formato NORTE:</strong><br />
+      {/* Format tip — informação, não alerta: era a tarja amarela de aviso
+          dizendo só quais colunas a planilha tem. */}
+      <div style={{ padding: '10px 12px', backgroundColor: N.n1, border: `1px solid ${T.border}`, borderRadius: 8, display: 'flex', gap: 8 }}>
+        <FileSpreadsheet aria-hidden="true" style={{ width: 13, height: 13, color: T.second, flexShrink: 0, marginTop: 2 }} />
+        <div style={{ fontSize: 11, color: T.apoio, lineHeight: 1.55 }}>
+          <strong style={{ color: T.strong }}>Formato NORTE</strong><br />
           item · qtde · material · acabamento
         </div>
       </div>
@@ -245,7 +256,7 @@ export function BarraLateralDaImportacao({
           onClick={() => { if (importFile) onPreview(importFile); }}
           data-testid="button-preview-import"
         >
-          {previewXlsxPending ? 'Processando...' : 'Pré-visualizar Peças'}
+          {previewXlsxPending ? 'Lendo a planilha...' : 'Pré-visualizar peças'}
         </Botao>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

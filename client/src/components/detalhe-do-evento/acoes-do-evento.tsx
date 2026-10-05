@@ -4,7 +4,7 @@
 // porquê de cada bloqueio escrito ao lado.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useRef, type ReactNode } from "react";
-import { Plus, Lock, Unlock, Upload, Copy, ChevronDown, FileSpreadsheet, FileText, Tags, BookOpen, MoreHorizontal, RotateCcw } from "lucide-react";
+import { Plus, Lock, Unlock, Upload, Copy, ChevronDown, FileSpreadsheet, FileText, Tags, BookOpen, MoreHorizontal, RotateCcw, Eye } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,19 +15,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Botao } from "@/components/ui/botao";
 import type { useToast } from "@/hooks/use-toast";
-import { eventoTemMoldeSemPrazo, AVISO_MOLDE_SEM_PRAZO } from "@shared/prazo-molde";
-import { T, TOM } from "@/lib/theme";
+import { T, TOM, FS } from "@/lib/theme";
 import { motivoSomenteLeitura } from "./regras";
-import type { EventoDoDetalhe, PecaDoEvento } from "./tipos";
 
 export function AcoesDoEvento({
-  event, eventId, rawItems, isMobile, canEditLists, canCloseEvent, isEventClosed, eventoFinalizado, avisoEventoFim,
+  eventId, isMobile, canEditLists, canCloseEvent, isEventClosed, eventoFinalizado, avisoEventoFim,
   abrirEntradaDePecas, setImportDialogOpen, setCloneDialogOpen, setCloseDialogOpen, setReopenDialogOpen,
   setDevolverParaArteOpen, setLocation, toast, children, cultura = false,
 }: {
-  event: EventoDoDetalhe;
   eventId: string | undefined;
-  rawItems: PecaDoEvento[];
   isMobile: boolean;
   canEditLists: boolean;
   canCloseEvent: boolean;
@@ -51,9 +47,14 @@ export function AcoesDoEvento({
   // Ação escolhida no menu "Mais" que abre um diálogo — executada só quando o
   // menu termina de fechar (ver onCloseAutoFocus abaixo).
   const acaoAposMenuRef = useRef<(() => void) | null>(null);
+  const nota: React.CSSProperties = { display: 'inline-flex', alignItems: 'flex-start', gap: 6, fontSize: FS.meta, color: T.second, lineHeight: 1.45, maxWidth: isMobile ? '100%' : 340, textAlign: isMobile ? 'left' : 'right' };
 
   return (
-    <div data-testid="acoes-do-evento" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', width: isMobile ? '100%' : undefined }}>
+    // Coluna: a fileira de botões e, embaixo, a frase do porquê (somente
+    // leitura / evento finalizado) — alinhada à direita, sob os botões que
+    // ela explica, em vez de mais um item solto na mesma fileira.
+    <div data-testid="acoes-do-evento" style={{ display: 'flex', flexDirection: 'column', alignItems: isMobile ? 'stretch' : 'flex-end', gap: 8, width: isMobile ? '100%' : undefined, flex: isMobile ? undefined : '0 1 auto' }}>
+    <div style={{ display: 'flex', gap: 8, flexWrap: isMobile ? 'nowrap' : 'wrap', alignItems: 'center', justifyContent: isMobile ? 'stretch' : 'flex-end' }}>
       {(() => {
         // Botões do cabeçalho: <Botao> (hover/foco/desabilitado no
         // .ds-botao); 44px no toque, a altura padrão no ponteiro.
@@ -249,30 +250,25 @@ export function AcoesDoEvento({
         );
       })()}
 
-      {/* A explicação fica ao lado dos botões travados: sem ela, botões
-          cinzas em sequência leem como bug de permissão. */}
-      {canEditLists && eventoFinalizado && (
-        <span data-testid="aviso-evento-finalizado" style={{ fontSize: 12, color: T.second, alignSelf: 'center', maxWidth: isMobile ? '100%' : 260, lineHeight: 1.4 }}>
-          {avisoEventoFim}
-        </span>
-      )}
+      {children}
+    </div>
 
-      {/* PRAZO DO MOLDE: aviso discreto, sem bloquear nada — o
-          campo é opcional e mora no formulário do evento (Eventos). */}
-      {eventoTemMoldeSemPrazo(event, rawItems) && (
-        <span data-testid="aviso-molde-sem-prazo" title="Cadastre em Eventos → editar o evento → Prazo do molde (opcional). Não entra na Gestão de Prazos." style={{ fontSize: 12, color: T.second, alignSelf: 'center', lineHeight: 1.4 }}>
-          {AVISO_MOLDE_SEM_PRAZO}
+      {/* A explicação fica sob os botões travados: sem ela, botões cinzas em
+          sequência leem como bug de permissão. */}
+      {canEditLists && eventoFinalizado && (
+        <span data-testid="aviso-evento-finalizado" style={nota}>
+          <Lock aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0, marginTop: 2 }} />
+          {avisoEventoFim}
         </span>
       )}
 
       {/* Perfil sem edição: em vez de esconder tudo em silêncio, diz o porquê. */}
       {!canEditLists && (
-        <span style={{ fontSize: 12, color: T.second, alignSelf: 'center' }}>
+        <span data-testid="aviso-somente-leitura" style={nota}>
+          <Eye aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0, marginTop: 2 }} />
           {motivoSomenteLeitura(cultura)}
         </span>
       )}
-
-      {children}
     </div>
   );
 }

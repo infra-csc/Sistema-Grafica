@@ -26,7 +26,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ModalHeader, modalSurface } from "@/components/modal-shell";
-import { T, FS, R } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { T, TOM, FS, FW, R } from "@/lib/theme";
 
 export function EncerrarEventoDialog({
   modo,
@@ -58,7 +59,10 @@ export function EncerrarEventoDialog({
   const temContagem = abertas !== null && abertas !== undefined;
   const nome = nomeDoEvento || "este evento";
   const Icone = encerrar ? Lock : Unlock;
-  const forte: React.CSSProperties = { color: T.text, fontWeight: 600 };
+  const forte: React.CSSProperties = { color: T.text, fontWeight: FW.medio };
+  // As cores agora são TOKENS (eram hex escritos aqui): encerrar é o cinza de
+  // apoio (decisão neutra, não destrutiva), reabrir é o verde de "voltar".
+  const tinta = encerrar ? T.apoio : TOM.sucesso.text;
 
   return (
     // Fechar durante a mutação perderia o toast com a contagem real — por isso
@@ -72,7 +76,7 @@ export function EncerrarEventoDialog({
         <ModalHeader
           variant="confirm"
           icon={Icone}
-          tint={encerrar ? "#57534e" : "#15803d"}
+          tint={tinta}
           title={encerrar ? "Encerrar evento" : "Reabrir evento"}
           // Sem subtítulo com o nome: o corpo já o diz em negrito, na frase
           // que explica a ação — repetido no cabeçalho, eram duas leituras.
@@ -83,10 +87,10 @@ export function EncerrarEventoDialog({
           {encerrar && nAbertas > 0 && (
             <div
               role="note"
-              style={{ marginBottom: 14, padding: "12px 14px", backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderLeft: "4px solid #d97706", borderRadius: R.md, display: "flex", alignItems: "flex-start", gap: 10 }}
+              style={{ marginBottom: 14, padding: "12px 14px", backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: R.md, display: "flex", alignItems: "flex-start", gap: 10 }}
             >
-              <AlertTriangle aria-hidden="true" style={{ width: 16, height: 16, color: "#b45309", flexShrink: 0, marginTop: 2 }} />
-              <p style={{ fontSize: FS.body, color: "#78350f", margin: 0, lineHeight: 1.55 }}>
+              <AlertTriangle aria-hidden="true" style={{ width: 16, height: 16, color: TOM.alerta.text, flexShrink: 0, marginTop: 2 }} />
+              <p style={{ fontSize: FS.body, color: T.strong, margin: 0, lineHeight: 1.55 }}>
                 Este evento tem{" "}
                 <strong>{nAbertas} {nAbertas === 1 ? "peça pendente" : "peças pendentes"}</strong>
                 {nProducao > 0 ? `, sendo ${nProducao} em produção` : ""}
@@ -95,7 +99,7 @@ export function EncerrarEventoDialog({
             </div>
           )}
 
-          <AlertDialogDescription style={{ fontSize: FS.body + 1, color: "#57534e", lineHeight: 1.6, margin: 0 }}>
+          <AlertDialogDescription style={{ fontSize: FS.read, color: T.apoio, lineHeight: 1.6, margin: 0 }}>
             {encerrar ? (
               <>
                 Encerrar <strong style={forte}>{nome}</strong>
@@ -104,7 +108,7 @@ export function EncerrarEventoDialog({
                     ? ` — todas as ${ativas} peças já estão entregues.`
                     : " — este evento não tem nenhuma peça."
                   : "."}
-                {" "}Ele sai da Gestão de Prazos e das filas de trabalho e continua visível no histórico, na consulta e em <strong style={forte}>Arquivados</strong> na lista de eventos. A ação fica registrada com seu nome e horário, e pode ser desfeita em <strong style={forte}>Reabrir evento</strong>.
+                {" "}Ele sai da Gestão de Prazos e das filas de trabalho e continua visível no histórico, na consulta e em <strong style={forte}>Encerrados</strong> na lista de eventos. A ação fica registrada com seu nome e horário, e pode ser desfeita em <strong style={forte}>Reabrir evento</strong>.
               </>
             ) : (
               <>
@@ -120,26 +124,31 @@ export function EncerrarEventoDialog({
 
         {/* Rodapé fora do trecho que rola (`flexShrink: 0`): Confirmar sempre à vista. */}
         <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "14px 24px 20px", flexShrink: 0 }}>
-          <AlertDialogCancel
-            disabled={pendente}
-            style={{ height: 44, margin: 0, padding: "0 18px", backgroundColor: "#ffffff", border: "1px solid #e7e5e4", borderRadius: R.md, fontSize: FS.body, fontWeight: 700, color: "#44403c", cursor: pendente ? "not-allowed" : "pointer" }}
-          >
-            Cancelar
+          {/* <Botao> (hover, foco e carregando no .ds-botao), 44px de alvo. */}
+          <AlertDialogCancel asChild>
+            <Botao variante="secundario" tamanho="toque" disabled={pendente} style={{ margin: 0 }}>
+              Cancelar
+            </Botao>
           </AlertDialogCancel>
           <AlertDialogAction
+            asChild
             // preventDefault: o AlertDialogAction fecha no clique; sem isto o
             // diálogo some antes da resposta e o toast com a contagem se perde.
             // O fechamento acontece no onSuccess da mutação, em cada página.
             onClick={(e) => { e.preventDefault(); if (!pendente) onConfirmar(); }}
-            disabled={pendente}
-            aria-busy={pendente}
-            data-testid={encerrar ? "button-confirm-close-event" : "button-confirm-reopen-event"}
-            style={{ height: 44, padding: "0 20px", backgroundColor: encerrar ? "#57534e" : "#15803d", border: "none", borderRadius: R.md, fontSize: FS.body, fontWeight: 700, color: "#ffffff", cursor: pendente ? "wait" : "pointer", opacity: pendente ? 0.6 : 1, display: "inline-flex", alignItems: "center", gap: 8 }}
           >
-            <Icone aria-hidden="true" style={{ width: 15, height: 15 }} />
-            {encerrar
-              ? (pendente ? "Encerrando…" : "Encerrar evento")
-              : (pendente ? "Reabrindo…" : "Reabrir evento")}
+            <Botao
+              variante="primario"
+              tamanho="toque"
+              icone={Icone}
+              carregando={pendente}
+              data-testid={encerrar ? "button-confirm-close-event" : "button-confirm-reopen-event"}
+              style={{ backgroundColor: tinta, borderColor: tinta, padding: "0 20px" }}
+            >
+              {encerrar
+                ? (pendente ? "Encerrando…" : "Encerrar evento")
+                : (pendente ? "Reabrindo…" : "Reabrir evento")}
+            </Botao>
           </AlertDialogAction>
         </div>
       </AlertDialogContent>

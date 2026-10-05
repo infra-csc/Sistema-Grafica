@@ -10,10 +10,12 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ModalHeader, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
+import { ModalHeader, HIDE_NATIVE_CLOSE, FreezeWhileClosing, modalSurface } from "@/components/modal-shell";
+import { Selo, CORES_SOBRE_ESCURO } from "@/components/ui/selo";
+import { getStatusLabel } from "@/lib/status";
 import { entrouEmProducao } from "@/components/aumentar-quantidade-dialog";
 import { reductionFloorOf } from "@/lib/saldo";
-import { tiposOferecidos } from "@shared/molde";
+import { tiposOferecidos, statusDeExibicao } from "@shared/molde";
 import { T } from "@/lib/theme";
 import { ItemForm } from "./formulario-da-peca";
 import { itemTypes } from "./regras";
@@ -39,7 +41,9 @@ export function EditarPecaDialog({
   } = form;
   return (
     <Dialog open={editDialogOpen} onOpenChange={(o) => { if (!o) handleCloseEditDialog(); }}>
-      <DialogContent className={HIDE_NATIVE_CLOSE} style={{ maxWidth: isMobile ? "95vw" : "800px", width: "100%", padding: "0", backgroundColor: T.surface, borderRadius: "16px", overflow: "hidden", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
+      {/* A superfície da casa (modalSurface): raio, sombra e o teto de altura
+          que deixa o corpo rolar com cabeçalho e rodapé sempre à vista. */}
+      <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(780)}>
         {/* POR QUE congelar aqui: o onSuccess de atualizar peça invalida
             /api/items, fecha este diálogo e faz `setEditingItem(null)` no
             mesmo commit — e é `editingItem` que escreve o título
@@ -54,6 +58,10 @@ export function EditarPecaDialog({
           tint={T.accentText}
           title={editingItem ? `${editingItem.displayId} — ${editingItem.type}` : "Editar Peça"}
           subtitle={editingItem?.description || "Atualize as informações da peça"}
+          // A etapa da peça no cabeçalho: é ela que explica a quantidade
+          // travada e o que ainda dá para mudar.
+          selo={editingItem ? <Selo cores={CORES_SOBRE_ESCURO} tamanho="sm">{getStatusLabel(statusDeExibicao(editingItem))}</Selo> : undefined}
+          compacto={isMobile}
           onClose={handleCloseEditDialog}
         />
         <ItemForm
@@ -72,7 +80,7 @@ export function EditarPecaDialog({
           setCustomFinish={setCustomFinish}
           isMobile={isMobile}
           isAdmin={user?.role === 'admin'}
-                  podePriorizar={user?.role === 'admin' || user?.role === 'solicitacao'}
+          podePriorizar={user?.role === 'admin' || user?.role === 'solicitacao'}
           isPending={updateItemMutation.isPending}
           onSubmit={(e) => {
             e.preventDefault();

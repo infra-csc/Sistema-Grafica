@@ -1,9 +1,10 @@
 // O MODAL CRIAR / EDITAR / DUPLICAR (Dialog 100% controlado). As seções
 // moram ao lado: datas, prazos e patrocinadores.
-import { CalendarPlus } from "lucide-react";
+import { CalendarPlus, Pencil, Copy, Building2 } from "lucide-react";
 import type { Sponsor } from "@shared/schema";
 import { PRIORITY } from "@/lib/status";
-import { T, FS, R, N, TOM, FONT } from "@/lib/theme";
+import { T, FS, R, N, TOM, FONT, FW, SHADOW } from "@/lib/theme";
+import { alvo } from "@/hooks/use-mobile";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Botao } from "@/components/ui/botao";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -14,6 +15,7 @@ import { EscolhaDePatrocinadores } from "./escolha-de-patrocinadores";
 import { DialogoDeDescarte } from "./dialogo-de-descarte";
 import { readEventStats } from "./regras";
 import type { FormularioDoEventoAberto } from "./use-formulario-do-evento";
+import { ROTULO_DO_CAMPO, CAMPO, saidaDepoisDoInicio } from "./campos-de-data";
 
 export function ModalDoEvento({ form, isMobile, dedo, sponsors, sponsorsQueryLoading, sponsorsQueryError }: {
   form: FormularioDoEventoAberto;
@@ -71,7 +73,7 @@ export function ModalDoEvento({ form, isMobile, dedo, sponsors, sponsorsQueryLoa
             Nome, prioridade, datas, prazos dos 5 marcos e patrocinadores do evento.
           </DialogDescription>
           <ModalHeader
-            icon={CalendarPlus}
+            icon={soPatrocinadoresNoModal ? Building2 : modalMode === 'edit' ? Pencil : modalMode === 'duplicate' ? Copy : CalendarPlus}
             variant="work"
             tint={T.accentText}
             title={soPatrocinadoresNoModal ? 'Vincular Patrocinadores' : modalMode === 'edit' ? 'Editar Evento' : modalMode === 'duplicate' ? 'Duplicar Evento' : 'Novo Evento'}
@@ -88,15 +90,17 @@ export function ModalDoEvento({ form, isMobile, dedo, sponsors, sponsorsQueryLoa
           />
 
           <form onSubmit={handleSubmit} style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
-            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto', flex: 1, minHeight: 0 }}>
+            <div style={{ padding: isMobile ? '20px 16px' : '24px', display: 'flex', flexDirection: 'column', gap: isMobile ? 20 : 22, overflowY: 'auto', flex: 1, minHeight: 0, overscrollBehavior: 'contain' }}>
 
 
               {/* Só patrocinadores: nome, datas e prazos ficam de fora. */}
               {!soPatrocinadoresNoModal && (<>
-              {/* Nome + Prioridade */}
-              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(240px, 1fr) auto', gap: '16px', alignItems: 'end' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0 }}>
-                  <label htmlFor="event-name" style={{ fontSize: FS.micro, fontWeight: '700', color: T.apoio, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+              {/* Nome + Prioridade — os dois rótulos na MESMA linha de base e os
+                  dois controles na mesma altura: antes o "Prioridade" descia 12px
+                  (alinhamento pelo pé) e a fileira parecia torta. */}
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(240px, 1fr) auto', gap: isMobile ? 18 : 16, alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
+                  <label htmlFor="event-name" style={ROTULO_DO_CAMPO}>
                     Nome do Evento
                   </label>
                   <input
@@ -105,8 +109,10 @@ export function ModalDoEvento({ form, isMobile, dedo, sponsors, sponsorsQueryLoa
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="Ex: Circuito Estações — Etapa 2"
                     required
+                    autoComplete="off"
                     data-testid="input-event-name"
-                    style={{ width: '100%', backgroundColor: T.border, border: 'none', borderRadius: R.md, padding: '12px 16px', fontSize: FS.strong, color: T.text, fontFamily: FONT.corpo, transition: 'box-shadow 0.15s, background-color 0.15s' }}
+                    className="evl-campo"
+                    style={{ ...CAMPO, height: alvo(40, dedo), padding: '0 14px', fontSize: dedo ? FS.lead : FS.strong, fontWeight: FW.medio }}
                   />
                 </div>
                 {/* Prioridade na CRIAÇÃO: o schema já a aceitava, mas o
@@ -114,11 +120,25 @@ export function ModalDoEvento({ form, isMobile, dedo, sponsors, sponsorsQueryLoa
                     interações extras para achar o card e definir o nível.
                     Resultado: "Sem prioridade" era o badge mais comum da
                     grade, esvaziando o filtro e a ordenação. */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <span style={{ fontSize: FS.micro, fontWeight: '700', color: T.apoio, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
+                  <span id="rotulo-prioridade-do-evento" style={ROTULO_DO_CAMPO}>
                     Prioridade
                   </span>
-                  <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                  {/* UM controle segmentado (e não cinco botões soltos): é uma
+                      escolha só. No celular a Automática ocupa a primeira linha
+                      inteira e os quatro níveis dividem a segunda — antes o
+                      "Urgente" caía sozinho numa linha. */}
+                  <div
+                    role="group"
+                    aria-labelledby="rotulo-prioridade-do-evento"
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: isMobile ? 'repeat(4, minmax(0, 1fr))' : 'auto repeat(4, auto)',
+                      gap: 2, padding: 2, borderRadius: R.md,
+                      backgroundColor: T.low, border: `1px solid ${T.border}`,
+                      height: isMobile ? undefined : alvo(40, dedo), boxSizing: 'border-box',
+                    }}
+                  >
                     {/* '' = AUTOMÁTICA (25/08): no salvar, o vazio destrava o
                         evento e a regra da saída do caminhão volta a mandar
                         na hora. Escolher um nível TRAVA (a regra não mexe). */}
@@ -137,17 +157,20 @@ export function ModalDoEvento({ form, isMobile, dedo, sponsors, sponsorsQueryLoa
                             ? 'A regra da saída do caminhão define sozinha (≤3 dias urgente · ≤7 alta · ≤15 média · >15 baixa)'
                             : 'Trava este nível — a regra automática deixa de mexer neste evento até voltar à Automática'}
                           data-testid={`form-priority-${opt.value || 'none'}`}
+                          className="evl-seg"
                           style={{
-                            display: 'flex', alignItems: 'center', gap: '5px',
-                            height: isMobile ? 44 : 34, padding: '0 10px', borderRadius: R.md,
-                            border: `1.5px solid ${active ? opt.dot : T.border}`,
-                            backgroundColor: active ? opt.bg : T.surface,
-                            color: active ? opt.text : T.apoio,
-                            fontSize: FS.small, fontWeight: '700', cursor: 'pointer',
-                            fontFamily: FONT.corpo,
+                            gridColumn: isMobile && opt.value === '' ? '1 / -1' : undefined,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                            height: isMobile ? 40 : '100%', padding: '0 11px', borderRadius: R.sm,
+                            border: 'none',
+                            backgroundColor: active ? (opt.value === '' ? T.surface : opt.bg) : 'transparent',
+                            boxShadow: active ? `${SHADOW.sm}, inset 0 0 0 1px ${opt.value === '' ? T.border : opt.border}` : 'none',
+                            color: active ? (opt.value === '' ? T.text : opt.text) : T.apoio,
+                            fontSize: FS.small, fontWeight: active ? FW.rotulo : FW.forte, cursor: 'pointer',
+                            fontFamily: FONT.corpo, whiteSpace: 'nowrap',
                           }}
                         >
-                          <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: opt.dot, flexShrink: 0 }} />
+                          <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: opt.dot, flexShrink: 0 }} />
                           {opt.label}
                         </button>
                       );
@@ -200,7 +223,10 @@ export function ModalDoEvento({ form, isMobile, dedo, sponsors, sponsorsQueryLoa
 
             </div>
 
-            <ModalFooter>
+            <ModalFooter
+              fundo={T.bg}
+              style={{ flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'space-between', gap: isMobile ? 10 : 16, padding: isMobile ? '12px 16px' : '14px 24px' }}
+            >
               {/* O QUE FALTA, ANTES DO CLIQUE. As validações continuam as
                   mesmas (handleSubmit) — só que antes elas apareciam como
                   toast vermelho DEPOIS de apertar Salvar, um de cada vez.
@@ -211,19 +237,27 @@ export function ModalDoEvento({ form, isMobile, dedo, sponsors, sponsorsQueryLoa
                   !formData.startDate && 'data de início',
                   !formData.truckDepartureDate && 'saída do caminhão',
                 ].filter(Boolean) as string[];
+                // A data fora de ordem também entra aqui: o aviso vermelho
+                // fica lá em cima, junto do campo, e quem já rolou até os
+                // patrocinadores não o vê ao apertar Salvar.
                 const frase = faltam.length > 0
                   ? `Falta preencher: ${faltam.length > 1 ? `${faltam.slice(0, -1).join(', ')} e ${faltam[faltam.length - 1]}` : faltam[0]}.`
-                  : hasOrderIssue
-                    ? 'Há prazos fora de ordem — confira a seção Prazos.'
-                    : null;
-                return frase ? (
-                  <p aria-live="polite" data-testid="texto-falta-no-evento" style={{ margin: 0, fontSize: FS.small, fontWeight: 600, color: TOM.alerta.text, textAlign: 'right' }}>
-                    {frase}
+                  : saidaDepoisDoInicio(formData.startDate, formData.truckDepartureDate)
+                    ? 'A saída do caminhão precisa ser antes do início do evento.'
+                    : hasOrderIssue
+                      ? 'Há prazos fora de ordem — confira a seção Prazos.'
+                      : null;
+                const grave = !!frase && faltam.length === 0;
+                return (
+                  <p aria-live="polite" data-testid={frase ? "texto-falta-no-evento" : undefined} style={{ margin: 0, minWidth: 0, flex: 1, display: 'flex', alignItems: 'center', gap: 7, fontSize: FS.small, fontWeight: 600, lineHeight: 1.4, color: frase ? (grave ? TOM.perigo.text : TOM.alerta.text) : T.second }}>
+                    {frase && <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, backgroundColor: grave ? TOM.perigo.dot : TOM.alerta.dot }} />}
+                    {frase ?? (soPatrocinadoresNoModal ? '' : 'Tudo pronto para salvar.')}
                   </p>
-                ) : null;
+                );
               })()}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px' }}>
-                <Botao variante="fantasma" tamanho={isMobile ? 'toque' : 'md'} onClick={requestCloseDialog}>
+              {soPatrocinadoresNoModal && <span style={{ flex: 1 }} />}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                <Botao variante="fantasma" tamanho={isMobile ? 'toque' : 'md'} onClick={requestCloseDialog} style={{ flex: isMobile ? 1 : undefined }}>
                   Cancelar
                 </Botao>
                 <Botao
@@ -232,6 +266,7 @@ export function ModalDoEvento({ form, isMobile, dedo, sponsors, sponsorsQueryLoa
                   tamanho={isMobile ? 'toque' : 'md'}
                   carregando={submitPending}
                   data-testid="button-submit-event"
+                  style={{ flex: isMobile ? 1.6 : undefined }}
                 >
                   {modalMode === 'edit'
                     ? (updateEventMutation.isPending ? "Salvando..." : soPatrocinadoresNoModal ? "Salvar patrocinadores" : "Salvar Alterações")

@@ -30,7 +30,17 @@ import type { AcaoSobreEvento, EventoDaLista } from "./tipos";
  * foi copiado para um dos lados.
  */
 export const LARGURA_ACOES = 5 * 32 + 4 * 6 + 10;
-export const GRADE_LISTA = `4px 1fr 132px 190px 108px 92px ${LARGURA_ACOES}px`;
+export const GRADE_LISTA = `4px minmax(0, 1fr) 124px 200px 108px 112px var(--evl-acoes, ${LARGURA_ACOES}px)`;
+
+/**
+ * A coluna de ações na largura das ações QUE ESTE PERFIL TEM. Reservar cinco
+ * botões para quem tem três (Solicitação) deixava ~80px vazios à direita e
+ * cortava o nome do evento com reticências. A grade continua UMA (acima); o
+ * que varia é só a variável que a lista declara.
+ */
+export function larguraDasAcoes(n: number, botao = 32): number {
+  return n > 0 ? n * botao + (n - 1) * 6 + 10 : 0;
+}
 
 // contarPorFase: ver lib/fases.ts (importado acima como contarPorFaseDoEvento).
 
@@ -114,15 +124,13 @@ function EventRow({
 
   return (
     <div
-      className="group"
+      className="group evl-linha"
       data-testid={`row-event-${event.id}`}
       style={{
         display: 'grid', gridTemplateColumns: GRADE_LISTA, gap: 12,
         alignItems: 'center', padding: '0 16px 0 0',
         borderBottom: `1px solid ${N.n3}`, minHeight: 52,
       }}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = T.bg; }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
     >
       {/* ÂNCORA DE VERDADE, com `display: contents`.
 
@@ -142,35 +150,51 @@ function EventRow({
       <span aria-hidden="true" style={{ alignSelf: 'stretch', backgroundColor: prio.hex }} />
 
       {/* Evento */}
-      <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, paddingLeft: 12 }}>
-        <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: prio.hex, flexShrink: 0 }} />
-        <span style={{ fontSize: FS.body, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      {/* O NOME INTEIRO, em até duas linhas — com reticências na primeira
+          linha, "Night Run Curitiba 20…" e "Night Run Rio 2026 (e…" ficavam
+          indistinguíveis justo na visão feita para ACHAR o evento. A bolinha
+          de prioridade saiu: repetia a faixa de acento ao lado. */}
+      <span style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 3, minWidth: 0, padding: '9px 0 9px 12px' }}>
+        <span className="evl-linha-nome" title={event.name} style={{ fontSize: FS.body, fontWeight: 700, color: T.text, lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>
           {event.name}
         </span>
-        {sponsorCount > 0 && (
-          <span style={{ fontSize: FS.small, color: T.second, whiteSpace: 'nowrap', flexShrink: 0 }}>
-            {sponsorCount} patroc.
+        {(sponsorCount > 0 || pedidosAbertos > 0) && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
+            {sponsorCount > 0 && (
+              <span style={{ fontSize: FS.small, color: T.second, whiteSpace: 'nowrap' }}>
+                {sponsorCount} {sponsorCount === 1 ? 'patrocinador' : 'patrocinadores'}
+              </span>
+            )}
+            <SeloDePedidos n={pedidosAbertos} eventId={event.id} />
           </span>
         )}
-        <SeloDePedidos n={pedidosAbertos} eventId={event.id} />
       </span>
 
       {/* Saída */}
-      <span style={{ fontFamily: FONT.mono, fontSize: FS.small, color: corDaSaida, whiteSpace: 'nowrap' }}>
-        {saida
-          ? `${saida.toLocaleDateString('pt-BR', saida.getFullYear() === currentYear
-              ? { day: '2-digit', month: 'short' }
-              : { day: '2-digit', month: 'short', year: '2-digit' }).replace('.', '')} ${String(saida.getHours()).padStart(2, '0')}:${String(saida.getMinutes()).padStart(2, '0')}`
-          : '—'}
+      {/* Data em cima, hora embaixo: numa linha só, a data de OUTRO ano
+          ("10 de fev de 27 08:00") passava da coluna e encavalava no marco. */}
+      <span style={{ display: 'flex', flexDirection: 'column', gap: 2, fontFamily: FONT.mono, fontSize: FS.small, color: corDaSaida, whiteSpace: 'nowrap', minWidth: 0 }}>
+        {saida ? (
+          <>
+            <span>
+              {saida.toLocaleDateString('pt-BR', saida.getFullYear() === currentYear
+                ? { day: '2-digit', month: 'short' }
+                : { day: '2-digit', month: 'short', year: '2-digit' }).replace('.', '')}
+            </span>
+            <span style={{ color: T.second }}>{`${String(saida.getHours()).padStart(2, '0')}:${String(saida.getMinutes()).padStart(2, '0')}`}</span>
+          </>
+        ) : '—'}
       </span>
 
       {/* Próximo marco */}
-      <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+      <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
         {ms ? (
           <>
-            <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: MARCO_COLOR[ms.key] || T.second, flexShrink: 0 }} />
-            <span style={{ fontSize: FS.small, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ms.label}</span>
-            <span style={{ fontSize: FS.small, fontWeight: 700, color: msTone.text, whiteSpace: 'nowrap', flexShrink: 0 }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+              <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: MARCO_COLOR[ms.key] || T.second, flexShrink: 0 }} />
+              <span style={{ fontSize: FS.small, color: T.text, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ms.label}</span>
+            </span>
+            <span style={{ fontSize: FS.small, fontWeight: 700, color: msTone.text, whiteSpace: 'nowrap', paddingLeft: 13 }}>
               {milestoneDueText(ms)}
             </span>
           </>

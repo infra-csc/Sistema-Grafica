@@ -99,9 +99,13 @@ export function EventosArquivados() {
           tamanho={isMobile ? "toque" : "md"}
           onClick={() => setAberto(true)}
           data-testid="button-eventos-arquivados"
+          // No celular cabe na linha do título só o ícone e o número; o nome
+          // inteiro fica para o leitor de tela e para o toque longo (title).
+          aria-label={`Eventos arquivados (${arquivados.length})`}
+          title="Eventos arquivados — restaurar"
           style={{ flexShrink: 0 }}
         >
-          Arquivados ({arquivados.length})
+          {isMobile ? arquivados.length : `Arquivados (${arquivados.length})`}
         </Botao>
       )}
       <ModalDeArquivados

@@ -6,6 +6,7 @@ import { T, FS, R, N, TOM, FONT, FW } from "@/lib/theme";
 import { EstadoVazio, EstadoErro } from "@/components/ui/estados";
 import { QUOTA_OPTIONS } from "./constantes";
 import type { FormularioDoEventoAberto } from "./use-formulario-do-evento";
+import { ROTULO_DO_CAMPO, CAMPO } from "./campos-de-data";
 
 export function EscolhaDePatrocinadores({ form, sponsors, sponsorsQueryLoading, sponsorsQueryError }: {
   form: FormularioDoEventoAberto;
@@ -16,16 +17,18 @@ export function EscolhaDePatrocinadores({ form, sponsors, sponsorsQueryLoading, 
   const {
     selectedSponsorIds, setSelectedSponsorIds, sponsorQuotaMap, setSponsorQuotaMap,
     sponsorsLoading, sponsorsError, sponsorSearch, setSponsorSearch,
-    editingEvent, duplicateSource, fetchEventSponsors, ordemFixadaNoTopo,
+    editingEvent, duplicateSource, fetchEventSponsors, ordemFixadaNoTopo, soPatrocinadoresNoModal,
   } = form;
   // De onde vêm os vínculos que o "Tentar de novo" relê (editar ou duplicar).
   const origemDosVinculos = editingEvent || duplicateSource;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      <label style={{ fontSize: FS.micro, fontWeight: '700', color: T.apoio, textTransform: 'uppercase', letterSpacing: '0.12em', display: 'flex', alignItems: 'center', gap: '6px' }}>
-        <Building2 style={{ width: '12px', height: '12px', color: T.accent }} />
+      <label htmlFor="busca-patrocinador-do-evento" style={{ ...ROTULO_DO_CAMPO, display: 'flex', alignItems: 'center', gap: '6px', minHeight: 20 }}>
         Patrocinadores
-        <span style={{ color: T.second, fontWeight: '400', textTransform: 'none', letterSpacing: 0 }}>(opcional)</span>
+        {/* Só patrocinadores (Atendimento): a lista é o formulário inteiro — "opcional" ali não diz nada. */}
+        {!soPatrocinadoresNoModal && (
+          <span style={{ color: T.second, fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: FS.small }}>(opcional)</span>
+        )}
         {selectedSponsorIds.length > 0 && (
           <span style={{ marginLeft: 'auto', fontSize: FS.micro, fontWeight: '700', color: T.accentText, background: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, borderRadius: R.pill, padding: '1px 8px', letterSpacing: 0, textTransform: 'none' }}>
             {selectedSponsorIds.length} selecionado{selectedSponsorIds.length > 1 ? 's' : ''}
@@ -34,7 +37,7 @@ export function EscolhaDePatrocinadores({ form, sponsors, sponsorsQueryLoading, 
       </label>
 
       {(sponsorsQueryLoading || sponsorsLoading) ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: T.surface, border: `1px solid ${N.n3}`, borderRadius: R.md, padding: '14px 16px' }} aria-busy="true" aria-label="Carregando patrocinadores">
+        <div role="status" style={{ display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.md, padding: '14px 16px' }} aria-busy="true" aria-label="Carregando patrocinadores">
           {[0, 1, 2, 3, 4].map((i) => (
             <div key={i} className="animate-pulse" style={{ height: '14px', borderRadius: '4px', backgroundColor: N.n2, width: `${88 - i * 9}%` }} />
           ))}
@@ -55,24 +58,26 @@ export function EscolhaDePatrocinadores({ form, sponsors, sponsorsQueryLoading, 
           acao={<Link href="/patrocinadores" style={{ color: T.accentText, fontWeight: FW.medio, fontSize: FS.body }}>Cadastre agora</Link>}
         />
       ) : (
-        <div style={{ backgroundColor: N.n3, borderRadius: R.lg, overflow: 'hidden' }}>
-          <div style={{ padding: '10px 12px', borderBottom: `1px solid ${T.border}`, position: 'relative' }}>
-            <Search style={{ position: 'absolute', left: 22, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: T.muted, pointerEvents: 'none' }} />
+        <div style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.md, overflow: 'hidden' }}>
+          <div style={{ padding: 8, borderBottom: `1px solid ${T.border}`, position: 'relative', backgroundColor: T.bg }}>
+            <Search aria-hidden="true" style={{ position: 'absolute', left: 19, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: T.muted, pointerEvents: 'none' }} />
             <input
+              id="busca-patrocinador-do-evento"
               type="text"
-              placeholder="Buscar patrocinador..."
+              placeholder="Buscar patrocinador"
               aria-label="Buscar patrocinador"
               value={sponsorSearch}
               onChange={e => setSponsorSearch(e.target.value)}
               data-testid="input-sponsor-search"
+              autoComplete="off"
+              className="evl-campo"
               style={{
-                width: '100%', paddingLeft: 28, paddingRight: 10, paddingTop: 7, paddingBottom: 7,
-                backgroundColor: T.surface, border: 'none', borderRadius: R.sm,
-                fontSize: FS.body, color: T.text, boxSizing: 'border-box',
+                ...CAMPO, height: 36, paddingLeft: 32, paddingRight: 10,
+                borderRadius: R.sm, fontSize: FS.body,
               }}
             />
           </div>
-          <div style={{ maxHeight: '200px', overflowY: 'auto', padding: '8px 0' }}>
+          <div style={{ maxHeight: 248, overflowY: 'auto', overscrollBehavior: 'contain' }}>
             {(() => {
               const q = sponsorSearch.toLowerCase();
               // Selecionados FIXADOS no topo: numa lista alfabética
@@ -105,7 +110,7 @@ export function EscolhaDePatrocinadores({ form, sponsors, sponsorsQueryLoading, 
                 });
               const hiddenSelected = selectedSponsorIds.filter((id) => !filtered.some((s) => s.id === id)).length;
               if (filtered.length === 0) return (
-                <p style={{ fontSize: FS.body, color: T.second, textAlign: 'center', padding: '16px 12px' }}>
+                <p style={{ fontSize: FS.body, color: T.second, textAlign: 'center', padding: '20px 12px', margin: 0 }}>
                   Nenhum resultado para "{sponsorSearch}"
                   {hiddenSelected > 0 ? ` — ${hiddenSelected} selecionado${hiddenSelected > 1 ? 's' : ''} continua${hiddenSelected > 1 ? 'm' : ''} marcado${hiddenSelected > 1 ? 's' : ''}.` : ''}
                 </p>
@@ -113,7 +118,7 @@ export function EscolhaDePatrocinadores({ form, sponsors, sponsorsQueryLoading, 
               return (
                 <>
                   {hiddenSelected > 0 && (
-                    <p style={{ fontSize: FS.micro, color: T.accentText, fontWeight: 700, padding: '0 14px 8px' }}>
+                    <p style={{ fontSize: FS.small, color: T.accentText, fontWeight: 700, padding: '8px 14px', margin: 0, borderBottom: `1px solid ${N.n3}`, backgroundColor: TOM.laranja.bg }}>
                       +{hiddenSelected} selecionado{hiddenSelected > 1 ? 's' : ''} fora desta busca (continua{hiddenSelected > 1 ? 'm' : ''} marcado{hiddenSelected > 1 ? 's' : ''})
                     </p>
                   )}
@@ -125,16 +130,16 @@ export function EscolhaDePatrocinadores({ form, sponsors, sponsorsQueryLoading, 
                     return (
                       <div
                         key={sponsor.id}
+                        className="evl-opcao"
+                        data-marcado={isSelected}
                         style={{
                           display: 'flex', alignItems: 'center', gap: 10,
-                          padding: '9px 14px',
+                          minHeight: 48, padding: '6px 14px',
                           borderBottom: `1px solid ${N.n3}`,
                           backgroundColor: isSelected ? TOM.laranja.bg : 'transparent',
-                          transition: 'background-color 0.12s',
+                          boxShadow: isSelected ? `inset 3px 0 0 ${T.accentText}` : 'none',
                           cursor: 'pointer',
                         }}
-                        onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.backgroundColor = N.n3; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = isSelected ? TOM.laranja.bg : 'transparent'; }}
                         onClick={() => {
                           if (isSelected) {
                             setSelectedSponsorIds(prev => prev.filter(id => id !== sponsor.id));
@@ -151,7 +156,7 @@ export function EscolhaDePatrocinadores({ form, sponsors, sponsorsQueryLoading, 
                             {sponsor.name}
                           </span>
                           {sponsor.company && (
-                            <span style={{ fontSize: FS.micro, color: T.second, display: 'block', lineHeight: 1.2 }}>{sponsor.company}</span>
+                            <span style={{ fontSize: FS.small, color: T.second, display: 'block', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sponsor.company}</span>
                           )}
                         </div>
 

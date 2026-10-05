@@ -1,6 +1,7 @@
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Botao } from "@/components/ui/botao";
-import { T, FS, R, SHADOW, FONT } from "@/lib/theme";
+import { Undo2 } from "lucide-react";
+import { T, FS, R, SHADOW, FONT, TOM } from "@/lib/theme";
 import type { FormularioDoEventoAberto } from "./use-formulario-do-evento";
 
 // Descarte: regra ÚNICA para X, Esc e clique-fora. Antes o X do
@@ -24,20 +25,25 @@ export function DialogoDeDescarte({ form, isMobile }: { form: FormularioDoEvento
           só trocaria o corte simétrico por um corte embaixo. Por isso o
           corpo vira o único item que rola e o rodapé leva `flexShrink: 0`. */}
       <AlertDialogContent style={{ maxWidth: 420, borderRadius: R.xl, padding: 0, border: 'none', boxShadow: SHADOW.lg, overflow: 'hidden', maxHeight: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '28px 28px 8px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
-          <AlertDialogTitle style={{ fontFamily: FONT.display, fontSize: FS.title, fontWeight: '700', letterSpacing: '-0.02em', color: T.dark, margin: 0 }}>
-            Descartar alterações?
-          </AlertDialogTitle>
-          <AlertDialogDescription style={{ fontSize: FS.body, color: T.second, lineHeight: 1.6, marginTop: 10 }}>
+        <div style={{ padding: isMobile ? '24px 20px 8px' : '28px 28px 8px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span aria-hidden="true" style={{ width: 36, height: 36, borderRadius: R.lg, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, color: TOM.alerta.text }}>
+              <Undo2 style={{ width: 17, height: 17 }} />
+            </span>
+            <AlertDialogTitle style={{ fontFamily: FONT.display, fontSize: FS.title, fontWeight: '700', letterSpacing: '-0.02em', color: T.dark, margin: 0 }}>
+              Descartar alterações?
+            </AlertDialogTitle>
+          </div>
+          <AlertDialogDescription style={{ fontSize: FS.read, color: T.apoio, lineHeight: 1.6, marginTop: 14 }}>
             O que você preencheu neste formulário será perdido — inclusive os prazos ajustados e os patrocinadores selecionados.
           </AlertDialogDescription>
         </div>
-        <AlertDialogFooter style={{ padding: '16px 28px 28px', display: 'flex', flexDirection: 'row', justifyContent: 'flex-end', gap: 10, flexShrink: 0 }}>
+        <AlertDialogFooter style={{ padding: isMobile ? '14px 20px 20px' : '16px 28px 24px', display: 'flex', flexDirection: 'row', justifyContent: 'flex-end', gap: 10, flexShrink: 0 }}>
           {/* Botao solto, e não AlertDialogCancel/Action: esses dois trazem
               as classes do buttonVariants (altura, raio, hover) que brigam
               com o .ds-botao. Fechar passa a ser explícito — é o que o
               useConfirmar também faz. handleCloseDialog já fecha esta pergunta. */}
-          <Botao variante="secundario" tamanho={isMobile ? 'toque' : 'md'} onClick={() => setConfirmDiscardOpen(false)}>
+          <Botao variante="secundario" tamanho={isMobile ? 'toque' : 'md'} onClick={() => setConfirmDiscardOpen(false)} style={{ flex: isMobile ? 1 : undefined }}>
             Continuar editando
           </Botao>
           <Botao
@@ -45,6 +51,7 @@ export function DialogoDeDescarte({ form, isMobile }: { form: FormularioDoEvento
             tamanho={isMobile ? 'toque' : 'md'}
             onClick={handleCloseDialog}
             data-testid="button-confirm-discard"
+            style={{ flex: isMobile ? 1 : undefined }}
           >
             Descartar
           </Botao>

@@ -90,6 +90,9 @@ export default function Eventos() {
   const acoes = useAcoesDoEvento(events, filtros);
   const recorte = useEventosFiltrados(events, sponsorById, pedidosPorEvento, filtros);
   const carregado = !isLoading && !isError;
+  // Nenhum evento existe: filtros, ordem e atalhos não têm o que recortar —
+  // fica só o convite para criar o primeiro.
+  const semEventos = carregado && events.length === 0;
 
   return (
     <div style={{ backgroundColor: T.bg, height: '100%', overflowY: 'auto', padding: isMobile ? '12px' : '32px', display: 'flex', flexDirection: 'column', gap: isMobile ? '14px' : '20px' }}>
@@ -102,11 +105,13 @@ export default function Eventos() {
           canCreate={canCreate}
           canDelete={canDelete}
           isMobile={isMobile}
+          carregado={carregado}
+          semEventos={semEventos}
           onNovoEvento={form.abrirNovoEvento}
         />
 
         {(user?.role === 'solicitacao' || user?.role === 'admin') && (
-          <FaixaDePedidos linhasAbertas={dados.linhasAbertas} foco={filtros.foco} setFoco={filtros.setFoco} dedo={dedo} />
+          <FaixaDePedidos linhasAbertas={dados.linhasAbertas} foco={filtros.foco} setFoco={filtros.setFoco} dedo={dedo} celular={isMobile} />
         )}
 
         <ModalDoEvento
@@ -119,17 +124,18 @@ export default function Eventos() {
         />
       </div>
 
-      <BarraDeFiltros
-        filtros={filtros}
-        recorte={recorte}
-        totalDeEventos={events.length}
-        carregado={carregado}
-        isMobile={isMobile}
-        dedo={dedo}
-      />
-
-      {carregado && (
-        <BarraDeOrdem ordem={filtros.ordem} setOrdem={filtros.setOrdem} isMobile={isMobile} dedo={dedo} />
+      {!semEventos && (
+        <BarraDeFiltros
+          filtros={filtros}
+          recorte={recorte}
+          totalDeEventos={events.length}
+          carregado={carregado}
+          isMobile={isMobile}
+          dedo={dedo}
+          ordem={carregado
+            ? <BarraDeOrdem ordem={filtros.ordem} setOrdem={filtros.setOrdem} isMobile={isMobile} dedo={dedo} />
+            : undefined}
+        />
       )}
 
       <ListaDeEventos

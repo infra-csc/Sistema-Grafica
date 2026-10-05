@@ -28,17 +28,22 @@ export function DialogoDeArquivar({ acoes, isMobile }: { acoes: AcoesDoEvento; i
               só trocaria o corte simétrico por um corte embaixo. Por isso o
               corpo vira o único item que rola e o rodapé leva `flexShrink: 0`. */}
           <AlertDialogContent style={{ maxWidth: "460px", backgroundColor: T.surface, borderRadius: R.xl, padding: "0", border: "none", boxShadow: SHADOW.lg, overflow: "hidden", maxHeight: "calc(100vh - 48px)", display: "flex", flexDirection: "column" }}>
-          <div style={{ padding: "32px 32px 8px 32px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
-            <AlertDialogTitle style={{ fontFamily: FONT.display, fontSize: FS.title, fontWeight: "700", letterSpacing: "-0.02em", color: T.dark, margin: 0 }}>
-              Arquivar evento
-            </AlertDialogTitle>
+          <div style={{ padding: isMobile ? "24px 20px 8px" : "28px 28px 8px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span aria-hidden="true" style={{ width: 36, height: 36, borderRadius: R.lg, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", backgroundColor: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}`, color: TOM.perigo.text }}>
+                <Archive style={{ width: 17, height: 17 }} />
+              </span>
+              <AlertDialogTitle style={{ fontFamily: FONT.display, fontSize: FS.title, fontWeight: "700", letterSpacing: "-0.02em", color: T.dark, margin: 0 }}>
+                Arquivar evento
+              </AlertDialogTitle>
+            </div>
 
             {/* Confirmação PROPORCIONAL ao que sai de vista: "e 128 peças, 96
                 já entregues" faz parar. Excluir ARQUIVA — nada é apagado, e a
                 frase diz isso, senão ninguém sabe que dá para voltar. */}
-            <div style={{ marginTop: "20px", padding: "16px", backgroundColor: TOM.laranja.bg, borderLeft: `4px solid ${T.accent}`, borderRadius: `0 ${R.md}px ${R.md}px 0`, display: "flex", alignItems: "flex-start", gap: "12px" }}>
-              <AlertTriangle style={{ width: "18px", height: "18px", color: T.accent, flexShrink: 0, marginTop: "1px" }} />
-              <p style={{ fontSize: FS.body, fontWeight: "600", color: T.accentText, margin: 0, lineHeight: 1.6 }}>
+            <div style={{ marginTop: 18, padding: "12px 14px", backgroundColor: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, borderRadius: R.md, display: "flex", alignItems: "flex-start", gap: 10 }}>
+              <AlertTriangle aria-hidden="true" style={{ width: 16, height: 16, color: T.accentText, flexShrink: 0, marginTop: 2 }} />
+              <p style={{ fontSize: FS.body, fontWeight: 500, color: TOM.laranja.text, margin: 0, lineHeight: 1.55 }}>
                 {deletingStats && deletingStats.itemCount > 0 ? (
                   <>
                     O evento some de todas as telas junto com{" "}
@@ -53,7 +58,7 @@ export function DialogoDeArquivar({ acoes, isMobile }: { acoes: AcoesDoEvento; i
               </p>
             </div>
 
-            <AlertDialogDescription style={{ fontSize: FS.strong, color: T.second, lineHeight: 1.6, marginTop: "16px" }}>
+            <AlertDialogDescription style={{ fontSize: FS.read, color: T.apoio, lineHeight: 1.6, marginTop: 14 }}>
               Arquivar{" "}
               <strong style={{ color: T.text, fontWeight: "600" }}>
                 "{deletingEvent?.name || "este evento"}"
@@ -72,13 +77,14 @@ export function DialogoDeArquivar({ acoes, isMobile }: { acoes: AcoesDoEvento; i
                   onChange={(e) => setDeleteConfirmText(e.target.value)}
                   autoComplete="off"
                   data-testid="input-delete-confirm"
-                  style={{ width: '100%', height: 38, border: `1px solid ${T.border}`, borderRadius: R.md, padding: '0 12px', fontSize: FS.body, fontFamily: 'inherit', color: T.text }}
+                  className="evl-campo"
+                  style={{ width: '100%', boxSizing: 'border-box', height: isMobile ? 44 : 40, border: `1px solid ${T.border}`, borderRadius: R.md, padding: '0 12px', fontSize: isMobile ? FS.lead : FS.body, fontFamily: 'inherit', color: T.text, backgroundColor: T.surface }}
                 />
               </div>
             )}
           </div>
 
-          <AlertDialogFooter style={{ padding: "16px 32px 32px 32px", display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px", flexShrink: 0 }}>
+          <AlertDialogFooter style={{ padding: isMobile ? "14px 20px 20px" : "16px 28px 24px", display: "flex", flexDirection: "row", justifyContent: "flex-end", alignItems: "flex-start", gap: "10px", flexShrink: 0 }}>
             {/* Botao solto (ver o diálogo de descarte). Sem o Action do Radix
                 o diálogo só fecha no onSuccess — o "Excluindo..." fica na tela
                 até a resposta, em vez de o diálogo sumir no clique. */}
@@ -87,6 +93,7 @@ export function DialogoDeArquivar({ acoes, isMobile }: { acoes: AcoesDoEvento; i
               tamanho={isMobile ? 'toque' : 'md'}
               disabled={deleteEventMutation.isPending}
               onClick={() => { setDeletingEventId(null); setDeleteConfirmText(""); }}
+              style={{ flex: isMobile ? 1 : undefined }}
             >
               Cancelar
             </Botao>
@@ -103,6 +110,7 @@ export function DialogoDeArquivar({ acoes, isMobile }: { acoes: AcoesDoEvento; i
                 if (deletingEventId) deleteEventMutation.mutate(deletingEventId);
               }}
               data-testid="button-confirm-delete-event"
+              style={{ flex: isMobile ? 1 : undefined }}
             >
               {deleteEventMutation.isPending ? "Arquivando..." : "Arquivar"}
             </Botao>

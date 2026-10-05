@@ -207,7 +207,10 @@ describe("o modo lista", () => {
     // Duas definições — uma no cabeçalho, outra na linha — é como colunas saem
     // de registro: nascem iguais e divergem no primeiro ajuste que só um dos
     // lados recebe.
-    expect(tela).toContain("const GRADE_LISTA = `4px 1fr 132px 190px 108px 92px ${LARGURA_ACOES}px`;");
+    // A última coluna é uma variável (--evl-acoes) que a lista declara com a
+    // largura das ações do perfil — a definição da grade continua UMA.
+    expect(tela).toContain("const GRADE_LISTA = `4px minmax(0, 1fr) 124px 200px 108px 112px var(--evl-acoes, ${LARGURA_ACOES}px)`;");
+    expect(tela).toContain("['--evl-acoes' as string]: `${larguraDasAcoes(nAcoes, alvo(32, dedo))}px`");
     const usos = tela.split("gridTemplateColumns: GRADE_LISTA").length - 1;
     expect(usos).toBe(2);
   });

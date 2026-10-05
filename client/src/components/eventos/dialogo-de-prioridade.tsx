@@ -7,6 +7,14 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import type { AcoesDoEvento } from "./use-acoes-do-evento";
 
+/** O que a regra automática daria a cada nível (≤3 urgente · ≤7 alta · ≤15 média · >15 baixa). */
+const FAIXA_DA_REGRA = {
+  baixa: 'Mais de 15 dias',
+  media: 'Até 15 dias',
+  alta: 'Até 7 dias',
+  urgente: 'Até 3 dias',
+} as const;
+
 export function DialogoDePrioridade({ acoes, isMobile }: { acoes: AcoesDoEvento; isMobile: boolean }) {
   const { priorityDialogOpen, setPriorityDialogOpen, selectedEventForPriority, updatePriorityMutation, handlePrioritySelect } = acoes;
   return (
@@ -30,8 +38,8 @@ export function DialogoDePrioridade({ acoes, isMobile }: { acoes: AcoesDoEvento;
           {/* A REGRA (25/08): a prioridade é AUTOMÁTICA pela saída do caminhão
               (≤3 dias urgente, ≤7 alta, ≤15 média, >15 baixa). Definir aqui
               TRAVA este evento — a regra para de mexer até voltar à automática. */}
-          <p style={{ margin: 0, padding: "10px 24px 0", fontSize: FS.small, color: T.apoio, lineHeight: 1.45 }}>
-            A prioridade é <strong>automática pela saída do caminhão</strong> (≤3 dias urgente · ≤7 alta · ≤15 média). Escolher um nível aqui <strong>trava</strong> este evento; “Voltar à automática” devolve à regra.
+          <p style={{ margin: 0, padding: isMobile ? '14px 16px 0' : '16px 24px 0', fontSize: FS.meta, color: T.apoio, lineHeight: 1.5 }}>
+            A prioridade é <strong style={{ color: T.text }}>automática pela saída do caminhão</strong> — pelos dias que faltam até ela. Escolher um nível aqui <strong style={{ color: T.text }}>trava</strong> este evento — a regra deixa de mexer nele até “Voltar à automática”.
           </p>
 
           {/* ALTURA: cabeçalho 93 + esta grade de quatro cartões em duas linhas
@@ -40,7 +48,7 @@ export function DialogoDePrioridade({ acoes, isMobile }: { acoes: AcoesDoEvento;
               O scrollport é preventivo e obrigatório: o `modalSurface` passou a
               trazer teto COM `overflow: hidden`, e sem um corpo que role o
               conteúdo seria recortado em silêncio numa janela menor. */}
-          <div style={{ padding: '20px 24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
+          <div style={{ padding: isMobile ? '14px 16px 18px' : '16px 24px 22px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: isMobile ? 8 : 10, overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
             {(['baixa', 'media', 'alta', 'urgente'] as const).map((key, i) => {
               // Cores derivadas de PRIORITY (lib/status) — antes havia um mapa hex local.
               const meta = PRIORITY[key];
@@ -53,9 +61,9 @@ export function DialogoDePrioridade({ acoes, isMobile }: { acoes: AcoesDoEvento;
                   disabled={isPending}
                   aria-pressed={isSelected}
                   style={{
-                    height: '72px',
-                    display: 'flex', alignItems: 'center', gap: '12px',
-                    padding: '0 16px',
+                    minHeight: 64,
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: isMobile ? '10px 12px' : '10px 14px', textAlign: 'left', fontFamily: 'inherit',
                     borderRadius: R.lg,
                     border: isSelected ? `2px solid ${meta.dot}` : `2px solid ${T.border}`,
                     backgroundColor: isSelected ? meta.bg : T.surface,
@@ -80,18 +88,28 @@ export function DialogoDePrioridade({ acoes, isMobile }: { acoes: AcoesDoEvento;
                   data-testid={`button-priority-${key}`}
                 >
                   <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: meta.dot, flexShrink: 0 }} />
-                  <span className="prio-label" style={{ fontWeight: '700', fontSize: FS.body, color: isSelected ? meta.text : T.strong, transition: 'color 0.15s' }}>
-                    {meta.label}
+                  <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                    <span className="prio-label" style={{ fontWeight: 700, fontSize: FS.read, color: isSelected ? meta.text : T.strong, transition: 'color 0.15s' }}>
+                      {meta.label}
+                    </span>
+                    {/* A faixa da regra automática para cada nível — a mesma
+                        escada do parágrafo acima, no lugar onde se decide. */}
+                    <span style={{ fontSize: FS.small, color: T.second, lineHeight: 1.3 }}>
+                      {FAIXA_DA_REGRA[key]}
+                    </span>
                   </span>
-                  <span style={{ marginLeft: 'auto', fontSize: FS.micro, fontWeight: 700, color: T.second, border: `1px solid ${T.border}`, borderRadius: 4, padding: '1px 5px' }}>
-                    {i + 1}
-                  </span>
+                  {/* Atalho de teclado: no toque não há teclado para lembrar. */}
+                  {!isMobile && (
+                    <kbd aria-hidden="true" style={{ marginLeft: 'auto', alignSelf: 'flex-start', fontFamily: 'inherit', fontSize: FS.micro, fontWeight: 700, color: T.second, border: `1px solid ${T.border}`, borderBottomWidth: 2, borderRadius: 4, padding: '1px 5px', backgroundColor: T.surface }}>
+                      {i + 1}
+                    </kbd>
+                  )}
                 </button>
               );
             })}
           </div>
 
-          <div style={{ backgroundColor: T.low, borderTop: `1px solid ${T.border}`, padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <div style={{ backgroundColor: T.low, borderTop: `1px solid ${T.border}`, padding: isMobile ? '12px 16px' : '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexShrink: 0 }}>
             {/* Caminho de volta: sem isto, prioridade definida era para sempre. */}
             {selectedEventForPriority?.priority ? (
               <Botao
@@ -105,7 +123,7 @@ export function DialogoDePrioridade({ acoes, isMobile }: { acoes: AcoesDoEvento;
               >
                 Voltar à automática (0)
               </Botao>
-            ) : <span style={{ fontSize: FS.small, color: T.second }}>Teclas 1–4 travam · 0 volta à automática</span>}
+            ) : isMobile ? <span /> : <span style={{ fontSize: FS.small, color: T.second }}>Teclas 1–4 travam · 0 volta à automática</span>}
             <Botao variante="secundario" tamanho={isMobile ? 'toque' : 'sm'} onClick={() => setPriorityDialogOpen(false)}>
               Cancelar
             </Botao>

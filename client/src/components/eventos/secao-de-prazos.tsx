@@ -1,5 +1,5 @@
 // Os prazos dos marcos do evento, relativos à saída do caminhão (colapsável).
-import { Calendar, Clock, HelpCircle, ChevronDown, ChevronUp, RotateCcw } from "lucide-react";
+import { Calendar, Clock, HelpCircle, ChevronDown, RotateCcw } from "lucide-react";
 import { ptBR } from "date-fns/locale";
 import { T, FS, R, N, TOM, FONT } from "@/lib/theme";
 import { alvo } from "@/hooks/use-mobile";
@@ -11,6 +11,7 @@ import { FreezeWhileClosing } from "@/components/modal-shell";
 import { DEFAULT_DEADLINES, DEFAULT_OFFSETS_LABEL, MARCO_FIELDS } from "./constantes";
 import { fmtDateBR, fmtOffset, parseDateStr, toDateStr } from "./formatos";
 import type { FormularioDoEventoAberto } from "./use-formulario-do-evento";
+import { CALENDARIO, CAMPO } from "./campos-de-data";
 
 export function SecaoDePrazos({ form, isMobile, dedo }: { form: FormularioDoEventoAberto; isMobile: boolean; dedo: boolean }) {
   const {
@@ -18,14 +19,15 @@ export function SecaoDePrazos({ form, isMobile, dedo }: { form: FormularioDoEven
     orderIssues, offsetToDateStr, dateStrToOffset, openPrazoKey, setOpenPrazoKey, truckDateOnly,
   } = form;
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flexShrink: 0, border: `1px solid ${T.border}`, borderRadius: R.md, overflow: 'hidden', backgroundColor: T.surface }}>
       <button
         type="button"
         onClick={() => setPrazosExpanded(!prazosExpanded)}
         data-testid="button-toggle-prazos"
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', width: '100%', backgroundColor: N.n3, border: 'none', borderRadius: prazosExpanded ? `${R.md}px ${R.md}px 0 0` : R.md, padding: '10px 14px', cursor: 'pointer', transition: 'background-color 0.15s' }}
-        onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.border; }}
-        onMouseLeave={e => { e.currentTarget.style.backgroundColor = N.n3; }}
+        aria-expanded={prazosExpanded}
+        className="evl-opcao"
+        data-marcado="false"
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', width: '100%', minHeight: alvo(44, dedo), backgroundColor: T.bg, border: 'none', padding: '10px 14px', cursor: 'pointer', textAlign: 'left' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 }}>
           <Clock style={{ width: '13px', height: '13px', color: T.accent, flexShrink: 0 }} />
@@ -64,15 +66,12 @@ export function SecaoDePrazos({ form, isMobile, dedo }: { form: FormularioDoEven
               {customDeadlineCount} personalizado{customDeadlineCount > 1 ? 's' : ''}
             </span>
           )}
-          <span style={{ fontSize: FS.micro, color: T.second, fontWeight: '400' }}>{noStart ? 'preencha a saída do caminhão primeiro' : 'relativo à saída do caminhão'}</span>
+          <span style={{ fontSize: FS.small, color: T.second, fontWeight: 400, flexBasis: isMobile ? '100%' : undefined }}>{noStart ? 'Preencha a saída do caminhão primeiro.' : 'Contados a partir da saída do caminhão.'}</span>
         </div>
-        {prazosExpanded
-          ? <ChevronUp style={{ width: '14px', height: '14px', color: T.second, flexShrink: 0 }} />
-          : <ChevronDown style={{ width: '14px', height: '14px', color: T.second, flexShrink: 0 }} />
-        }
+        <ChevronDown aria-hidden="true" style={{ width: 16, height: 16, color: T.second, flexShrink: 0, transform: prazosExpanded ? 'rotate(180deg)' : 'none', transition: 'transform var(--dur-media) var(--ease-saida)' }} />
       </button>
       {prazosExpanded && (
-        <div style={{ backgroundColor: N.n3, borderRadius: `0 0 ${R.md}px ${R.md}px`, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
+        <div style={{ padding: isMobile ? '4px 12px 12px' : '4px 14px 12px', display: 'flex', flexDirection: 'column', borderTop: `1px solid ${T.border}` }}>
           {MARCO_FIELDS.map(({ field, key, label, desc, color, allDays }, idx) => {
             const currentDays = Number(formData[field]);
             const dateVal = offsetToDateStr(currentDays, allDays);
@@ -90,10 +89,12 @@ export function SecaoDePrazos({ form, isMobile, dedo }: { form: FormularioDoEven
                   alignItems: isMobile ? 'stretch' : 'center',
                   justifyContent: 'space-between',
                   gap: isMobile ? '6px' : '12px',
-                  padding: outOfOrder ? '8px 10px' : 0,
-                  border: outOfOrder ? `1px solid ${TOM.alerta.dot}` : '1px solid transparent',
+                  padding: outOfOrder ? '10px' : '10px 0',
+                  margin: outOfOrder ? '4px -10px' : 0,
+                  border: outOfOrder ? `1px solid ${TOM.alerta.border}` : 'none',
+                  borderBottom: outOfOrder ? `1px solid ${TOM.alerta.border}` : (idx < MARCO_FIELDS.length - 1 ? `1px solid ${N.n3}` : 'none'),
                   backgroundColor: outOfOrder ? TOM.alerta.bg : 'transparent',
-                  borderRadius: R.sm,
+                  borderRadius: outOfOrder ? R.sm : 0,
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
@@ -111,9 +112,12 @@ export function SecaoDePrazos({ form, isMobile, dedo }: { form: FormularioDoEven
                           type="button"
                           data-testid={`input-${field}`}
                           disabled={noStart}
-                          style={{ display: 'flex', alignItems: 'center', gap: 5, height: alvo(30, dedo), padding: '0 10px', borderRadius: R.sm, border: openPrazoKey === key ? `1px solid ${T.accent}` : '1px solid transparent', backgroundColor: noStart ? N.n3 : (openPrazoKey === key ? T.surface : T.border), fontSize: FS.body, fontWeight: '600', color: noStart ? T.second : (dateVal ? T.text : T.second), cursor: noStart ? 'not-allowed' : 'pointer', boxShadow: openPrazoKey === key ? '0 0 0 2px rgba(249,115,22,0.18)' : 'none', transition: 'all 0.15s', fontFamily: FONT.corpo, whiteSpace: 'nowrap' as const }}
+                          className="evl-campo"
+                          data-aberto={openPrazoKey === key}
+                          aria-label={`Prazo de ${label}${dateVal ? `: ${fmtDateBR(dateVal)}` : ''}`}
+                          style={{ ...CAMPO, width: isMobile ? undefined : 132, display: 'flex', alignItems: 'center', gap: 7, height: alvo(32, dedo), padding: '0 10px', borderRadius: R.sm, backgroundColor: noStart ? N.n2 : T.surface, fontSize: FS.body, fontWeight: 600, color: noStart ? T.second : (dateVal ? T.text : T.second), cursor: noStart ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' as const, fontVariantNumeric: 'tabular-nums' }}
                         >
-                          <Calendar style={{ width: 11, height: 11, color: noStart ? T.bdark : T.muted, flexShrink: 0 }} />
+                          <Calendar aria-hidden="true" style={{ width: 12, height: 12, color: noStart ? T.bdark : T.second, flexShrink: 0 }} />
                           {dateVal ? fmtDateBR(dateVal) : (noStart ? '—' : 'Selecionar')}
                         </button>
                       </PopoverTrigger>
@@ -133,14 +137,14 @@ export function SecaoDePrazos({ form, isMobile, dedo }: { form: FormularioDoEven
                               }
                             }}
                             locale={ptBR}
-                            classNames={{ day_selected: 'bg-[#1c1917] text-white hover:bg-[#44403c] hover:text-white focus:bg-[#1c1917] focus:text-white', day_today: 'bg-orange-50 font-semibold' }}
+                            classNames={CALENDARIO}
                           />
                           </FreezeWhileClosing>
                         </PopoverContent>
                       )}
                     </Popover>
                     {!noStart && dateVal && (
-                      <span style={{ fontSize: FS.micro, color: T.second, fontWeight: '500', whiteSpace: 'nowrap' as const }}>{fmtOffset(currentDays)}</span>
+                      <span style={{ fontSize: FS.small, color: T.second, fontWeight: 500, whiteSpace: 'nowrap' as const, minWidth: 78, fontVariantNumeric: 'tabular-nums' }}>{fmtOffset(currentDays)}</span>
                     )}
                   </div>
                   {weekendAdjusted && rawDate && (
@@ -157,7 +161,7 @@ export function SecaoDePrazos({ form, isMobile, dedo }: { form: FormularioDoEven
               </div>
             );
           })}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid rgba(0,0,0,0.05)', paddingTop: '8px' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: `1px solid ${N.n3}`, paddingTop: 10 }}>
             <Botao
               variante="fantasma"
               tamanho={isMobile ? 'toque' : 'sm'}
@@ -167,8 +171,10 @@ export function SecaoDePrazos({ form, isMobile, dedo }: { form: FormularioDoEven
               alinharMotivo="end"
               onClick={() => setFormData({ ...formData, ...DEFAULT_DEADLINES })}
               data-testid="button-restore-default-deadlines"
+              title={`Padrão: ${DEFAULT_OFFSETS_LABEL} dias da saída do caminhão`}
             >
-              Restaurar padrão ({DEFAULT_OFFSETS_LABEL})
+              {/* No celular os seis números não cabem na linha (cortavam na borda). */}
+              {isMobile ? 'Restaurar o padrão' : `Restaurar padrão (${DEFAULT_OFFSETS_LABEL})`}
             </Botao>
           </div>
         </div>

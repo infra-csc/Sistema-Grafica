@@ -11,7 +11,9 @@ import type { LinhaAberta } from "./use-eventos-dados";
 // filtro, quantos pedidos esperam e quais são os mais antigos — com
 // link direto para o painel de pedidos do evento. Some quando não há
 // nenhum.
-export function FaixaDePedidos({ linhasAbertas, foco, setFoco, dedo }: {
+export function FaixaDePedidos({ linhasAbertas, foco, setFoco, dedo, celular = false }: {
+  /** Celular: rótulos curtos e linhas que quebram. */
+  celular?: boolean;
   linhasAbertas: LinhaAberta[];
   foco: string;
   setFoco: (v: string) => void;
@@ -25,10 +27,13 @@ export function FaixaDePedidos({ linhasAbertas, foco, setFoco, dedo }: {
     <div
       data-testid="faixa-pedidos-atendimento"
       role="status"
-      style={{ marginTop: 14, display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap', padding: '12px 16px', backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderLeft: `4px solid ${TOM.alerta.text}`, borderRadius: R.lg }}
+      style={{ position: 'relative', overflow: 'hidden', marginTop: 16, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', padding: '12px 16px 12px 18px', backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: R.lg }}
     >
-      <Inbox aria-hidden="true" style={{ width: 18, height: 18, color: TOM.alerta.text, flexShrink: 0, marginTop: 2 }} />
-      <div style={{ flex: '1 1 320px', minWidth: 0 }}>
+      {/* A mesma faixa reta de acento do cartão (e não a borda de 4px num
+          canto arredondado, que desenhava um colchete curvo). */}
+      <span aria-hidden="true" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, backgroundColor: TOM.alerta.dot }} />
+      <Inbox aria-hidden="true" style={{ width: 18, height: 18, color: TOM.alerta.text, flexShrink: 0, alignSelf: 'flex-start', marginTop: 1 }} />
+      <div style={{ flex: '1 1 240px', minWidth: 0 }}>
         <div style={{ fontSize: FS.body + 1, fontWeight: 800, color: TOM.alerta.text }}>
           {n} {n === 1 ? 'peça solicitada pelo Atendimento esperando a lista' : 'peças solicitadas pelo Atendimento esperando a lista'}
         </div>
@@ -36,11 +41,13 @@ export function FaixaDePedidos({ linhasAbertas, foco, setFoco, dedo }: {
           {maisAntigos.slice(0, 3).map(({ pedido: p, linha: l }) => {
             const idade = idadeDoPedido(p.createdAt, agora);
             return (
-              <li key={l.id} style={{ fontSize: FS.body, color: TOM.alerta.text, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              // No celular a linha QUEBRA (o detalhe era decepado com "Sem …")
+              // e o nome do evento ganha altura de dedo.
+              <li key={l.id} style={{ fontSize: FS.body, color: TOM.alerta.text, minWidth: 0, lineHeight: 1.45, overflow: celular ? undefined : 'hidden', textOverflow: celular ? undefined : 'ellipsis', whiteSpace: celular ? 'normal' : 'nowrap' }}>
                 <Link
                   href={`/eventos/${l.eventId}?pedidos=1`}
                   data-testid={`link-pedido-evento-${l.id}`}
-                  style={{ fontWeight: 800, color: TOM.alerta.text, textDecoration: 'underline', textUnderlineOffset: 2 }}
+                  style={{ fontWeight: 800, color: TOM.alerta.text, textDecoration: 'underline', textUnderlineOffset: 2, display: celular ? 'inline-block' : undefined, padding: celular ? '6px 0' : undefined }}
                 >
                   {l.eventName ?? 'Evento'}
                 </Link>
@@ -56,16 +63,21 @@ export function FaixaDePedidos({ linhasAbertas, foco, setFoco, dedo }: {
         type="button"
         data-testid="button-filtrar-pedidos"
         onClick={() => setFoco(foco === 'pedidos' ? '' : 'pedidos')}
-        style={{ height: alvo(34, dedo), padding: '0 14px', borderRadius: R.md, border: `1px solid ${TOM.alerta.border}`, backgroundColor: foco === 'pedidos' ? TOM.alerta.text : T.surface, color: foco === 'pedidos' ? T.surface : TOM.alerta.text, fontSize: FS.body, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}
+        aria-pressed={foco === 'pedidos'}
+        className="evl-mais"
+        style={{ height: alvo(34, dedo), padding: '0 14px', borderRadius: R.md, border: `1px solid ${TOM.alerta.border}`, backgroundColor: foco === 'pedidos' ? TOM.alerta.text : T.surface, color: foco === 'pedidos' ? T.surface : TOM.alerta.text, fontFamily: 'inherit', fontSize: FS.body, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
       >
-        {foco === 'pedidos' ? 'Mostrar todos os eventos' : 'Ver só eventos com solicitação'}
+        {celular
+          ? (foco === 'pedidos' ? 'Mostrar todos' : 'Só com solicitação')
+          : (foco === 'pedidos' ? 'Mostrar todos os eventos' : 'Ver só eventos com solicitação')}
       </button>
       <Link
         href="/pedidos-de-peca"
         data-testid="link-caixa-pedidos"
-        style={{ display: 'inline-flex', alignItems: 'center', height: alvo(34, dedo), padding: '0 14px', borderRadius: R.md, border: `1px solid ${TOM.alerta.border}`, backgroundColor: T.surface, color: TOM.alerta.text, fontSize: FS.body, fontWeight: 800, textDecoration: 'none', whiteSpace: 'nowrap' }}
+        className="evl-mais"
+        style={{ display: 'inline-flex', alignItems: 'center', height: alvo(34, dedo), padding: '0 14px', borderRadius: R.md, border: `1px solid ${TOM.alerta.border}`, backgroundColor: T.surface, color: TOM.alerta.text, fontSize: FS.body, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}
       >
-        Abrir as solicitações de peças
+        {celular ? 'Abrir solicitações' : 'Abrir as solicitações de peças'}
       </Link>
     </div>
   );

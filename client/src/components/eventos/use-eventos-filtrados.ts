@@ -264,7 +264,7 @@ export function useEventosFiltrados(
     // que repete um controle visível ao lado é ruído — e este ainda oferecia
     // um "limpar" que discordava do alternador.
     if (!situacoes.has('arquivados') && situacoes.size > 0) {
-      chips.push({ key: 'arquivados', label: 'Arquivados fora da lista', clear: () => alternarSituacao('arquivados') });
+      chips.push({ key: 'arquivados', label: 'Encerrados fora da lista', clear: () => alternarSituacao('arquivados') });
     }
     return chips;
     // eslint-disable-next-line react-hooks/exhaustive-deps

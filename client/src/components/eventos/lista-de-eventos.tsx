@@ -6,10 +6,23 @@ import { T, FS, R, SHADOW, N, FW } from "@/lib/theme";
 import { Botao } from "@/components/ui/botao";
 import { EstadoVazio, EstadoErro } from "@/components/ui/estados";
 import { EventCardMemo } from "./cartao-do-evento";
-import { EventRowMemo, GRADE_LISTA, TH_LISTA } from "./linha-do-evento";
+import { EventRowMemo, GRADE_LISTA, TH_LISTA, larguraDasAcoes } from "./linha-do-evento";
+import { alvo, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { SEM_PATROCINADORES } from "./constantes";
 import type { AcaoSobreEvento, DensidadeDaLista, EventoDaLista } from "./tipos";
 import type { EventosFiltrados } from "./use-eventos-filtrados";
+
+/**
+ * As COLUNAS pela largura que a lista TEM, não pela da janela. As classes
+ * md:/2xl: contam a janela inteira — com a barra lateral aberta num tablet de
+ * 768px sobravam 448px e a grade abria duas colunas de 214px, com o marco
+ * cortado em "Lista de …". Com minmax(420px) o cartão nunca fica mais estreito
+ * que o seu conteúdo: 1 coluna no tablet, 2 no notebook, 3 no monitor grande.
+ * (As classes continuam: o `grid`, o stretch e o gap vêm delas.)
+ */
+const GRADE_DE_CARTOES: React.CSSProperties = {
+  gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 420px), 1fr))',
+};
 
 export interface PermissoesDaLista {
   canCreate: boolean;
@@ -55,6 +68,11 @@ export function ListaDeEventos({
     onEdit: handleEdit, onDelete: handleDelete, onDuplicate: handleDuplicate,
     onSetPriority: handleSetPriority, onClose: handleClose, onReopen: handleReopen,
   } = acoes;
+  // Quantas ações ESTE perfil tem na linha (a mesma conta do cartão) — é a
+  // largura da última coluna da lista.
+  const dedo = usePonteiroGrosso() || isMobile;
+  const nAcoes = (canSetPriority ? 1 : 0) + (canCreate && !isMobile ? 1 : 0) + (canEdit || soPatrocinadores ? 1 : 0)
+    + (canClose ? 1 : 0) + (canDelete ? 1 : 0);
   const {
     filteredEvents, visibleEvents, hiddenCount, setVisibleCount, hasActiveFilters,
     foraPorSituacao, incluirSituacoesOcultas, nomesDasSituacoesOcultas, activeFilterChips,
@@ -64,17 +82,25 @@ export function ListaDeEventos({
     // marco + barra de progresso) no lugar do spinner central — sem
     // layout shift.
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-6" aria-busy="true" aria-label="Carregando eventos">
+      <div role="status" className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-6 max-md:gap-4" style={GRADE_DE_CARTOES} aria-busy="true" aria-label="Carregando eventos">
         {[0, 1, 2, 3, 4, 5].map((i) => (
-          <div key={i} style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderLeft: `4px solid ${T.border}`, borderRadius: R.lg, padding: '20px 22px' }}>
-            <div className="animate-pulse" style={{ width: 110, height: 22, borderRadius: R.pill, backgroundColor: N.n2, marginBottom: 14 }} />
-            <div className="animate-pulse" style={{ width: '55%', height: 18, borderRadius: 4, backgroundColor: T.border, marginBottom: 18 }} />
-            <div style={{ display: 'flex', gap: 32, marginBottom: 14 }}>
-              <div className="animate-pulse" style={{ width: 90, height: 12, borderRadius: 4, backgroundColor: N.n3 }} />
-              <div className="animate-pulse" style={{ width: 110, height: 12, borderRadius: 4, backgroundColor: N.n3 }} />
+          <div key={i} style={{ position: 'relative', overflow: 'hidden', backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, padding: isMobile ? 16 : 20, boxShadow: SHADOW.sm }}>
+            <span aria-hidden="true" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, backgroundColor: N.n3 }} />
+            <div className="animate-pulse" style={{ width: 72, height: 22, borderRadius: R.sm, backgroundColor: N.n2, marginBottom: 14 }} />
+            <div className="animate-pulse" style={{ width: `${58 - (i % 3) * 8}%`, height: 18, borderRadius: 4, backgroundColor: N.n3, marginBottom: 18 }} />
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1.15fr', gap: 16, marginBottom: 20 }}>
+              {[0, 1].map((c) => (
+                <div key={c} style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                  <div className="animate-pulse" style={{ width: 84, height: 9, borderRadius: 3, backgroundColor: N.n2 }} />
+                  <div className="animate-pulse" style={{ width: c === 0 ? 132 : 110, height: 14, borderRadius: 4, backgroundColor: N.n3 }} />
+                  <div className="animate-pulse" style={{ width: c === 0 ? 76 : 96, height: 11, borderRadius: 4, backgroundColor: N.n2 }} />
+                </div>
+              ))}
             </div>
-            <div className="animate-pulse" style={{ width: '65%', height: 12, borderRadius: 4, backgroundColor: N.n3, marginBottom: 18 }} />
-            <div className="animate-pulse" style={{ width: '100%', height: 8, borderRadius: R.pill, backgroundColor: N.n3 }} />
+            <div style={{ borderTop: `1px solid ${N.n3}`, paddingTop: 14 }}>
+              <div className="animate-pulse" style={{ width: 96, height: 10, borderRadius: 3, backgroundColor: N.n2, marginBottom: 10 }} />
+              <div className="animate-pulse" style={{ width: '100%', height: 8, borderRadius: R.pill, backgroundColor: N.n3 }} />
+            </div>
           </div>
         ))}
       </div>
@@ -149,10 +175,11 @@ export function ListaDeEventos({
               onClick={chip.clear}
               aria-label={`Remover o filtro ${chip.label}`}
               data-testid={`chip-remove-${chip.key}`}
-              style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: R.pill, fontSize: FS.small, fontWeight: '700', border: `1px solid ${T.border}`, backgroundColor: N.n2, color: T.strong, cursor: 'pointer' }}
+              className="evl-chip-x"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 28, padding: '0 8px 0 11px', borderRadius: R.pill, fontFamily: 'inherit', fontSize: FS.small, fontWeight: FW.forte, border: `1px solid ${T.border}`, backgroundColor: T.surface, color: T.strong, cursor: 'pointer' }}
             >
               {chip.label}
-              <X style={{ width: 11, height: 11 }} />
+              <X aria-hidden="true" style={{ width: 12, height: 12, color: T.second }} />
             </button>
           ))}
         </div>
@@ -188,12 +215,18 @@ export function ListaDeEventos({
            são o jeito de comparar dois eventos, e um `div role="link"`
            tira os três de uma vez.
         ══════════════════════════════════════════════════════════════ */
-        <div style={{ border: `1px solid ${T.border}`, borderRadius: R.lg, overflow: 'hidden', backgroundColor: T.surface }}>
+        // Seis colunas não cabem em menos de ~980px (tablet com a barra
+        // lateral aberta): a TABELA rola de lado dentro da moldura, em vez de
+        // espremer o nome do evento a zero e encavalar os rótulos.
+        <div
+          style={{ border: `1px solid ${T.border}`, borderRadius: R.lg, overflowX: 'auto', overflowY: 'hidden', backgroundColor: T.surface, boxShadow: SHADOW.sm, ['--evl-acoes' as string]: `${larguraDasAcoes(nAcoes, alvo(32, dedo))}px` } as React.CSSProperties}
+        >
+        <div style={{ minWidth: 980 }}>
           <div style={{
             display: 'grid', gridTemplateColumns: GRADE_LISTA, gap: 12,
             alignItems: 'center', padding: '10px 16px 10px 0',
             backgroundColor: T.bg, borderBottom: `1px solid ${T.border}`,
-          }}>
+          }} aria-hidden="true">
             <span aria-hidden="true" />
             <span style={TH_LISTA}>Evento</span>
             <span style={TH_LISTA}>Saída</span>
@@ -230,8 +263,9 @@ export function ListaDeEventos({
             );
           })}
         </div>
+        </div>
       ) : (
-      <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-6 max-md:gap-4" style={GRADE_DE_CARTOES}>
         {visibleEvents.map((event) => {
           // O payload de eventos traz só o vínculo (sponsorId/quota) —
           // nome/cor vêm da lista global de patrocinadores (mapa memoizado:
@@ -267,7 +301,8 @@ export function ListaDeEventos({
         <button
           onClick={() => setVisibleCount(filteredEvents.length)}
           data-testid="button-show-all-events"
-          style={{ alignSelf: 'center', fontSize: FS.body, fontWeight: 700, color: T.strong, background: T.surface, border: `1px solid ${T.border}`, borderRadius: R.pill, padding: '9px 22px', cursor: 'pointer', boxShadow: SHADOW.sm }}
+          className="evl-mais"
+          style={{ alignSelf: 'center', fontFamily: 'inherit', fontSize: FS.body, fontWeight: FW.forte, color: T.strong, background: T.surface, border: `1px solid ${T.border}`, borderRadius: R.pill, padding: '0 22px', minHeight: alvo(38, dedo), cursor: 'pointer', boxShadow: SHADOW.sm }}
         >
           Mostrar todos os {filteredEvents.length} eventos (+{hiddenCount})
         </button>

@@ -4,7 +4,8 @@ import { Calendar, Truck, AlertCircle, AlertTriangle, CheckCircle, Lock, Package
 import type { Sponsor } from "@shared/schema";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { PHASES, contarPorFaseDoEvento as contarPorFase } from "@/lib/fases";
-import { T, FS, R, SHADOW, N, TOM, FONT } from "@/lib/theme";
+import { T, FS, R, SHADOW, N, TOM, FONT, FW } from "@/lib/theme";
+import { getPriorityMeta } from "@/lib/status";
 import { SponsorChips } from "@/components/sponsor-chips";
 import { alvo, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { EventCardActions } from "./acoes-do-evento";
@@ -25,6 +26,18 @@ import type { AcaoSobreEvento, EventoDaLista, NextMilestonePayload } from "./tip
 // botão), posicionados sobre o canto — e a primeira linha reserva a largura
 // deles para o badge nunca correr por baixo.
 // ─────────────────────────────────────────────────────────────────────────────
+/** O selo do topo do cartão — prioridade, sem prioridade ou estado: UMA forma. */
+/** Rótulo de seção dentro do cartão. */
+const ROTULO: React.CSSProperties = {
+  fontSize: FS.micro, fontWeight: FW.forte, color: T.second, textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0,
+};
+
+const SELO: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 5, height: 22, padding: '0 8px',
+  borderRadius: R.sm, whiteSpace: 'nowrap',
+  fontSize: FS.micro, fontWeight: FW.rotulo, textTransform: 'uppercase', letterSpacing: '0.06em',
+};
+
 function EventCard({
   event,
   cardSponsors,
@@ -70,6 +83,7 @@ function EventCard({
   const isRealizado = stats.lifecycle === 'realizado';
   const isClosed = stats.lifecycle === 'manually_closed';
   const priorityConfig = getPriorityConfig(event.priority);
+  const prioridadeMeta = getPriorityMeta(event.priority);
   // Cinza no encerrado manual, de propósito: verde diria "deu tudo certo" e
   // âmbar diria "corre atrás". Encerrado é nenhum dos dois — é fora de jogo.
   const accentHex = isClosed ? T.second : isDone ? TOM.esmeralda.dot : isRealizado ? TOM.alerta.dot : priorityConfig.hex;
@@ -106,7 +120,7 @@ function EventCard({
   const dedo = usePonteiroGrosso() || !!isMobile;
   const btnSize = alvo(32, dedo);
   const actionsWidth = actionCount > 0 ? actionCount * btnSize + (actionCount - 1) * 6 + 10 : 0;
-  const cardPad = isMobile ? 14 : 24;
+  const cardPad = isMobile ? 16 : 20;
 
   // Evento realizado SEM nenhuma peça: "0 peças em aberto" seria mentira ao
   // contrário — não há trabalho pendente, há trabalho que nunca começou.
@@ -140,31 +154,24 @@ function EventCard({
 
   return (
     <div
-      className="group relative bg-white rounded-xl overflow-hidden"
+      className="group relative rounded-xl overflow-hidden evl-cartao evl-entra"
       style={{
+        backgroundColor: T.surface,
         border: `1px solid ${T.border}`,
-        borderLeft: `4px solid ${accentHex}`,
         boxShadow: SHADOW.sm,
-        transition: 'box-shadow 0.25s ease, transform 0.25s ease, border-color 0.25s ease',
+        height: '100%',
       }}
-      /* Hover contido (2px + sombra curta + borda que escurece) no lugar do
-         lift de 4px com sombra de 40px: com 3 cards por linha, a elevação
-         antiga fazia a grade inteira "pular" a cada passada de mouse. */
-      onMouseEnter={isMobile ? undefined : (e) => {
-        const el = e.currentTarget as HTMLDivElement;
-        el.style.boxShadow = SHADOW.md;
-        el.style.transform = 'translateY(-2px)';
-        el.style.borderColor = T.bdark;
-      }}
-      onMouseLeave={isMobile ? undefined : (e) => {
-        const el = e.currentTarget as HTMLDivElement;
-        el.style.boxShadow = SHADOW.sm;
-        el.style.transform = 'translateY(0)';
-        el.style.borderColor = T.border;
-      }}
+      /* Hover contido (1px + sombra curta + borda que escurece), por CSS
+         (.evl-cartao): só com ponteiro que paira, e sem movimento quando o
+         sistema pede menos movimento. Com 3 cards por linha, a elevação
+         antiga de 4px fazia a grade inteira "pular". */
       data-testid={`card-event-${event.id}`}
       data-lifecycle={stats.lifecycle}
     >
+      {/* A faixa de acento: uma barra reta DENTRO do cartão, recortada pelo
+          raio — a borda esquerda de 4px num cartão arredondado desenhava um
+          colchete curvo. Mesma cor, mesmo significado (prioridade/estado). */}
+      <span aria-hidden="true" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, backgroundColor: accentHex, zIndex: 3, pointerEvents: 'none' }} />
       {isDone && (
         <div style={{ position: 'absolute', right: '-16px', bottom: '-16px', opacity: 0.03, pointerEvents: 'none' }}>
           <CheckCircle style={{ width: '120px', height: '120px', color: TOM.esmeralda.dot }} />
@@ -175,8 +182,9 @@ function EventCard({
         href={`/eventos/${event.id}`}
         aria-label={ariaLabel}
         data-testid={`link-event-${event.id}`}
+        className="evl-cartao-link"
         style={{
-          display: 'flex', flexDirection: 'column', gap: '16px',
+          display: 'flex', flexDirection: 'column', gap: 14, height: '100%',
           padding: cardPad, textDecoration: 'none', color: 'inherit',
           position: 'relative', zIndex: 1, minHeight: '100%',
         }}
@@ -194,12 +202,10 @@ function EventCard({
                     ? 'O dia do evento passou e nenhuma peça chegou a ser criada. Saiu sozinho da Gestão de Prazos e das cinco filas de trabalho — ninguém encerrou este evento, e não há como reabri-lo.'
                     : `O dia do evento passou e ${stats.openCount} ${stats.openCount === 1 ? 'peça continua' : 'peças continuam'} em aberto. Saiu sozinho da Gestão de Prazos e das cinco filas de trabalho — ninguém encerrou este evento, e não há como reabri-lo.`}
               style={{
-                fontSize: FS.micro, fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.06em',
+                ...SELO,
                 color: isClosed ? T.strong : isDone ? TOM.esmeralda.text : TOM.alerta.text,
                 backgroundColor: isClosed ? N.n2 : isDone ? TOM.esmeralda.bg : TOM.alerta.bg,
                 border: `1px solid ${isClosed ? T.bdark : isDone ? TOM.esmeralda.border : TOM.alerta.border}`,
-                padding: '3px 8px', borderRadius: R.sm, whiteSpace: 'nowrap',
-                display: 'flex', alignItems: 'center', gap: '4px',
               }}
             >
               {isClosed
@@ -210,18 +216,22 @@ function EventCard({
               {stateLabel}
             </span>
           ) : !event.priority ? (
-            <span style={{ fontSize: FS.micro, fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.07em', color: T.second, backgroundColor: T.low, padding: '4px 10px', borderRadius: R.sm, display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
-              <AlertCircle style={{ width: '10px', height: '10px' }} />
+            <span
+              title="Sem prioridade definida — defina pela bandeira"
+              style={{ ...SELO, color: T.second, backgroundColor: T.surface, border: `1px dashed ${T.bdark}` }}
+            >
+              <AlertCircle aria-hidden="true" style={{ width: 10, height: 10 }} />
               Sem prioridade
             </span>
           ) : (
-            <span style={{ fontSize: FS.micro, fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.07em', color: priorityConfig.text, backgroundColor: accentHex + '12', padding: '4px 10px', borderRadius: R.sm, whiteSpace: 'nowrap' }}>
+            <span style={{ ...SELO, color: priorityConfig.text, backgroundColor: prioridadeMeta?.bg ?? T.low, border: `1px solid ${prioridadeMeta?.border ?? T.border}` }}>
+              <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: accentHex, flexShrink: 0 }} />
               {priorityConfig.label}
             </span>
           )}
         </div>
 
-        <h3 style={{ fontFamily: FONT.display, fontSize: FS.title, fontWeight: '700', color: T.dark, lineHeight: 1.25, margin: 0 }}>
+        <h3 className="evl-cartao-titulo" style={{ fontFamily: FONT.display, fontSize: FS.title, fontWeight: 700, color: T.dark, lineHeight: 1.25, letterSpacing: '-0.01em', margin: 0, overflowWrap: 'anywhere' }}>
           {event.name}
         </h3>
         {pedidosAbertos > 0 && (
@@ -231,15 +241,22 @@ function EventCard({
         )}
 
         {cardSponsors.length > 0 && (
-          <SponsorChips sponsors={cardSponsors} max={3} variant="colored" size="xs" />
+          <div className="evl-patrocinios">
+            <SponsorChips sponsors={cardSponsors} max={3} variant="colored" size="xs" />
+          </div>
         )}
 
-        <div style={{ margin: '2px 0', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <p style={{ fontSize: FS.micro, fontWeight: '700', color: T.second, textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Saída do Caminhão</p>
-            <div className={!outOfPlay && truckUrgency === 'urgent' ? 'motion-safe:animate-pulse' : ''} style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <Truck style={{ width: '16px', height: '16px', color: truckIconColor, flexShrink: 0 }} />
-              <span style={{ fontSize: FS.strong, fontWeight: '700', color: truckTextColor }}>
+        {/* OS DOIS FATOS DO CARTÃO, lado a lado: QUANDO sai (com o início do
+            evento embaixo, que é a mesma pergunta — "quando") e O QUE vence
+            primeiro. Empilhados, eram cinco andares de rótulo + valor; em duas
+            colunas o olho compara a saída com o marco num relance. No celular
+            a coluna é estreita demais para o selo do prazo: volta a empilhar. */}
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1fr) minmax(0, 1.15fr)', gap: isMobile ? 12 : 16, alignItems: 'flex-start' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0 }}>
+            <p style={ROTULO}>Saída do caminhão</p>
+            <div className={!outOfPlay && truckUrgency === 'urgent' ? 'motion-safe:animate-pulse' : ''} style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+              <Truck aria-hidden="true" style={{ width: 15, height: 15, color: truckIconColor, flexShrink: 0 }} />
+              <span style={{ fontSize: FS.strong, fontWeight: FW.forte, color: truckTextColor, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
                 {departure ? fmtCardDate(departure, currentYear) : '—'}
                 {departure ? ' · ' : ''}
                 {/* Sem `timeZone:'UTC'`: `departure` já veio de
@@ -247,40 +264,13 @@ function EventCard({
                 {departure ? departure.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''}
               </span>
               {!outOfPlay && truckUrgency === 'departed' && (
-                <span style={{ fontSize: FS.small, fontWeight: '700', color: TOM.perigo.text }}>
+                <span style={{ fontSize: FS.small, fontWeight: FW.forte, color: TOM.perigo.text, whiteSpace: 'nowrap' }}>
                   {daysSinceDeparture < 1 ? 'Saiu hoje' : `Saiu há ${daysSinceDeparture}d`}
                 </span>
               )}
             </div>
-          </div>
-
-          {/* PRÓXIMO MARCO — a informação que só existia em /prazos (admin).
-              Vem calculada do servidor: mesma âncora (saída do caminhão), mesmo
-              ajuste de fim de semana e mesma regra de pendência acumulada de
-              /api/prazos. `daysRemaining` já está no fuso do negócio. */}
-          {ms && (
-            <div
-              title={`${ms.label} — ${milestoneDueText(ms)}. Prazo: ${fmtDateBR(ms.deadline)}.${ms.pendingItems > 0 ? ` ${ms.pendingItems} ${ms.pendingItems === 1 ? 'peça ainda não passou' : 'peças ainda não passaram'} por esta etapa.` : ''}`}
-              style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}
-            >
-              <p style={{ fontSize: FS.micro, fontWeight: '700', color: T.second, textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Próximo marco</p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flexWrap: 'wrap' }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: MARCO_COLOR[ms.key] || T.second, flexShrink: 0 }} />
-                <span style={{ fontSize: FS.body, fontWeight: '600', color: T.text }}>{ms.label}</span>
-                <span style={{
-                  fontSize: FS.small, fontWeight: '700', color: msTone.text,
-                  backgroundColor: msTone.bg, border: `1px solid ${msTone.border}`,
-                  borderRadius: R.sm, padding: '1px 7px', whiteSpace: 'nowrap',
-                }}>
-                  {milestoneDueText(ms)}
-                </span>
-              </div>
-            </div>
-          )}
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: FS.small, color: T.second }}>
-            <Calendar style={{ width: '11px', height: '11px', color: T.muted, flexShrink: 0 }} />
-            <span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: FS.small, color: T.second }}>
+              <Calendar aria-hidden="true" style={{ width: 11, height: 11, color: T.muted, flexShrink: 0 }} />
               Início: {event.startDate
                 ? parseDateLocal(event.startDate).toLocaleDateString('pt-BR', parseDateLocal(event.startDate).getFullYear() === currentYear
                     ? { day: '2-digit', month: 'short' }
@@ -288,6 +278,31 @@ function EventCard({
                 : '—'}
             </span>
           </div>
+
+          {/* PRÓXIMO MARCO — a informação que só existia em /prazos (admin).
+              Vem calculada do servidor: mesma âncora (saída do caminhão), mesmo
+              ajuste de fim de semana e mesma regra de pendência acumulada de
+              /api/prazos. `daysRemaining` já está no fuso do negócio. */}
+          {ms ? (
+            <div
+              title={`${ms.label} — ${milestoneDueText(ms)}. Prazo: ${fmtDateBR(ms.deadline)}.${ms.pendingItems > 0 ? ` ${ms.pendingItems} ${ms.pendingItems === 1 ? 'peça ainda não passou' : 'peças ainda não passaram'} por esta etapa.` : ''}`}
+              style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0 }}
+            >
+              <p style={ROTULO}>Próximo marco</p>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+                <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: MARCO_COLOR[ms.key] || T.second, flexShrink: 0 }} />
+                <span style={{ fontSize: FS.body, fontWeight: FW.medio, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ms.label}</span>
+              </span>
+              <span style={{
+                alignSelf: 'flex-start',
+                fontSize: FS.small, fontWeight: FW.forte, color: msTone.text,
+                backgroundColor: msTone.bg, border: `1px solid ${msTone.border}`,
+                borderRadius: R.sm, padding: '1px 7px', whiteSpace: 'nowrap',
+              }}>
+                {milestoneDueText(ms)}
+              </span>
+            </div>
+          ) : <span aria-hidden="true" />}
         </div>
 
         <div style={{ marginTop: 'auto', paddingTop: '14px', borderTop: `1px solid ${N.n3}` }}>

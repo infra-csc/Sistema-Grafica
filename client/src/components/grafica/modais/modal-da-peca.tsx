@@ -1,7 +1,7 @@
 // O MODAL DA PEÇA: imprimir (o formulário é o MESMO da aba Máquinas) ou
 // conferir com foto (e, quando a conferência fecha a peça, já embalar).
 import type React from "react";
-import { AlertCircle, Calendar, CheckCircle, Play, PlusCircle, Printer, Search } from "lucide-react";
+import { AlertCircle, Calendar, CheckCircle, Play, PlusCircle, Search } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Botao } from "@/components/ui/botao";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
@@ -10,7 +10,7 @@ import { SeloKit } from "@/components/kit/selo-kit";
 import { SeloProducaoInterna, InstrucoesParaAGrafica } from "@/components/selo-producao-interna";
 import { AvisoDoEstoqueNaPeca } from "@/components/consulta-de-estoque/aviso-na-grafica";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
-import { FONT, FS, FW, N, R, T, TOM } from "@/lib/theme";
+import { FONT, FS, FW, N, R, SHADOW, T, TOM } from "@/lib/theme";
 import { statusDeExibicao } from "@shared/molde";
 import { semImpressora } from "@shared/reserva-de-impressora";
 import { ocupacaoDasImpressoras, estaEmImpressao } from "@shared/progresso-da-impressao";
@@ -23,6 +23,7 @@ import type { ModalDaPecaEstado } from "@/components/grafica/hooks/use-modal-da-
 import { CO, corDaAcao } from "@/components/grafica/fila/aparencia";
 import { fmtDataHora, parentDisplayIdOf } from "@/components/grafica/fila/regras";
 import { PhotoPicker } from "./seletor-de-fotos";
+import { MiniaturaDaPeca } from "@/components/grafica/fila/miniatura-da-peca";
 
 export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMobile, padModal, fsMin }: {
   modal: ModalDaPecaEstado;
@@ -75,7 +76,8 @@ export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMo
         placeholder={placeholder}
         rows={2}
         data-testid="input-notes"
-        style={{ width: "100%", minHeight: 64, boxSizing: "border-box", padding: "10px 14px", backgroundColor: N.n3, border: "1px solid transparent", borderRadius: 8, fontSize: isMobile ? 16 : 13, color: T.text, resize: "vertical", fontFamily: "inherit" }}
+        className="grf-campo"
+        style={{ width: "100%", minHeight: 64, boxSizing: "border-box", padding: "10px 14px", backgroundColor: T.surface, border: `1px solid ${T.bdark}`, borderRadius: R.md, fontSize: isMobile ? 16 : 13, lineHeight: 1.5, color: T.text, resize: "vertical", fontFamily: "inherit" }}
       />
     </div>
   );
@@ -90,11 +92,16 @@ export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMo
   const fichaDaPeca = selectedItem ? (
     <div style={{ backgroundColor: N.n2, borderRadius: 12, padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-        <div style={{ backgroundColor: T.surface, borderRadius: 8, padding: 8, boxShadow: "0 1px 4px rgba(0,0,0,0.08)", flexShrink: 0 }}>
-          {modalType === "production"
-            ? <Printer style={{ width: 20, height: 20, color: T.accent }} />
-            : <CheckCircle style={{ width: 20, height: 20, color: TOM.ciano.text }} />}
-        </div>
+        {/* Na IMPRESSÃO a ficha abre com a ARTE (a Gráfica reconhece a peça
+            pelo desenho; a arte grande só aparece na conferência). Na
+            conferência a arte já está em destaque logo acima: fica o ícone. */}
+        {modalType === "production"
+          ? <MiniaturaDaPeca item={selectedItem} tamanho={56} />
+          : (
+            <div style={{ backgroundColor: T.surface, borderRadius: R.md, padding: 8, boxShadow: SHADOW.sm, flexShrink: 0 }}>
+              <CheckCircle aria-hidden="true" style={{ width: 20, height: 20, color: TOM.ciano.text }} />
+            </div>
+          )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 3 }}>
             <span style={{ display: "inline-flex", alignItems: "center", flexWrap: "wrap", gap: 6, minWidth: 0 }}>
@@ -210,7 +217,7 @@ export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMo
 
   return (
     <Dialog open={!!selectedItem && !!modalType} onOpenChange={open => { if (!open) { setSelectedItem(null); setModalType(null); } }}>
-      <DialogContent ref={modalPecaRef} className={HIDE_NATIVE_CLOSE} style={modalSurface(468)}>
+      <DialogContent ref={modalPecaRef} className={HIDE_NATIVE_CLOSE} style={modalSurface(520)}>
         <DialogTitle className="sr-only">
           {modalType === "production" ? "Impressão da peça" : "Conferir peça"}
         </DialogTitle>
@@ -345,7 +352,8 @@ export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMo
                   </label>
                   <input id="input-qtd-conferir" type="number" inputMode="numeric" pattern="[0-9]*" min={1} max={faltam} value={conferQty}
                     onChange={e => setConferQty(Math.max(1, Math.min(faltam, parseInt(e.target.value) || 1)))}
-                    style={{ width: "100%", boxSizing: "border-box", minHeight: 44, padding: "10px 14px", backgroundColor: N.n3, border: "1px solid transparent", borderRadius: 8, fontSize: 16, fontWeight: 700, color: T.text }} />
+                    className="grf-campo"
+                    style={{ width: "100%", boxSizing: "border-box", minHeight: 44, padding: "10px 14px", backgroundColor: T.surface, border: `1px solid ${T.bdark}`, borderRadius: R.md, fontSize: 16, fontWeight: 700, color: T.text, fontVariantNumeric: "tabular-nums" }} />
                 </div>
               )}
               {/* A foto que termina de subir depois de o modal fechar ou mudar

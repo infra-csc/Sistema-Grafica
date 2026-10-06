@@ -83,14 +83,17 @@ export function DeadlineChip({ event, fonte = FS.small, curto = false }: {
 }
 
 /** m² a produzir de uma linha — a coluna cheia e a versão compacta leem daqui. */
-export const m2DaLinha = (item: PecaDaFila): React.ReactNode => {
+export const m2DaLinha = (item: PecaDaFila, unidade = false): React.ReactNode => {
   const total = Number(item.calculatedM2) || 0;
   if (!total) return "—";
   const toPrint = m2ToProduce(item);
-  if (reusedTotalOf(item) === 0) return total.toFixed(2);
+  // `unidade`: a tabela compacta põe o "m²" colado ao número (a coluna cheia
+  // já diz a unidade no cabeçalho).
+  const un = unidade ? <span style={{ fontSize: FS.small, fontWeight: FW.medio, color: T.second }}> m²</span> : null;
+  if (reusedTotalOf(item) === 0) return <>{total.toFixed(2)}{un}</>;
   return (
     <span title={`Total da peça: ${total.toFixed(2)} m² · reaproveitado não é impresso`}>
-      <span style={{ color: toPrint === 0 ? TOM.esmeralda.text : T.text }}>{toPrint.toFixed(2)}</span>
+      <span style={{ color: toPrint === 0 ? TOM.esmeralda.text : T.text }}>{toPrint.toFixed(2)}</span>{un}
       <span style={{ display: "block", fontSize: FS.small, fontWeight: FW.corpo, color: T.second, textDecoration: "line-through" }}>
         {total.toFixed(2)}
       </span>

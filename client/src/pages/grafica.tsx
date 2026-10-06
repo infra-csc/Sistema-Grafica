@@ -135,7 +135,9 @@ export default function Grafica() {
     { rotulo: "ID" },
     { rotulo: "Peça" },
     { rotulo: "Qtd", direita: true },
-    { rotulo: "Medidas (ARQ / VIS)" },
+    // Compacta: só "Medidas" — cada linha da célula já diz ARQ e VIS, e o
+    // rótulo inteiro em caixa-alta roubava ~45px da coluna de Status.
+    { rotulo: compacto ? "Medidas" : "Medidas (ARQ / VIS)" },
     ...(compacto ? [] : [{ rotulo: "m² a produzir", direita: true }, { rotulo: "Material" }]),
     { rotulo: "Status" },
     { rotulo: "" },
@@ -331,7 +333,7 @@ export default function Grafica() {
       {dialogoDeConfirmacao}
 
       <CabecalhoDaGrafica fila={fila} lote={lote} podeConferir={podeConferir} isMobile={isMobile} ponteiroGrosso={ponteiroGrosso}
-        isExporting={isExporting} handleExportXlsx={handleExportXlsx} setGalpao={setGalpao} />
+        isExporting={isExporting} handleExportXlsx={handleExportXlsx} setGalpao={setGalpao} atalhosNasAbas={usaCards && !isMobile} />
 
       {/* ── As abas da tela: Fila | Tubos — uma abinha separada, não uma
           página. O <Abas> do design system — o mesmo de Máquinas: tablist,
@@ -341,9 +343,12 @@ export default function Grafica() {
       <div data-testid="abas-grafica">
         {/* No celular, Máquinas e Excel (só ícones) moram à direita das abas —
             ver AtalhosDaGrafica. A linha das abas já existia; a deles não. */}
-        <div style={isMobile ? { display: "flex", alignItems: "center", gap: 8 } : undefined}>
+        {/* Tablet (lista em cartões, conteúdo < 820px): os mesmos atalhos de
+            ícone sobem para cá — no topo eles abriam uma segunda fileira de
+            botões antes das abas. */}
+        <div style={isMobile || usaCards ? { display: "flex", alignItems: "center", gap: 8 } : undefined}>
         <Abas
-          style={isMobile ? { flex: "1 1 auto", minWidth: 0 } : undefined}
+          style={isMobile || usaCards ? { flex: "1 1 auto", minWidth: 0 } : undefined}
           rotuloDaLista="Seções da Gráfica"
           prefixoDeTestId="aba-grafica"
           ativo={abaDaTela}
@@ -353,7 +358,7 @@ export default function Grafica() {
             { id: "tubos", rotulo: "Tubos", contador: tubos.tubosAbertosNaTela > 0 ? tubos.tubosAbertosNaTela : undefined, tom: "info" },
           ]}
         />
-        {isMobile && !lote.bulkOn && (
+        {(isMobile || usaCards) && !lote.bulkOn && (
           <AtalhosDaGrafica fila={fila} isMobile ponteiroGrosso={ponteiroGrosso} isExporting={isExporting} handleExportXlsx={handleExportXlsx} />
         )}
         </div>
@@ -366,7 +371,7 @@ export default function Grafica() {
 
       {abaDaTela === "fila" && (
       <div id="painel-fila" role="tabpanel" aria-label="Fila" style={{ display: "contents" }}>
-        <CartoesDeEtapa stats={fila.stats} filtros={filtros} patchFiltros={fila.patchFiltros} isMobile={isMobile} isLoading={isLoading}
+        <CartoesDeEtapa stats={fila.stats} filtros={filtros} patchFiltros={fila.patchFiltros} isMobile={isMobile} isLoading={isLoading || fila.isError}
           larguraConteudo={larguraRaiz === 0 ? 0 : larguraConteudo} />
 
         <BarraDeFiltros fila={fila} isMobile={isMobile} usaCards={usaCards} ponteiroGrosso={ponteiroGrosso}

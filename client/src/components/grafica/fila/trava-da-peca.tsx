@@ -40,9 +40,25 @@ export function TravaDaPeca({ item, podeMexer, fonte, alvo, onTravar, onDestrava
     );
   }
   return (
-    <div role="status" data-testid={`selo-travada-${item.id}`} title={fraseDaTrava(item)} style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", padding: "4px 8px", borderRadius: R.sm, background: VINHO_DA_TRAVA, color: T.surface, fontSize: fonte, fontWeight: FW.forte, lineHeight: 1.35, whiteSpace: "normal", overflowWrap: "anywhere" }}>
-      <Lock aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0 }} />
-      <span style={{ flex: "1 1 140px", minWidth: 0 }}>{seloDaTrava(item)}</span>
+    <div role="status" data-testid={`selo-travada-${item.id}`} title={fraseDaTrava(item)} style={{ marginTop: 6, display: "flex", flexDirection: "column", alignItems: "stretch", gap: 6, padding: "6px 9px", borderRadius: R.md, background: VINHO_DA_TRAVA, color: T.surface, fontSize: fonte, fontWeight: FW.forte, lineHeight: 1.4, whiteSpace: "normal", overflowWrap: "anywhere" }}>
+      <span style={{ display: "flex", alignItems: "flex-start", gap: 6, minWidth: 0 }}>
+        <Lock aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0, marginTop: 2 }} />
+        {/* Duas camadas: o MOTIVO (o que a Gráfica precisa ler) em cima,
+            forte; quem travou e quando embaixo, mais leve. O texto lido
+            continua a frase inteira (o " · " vai para o leitor de tela). */}
+        {(() => {
+          const frase = seloDaTrava(item) ?? "";
+          const i = frase.lastIndexOf(" · ");
+          if (i < 0) return <span style={{ minWidth: 0 }}>{frase}</span>;
+          return (
+            <span style={{ minWidth: 0 }}>
+              {frase.slice(0, i)}
+              <span className="sr-only"> · </span>
+              <span style={{ display: "block", marginTop: 2, fontWeight: FW.corpo, opacity: 0.85 }}>{frase.slice(i + 3)}</span>
+            </span>
+          );
+        })()}
+      </span>
       {podeMexer && (
         <Botao tamanho="sm" icone={Unlock} carregando={destravando} onClick={(e) => { e.stopPropagation(); onDestravar(); }} data-testid={`button-destravar-${item.id}`}
           style={{ minHeight: alvo, color: TOM.perigo.text, borderColor: TOM.perigo.border, fontSize: Math.max(fonte, FS.meta) }}>

@@ -61,7 +61,7 @@ export function BulkActionDialog({
   const pad = isMobileLote ? 16 : 24;
   return (
     <Dialog open={open} onOpenChange={o => { if (!o) onClose(); }}>
-      <DialogContent ref={superficieRef} className={HIDE_NATIVE_CLOSE} style={modalSurface(460)}>
+      <DialogContent ref={superficieRef} className={HIDE_NATIVE_CLOSE} style={modalSurface(520)}>
         <DialogTitle className="sr-only">Confirmar Conferência em Lote</DialogTitle>
         <DialogDescription className="sr-only">Confira várias peças de uma vez, com a mesma foto</DialogDescription>
 

@@ -280,7 +280,7 @@ export function CartaoDaPeca({ ctx, item, index, showEvHeader, corte }: {
               const d = diasNaFase(item, new Date());
               if (d === null || d < 1) return null;
               const tom = tomDaIdade(d);
-              return <span title={`Está neste status há ${d} dia(s)`} style={{ fontSize: 12, fontFamily: FONT.mono, fontWeight: tom.peso, color: tom.cor, whiteSpace: 'nowrap' }}>há {d}d</span>;
+              return <span title={`Está neste status há ${d} ${d === 1 ? "dia" : "dias"}`} style={{ fontSize: 12, fontFamily: FONT.mono, fontWeight: tom.peso, color: tom.cor, whiteSpace: 'nowrap' }}>há {d}d</span>;
             })()}
             {/* Paridade com a tabela: o progresso da impressão
                 ocupa a linha inteira do cartão (flexBasis 100%). */}
@@ -405,8 +405,8 @@ export function CartaoDaPeca({ ctx, item, index, showEvHeader, corte }: {
                 onClick={e => { if (bulkOn) return; e.stopPropagation(); abrirTuboDaPeca(item); }}
                 /* Alvo de 44px no dedo; o desenho do selo fica no span de dentro. */
                 style={{ minHeight: 44, flexBasis: '100%', padding: 0, border: 'none', background: 'none', display: 'flex', alignItems: 'center', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit' }}>
-                <span style={{ ...qtyChip(T.accentText, TOM.laranja.bg), border: `1px solid ${TOM.laranja.border}`, whiteSpace: 'normal' }}>
-                  {fechamentoDoTubo.has(item.tuboId) && <Camera aria-hidden="true" style={{ width: 10, height: 10, marginRight: 3, verticalAlign: -1 }} />}
+                <span style={{ ...qtyChip(T.accentText, TOM.laranja.bg), border: `1px solid ${TOM.laranja.border}`, whiteSpace: 'normal', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  {fechamentoDoTubo.has(item.tuboId) && <Camera aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0 }} />}
                   {seloDoTubo(item) ?? ""}
                 </span>
               </button>

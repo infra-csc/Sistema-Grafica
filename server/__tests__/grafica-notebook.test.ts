@@ -95,13 +95,20 @@ describe("Gráfica num notebook de 1.366px com a barra lateral aberta", () => {
     expect($('[data-testid="button-production-n1"]')!.closest('[data-testid^="menu-acoes-"]')).toBeNull();
   }, 60_000);
 
-  it("os 8 cartões de etapa: 4 × 2 no notebook, 8 numa linha na tela larga — nenhum órfão", async () => {
+  // A esteira (redesign 06/10): as oito etapas viraram células de uma faixa
+  // só — cabem numa linha já no notebook. A regra que fica é a mesma: nenhum
+  // órfão — 8 numa linha ou 4 × 2 (o tablet em pé).
+  it("as 8 etapas: 8 numa linha no notebook e na tela larga, 4 × 2 no tablet — nenhum órfão", async () => {
     await montar(1110);
-    expect($('[data-testid="grade-etapas"]')!.style.gridTemplateColumns).toBe("repeat(4, minmax(0, 1fr))");
+    expect($('[data-testid="grade-etapas"]')!.style.gridTemplateColumns).toBe("repeat(8, minmax(0, 1fr))");
     expect($('[data-testid="grade-etapas"]')!.querySelectorAll('[data-testid^="stat-"]:not([data-testid$="-ativo"])').length).toBe(8);
     cleanup();
     await montar(1380);
     expect($('[data-testid="grade-etapas"]')!.style.gridTemplateColumns).toBe("repeat(8, minmax(0, 1fr))");
+    cleanup();
+    await montar(860);
+    expect($('[data-testid="grade-etapas"]')!.style.gridTemplateColumns).toBe("repeat(4, minmax(0, 1fr))");
+    expect($('[data-testid="grade-etapas"]')!.querySelectorAll('[data-testid^="stat-"]:not([data-testid$="-ativo"])').length).toBe(8);
   }, 60_000);
 
   it("na tabela CHEIA nada muda: 16px de respiro, Status sem quebra e 'Tirar do tubo' por extenso", async () => {

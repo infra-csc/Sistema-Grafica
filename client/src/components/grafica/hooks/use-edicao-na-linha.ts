@@ -47,7 +47,7 @@ export function useEdicaoNaLinha(compacto: boolean) {
       toast({
         title: "Reaproveitamento registrado",
         description: falta > 0
-          ? `${updated.reuseQty} un. reaproveitada(s). Faltam ${falta} un. para produzir.`
+          ? `${updated.reuseQty} un. ${updated.reuseQty === 1 ? "reaproveitada" : "reaproveitadas"}. ${falta === 1 ? "Falta" : "Faltam"} ${falta} un. para produzir.`
           : "Peça inteira reaproveitada. Segue para conferência.",
       });
     },

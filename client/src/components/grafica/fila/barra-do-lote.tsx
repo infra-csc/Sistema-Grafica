@@ -3,7 +3,7 @@
 import { Camera, Package, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { alvo as alvoDeToque } from "@/hooks/use-mobile";
-import { FONT, FS, FW, R, T, TOM } from "@/lib/theme";
+import { ESCURO, FONT, FS, FW, R, T, TOM } from "@/lib/theme";
 import type { SelecaoEmLote } from "@/components/grafica/hooks/use-selecao-em-lote";
 
 export function BarraDoLote({ lote, isMobile, ponteiroGrosso, usaCards }: {
@@ -21,6 +21,7 @@ export function BarraDoLote({ lote, isMobile, ponteiroGrosso, usaCards }: {
   return (
     <div
       role="toolbar"
+      className="ds-sobre-escuro grf-lote"
       aria-label={bulkConferMode ? "Ações da conferência em lote" : bulkPackMode ? "Ações do embalar em lote" : "Ações da entrega em lote"}
       style={{
         // A barra ancora na COLUNA DE CONTEÚDO. Com left:0 e zIndex 50 ela
@@ -28,7 +29,8 @@ export function BarraDoLote({ lote, isMobile, ponteiroGrosso, usaCards }: {
         // bloco de usuário/Sair enquanto o operador montava o lote. No
         // celular a sidebar não é fixa, então ali continua colada na borda.
         position: 'fixed', bottom: 0, left: isMobile ? 0 : 'var(--sidebar-width, 16rem)', right: 0, zIndex: 50,
-        background: T.text,
+        background: ESCURO.gradiente,
+        borderTop: `1px solid ${ESCURO.borda}`,
         // LONGOS: o atalho com env() some no parser do jsdom (ver o teste
         // grafica-celular). O valor no navegador é o mesmo de antes.
         paddingTop: isMobile ? 10 : 12, paddingLeft: isMobile ? 12 : 16, paddingRight: isMobile ? 12 : 16,
@@ -52,7 +54,7 @@ export function BarraDoLote({ lote, isMobile, ponteiroGrosso, usaCards }: {
         // A barra é ESCURA: os botões dela ficam locais (o Botao é pele de
         // fundo claro), mas com a classe .ds-botao — hover e foco da casa.
         className="ds-botao"
-        style={{ order: isMobile ? 2 : undefined, minHeight: isMobile ? 48 : alvoDeToque(36, ponteiroGrosso), padding: isMobile ? '0 10px' : '0 12px', borderRadius: R.md, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.9)', fontSize: isMobile ? FS.read : FS.body, fontWeight: FW.forte, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+        style={{ order: isMobile ? 2 : undefined, minHeight: isMobile ? 48 : alvoDeToque(36, ponteiroGrosso), padding: isMobile ? '0 10px' : '0 12px', borderRadius: R.md, background: ESCURO.realce, border: `1px solid ${ESCURO.borda}`, color: ESCURO.texto, fontSize: isMobile ? FS.read : FS.body, fontWeight: FW.forte, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
       >
         {/* "Sel. 1" lia como "1 selecionada" com nada selecionado — o
             operador achava que o Confirmar estava quebrado (dono, 14/09).
@@ -68,11 +70,11 @@ export function BarraDoLote({ lote, isMobile, ponteiroGrosso, usaCards }: {
       {/* Celular: base "100% − X − espaço" força a quebra — esta linha é
           só modo + contador e o X; os botões descem para a de baixo. */}
       <span style={{ order: isMobile ? 0 : undefined, flex: isMobile ? '1 1 calc(100% - 52px)' : 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: isMobile ? FS.meta : FS.small, fontWeight: FW.rotulo, color: 'rgba(255,255,255,0.78)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: isMobile ? FS.meta : FS.small, fontWeight: FW.rotulo, color: ESCURO.apoio, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, backgroundColor: bulkConferMode ? TOM.ciano.dot : bulkPackMode ? TOM.info.dot : T.accent }} />
           {bulkConferMode ? 'Conferência em lote' : bulkPackMode ? 'Embalar em lote' : 'Entrega em lote'}
         </span>
-        <span aria-live="polite" style={{ color: bulkSelectedIds.size > 0 ? T.surface : 'rgba(255,255,255,0.78)', fontSize: isMobile ? FS.read : FS.body, fontWeight: FW.forte, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+        <span aria-live="polite" style={{ color: bulkSelectedIds.size > 0 ? ESCURO.texto : ESCURO.apoio, fontSize: isMobile ? FS.read : FS.body, fontWeight: FW.forte, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
           {bulkSelectedIds.size > 0
             ? (isMobile
               ? `${bulkSelectedIds.size} de ${bulkEligibleList.length} marcada${bulkSelectedIds.size !== 1 ? 's' : ''}`
@@ -117,14 +119,14 @@ export function BarraDoLote({ lote, isMobile, ponteiroGrosso, usaCards }: {
         style={{
           order: isMobile ? 3 : undefined, flex: isMobile ? '1 1 0' : undefined, minWidth: 0, justifyContent: 'center',
           minHeight: isMobile ? 48 : 44, padding: isMobile ? '0 12px' : '0 18px', borderRadius: R.md, border: 'none', flexShrink: 0,
-          background: bulkSelectedIds.size === 0 ? 'rgba(255,255,255,0.15)' : bulkConferMode ? TOM.ciano.text : bulkPackMode ? TOM.info.text : T.accentText,
+          background: bulkSelectedIds.size === 0 ? ESCURO.realceForte : bulkConferMode ? TOM.ciano.text : bulkPackMode ? TOM.info.text : T.accentText,
           // 0.35 de branco sumia no preto; 0.6 ainda lê "inativo" e se lê.
-          color: bulkSelectedIds.size === 0 ? 'rgba(255,255,255,0.6)' : T.surface,
+          color: bulkSelectedIds.size === 0 ? ESCURO.apoio : T.surface,
           fontSize: FS.body, fontWeight: FW.rotulo, fontFamily: FONT.corpo,
           cursor: bulkSelectedIds.size === 0 ? 'not-allowed' : 'pointer',
           display: 'flex', alignItems: 'center', gap: 7,
           boxShadow: bulkSelectedIds.size > 0 ? (bulkConferMode ? '0 4px 16px rgba(14,116,144,0.4)' : bulkPackMode ? '0 4px 16px rgba(29,78,216,0.4)' : '0 4px 16px rgba(194,65,12,0.4)') : 'none',
-          transition: 'all 0.15s',
+          transition: 'background-color 0.15s, box-shadow 0.15s',
         }}
       >
         {bulkPackMode
@@ -145,7 +147,7 @@ export function BarraDoLote({ lote, isMobile, ponteiroGrosso, usaCards }: {
         aria-label="Sair do modo lote sem registrar"
         title="Sair do lote (Esc) — desmarca as peças; nada é registrado"
         className="ds-botao"
-        style={{ order: isMobile ? 1 : undefined, width: isMobile ? 44 : alvoDeToque(36, ponteiroGrosso), height: isMobile ? 44 : alvoDeToque(36, ponteiroGrosso), borderRadius: R.md, background: 'rgba(255,255,255,0.1)', border: 'none', color: 'rgba(255,255,255,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+        style={{ order: isMobile ? 1 : undefined, width: isMobile ? 44 : alvoDeToque(36, ponteiroGrosso), height: isMobile ? 44 : alvoDeToque(36, ponteiroGrosso), borderRadius: R.md, background: ESCURO.realce, border: `1px solid ${ESCURO.borda}`, color: ESCURO.texto, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
       >
         <X style={{ width: 16, height: 16 }} />
       </button>

@@ -31,13 +31,17 @@ export function ProgressoImpressao({ item, fonte, duasLinhas, onIniciarResto }: 
   // A impressora vira LINK para o cartão dela em Máquinas (aba Agora, em foco,
   // com esta peça realçada) — a volta é o "Ver na Gráfica" de lá.
   const alvo = dividida ? null : item.printMachine as string | null;
+  // Alvo de 44px (dedo) não cabe no meio de uma frase: o link inline com
+  // 44 de altura abria um vão entre as duas linhas do texto. No toque ele
+  // ganha linha própria, como na tabela.
+  const linhaPropria = duasLinhas || fonte >= 12;
   return (
     <div data-testid={`progresso-impressao-${item.id}`} style={{ marginTop: 4, maxWidth: duasLinhas ? 190 : undefined, whiteSpace: "normal" }}>
       <div style={{ fontSize: fonte, color: T.accentText, fontWeight: 700, lineHeight: 1.3, fontVariantNumeric: "tabular-nums" }}>
         {maquina && (
-          <span style={{ display: duasLinhas ? "block" : "inline" }}>
+          <span style={{ display: linhaPropria ? "block" : "inline" }}>
             <Link href={linkDaImpressoraEmMaquinas(alvo ?? Object.keys(n.partes)[0] ?? "", item.id)} onClick={(e) => e.stopPropagation()} data-testid={`link-ver-na-maquina-${item.id}`} title="Ver esta peça no cartão da impressora, em Máquinas" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: 2, display: "inline-flex", alignItems: "center", minHeight: fonte >= 12 ? 44 : 24 }}>{maquina}</Link>
-            {!duasLinhas && " · "}
+            {linhaPropria ? <span className="sr-only"> · </span> : " · "}
           </span>
         )}
         <span style={{ fontWeight: 600 }}>{n.frase}</span>

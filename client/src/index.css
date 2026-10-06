@@ -1389,3 +1389,24 @@ a.ds-botao[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; filter: no
 }
 @keyframes his-surge { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 @keyframes his-sobe { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+/* ── GRÁFICA (prefixo grf-): hover, foco e entrada que estilo inline não
+   alcança. Movimento só com prefers-reduced-motion: no-preference. ───────── */
+/* Esteira de etapas: a célula acende sob o ponteiro (a ativa já tem tinta). */
+.grf-etapa { transition: background-color var(--dur-rapida) ease; }
+.grf-etapa:hover:not([aria-pressed="true"]) { background-color: var(--n2) !important; filter: none !important; }
+.grf-etapa:active { filter: brightness(0.97) !important; }
+.grf-etapa:focus-visible { outline-offset: -3px; z-index: 1; }
+/* Campo de texto dos modais da Gráfica: a mesma família da busca. */
+.grf-campo { transition: border-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease; }
+.grf-campo:hover:not(:disabled):not(:focus) { border-color: var(--n6) !important; }
+.grf-campo:focus { outline: none; border-color: var(--orange-deep) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--orange-deep) 16%, transparent) !important; }
+.grf-campo::placeholder { color: var(--n7); }
+/* Miniatura da linha: o anel diz "abre a arte". */
+.grf-miniatura { transition: box-shadow var(--dur-rapida) ease, border-color var(--dur-rapida) ease; }
+.grf-miniatura:hover { border-color: var(--n6) !important; box-shadow: 0 2px 8px -2px rgba(28,25,23,0.18); }
+@media (prefers-reduced-motion: no-preference) {
+  /* A barra do lote sobe da borda de baixo ao entrar no modo. */
+  .grf-lote { animation: grf-sobe var(--dur-media) var(--ease-saida) backwards; }
+}
+@keyframes grf-sobe { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }

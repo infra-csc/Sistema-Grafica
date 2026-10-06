@@ -144,7 +144,8 @@ export function ListaDaFila({ fila, ctx, depsDaLinha, usaCards, colunas, tabelaR
                 <th key={col || "acoes"} scope="col" style={{
                   // Compacta: o mesmo respiro de 10px das células.
                   padding: ctx.compacto ? "10px 10px" : "10px 16px", textAlign: col === "" || direita ? "right" : "left",
-                  fontSize: FS.small, fontWeight: FW.forte, color: T.apoio,
+                  fontSize: FS.micro, fontWeight: FW.rotulo, color: T.second,
+                  letterSpacing: "0.07em", textTransform: "uppercase",
                   whiteSpace: "nowrap",
                   ...(col === "" ? { position: "sticky" as const, right: 0, zIndex: 2, backgroundColor: T.bg } : {}),
                 }}>

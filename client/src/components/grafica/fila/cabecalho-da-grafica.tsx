@@ -20,7 +20,7 @@ import { fmtRelative } from "@/components/prazos/tokens";
 import type { FilaDaGrafica } from "@/components/grafica/hooks/use-fila-da-grafica";
 import type { SelecaoEmLote } from "@/components/grafica/hooks/use-selecao-em-lote";
 
-export function CabecalhoDaGrafica({ fila, lote, podeConferir, isMobile, ponteiroGrosso, isExporting, handleExportXlsx, setGalpao }: {
+export function CabecalhoDaGrafica({ fila, lote, podeConferir, isMobile, ponteiroGrosso, isExporting, handleExportXlsx, setGalpao, atalhosNasAbas = false }: {
   fila: FilaDaGrafica;
   lote: SelecaoEmLote;
   podeConferir: boolean;
@@ -29,6 +29,8 @@ export function CabecalhoDaGrafica({ fila, lote, podeConferir, isMobile, ponteir
   isExporting: boolean;
   handleExportXlsx: () => void;
   setGalpao: (modo: "confer") => void;
+  /** Tablet (lista em cartões): Máquinas e Excel moram na linha das abas, como no celular. */
+  atalhosNasAbas?: boolean;
 }) {
   const { stats, isLoading, isError, isFetching, dataUpdatedAt, agora, filtros, filteredItems } = fila;
   const { bulkOn, conferableInFilter, packableInFilter, setBulkConferMode, setBulkPackMode, setBulkSelectedIds } = lote;
@@ -113,7 +115,7 @@ export function CabecalhoDaGrafica({ fila, lote, podeConferir, isMobile, ponteir
                 {!isMobile && <span style={{ color: T.second, fontVariantNumeric: "tabular-nums" }}>{packableInFilter.length}</span>}
               </Botao>
             )}
-            {!isMobile && <AtalhosDaGrafica fila={fila} isMobile={false} ponteiroGrosso={ponteiroGrosso} isExporting={isExporting} handleExportXlsx={handleExportXlsx} />}
+            {!isMobile && !atalhosNasAbas && <AtalhosDaGrafica fila={fila} isMobile={false} ponteiroGrosso={ponteiroGrosso} isExporting={isExporting} handleExportXlsx={handleExportXlsx} />}
           </div>
         )}
       />
@@ -174,12 +176,13 @@ export function AtalhosDaGrafica({ fila, isMobile, ponteiroGrosso, isExporting, 
       icone={FileSpreadsheet}
       carregando={isExporting}
       disabled={exportDesabilitado}
-      motivo={!isMobile && !isExporting && filteredItems.length === 0 ? "Nada para exportar" : undefined}
+      // Carregando ou com erro, "Nada para exportar" seria uma afirmação falsa.
+      motivo={!isMobile && !isExporting && !fila.isLoading && !fila.isError && filteredItems.length === 0 ? "Nada para exportar" : undefined}
       alinharMotivo="end"
       onClick={handleExportXlsx}
       data-testid="button-export-xlsx"
-      aria-label={isMobile ? (filteredItems.length ? `Exportar ${filteredItems.length} peça(s) em Excel` : "Nada para exportar") : undefined}
-      title={filteredItems.length ? `Exportar ${filteredItems.length} peça(s) em Excel` : "Nada para exportar"}
+      aria-label={isMobile ? (filteredItems.length ? `Exportar ${filteredItems.length} ${filteredItems.length === 1 ? "peça" : "peças"} em Excel` : "Nada para exportar") : undefined}
+      title={filteredItems.length ? `Exportar ${filteredItems.length} ${filteredItems.length === 1 ? "peça" : "peças"} em Excel` : "Nada para exportar"}
       style={isMobile ? { width: 44, padding: 0, flex: "0 0 44px" } : undefined}
     >
       {!isMobile && (isExporting ? "Gerando…" : "Exportar Excel")}

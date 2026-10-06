@@ -156,7 +156,7 @@ describe("tabela da Gráfica com a barra lateral aberta (1.380px úteis)", () =>
     // Cabeçalho do evento quebra linha em vez de sair da tela.
     const nomeEvento = Array.from(document.querySelectorAll("td span")).find((s) => s.textContent === EVENTO.name)!;
     expect((nomeEvento.parentElement!.parentElement as HTMLElement).style.flexWrap).toBe("wrap");
-    expect($('[data-testid="celula-peca-a1"]')!.style.maxWidth).toBe("260px");
+    expect($('[data-testid="celula-peca-a1"]')!.style.maxWidth).toBe("230px") // 230 (06/10): a compacta cede 30px à coluna de Status;
   });
 
   it("compacta que ainda estoura desce para os cartões — nada fica fora da vista", async () => {

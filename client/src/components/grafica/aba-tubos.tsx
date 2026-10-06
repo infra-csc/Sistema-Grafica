@@ -200,7 +200,9 @@ export function AbaTubos({ sugestaoRecebedor, onEntregou, onAbrirPeca }: {
           <span className="sr-only">Buscar nos tubos</span>
           <Search aria-hidden="true" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: COR.sec }} />
           <input value={busca} onChange={(e) => { setBusca(e.target.value); setMostrando(LOTE); }} data-testid="tubos-busca" type="search"
-            placeholder={segmento === "entregues" ? "Código, descrição, evento, nº do tubo ou quem recebeu" : "Código, descrição, evento ou nº do tubo"}
+            // No celular o texto inteiro saía cortado: a versão curta cabe (a busca
+            // continua achando por descrição e recebedor).
+            placeholder={isMobile ? (segmento === "entregues" ? "Código, tubo ou quem recebeu" : "Código, evento ou nº do tubo") : segmento === "entregues" ? "Código, descrição, evento, nº do tubo ou quem recebeu" : "Código, descrição, evento ou nº do tubo"}
             style={{ ...campo, width: "100%", paddingLeft: 30 }} />
         </label>
         <label style={{ flex: "1 1 180px", minWidth: 0 }}>
@@ -246,7 +248,7 @@ export function AbaTubos({ sugestaoRecebedor, onEntregou, onAbrirPeca }: {
         </div>
       )}
 
-      <div style={{ display: "grid", gap: 12, gridTemplateColumns: cards ? "minmax(0, 1fr)" : "repeat(auto-fill, minmax(340px, 1fr))" }}>
+      <div style={{ display: "grid", gap: 12, gridTemplateColumns: cards ? "minmax(0, 1fr)" : "repeat(auto-fill, minmax(380px, 1fr))" }}>
         {lista.slice(0, mostrando).map((t) => {
           const d = diasAteASaida(t.evento.truckDepartureDate);
           const aberto = expandidos.has(t.id);
@@ -256,7 +258,7 @@ export function AbaTubos({ sugestaoRecebedor, onEntregou, onAbrirPeca }: {
             <article key={t.id} data-testid={`cartao-tubo-${t.id}`} aria-label={`${nome} · ${t.evento.name}`}
               style={{ display: "flex", flexDirection: "column", minWidth: 0, border: `1px solid ${COR.borda}`, borderRadius: R.lg, background: T.surface, overflow: "hidden" }}>
               <header style={{ padding: "10px 12px", background: marcados.has(t.id) ? TOM.sucesso.bg : COR.fundo, borderBottom: `1px solid ${COR.borda}`, display: "flex", flexDirection: "column", gap: 2 }}>
-                <span style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                     {podeEntrar(t) && (
                       <label style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: alvo, minHeight: alvo, margin: toque ? "-10px 0 -10px -10px" : "-6px 0 -6px -6px", cursor: "pointer" }}>

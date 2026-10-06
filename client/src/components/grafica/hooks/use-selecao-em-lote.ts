@@ -228,7 +228,7 @@ export function useSelecaoEmLote({ filteredItems, itemPorId, canConfer, podeEmba
         });
       } else if (photoFailed > 0) {
         toast({
-          title: `${okIds.length} peça(s) conferida(s)`,
+          title: okIds.length === 1 ? "1 peça conferida" : `${okIds.length} peças conferidas`,
           description: "A conferência foi feita, mas parte das fotos não pôde ser anexada.",
           variant: "warning",
         });

@@ -15,12 +15,11 @@ import { SeloKit } from "@/components/kit/selo-kit";
 import { SeloProducaoInterna, InstrucoesParaAGrafica } from "@/components/selo-producao-interna";
 import { AvisoDoEstoqueNaPeca } from "@/components/consulta-de-estoque/aviso-na-grafica";
 import { miniatura } from "@/lib/miniatura";
-import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { parseDateLocal } from "@/lib/utils";
 import { diasNaFase, tomDaIdade } from "@/lib/idade-na-fase";
 import { splitDisplayId } from "@/lib/displayId";
 import { motivoAcaoBloqueada } from "@/lib/status";
-import { FONT, FS, FW, N, R, T, TOM } from "@/lib/theme";
+import { ESCURO, FONT, FS, FW, N, R, T, TOM } from "@/lib/theme";
 import { alvo as alvoDeToque } from "@/hooks/use-mobile";
 import { statusDeExibicao } from "@shared/molde";
 import { EM_REVISAO } from "@shared/fluxo-peca";
@@ -34,6 +33,7 @@ import { complementOpen, fmtDataHora, parentDisplayIdOf } from "./regras";
 import { ProgressoImpressao } from "./progresso-impressao";
 import { DeadlineChip, SeloFilaDaImpressora, m2DaLinha } from "./selos";
 import { AcoesDaLinha } from "./acoes-da-linha";
+import { MiniaturaDaPeca } from "./miniatura-da-peca";
 
 export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, corte }: {
   ctx: ContextoDaLinha;
@@ -98,28 +98,29 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
         ) : null;
       })()}
       {showEvHeader && (
-        <tr style={{ backgroundColor: T.dark }}>
-          <td colSpan={nColunas} style={{ padding: "10px 16px" }}>
+        <tr style={{ backgroundColor: ESCURO.fundo }}>
+          <td colSpan={nColunas} className="ds-sobre-escuro" style={{ padding: "11px 16px", background: ESCURO.gradiente }}>
             {/* flexWrap: com a caixa estreita as datas, o prazo e
                 as etiquetas descem para uma segunda linha em vez
                 de sair pela direita cortados. */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "6px 12px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                <Package style={{ width: 16, height: 16, color: T.accent }} />
-                <span style={{ fontSize: FS.read, fontWeight: FW.rotulo, color: T.surface, fontFamily: FONT.display }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "6px 16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, borderRadius: R.sm, background: ESCURO.realce, border: `1px solid ${ESCURO.borda}`, flexShrink: 0 }}>
+                  <Package style={{ width: 14, height: 14, color: T.accent }} />
+                </span>
+                <span style={{ fontSize: FS.strong, fontWeight: FW.rotulo, color: ESCURO.texto, fontFamily: FONT.display, letterSpacing: "-0.01em" }}>
                   {item.event?.name || "Sem Evento"}
                 </span>
               </div>
               {item.event && (
-                <div style={{ display: "flex", alignItems: "center", gap: "6px 16px", flexWrap: "wrap", minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "rgba(255,255,255,0.72)" }}>
-                    <Calendar style={{ width: 12, height: 12 }} />
-                    Início: <strong style={{ color: "rgba(255,255,255,0.85)" }}>{parseDateLocal(item.event.startDate).toLocaleDateString("pt-BR")}</strong>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px 14px", flexWrap: "wrap", minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: FS.small, color: ESCURO.apoio, whiteSpace: "nowrap" }}>
+                    <Calendar aria-hidden="true" style={{ width: 12, height: 12 }} />
+                    Início <strong style={{ color: ESCURO.texto, fontVariantNumeric: "tabular-nums" }}>{parseDateLocal(item.event.startDate).toLocaleDateString("pt-BR")}</strong>
                   </div>
-                  <span style={{ color: "rgba(255,255,255,0.72)", fontSize: FS.small }}>|</span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "rgba(255,255,255,0.72)" }}>
-                    <Truck style={{ width: 12, height: 12 }} />
-                    Saída: <strong style={{ color: "rgba(255,255,255,0.85)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: FS.small, color: ESCURO.apoio, whiteSpace: "nowrap" }}>
+                    <Truck aria-hidden="true" style={{ width: 12, height: 12 }} />
+                    Saída <strong style={{ color: ESCURO.texto, fontVariantNumeric: "tabular-nums" }}>
                       {new Date(item.event.truckDepartureDate).toLocaleDateString("pt-BR", { timeZone: 'UTC' })} às {new Date(item.event.truckDepartureDate).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: 'UTC' })}
                     </strong>
                   </div>
@@ -129,22 +130,24 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
                       href={`/eventos/${item.eventId}/etiquetas?de=grafica`}
                       data-testid={`link-etiquetas-${item.eventId}`}
                       title="Imprimir as etiquetas das peças já conferidas deste evento"
-                      style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 999, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)", color: T.surface, fontSize: FS.small, fontWeight: FW.rotulo, textDecoration: "none", whiteSpace: "nowrap" }}
+                      className="ds-botao ds-botao-claro-fantasma"
+                      style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: alvoDeToque(28, ponteiroGrosso), padding: "0 11px", borderRadius: R.md, background: ESCURO.realce, border: `1px solid ${ESCURO.borda}`, color: ESCURO.texto, fontSize: FS.small, fontWeight: FW.forte, textDecoration: "none", whiteSpace: "nowrap" }}
                     >
-                      <Tag style={{ width: 11, height: 11 }} />
-                      Etiquetas ({etiquetaveisPorEvento.get(String(item.eventId))})
+                      <Tag aria-hidden="true" style={{ width: 12, height: 12 }} />
+                      Etiquetas
+                      <span style={{ fontVariantNumeric: "tabular-nums", color: ESCURO.apoio }}>{etiquetaveisPorEvento.get(String(item.eventId))}</span>
                     </Link>
                   )}
                   {(tubaveisPorEvento.get(String(item.eventId)) ?? 0) > 0 && (
                     <button
                       type="button"
-                      className="ds-botao"
+                      className="ds-botao ds-botao-claro-fantasma"
                       onClick={(e) => { e.stopPropagation(); setTubosDoEvento({ id: String(item.eventId), name: item.event?.name ?? "Evento" }); }}
                       data-testid={`button-tubos-${item.eventId}`}
                       title="Agrupar as peças em tubos e entregar por tubo"
-                      style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 999, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)", color: T.surface, fontSize: FS.small, fontWeight: FW.rotulo, whiteSpace: "nowrap", cursor: "pointer" }}
+                      style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: alvoDeToque(28, ponteiroGrosso), padding: "0 11px", borderRadius: R.md, background: ESCURO.realce, border: `1px solid ${ESCURO.borda}`, color: ESCURO.texto, fontSize: FS.small, fontWeight: FW.forte, whiteSpace: "nowrap", cursor: "pointer", fontFamily: "inherit" }}
                     >
-                      <Package style={{ width: 11, height: 11 }} />
+                      <Package aria-hidden="true" style={{ width: 12, height: 12 }} />
                       Tubos
                     </button>
                   )}
@@ -215,9 +218,13 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
               /* LINHA PRÓPRIA, abaixo do código (dono, 21/09: "muito grudado no número
                  do item") — como o selo KIT; quebra sem cortar quando a peça
                  está em mais de um tubo. */
-              style={{ display: "flex", width: "fit-content", maxWidth: "100%", flexWrap: "wrap", alignItems: "center", gap: 3, marginTop: 6, padding: "2px 7px", borderRadius: R.pill, fontSize: FS.small, fontWeight: FW.rotulo, lineHeight: 1.35, textAlign: "left", color: T.accentText, background: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, whiteSpace: "normal", cursor: "pointer", fontFamily: "inherit" }}>
-              {fechamentoDoTubo.has(item.tuboId) && <Camera aria-hidden="true" style={{ width: 10, height: 10 }} />}
-              {seloDoTubo(item)}
+              style={{ display: "flex", width: "fit-content", maxWidth: "100%", flexWrap: "wrap", alignItems: "center", gap: 3, marginTop: 6, padding: "2px 7px", borderRadius: R.sm, fontSize: FS.small, fontWeight: FW.rotulo, lineHeight: 1.35, textAlign: "left", color: T.accentText, background: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, whiteSpace: (seloDoTubo(item)?.length ?? 0) <= 16 ? "nowrap" : "normal", fontVariantNumeric: "tabular-nums", cursor: "pointer", fontFamily: "inherit" }}>
+              {/* Ícone e rótulo curto juntos: o ícone sozinho numa linha
+                  e o número na de baixo parecia outro selo. */}
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: (seloDoTubo(item)?.length ?? 0) <= 16 ? "nowrap" : "normal" }}>
+                {fechamentoDoTubo.has(item.tuboId) && <Camera aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0 }} />}
+                {seloDoTubo(item)}
+              </span>
             </button>
           )}
         </td>
@@ -232,23 +239,8 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
             caixa com a barra lateral aberta. Numa div o teto vale
             e limita também a largura mínima que ela pede. */}
         <td style={{ padding: padCelula }}>
-          <div data-testid={`celula-peca-${item.id}`} style={{ display: "flex", alignItems: "flex-start", gap: 10, maxWidth: compacto ? 260 : 320, minWidth: 160 }}>
-            {item.approvalThumbUrl && (
-              <a
-                href={convertGCSUrlToLocalPath(item.approvalThumbUrl)}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={e => e.stopPropagation()}
-                title="Abrir a arte aprovada"
-                data-testid={`thumb-art-${item.id}`}
-                style={{ display: "block", width: 44, height: 44, borderRadius: 6, overflow: "hidden", border: `1px solid ${T.border}`, backgroundColor: T.surface, flexShrink: 0 }}
-              >
-                <img src={convertGCSUrlToLocalPath(item.approvalThumbUrl)} alt="Arte"
-                  loading="lazy" decoding="async"
-                  style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
-                  onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
-              </a>
-            )}
+          <div data-testid={`celula-peca-${item.id}`} style={{ display: "flex", alignItems: "flex-start", gap: 10, maxWidth: compacto ? 230 : 320, minWidth: 160 }}>
+            <MiniaturaDaPeca item={item} />
             <div style={{ minWidth: 0, flex: 1 }}>
           {/* SELO DO COMPLEMENTO — o sinal mais forte da tela, no
               topo da pilha de badges. Sólido (não outline) porque
@@ -488,7 +480,7 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
               (é conta delas), com a mesma regra da coluna cheia. */}
           {compacto && Number(item.calculatedM2) > 0 && (
             <div style={{ marginTop: 3, fontSize: 12, fontWeight: 700, color: T.text, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-              {m2DaLinha(item)} <span style={{ fontSize: FS.small, fontWeight: FW.medio, color: T.second }}>m²</span>
+              {m2DaLinha(item, true)}
             </div>
           )}
         </td>
@@ -503,7 +495,7 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
             </td>
             {/* Material — secundário: 12px e acabamento apagado. */}
             <td style={{ padding: "13px 16px" }}>
-              <div style={{ fontSize: 12, color: T.text }}>{item.material}</div>
+              <div style={{ fontSize: 12, color: T.text, whiteSpace: "nowrap" }}>{item.material}</div>
               {item.finish && <div style={{ fontSize: 11, color: T.second, marginTop: 2 }}>{item.finish}</div>}
             </td>
           </>
@@ -516,13 +508,13 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
             uma linha própria (div) logo abaixo. Na COMPACTA a célula
             quebra linha (o selo da fila, o Travar e o progresso descem
             um embaixo do outro) — é a coluna que mais pedia largura. */}
-        <td data-testid={`celula-status-${item.id}`} style={{ padding: padCelula, whiteSpace: compacto ? "normal" : "nowrap" }}>
+        <td data-testid={`celula-status-${item.id}`} style={{ padding: padCelula, whiteSpace: compacto ? "normal" : "nowrap", width: compacto ? 210 : undefined }}>
           <StatusPill status={statusDeExibicao(item)} size="sm" showDot={false} />
           {(() => {
             const d = diasNaFase(item, new Date());
             if (d === null || d < 1) return null;
             const tom = tomDaIdade(d);
-            return <div title={`Está neste status há ${d} dia(s)`} style={{ marginTop: 3, fontSize: FS.small, fontFamily: FONT.mono, fontWeight: tom.peso, color: tom.cor }}>há {d}d</div>;
+            return <div title={`Está neste status há ${d} ${d === 1 ? "dia" : "dias"}`} style={{ marginTop: 3, fontSize: FS.small, fontFamily: FONT.mono, fontWeight: tom.peso, color: tom.cor }}>há {d}d</div>;
           })()}
           {/* Em impressão: impressora + "3 de 10 impressas · 7 na
               impressora" + barra (dono, 21/09). Duas linhas para a

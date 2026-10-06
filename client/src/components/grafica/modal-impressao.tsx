@@ -315,7 +315,7 @@ export function useReservarImpressora({ onSucesso }: { onSucesso?: () => void } 
       const erros: { displayId: string | null; erro: string }[] = r?.erros ?? [];
       toast({
         title: vars.quantidade != null
-          ? (vars.maquina ? `${vars.quantidade} un. ${vars.deMaquina ? "movidas" : "reservadas"} para a ${rotuloDaMaquina(vars.maquina)}` : `${vars.quantidade} un. devolvidas à fila geral`)
+          ? (vars.maquina ? `${vars.quantidade} un. ${vars.deMaquina ? (vars.quantidade === 1 ? "movida" : "movidas") : (vars.quantidade === 1 ? "reservada" : "reservadas")} para a ${rotuloDaMaquina(vars.maquina)}` : `${vars.quantidade} un. ${vars.quantidade === 1 ? "devolvida" : "devolvidas"} à fila geral`)
           : vars.maquina ? `${plural(n, "peça reservada", "peças reservadas")} para a ${rotuloDaMaquina(vars.maquina)}` : `${plural(n, "peça devolvida", "peças devolvidas")} à fila geral`,
         description: erros.length ? `${erros.length} não ${erros.length === 1 ? "entrou" : "entraram"}: ${erros.map((e) => e.displayId ?? "peça").join(", ")} — ${erros[0].erro}` : "Nada muda na etapa da peça — ela aparece na fila da impressora em Máquinas e com o selo \"Fila\" na Gráfica.",
         // Nenhuma entrou pela REGRA (o servidor recusou cada uma): nada quebrou — é aviso.
@@ -619,9 +619,17 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
               title={ehAtual ? "A peça já está nesta impressora" : ocupadaPor ? (trocavel ? `Ocupada: está com ${ocupadaPor} — escolha para imprimir esta no lugar` : `Ocupada: está com ${ocupadaPor} — uma peça por vez por impressora`) : undefined}
               onClick={() => setMaquinaEscolhida(m)}
               data-testid={`maquina-${m}`}
-              style={{ minHeight: 48, padding: "6px 8px", borderRadius: R.md, cursor: ehAtual || (ocupadaPor && !trocavel) ? "not-allowed" : "pointer", fontFamily: GROTESK, fontSize: FS.body, fontWeight: FW.rotulo, lineHeight: 1.2, backgroundColor: ativa ? T.text : N.n3, color: ativa ? T.surface : T.text, border: ativa ? `2px solid ${T.text}` : "2px solid transparent", opacity: ehAtual || (ocupadaPor && !trocavel) ? 0.45 : ocupadaPor && !ativa ? 0.75 : 1 }}
+              style={{ minHeight: 48, padding: "6px 8px", borderRadius: R.md, whiteSpace: "nowrap", cursor: ehAtual || (ocupadaPor && !trocavel) ? "not-allowed" : "pointer", fontFamily: GROTESK, fontSize: FS.body, fontWeight: FW.rotulo, lineHeight: 1.2, backgroundColor: ativa ? T.text : N.n3, color: ativa ? T.surface : T.text, border: ativa ? `2px solid ${T.text}` : "2px solid transparent", opacity: ehAtual || (ocupadaPor && !trocavel) ? 0.45 : ocupadaPor && !ativa ? 0.75 : 1 }}
             >
-              {rotuloDaMaquina(m)}
+              {/* "Impressora 4 (Targa Elite)" quebrava em três linhas num botão de
+                  ~110px. Agora são duas linhas fixas: o número em cima e o modelo,
+                  menor, embaixo — o texto lido continua o nome inteiro. */}
+              {(() => {
+                const nome = rotuloDaMaquina(m);
+                const i = nome.indexOf(" (");
+                if (i < 0) return nome;
+                return <>{nome.slice(0, i)}{" "}<span style={{ display: "block", fontSize: FS.meta, fontWeight: FW.forte, opacity: 0.8 }}>{nome.slice(i + 1)}</span></>;
+              })()}
               {ocupadaPor && <span style={{ display: "block", fontSize: FS.meta, fontWeight: FW.forte }}>com {ocupadaPor}</span>}
             </button>
           );
@@ -634,7 +642,7 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
   );
 
   const botaoCancelar = (
-    <Botao variante="secundario" onClick={onFechar} style={{ flex: 1, minHeight: alvo, fontSize: FS.read }}>
+    <Botao variante="secundario" onClick={onFechar} style={{ flex: isMobile ? 1 : "0 0 auto", minHeight: alvo, ...(isMobile ? {} : { padding: "0 18px" }), fontSize: FS.read }}>
       Cancelar
     </Botao>
   );
@@ -671,7 +679,8 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
                 aria-describedby="linha-quantas-vao"
                 aria-invalid={!conta.valida || undefined}
                 data-testid="input-quantidade-iniciar"
-                style={{ flex: 1, minWidth: 0, minHeight: alvo, boxSizing: "border-box", textAlign: "center", fontFamily: GROTESK, fontSize: isMobile ? FS.title : 20, fontWeight: FW.forte, color: T.text, backgroundColor: N.n3, border: "none", borderRadius: R.md, padding: "0 12px" }}
+                style={{ flex: 1, minWidth: 0, minHeight: alvo, boxSizing: "border-box", textAlign: "center", fontFamily: GROTESK, fontSize: isMobile ? FS.title : 20, fontWeight: FW.forte, color: T.text, backgroundColor: T.surface, border: `1px solid ${T.bdark}`, borderRadius: R.md, padding: "0 12px" }}
+                className="grf-campo"
               />
               <Botao
                 variante="secundario"
@@ -734,7 +743,7 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
             // linha inteira, EM CIMA (no DOM também), e o Cancelar vai embaixo.
             // Esta etapa não abre teclado, então os dois andares não apertam.
             // O rótulo quebra linha em vez de estourar ("… (Targa Elite)").
-            style={{ flex: isMobile ? "1 1 100%" : 2, minHeight: alvo, padding: "0 12px", fontSize: FS.read, whiteSpace: "normal" }}
+            style={{ flex: isMobile ? "1 1 100%" : "1 1 auto", minHeight: alvo, padding: "0 14px", fontSize: isMobile ? FS.read : FS.body, whiteSpace: "normal" }}
           >
             {startPrintingMutation.isPending ? "Iniciando…"
               : !maquinaEscolhida ? "Iniciar impressão"
@@ -876,7 +885,8 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
                     aria-label={`Quantas unidades vão para a ${rotuloDaMaquina(maquinaEscolhida)}`}
                     placeholder="0"
                     data-testid="input-quantidade-mover"
-                    style={{ width: 96, minHeight: alvo, boxSizing: "border-box", textAlign: "center", fontFamily: GROTESK, fontSize: isMobile ? FS.lead : FS.title, fontWeight: FW.forte, color: T.text, backgroundColor: N.n3, border: "none", borderRadius: R.md, padding: "0 10px" }}
+                    style={{ width: 96, minHeight: alvo, boxSizing: "border-box", textAlign: "center", fontFamily: GROTESK, fontSize: isMobile ? FS.lead : FS.title, fontWeight: FW.forte, color: T.text, backgroundColor: T.surface, border: `1px solid ${T.bdark}`, borderRadius: R.md, padding: "0 10px" }}
+                    className="grf-campo"
                   />
                 )}
               </div>
@@ -959,7 +969,8 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
             }}
             aria-describedby="dica-quantidade-produzida"
             data-testid="input-quantity-produced"
-            style={{ flex: 1, minWidth: 0, minHeight: 56, boxSizing: "border-box", textAlign: "center", fontFamily: GROTESK, fontSize: FS.h1, fontWeight: FW.forte, color: T.text, backgroundColor: N.n3, border: "none", borderRadius: R.md, padding: "16px 12px" }}
+            style={{ flex: 1, minWidth: 0, minHeight: 56, boxSizing: "border-box", textAlign: "center", fontFamily: GROTESK, fontSize: FS.h1, fontWeight: FW.forte, color: T.text, backgroundColor: T.surface, border: `1px solid ${T.bdark}`, borderRadius: R.md, padding: "16px 12px" }}
+            className="grf-campo"
           />
           <Botao
             variante="secundario"
@@ -1009,7 +1020,7 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
           disabled={!podeSalvar}
           carregando={startProductionMutation.isPending}
           data-testid="button-confirm-production"
-          style={{ flex: 2, minHeight: alvo, padding: "0 12px", fontSize: FS.read, whiteSpace: "normal" }}
+          style={{ flex: "1 1 auto", minHeight: alvo, padding: "0 14px", fontSize: isMobile ? FS.read : FS.body, whiteSpace: "normal" }}
         >
           {startProductionMutation.isPending ? "Salvando…" : frase.rotulo}
         </Botao>
@@ -1055,7 +1066,7 @@ export function ModalImpressao({ item, onFechar, abrirNaTroca = false, maquinaIn
 
   return (
     <Dialog open={!!item} onOpenChange={(open) => { if (!open) onFechar(); }}>
-      <DialogContent ref={superficieRef} className={HIDE_NATIVE_CLOSE} style={modalSurface(468)} data-testid="modal-impressao">
+      <DialogContent ref={superficieRef} className={HIDE_NATIVE_CLOSE} style={modalSurface(520)} data-testid="modal-impressao">
         <DialogTitle className="sr-only">{cab.title}</DialogTitle>
         <DialogDescription className="sr-only">{cab.subtitle || "Informe a impressão desta peça"}</DialogDescription>
         <ModalHeader icon={Play} tint={T.text} title={cab.title} subtitle={cab.subtitle} onClose={onFechar} />

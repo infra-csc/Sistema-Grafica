@@ -11,7 +11,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Undo2 } from "lucide-react";
+import { Check, Undo2 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Botao } from "@/components/ui/botao";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
@@ -87,19 +87,27 @@ export function ModalDevolver({ devolucao, isMobile, padModal, fsMin }: {
             rows={3}
             id="textarea-devolver-motivo"
             data-testid="textarea-devolver-revisao-motivo"
+            className="grf-campo"
             style={{
               width: "100%", minHeight: 80, boxSizing: "border-box", padding: "10px 12px",
               fontSize: isMobile ? 16 : 13, fontFamily: "inherit", color: T.text,
-              backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.md,
-              resize: "vertical", outlineOffset: 2,
+              backgroundColor: T.surface, border: `1px solid ${T.bdark}`, borderRadius: R.md,
+              lineHeight: 1.5, resize: "vertical",
             }}
           />
           {/* O mínimo aparece SEMPRE, não só depois de errar: botão
               desabilitado sem explicação é o que faz a pessoa achar que o
               app travou. */}
-          <p style={{ fontSize: fsMin(FS.small), color: T.second, margin: "6px 0 0" }}>
-            Mínimo de {MOTIVO_MIN_DEVOLUCAO} caracteres — {devolverMotivo.trim().replace(/\s+/g, " ").length}/{MOTIVO_MIN_DEVOLUCAO}
-          </p>
+          {(() => {
+            const n = devolverMotivo.trim().replace(/\s+/g, " ").length;
+            const ok = n >= MOTIVO_MIN_DEVOLUCAO;
+            return (
+              <p aria-live="polite" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: fsMin(FS.small), color: ok ? TOM.sucesso.text : T.second, margin: "6px 0 0", fontVariantNumeric: "tabular-nums" }}>
+                {ok && <Check aria-hidden="true" style={{ width: 12, height: 12 }} />}
+                Mínimo de {MOTIVO_MIN_DEVOLUCAO} caracteres — {Math.min(n, 999)}/{MOTIVO_MIN_DEVOLUCAO}
+              </p>
+            );
+          })()}
         </div>
         {/* Rodapé fora do corpo rolável (flexShrink 0) e com o recorte
             seguro; no celular os dois botões dividem a largura — com
@@ -107,20 +115,21 @@ export function ModalDevolver({ devolucao, isMobile, padModal, fsMin }: {
             direita passava de 360px e empurrava o botão para fora. */}
         <div style={{ flexShrink: 0, paddingTop: 12, paddingLeft: padModal, paddingRight: padModal, paddingBottom: "calc(12px + env(safe-area-inset-bottom))", borderTop: `1px solid ${N.n3}`, backgroundColor: T.bg, display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-end" }}>
           <Botao tamanho={isMobile ? "toque" : "md"} onClick={() => { setDevolverItem(null); setDevolverMotivo(""); }}
-            style={{ flex: isMobile ? "1 1 auto" : undefined, minHeight: isMobile ? 48 : undefined }}>
+            style={isMobile ? { flex: "1 1 auto", minHeight: 48 } : undefined}>
             Cancelar
           </Botao>
           {/* Contorno vermelho, não preenchido: devolver tira o trabalho da
               mão de alguém, e botão vermelho cheio convida ao clique reflexo.
               O motivo do desabilitado é a contagem logo acima, sempre à vista. */}
           <Botao
+            variante="perigoSecundario"
             tamanho={isMobile ? "toque" : "md"}
             icone={Undo2}
             carregando={devolverMutation.isPending}
             onClick={() => devolverItem && devolverMutation.mutate({ itemId: devolverItem.id, notes: devolverMotivo })}
             disabled={devolverMotivo.trim().replace(/\s+/g, " ").length < MOTIVO_MIN_DEVOLUCAO}
             data-testid="button-confirmar-devolver-revisao"
-            style={{ flex: isMobile ? "2 1 auto" : undefined, minHeight: isMobile ? 48 : undefined, color: TOM.perigo.text, border: `1.5px solid ${TOM.perigo.text}` }}
+            style={isMobile ? { flex: "2 1 auto", minHeight: 48 } : undefined}
           >
             {isMobile ? "Devolver à Revisão" : "Devolver para a Revisão Final"}
           </Botao>

@@ -27,7 +27,9 @@ export function useBaixarFoto() {
       a.remove();
       setTimeout(() => URL.revokeObjectURL(href), 30_000);
     } catch (e) {
-      toast({ title: "Não foi possível baixar", description: (e instanceof Error ? e.message : undefined) ?? "Tente abrir o original.", variant: "destructive" });
+      // A causa técnica fica entre parênteses; a frase diz o que fazer.
+      const causa = e instanceof Error && e.message ? ` (${e.message.replace(/^HTTP /, "erro ")})` : "";
+      toast({ title: "Não foi possível baixar a foto", description: `O arquivo não respondeu${causa}. Abra a foto e use “Original” para tentar direto do armazenamento.`, variant: "destructive" });
     } finally {
       setBaixando(false);
     }

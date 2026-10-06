@@ -66,7 +66,8 @@ const ler = (rel: string) => lerTelaOuArquivo(rel);
 function capacidadesDe(fonte: string): Set<string> {
   const out = new Set<string>();
   const padroes = [
-    /\btestId=[`"]([^`"$]*)/g,
+    // testIdDoBotao: o <EstadoErro> passa o testid do "Tentar de novo" por esta prop.
+    /\btestId(?:DoBotao)?=[`"]([^`"$]*)/g,
     /\btestId:\s*[`"]([^`"$]*)/g,
     /\btestid:\s*[`"]([^`"$]*)/g,
   ];

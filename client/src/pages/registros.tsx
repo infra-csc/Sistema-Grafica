@@ -3,13 +3,13 @@
 // a ela, e este acervo interessa a todo mundo.
 import { useMemo, useState, useEffect, useRef, useDeferredValue } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Camera, Search, CalendarDays, SlidersHorizontal } from "lucide-react";
+import { Camera, Search, CalendarDays, SlidersHorizontal, X, Images, Clock } from "lucide-react";
 import { FilterSelect } from "@/components/filter-select";
 import { useIsMobile, usePonteiroGrosso, alvo } from "@/hooks/use-mobile";
 import { T, FS, R, FW, FONT, TOM, SHADOW } from "@/lib/theme";
 import { Botao } from "@/components/ui/botao";
 import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
-import { EstadoVazio } from "@/components/ui/estados";
+import { EstadoVazio, EstadoErro } from "@/components/ui/estados";
 import { RegistrosDeTubos } from "@/components/registros-de-tubos";
 import {
   KIND, PAGE_SIZE, PERIODS, PERIOD_DAYS, kindOf, pecaDe, rotuloDoDia, type Kind, type Period, type Photo,
@@ -33,7 +33,7 @@ export default function Registros() {
   // re-renderiza, que cria outro literal… A tela girava em falso durante toda
   // a carga (82 commits em 1,5s com a rota pendurada; 239 com ela em erro —
   // perf-calendario-versoes-registros.test.ts).
-  const { data: photos = SEM_FOTOS, isLoading, isError, refetch } = useQuery<Photo[]>({ queryKey: ["/api/photos"] });
+  const { data: photos = SEM_FOTOS, isLoading, isError, isFetching, refetch } = useQuery<Photo[]>({ queryKey: ["/api/photos"] });
 
   // Filtros inicializam da URL e são espelhados nela (mesmo padrão de
   // eventos.tsx): F5 não perde o estado e o link filtrado é compartilhável.
@@ -305,6 +305,7 @@ export default function Registros() {
     setAlvoDoPar(null);
   }, [alvoDoPar, filtered]);
 
+  const semNumeros = isLoading || isError;
   const qtdFiltros = kindFilter.length + eventFilter.length + (period !== "Todos" ? 1 : 0);
 
   // Bottom sheet dos filtros — só no celular.
@@ -317,6 +318,41 @@ export default function Registros() {
 
   // Alvo de toque: 44px com o dedo (busca, período, limpar e ações do zoom).
   const controlHeight = alvo(36, toque);
+
+  // A busca vem DEPOIS das dimensões no desktop (a ordem da casa) e ANTES
+  // do botão de filtros no celular — na ordem do DOM, não por CSS `order`,
+  // para o Tab andar na mesma ordem que o olho.
+  const campoDeBusca = (
+    <div style={{ position: "relative", flex: "1 1 260px", minWidth: isMobile ? 0 : 220, maxWidth: isMobile ? undefined : 420 }}>
+      <Search aria-hidden="true" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: T.second, pointerEvents: "none" }} />
+      <input
+        ref={searchRef}
+        value={search}
+        onChange={e => { setSearch(e.target.value); setVisible(PAGE_SIZE); }}
+        aria-label="Buscar registros"
+        placeholder="Buscar peça ou evento…"
+        // O alcance inteiro da busca no title: no placeholder ele era cortado
+        // em qualquer largura abaixo de notebook ("…evento ou que").
+        title="Procura no código e no tipo da peça, na descrição, no evento e em quem enviou ou recebeu"
+        data-testid="input-search-registros"
+        // 16px no celular: abaixo disso o iOS dá zoom na página ao tocar.
+        className="reg-busca"
+        style={{ width: "100%", height: controlHeight, padding: search ? "0 40px 0 34px" : "0 36px 0 34px", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.surface, fontSize: isMobile ? FS.lead : FS.body, color: T.text, fontFamily: "inherit" }}
+      />
+      {/* À direita do campo: o × de limpar quando há texto; senão, a
+          tecla "/" que já focava a busca e ninguém sabia. */}
+      {search ? (
+        <button type="button" onClick={() => { setSearch(""); setVisible(PAGE_SIZE); searchRef.current?.focus(); }} aria-label="Limpar a busca"
+          data-testid="button-limpar-busca-registros" className="reg-limpar-busca"
+          style={{ position: "absolute", right: 2, top: "50%", transform: "translateY(-50%)", width: toque ? 40 : 30, height: toque ? 40 : 30, borderRadius: R.sm, border: "none", background: "none", color: T.second, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+          <X aria-hidden="true" style={{ width: 14, height: 14 }} />
+        </button>
+      ) : !toque && (
+        <kbd aria-hidden="true" title="Atalho: / foca a busca"
+          style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", minWidth: 20, height: 20, padding: "0 5px", display: "inline-flex", alignItems: "center", justifyContent: "center", border: `1px solid ${T.border}`, borderBottomWidth: 2, borderRadius: 5, fontFamily: "inherit", fontSize: FS.small, fontWeight: FW.medio, color: T.second, pointerEvents: "none" }}>/</kbd>
+      )}
+    </div>
+  );
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", backgroundColor: T.bg }}>
@@ -360,7 +396,13 @@ export default function Registros() {
           />
 
           {/* Contadores — refletem os filtros ativos e servem de atalho de filtro */}
-          <div style={{ display: "flex", gap: isMobile ? 8 : 24, margin: "0 0 16px" }}>
+          {/* OS TRÊS NÚMEROS SÃO FILTROS — e agora têm cara de filtro em toda
+              largura: o mesmo bloco das Versões aprovadas (moldura fina,
+              número na fonte de título, fio colorido à esquerda no ativo). No
+              desktop eram só números soltos com um sublinhado de 2px como
+              sinal de "ligado", fácil de não ver; no toque já eram cartões. */}
+          <div role="group" aria-label="Filtrar por tipo de registro"
+            style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, minmax(0, 1fr))" : "repeat(3, minmax(0, 180px))", gap: 8, margin: "0 0 14px" }}>
             {([
               ["Total", counts.total, T.text, null],
               ["Conferências", counts.conference, KIND.conference.color, "conference"],
@@ -372,47 +414,38 @@ export default function Registros() {
               // agora recua trocando a COR para o cinza AA do tema e o peso
               // para 600 — legível e visivelmente secundário.
               const dim = !(active || kindFilter.length === 0);
-              // NO CELULAR ELES SAO ALVO DE TOQUE, nao so numero. Um texto de
-              // 11px com sublinhado de 2px e um alvo de ~14px de altura; o
-              // cartao de 56px com borda na cor do tipo diz que e clicavel e
-              // cabe no dedo.
               return (
-                <button key={label} className="group"
+                <button key={label} type="button" className="reg-stat"
                   onClick={() => { setKindFilter(kind && !active ? [kind] : []); setVisible(PAGE_SIZE); }}
                   data-testid={`stat-${kind ?? "total"}`}
                   aria-pressed={active}
-                  title={kind ? `Ver só ${label.toLowerCase()}` : "Ver tudo"}
-                  style={toque
-                    ? {
-                        flex: 1, minWidth: 0, minHeight: 56, padding: "8px 10px",
-                        display: "flex", flexDirection: "column", justifyContent: "center",
-                        backgroundColor: T.surface, borderRadius: R.md,
-                        border: `1px solid ${active && kind ? color : T.border}`,
-                        textAlign: "left", cursor: "pointer",
-                      }
-                    : { background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer" }}>
-                  <p style={{ fontFamily: FONT.display, fontWeight: dim ? FW.medio : FW.forte, fontSize: isMobile ? 20 : FS.h2, color: dim ? T.second : color, margin: 0, lineHeight: 1, transition: "color 0.15s" }}>{n}</p>
-                  <p className="group-hover:opacity-80" style={{ fontSize: FS.meta, fontWeight: FW.medio, color: T.second, margin: "4px 0 0", borderBottom: !toque && active && kind ? `2px solid ${color}` : "2px solid transparent", paddingBottom: 2, transition: "border-color 0.15s", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</p>
+                  title={kind ? (active ? "Voltar a ver tudo" : `Ver só ${label.toLowerCase()}`) : "Ver tudo"}
+                  style={{
+                    minWidth: 0, minHeight: toque ? 56 : 52, padding: isMobile ? "8px 10px" : "9px 14px 10px",
+                    display: "flex", flexDirection: "column", justifyContent: "center", gap: 2,
+                    backgroundColor: active ? T.bg : T.surface, borderRadius: R.md,
+                    border: `1px solid ${T.border}`,
+                    // O fio do tipo marca o recorte ligado — sombra interna, para
+                    // os três manterem a MESMA moldura.
+                    boxShadow: active ? `inset 3px 0 0 ${kind ? color : T.text}` : undefined,
+                    textAlign: "left", cursor: "pointer", fontFamily: "inherit",
+                  }}>
+                  {/* Sem a lista (carregando ou em erro) o número não existe — mostrar
+                      "0" afirmaria um acervo vazio que não é. */}
+                  {semNumeros
+                    ? <span aria-hidden="true" className={isLoading ? "animate-pulse" : undefined} style={{ display: "block", height: isMobile ? 22 : 24, width: 30, borderRadius: R.sm, backgroundColor: T.border }} />
+                    : <span style={{ fontFamily: FONT.display, fontWeight: dim ? FW.medio : FW.rotulo, fontSize: isMobile ? 20 : FS.h2, color: dim ? T.second : color, lineHeight: 1.1, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums", transition: "color 0.15s" }}>{n}</span>}
+                  <span style={{ fontSize: FS.meta, fontWeight: FW.medio, color: T.second, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
                 </button>
               );
             })}
           </div>
 
-          {/* Filtros */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", paddingBottom: 16 }}>
-            <div style={{ position: "relative", flex: "1 1 260px", minWidth: 220 }}>
-              <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: T.muted }} />
-              <input
-                ref={searchRef}
-                value={search}
-                onChange={e => { setSearch(e.target.value); setVisible(PAGE_SIZE); }}
-                aria-label="Buscar registros"
-                placeholder="Buscar peça, ID, evento ou quem recebeu…"
-                data-testid="input-search-registros"
-                // 16px no celular: abaixo disso o iOS dá zoom na página ao tocar.
-                style={{ width: "100%", height: controlHeight, padding: "0 12px 0 34px", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.surface, fontSize: isMobile ? FS.lead : FS.body, color: T.text }}
-              />
-            </div>
+          {/* Filtros — a MESMA ordem das telas da casa (Histórico, Versões):
+              as dimensões primeiro, a busca livre depois, o Limpar no fim. No
+              celular a busca vem antes e as dimensões viram um botão (sheet). */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", paddingBottom: 14 }}>
+            {isMobile && campoDeBusca}
             {/* NO CELULAR OS QUATRO GATILHOS NÃO CABEM. Lado a lado eles
                 estouram 390px e embrulham em três fileiras, empurrando a grade
                 para fora da primeira tela — numa tela cujo conteúdo é
@@ -437,14 +470,26 @@ export default function Registros() {
               </button>
             ) : (<>
             <FilterSelect
-              label="Todos os tipos"
+              label="Tipo"
+              allLabel="Todos os tipos"
+              icon={Images}
+              hideSearch
+              hideWhenEmpty={false} disabled={semNumeros}
+              triggerStyle={{ height: controlHeight }}
               testId="filter-kind"
               options={kindOptions}
               values={kindFilter}
               onValuesChange={v => { setKindFilter(v); setVisible(PAGE_SIZE); }}
             />
             <FilterSelect
-              label="Todos os eventos"
+              label="Evento"
+              allLabel="Todos os eventos"
+              searchPlaceholder="Buscar evento..."
+              emptyText="Nenhum evento"
+              icon={CalendarDays}
+              unitLabel={{ one: "evento", many: "eventos" }}
+              hideWhenEmpty={false} disabled={semNumeros}
+              triggerStyle={{ height: controlHeight }}
               testId="filter-event"
               options={eventOptions}
               values={eventFilter}
@@ -467,7 +512,7 @@ export default function Registros() {
               showAllLabelWhenEmpty
               hideWhenEmpty={false}
               hideSearch
-              icon={CalendarDays}
+              icon={Clock}
               value={period === "Todos" ? "all" : period}
               onChange={v => { setPeriod(v === "all" ? "Todos" : (v as Period)); setVisible(PAGE_SIZE); }}
               options={periodOptions}
@@ -476,11 +521,14 @@ export default function Registros() {
               testId="select-period-filter"
               triggerStyle={{ height: controlHeight }}
             />
+            {campoDeBusca}
             </>)}
             {hasFilters && !isMobile && (
-              <Botao variante="fantasma" tamanho={toque ? "toque" : "sm"} onClick={clearAll} data-testid="button-clear-filters">
-                Limpar tudo
-              </Botao>
+              <span style={{ order: 2, display: "inline-flex" }}>
+                <Botao variante="fantasma" tamanho={toque ? "toque" : "md"} icone={X} onClick={clearAll} data-testid="button-clear-filters">
+                  Limpar filtros ({qtdFiltros + (search.trim() ? 1 : 0)})
+                </Botao>
+              </span>
             )}
           </div>
         </div>
@@ -492,10 +540,16 @@ export default function Registros() {
             entrada por tubo, com a lista do que foi — em vez da mesma foto
             repetida em cada peça. Segue o filtro de evento e a busca da página;
             some quando o tipo está filtrado só em Conferência. */}
+        {/* Só depois de a lista chegar: com a lista em erro, os tubos vinham
+            antes e empurravam o aviso de erro para fora da primeira tela. */}
+        {!isLoading && !isError && (
+        <>
         {(!kindFilter.length || kindFilter.includes("delivery")) && (
           <div style={{ marginBottom: 16 }}>
             <RegistrosDeTubos eventIds={eventFilter} busca={deferredSearch} desde={desdeDoPeriodo} />
           </div>
+        )}
+        </>
         )}
         {isLoading ? (
           /* Skeleton com a silhueta dos cards reais (foto + legenda) — o
@@ -516,15 +570,17 @@ export default function Registros() {
         ) : isError ? (
           /* Sem este ramo, uma falha da API caía no "Nenhum registro ainda" —
              mensagem enganosa para um acervo que existe. */
-          // Não é <EstadoErro>: o botão dele não aceita testid, e
-          // `button-retry-registros` é o seletor que os testes da tela usam.
-          <div role="alert" style={{ textAlign: "center", padding: "56px 24px", borderRadius: R.lg, backgroundColor: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}` }}>
-            <h3 style={{ color: TOM.perigo.text, fontFamily: FONT.display, fontSize: FS.lead, fontWeight: FW.forte, margin: "0 0 6px" }}>Não foi possível carregar os registros</h3>
-            <p style={{ color: T.apoio, fontSize: FS.body, margin: "0 0 20px" }}>Verifique sua conexão e tente novamente.</p>
-            <Botao variante="secundario" tamanho={toque ? "toque" : "md"} onClick={() => refetch()} data-testid="button-retry-registros">
-              Tentar novamente
-            </Botao>
-          </div>
+          // O <EstadoErro> da casa (o mesmo das outras telas): ícone, título,
+          // o detalhe e o "Tentar de novo", que vira spinner enquanto tenta. O
+          // testid `button-retry-registros` é o seletor que os testes usam.
+          <EstadoErro
+            titulo="Não foi possível carregar os registros"
+            detalhe="A conexão falhou ou a sessão expirou. As fotos continuam guardadas — é só a lista que não chegou."
+            aoTentarDeNovo={() => refetch()}
+            carregando={isFetching}
+            tamanhoDoBotao={toque ? "toque" : "md"}
+            testIdDoBotao="button-retry-registros"
+          />
         ) : filtered.length === 0 ? (
           // O próximo passo onde o olho já está: a saída ficava só na barra
           // de filtros, fora da vista de quem rolou até aqui. Mesmo `clearAll`

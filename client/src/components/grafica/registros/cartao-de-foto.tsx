@@ -2,7 +2,7 @@
 // abrir, a legenda da peça e o botão do par conferência ↔ entrega.
 import type { Dispatch, SetStateAction } from "react";
 import { Link } from "wouter";
-import { ChevronRight, Download, Loader2, ZoomIn } from "lucide-react";
+import { ChevronRight, Clock, Download, ImageOff, Loader2, ZoomIn } from "lucide-react";
 import { alvo } from "@/hooks/use-mobile";
 import { T, FS, R, FW, FONT, TOM, SHADOW } from "@/lib/theme";
 import { KIND, kindOf, srcOf, fmt, altOf, type Photo } from "./fotos";
@@ -51,7 +51,8 @@ export function CartaoDeFoto({
             repetia a mesma palavra sessenta vezes ao percorrer a
             grade, sem dizer de que peça era cada foto. */}
         {brokenIds.has(p.id) ? (
-          <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: FS.small, color: T.second }}>
+          <span style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, fontSize: FS.meta, color: T.second, textAlign: "center", padding: 12 }}>
+            <ImageOff aria-hidden="true" style={{ width: 22, height: 22, color: T.muted }} />
             Imagem indisponível
           </span>
         ) : (
@@ -93,6 +94,7 @@ export function CartaoDeFoto({
         title="Baixar esta foto"
         aria-label={`Baixar: ${altOf(p)}`}
         data-testid={`button-card-download-${p.id}`}
+        className="reg-baixar-foto"
         style={{
           position: "absolute", right: 8, bottom: 8,
           width: alvo(30, toque), height: alvo(30, toque), borderRadius: R.pill,
@@ -151,8 +153,13 @@ export function CartaoDeFoto({
           const outra = contraparteDe(p);
           const ehConferencia = kindOf(p) === "conference";
           if (!outra) {
+            // As duas ausências têm PESOS diferentes e agora têm cores
+            // diferentes: "sem entrega ainda" é trabalho em curso (neutro,
+            // relógio); "entregue sem conferência" é a anomalia (âmbar). Com o
+            // âmbar nas duas, metade da grade parecia em alerta.
             return (
-              <p style={{ marginTop: "auto", fontSize: FS.small, color: TOM.alerta.text, backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: R.sm, padding: "7px 9px", margin: "auto 0 0", lineHeight: 1.4 }}>
+              <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: FS.small, color: ehConferencia ? T.second : TOM.alerta.text, backgroundColor: ehConferencia ? T.low : TOM.alerta.bg, border: `1px ${ehConferencia ? "dashed" : "solid"} ${ehConferencia ? T.border : TOM.alerta.border}`, borderRadius: R.sm, padding: "7px 9px", margin: "auto 0 0", lineHeight: 1.4, fontWeight: ehConferencia ? FW.medio : FW.forte }}>
+                {ehConferencia && <Clock aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0 }} />}
                 {ehConferencia ? "Sem foto de entrega ainda" : "Entregue sem foto de conferência"}
               </p>
             );
@@ -214,9 +221,11 @@ export function CartaoDeFoto({
           );
         })()}
 
-        <div style={{ paddingTop: 6, borderTop: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", gap: 8 }}>
-          <span style={{ fontSize: FS.small, color: T.second }}>{fmt(p.createdAt)}</span>
-          <span style={{ fontSize: FS.small, color: T.second, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {/* A data nunca quebra (era "06/10/26" numa linha e "12:23" na
+            outra, ao lado de um "Recebido" comprido); quem cede é o nome. */}
+        <div style={{ paddingTop: 7, borderTop: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", gap: 8 }}>
+          <span style={{ fontSize: FS.small, color: T.second, fontFamily: FONT.mono, whiteSpace: "nowrap", flexShrink: 0 }}>{fmt(p.createdAt)}</span>
+          <span title={kindOf(p) === "delivery" && p.receivedBy ? `Recebido por ${p.receivedBy}` : (p.uploadedBy || undefined)} style={{ fontSize: FS.small, color: T.second, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
             {kindOf(p) === "delivery" && p.receivedBy ? `Recebido: ${p.receivedBy}` : (p.uploadedBy || "")}
           </span>
         </div>

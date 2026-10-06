@@ -275,7 +275,7 @@ export function RegistrosDeTubos({ eventIds = [], busca = "", desde = null, item
       {fotoEmZoom && volumeEmZoom && (
         <div role="dialog" aria-modal="true" aria-label={fotoEmZoom.legenda} data-testid="zoom-registro-tubo"
           onClick={() => setZoom(null)}
-          style={{ position: "fixed", inset: 0, zIndex: 60, backgroundColor: "rgba(28,25,23,0.92)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 16 }}>
+          style={{ position: "fixed", inset: 0, zIndex: 60, backgroundColor: T.dark, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 16 }}>
           <img src={fotoEmZoom.url} alt={fotoEmZoom.legenda} onClick={(e) => e.stopPropagation()} decoding="async"
             style={{ maxWidth: "100%", maxHeight: "72vh", objectFit: "contain", borderRadius: R.md }} />
           <p style={{ margin: 0, color: T.surface, fontSize: FS.body, textAlign: "center" }}>

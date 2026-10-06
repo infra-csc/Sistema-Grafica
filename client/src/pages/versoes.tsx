@@ -32,20 +32,20 @@
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-  GitBranch, Search, X, Download, FileText, Check, Clock, AlertTriangle,
-  ExternalLink, ChevronLeft, ChevronRight, Layers, HelpCircle, Table2, Send, Loader2,
-  MessageSquareWarning, Columns2, Square,
+  Search, X, Download, FileText, Check, Clock, AlertTriangle,
+  ExternalLink, ChevronLeft, ChevronRight, Layers, HelpCircle, Table2, Send,
+  MessageSquareWarning, ShieldCheck, CalendarDays, Handshake, ImageOff,
 } from "lucide-react";
 import { Link } from "wouter";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { FilterSelect } from "@/components/filter-select";
 import { useIsMobile, useDensidadeDoConteudo, usePonteiroGrosso, alvo } from "@/hooks/use-mobile";
-import { Botao } from "@/components/ui/botao";
+import { Botao, BotaoLink } from "@/components/ui/botao";
 import { Abas, Segmentado } from "@/components/ui/abas";
 import { Selo as SeloDS } from "@/components/ui/selo";
 import { EstadoVazio, EstadoErro } from "@/components/ui/estados";
-import { T, FS, R, N, FW, FONT, TOM, SHADOW } from "@/lib/theme";
+import { T, FS, R, FW, FONT, TOM, SHADOW, MOTION } from "@/lib/theme";
 import { getApprovalMeta } from "@/lib/status";
 import { isWebUrl } from "@/components/file-preview";
 import { apiRequest } from "@/lib/queryClient";
@@ -240,6 +240,18 @@ export default function Versoes() {
   const trocarFoco = (f: Foco) => { setFoco(f); setPagina(0); setAba("pecas"); };
   const alturaControle = alvo(36, toque);
   const tamanhoControle = toque ? "toque" : "md";
+  // Exporta o RECORTE inteiro, não a página à vista. No desktop mora no
+  // cabeçalho, como o "Exportar CSV" do Histórico; no celular desce para a
+  // linha da contagem ("3 peças no recorte · Exportar") — ali ele diz o que
+  // exporta, e o cabeçalho não ganha uma faixa de botão inteira só para ele.
+  // É o <BotaoLink> da casa: hover, foco e o piso de 44px no toque vêm junto.
+  const botaoExportar = (
+    <BotaoLink externo href={`/api/versoes/export.csv${parametros.toString() ? `?${parametros}` : ""}`} data-testid="link-exportar-versoes"
+      title="Baixar o recorte inteiro em CSV (abre no Excel)"
+      icone={Table2} tamanho={tamanhoControle}>
+      {apertado ? "Exportar" : "Exportar CSV"}
+    </BotaoLink>
+  );
 
   // Blocos por evento, na ordem que o servidor mandou — e, DENTRO do evento,
   // por gravidade (25/08): divergência já produzida primeiro, depois as
@@ -261,48 +273,44 @@ export default function Versoes() {
   const booksDesatualizados = books.reduce((s, e) => s + e.books.filter(b => b.pecasMudaramDepois > 0).length, 0);
 
   return (
-    <div ref={raizRef} style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", backgroundColor: T.bg }}>
-      <style>{`
-        /* Hover dos controles de apoio (abas, números, botões brancos). Os
-           fundos vêm inline, e estilo inline vence classe — por isso o
-           !important. 150ms: o bastante para o olho perceber a resposta, curto
-           demais para parecer lento. A regra global de movimento reduzido
-           (index.css) zera a transição para quem pediu. */
-        .vs-hover { transition: background-color 0.15s, border-color 0.15s; }
-        .vs-hover:hover:not(:disabled):not([aria-selected="true"]) { background-color: ${N.n2} !important; }
-        .vs-sublinha:hover { text-decoration: underline !important; }
-      `}</style>
-      {/* ══ Cabeçalho ══ */}
-      <div style={{ flexShrink: 0, backgroundColor: T.surface, borderBottom: `1px solid ${T.border}`, padding: apertado ? "14px 16px 0" : "20px 32px 0" }}>
+    // Hover, foco e entrada que o estilo inline não alcança: classes .ver-*
+    // no index.css (bloco "VERSÕES APROVADAS"), com movimento só sem
+    // prefers-reduced-motion.
+    <div ref={raizRef} data-testid="raiz-versoes" style={{ height: "100%", overflowY: "auto", overflowX: "hidden", backgroundColor: T.bg }}>
+      {/* ══ Cabeçalho ══ — a mesma anatomia das telas da casa (Histórico,
+          Máquinas): título, a pergunta da tela e, à direita, a ação que vale
+          para o recorte inteiro. O bloco laranja cheio ao lado do título saiu:
+          era o único elemento da tela pintado de marca sem dizer nada. */}
+      <div style={{ backgroundColor: T.surface, padding: apertado ? "16px 16px 0" : "22px 32px 0" }}>
         <div style={{ maxWidth: 1600, margin: "0 auto" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: R.lg, backgroundColor: T.accent, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <GitBranch aria-hidden="true" style={{ width: 20, height: 20, color: T.surface }} />
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <h1 data-testid="title-versoes" style={{ fontFamily: FONT.display, fontWeight: FW.rotulo, fontSize: FS.h1, letterSpacing: "-0.03em", color: T.text, margin: 0 }}>
+          <header style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ minWidth: 0, flex: "1 1 320px" }}>
+              <h1 data-testid="title-versoes" style={{ fontFamily: FONT.display, fontWeight: FW.rotulo, fontSize: FS.h1, letterSpacing: "-0.03em", lineHeight: 1.15, color: T.text, margin: 0 }}>
                 Versões aprovadas
               </h1>
-              <p style={{ fontSize: FS.small, color: T.second, margin: 0 }}>
+              <p style={{ fontSize: FS.body, color: T.second, margin: "4px 0 0", lineHeight: 1.45 }}>
                 Qual versão da arte cada patrocinador aprovou — e se é ela que está indo para a gráfica
               </p>
               {/* PARA QUE SERVE E ONDE ESTÁ O BOOK, numa linha. A tela abre em
                   "Precisa de atenção" e quem veio só baixar o book de um
                   evento não tinha pista de que ele mora na última aba — o
-                  atalho leva direto, com os filtros de evento mantidos. */}
-              <p data-testid="texto-como-usar-versoes" style={{ fontSize: FS.small, color: T.second, margin: "2px 0 0", lineHeight: 1.5 }}>
+                  atalho leva direto, com os filtros de evento mantidos. O alvo
+                  de 44px no toque vem de uma área invisível (.ver-link-books),
+                  não da altura da linha — senão o parágrafo abria buracos. */}
+              <p data-testid="texto-como-usar-versoes" style={{ fontSize: FS.meta, color: T.second, margin: "2px 0 0", lineHeight: 1.5 }}>
                 Abre pelo que precisa de conferência. Para baixar o book de um evento, use a aba{" "}
-                <button type="button" onClick={() => setAba("books")} data-testid="link-ir-para-books"
-                  style={{ display: "inline-flex", alignItems: "center", minHeight: alturaControle, background: "none", border: "none", padding: 0, fontFamily: "inherit", fontSize: FS.small, fontWeight: FW.forte, color: T.accentText, textDecoration: "underline", textUnderlineOffset: 2, cursor: "pointer" }}>
+                <button type="button" onClick={() => setAba("books")} data-testid="link-ir-para-books" className="ver-link-books" data-alvo-natural
+                  style={{ display: "inline", background: "none", border: "none", padding: 0, fontFamily: "inherit", fontSize: "inherit", fontWeight: FW.forte, color: T.accentText, textDecoration: "underline", textUnderlineOffset: 2, cursor: "pointer" }}>
                   Books
                 </button>{" "}— cada publicação tem o botão Baixar.
               </p>
             </div>
-          </div>
+            {!apertado && botaoExportar}
+          </header>
 
           {/* ══ Os três números que são o índice da tela ══ */}
           {resumo && (
-            <div data-testid="resumo-versoes" style={{ display: "grid", gridTemplateColumns: apertado ? "1fr 1fr" : "repeat(4, minmax(0, 200px))", gap: 8, margin: "14px 0 0" }}>
+            <div data-testid="resumo-versoes" style={{ display: "grid", gridTemplateColumns: apertado ? "1fr 1fr" : "repeat(4, minmax(0, 1fr))", maxWidth: apertado ? undefined : 980, gap: 8, margin: "16px 0 0" }}>
               <BotaoResumo
                 testId="resumo-divergentes"
                 valor={resumo.divergentes}
@@ -346,23 +354,55 @@ export default function Versoes() {
             </div>
           )}
 
-          {/* A FRASE DE CONFIANÇA: o que é registro e o que é dedução. */}
+          {/* Enquanto o resumo não chega, a silhueta dos quatro números — sem
+              ela a faixa nascia vazia e empurrava tudo para baixo ao chegar. */}
+          {!resumo && isLoading && (
+            <div aria-hidden="true" style={{ display: "grid", gridTemplateColumns: apertado ? "1fr 1fr" : "repeat(4, minmax(0, 1fr))", maxWidth: apertado ? undefined : 980, gap: 8, margin: "16px 0 0" }}>
+              {[0, 1, 2, 3].map(i => (
+                <div key={i} style={{ border: `1px solid ${T.border}`, borderRadius: R.md, padding: "10px 14px 11px", display: "flex", flexDirection: "column", gap: 7 }}>
+                  <div className="animate-pulse" style={{ height: 20, width: 28, backgroundColor: T.border, borderRadius: R.sm }} />
+                  <div className="animate-pulse" style={{ height: 11, width: "70%", backgroundColor: T.low, borderRadius: R.sm }} />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* A FRASE DE CONFIANÇA: o que é registro e o que é dedução. Fica
+              num tom de nota (ícone de escudo, texto de apoio) — é a
+              procedência dos números acima, não mais um alerta competindo com
+              eles. O ícone fica numa coluna própria, para o texto quebrado
+              alinhar consigo mesmo e não por baixo do ícone. */}
           {resumo && resumo.decisoesTomadas > 0 && (
-            <p data-testid="text-confianca-versoes" style={{ fontSize: FS.body, color: T.apoio, margin: "12px 0 0", lineHeight: 1.5 }}>
-              {resumo.decisoesTomadas} {resumo.decisoesTomadas === 1 ? "decisão já tomada" : "decisões já tomadas"} no recorte
-              {resumo.decisoesInferidas > 0
-                ? <> · <strong style={{ color: T.accentText }}>{resumo.decisoesInferidas}</strong> com a versão <strong style={{ color: T.accentText }}>inferida pela data</strong>, porque são anteriores ao registro</>
-                : <> · todas com a versão registrada</>}
-              {resumo.decisoesAmbiguas > 0 && <> · {resumo.decisoesAmbiguas} <strong style={{ color: T.accentText }}>indeterminadas</strong> (a arte mudou no mesmo instante da decisão)</>}
-              {data?.registroDesde && <> · o registro de versões começa em {fmtDia(data.registroDesde)}</>}
+            <p data-testid="text-confianca-versoes" style={{ display: "flex", alignItems: "flex-start", gap: 7, fontSize: FS.meta, color: T.apoio, margin: "12px 0 0", lineHeight: 1.55 }}>
+              <ShieldCheck aria-hidden="true" style={{ width: 14, height: 14, color: T.second, flexShrink: 0, marginTop: 2 }} />
+              <span style={{ minWidth: 0 }}>
+                <span>{resumo.decisoesTomadas} {resumo.decisoesTomadas === 1 ? "decisão já tomada" : "decisões já tomadas"} no recorte</span>
+                {resumo.decisoesInferidas > 0
+                  ? <> · <span><strong style={{ color: T.accentText }}>{resumo.decisoesInferidas}</strong> com a versão <strong style={{ color: T.accentText }}>inferida pela data</strong>, porque são anteriores ao registro</span></>
+                  : <> · <span>todas com a versão registrada</span></>}
+                {resumo.decisoesAmbiguas > 0 && <> · <span>{resumo.decisoesAmbiguas} <strong style={{ color: T.accentText }}>indeterminadas</strong> (a arte mudou no mesmo instante da decisão)</span></>}
+                {data?.registroDesde && <> · <span>o registro de versões começa em <span style={numero}>{fmtDia(data.registroDesde)}</span></span></>}
+              </span>
             </p>
           )}
 
           {/* ══ Abas ══ — as da casa: sublinhado, setas/Home/End e o contador
               na cor da aba (fora dos parênteses). O prefixo mantém os testids
               `tab-versoes-*`. O -1px de margem assenta o sublinhado sobre a
-              borda do cabeçalho, em vez de desenhar duas linhas. */}
-          <div style={{ margin: "14px 0 -1px" }}>
+              borda da faixa, em vez de desenhar duas linhas.
+
+              A TELA ROLA INTEIRA (06/10). Antes só a lista rolava, embaixo de
+              um cabeçalho fixo de ~410px — num notebook de 768 sobravam
+              300px para as peças, e no celular quase nada. Agora o cabeçalho
+              sobe com a rolagem e as abas + filtros grudam no topo (no
+              desktop): o que se usa enquanto se lê fica à mão; o que se lê uma
+              vez sai da frente. No celular nada gruda — a faixa de filtros lá
+              tem duas linhas e comeria a tela. */}
+        </div>
+      </div>
+      <div data-testid="faixa-fixa-versoes" style={{ position: apertado ? "static" : "sticky", top: 0, zIndex: 5, backgroundColor: T.surface }}>
+        <div style={{ borderBottom: `1px solid ${T.border}`, padding: apertado ? "14px 16px 0" : "14px 32px 0" }}>
+          <div style={{ maxWidth: 1600, margin: "0 auto -1px" }}>
             <Abas
               rotuloDaLista="O que ver"
               prefixoDeTestId="tab-versoes"
@@ -372,7 +412,7 @@ export default function Versoes() {
                 ["atencao", "Precisa de atenção", resumo?.atencao],
                 ["todas", "Todas as peças", resumo?.total],
                 ["sem-patrocinador", "Sem patrocinador", resumo?.semPatrocinador],
-                ["books", "Books", totalBooks],
+                ["books", "Books", data ? totalBooks : undefined],
               ] as const).map(([valor, rotulo, contador]) => ({
                 id: valor, rotulo, contador,
                 // O "N" de atenção e o de books desatualizados são notícia; os outros, contagem.
@@ -383,46 +423,67 @@ export default function Versoes() {
             />
           </div>
         </div>
-      </div>
 
       {/* ══ Filtros ══ */}
-      <div style={{ flexShrink: 0, backgroundColor: T.surface, borderBottom: `1px solid ${T.border}`, padding: apertado ? "10px 16px" : "10px 32px" }}>
-        <div style={{ maxWidth: 1600, margin: "0 auto", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      {/* Faixa dos filtros. No celular, Evento e Patrocinador dividem a
+          primeira linha meio a meio e a busca ganha a segunda inteira — antes
+          eram quatro linhas empilhadas (dois gatilhos, busca, Exportar) e a
+          lista começava abaixo da dobra. A contagem do recorte fica à direita:
+          é a resposta ao filtro que acabou de mudar. */}
+      <div style={{ backgroundColor: T.surface, borderBottom: `1px solid ${T.border}`, padding: apertado ? "10px 16px 12px" : "12px 32px" }}>
+        <div style={{ maxWidth: 1600, margin: "0 auto", display: apertado ? "grid" : "flex", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", alignItems: "center", gap: apertado ? 8 : 10, flexWrap: "wrap" }}>
           <FilterSelect label="Evento" allLabel="Todos os eventos" values={eventoFiltro}
             onValuesChange={v => { setEventoFiltro(v); setPagina(0); }}
+            hideWhenEmpty={false} disabled={!data} icon={CalendarDays} unitLabel={{ one: "evento", many: "eventos" }} fullWidth={apertado} rotuloQuandoVazio={apertado ? "Evento" : undefined}
+            triggerStyle={{ height: alturaControle }}
             options={data?.facetas.eventos ?? []} searchPlaceholder="Buscar evento..." emptyText="Nenhum evento" testId="filter-versoes-evento" />
           <FilterSelect label="Patrocinador" allLabel="Todos os patrocinadores" values={patrocinadorFiltro}
             onValuesChange={v => { setPatrocinadorFiltro(v); setPagina(0); }}
+            hideWhenEmpty={false} disabled={!data} icon={Handshake} unitLabel={{ one: "patrocinador", many: "patrocinadores" }} fullWidth={apertado} rotuloQuandoVazio={apertado ? "Patrocinador" : undefined}
+            triggerStyle={{ height: alturaControle }}
             options={data?.facetas.patrocinadores ?? []} searchPlaceholder="Buscar patrocinador..." emptyText="Nenhum patrocinador" testId="filter-versoes-patrocinador" />
 
-          <div style={{ position: "relative", width: apertado ? "100%" : 280 }}>
-            <Search aria-hidden="true" style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: T.muted, pointerEvents: "none" }} />
-            {/* 16px no celular: abaixo disso o iOS dá zoom ao focar. */}
-            <input value={buscaInput} onChange={e => setBuscaInput(e.target.value)} placeholder="Peça, tipo ou evento…" aria-label="Buscar" data-testid="input-busca-versoes"
-              style={{ width: "100%", height: alturaControle, paddingLeft: 32, paddingRight: 12, border: `1px solid ${T.border}`, borderRadius: R.pill, backgroundColor: T.surface, fontSize: isMobile ? FS.lead : FS.body, color: T.text, fontFamily: "inherit" }} />
+          <div style={{ position: "relative", width: apertado ? "100%" : 300, gridColumn: apertado ? "1 / -1" : undefined }}>
+            <Search aria-hidden="true" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: T.second, pointerEvents: "none" }} />
+            {/* 16px no celular: abaixo disso o iOS dá zoom ao focar. Mesmo raio
+                e mesma altura dos gatilhos ao lado — a faixa é uma linha só. */}
+            <input value={buscaInput} onChange={e => setBuscaInput(e.target.value)} placeholder="Buscar peça, tipo ou evento…" aria-label="Buscar" data-testid="input-busca-versoes"
+              className="ver-busca"
+              style={{ width: "100%", height: alturaControle, paddingLeft: 34, paddingRight: buscaInput ? 40 : 12, border: `1px solid ${T.border}`, borderRadius: R.md, backgroundColor: T.surface, fontSize: isMobile ? FS.lead : FS.body, color: T.text, fontFamily: "inherit" }} />
+            {buscaInput && (
+              // O × de limpar dentro do campo — o vocabulário da casa para busca livre.
+              <button type="button" onClick={() => { setBuscaInput(""); setBusca(""); setPagina(0); }} aria-label="Limpar a busca" data-testid="button-limpar-busca-versoes"
+                className="ver-limpar-busca"
+                style={{ position: "absolute", right: 2, top: "50%", transform: "translateY(-50%)", width: toque ? 40 : 30, height: toque ? 40 : 30, borderRadius: R.sm, border: "none", background: "none", color: T.second, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+                <X aria-hidden="true" style={{ width: 14, height: 14 }} />
+              </button>
+            )}
           </div>
 
-          {filtrosAtivos > 0 && (
-            <Botao tamanho={tamanhoControle} icone={X} onClick={limpar} data-testid="button-limpar-versoes">
-              Limpar ({filtrosAtivos})
-            </Botao>
+          {(filtrosAtivos > 0 || apertado || (data && !isLoading)) && (
+            <div style={{ marginLeft: apertado ? 0 : "auto", gridColumn: apertado ? "1 / -1" : undefined, display: "flex", alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap", gap: 8, minHeight: alturaControle }}>
+              {data && !isLoading && (
+                <span data-testid="text-total-versoes" style={{ marginRight: "auto", fontSize: FS.meta, color: T.second, whiteSpace: "nowrap" }}>
+                  {aba === "books"
+                    ? <><strong style={{ ...numero, color: T.text, fontWeight: FW.forte }}>{totalBooks}</strong> {totalBooks === 1 ? "publicação" : "publicações"}{apertado ? "" : " de book"}</>
+                    : <><strong style={{ ...numero, color: T.text, fontWeight: FW.forte }}>{data.total}</strong> {data.total === 1 ? "peça" : "peças"}{apertado ? "" : " no recorte"}</>}
+                </span>
+              )}
+              {filtrosAtivos > 0 && (
+                <Botao variante="fantasma" tamanho={tamanhoControle} icone={X} onClick={limpar} data-testid="button-limpar-versoes">
+                  {apertado ? `Limpar (${filtrosAtivos})` : `Limpar filtros (${filtrosAtivos})`}
+                </Botao>
+              )}
+              {apertado && botaoExportar}
+            </div>
           )}
-
-          {/* Exporta o RECORTE inteiro, não a página à vista.
-              Caixa normal nos botões da tela (Exportar, Baixar, Reenviar…): a
-              caixa alta com espaçamento largo em TODOS eles fazia a barra
-              inteira falar alto ao mesmo tempo — e nada se destacava. */}
-          <a href={`/api/versoes/export.csv${parametros.toString() ? `?${parametros}` : ""}`} data-testid="link-exportar-versoes"
-            title="Baixar o recorte inteiro em CSV (abre no Excel)"
-            className="vs-hover"
-            style={{ marginLeft: apertado ? 0 : "auto", height: alturaControle, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.surface, color: T.text, fontSize: FS.small, fontWeight: FW.forte, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <Table2 aria-hidden="true" style={{ width: 13, height: 13 }} /> Exportar
-          </a>
         </div>
       </div>
 
+      </div>
+
       {/* ══ Corpo ══ */}
-      <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", padding: apertado ? 12 : "20px 32px" }}>
+      <div style={{ padding: apertado ? "14px 12px 24px" : "22px 32px 40px" }}>
         <div style={{ maxWidth: 1600, margin: "0 auto" }}>
           <p aria-live="polite" className="sr-only" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap" }}>
             {isLoading ? "Carregando" : aba === "books" ? `${totalBooks} books` : `${data?.total ?? 0} peças no recorte`}
@@ -437,6 +498,8 @@ export default function Versoes() {
               titulo="Não foi possível carregar as versões"
               detalhe="A conexão falhou ou a sessão expirou."
               aoTentarDeNovo={() => refetch()}
+              carregando={isFetching}
+              tamanhoDoBotao={tamanhoControle}
             />
           ) : aba === "books" ? (
             <AbaBooks eventos={books} apertado={apertado} toque={toque} alturaControle={alturaControle} podeAvisar={podeAvisar} podeRepublicar={podeRepublicar} />
@@ -445,7 +508,9 @@ export default function Versoes() {
             // afirmava sobre o acervo o que só vale para o recorte; e "Ajuste
             // os filtros" aparecia até sem filtro nenhum.
             <EstadoVazio
-              icone={foco === "atencao" && filtrosAtivos === 0 ? Check : Search}
+              icone={foco === "atencao" && filtrosAtivos === 0 ? ShieldCheck : Search}
+              // "Nada precisa de atenção" sem filtro é notícia BOA: o ícone sai verde.
+              tom={foco === "atencao" && filtrosAtivos === 0 ? "sucesso" : undefined}
               titulo={foco === "atencao" ? "Nada precisa de atenção neste recorte" : "Nenhuma peça neste recorte"}
               descricao={foco === "atencao"
                 ? filtrosAtivos > 0
@@ -485,7 +550,7 @@ export default function Versoes() {
                       próprio em maiúsculas perde a forma das palavras e
                       competia com os selos de alerta dos cartões. */}
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                    <Link href={`/eventos/${bloco.eventId}`} className="vs-sublinha" style={{ fontFamily: FONT.display, fontSize: FS.strong, fontWeight: FW.forte, color: T.text, textDecoration: "none", letterSpacing: "-0.01em", minWidth: 0, overflowWrap: "anywhere" }}>
+                    <Link href={`/eventos/${bloco.eventId}`} className="ver-sublinha" style={{ fontFamily: FONT.display, fontSize: FS.strong, fontWeight: FW.forte, color: T.text, textDecoration: "none", letterSpacing: "-0.01em", minWidth: 0, overflowWrap: "anywhere" }}>
                       {bloco.eventName}
                     </Link>
                     <div aria-hidden="true" style={{ flex: 1, minWidth: 12, height: 1, backgroundColor: T.border }} />
@@ -534,38 +599,61 @@ function BotaoResumo({ valor, rotulo, ajuda, tom, ativo, onClick, testId }: {
 }) {
   // TOM.perigo.text e TOM.alerta.text sobre branco passam de 4.5:1; o calmo usa o cinza do texto.
   const cor = valor === 0 ? T.second : tom === "critico" ? TOM.perigo.text : tom === "alerta" ? TOM.alerta.text : T.text;
+  // O FIO À ESQUERDA diz a gravidade antes do número ser lido — só quando há
+  // o que ver: zero é notícia boa e fica neutro. É sombra interna, não borda,
+  // para os quatro manterem a MESMA moldura.
+  const fio = valor === 0 ? null : tom === "critico" ? TOM.perigo.dot : tom === "alerta" ? TOM.alerta.dot : null;
   return (
     <button type="button" onClick={onClick} data-testid={testId} title={ajuda}
       // aria-pressed: o número é um FILTRO, e o leitor de tela precisa saber qual está ligado.
       aria-pressed={ativo}
-      className="vs-hover"
+      className="ver-kpi"
       style={{
-        textAlign: "left", padding: "9px 12px", borderRadius: R.md, cursor: "pointer", fontFamily: "inherit",
+        textAlign: "left", padding: "10px 14px 11px", borderRadius: R.md, cursor: "pointer", fontFamily: "inherit",
         // A MESMA superfície nos quatro (25/08): card sem borda parecia
         // elemento não renderizado. O que marca a aba corrente é o FUNDO.
         border: `1px solid ${T.border}`,
         backgroundColor: ativo ? T.bg : T.surface,
-        display: "flex", flexDirection: "column", gap: 1, minWidth: 0,
+        boxShadow: fio ? `inset 3px 0 0 ${fio}` : undefined,
+        display: "flex", flexDirection: "column", gap: 2, minWidth: 0,
       }}>
-      <span style={{ ...numero, fontSize: FS.h2, fontWeight: FW.rotulo, color: cor, lineHeight: 1.1 }}>{valor}</span>
-      <span style={{ fontSize: FS.small, color: T.second, lineHeight: 1.3 }}>{rotulo}</span>
+      <span style={{ ...numero, fontFamily: FONT.display, fontSize: FS.h2, fontWeight: FW.rotulo, color: cor, lineHeight: 1.1, letterSpacing: "-0.02em" }}>{valor}</span>
+      <span style={{ fontSize: FS.meta, color: T.second, lineHeight: 1.35 }}>{rotulo}</span>
     </button>
   );
 }
 
 function Esqueleto({ apertado }: { apertado: boolean }) {
   return (
-    <div data-testid="skeleton-versoes" aria-hidden="true" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {[0, 1, 2, 3].map(i => (
-        <div key={i} style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, padding: apertado ? 12 : "14px 18px" }}>
-          {/* animate-pulse: parado, o esqueleto parecia tela quebrada, não
-              carregando. A classe já respeita movimento reduzido (index.css). */}
-          <div className="animate-pulse" style={{ height: 13, width: 220, maxWidth: "70%", backgroundColor: T.low, borderRadius: R.sm, marginBottom: 12 }} />
-          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            <div className="animate-pulse" style={{ height: 44, width: 44, backgroundColor: T.low, borderRadius: R.md }} />
-            <div className="animate-pulse" style={{ flex: 1, maxWidth: 320, height: 44, backgroundColor: T.low, borderRadius: R.md }} />
+    <div data-testid="skeleton-versoes" aria-hidden="true" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* A silhueta do que vem: o nome do evento com o fio, e cartões com a
+          linha da peça, a régua de miniaturas e a lista de decisões — para a
+          tela não pular de forma quando os dados chegam.
+          animate-pulse: parado, o esqueleto parecia tela quebrada, não
+          carregando. A classe já respeita movimento reduzido (index.css). */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: -2 }}>
+        <div className="animate-pulse" style={{ height: 14, width: 210, backgroundColor: T.border, borderRadius: R.sm }} />
+        <div style={{ flex: 1, height: 1, backgroundColor: T.border }} />
+      </div>
+      {[0, 1, 2].map(i => (
+        <div key={i} style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, boxShadow: SHADOW.sm, padding: apertado ? 12 : "14px 18px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <div className="animate-pulse" style={{ height: 13, width: 48, backgroundColor: T.border, borderRadius: R.sm }} />
+            <div className="animate-pulse" style={{ height: 13, width: 200, maxWidth: "55%", backgroundColor: T.low, borderRadius: R.sm }} />
+            <div className="animate-pulse" style={{ height: 18, width: 84, backgroundColor: T.low, borderRadius: R.sm, marginLeft: "auto" }} />
           </div>
-          <div className="animate-pulse" style={{ height: 30, backgroundColor: T.low, borderRadius: R.md }} />
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            {[0, 1].map(j => <div key={j} className="animate-pulse" style={{ height: i === 0 ? 120 : 38, width: i === 0 ? 124 : 52, backgroundColor: T.low, borderRadius: R.md }} />)}
+          </div>
+          <div style={{ border: `1px solid ${T.border}`, borderRadius: R.md, overflow: "hidden" }}>
+            {[0, 1].map(j => (
+              <div key={j} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderTop: j ? `1px solid ${T.border}` : "none" }}>
+                <div className="animate-pulse" style={{ width: 8, height: 8, borderRadius: R.pill, backgroundColor: T.border }} />
+                <div className="animate-pulse" style={{ height: 12, width: 140, backgroundColor: T.low, borderRadius: R.sm }} />
+                <div className="animate-pulse" style={{ height: 12, width: 90, backgroundColor: T.low, borderRadius: R.sm }} />
+              </div>
+            ))}
+          </div>
         </div>
       ))}
     </div>
@@ -626,54 +714,73 @@ function CartaoDaPeca({ p, apertado, toque, onComparar }: { p: Peca; apertado: b
 
       {/* ── A régua de versões ── */}
       {varias ? (
-        <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4, marginBottom: 10 }}>
+        // A RÉGUA. Cada miniatura diz, além do número e da data, QUEM
+        // APROVOU AQUELA VERSÃO (o selo verde com a contagem) — a pergunta da
+        // tela respondida sem abrir o comparador. A atual ganha o anel da
+        // marca; a reconstruída da trilha, o triângulo de alerta.
+        <div className="ver-regua" style={{ display: "flex", gap: 8, overflowX: "auto", padding: "2px 2px 6px", margin: "0 -2px 6px" }}>
           {p.versoes.map((v, i) => {
             const atual = v.thumbUrl === p.approvalThumbUrl;
+            const aprovaram = p.decisoes.filter(d => d.thumbUrl === v.thumbUrl && d.status === "approved" && !d.ambiguo);
             return (
               <button key={`${v.thumbUrl}-${i}`} type="button" onClick={onComparar} data-testid={`versao-${p.id}-${i + 1}`}
-                title={`v${i + 1} · ${ORIGEM_LABEL[v.origem]} · ${fmtData(v.em)}${v.por ? ` · ${v.por}` : ""}${v.inferida ? " · reconstruída, não gravada" : ""} — clique para comparar`}
+                title={`v${i + 1} · ${ORIGEM_LABEL[v.origem]} · ${fmtData(v.em)}${v.por ? ` · ${v.por}` : ""}${v.inferida ? " · reconstruída, não gravada" : ""}${aprovaram.length ? ` · aprovada por ${aprovaram.map(d => d.nome).join(", ")}` : ""} — clique para comparar`}
+                className="ver-miniatura"
+                aria-current={atual || undefined}
                 style={{
-                  flexShrink: 0, width: 116, padding: 0, textAlign: "left", cursor: "pointer", fontFamily: "inherit",
+                  flexShrink: 0, width: 124, padding: 0, textAlign: "left", cursor: "pointer", fontFamily: "inherit",
                   border: `1px solid ${atual ? TOM.laranja.border : T.border}`, borderRadius: R.md, overflow: "hidden",
-                  backgroundColor: atual ? TOM.laranja.bg : T.bg,
+                  backgroundColor: atual ? TOM.laranja.bg : T.surface,
+                  boxShadow: atual ? `0 0 0 1px ${TOM.laranja.border}` : undefined,
                 }}>
-                <span style={{ display: "block", height: 72, backgroundColor: T.surface }}>
+                <span style={{ position: "relative", display: "block", height: 78, backgroundColor: T.low, borderBottom: `1px solid ${atual ? TOM.laranja.border : T.border}` }}>
                   {isWebUrl(v.thumbUrl)
                     ? <img src={v.thumbUrl} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
                         onError={e => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }} />
-                    : <span style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", fontSize: FS.micro, color: T.second }}>sem prévia</span>}
+                    : <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, height: "100%", fontSize: FS.small, color: T.second }}><ImageOff aria-hidden="true" style={{ width: 13, height: 13 }} /> sem prévia</span>}
+                  {aprovaram.length > 0 && (
+                    <span aria-hidden="true" style={{ position: "absolute", top: 5, right: 5, display: "inline-flex", alignItems: "center", gap: 3, height: 18, padding: "0 6px", borderRadius: R.pill, backgroundColor: TOM.sucesso.text, color: T.surface, fontSize: FS.micro, fontWeight: FW.forte, boxShadow: SHADOW.sm }}>
+                      <Check style={{ width: 10, height: 10 }} />{aprovaram.length}
+                    </span>
+                  )}
                 </span>
-                <span style={{ display: "block", padding: "5px 8px" }}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: FS.small, fontWeight: FW.rotulo, color: atual ? T.accentText : T.text }}>
+                <span style={{ display: "block", padding: "6px 8px 7px" }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: FS.meta, fontWeight: FW.rotulo, color: atual ? T.accentText : T.text }}>
                     v{i + 1}
                     {atual && <span style={{ fontSize: FS.small, fontWeight: FW.medio }}>· atual</span>}
-                    {v.inferida && <AlertTriangle aria-hidden="true" style={{ width: 10, height: 10, color: TOM.alerta.text, marginLeft: "auto" }} />}
+                    {v.inferida && <AlertTriangle aria-hidden="true" style={{ width: 11, height: 11, color: TOM.alerta.text, marginLeft: "auto" }} />}
                   </span>
-                  <span style={{ display: "block", ...numero, fontSize: FS.micro, color: T.second }}>{fmtData(v.em)}</span>
+                  <span style={{ display: "block", ...numero, fontSize: FS.small, color: T.second, marginTop: 1 }}>{fmtData(v.em)}</span>
                 </span>
               </button>
             );
           })}
           <button type="button" onClick={onComparar} data-testid={`button-comparar-${p.id}`}
-            style={{ flexShrink: 0, width: 92, borderRadius: R.md, border: `1px dashed ${T.border}`, backgroundColor: T.surface, cursor: "pointer", fontFamily: "inherit", color: T.accentText, fontSize: FS.small, fontWeight: FW.forte, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 }}>
-            <Layers aria-hidden="true" style={{ width: 15, height: 15 }} />
+            className="ver-comparar"
+            style={{ flexShrink: 0, width: 96, borderRadius: R.md, border: `1px dashed ${T.bdark}`, backgroundColor: T.surface, cursor: "pointer", fontFamily: "inherit", color: T.accentText, fontSize: FS.meta, fontWeight: FW.forte, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 5 }}>
+            <Layers aria-hidden="true" style={{ width: 16, height: 16 }} />
             Comparar
+            <span style={{ fontSize: FS.small, fontWeight: FW.corpo, color: T.second }}>{p.versoes.length} versões</span>
           </button>
         </div>
       ) : (
         // Uma versão só (96% dos casos): uma linha discreta em vez de uma
         // galeria — a área do cartão volta para a decisão, que é o assunto.
-        <div data-testid={`versao-unica-${p.id}`} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <div data-testid={`versao-unica-${p.id}`} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
           {isWebUrl(p.versoes[0]?.thumbUrl ?? "") ? (
-            <a href={p.versoes[0].thumbUrl} target="_blank" rel="noopener noreferrer" title="Abrir a arte" aria-label={`Abrir a arte de ${p.displayId}`} style={{ display: "block", width: 40, height: 30, border: `1px solid ${T.border}`, borderRadius: R.sm, overflow: "hidden", flexShrink: 0, backgroundColor: T.surface }}>
+            <a href={p.versoes[0].thumbUrl} target="_blank" rel="noopener noreferrer" title="Abrir a arte" aria-label={`Abrir a arte de ${p.displayId}`}
+              className="ver-miniatura"
+              style={{ display: "block", width: 52, height: 38, border: `1px solid ${T.border}`, borderRadius: R.sm, overflow: "hidden", flexShrink: 0, backgroundColor: T.low }}>
               <img src={p.versoes[0].thumbUrl} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
                 onError={e => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }} />
             </a>
           ) : (
-            <span aria-hidden="true" style={{ width: 40, height: 30, border: `1px dashed ${T.border}`, borderRadius: R.sm, flexShrink: 0 }} />
+            <span aria-hidden="true" style={{ width: 52, height: 38, border: `1px dashed ${T.bdark}`, borderRadius: R.sm, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: T.muted }}>
+              <ImageOff style={{ width: 14, height: 14 }} />
+            </span>
           )}
-          <span style={{ fontSize: FS.small, color: T.second }}>
-            {p.versoes.length === 0 ? "Nenhuma arte registrada" : <>Versão única · {fmtData(p.versoes[0].em)}{p.versoes[0].inferida ? " · reconstruída" : ""}</>}
+          <span style={{ fontSize: FS.meta, color: T.second, lineHeight: 1.4 }}>
+            {p.versoes.length === 0 ? "Nenhuma arte registrada" : <>Versão única · <span style={numero}>{fmtData(p.versoes[0].em)}</span>{p.versoes[0].inferida ? " · reconstruída" : ""}</>}
           </span>
         </div>
       )}
@@ -682,10 +789,20 @@ function CartaoDaPeca({ p, apertado, toque, onComparar }: { p: Peca; apertado: b
       <FaixaDeResolucao p={p} apertado={apertado} toque={toque} />
 
       {/* ── A decisão de cada patrocinador ── */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {p.decisoes.length === 0 && <span style={{ fontSize: FS.small, color: T.second }}>Sem patrocinador em aprovação.</span>}
-        {p.decisoes.map(d => <LinhaDaDecisao key={d.sponsorId} d={d} pecaId={p.id} />)}
-      </div>
+      {/* UMA LISTA, não uma pilha de caixas. Cada decisão era um bloco
+          pintado com borda própria — quatro patrocinadores viravam quatro
+          cartões coloridos dentro do cartão, e a divergência (o assunto)
+          disputava com "aguardando". Agora as linhas dividem uma moldura só;
+          a cor fica no ícone e na frase, e o fundo tinto só na linha que
+          diverge da arte atual. */}
+      {p.decisoes.length === 0 ? (
+        <p style={{ margin: 0, fontSize: FS.meta, color: T.second }}>Sem patrocinador em aprovação.</p>
+      ) : (
+        <div role="list" aria-label={`Decisões dos patrocinadores de ${p.displayId}`}
+          style={{ border: `1px solid ${T.border}`, borderRadius: R.md, overflow: "hidden" }}>
+          {p.decisoes.map((d, i) => <LinhaDaDecisao key={d.sponsorId} d={d} pecaId={p.id} primeira={i === 0} />)}
+        </div>
+      )}
     </article>
   );
 }
@@ -756,7 +873,7 @@ function FaixaDeResolucao({ p, apertado, toque }: { p: Peca; apertado: boolean; 
       <Link href={`/eventos/${p.eventId}?item=${p.id}`}
         data-testid={`link-abrir-peca-${p.id}`}
         title="Abrir a peça no evento, onde a Arte troca a arte e o Atendimento reabre a aprovação"
-        className="vs-hover"
+        className="ver-hover"
         style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 5, height: toque ? 44 : 30, marginLeft: apertado ? 25 : 0, padding: "0 12px", borderRadius: R.md, border: `1px solid ${tom.barra}33`, backgroundColor: T.surface, color: tom.texto, fontSize: FS.small, fontWeight: FW.forte, textDecoration: "none", whiteSpace: "nowrap" }}>
         <ExternalLink aria-hidden="true" style={{ width: 13, height: 13 }} /> Abrir a peça
       </Link>
@@ -781,7 +898,7 @@ function Selo({ children, cor, fundo, borda, titulo, testId }: {
 
 const PREFIXO_REVOGACAO = "Aprovação revogada automaticamente";
 
-function LinhaDaDecisao({ d, pecaId }: { d: Decisao; pecaId: string }) {
+function LinhaDaDecisao({ d, pecaId, primeira }: { d: Decisao; pecaId: string; primeira: boolean }) {
   const meta = getApprovalMeta(d.status);
   const tone = meta?.tone;
   const revogada = (d.motivo ?? "").startsWith(PREFIXO_REVOGACAO);
@@ -798,15 +915,23 @@ function LinhaDaDecisao({ d, pecaId }: { d: Decisao; pecaId: string }) {
     : `"${d.motivo}"`;
 
   return (
-    <div data-testid={`decisao-${pecaId}-${d.sponsorId}`}
-      style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "6px 10px", borderRadius: R.md, backgroundColor: meta?.bg ?? T.low, border: `1px solid ${meta?.border ?? T.border}` }}>
-      <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: d.cor ?? T.muted, flexShrink: 0 }} />
+    <div role="listitem" data-testid={`decisao-${pecaId}-${d.sponsorId}`}
+      style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 12px", borderTop: primeira ? "none" : `1px solid ${T.border}`, backgroundColor: d.divergente ? TOM.perigo.bg : T.surface }}>
+      {/* A cor do patrocinador, como no cadastro dele — identidade, não estado. */}
+      <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: d.cor ?? T.muted, flexShrink: 0, marginTop: 6 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", columnGap: 10, rowGap: 2, flexWrap: "wrap", minHeight: 20 }}>
       <span style={{ fontSize: FS.body, fontWeight: FW.forte, color: T.text }}>{d.nome}</span>
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: FS.small, fontWeight: FW.forte, color: meta?.text ?? T.apoio }}>
-        <Icone aria-hidden="true" style={{ width: 11, height: 11 }} /> {frase}
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: FS.meta, fontWeight: FW.forte, color: meta?.text ?? T.apoio }}>
+        <Icone aria-hidden="true" style={{ width: 12, height: 12 }} /> {frase}
       </span>
-      {d.decididoEm && <span style={{ ...numero, fontSize: FS.small, color: T.second }}>{fmtData(d.decididoEm)}</span>}
-      {d.por && <span style={{ fontSize: FS.small, color: T.second }}>por {d.por}</span>}
+      {(d.decididoEm || d.por) && (
+        <span style={{ fontSize: FS.meta, color: T.second }}>
+          {d.decididoEm && <span style={numero}>{fmtData(d.decididoEm)}</span>}
+          {d.decididoEm && d.por ? " · " : ""}
+          {d.por && <>por {d.por}</>}
+        </span>
+      )}
 
       {d.ambiguo && (
         /* TOM.alerta: texto sobre o próprio fundo passa AA */
@@ -821,15 +946,19 @@ function LinhaDaDecisao({ d, pecaId }: { d: Decisao; pecaId: string }) {
           ≠ arte atual
         </Selo>
       )}
-      {motivo && <span style={{ fontSize: FS.small, color: T.apoio, width: "100%" }}>{motivo}</span>}
+      </div>
+      {/* O motivo na segunda linha, alinhado ao nome — antes ele empurrava o
+          ícone de abrir para uma terceira linha sozinha no canto. */}
+      {motivo && <p style={{ margin: "3px 0 0", fontSize: FS.meta, color: T.apoio, lineHeight: 1.45 }}>{motivo}</p>}
+      </div>
       {d.thumbUrl && isWebUrl(d.thumbUrl) && (
         <a href={d.thumbUrl} target="_blank" rel="noopener noreferrer" title="Abrir a versão decidida"
           aria-label={`Abrir a versão decidida por ${d.nome}`}
           data-testid={`link-versao-decidida-${pecaId}-${d.sponsorId}`}
-          className="vs-hover"
-          // O ícone de 13px era o alvo inteiro. O padding leva a área de
-          // toque a 29px; a margem negativa devolve o espaço à linha.
-          style={{ display: "inline-flex", color: T.second, padding: 8, margin: "-8px -8px -8px auto", borderRadius: R.sm }}>
+          className="ver-hover ver-alvo"
+          // O ícone de 13px era o alvo inteiro. O padding leva a área a
+          // 29px; no toque, .ver-alvo estende a área invisível até 44.
+          style={{ display: "inline-flex", flexShrink: 0, color: T.second, padding: 8, margin: "-6px -8px -6px 0", borderRadius: R.sm }}>
           <ExternalLink aria-hidden="true" style={{ width: 13, height: 13 }} />
         </a>
       )}
@@ -946,14 +1075,17 @@ function Comparador({ peca, onClose, isMobile }: { peca: Peca | null; onClose: (
                           <p style={{ margin: 0, fontSize: FS.body, fontWeight: FW.rotulo, color: ehAtual ? T.accentText : T.text }}>
                             v{idx + 1}{ehAtual ? " · atual" : ""}
                           </p>
-                          <p style={{ margin: "1px 0 0", ...numero, fontSize: FS.micro, color: T.second }}>{fmtData(versao?.em ?? null)}</p>
+                          <p style={{ margin: "1px 0 0", ...numero, fontSize: FS.small, color: T.second }}>{fmtData(versao?.em ?? null)}</p>
                         </div>
-                        <div style={{ height: isMobile ? 220 : 340, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: T.surface }}>
+                        <div style={{ height: isMobile ? 220 : 340, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: T.low, padding: 8 }}>
                           {versao && isWebUrl(versao.thumbUrl)
-                            ? <img src={versao.thumbUrl} alt={`Versão ${idx + 1}`} loading="lazy" decoding="async" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", display: "block" }} />
-                            : <span style={{ fontSize: FS.small, color: T.second }}>Sem prévia</span>}
+                            ? <img key={versao.thumbUrl} className="ver-img-entra" src={versao.thumbUrl} alt={`Versão ${idx + 1}`} loading="lazy" decoding="async" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", display: "block", boxShadow: SHADOW.sm }} />
+                            : <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: FS.meta, color: T.second }}><ImageOff aria-hidden="true" style={{ width: 14, height: 14 }} /> Sem prévia</span>}
                         </div>
-                        <p style={{ margin: 0, padding: "7px 10px", fontSize: FS.small, color: T.apoio, borderTop: `1px solid ${T.low}`, backgroundColor: T.surface }}>
+                        {/* Quem aprovou ESTA versão — em verde quando alguém aprovou:
+                            é a linha que responde à pergunta do comparador. */}
+                        <p style={{ margin: 0, padding: "8px 10px", display: "flex", alignItems: "center", gap: 6, fontSize: FS.meta, fontWeight: quemAprovou(idx).endsWith("aprovou esta") ? FW.medio : FW.corpo, color: quemAprovou(idx).endsWith("aprovou esta") ? TOM.sucesso.text : T.second, borderTop: `1px solid ${T.border}`, backgroundColor: T.surface }}>
+                          {quemAprovou(idx).endsWith("aprovou esta") && <Check aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0 }} />}
                           {quemAprovou(idx)}
                         </p>
                       </div>
@@ -961,11 +1093,16 @@ function Comparador({ peca, onClose, isMobile }: { peca: Peca | null; onClose: (
                   })}
                 </div>
               ) : (
-                <div style={{ position: "relative", backgroundColor: T.bg, border: `1px solid ${T.border}`, borderRadius: R.lg, height: isMobile ? 260 : 420, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                <div style={{ position: "relative", backgroundColor: T.low, border: `1px solid ${T.border}`, borderRadius: R.lg, height: isMobile ? 280 : 420, padding: isMobile ? 10 : "14px 60px", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                   {v && isWebUrl(v.thumbUrl)
-                    ? <img key={v.thumbUrl} src={v.thumbUrl} alt={`Versão ${indice + 1} de ${peca?.displayId}`} data-testid="img-comparador" loading="lazy" decoding="async"
-                        style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", display: "block" }} />
-                    : <span style={{ fontSize: FS.body, color: T.second }}>Sem prévia para esta versão</span>}
+                    ? <img key={v.thumbUrl} className="ver-img-entra" src={v.thumbUrl} alt={`Versão ${indice + 1} de ${peca?.displayId}`} data-testid="img-comparador" loading="lazy" decoding="async"
+                        style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", display: "block", boxShadow: SHADOW.md }} />
+                    : <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: FS.body, color: T.second }}><ImageOff aria-hidden="true" style={{ width: 16, height: 16 }} /> Sem prévia para esta versão</span>}
+                  {/* Qual versão está no palco, sobre a própria imagem — o olho
+                      não precisa descer até os chips para saber. */}
+                  <span aria-hidden="true" style={{ position: "absolute", top: 10, left: 10, display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 9px", borderRadius: R.pill, backgroundColor: indice === iAtual ? T.accentText : T.dark, color: T.surface, fontSize: FS.meta, fontWeight: FW.forte, boxShadow: SHADOW.sm }}>
+                    v{indice + 1}{indice === iAtual ? " · atual" : ` de ${total}`}
+                  </span>
                   {total > 1 && (
                     <>
                       <button type="button" onClick={anterior} aria-label="Versão anterior" data-testid="button-comparador-anterior" style={setaComparador("left", isMobile)}>
@@ -979,7 +1116,7 @@ function Comparador({ peca, onClose, isMobile }: { peca: Peca | null; onClose: (
                 </div>
               )}
 
-              <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
                 {versoes.map((x, i) => {
                   const ativo = i === (ladoALado ? iEsquerda : indice);
                   return (
@@ -989,21 +1126,31 @@ function Comparador({ peca, onClose, isMobile }: { peca: Peca | null; onClose: (
                     </Botao>
                   );
                 })}
+                {/* O atalho dito, não só existente: ← → já andavam, e nada contava. */}
+                {!isMobile && total > 1 && (
+                  <span style={{ marginLeft: "auto", fontSize: FS.small, color: T.second }}>
+                    <kbd className="ver-tecla">←</kbd> <kbd className="ver-tecla">→</kbd> alternam as versões
+                  </span>
+                )}
               </div>
             </div>
 
-            <aside style={{ width: isMobile ? "100%" : 260, flexShrink: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+            {/* A coluna lateral: a ficha da versão no palco e quem decidiu
+                nela. No desktop, separada do palco por um fio, como um painel
+                de detalhes; no celular, vem embaixo. */}
+            <aside style={{ width: isMobile ? "100%" : 260, flexShrink: 0, display: "flex", flexDirection: "column", gap: 16, paddingLeft: isMobile ? 0 : 16, borderLeft: isMobile ? "none" : `1px solid ${T.border}` }}>
               <div>
                 <p style={{ margin: 0, fontSize: FS.micro, fontWeight: FW.forte, textTransform: "uppercase", letterSpacing: "0.06em", color: T.second }}>
                   {ladoALado ? "Painel da esquerda" : "Esta versão"}
                 </p>
-                <p style={{ margin: "4px 0 0", fontSize: FS.body, fontWeight: FW.forte, color: T.text }}>v{(ladoALado ? iEsquerda : indice) + 1} de {total}</p>
-                <p style={{ margin: "2px 0 0", ...numero, fontSize: FS.small, color: T.second }}>{fmtData(v?.em ?? null)}</p>
-                <p style={{ margin: "2px 0 0", fontSize: FS.small, color: T.second }}>
+                <p style={{ margin: "5px 0 0", fontFamily: FONT.display, fontSize: FS.title, fontWeight: FW.rotulo, color: T.text, letterSpacing: "-0.01em" }}>v{(ladoALado ? iEsquerda : indice) + 1} <span style={{ fontSize: FS.body, fontWeight: FW.medio, color: T.second }}>de {total}</span></p>
+                <p style={{ margin: "3px 0 0", ...numero, fontSize: FS.meta, color: T.apoio }}>{fmtData(v?.em ?? null)}</p>
+                <p style={{ margin: "2px 0 0", fontSize: FS.meta, color: T.second, lineHeight: 1.45 }}>
                   {v ? ORIGEM_LABEL[v.origem] : ""}{v?.por ? ` · ${v.por}` : ""}
                 </p>
                 {v?.inferida && (
-                  <p style={{ margin: "6px 0 0", fontSize: FS.small, color: TOM.alerta.text, backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: R.sm, padding: "5px 8px", lineHeight: 1.4 }}>
+                  <p style={{ margin: "8px 0 0", display: "flex", gap: 6, alignItems: "flex-start", fontSize: FS.meta, color: TOM.alerta.text, backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: R.sm, padding: "6px 8px", lineHeight: 1.4 }}>
+                    <AlertTriangle aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0, marginTop: 1 }} />
                     Reconstruída da trilha — esta versão não foi gravada como versão na época.
                   </p>
                 )}
@@ -1011,25 +1158,33 @@ function Comparador({ peca, onClose, isMobile }: { peca: Peca | null; onClose: (
               <div>
                 <p style={{ margin: 0, fontSize: FS.micro, fontWeight: FW.forte, textTransform: "uppercase", letterSpacing: "0.06em", color: T.second }}>Quem decidiu nela</p>
                 {decisoesDaVersao.length === 0 ? (
-                  <p style={{ margin: "4px 0 0", fontSize: FS.small, color: T.second }}>Nenhuma decisão registrada nesta versão.</p>
+                  <p style={{ margin: "5px 0 0", fontSize: FS.meta, color: T.second, lineHeight: 1.45 }}>Nenhuma decisão registrada nesta versão.</p>
                 ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 6 }}>
+                  // Nome em cima, decisão embaixo: lado a lado, numa coluna de
+                  // 260px, o nome quebrava em duas linhas e a data em outras
+                  // duas, desalinhados entre si.
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
                     {decisoesDaVersao.map(d => (
-                      <span key={d.sponsorId} data-testid={`comparador-decisao-${d.sponsorId}`} style={{ fontSize: FS.small, color: T.text, display: "flex", alignItems: "center", gap: 6 }}>
-                        <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: d.cor ?? T.muted }} />
-                        <strong>{d.nome}</strong>
-                        {d.status === "approved" ? "aprovou" : "reprovou"} em {fmtData(d.decididoEm)}
+                      <span key={d.sponsorId} data-testid={`comparador-decisao-${d.sponsorId}`} style={{ fontSize: FS.meta, color: T.text, display: "flex", alignItems: "flex-start", gap: 8 }}>
+                        <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: d.cor ?? T.muted, flexShrink: 0, marginTop: 5 }} />
+                        <span style={{ minWidth: 0 }}>
+                          <strong style={{ display: "block", fontSize: FS.body }}>{d.nome}</strong>
+                          <span style={{ color: d.status === "approved" ? TOM.sucesso.text : TOM.perigo.text, fontWeight: FW.medio }}>
+                            {d.status === "approved" ? "aprovou" : "reprovou"} em <span style={numero}>{fmtData(d.decididoEm)}</span>
+                          </span>
+                        </span>
                       </span>
                     ))}
                   </div>
                 )}
               </div>
               {v && isWebUrl(v.thumbUrl) && (
-                <a href={v.thumbUrl} target="_blank" rel="noopener noreferrer" data-testid="link-abrir-versao"
-                  className="vs-hover"
-                  style={{ marginTop: "auto", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, height: isMobile ? 44 : 38, borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.surface, color: T.text, textDecoration: "none", fontSize: FS.small, fontWeight: FW.forte }}>
-                  <ExternalLink aria-hidden="true" style={{ width: 13, height: 13 }} /> Abrir em tamanho real
-                </a>
+                <BotaoLink externo href={v.thumbUrl} target="_blank" rel="noopener noreferrer" data-testid="link-abrir-versao"
+                  icone={ExternalLink} tamanho={isMobile ? "toque" : "md"} larguraCheia
+                  title="Abrir a arte desta versão numa aba nova, no tamanho original"
+                  style={{ marginTop: "auto" }}>
+                  Abrir em tamanho real
+                </BotaoLink>
               )}
             </aside>
           </div>
@@ -1064,7 +1219,7 @@ function AbaBooks({ eventos, apertado, toque, alturaControle, podeAvisar, podeRe
         <section key={ev.eventId} data-testid={`books-evento-${ev.eventId}`}
           style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, boxShadow: SHADOW.sm, overflow: "hidden" }}>
           <div style={{ padding: apertado ? "12px" : "12px 18px", borderBottom: `1px solid ${T.low}`, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <Link href={`/eventos/${ev.eventId}`} className="vs-sublinha" style={{ fontFamily: FONT.display, fontSize: FS.strong, fontWeight: FW.forte, color: T.text, textDecoration: "none" }}>{ev.eventName}</Link>
+            <Link href={`/eventos/${ev.eventId}`} className="ver-sublinha" style={{ fontFamily: FONT.display, fontSize: FS.strong, fontWeight: FW.forte, color: T.text, textDecoration: "none" }}>{ev.eventName}</Link>
             <span style={{ fontSize: FS.small, color: T.second }}>{ev.books.length} {ev.books.length === 1 ? "publicação" : "publicações"}</span>
           </div>
           <div>
@@ -1137,14 +1292,16 @@ function LinhaDoBook({ b, ev, i, total, apertado, toque, alturaControle, podeAvi
   return (
     <div data-testid={`book-${ev.eventId}-${i}`}
       style={{ borderBottom: i < total - 1 ? `1px solid ${T.low}` : "none" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: apertado ? 10 : 12, padding: apertado ? "10px 12px" : "10px 18px", flexWrap: "wrap" }}>
-        <span aria-hidden="true" style={{ width: 30, height: 30, borderRadius: R.md, backgroundColor: TOM.roxo.bg, color: TOM.roxo.text, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: apertado ? 10 : 14, padding: apertado ? "12px" : "14px 18px", flexWrap: "wrap" }}>
+        {/* O book atual em roxo cheio; as publicações anteriores em cinza —
+            a hierarquia "este é o que vale" lida antes do texto. */}
+        <span aria-hidden="true" style={{ width: 32, height: 32, borderRadius: R.md, backgroundColor: i === 0 ? TOM.roxo.bg : T.low, color: i === 0 ? TOM.roxo.text : T.second, border: `1px solid ${i === 0 ? TOM.roxo.border : T.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <FileText aria-hidden="true" style={{ width: 15, height: 15 }} />
         </span>
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <p style={{ margin: 0, fontSize: FS.body, fontWeight: FW.forte, color: T.text, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+          <p style={{ margin: 0, fontSize: FS.body, fontWeight: FW.forte, color: i === 0 ? T.text : T.strong, display: "flex", alignItems: "center", columnGap: 8, rowGap: 4, flexWrap: "wrap", minHeight: 22 }}>
             {i === 0 ? "Book atual" : "Publicação anterior"}
-            <span style={{ fontWeight: FW.corpo, color: T.second }}>{b.itemCount} {b.itemCount === 1 ? "peça" : "peças"}</span>
+            <span style={{ fontWeight: FW.corpo, color: T.second }}>· {b.itemCount} {b.itemCount === 1 ? "peça" : "peças"}</span>
 
             {desatualizado ? (
               // O selo é BOTÃO: o número sozinho não dizia o que fazer.
@@ -1152,16 +1309,17 @@ function LinhaDoBook({ b, ev, i, total, apertado, toque, alturaControle, podeAvi
                 data-testid={`selo-book-desatualizado-${ev.eventId}-${i}`}
                 aria-expanded={aberto}
                 title="Ver quais peças deste book ganharam arte nova depois da publicação"
-                style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: FS.small, fontWeight: FW.medio, color: TOM.alerta.text, backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: R.sm, padding: "2px 8px", cursor: "pointer", fontFamily: "inherit", textAlign: "left", minHeight: toque ? 44 : undefined }}>
+                className="ver-selo-botao"
+                style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: FS.small, fontWeight: FW.forte, color: TOM.alerta.text, backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: R.sm, padding: "2px 8px", cursor: "pointer", fontFamily: "inherit", textAlign: "left", minHeight: toque ? 44 : 22 }}>
                 desatualizado · {b.pecasMudaramDepois} de {b.itemCount} {b.pecasMudaramDepois === 1 ? "peça mudou" : "peças mudaram"}
-                <ChevronRight aria-hidden="true" style={{ width: 11, height: 11, transform: aberto ? "rotate(90deg)" : "none", transition: "transform 0.15s" }} />
+                <ChevronRight aria-hidden="true" style={{ width: 12, height: 12, transform: aberto ? "rotate(90deg)" : "none", transition: `transform ${MOTION.media} ${MOTION.saida}` }} />
               </button>
             ) : b.membrosConhecidos && b.em && i === 0 ? (
               <Selo testId={`selo-book-em-dia-${ev.eventId}`} cor={TOM.sucesso.text} fundo={TOM.sucesso.bg} borda={TOM.sucesso.border}
                 titulo="Nenhuma peça deste book ganhou arte nova depois da publicação">em dia</Selo>
             ) : null}
           </p>
-          <p style={{ margin: "2px 0 0", fontSize: FS.small, color: T.second }}>
+          <p style={{ margin: "3px 0 0", fontSize: FS.meta, color: T.second, lineHeight: 1.45 }}>
             {b.em ? <>publicado em <span style={numero}>{fmtData(b.em)}</span>{b.por ? ` por ${b.por}` : ""}</>
               : "publicado antes de o registro de books existir — data não gravada"}
             {/* Publicação já substituída não recebe selo de estado NENHUM: a
@@ -1170,13 +1328,22 @@ function LinhaDoBook({ b, ev, i, total, apertado, toque, alturaControle, podeAvi
                 a lista. Dizer "em dia" seria afirmar sem base, e um selo
                 enigmático é pior que o silêncio — o motivo fica aqui, em
                 português, para quem for atrás. */}
-            {b.comentario && (
-              <span style={{ display: 'block', marginTop: 2, fontStyle: 'italic', color: T.apoio }}>“{b.comentario}”</span>
-            )}
             {!b.membrosConhecidos && (
-              <span style={{ color: T.second }}> · esta publicação foi substituída; o sistema guardou quantas peças ela tinha, não quais</span>
+              <span style={{ display: "block", color: T.second }}>esta publicação foi substituída; o sistema guardou quantas peças ela tinha, não quais</span>
             )}
           </p>
+          {/* O COMENTÁRIO DA PUBLICAÇÃO é o que saiu no e-mail de quem recebe
+              o book — na republicação ele é obrigatório e diz O QUE MUDOU.
+              Ganha bloco de citação com rótulo, em vez de uma linha em itálico
+              perdida entre data e aviso. */}
+          {b.comentario && (
+            <figure style={{ margin: "7px 0 0", padding: "5px 0 5px 10px", borderLeft: `2px solid ${i === 0 ? TOM.roxo.border : T.border}` }}>
+              <figcaption style={{ fontSize: FS.small, fontWeight: FW.forte, color: T.second, margin: 0 }}>
+                {i < total - 1 ? "O que mudou nesta publicação" : "Comentário da publicação"}
+              </figcaption>
+              <blockquote style={{ margin: "1px 0 0", fontSize: FS.body, color: T.strong, lineHeight: 1.45 }}>{b.comentario}</blockquote>
+            </figure>
+          )}
           {/* O AVISO DEIXA DE SER CEGO (25/08): antes de reenviar, dá para
               saber se e quando o aviso saiu, e para quantas pessoas. O e-mail
               NÃO tem rastreio de abertura — o registro é do envio, nunca da
@@ -1188,7 +1355,7 @@ function LinhaDoBook({ b, ev, i, total, apertado, toque, alturaControle, podeAvi
                 : ev.aviso
                   ? "O último aviso na trilha é anterior a esta publicação — deste book, ninguém foi avisado ainda."
                   : "O book foi publicado e nenhum aviso por e-mail consta na trilha."}
-              style={{ margin: "3px 0 0", fontSize: FS.small, display: "flex", alignItems: "center", gap: 5, color: avisoDoAtual ? TOM.sucesso.text : TOM.alerta.text, fontWeight: avisoDoAtual ? FW.corpo : FW.forte }}>
+              style={{ margin: "6px 0 0", fontSize: FS.meta, display: "flex", alignItems: "center", gap: 6, color: avisoDoAtual ? TOM.sucesso.text : TOM.alerta.text, fontWeight: avisoDoAtual ? FW.corpo : FW.forte }}>
               <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: avisoDoAtual ? TOM.sucesso.text : TOM.alerta.dot, flexShrink: 0 }} />
               {avisoDoAtual
                 ? <>aviso enviado <span style={numero}>{fmtData(avisoDoAtual.em)}</span> para {avisoDoAtual.pessoas} {avisoDoAtual.pessoas === 1 ? "pessoa" : "pessoas"}</>
@@ -1197,18 +1364,23 @@ function LinhaDoBook({ b, ev, i, total, apertado, toque, alturaControle, podeAvi
           )}
         </div>
 
+        {/* As ações do book, juntas e do MESMO tamanho (o Baixar era um <a>
+            desenhado à mão, menor e de outra fonte que o Reenviar ao lado).
+            No celular descem alinhadas ao texto, não à borda. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginLeft: apertado ? 42 : 0, alignSelf: apertado ? undefined : "center" }}>
         {podeAvisar && i === 0 && <BotaoReenviarAviso eventId={ev.eventId} altura={alturaControle} />}
         {isWebUrl(b.bookUrl) ? (
-          <a href={b.bookUrl} download target="_blank" rel="noopener noreferrer" data-testid={`link-baixar-book-${ev.eventId}-${i}`}
-            className="vs-hover"
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, height: alturaControle, padding: "0 14px", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.surface, color: T.text, fontSize: FS.small, fontWeight: FW.forte, textDecoration: "none", whiteSpace: "nowrap" }}>
-            <Download aria-hidden="true" style={{ width: 13, height: 13 }} /> Baixar
-          </a>
+          <BotaoLink externo href={b.bookUrl} download target="_blank" rel="noopener noreferrer" data-testid={`link-baixar-book-${ev.eventId}-${i}`}
+            icone={Download} tamanho={alturaControle >= 44 ? "toque" : "md"}
+            title={i === 0 ? "Baixar o PDF do book atual" : "Baixar o PDF desta publicação anterior"}>
+            Baixar
+          </BotaoLink>
         ) : (
-          <span title={b.bookUrl} style={{ fontSize: FS.small, color: T.second, display: "inline-flex", alignItems: "center", gap: 5 }}>
+          <span title={b.bookUrl} style={{ fontSize: FS.meta, color: T.second, display: "inline-flex", alignItems: "center", gap: 5, minHeight: alturaControle }}>
             <HelpCircle aria-hidden="true" style={{ width: 13, height: 13 }} /> arquivo fora do app
           </span>
         )}
+        </div>
       </div>
 
       {/* ── A FAIXA DE RESOLUÇÃO do book atual (25/08). O selo diz "3 peças
@@ -1223,7 +1395,7 @@ function LinhaDoBook({ b, ev, i, total, apertado, toque, alturaControle, podeAvi
           // Recuo de 60px alinha a faixa ao texto da linha no desktop; no
           // celular o recuo comia um sexto da largura útil e a lista de fichas
           // virava uma coluna estreita.
-          style={{ margin: apertado ? "0 12px 12px" : "0 18px 12px 60px", display: "flex", flexWrap: apertado ? "wrap" : "nowrap", gap: 10, alignItems: "flex-start", backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderLeft: `3px solid ${TOM.alerta.dot}`, borderRadius: R.md, padding: "10px 12px" }}>
+          style={{ margin: apertado ? "0 12px 12px" : "0 18px 14px 64px", display: "flex", flexWrap: apertado ? "wrap" : "nowrap", gap: 10, alignItems: "flex-start", backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderLeft: `3px solid ${TOM.alerta.dot}`, borderRadius: R.md, padding: "10px 12px" }}>
           <MessageSquareWarning aria-hidden="true" style={{ width: 15, height: 15, color: TOM.alerta.dot, flexShrink: 0, marginTop: 1 }} />
           <div style={{ flex: apertado ? "1 1 calc(100% - 25px)" : 1, minWidth: 0 }}>
             <p style={{ margin: 0, fontSize: FS.body, fontWeight: FW.forte, color: TOM.alerta.text, lineHeight: 1.35 }}>
@@ -1247,27 +1419,28 @@ function LinhaDoBook({ b, ev, i, total, apertado, toque, alturaControle, podeAvi
             </div>
           </div>
           {podeRepublicar && (
-            <Link href={`/eventos/${ev.eventId}/gerar-book`}
+            <BotaoLink href={`/eventos/${ev.eventId}/gerar-book`}
               data-testid={`button-republicar-book-${ev.eventId}`}
               title="Abrir o gerador de book: monta um PDF novo com a arte atual das peças e publica — o aviso aos responsáveis sai na publicação"
-              style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 6, height: toque ? 44 : 32, marginLeft: apertado ? 25 : 0, padding: "0 14px", borderRadius: R.md, border: "none", backgroundColor: T.accentText, color: T.surface, fontSize: FS.small, fontWeight: FW.forte, textDecoration: "none", whiteSpace: "nowrap" }}>
-              <FileText aria-hidden="true" style={{ width: 13, height: 13 }} /> Republicar book
-            </Link>
+              variante="primario" icone={FileText} tamanho={toque ? "toque" : "md"}
+              style={{ flexShrink: 0, marginLeft: apertado ? 25 : 0, whiteSpace: "nowrap" }}>
+              Republicar book
+            </BotaoLink>
           )}
         </div>
       )}
 
       {/* QUAIS. Cada peça com a data em que a arte mudou, e o caminho para ela. */}
       {aberto && desatualizado && (
-        <div data-testid={`lista-mudaram-${ev.eventId}-${i}`}
-          style={{ padding: apertado ? "0 12px 12px" : "0 18px 12px 60px", display: "flex", flexDirection: "column", gap: 4 }}>
+        <div data-testid={`lista-mudaram-${ev.eventId}-${i}`} className="ver-surge"
+          style={{ padding: apertado ? "0 12px 12px" : "0 18px 14px 64px", display: "flex", flexDirection: "column", gap: 4 }}>
           {b.pecasMudaram.map(pm => {
             const gv = GRAVIDADE_VISUAL[gravidadeDe(pm.status)];
             return (
               <Link key={pm.id} href={`/eventos/${pm.eventId}?item=${pm.id}`}
                 data-testid={`link-mudou-${pm.id}`}
                 title={`${pm.displayId} · ${pm.type}${pm.description ? ` — ${pm.description}` : ""}`}
-                className="vs-hover"
+                className="ver-hover"
                 style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: FS.small, color: T.text, textDecoration: "none", padding: "4px 0", minHeight: toque ? 44 : undefined, borderBottom: `1px solid ${T.low}` }}>
                 <span style={{ ...numero, fontWeight: FW.forte, color: T.accentText, flexShrink: 0 }}>{pm.displayId}</span>
                 <span style={{ fontWeight: FW.forte, flexShrink: 0 }}>{pm.type}</span>

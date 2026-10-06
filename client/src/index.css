@@ -1454,3 +1454,66 @@ a.ds-botao[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; filter: no
   .ped-surge { animation: ped-surge var(--dur-media) var(--ease-saida) backwards; }
 }
 @keyframes ped-surge { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+/* ── VERSÕES APROVADAS (prefixo ver-): hover, foco, alvo de toque e entrada
+   que o estilo inline não alcança. Os fundos vêm inline, e inline vence
+   classe — daí o !important. Movimento só sem prefers-reduced-motion. ───── */
+.ver-hover { transition: background-color var(--dur-rapida) ease, border-color var(--dur-rapida) ease; }
+@media (hover: hover) { .ver-hover:hover:not(:disabled) { background-color: var(--realce) !important; } }
+.ver-sublinha { text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; transition: text-decoration-color var(--dur-rapida) ease; }
+.ver-sublinha:hover { text-decoration-color: currentColor; }
+/* Os quatro números: a borda escurece sob o ponteiro (são filtros). */
+.ver-kpi { transition: border-color var(--dur-rapida) ease, background-color var(--dur-rapida) ease; }
+@media (hover: hover) { .ver-kpi:hover:not([aria-pressed="true"]) { border-color: var(--n5) !important; background-color: var(--n1) !important; } }
+.ver-kpi:active { border-color: var(--n6) !important; }
+/* Miniatura de versão: o anel diz "abre o comparador". */
+.ver-miniatura { transition: border-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease; }
+@media (hover: hover) { .ver-miniatura:hover { border-color: var(--n6) !important; box-shadow: 0 4px 12px -4px rgba(28,25,23,0.22) !important; } }
+.ver-comparar { transition: border-color var(--dur-rapida) ease, background-color var(--dur-rapida) ease; }
+@media (hover: hover) { .ver-comparar:hover { border-color: var(--orange-border) !important; border-style: solid !important; background-color: var(--orange-soft) !important; } }
+.ver-regua { scrollbar-width: thin; }
+/* Busca: a mesma família de foco da casa. */
+.ver-busca { transition: border-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease; }
+.ver-busca:hover:not(:focus) { border-color: var(--n5) !important; }
+.ver-busca::placeholder { color: var(--n7); }
+.ver-limpar-busca { transition: background-color var(--dur-rapida) ease, color var(--dur-rapida) ease; }
+.ver-limpar-busca:hover { background-color: var(--realce) !important; color: var(--n10) !important; }
+/* Alvo de 44px no toque sem esticar a linha: área invisível em volta. */
+@media (pointer: coarse) {
+  .ver-link-books, .ver-alvo { position: relative; }
+  .ver-link-books::after { content: ""; position: absolute; inset: -12px -8px; }
+  .ver-alvo::after { content: ""; position: absolute; inset: -8px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ver-surge { animation: ver-surge var(--dur-media) var(--ease-saida) backwards; }
+  .ver-img-entra { animation: ver-img-entra var(--dur-media) var(--ease-saida) backwards; }
+}
+@keyframes ver-surge { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes ver-img-entra { from { opacity: 0; } to { opacity: 1; } }
+/* Tecla dita na tela (← →): uma tampa de tecla discreta, não texto em negrito. */
+.ver-tecla { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 5px; border: 1px solid var(--n4); border-bottom-width: 2px; border-radius: 5px; background: var(--n0); color: var(--n9); font: 600 11px/1 Inter, system-ui, sans-serif; }
+/* O selo "desatualizado" que abre a lista: escurece um degrau sob o ponteiro. */
+.ver-selo-botao { transition: filter var(--dur-rapida) ease; }
+@media (hover: hover) { .ver-selo-botao:hover { filter: brightness(0.96); } }
+.ver-selo-botao:active { filter: brightness(0.92); }
+
+/* ── REGISTROS (prefixo reg-): o que o estilo inline não alcança. O bloco
+   inline da própria tela (cartão, content-visibility) continua lá. ──────── */
+/* Os três números-filtro: a borda escurece sob o ponteiro. */
+.reg-stat { transition: border-color var(--dur-rapida) ease, background-color var(--dur-rapida) ease; }
+@media (hover: hover) { .reg-stat:hover:not([aria-pressed="true"]) { border-color: var(--n5) !important; background-color: var(--n1) !important; } }
+.reg-stat:active { border-color: var(--n6) !important; }
+/* Busca: a mesma família de foco da casa. */
+.reg-busca { transition: border-color var(--dur-rapida) ease; }
+.reg-busca:hover:not(:focus) { border-color: var(--n5) !important; }
+.reg-busca::placeholder { color: var(--n7); }
+.reg-limpar-busca { transition: background-color var(--dur-rapida) ease, color var(--dur-rapida) ease; }
+.reg-limpar-busca:hover { background-color: var(--realce) !important; color: var(--n10) !important; }
+/* Setas do zoom: acendem sob o ponteiro. */
+.reg-seta { transition: background-color var(--dur-rapida) ease, border-color var(--dur-rapida) ease; }
+@media (hover: hover) { .reg-seta:hover { background-color: rgba(28,25,23,0.85) !important; border-color: rgba(255,255,255,0.4) !important; } }
+/* Foco visível sobre o fundo escuro do zoom: o anel laranja escuro some no grafite. */
+[role="dialog"] .reg-hover-escuro:focus-visible, [role="dialog"] .reg-seta:focus-visible { outline-color: var(--escuro-foco); }
+/* Baixar sobre a foto do cartão: escurece sob o ponteiro. */
+.reg-baixar-foto { transition: background-color var(--dur-rapida) ease; }
+@media (hover: hover) { .reg-baixar-foto:hover:not(:disabled) { background-color: rgba(28,25,23,0.88) !important; } }

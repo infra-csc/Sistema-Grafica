@@ -60,8 +60,8 @@ const inicioItems: MenuItem[] = [
   { title: "Painel Geral",            url: "/",                        icon: LayoutDashboard },
   { title: "Eventos",                 url: "/eventos",                 icon: CalendarRange },
   // Sem `roles`: a tela passa a aparecer para TODOS (decisão do dono, 17/08).
-  // Quem não é admin vê e não mexe — o registro de cobrança se desabilita
-  // sozinho (ver CobradoControl), e o POST /api/prazos/cobrancas segue admin.
+  // A tela só lê: o registro de cobrança, a única escrita que ela tinha, saiu
+  // do app em 06/10 (decisão do dono).
   { title: "Gestão de Prazos",        url: "/prazos",                  icon: Timer },
   { title: "Calendário",              url: "/calendario",              icon: Calendar },
 ];

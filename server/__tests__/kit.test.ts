@@ -178,7 +178,10 @@ describe("prazos pelas datas do Kit (fase 4)", () => {
     expect(ler("client/src/pages/arte.tsx")).toContain("const chave = item.kitRemessaId ? `${eventKey}#kit-${item.kitRemessaId}` : eventKey;");
     expect(fonteDaTela("atendimento")).toContain("isEventoAtrasadoNaAprovacao(item.kitRemessaId && item.event ? item.event : eventoPorId.get(item.eventId), hoje)");
     expect(ler("server/services/deadlineAlerts.ts")).toContain("const ancoraMs = new Date(ancoraDoKit(remessa)).getTime();");
-    expect(ler("client/src/components/prazos/event-drilldown.tsx")).toContain("targetId={ev.eventId ?? ev.id}");
+    // O drill aponta para o evento REAL, não para a linha do Kit ("e1#kit-r1").
+    // Era conferido pelo alvo da cobrança, que saiu em 06/10; o link do evento
+    // é o que sobrou com o mesmo risco.
+    expect(ler("client/src/components/prazos/event-drilldown.tsx")).toContain("href={`/eventos/${ev.eventId ?? ev.id}`}");
   });
 });
 

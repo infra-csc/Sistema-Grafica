@@ -18,8 +18,7 @@ import { useDensidadeDoConteudo } from "@/hooks/use-mobile";
 import { Botao } from "@/components/ui/botao";
 import { Selo } from "@/components/ui/selo";
 import { FONT, FS, FW } from "@/lib/theme";
-import type { CobrancaEntry, CobrancaMap, SponsorDelay } from "@shared/prazos-contract";
-import { CobradoControl, CobrancaLinha } from "./cobrado-control";
+import type { SponsorDelay } from "@shared/prazos-contract";
 import { dayColor, diasTexto, fmtDayMonth, pecasTexto, DRILL_TH, R, TI, urlPecaNoEvento } from "./tokens";
 // O agregado (e o tipo dele) moram em `gargalos.ts` — função pura testada em
 // server/__tests__/prazo-gargalos.test.ts; a página calcula, este bloco pinta.
@@ -44,8 +43,6 @@ interface AnaliseBandProps {
   /** Quantos EVENTOS estão parados em cada etapa (conta do quadro). */
   eventosPorEtapa: Map<string, number>;
   proximosDias: { dia: string; total: number }[];
-  cobrancas: CobrancaMap;
-  today?: string;
   etapaFoco: string;
   onEtapaFoco: (key: string) => void;
   diaFoco: string;
@@ -57,7 +54,7 @@ interface AnaliseBandProps {
 // a cada render da página, inclusive a cada tecla da busca.
 export const AnaliseBand = memo(function AnaliseBand({
   totalEventos, setores, sponsorDelays, eventosPorEtapa, proximosDias,
-  cobrancas, today, etapaFoco, onEtapaFoco, diaFoco, onDiaFoco,
+  etapaFoco, onEtapaFoco, diaFoco, onDiaFoco,
 }: AnaliseBandProps) {
   // Régua pela ÁREA ÚTIL (use-mobile.tsx), não pela janela: com a barra
   // lateral aberta um notebook de 1280 deixa ~1000px, e as duas colunas
@@ -86,7 +83,7 @@ export const AnaliseBand = memo(function AnaliseBand({
   /** Altura de alvo de toque dos controles inline deste bloco. */
   const alturaToggle = isMobile ? 44 : 36;
   /**
-   * No celular a coluna "Cobrar →" SAI da linha e o link desce para dentro da
+   * No celular a coluna "Atendimento →" SAI da linha e o link desce para dentro da
    * célula do nome. Com quatro colunas em 351px sobravam 74px para o nome do
    * patrocinador — "Crystal Á…" — e o nome é justamente o dado que a tabela
    * existe para entregar: é para ele que o diretor liga. Sem a quarta coluna
@@ -94,7 +91,6 @@ export const AnaliseBand = memo(function AnaliseBand({
    * barato. Perder coluna, nunca rolar de lado.
    */
   const acaoNaLinha = !isMobile;
-  const cobrancaSponsor = (id: string): CobrancaEntry | undefined => cobrancas[`sponsor:${id}`];
 
   return (
     <section ref={faixaRef} aria-label="Análise por setor e patrocinador" style={{ marginTop: 22 }}>
@@ -310,7 +306,6 @@ export const AnaliseBand = memo(function AnaliseBand({
                   <tbody>
                     {(verTodosSponsors ? sponsorDelays : sponsorDelays.slice(0, 5)).map((sp) => {
                       const expandido = sponsorExpandido === sp.sponsorId;
-                      const cobranca = cobrancaSponsor(sp.sponsorId);
                       // Um só link, duas casas: coluna própria no desktop,
                       // dentro da célula do nome no celular. Duplicar a marcação
                       // seria duplicar `aria-label` e alvo de toque.
@@ -320,7 +315,7 @@ export const AnaliseBand = memo(function AnaliseBand({
                           // Navegação para a fila do Atendimento já filtrada
                           // pelo patrocinador. O rótulo diz ONDE leva, não
                           // uma ação sobre o patrocinador (decisão do dono:
-                          // sem "Cobrar" patrocinador no app).
+                          // nada de cobrança no app — 24/08 e, de vez, 06/10).
                           aria-label={`Ver as peças de ${sp.name} no Atendimento`}
                           title={`Abrir o Atendimento já filtrado por ${sp.name}`}
                           // Mesmo alvo de toque do toggle ao lado: era um
@@ -388,11 +383,6 @@ export const AnaliseBand = memo(function AnaliseBand({
                                     a uma pessoa que o diretor liga. */}
                                 {sp.executivoConta && ` · conta: ${sp.executivoConta}`}
                               </span>
-                              {cobranca && (
-                                <span style={{ display: "block", marginLeft: 19 }}>
-                                  <CobrancaLinha cobranca={cobranca} fontSize={10} />
-                                </span>
-                              )}
                               {!acaoNaLinha && (
                                 <span style={{ display: "block", marginLeft: 19 }}>{linkAtendimento}</span>
                               )}
@@ -423,22 +413,12 @@ export const AnaliseBand = memo(function AnaliseBand({
                                   maior que a tabela empurra a largura para
                                   fora — a rolagem lateral pela porta dos
                                   fundos. */}
-                              <td id={`sp-drill-${sp.sponsorId}`} colSpan={acaoNaLinha ? 4 : 3} style={{ padding: "6px 14px 12px" }}>
-                                <div className="gp-no-print" style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}>
-                                  <CobradoControl
-                                    targetType="sponsor"
-                                    targetId={sp.sponsorId}
-                                    cobranca={cobranca}
-                                    today={today}
-                                    variant="secondary"
-                                    showForm
-                                    showHistorico
-                                    // A linha do patrocinador, logo acima, já
-                                    // mostra a última cobrança: repetir aqui
-                                    // era a mesma frase duas vezes.
-                                    semStatus
-                                  />
-                                </div>
+                              {/* Só as peças (06/10): o controle "Marcar como
+                                  cobrado" que abria esta linha saiu com toda
+                                  a cobrança do app. O respiro de cima é o
+                                  mesmo dos lados, para os chips não colarem
+                                  na linha do patrocinador. */}
+                              <td id={`sp-drill-${sp.sponsorId}`} colSpan={acaoNaLinha ? 4 : 3} style={{ padding: "10px 14px 12px" }}>
                                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                                   {(sp.items ?? []).map((it) => (
                                     <Link

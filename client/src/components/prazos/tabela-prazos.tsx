@@ -10,7 +10,7 @@
 import { Fragment, memo } from "react";
 import { ChevronDown } from "lucide-react";
 import { Link } from "wouter";
-import type { CobrancaEntry, PrazoEvent } from "@shared/prazos-contract";
+import type { PrazoEvent } from "@shared/prazos-contract";
 import { Botao } from "@/components/ui/botao";
 import { Selo } from "@/components/ui/selo";
 import { FONT } from "@/lib/theme";
@@ -31,9 +31,6 @@ interface TabelaPrazosProps {
   onToggleExpand: (id: string | null) => void;
   /** Em impressão todos os atrasados abrem — a pauta é a lista de peças. */
   printMode: boolean;
-  /** Registro de cobrança por evento (a página resolve a chave do mapa). */
-  cobrancaDe: (id: string) => CobrancaEntry | undefined;
-  today?: string;
   /**
    * Área útil entre 820 e 1180px (ver a régua em use-mobile.tsx): "Saída"
    * funde-se à coluna do evento e a tabela perde ~150px de mínimo, em vez de
@@ -45,7 +42,7 @@ interface TabelaPrazosProps {
 }
 
 export function TabelaPrazos({
-  eventos, stageMeta, expandedId, onToggleExpand, printMode, cobrancaDe, today,
+  eventos, stageMeta, expandedId, onToggleExpand, printMode,
   compacto = false, alvoBotao = 36,
 }: TabelaPrazosProps) {
   return (
@@ -96,8 +93,6 @@ export function TabelaPrazos({
               // justamente a lista de peças, e ela vivia só no expandido.
               expanded={expandedId === ev.id || (printMode && eventHasOverdue(ev))}
               colSpan={stageMeta.length + (compacto ? 3 : 4)}
-              cobranca={cobrancaDe(ev.eventId ?? ev.id)}
-              today={today}
               onToggleExpand={onToggleExpand}
               compacto={compacto}
               alvoBotao={alvoBotao}
@@ -116,19 +111,17 @@ export function TabelaPrazos({
  * revalidação de 60s, a mensagem do WebSocket, o tique de 1 min do selo "há X
  * min", abrir o modal — e sem ele as ~70 linhas, com seis células de semáforo
  * cada, se refaziam inteiras para produzir exatamente o mesmo DOM. Todas as
- * props são estáveis quando o dado não muda: `ev` e `cobranca` preservam a
+ * props são estáveis quando o dado não muda: `ev` preserva a
  * identidade pelo structural sharing do React Query, `expanded` é booleano e
  * `onToggleExpand` é o setter de estado da página.
  */
 const LinhaEvento = memo(function LinhaEvento({
-  ev, expanded, colSpan, cobranca, today, onToggleExpand, compacto, alvoBotao,
+  ev, expanded, colSpan, onToggleExpand, compacto, alvoBotao,
 }: {
   ev: PrazoEvent;
   expanded: boolean;
   /** nome + saída + etapas + entregues + ação. */
   colSpan: number;
-  cobranca?: CobrancaEntry;
-  today?: string;
   onToggleExpand: (id: string | null) => void;
   compacto: boolean;
   alvoBotao: number;
@@ -265,7 +258,7 @@ const LinhaEvento = memo(function LinhaEvento({
           {/* colSpan derivado: era o último espelho local do
               número de etapas (nome + saída + etapas + entregues + ação). */}
           <td id={`drill-${ev.id}`} colSpan={colSpan} style={{ padding: "4px 18px 12px" }}>
-            <EventDrilldown ev={ev} cobranca={cobranca} today={today} />
+            <EventDrilldown ev={ev} />
           </td>
         </tr>
       )}

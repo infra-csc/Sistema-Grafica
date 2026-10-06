@@ -465,7 +465,9 @@ export function naturezaDaAcao(l: { action: string; entityType: string; details:
   const d = l.details ?? "";
   const a = l.action;
 
-  // Registro na Gestão de Prazos (o alvo é evento ou patrocinador).
+  // Registro na Gestão de Prazos (o alvo é evento ou patrocinador). A ação
+  // saiu do app em 06/10 (decisão do dono), mas as linhas antigas continuam no
+  // audit log e precisam seguir classificadas — sem isto mudariam de natureza.
   if (a === "cobranca_registrada") return "prazos";
 
   switch (l.entityType) {

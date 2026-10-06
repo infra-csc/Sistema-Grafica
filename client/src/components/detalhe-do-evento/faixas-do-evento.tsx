@@ -42,8 +42,8 @@ export function FaixasDoEvento({ isEventClosed, motivoEventoFim, closureLog, ope
             </p>
             <p style={{ margin: '4px 0 0 0', fontSize: 13, color: T.apoio, lineHeight: 1.6 }}>
               {openWork.abertas > 0
-                ? `${openWork.abertas} ${openWork.abertas === 1 ? 'peça continua' : 'peças continuam'} em aberto${openWork.emProducao > 0 ? ` (${openWork.emProducao} em produção)` : ''} e ${openWork.abertas === 1 ? 'segue listada' : 'seguem listadas'} abaixo — mas o evento não é mais cobrado na Gestão de Prazos nem aparece nas filas de trabalho.`
-                : 'Não é mais cobrado na Gestão de Prazos nem aparece nas filas de trabalho.'}
+                ? `${openWork.abertas} ${openWork.abertas === 1 ? 'peça continua' : 'peças continuam'} em aberto${openWork.emProducao > 0 ? ` (${openWork.emProducao} em produção)` : ''} e ${openWork.abertas === 1 ? 'segue listada' : 'seguem listadas'} abaixo — mas o evento não conta mais na Gestão de Prazos nem aparece nas filas de trabalho.`
+                : 'Não conta mais na Gestão de Prazos nem aparece nas filas de trabalho.'}
             </p>
           </div>
           {/* A faixa dizia 'Use "Reabrir Evento"' e o botão morava longe, no

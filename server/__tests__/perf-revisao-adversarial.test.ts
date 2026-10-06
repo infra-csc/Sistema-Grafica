@@ -80,7 +80,7 @@ describe("as demais correções (trechos que sustentam a regra)", () => {
     expect(recorte.slice(recorte.indexOf("export function calcularRecorte("))).not.toContain("seloDosEventosVivos.set(");
   });
 
-  it("Gestão de Prazos: \"+N abaixo\" recalcula quando o card muda de altura (cobrança/realce)", () => {
+  it("Gestão de Prazos: \"+N abaixo\" recalcula quando o card muda de altura (realce)", () => {
     expect(ler("client/src/components/prazos/quadro-coluna.tsx"))
       .toContain("useLayoutEffect(() => { recalcular(); }, [eventos, renderCard, recalcular]);");
   });

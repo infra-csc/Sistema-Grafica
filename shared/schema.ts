@@ -671,8 +671,12 @@ export const catalogOptions = pgTable("catalog_options", {
 });
 
 // Gestão de Prazos: registro leve de cobranças (quem cobrou o quê, quando).
-// Fecha o loop cobrança→resultado: o drill mostra "cobrado ontem por Fulano"
-// e alerta quando a pendência segue parada dias depois da cobrança.
+//
+// SEM USO DESDE 06/10 — o dono mandou tirar do app tudo de cobrança ("Sim —
+// tudo de cobrança pode tirar"): a rota, o controle e a leitura saíram. A
+// tabela CONTINUA declarada aqui de propósito: tirá-la do schema faria o
+// próximo `db:push` propor um DROP (migração destrutiva, com o histórico
+// gravado junto). Apagar de vez é decisão à parte, com backup.
 export const prazoCobrancas = pgTable("prazo_cobrancas", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   targetType: text("target_type").notNull(), // "event" | "sponsor"

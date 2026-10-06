@@ -23,6 +23,7 @@ import {
   todayBusinessMs,
   todayBusinessStr,
   businessDayStrToMs,
+  diaDoMarcoUTC,
 } from "@shared/prazo-dates";
 import type { EventoFinalizadoMotivo } from "@shared/prazo-dates";
 import { FUNIL_DE_PRAZOS, STATUS_ENTREGUES, STATUS_FORA_DO_FUNIL, statusDoFunil } from "@shared/fluxo-peca";
@@ -154,16 +155,12 @@ export function truckDayUTC(truckDepartureDate: Date | string): Date {
 }
 
 // Marco da etapa: saída + offset, com ajuste de fim de semana quando a
-// etapa não roda em todos os dias (mesma regra do event-detail).
+// etapa não roda em todos os dias (sábado → sexta, domingo → segunda).
+// A conta MUDOU DE CASA em 06/10 (para `diaDoMarcoUTC`, @shared/prazo-dates)
+// sem mudar de resultado: o Calendário passou a seguir a mesma regra (decisão
+// do dono) e precisava ler a MESMA função, não uma sétima cópia dela.
 export function stageDeadline(truckDay: Date, offsetDays: number, allDays: boolean): Date {
-  const d = new Date(truckDay);
-  d.setUTCDate(d.getUTCDate() + offsetDays);
-  if (!allDays) {
-    const dow = d.getUTCDay();
-    if (dow === 6) d.setUTCDate(d.getUTCDate() - 1); // sábado → sexta
-    if (dow === 0) d.setUTCDate(d.getUTCDate() + 1); // domingo → segunda
-  }
-  return d;
+  return diaDoMarcoUTC(truckDay, offsetDays, allDays);
 }
 
 // Dias-calendário (no fuso do negócio) desde um timestamp real.

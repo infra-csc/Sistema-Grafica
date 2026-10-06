@@ -3,7 +3,7 @@
 // saída, semáforo das etapas, progresso e o drill expandindo inline.
 import { memo } from "react";
 import { ChevronDown, Truck } from "lucide-react";
-import type { CobrancaEntry, PrazoEvent } from "@shared/prazos-contract";
+import type { PrazoEvent } from "@shared/prazos-contract";
 import { Selo } from "@/components/ui/selo";
 import { FONT, FS, FW } from "@/lib/theme";
 import { EventDrilldown } from "./event-drilldown";
@@ -18,13 +18,11 @@ interface CardMobilePrazosProps {
   expanded: boolean;
   /** Recebe o id: a página passa UMA função estável para todos os cartões. */
   onToggle: (id: string) => void;
-  cobranca?: CobrancaEntry;
-  today?: string;
 }
 
 // `memo` pelo mesmo motivo do QuadroCard: a revalidação sem mudança e o tique
 // do selo re-renderizam a página, e sem ele todos os cartões se refaziam.
-export const CardMobilePrazos = memo(function CardMobilePrazos({ ev, expanded, onToggle, cobranca, today }: CardMobilePrazosProps) {
+export const CardMobilePrazos = memo(function CardMobilePrazos({ ev, expanded, onToggle }: CardMobilePrazosProps) {
   const chip = saidaChip(ev);
   return (
     <div style={{
@@ -114,7 +112,7 @@ export const CardMobilePrazos = memo(function CardMobilePrazos({ ev, expanded, o
       </button>
       {expanded && (
         <div id={`drill-${ev.id}`}>
-          <EventDrilldown ev={ev} cobranca={cobranca} today={today} />
+          <EventDrilldown ev={ev} />
         </div>
       )}
     </div>

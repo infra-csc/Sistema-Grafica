@@ -99,7 +99,6 @@ export type MensagemWS =
   // Prazos e avisos
   | { type: "deadline_alert"; event: EventoDoSinal; hoursRemaining: number }
   | { type: "prazo_alert"; event: EventoDoSinal; label?: string; hoursRemaining: number }
-  | { type: "prazo_cobranca"; targetType: string; targetId: Id }
   // `aviso`: um chamador (sponsors.ts) manda a notificação com esse nome.
   | { type: "notification_created"; notification?: ({ id?: Id; eventId?: IdOpcional } & Resto) | null; aviso?: unknown }
   | { type: "notification_read"; notification?: unknown };

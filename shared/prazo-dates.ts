@@ -285,3 +285,48 @@ export const MARCOS_DO_EVENTO: readonly MarcoDoEvento[] = [
 /** Offset de cada marco, pela coluna. */
 export const OFFSET_PADRAO_DO_MARCO: Record<string, number> =
   Object.fromEntries(MARCOS_DO_EVENTO.map(m => [m.campo, m.offset]));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// O DIA DO MARCO — a regra do fim de semana, num lugar só (06/10).
+//
+// A REGRA: marco que cai no SÁBADO vence na SEXTA; no DOMINGO, na SEGUNDA.
+// A exceção é a Produção Gráfica (`todosOsDias`), que roda no fim de semana
+// quando precisa — o prazo dela fica no dia cru.
+//
+// PORQUÊ MORA AQUI. A conta existia em SEIS cópias: o servidor
+// (`stageDeadline` da Gestão de Prazos e `marcoDeadline` do card do evento),
+// a Arte (`ajustaFimDeSemana`), as Análises (`diaDoMarco`), o Detalhe do
+// Evento e o formulário de prazos. E o Calendário não tinha nenhuma: desenhava
+// o dia CRU, então um marco de sábado aparecia no sábado no Calendário e na
+// sexta na Gestão de Prazos — duas telas dizendo dias diferentes para o mesmo
+// prazo. O dono decidiu (06/10, "Sim"): o Calendário segue a regra dos
+// prazos. Com a regra aqui, todos leem a MESMA função — o cliente não pode
+// importar `server/`, mas `shared/` sim.
+//
+// A conta é de CALENDÁRIO em UTC-meia-noite (convenção de toda a aritmética de
+// prazo: o dia-calendário gravado é o dia exibido, em qualquer fuso).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Quantos dias o marco anda por cair no fim de semana: sábado −1 (sexta),
+ * domingo +1 (segunda), dia útil 0. Recebe o dia da semana (0 = domingo) para
+ * servir tanto a quem conta em UTC quanto a quem conta no horário local da tela
+ * — o DIA-calendário é o mesmo nos dois, e é ele que decide.
+ */
+export function deslocamentoDeFimDeSemana(diaDaSemana: number): -1 | 0 | 1 {
+  if (diaDaSemana === 6) return -1;
+  if (diaDaSemana === 0) return 1;
+  return 0;
+}
+
+/**
+ * O dia do marco: saída do caminhão (dia-calendário, UTC-meia-noite) + offset
+ * em dias de CALENDÁRIO, com o ajuste de fim de semana quando a etapa não roda
+ * todos os dias. Devolve uma Date nova em UTC-meia-noite; não mexe na entrada.
+ */
+export function diaDoMarcoUTC(saidaDia: Date | number, offset: number, todosOsDias: boolean): Date {
+  const d = new Date(typeof saidaDia === "number" ? saidaDia : saidaDia.getTime());
+  d.setUTCDate(d.getUTCDate() + offset);
+  if (!todosOsDias) d.setUTCDate(d.getUTCDate() + deslocamentoDeFimDeSemana(d.getUTCDay()));
+  return d;
+}

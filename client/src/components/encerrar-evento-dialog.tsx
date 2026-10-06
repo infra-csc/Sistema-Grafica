@@ -94,7 +94,7 @@ export function EncerrarEventoDialog({
                 Este evento tem{" "}
                 <strong>{nAbertas} {nAbertas === 1 ? "peça pendente" : "peças pendentes"}</strong>
                 {nProducao > 0 ? `, sendo ${nProducao} em produção` : ""}
-                . Elas <strong>não são canceladas nem entregues</strong> — continuam na lista do evento, mas param de ser cobradas na Gestão de Prazos e saem das filas de trabalho.
+                . Elas <strong>não são canceladas nem entregues</strong> — continuam na lista do evento, mas saem da Gestão de Prazos e das filas de trabalho.
               </p>
             </div>
           )}
@@ -116,7 +116,7 @@ export function EncerrarEventoDialog({
                 {nAbertas > 0
                   ? <> com <strong style={forte}>{nAbertas} {nAbertas === 1 ? "peça em aberto" : "peças em aberto"}</strong>{nProducao > 0 ? ` (${nProducao} em produção)` : ""}</>
                   : null}
-                . Os prazos voltam a ser cobrados normalmente. A reabertura fica registrada com seu nome e horário.
+                . Os prazos voltam a contar normalmente. A reabertura fica registrada com seu nome e horário.
               </>
             )}
           </AlertDialogDescription>

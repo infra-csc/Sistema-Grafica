@@ -239,9 +239,12 @@ describe("o Resumo conta o mês da grade", () => {
     // A âncora e os offsets são os MESMOS que a grade usa.
     // (23/09: a leitura do offset foi para `offsetDoMarco`, a MESMA na grade e
     // aqui — e ela cai no DEADLINE_DEFAULTS quando o evento não tem prazo próprio.)
-    expect(bloco).toContain("const offset = offsetDoMarco(ev, dt.key);");
+    // (06/10: o dia sai de `diaDoMarcoNoCalendario` — a regra de fim de semana
+    // da Gestão de Prazos —, com a MESMA chamada nos dois pontos.)
+    const conta = "diaDoMarcoNoCalendario(ev.truckDepartureDate, offsetDoMarco(ev, dt.key), dt.todosOsDias)";
+    expect(bloco).toContain(conta);
     const byDay = tela.slice(tela.indexOf("const byDay = useMemo("), tela.indexOf("const byDay = useMemo(") + 1500);
-    expect(byDay).toContain("const offset = offsetDoMarco(ev, dt.key);");
+    expect(byDay).toContain(conta);
     const fn = tela.slice(tela.indexOf("function offsetDoMarco("), tela.indexOf("function offsetDoMarco(") + 300);
     expect(fn).toContain("return proprio ?? DEADLINE_DEFAULTS[campo];");
     expect(bloco).toContain("toUTCDisplayDate(ev.truckDepartureDate)");
@@ -267,7 +270,11 @@ describe("o Resumo conta o mês da grade", () => {
 describe("as decisões anteriores continuam de pé", () => {
   it("a âncora dos prazos é a saída do caminhão", () => {
     expect(tela).toContain("DEADLINE_DEFAULTS");
-    expect(tela).toContain("const base = toUTCDisplayDate(ev.truckDepartureDate);");
+    // 06/10: a âncora mora em `diaDoMarcoNoCalendario` (o dia UTC da saída,
+    // o mesmo `truckDayUTC` da Gestão de Prazos) — e continua sendo a SAÍDA.
+    expect(tela).toContain("diaDoMarcoNoCalendario(ev.truckDepartureDate,");
+    expect(readFileSync(path.resolve(__dirname, "../../client/src/components/calendario/dia-do-marco.ts"), "utf8"))
+      .toContain("const saida = new Date(truckDepartureDate);");
   });
 
   it("toUTCDisplayDate na saída e parseDateLocal no início", () => {

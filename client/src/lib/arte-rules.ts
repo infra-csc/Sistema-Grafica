@@ -1,4 +1,5 @@
 import { DISPENSAVEIS } from "@shared/fluxo-peca";
+import { deslocamentoDeFimDeSemana } from "@shared/prazo-dates";
 import { MOTIVO_TROCA_MIN, type RegraDoThumb, type RegraDaTroca } from "@shared/troca-de-material";
 // ─────────────────────────────────────────────────────────────────────────────
 // Regras PURAS da tela de Arte.
@@ -514,11 +515,13 @@ export interface PhaseDeadline {
  * O servidor faz a conta em UTC-meia-noite e a tela em local-meia-noite;
  * `toUTCDisplayDate` preserva o DIA-calendário, então o dia da semana é o mesmo
  * nos dois lados.
+ *
+ * Desde 06/10 a REGRA (quantos dias anda, e para que lado) é lida de
+ * `deslocamentoDeFimDeSemana` em @shared/prazo-dates — a mesma que o servidor
+ * e o Calendário usam. Aqui sobra só a aplicação no horário local da tela.
  */
 function ajustaFimDeSemana(d: Date): void {
-  const dow = d.getDay();
-  if (dow === 6) d.setDate(d.getDate() - 1);
-  if (dow === 0) d.setDate(d.getDate() + 1);
+  d.setDate(d.getDate() + deslocamentoDeFimDeSemana(d.getDay()));
 }
 
 /**

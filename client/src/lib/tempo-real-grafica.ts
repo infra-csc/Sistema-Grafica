@@ -142,7 +142,6 @@ export const CHAVES_POR_MENSAGEM: Readonly<Record<TipoMensagemWS, readonly AlvoD
   deadline_alert: ["/api/events"],
   // Chega junto com notification_created; a Gestão de Prazos é do hook.
   prazo_alert: [],
-  prazo_cobranca: [],
   notification_created: ["/api/notifications"],
   notification_read: ["/api/notifications"],
 };

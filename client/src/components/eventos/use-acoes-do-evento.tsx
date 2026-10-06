@@ -73,7 +73,7 @@ export function useAcoesDoEvento(
       toast({
         title: "Evento encerrado",
         description: open > 0
-          ? `${open} ${open === 1 ? 'peça continua' : 'peças continuam'} em aberto na lista do evento, sem cobrança de prazo.`
+          ? `${open} ${open === 1 ? 'peça continua' : 'peças continuam'} em aberto na lista do evento, fora da Gestão de Prazos.`
           : "Saiu da Gestão de Prazos e das filas de trabalho.",
         // O card acabou de SUMIR da grade (a visão padrão esconde encerrados).
         // Sem esta ação, "pode reabrir a qualquer momento" seria verdade só

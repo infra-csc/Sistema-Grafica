@@ -140,9 +140,9 @@ function NotaMarco({ p }: { p: PecaAtrasada }) {
   return (
     <span
       style={{ display: "block", fontSize: 10, color: TI.secondary, marginTop: 1 }}
-      title={`Esta peça é isenta da aprovação do patrocinador, então quem a cobra é o prazo de ${p.marco.label}.`}
+      title={`Esta peça é isenta da aprovação do patrocinador, então vale para ela o prazo de ${p.marco.label}.`}
     >
-      cobrada por {p.marco.label}
+      vale o prazo de {p.marco.label}
     </span>
   );
 }

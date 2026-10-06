@@ -7,6 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { EstadoVazio } from "@/components/ui/estados";
 import { LegendaDoCalendario } from "@/components/calendario/legenda-do-calendario";
 import { EsqueletoDaGrade, EsqueletoDeLinhas } from "@/components/calendario/esqueletos";
+import { diaDoMarcoNoCalendario } from "@/components/calendario/dia-do-marco";
 import {
   NOMES_DOS_MESES, DIAS_DA_SEMANA, horasEMinutos, horasCurtas, horaMinuto, diaCurto, mesCurto,
   faixaDaSemana, diaPorExtenso, plural,
@@ -80,14 +81,21 @@ function prioMeta(ev: EventoDaLista): { label: string; bg: string; text: string;
 //
 // Com a lista vindo de um lugar só, o próximo marco nasce nas três telas —
 // e não em duas, com a terceira descobrindo meses depois.
+// `todosOsDias` vem junto (06/10): é ele que diz se o marco pula o fim de
+// semana — só a Produção Gráfica fica no dia cru (ver `diaDoMarcoNoCalendario`).
 const DEADLINE_TYPES = MARCOS_DO_EVENTO.map(m => ({
-  key: m.campo, label: m.label, short: m.curto, color: m.cor, text: m.texto,
+  key: m.campo, label: m.label, short: m.curto, color: m.cor, text: m.texto, todosOsDias: m.todosOsDias,
 }));
 
 /** Frase de ajuda de cada marco (legenda): o que é e quando vence, por padrão. */
 const DICA_DO_MARCO: Record<string, string> = Object.fromEntries(MARCOS_DO_EVENTO.map(m => {
   const dias = Math.abs(m.offset);
-  return [m.campo, `${m.label}: ${m.descricao}. Prazo padrão: ${dias} dia${dias !== 1 ? "s" : ""} antes da saída do caminhão (o evento pode ter prazo próprio).`];
+  // A frase diz a regra de fim de semana (06/10): sem ela, quem conta os dias
+  // na grade acharia o marco "um dia fora" sempre que ele anda para o útil.
+  const fimDeSemana = m.todosOsDias
+    ? " Vale também no sábado e no domingo."
+    : " Se cair no sábado, vence na sexta; no domingo, na segunda.";
+  return [m.campo, `${m.label}: ${m.descricao}. Prazo padrão: ${dias} dia${dias !== 1 ? "s" : ""} antes da saída do caminhão (o evento pode ter prazo próprio).${fimDeSemana}`];
 }));
 
 // ── CADA FUNÇÃO VÊ O QUE PRECISA (dono, 27/08) ─────────────────────────────
@@ -259,12 +267,11 @@ export default function Calendario() {
       }
       if (!ev.truckDepartureDate) continue;
       bucket(toUTCDisplayDate(ev.truckDepartureDate).toDateString()).events.push({ ...ev, _type: "departure" as const });
-      const base = toUTCDisplayDate(ev.truckDepartureDate);
-      base.setHours(0, 0, 0, 0);
+      // O dia do marco é o da Gestão de Prazos (decisão do dono, 06/10):
+      // sábado → sexta, domingo → segunda, Produção Gráfica no dia cru.
+      // Antes era saída + offset CRU, e as duas telas discordavam do dia.
       for (const dt of tiposVisiveis) {
-        const offset = offsetDoMarco(ev, dt.key);
-        const d = new Date(base);
-        d.setDate(d.getDate() + offset);
+        const d = diaDoMarcoNoCalendario(ev.truckDepartureDate, offsetDoMarco(ev, dt.key), dt.todosOsDias);
         bucket(d.toDateString()).deadlines.push({ event: ev, dtype: dt });
       }
     }
@@ -383,15 +390,13 @@ export default function Calendario() {
       if (!ev.truckDepartureDate) return false;
       const saida = toUTCDisplayDate(ev.truckDepartureDate);
       if (noMes(saida)) return true;
-      // Os cinco prazos, pela mesma âncora e pelos mesmos offsets que a grade
-      // usa — se um deles cai no mês, o evento está desenhado ali.
-      const base = toUTCDisplayDate(ev.truckDepartureDate);
-      base.setHours(0, 0, 0, 0);
+      // Os prazos, pela MESMA conta que a grade usa (com o ajuste de fim de
+      // semana, 06/10) — se um deles cai no mês, o evento está desenhado ali.
+      // Um marco de domingo 1º que anda para segunda 2 continua no mesmo mês;
+      // um de sábado 1º que volta para sexta 31 muda de mês, e o Resumo vai
+      // junto com a grade.
       return tiposVisiveis.some(dt => {
-        const offset = offsetDoMarco(ev, dt.key);
-        const d = new Date(base);
-        d.setDate(d.getDate() + offset);
-        return noMes(d);
+        return noMes(diaDoMarcoNoCalendario(ev.truckDepartureDate, offsetDoMarco(ev, dt.key), dt.todosOsDias));
       });
     });
   }, [events, year, month, tiposVisiveis]);
@@ -1362,6 +1367,16 @@ export default function Calendario() {
                         <p style={{ fontSize: FS.read, fontWeight: FW.forte, color: P.text, margin: 0, lineHeight: 1.35, overflowWrap: "anywhere" }}>{event.name}</p>
                         <p style={{ fontSize: FS.meta, color: P.secondary, margin: "3px 0 0" }}>
                           Prazo de <strong style={{ color: dtype.text, fontWeight: FW.forte }}>{dtype.label}</strong>
+                          {/* Marco que ANDOU por cair no fim de semana diz
+                              de onde veio (06/10): quem conta "saída − 12"
+                              na mão chega no sábado e acharia a grade errada.
+                              O dia cru é a mesma conta com `todosOsDias`. */}
+                          {(() => {
+                            if (dtype.todosOsDias || !selectedDate) return null;
+                            const cru = diaDoMarcoNoCalendario(event.truckDepartureDate, offsetDoMarco(event, dtype.key), true);
+                            if (cru.toDateString() === selectedDate.toDateString()) return null;
+                            return cru.getDay() === 6 ? " · cairia no sábado, vence na sexta" : " · cairia no domingo, vence na segunda";
+                          })()}
                         </p>
                       </div>
                       {/* O mesmo "hoje" da régua de urgência (vence hoje vem

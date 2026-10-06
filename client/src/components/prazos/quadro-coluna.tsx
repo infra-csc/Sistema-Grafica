@@ -71,10 +71,12 @@ export const QuadroColuna = memo(function QuadroColuna({ stageKey, label, stageI
     setAbaixo(n);
   }, []);
 
-  // `renderCard` entra junto: a página o recria quando muda a cobrança ou o
-  // realce de um card (ver renderCardQuadro em gestao-prazos.tsx) — e a linha
-  // de cobrança muda a ALTURA do card. Só com `eventos` o "+N abaixo" ficava
-  // contando pela altura antiga até a próxima rolagem.
+  // `renderCard` entra junto: a página o recria quando muda o realce de um
+  // card (ver renderCardQuadro em gestao-prazos.tsx). Nasceu para a linha de
+  // cobrança, que mudava a ALTURA do card (saiu em 06/10); fica porque o
+  // custo é nulo e qualquer selo futuro no card volta a precisar dele. Só com
+  // `eventos` o "+N abaixo" ficava contando pela altura antiga até a próxima
+  // rolagem.
   useLayoutEffect(() => { recalcular(); }, [eventos, renderCard, recalcular]);
 
   // Rolagem e resize disparam dezenas de eventos por segundo, e cada chamada

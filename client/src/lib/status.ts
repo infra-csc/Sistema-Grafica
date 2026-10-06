@@ -344,7 +344,7 @@ export const STATUS_GUIA: Record<string, StatusGuia> = {
     vez: "concluído",
   },
   closed: {
-    significado: "Um administrador encerrou o evento: ele saiu das filas de trabalho e da cobrança de prazos.",
+    significado: "Um administrador encerrou o evento: ele saiu das filas de trabalho e da Gestão de Prazos.",
     quemAge: null,
     onde: null,
     proximoPasso: "Se foi engano, um administrador pode reabrir o evento.",
@@ -515,7 +515,7 @@ export function avisoPecasOcultas(
     return {
       destaque,
       texto: `${verbo} fora ${onde} porque o evento já foi realizado.`
-        + ` ${elas} no Detalhe do Evento e no Painel Geral — evento que já aconteceu não é mais cobrado.`,
+        + ` ${elas} no Detalhe do Evento e no Painel Geral — evento que já aconteceu não conta mais nos prazos.`,
     };
   }
   return {
@@ -589,7 +589,7 @@ export function marcoEventoFinalizado(
       motivo,
       label: "Evento encerrado",
       hint: "Um administrador encerrou este evento — a peça saiu das filas de trabalho e"
-        + " da cobrança de prazos. Quem encerrou e quando estão no Histórico geral;"
+        + " da Gestão de Prazos. Quem encerrou e quando estão no Histórico geral;"
         + " reabrir o evento traz o trabalho de volta.",
       dataEventoISO: null,
       // Cinza, o mesmo do selo "Encerrado" (STATUS.closed) e do acento da lista
@@ -606,7 +606,7 @@ export function marcoEventoFinalizado(
     // A palavra "reabrir" NÃO entra aqui, nem para ser negada: é o mesmo
     // cuidado de `avisoPecasOcultas`. Oferecer e retirar na mesma frase é como
     // a leitura apressada acaba levando embora só a oferta.
-    hint: "A data deste evento já passou — a peça deixou de ser cobrada e saiu das filas."
+    hint: "A data deste evento já passou — a peça saiu dos prazos e das filas."
       + " Não há autor nem volta: quem decide aqui é a data.",
     dataEventoISO: dia === null ? null : new Date(dia).toISOString().slice(0, 10),
     // Âmbar, o mesmo acento que a lista de Eventos dá ao lifecycle 'realizado'.

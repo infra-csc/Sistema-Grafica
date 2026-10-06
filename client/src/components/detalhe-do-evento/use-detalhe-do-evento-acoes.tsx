@@ -52,7 +52,7 @@ export function useEncerrarEReabrir({ eventId, toast, setCloseDialogOpen, setReo
       toast({
         title: "Evento encerrado",
         description: abertas > 0
-          ? `${abertas} ${abertas === 1 ? 'peça continua' : 'peças continuam'} na lista, sem ser ${abertas === 1 ? 'cobrada' : 'cobradas'} na Gestão de Prazos. Você pode reabrir a qualquer momento.`
+          ? `${abertas} ${abertas === 1 ? 'peça continua' : 'peças continuam'} na lista, fora da Gestão de Prazos. Você pode reabrir a qualquer momento.`
           : "Saiu da Gestão de Prazos e das filas de trabalho. Você pode reabrir a qualquer momento.",
         variant: "success",
       });

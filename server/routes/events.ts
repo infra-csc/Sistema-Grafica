@@ -12,6 +12,7 @@ import {
   motivoEventoFinalizado,
   problemaNaDataDoEvento,
   fraseDaDataInvalida,
+  diaDoMarcoUTC,
 } from "@shared/prazo-dates";
 import {
   requireAuth,
@@ -319,14 +320,9 @@ function marcoIndexFor(status: string, skipApproval?: boolean | null): number | 
 // quando a etapa não roda em todos os dias (mesma regra do event-detail e de
 // /api/prazos). A âncora é a SAÍDA, nunca a data do evento.
 function marcoDeadline(truckDay: Date, offsetDays: number, allDays: boolean): Date {
-  const d = new Date(truckDay);
-  d.setUTCDate(d.getUTCDate() + offsetDays);
-  if (!allDays) {
-    const dow = d.getUTCDay();
-    if (dow === 6) d.setUTCDate(d.getUTCDate() - 1); // sábado → sexta
-    if (dow === 0) d.setUTCDate(d.getUTCDate() + 1); // domingo → segunda
-  }
-  return d;
+  // A regra mora em @shared/prazo-dates desde 06/10 (a mesma da Gestão de
+  // Prazos e do Calendário); antes era uma cópia aqui.
+  return diaDoMarcoUTC(truckDay, offsetDays, allDays);
 }
 
 export interface NextMilestone {

@@ -25,8 +25,7 @@ import { useElementSize, useIsMobile } from "@/hooks/use-mobile";
 import { getStatusLabel, getStatusShort } from "@/lib/status";
 import { Botao } from "@/components/ui/botao";
 import { FS } from "@/lib/theme";
-import type { CobrancaEntry, PrazoEvent, PrazoPendingItem } from "@shared/prazos-contract";
-import { CobradoControl } from "./cobrado-control";
+import type { PrazoEvent, PrazoPendingItem } from "@shared/prazos-contract";
 import {
   DRILL_TABELA_MIN, DRILL_TH, dayColor, diasTexto, fmtDayMonth, pecasTexto, R,
   resumoAprovacoes, STAGE_SECTOR, STAGE_STYLE, TI,
@@ -168,15 +167,16 @@ function PecaCartao({ eventId, it, isAprovacao }: {
 
 // `memo`: o drill vive dentro do modal e da linha expandida da tabela, e os
 // dois são redesenhados a cada render da página (revalidação, tique do selo,
-// pílula de novidades). Com `ev`/`cobranca` estáveis pelo structural sharing,
+// pílula de novidades). Com `ev` estável pelo structural sharing,
 // o drill — que pode ter quatro tabelas de quinze linhas — deixa de se refazer
 // à toa.
-export const EventDrilldown = memo(function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
+//
+// SEM COBRANÇA (06/10): o drill abria com o controle "Marcar como cobrado" no
+// topo (e o modal tinha um bloco próprio no fim). O dono mandou tirar tudo de
+// cobrança; o drill volta a ser só o diagnóstico — etapas, peças e o link
+// "Resolver em {setor} →" de cada grupo.
+export const EventDrilldown = memo(function EventDrilldown({ ev }: {
   ev: PrazoEvent;
-  cobranca?: CobrancaEntry;
-  today?: string;
-  /** O modal desliga: lá a cobrança tem bloco próprio no fim do scrollport. */
-  showCobranca?: boolean;
 }) {
   const isMobile = useIsMobile();
   // Etapas RECOLHIDAS, por chave. Nasce vazio: o padrão continua sendo ver
@@ -257,20 +257,9 @@ export const EventDrilldown = memo(function EventDrilldown({ ev, cobranca, today
     return { groups: grupos, seguintes: adiante };
   }, [ev]);
 
-  const blocoCobranca = showCobranca ? (
-    // ANTES dos early returns de propósito: o evento sem nenhuma peça — o pior
-    // caso do negócio — era justamente o ÚNICO em que não dava para registrar
-    // cobrança. O diretor lia "Nenhuma peça cadastrada", ligava para o
-    // responsável, cobrava de verdade, e não tinha onde marcar.
-    <div className="gp-no-print" style={{ display: "flex", justifyContent: "flex-end" }}>
-      <CobradoControl targetType="event" targetId={ev.eventId ?? ev.id} cobranca={cobranca} today={today} />
-    </div>
-  ) : null;
-
   if (ev.categoria === "semPecas" || ev.totalItems === 0) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "4px 0 8px" }}>
-        {blocoCobranca}
         <p style={{ margin: 0, fontSize: 13, color: TI.secondary }}>
           Nenhuma peça cadastrada ainda —{" "}
           <Link href={`/eventos/${ev.eventId ?? ev.id}`} style={{ color: TI.accentText, fontWeight: 600 }}>
@@ -285,7 +274,6 @@ export const EventDrilldown = memo(function EventDrilldown({ ev, cobranca, today
   if (groups.length === 0) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "4px 0 8px" }}>
-        {blocoCobranca}
         <p style={{ margin: 0, fontSize: 13, color: TI.secondary }}>
           Nenhuma peça pendente — todas entregues ou fora do funil.
         </p>
@@ -295,7 +283,6 @@ export const EventDrilldown = memo(function EventDrilldown({ ev, cobranca, today
 
   return (
     <div ref={caixaRef} style={{ display: "flex", flexDirection: "column", gap: 14, padding: "4px 0 8px" }}>
-      {blocoCobranca}
       {groups.map(({ stage, items }) => {
         const sector = STAGE_SECTOR[stage.key];
         const st = STAGE_STYLE[stage.state];
@@ -373,9 +360,8 @@ export const EventDrilldown = memo(function EventDrilldown({ ev, cobranca, today
                   : ` · vence em ${fmtDayMonth(stage.deadline)}`}
                 </span>
               </button>
-              {/* Links de navegação recuados para peso 600 e cor secundária: a
-                  cobrança é a ação primária, e antes seis caminhos disputavam
-                  o mesmo laranja no mesmo peso. */}
+              {/* Links de navegação em peso 600 e cor secundária: antes seis
+                  caminhos disputavam o mesmo laranja no mesmo peso. */}
               <Link
                 href={sectorUrl}
                 title={sorted.length === 1

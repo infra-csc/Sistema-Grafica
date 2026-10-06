@@ -13,13 +13,12 @@
 // errado na cara do diretor.
 import type { Express } from "express";
 import { eq, lt, desc, inArray } from "drizzle-orm";
-import { z } from "zod";
 import { db } from "../db";
-import { prazoCobrancas, prazoSnapshots, prazoEventSnapshots, kitRemessas } from "@shared/schema";
+import { prazoSnapshots, prazoEventSnapshots, kitRemessas } from "@shared/schema";
 import type { ItemSponsorApproval } from "@shared/schema";
 import { storage, type ItemParaPrazo } from "../storage";
 import { ehBookCompleto } from "@shared/fluxo-peca";
-import { requireRole, requireAuth, createAuditLog, broadcast } from "./shared";
+import { requireAuth } from "./shared";
 import {
   STAGE_META,
   buildEventPrazo,
@@ -27,16 +26,11 @@ import {
   eventosDoPrazo,
   idDoEventoReal,
   computeKpis,
-  daysSince,
   isPrazoCandidate,
-  businessDayStrToMs,
   todayBusinessMs,
   todayBusinessStr,
 } from "../services/prazo-domain";
 import type {
-  CobrancaEntry,
-  CobrancaKey,
-  CobrancaMap,
   DesdeOntem,
   DesdeOntemEvento,
   PrazoEvent,
@@ -45,25 +39,11 @@ import type {
   SponsorDelay,
 } from "@shared/prazos-contract";
 
-// Teto da nota combinada na cobrança. Vive no zod da rota (não no banco):
-// afrouxar/apertar validação não pede migração, mudar o tipo da coluna pede.
-const NOTA_MAX = 280;
-// Horizonte máximo de uma promessa. Promessa para 2027 é typo de digitação,
-// não compromisso — e um typo aqui envenenaria o rótulo "promessa vencida"
-// para sempre naquele alvo.
-const PROMESSA_MAX_DIAS = 180;
-
-const cobrancaBodySchema = z.object({
-  targetType: z.enum(["event", "sponsor"], {
-    errorMap: () => ({ message: "O alvo da cobrança precisa ser um evento ou um patrocinador." }),
-  }),
-  targetId: z.string().min(1, "Informe qual evento ou patrocinador está sendo cobrado."),
-  promisedFor: z.string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "A data prometida precisa estar no formato dia/mês/ano.")
-    .optional().nullable(),
-  note: z.string().trim().max(NOTA_MAX, `A nota do combinado precisa ter no máximo ${NOTA_MAX} caracteres.`)
-    .optional().nullable(),
-});
+// SEM COBRANÇA (decisão do dono, 06/10: "Sim — tudo de cobrança pode tirar").
+// Esta rota tinha um POST /api/prazos/cobrancas ("Marcar como cobrado") e o GET
+// devolvia o mapa `cobrancas` (quem cobrou, quando, promessa, se andou depois).
+// Os dois saíram com o controle da tela. A tabela `prazo_cobrancas` FICA no
+// banco, sem uso: apagar dado é migração destrutiva, e ninguém pediu isso.
 
 /**
  * Dispara uma leitura JÁ (o builder do Drizzle só executa no `then`) e guarda
@@ -83,17 +63,10 @@ function abrir<T>(d: Desfecho<T>): T {
   return d.valor;
 }
 
-/** "YYYY-MM-DD" existente de verdade (barra 2026-02-31, que o regex aceita). */
-function isRealDay(day: string): boolean {
-  const [y, m, d] = day.split("-").map(Number);
-  const asDate = new Date(Date.UTC(y, m - 1, d));
-  return asDate.getUTCFullYear() === y && asDate.getUTCMonth() === m - 1 && asDate.getUTCDate() === d;
-}
-
 export function registerPrazoRoutes(app: Express): void {
   // Leitura aberta a todo usuario autenticado (decisao do dono, 17/08): a
-  // Gestao de Prazos passa a aparecer para todos. O POST de cobranca logo
-  // abaixo CONTINUA sendo admin — quem nao e admin ve e nao mexe.
+  // Gestao de Prazos passa a aparecer para todos. Desde 06/10 a tela so le —
+  // a unica escrita que havia aqui (registrar cobranca, admin) saiu.
   app.get("/api/prazos", requireAuth, async (req, res) => {
     try {
       const today = todayBusinessMs();
@@ -259,104 +232,6 @@ export function registerPrazoRoutes(app: Express): void {
         console.error("prazo_snapshots indisponível (rode npm run db:push):", (e as Error).message);
       }
 
-      // Registro de cobrança por alvo ("event:id" / "sponsor:id") — fecha o
-      // loop cobrança→resultado no drill e no ranking.
-      //
-      // Recorte pelos ALVOS VIVOS: só as chaves que o cliente consulta —
-      // os eventos deste payload e os patrocinadores do ranking. Antes o
-      // bloco lia `prazo_cobrancas` INTEIRA a cada GET: a tabela é só-insert
-      // (cada clique em "cobrar de novo" acrescenta linha, nada expira), então
-      // o custo crescia com a HISTÓRIA da empresa, não com o trabalho em
-      // aberto — no mesmo GET que acabou de ganhar `getItemsByEvents` pelo
-      // mesmo motivo. Em lotes de 500 ids porque `IN (...)` vira um parâmetro
-      // por id e o Postgres tem teto de parâmetros por consulta.
-      const cobrancas: CobrancaMap = {};
-      try {
-        const alvosVivos = [
-          ...events.map((ev) => ev.id),
-          ...sponsorDelays.map((sp) => sp.sponsorId),
-        ];
-        const regs: (typeof prazoCobrancas.$inferSelect)[] = [];
-        for (let i = 0; i < alvosVivos.length; i += 500) {
-          const parte = await db.select().from(prazoCobrancas)
-            .where(inArray(prazoCobrancas.targetId, alvosVivos.slice(i, i + 500)))
-            .orderBy(desc(prazoCobrancas.createdAt));
-          regs.push(...parte);
-        }
-        // Com mais de um lote, a concatenação intercala as ordens parciais —
-        // reordena para preservar o invariante "primeira linha vista = a mais
-        // recente", de que o laço abaixo depende.
-        if (alvosVivos.length > 500) {
-          regs.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-        }
-        for (const r of regs) {
-          // targetType vem do banco como texto livre: normalizamos aqui em vez
-          // de confiar, senão uma linha legada com lixo cria uma chave que o
-          // cliente nunca consulta (e some do placar sem aviso).
-          if (r.targetType !== "event" && r.targetType !== "sponsor") continue;
-          const key: CobrancaKey = r.targetType === "event"
-            ? `event:${r.targetId}` : `sponsor:${r.targetId}`;
-
-          const existing = cobrancas[key];
-          if (!existing) {
-            // Primeira linha vista = a MAIS RECENTE (order by createdAt desc).
-            const daysAgo = daysSince(r.createdAt, today);
-            const promessaData = r.promisedFor ?? null;
-            cobrancas[key] = {
-              userName: r.userName,
-              createdAt: r.createdAt.toISOString(),
-              daysAgo,
-              total: 1,
-              historico: [{ userName: r.userName, createdAt: r.createdAt.toISOString(), daysAgo }],
-              promessaData,
-              // Conta feita AQUI, com a âncora do negócio: o cliente não deve
-              // decidir "promessa vencida" com o relógio do navegador.
-              promessaDiasRestantes: promessaData
-                ? Math.round((businessDayStrToMs(promessaData) - today) / 86400000)
-                : null,
-              nota: r.note ?? null,
-              // Preenchido depois, quando os eventos já estiverem montados.
-              houveMovimento: null,
-            } satisfies CobrancaEntry;
-          } else {
-            existing.total += 1;
-            // Teto de 5: o modal mostra a régua da pressão ("3 cobranças em 12
-            // dias"), não o log completo — que é o que o audit log já é.
-            if (existing.historico.length < 5) {
-              existing.historico.push({
-                userName: r.userName,
-                createdAt: r.createdAt.toISOString(),
-                daysAgo: daysSince(r.createdAt, today),
-              });
-            }
-          }
-        }
-
-        // "cobrado há 5d — segue parado" era afirmado sem olhar o andamento
-        // real. É uma afirmação factual sobre a equipe, exibida com nome e
-        // sobrenome de quem cobrou: quando é falsa, ou gera cobrança injusta
-        // ou ensina o diretor a ignorar o campo. Uma peça que se moveu DEPOIS
-        // da cobrança tem waitingDays menor que daysAgo.
-        //
-        // Cobrança de HOJE (daysAgo === 0) fica `null`, não `false`: o relógio
-        // das peças anda em dias inteiros, então no próprio dia não existe
-        // medição — `some(waitingDays < 0)` era sempre falso e, 5 segundos
-        // após o registro, o modal afirmava "nada se moveu desde então". A UI
-        // já trata `null` como silêncio.
-        for (const ev of events) {
-          const entry = cobrancas[`event:${ev.id}`];
-          if (!entry) continue;
-          // Peça sem carimbo não vota: não dá para dizer que ela se moveu
-          // nem que ficou parada, e esta é uma afirmação factual sobre a
-          // equipe, exibida com nome e sobrenome de quem cobrou.
-          entry.houveMovimento = entry.daysAgo === 0
-            ? null
-            : ev.pendingItems.some((it) => it.waitingDays !== null && it.waitingDays < entry.daysAgo);
-        }
-      } catch (e) {
-        console.error("prazo_cobrancas indisponível (rode npm run db:push):", (e as Error).message);
-      }
-
       // "O que mudou desde ontem": o placar diz que os atrasados subiram de 4
       // para 6; esta faixa diz QUAIS dois entraram — a primeira pergunta das
       // 8h da manhã. Try/catch próprio: sem a tabela migrada, o bloco some e o
@@ -419,7 +294,6 @@ export function registerPrazoRoutes(app: Express): void {
         sponsorDelays,
         kpis,
         trend,
-        cobrancas,
         desdeOntem,
       };
       res.json(payload);
@@ -427,81 +301,6 @@ export function registerPrazoRoutes(app: Express): void {
       console.error("GET /api/prazos:", error);
       res.status(500).json({
         error: "Não foi possível carregar os prazos agora. Tente novamente em alguns instantes — se continuar, avise o suporte técnico.",
-      });
-    }
-  });
-
-  // "Marcar como cobrado": registro leve de accountability — quem cobrou o
-  // quê, quando, para quando ficou prometido e o que foi combinado. Nenhum
-  // estado de peça muda; é trilha de pressão gerencial.
-  app.post("/api/prazos/cobrancas", requireRole("admin"), async (req, res) => {
-    try {
-      const parsed = cobrancaBodySchema.safeParse(req.body ?? {});
-      if (!parsed.success) {
-        return res.status(400).json({
-          error: parsed.error.issues[0]?.message ?? "Dados da cobrança inválidos.",
-        });
-      }
-      const { targetType, targetId } = parsed.data;
-      const note = parsed.data.note?.trim() || null;
-      const promisedFor = parsed.data.promisedFor || null;
-
-      if (promisedFor) {
-        const todayStr = todayBusinessStr();
-        const today = todayBusinessMs();
-        if (!isRealDay(promisedFor)) {
-          return res.status(400).json({ error: "Essa data não existe no calendário — confira o dia prometido." });
-        }
-        const diff = Math.round((businessDayStrToMs(promisedFor) - today) / 86400000);
-        if (diff < 0) {
-          return res.status(400).json({ error: `A promessa não pode ser para uma data passada (hoje é ${todayStr}).` });
-        }
-        if (diff > PROMESSA_MAX_DIAS) {
-          return res.status(400).json({ error: `A promessa está a mais de ${PROMESSA_MAX_DIAS} dias — confira se o ano está certo.` });
-        }
-      }
-
-      // O alvo tem que EXISTIR. Antes só o formato era validado: um clique num
-      // card no instante em que o evento é excluído gravava linha órfã e um
-      // audit log apontando para nada — num recurso cujo valor inteiro é ser
-      // verdadeiro.
-      if (targetType === "event") {
-        const alvo = await storage.getEvent(targetId);
-        // Arquivado conta como inexistente: sumiu das telas.
-        if (!alvo || alvo.arquivadoEm) return res.status(404).json({ error: "Este evento não existe mais — atualize a tela." });
-      } else {
-        const alvo = await storage.getSponsor(targetId);
-        if (!alvo || alvo.arquivadoEm) return res.status(404).json({ error: "Este patrocinador não existe mais — atualize a tela." });
-      }
-
-      const [reg] = await db.insert(prazoCobrancas)
-        .values({ targetType, targetId, userName: req.userName ?? "Sistema", promisedFor, note })
-        .returning();
-
-      const promessaTexto = promisedFor
-        ? ` — prometido para ${promisedFor.slice(8, 10)}/${promisedFor.slice(5, 7)}`
-        : "";
-      const notaTexto = note ? ` — combinado: ${note}` : "";
-      await createAuditLog(
-        req.userName ?? "Sistema",
-        "cobranca_registrada",
-        // targetType já é "event" | "sponsor" pelo zod — o ternário antigo
-        // sobre um valor validado não fazia nada.
-        targetType,
-        targetId,
-        `Cobrança registrada na Gestão de Prazos${promessaTexto}${notaTexto}`,
-      );
-
-      // Regra da casa: toda escrita grava audit log E faz broadcast. Sem isto,
-      // a cobrança de um diretor não aparecia na aba do outro — dois gestores
-      // ligavam para o mesmo responsável no mesmo dia.
-      broadcast({ type: "prazo_cobranca", targetType, targetId });
-
-      res.json(reg);
-    } catch (error) {
-      console.error("POST /api/prazos/cobrancas:", error);
-      res.status(500).json({
-        error: "Não foi possível registrar a cobrança agora. Tente de novo em instantes; se continuar, avise o suporte.",
       });
     }
   });

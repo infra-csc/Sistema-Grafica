@@ -92,8 +92,8 @@ export function seloEventoFinalizado(
       short: "Encerrado",
       hint: pendentes > 0
         ? `Um administrador encerrou este evento — ${pendentes} ${pendentes === 1 ? "peça ficou" : "peças ficaram"} em aberto.`
-          + " Elas não são mais cobradas e saíram das filas de trabalho; reabrir o evento traz o trabalho de volta."
-        : "Um administrador encerrou este evento — ele saiu das filas de trabalho e da cobrança de prazos."
+          + " Elas não contam mais nos prazos e saíram das filas de trabalho; reabrir o evento traz o trabalho de volta."
+        : "Um administrador encerrou este evento — ele saiu das filas de trabalho e da Gestão de Prazos."
           + " Reabrir o evento traz o trabalho de volta.",
       labelPeca: marco.label,
       hintPeca: marco.hint,
@@ -111,7 +111,7 @@ export function seloEventoFinalizado(
     short: "Realizado",
     hint: pendentes > 0
       ? `A data deste evento já passou e ${pendentes} ${pendentes === 1 ? "peça ficou" : "peças ficaram"} em aberto.`
-        + " Evento que já aconteceu não é mais cobrado. Não há autor nem volta: quem decide aqui é a data."
+        + " Evento que já aconteceu não conta mais nos prazos. Não há autor nem volta: quem decide aqui é a data."
       : "A data deste evento já passou e não sobrou peça em aberto."
         + " Não há autor nem volta: quem decide aqui é a data.",
     labelPeca: marco.label,
@@ -209,7 +209,7 @@ export function chipOcultas(c: ContagemOcultas, mostrando: boolean): ChipOcultas
     acao: mostrando ? "ocultar" : "mostrar",
     title: `${composicao}. ${
       emAberto > 0
-        ? `Dessas, ${emAberto} ${emAberto === 1 ? "ainda está" : "ainda estão"} em aberto — mas ninguém mais toca nesse trabalho: elas saíram das filas e da cobrança de prazos.`
+        ? `Dessas, ${emAberto} ${emAberto === 1 ? "ainda está" : "ainda estão"} em aberto — mas ninguém mais toca nesse trabalho: elas saíram das filas e da Gestão de Prazos.`
         : "Nenhuma delas ficou em aberto."
     } ${mostrando ? "Clique para tirá-las da lista de novo." : "Clique para trazê-las para a lista."}`,
     srLabel: `${total} ${texto}. ${composicao}. ${

@@ -219,61 +219,6 @@ export type PrazoTrend = {
   emDia: number;
 } | null;
 
-// ─── Registro de cobrança ────────────────────────────────────────────────────
-
-export interface CobrancaHistoricoEntry {
-  userName: string;
-  /** ISO 8601. */
-  createdAt: string;
-  daysAgo: number;
-}
-
-export interface CobrancaEntry {
-  /** Autor da ÚLTIMA cobrança. */
-  userName: string;
-  /** ISO 8601 da ÚLTIMA cobrança. */
-  createdAt: string;
-  /** Dias-calendário (fuso do negócio) desde a ÚLTIMA cobrança. */
-  daysAgo: number;
-  /** Quantas cobranças este alvo já teve — habilita "3ª cobrança". */
-  total: number;
-  /** Até 5 mais recentes, da mais nova para a mais antiga. */
-  historico: CobrancaHistoricoEntry[];
-  /** "YYYY-MM-DD" prometido pelo responsável no ato da cobrança. */
-  promessaData: string | null;
-  /** promessaData − today, em dias. Negativo = "promessa vencida há Nd". */
-  promessaDiasRestantes: number | null;
-  /** Nota curta (≤280) do que foi combinado. */
-  nota: string | null;
-  /**
-   * Houve movimento nas peças DEPOIS da última cobrança?
-   * `pendingItems.some(it => it.waitingDays < daysAgo)` — quando `daysAgo > 0`.
-   *
-   * PORQUÊ: a tela afirmava "cobrado há 5d — segue parado" só olhando o
-   * relógio da cobrança, sem conferir o andamento real. Uma afirmação factual
-   * sobre a equipe, exibida com nome e sobrenome de quem cobrou, precisa ser
-   * verificada. `null` para alvo "sponsor" (não há peças de um patrocinador
-   * único a comparar neste recorte) E para cobrança de HOJE (`daysAgo === 0`):
-   * o relógio das peças anda em dias inteiros, então no próprio dia não existe
-   * medição possível — afirmar "nada se moveu" 5 segundos depois do registro
-   * seria falso. A UI trata `null` como silêncio.
-   */
-  houveMovimento: boolean | null;
-}
-
-export type CobrancaKey = `event:${string}` | `sponsor:${string}`;
-
-/**
- * Mapa de cobranças por alvo.
- *
- * `Partial` de propósito: enquanto `npm run db:push` não rodar, este mapa vem
- * VAZIO — e mesmo depois, a esmagadora maioria dos alvos nunca foi cobrada.
- * Tipar as chaves como possivelmente ausentes obriga o consumo com optional
- * chaining e impede que um `cobrancas[key].historico.map(...)` derrube a tela
- * inteira do diretor.
- */
-export type CobrancaMap = Partial<Record<CobrancaKey, CobrancaEntry>>;
-
 // ─── "O que mudou desde ontem" ───────────────────────────────────────────────
 
 export interface DesdeOntemEvento {
@@ -314,8 +259,8 @@ export interface PrazosPayload {
   kpis: PrazoKpis;
   /** `null` sem snapshot anterior (ou sem a tabela migrada). */
   trend: PrazoTrend;
-  /** `{}` enquanto `prazo_cobrancas` não existir. */
-  cobrancas: CobrancaMap;
+  // `cobrancas` (o registro de "Marcar como cobrado") saiu do payload em
+  // 06/10 — decisão do dono: "tudo de cobrança pode tirar".
   /** `null` enquanto `prazo_event_snapshots` não existir ou não houver dia base. */
   desdeOntem: DesdeOntem | null;
 }

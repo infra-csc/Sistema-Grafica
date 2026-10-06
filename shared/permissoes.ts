@@ -168,7 +168,6 @@ export const REGUA_DE_PAPEIS: RegraDeRota[] = [
   { metodo: "POST", rota: "/api/items/send-to-arte", papeis: ["admin", "arte", "atendimento", "solicitacao"] },
   { metodo: "PATCH", rota: "/api/notifications/read-all", papeis: ["admin"] },
   { metodo: "DELETE", rota: "/api/photos/:id", papeis: ["admin", "grafica"] },
-  { metodo: "POST", rota: "/api/prazos/cobrancas", papeis: ["admin"] },
   { metodo: "PUT", rota: "/api/quota-rules/global", papeis: ["admin", "atendimento"] },
   { metodo: "POST", rota: "/api/revisao/digest/enviar", papeis: ["admin"] },
   { metodo: "DELETE", rota: "/api/sponsors/:id", papeis: ["admin"] },

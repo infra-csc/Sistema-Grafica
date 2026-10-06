@@ -144,8 +144,8 @@ export function computeDeadlineChip(
       return {
         text: jaSaiu ? `Saiu há ${atraso}d · ${pendentes} em aberto` : `${pendentes} em aberto`,
         srLabel: jaSaiu
-          ? `O caminhão saiu há ${atraso} ${atraso === 1 ? "dia" : "dias"} e ${nPecas} ${pendentes === 1 ? "ficou" : "ficaram"} em aberto; o evento saiu de circulação e não é mais cobrado`
-          : `${nPecas} ${pendentes === 1 ? "ficou" : "ficaram"} em aberto; o evento saiu de circulação e não é mais cobrado`,
+          ? `O caminhão saiu há ${atraso} ${atraso === 1 ? "dia" : "dias"} e ${nPecas} ${pendentes === 1 ? "ficou" : "ficaram"} em aberto; o evento saiu de circulação e não conta mais nos prazos`
+          : `${nPecas} ${pendentes === 1 ? "ficou" : "ficaram"} em aberto; o evento saiu de circulação e não conta mais nos prazos`,
         tone: "neutral",
         color: PRAZO_COLORS.neutral,
         dias: d,

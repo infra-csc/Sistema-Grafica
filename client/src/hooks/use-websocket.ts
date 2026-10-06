@@ -257,10 +257,9 @@ export function useWebSocket() {
         // Debounce de 500ms: o GET reagrega o app inteiro; numa rajada de
         // operação (lote de 30 peças) uma invalidação basta, não trinta.
         //
-        // `prazo_` no regex: o broadcast da cobrança não casava com a lista
-        // antiga, então a cobrança registrada por um diretor nunca aparecia na
-        // aba do outro — e dois gestores ligavam para o mesmo responsável no
-        // mesmo dia. `sponsor_approval`: a pendência do patrocinador conta.
+        // `prazo_` no regex: cobre o `prazo_alert` (o `prazo_cobranca`, que
+        // motivou o prefixo, saiu com o registro de cobrança em 06/10).
+        // `sponsor_approval`: a pendência do patrocinador conta.
         if (/^(event_|item|production_|deadline_alert|prazo_|sponsor_approval)/.test(data.type)) {
           if (prazosInvalidateTimer) clearTimeout(prazosInvalidateTimer);
           prazosInvalidateTimer = setTimeout(() => {

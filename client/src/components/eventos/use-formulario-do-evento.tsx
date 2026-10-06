@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { DEFAULT_DEADLINES, MARCO_FIELDS } from "./constantes";
 import { toDateStr } from "./formatos";
+import { deslocamentoDeFimDeSemana } from "@shared/prazo-dates";
 import type { AcaoSobreEvento, EventoDaLista, FormularioDoEvento } from "./tipos";
 
 /** Vínculo como GET /api/events/:id/sponsors devolve (só o que o formulário lê). */
@@ -534,11 +535,9 @@ export function useFormularioDoEvento({ sponsors, sponsorById, soPatrocinadores 
     if (!truckDateOnly) return "";
     const d = new Date(truckDateOnly + "T12:00:00");
     d.setDate(d.getDate() + days);
-    if (!allDays) {
-      const dow = d.getDay();
-      if (dow === 6) d.setDate(d.getDate() - 1); // sábado → sexta
-      else if (dow === 0) d.setDate(d.getDate() + 1); // domingo → segunda
-    }
+    // sábado → sexta, domingo → segunda: a regra de @shared/prazo-dates
+    // (06/10), a mesma da Gestão de Prazos e do Calendário.
+    if (!allDays) d.setDate(d.getDate() + deslocamentoDeFimDeSemana(d.getDay()));
     return toDateStr(d);
   };
   const dateStrToOffset = (dateStr: string): number => {

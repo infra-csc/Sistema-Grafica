@@ -32,7 +32,7 @@
 import { ETAPAS_DA_PECA, FUNIL_DE_PRAZOS, STATUS_DA_ETAPA, etapaDaPeca, type EtapaDaPeca } from "@shared/fluxo-peca";
 import { statusParaContagem } from "@shared/molde";
 import {
-  MARCOS_DO_EVENTO, eventDayMs, motivoEventoFinalizado, type EventoFinalizadoMotivo, type MarcoDoEvento,
+  MARCOS_DO_EVENTO, diaDoMarcoUTC, eventDayMs, motivoEventoFinalizado, type EventoFinalizadoMotivo, type MarcoDoEvento,
 } from "@shared/prazo-dates";
 import { pecaTravada } from "@shared/trava-da-peca";
 import { diasNaFase } from "./idade-na-fase";
@@ -180,14 +180,9 @@ export function indiceDoMarco(etapa: EtapaDaPeca | null, skipApproval?: boolean 
  * na Produção Gráfica (que roda no fim de semana).
  */
 export function diaDoMarco(saidaDiaMs: number, offset: number, todosOsDias: boolean): number {
-  const d = new Date(saidaDiaMs);
-  d.setUTCDate(d.getUTCDate() + offset);
-  if (!todosOsDias) {
-    const dow = d.getUTCDay();
-    if (dow === 6) d.setUTCDate(d.getUTCDate() - 1);
-    if (dow === 0) d.setUTCDate(d.getUTCDate() + 1);
-  }
-  return d.getTime();
+  // Desde 06/10 a conta é a de @shared/prazo-dates (a mesma do servidor e do
+  // Calendário) — antes era uma cópia escrita à mão aqui.
+  return diaDoMarcoUTC(saidaDiaMs, offset, todosOsDias).getTime();
 }
 
 export interface PrazoDaPeca {

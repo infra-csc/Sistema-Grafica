@@ -48,7 +48,7 @@ const VERIFICACOES: Verificacao[] = [
     titulo: "Peça isenta de aprovação, mas aguardando o patrocinador",
     explicacao:
       "A peça diz que não precisa de aprovação e, ao mesmo tempo, está esperando a decisão de um patrocinador. " +
-      "O Atendimento acredita na isenção e não mostra a peça; a Gestão de Prazos acredita no status e a cobra. " +
+      "O Atendimento acredita na isenção e não mostra a peça; a Gestão de Prazos acredita no status e a conta no prazo. " +
       "Foi o que escondeu 12 peças do Ministério por 11 dias, em 08/09.",
     gravidade: "critico",
     sql: sql`select display_id from items

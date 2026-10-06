@@ -4,20 +4,19 @@
 // Os handlers rodam de verdade: `registerPrazoRoutes` recebe um "app" falso que
 // só GUARDA os handlers, e cada teste invoca o handler com req/res de mentira
 // (mesmo estilo de `complemento-rotas.test.ts` e `middleware.test.ts`). O que
-// está mockado é só a BORDA — `../db` (as três tabelas de prazo) e
-// `../storage` (eventos, peças, patrocinadores, usuários). O gate de papel
-// (`requireRole("admin")`) é o REAL, importado de `./shared`.
+// está mockado é só a BORDA — `../db` (as tabelas de prazo) e
+// `../storage` (eventos, peças, patrocinadores, usuários). O gate de sessão
+// (`requireAuth`) é o REAL, importado de `./shared`.
 //
 // PORQUÊ este arquivo, já havendo testes de domínio: `prazo-domain.test.ts`
 // prova a REGRA; ele não prova a MONTAGEM. Quatro dos achados da revisão vivem
 // exatamente na montagem e são invisíveis para um teste de função pura:
-//   • o registro de cobrança (total, histórico com teto, promessa vencida,
-//     `houveMovimento` conferido contra o andamento real das peças);
-//   • a validação do POST (data irreal, promessa no passado, horizonte, nota);
+//   • (o registro de cobrança e a validação do POST viviam aqui; saíram com a
+//     cobrança, em 06/10 — decisão do dono: "tudo de cobrança pode tirar");
 //   • a faixa "desde ontem", que é um DIFF entre o payload de hoje e o
 //     snapshot de um dia anterior;
 //   • e a degradação enquanto `npm run db:push` não roda — que é o estado REAL
-//     do ambiente hoje: as três tabelas ainda não existem, e a tela do diretor
+//     do ambiente hoje: as tabelas ainda não existem, e a tela do diretor
 //     não pode cair por causa disso.
 //
 // O relógio do processo é congelado: `todayBusinessMs()`/`todayBusinessStr()`
@@ -39,7 +38,8 @@ const H = vi.hoisted(() => {
       insert: (...a: any[]) => h.insertImpl(...a),
     },
     selectImpl: () => { throw new Error("db.select sem implementação"); },
-    insertImpl: () => { throw new Error("db.insert sem implementação"); },
+    // Nenhuma rota de prazos escreve desde 06/10: um insert aqui é defeito.
+    insertImpl: () => { throw new Error("db.insert chamado por uma rota de prazos"); },
     broadcast: (..._a: any[]) => {},
     createAuditLog: async (..._a: any[]) => {},
   };
@@ -57,8 +57,8 @@ vi.mock("../routes/shared", async () => {
   const real = await vi.importActual<any>("../routes/shared");
   return {
     ...real,
-    // `requireRole` fica REAL de propósito: a rota é admin-only e o gate faz
-    // parte do que está sendo testado.
+    // `requireAuth` fica REAL de propósito: o gate faz parte do que está
+    // sendo testado.
     broadcast: (...a: any[]) => H.broadcast(...a),
     createAuditLog: (...a: any[]) => H.createAuditLog(...a),
   };
@@ -66,6 +66,8 @@ vi.mock("../routes/shared", async () => {
 
 import { registerPrazoRoutes } from "../routes/prazos";
 import { prazoCobrancas, prazoSnapshots, prazoEventSnapshots } from "@shared/schema";
+// `prazoCobrancas` continua importada só para o mock reconhecer a tabela: o
+// teste de T19 prova que o GET NÃO a lê mais (a tabela ficou sem uso, 06/10).
 import { businessDayStrToMs } from "../services/prazo-domain";
 import type { PrazosPayload } from "@shared/prazos-contract";
 
@@ -134,7 +136,8 @@ async function chamar(
 }
 
 const GET = "GET /api/prazos";
-const POST = "POST /api/prazos/cobrancas";
+/** A rota que existia até 06/10 — os testes provam que ela NÃO existe mais. */
+const POST_COBRANCA = "POST /api/prazos/cobrancas";
 
 /** GET que EXIGE 200 — evita que um 500 mascarado vire "campo undefined". */
 async function pegarPayload(): Promise<PrazosPayload> {
@@ -146,10 +149,6 @@ async function pegarPayload(): Promise<PrazosPayload> {
 // ─────────────────────────────────────────────────────────────────────────────
 // Mundo em memória
 // ─────────────────────────────────────────────────────────────────────────────
-interface LinhaCobranca {
-  id: string; targetType: string; targetId: string; userName: string;
-  promisedFor: string | null; note: string | null; createdAt: Date;
-}
 interface LinhaEventSnapshot {
   day: string; eventId: string; hasOverdue: boolean; pecasAtrasadas: number;
 }
@@ -161,7 +160,6 @@ let mundo: {
   usuarios: any[];
   aprovacoes: any[];
   snapshots: any[];
-  cobrancas: LinhaCobranca[];
   eventSnapshots: LinhaEventSnapshot[];
   /** Tabelas que ainda NÃO existem no banco (db:push pendente). */
   ausentes: Set<string>;
@@ -244,7 +242,11 @@ function diaBaseSnapshot(): string | null {
  * É deliberado: o que está sob teste é o que a rota FAZ com as linhas, não a
  * tradução para SQL, que é responsabilidade do Drizzle.
  */
+/** Tabelas que o GET consultou nesta chamada (para provar o que ele NÃO lê). */
+let lidas = new Set<string>();
+
 function consultar(info: Consulta): any[] {
+  lidas.add(info.tabela);
   if (mundo.ausentes.has(info.tabela)) {
     // A cara real do erro enquanto `npm run db:push` não roda.
     throw new Error(`relation "${info.tabela}" does not exist`);
@@ -257,7 +259,9 @@ function consultar(info: Consulta): any[] {
       return info.limit === null ? anteriores : anteriores.slice(0, info.limit);
     }
     case "prazo_cobrancas":
-      return [...mundo.cobrancas].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      // Sem uso desde 06/10. Se o GET voltar a ler esta tabela, o teste de
+      // T19 ("prazo_cobrancas não é lida") acusa.
+      return [];
     case "prazo_event_snapshots": {
       const base = diaBaseSnapshot();
       // Com `.limit()` é a busca do dia-base (projeção `{ day }`); sem, é a
@@ -286,21 +290,6 @@ function criarBuilder(): any {
 }
 
 H.selectImpl = () => criarBuilder();
-H.insertImpl = (t: any) => ({
-  values: (v: any) => ({
-    returning: async () => {
-      const tabela = NOME_TABELA.get(t);
-      if (mundo.ausentes.has(tabela!)) throw new Error(`relation "${tabela}" does not exist`);
-      seq += 1;
-      const linha: LinhaCobranca = {
-        id: `cob-${seq}`, promisedFor: null, note: null, createdAt: AGORA, ...v,
-      };
-      mundo.cobrancas.push(linha);
-      return [linha];
-    },
-  }),
-});
-
 // `Object.assign` e NÃO `H.storage = {...}`: a factory do `vi.mock` já
 // capturou ESTA referência de objeto, então trocá-la deixaria a rota com o
 // `{}` original.
@@ -313,8 +302,6 @@ Object.assign(H.storage, {
   // Projeção magra da mesma leitura (perf 17/09) — o mundo em memória já tem
   // só os campos que o domínio lê, então devolve as mesmas linhas.
   getItemsParaPrazos: async (ids: string[]) => mundo.pecas.filter((p) => ids.includes(p.eventId)),
-  getEvent: async (id: string) => mundo.eventos.find((e) => e.id === id),
-  getSponsor: async (id: string) => mundo.patrocinadores.find((s) => s.id === id),
 });
 H.broadcast = (...a: any[]) => { broadcasts.push(a[0]); };
 H.createAuditLog = async (...a: any[]) => { auditorias.push(a); };
@@ -327,37 +314,35 @@ afterAll(() => { vi.useRealTimers(); });
 
 beforeEach(() => {
   seq = 0;
+  lidas = new Set();
   broadcasts = [];
   auditorias = [];
   mundo = {
     eventos: [], pecas: [], patrocinadores: [], usuarios: [], aprovacoes: [],
-    snapshots: [], cobrancas: [], eventSnapshots: [], ausentes: new Set(),
+    snapshots: [], eventSnapshots: [], ausentes: new Set(),
   };
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
 // Gate de papel — a tela é do DIRETOR
 // ═════════════════════════════════════════════════════════════════════════════
-describe("gate: leitura aberta, escrita do admin", () => {
-  // Decisão do dono (17/08): a Gestão de Prazos aparece para TODOS, e quem não
-  // é admin "só visualiza". A assimetria vive aqui, no servidor — a tela
-  // esconder o botão é conforto, não trava.
-  it("as duas rotas exigem sessão", async () => {
-    for (const rota of [GET, POST]) {
-      expect((await chamar(rota, { userId: null })).status).toBe(401);
-    }
+describe("gate: leitura aberta a todos, nenhuma escrita", () => {
+  // Decisão do dono (17/08): a Gestão de Prazos aparece para TODOS. A única
+  // escrita da tela era o registro de cobrança (admin), que saiu em 06/10
+  // ("Sim — tudo de cobrança pode tirar").
+  it("o GET exige sessão", async () => {
+    expect((await chamar(GET, { userId: null })).status).toBe(401);
+  });
+
+  it("o POST de cobrança não existe mais — e nenhuma outra escrita entrou no lugar", () => {
+    expect(rotas.has(POST_COBRANCA)).toBe(false);
+    expect([...rotas.keys()]).toEqual([GET]);
   });
 
   it("GET responde para qualquer papel autenticado", async () => {
     for (const papel of ["operador", "arte", "grafica", "solicitacao", "atendimento", "admin"]) {
       expect((await chamar(GET, { userRole: papel })).status, papel).not.toBe(403);
     }
-  });
-
-  it("POST de cobrança continua só do admin", async () => {
-    expect((await chamar(POST, { userRole: "operador" })).status).toBe(403);
-    expect((await chamar(POST, { userRole: "arte" })).status).toBe(403);
-    expect((await chamar(POST, { userRole: "atendimento" })).status).toBe(403);
   });
 });
 
@@ -646,249 +631,6 @@ describe("T14 — sponsorDelays", () => {
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
-// T16 — registro de cobrança
-// ═════════════════════════════════════════════════════════════════════════════
-describe("T16 — cobranças no payload", () => {
-  function cobranca(over: Partial<LinhaCobranca> = {}): LinhaCobranca {
-    seq += 1;
-    return {
-      id: `c-${seq}`, targetType: "event", targetId: "EV1", userName: "Ana Paula",
-      promisedFor: null, note: null, createdAt: meioDia("2026-08-08"), ...over,
-    };
-  }
-
-  it("total conta TODAS as linhas do alvo, mas o histórico tem teto de 5, em ordem desc", async () => {
-    cadastrar(evento({ id: "EV1" }), ["draft"]);
-    // 7 cobranças, uma por dia de 02/08 a 08/08.
-    for (let i = 0; i < 7; i++) {
-      mundo.cobrancas.push(cobranca({ userName: `Diretor ${i}`, createdAt: meioDia(maisDias("2026-08-02", i)) }));
-    }
-
-    const p = await pegarPayload();
-    const c = p.cobrancas["event:EV1"]!;
-    expect(c.total).toBe(7);
-    // O modal mostra a RÉGUA da pressão ("3 cobranças em 12 dias"), não o log
-    // completo — o log completo é o audit log.
-    expect(c.historico).toHaveLength(5);
-    // Mais recente primeiro, e o topo do histórico é a mesma da capa.
-    expect(c.historico.map((h) => h.userName))
-      .toEqual(["Diretor 6", "Diretor 5", "Diretor 4", "Diretor 3", "Diretor 2"]);
-    expect(c.userName).toBe("Diretor 6");
-    expect(c.daysAgo).toBe(5);   // 08/08 → 13/08
-    expect(c.historico.map((h) => h.daysAgo)).toEqual([5, 6, 7, 8, 9]);
-  });
-
-  it("promessaDiasRestantes: negativo quando vencida, 0 quando é hoje, positivo à frente", async () => {
-    cadastrar(evento({ id: "VENCIDA" }), ["draft"]);
-    cadastrar(evento({ id: "HOJE" }), ["draft"]);
-    cadastrar(evento({ id: "FUTURA" }), ["draft"]);
-    mundo.cobrancas.push(
-      cobranca({ targetId: "VENCIDA", promisedFor: maisDias(HOJE, -3) }),
-      cobranca({ targetId: "HOJE", promisedFor: HOJE }),
-      cobranca({ targetId: "FUTURA", promisedFor: maisDias(HOJE, 4) }),
-    );
-
-    const p = await pegarPayload();
-    // A conta é feita no SERVIDOR, com a âncora do negócio: o cliente não pode
-    // decidir "promessa vencida" com o relógio do navegador.
-    expect(p.cobrancas["event:VENCIDA"]!.promessaDiasRestantes).toBe(-3);
-    expect(p.cobrancas["event:HOJE"]!.promessaDiasRestantes).toBe(0);
-    expect(p.cobrancas["event:FUTURA"]!.promessaDiasRestantes).toBe(4);
-    // Sem promessa, o campo é null (não 0, que afirmaria "vence hoje").
-    cadastrar(evento({ id: "SEM" }), ["draft"]);
-    mundo.cobrancas.push(cobranca({ targetId: "SEM" }));
-    const p2 = await pegarPayload();
-    expect(p2.cobrancas["event:SEM"]!.promessaDiasRestantes).toBeNull();
-    expect(p2.cobrancas["event:SEM"]!.promessaData).toBeNull();
-  });
-
-  it("houveMovimento é TRUE quando alguma peça andou depois da cobrança", async () => {
-    // Cobrança há 5 dias (08/08); uma peça que ANDOU há 2 dias (11/08).
-    // "Andou" é mudança de etapa (`statusChangedAt`), não escrita qualquer:
-    // era exatamente isso que `updatedAt` confundia, afirmando movimento onde
-    // o histórico da peça não tinha nada.
-    cadastrar(evento({ id: "EV1" }), [
-      { status: "draft", statusChangedAt: meioDia("2026-08-01") },
-      { status: "draft", statusChangedAt: meioDia("2026-08-11") },
-    ]);
-    mundo.cobrancas.push(cobranca());
-
-    const p = await pegarPayload();
-    const c = p.cobrancas["event:EV1"]!;
-    expect(c.daysAgo).toBe(5);
-    expect(c.houveMovimento).toBe(true);
-  });
-
-  it("houveMovimento é FALSE quando TODAS as peças estão paradas desde antes da cobrança", async () => {
-    cadastrar(evento({ id: "EV1" }), [
-      { status: "draft", updatedAt: meioDia("2026-08-01") },   // 12 dias
-      { status: "draft", updatedAt: meioDia("2026-08-08") },   // 5 dias = igual, não é movimento
-    ]);
-    mundo.cobrancas.push(cobranca());
-
-    const p = await pegarPayload();
-    // "cobrado há 5d — segue parado" agora é uma afirmação CONFERIDA. Ela
-    // aparece com nome e sobrenome de quem cobrou: quando é falsa, gera
-    // cobrança injusta ou ensina o diretor a ignorar o campo.
-    expect(p.cobrancas["event:EV1"]!.houveMovimento).toBe(false);
-  });
-
-  it("houveMovimento é NULL quando a cobrança é de HOJE (daysAgo === 0)", async () => {
-    // Peça parada há 12 dias e cobrança registrada agora há pouco: no próprio
-    // dia não existe medição possível (o relógio das peças anda em dias
-    // inteiros), então nem "andou" nem "segue parado" — silêncio. Antes o
-    // campo saía `false` e, 5 segundos após registrar, o modal afirmava
-    // "nada se moveu desde então".
-    cadastrar(evento({ id: "EV1" }), [
-      { status: "draft", updatedAt: meioDia("2026-08-01") },
-    ]);
-    mundo.cobrancas.push(cobranca({ createdAt: AGORA }));
-
-    const p = await pegarPayload();
-    const c = p.cobrancas["event:EV1"]!;
-    expect(c.daysAgo).toBe(0);
-    expect(c.houveMovimento).toBeNull();
-  });
-
-  it("alvo 'sponsor' recebe chave própria e houveMovimento fica null", async () => {
-    cadastrar(evento({ id: "EV1" }), ["draft"]);
-    mundo.patrocinadores = [{ id: "sp-1", name: "Coca-Cola", accountExecutiveId: null }];
-    mundo.cobrancas.push(cobranca({ targetType: "sponsor", targetId: "sp-1", note: "prometeu olhar hoje" }));
-
-    const p = await pegarPayload();
-    const c = p.cobrancas["sponsor:sp-1"]!;
-    expect(c.total).toBe(1);
-    expect(c.nota).toBe("prometeu olhar hoje");
-    // Não há "peças de um patrocinador" neste recorte para comparar.
-    expect(c.houveMovimento).toBeNull();
-    expect(p.cobrancas["event:sp-1"]).toBeUndefined();
-  });
-
-  it("linha legada com targetType fora do vocabulário é ignorada, não vira chave fantasma", async () => {
-    cadastrar(evento({ id: "EV1" }), ["draft"]);
-    mundo.cobrancas.push(cobranca({ targetType: "pedido", targetId: "EV1" }));
-    const p = await pegarPayload();
-    // Sem a normalização, essa linha criaria uma chave que o cliente nunca
-    // consulta — e a cobrança sumiria do placar sem aviso.
-    expect(Object.keys(p.cobrancas)).toEqual([]);
-  });
-});
-
-// ═════════════════════════════════════════════════════════════════════════════
-// T17 — validação do POST
-// ═════════════════════════════════════════════════════════════════════════════
-describe("T17 — POST /api/prazos/cobrancas", () => {
-  beforeEach(() => {
-    cadastrar(evento({ id: "EV1" }), ["draft"]);
-    mundo.patrocinadores = [{ id: "sp-1", name: "Coca-Cola", accountExecutiveId: null }];
-  });
-
-  const base = { targetType: "event", targetId: "EV1" };
-
-  it("registra a cobrança, grava audit log e faz broadcast", async () => {
-    const r = await chamar(POST, { body: { ...base, promisedFor: maisDias(HOJE, 2), note: "  falei com o Rafael  " } });
-    expect(r.status).toBe(200);
-    expect(mundo.cobrancas).toHaveLength(1);
-    expect(mundo.cobrancas[0].note).toBe("falei com o Rafael"); // trim aplicado
-
-    // Regra da casa: toda escrita grava audit log E faz broadcast — sem o
-    // broadcast, dois diretores ligam para o mesmo responsável no mesmo dia.
-    expect(auditorias).toHaveLength(1);
-    expect(auditorias[0].slice(0, 4)).toEqual(["Ana Paula", "cobranca_registrada", "event", "EV1"]);
-    expect(auditorias[0][4]).toContain("falei com o Rafael");
-    expect(broadcasts).toEqual([{ type: "prazo_cobranca", targetType: "event", targetId: "EV1" }]);
-  });
-
-  it("aceita cobrança sem promessa e sem nota (o caso mais comum)", async () => {
-    const r = await chamar(POST, { body: base });
-    expect(r.status).toBe(200);
-    expect(mundo.cobrancas[0].promisedFor).toBeNull();
-    expect(mundo.cobrancas[0].note).toBeNull();
-  });
-
-  it("promisedFor fora do formato → 400", async () => {
-    for (const ruim of ["13/08/2026", "2026-8-13", "amanhã", "20260813"]) {
-      const r = await chamar(POST, { body: { ...base, promisedFor: ruim } });
-      expect(r.status, `promisedFor=${ruim}`).toBe(400);
-      expect(r.body.error).toMatch(/formato/i);
-    }
-    expect(mundo.cobrancas).toEqual([]);
-  });
-
-  it("data que o regex aceita mas o calendário não (2026-02-31) → 400", async () => {
-    const r = await chamar(POST, { body: { ...base, promisedFor: "2026-02-31" } });
-    expect(r.status).toBe(400);
-    expect(r.body.error).toMatch(/não existe no calendário/i);
-    expect(mundo.cobrancas).toEqual([]);
-  });
-
-  it("promessa no passado → 400; promessa para HOJE é válida", async () => {
-    const passado = await chamar(POST, { body: { ...base, promisedFor: maisDias(HOJE, -1) } });
-    expect(passado.status).toBe(400);
-    expect(passado.body.error).toMatch(/data passada/i);
-
-    const hoje = await chamar(POST, { body: { ...base, promisedFor: HOJE } });
-    expect(hoje.status).toBe(200);
-  });
-
-  it("promessa além de hoje+180 → 400; exatamente hoje+180 passa", async () => {
-    // O horizonte existe porque uma promessa para 2027 é typo de digitação, e
-    // um typo aqui envenena o rótulo "promessa vencida" naquele alvo para
-    // sempre.
-    const longe = await chamar(POST, { body: { ...base, promisedFor: maisDias(HOJE, 181) } });
-    expect(longe.status).toBe(400);
-    expect(longe.body.error).toMatch(/180 dias/);
-
-    const limite = await chamar(POST, { body: { ...base, promisedFor: maisDias(HOJE, 180) } });
-    expect(limite.status).toBe(200);
-  });
-
-  it("nota acima de 280 caracteres → 400; exatamente 280 passa", async () => {
-    const r = await chamar(POST, { body: { ...base, note: "a".repeat(281) } });
-    expect(r.status).toBe(400);
-    expect(r.body.error).toMatch(/280/);
-
-    expect((await chamar(POST, { body: { ...base, note: "a".repeat(280) } })).status).toBe(200);
-  });
-
-  it("targetType fora de event|sponsor → 400", async () => {
-    for (const ruim of ["user", "item", "", null, undefined]) {
-      const r = await chamar(POST, { body: { targetType: ruim, targetId: "EV1" } });
-      expect(r.status, `targetType=${String(ruim)}`).toBe(400);
-    }
-    expect(mundo.cobrancas).toEqual([]);
-  });
-
-  it("targetId vazio → 400", async () => {
-    expect((await chamar(POST, { body: { targetType: "event", targetId: "" } })).status).toBe(400);
-  });
-
-  it("alvo inexistente → 404, nos dois tipos", async () => {
-    const ev = await chamar(POST, { body: { targetType: "event", targetId: "nao-existe" } });
-    expect(ev.status).toBe(404);
-    expect(ev.body.error).toMatch(/evento não existe/i);
-
-    const sp = await chamar(POST, { body: { targetType: "sponsor", targetId: "nao-existe" } });
-    expect(sp.status).toBe(404);
-    expect(sp.body.error).toMatch(/patrocinador não existe/i);
-
-    // Nenhuma linha órfã e nenhum audit log apontando para nada — num recurso
-    // cujo valor inteiro é ser verdadeiro.
-    expect(mundo.cobrancas).toEqual([]);
-    expect(auditorias).toEqual([]);
-    expect(broadcasts).toEqual([]);
-  });
-
-  it("nenhuma requisição rejeitada grava audit log ou dispara broadcast", async () => {
-    await chamar(POST, { body: { ...base, promisedFor: "2026-02-31" } });
-    await chamar(POST, { body: { ...base, note: "a".repeat(400) } });
-    await chamar(POST, { body: { targetType: "user", targetId: "EV1" } });
-    expect(auditorias).toEqual([]);
-    expect(broadcasts).toEqual([]);
-  });
-});
-
-// ═════════════════════════════════════════════════════════════════════════════
 // T18 — "o que mudou desde ontem"
 // ═════════════════════════════════════════════════════════════════════════════
 describe("T18 — desdeOntem", () => {
@@ -1005,11 +747,12 @@ describe("trend", () => {
 // ═════════════════════════════════════════════════════════════════════════════
 // T19 — degradação enquanto `npm run db:push` não roda
 //
-// Este é o estado REAL do ambiente hoje: as três tabelas de prazo ainda não
+// Este é o estado REAL do ambiente hoje: as tabelas de prazo ainda não
 // existem. A tela do diretor não pode cair por causa disso — e o que ela perde
-// tem que ser exatamente os três blocos opcionais, nada do núcleo.
+// tem que ser exatamente os blocos opcionais, nada do núcleo. (Eram três; o de
+// cobranças saiu em 06/10 com a cobrança.)
 // ═════════════════════════════════════════════════════════════════════════════
-describe("T19 — as três tabelas ausentes", () => {
+describe("T19 — as tabelas ausentes", () => {
   let erros: any;
   beforeEach(() => {
     // O handler loga o motivo por bloco; silenciamos para não poluir a saída,
@@ -1019,7 +762,7 @@ describe("T19 — as três tabelas ausentes", () => {
   });
   afterAll(() => { vi.restoreAllMocks(); });
 
-  it("responde 200 com events e kpis completos; trend/cobrancas/desdeOntem degradam", async () => {
+  it("responde 200 com events e kpis completos; trend/desdeOntem degradam", async () => {
     mundo.ausentes = new Set(["prazo_snapshots", "prazo_cobrancas", "prazo_event_snapshots"]);
     cadastrar(evento({ id: "A" }), ["draft", "draft"]);
     cadastrar(evento({ id: "B" }), []);
@@ -1038,38 +781,38 @@ describe("T19 — as três tabelas ausentes", () => {
     // Opcionais degradados — e `{}`/`null`, nunca `undefined` (o contrato
     // promete a chave, e o cliente checa presença).
     expect(p.trend).toBeNull();
-    expect(p.cobrancas).toEqual({});
     expect(p.desdeOntem).toBeNull();
 
     // O log diz ao dono exatamente o que fazer.
     const mensagens = erros.mock.calls.map((c: any[]) => String(c[0])).join(" | ");
     expect(mensagens).toContain("prazo_snapshots");
-    expect(mensagens).toContain("prazo_cobrancas");
     expect(mensagens).toContain("prazo_event_snapshots");
     expect(mensagens).toContain("db:push");
   });
 
-  it("cada tabela degrada SOZINHA — a ausência de uma não derruba as outras", async () => {
-    mundo.ausentes = new Set(["prazo_cobrancas"]);
+  it("cada tabela degrada SOZINHA — a ausência de uma não derruba a outra", async () => {
+    mundo.ausentes = new Set(["prazo_snapshots"]);
     cadastrar(evento({ id: "A" }), ["draft"]);
-    mundo.snapshots = [{ day: maisDias(HOJE, -1), atrasados: 0, saidas7d: 0, pecasAtrasadas: 0, emDia: 0 }];
     mundo.eventSnapshots = [{ day: maisDias(HOJE, -1), eventId: "A", hasOverdue: false, pecasAtrasadas: 0 }];
 
     const p = await pegarPayload();
-    expect(p.cobrancas).toEqual({});
-    expect(p.trend).not.toBeNull();
+    expect(p.trend).toBeNull();
     expect(p.desdeOntem).not.toBeNull();
     expect(p.desdeOntem!.entraramEmAtraso.map((e) => e.id)).toEqual(["A"]);
   });
 
-  it("o POST de cobrança devolve 500 com instrução acionável, sem inventar sucesso", async () => {
+  it("prazo_cobrancas não é lida: o payload não tem mais `cobrancas` e a ausência da tabela não muda nada", async () => {
+    // A tabela ficou no banco sem uso (06/10, sem migração destrutiva). O GET
+    // não pode depender dela — nem para ler, nem para logar o sumiço.
     mundo.ausentes = new Set(["prazo_cobrancas"]);
-    cadastrar(evento({ id: "EV1" }), ["draft"]);
-    const r = await chamar(POST, { body: { targetType: "event", targetId: "EV1" } });
-    expect(r.status).toBe(500);
-    // Frase para quem usa a tela: nada de mandar o admin rodar comando.
-    expect(r.body.error).toMatch(/Não foi possível registrar a cobrança/);
-    expect(r.body.error).not.toMatch(/db:push|npm/);
+    cadastrar(evento({ id: "A" }), ["draft"]);
+    const p = await pegarPayload();
+    expect("cobrancas" in p).toBe(false);
+    expect(lidas.has("prazo_cobrancas")).toBe(false);
+    const mensagens = erros.mock.calls.map((c: any[]) => String(c[0])).join(" | ");
+    expect(mensagens).not.toContain("prazo_cobrancas");
+    // E nada é escrito nem difundido por uma leitura.
+    expect(auditorias).toEqual([]);
     expect(broadcasts).toEqual([]);
   });
 });

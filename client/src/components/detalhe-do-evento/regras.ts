@@ -4,7 +4,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { STATUS } from "@/lib/status";
 import { FORA_DO_FUNIL } from "@/lib/fases";
-import { MARCOS_DO_EVENTO, type MarcoDoEvento } from "@shared/prazo-dates";
+import { MARCOS_DO_EVENTO, deslocamentoDeFimDeSemana, type MarcoDoEvento } from "@shared/prazo-dates";
 import { TIPOS_DE_PECA, statusParaContagem } from "@shared/molde";
 import { CAMPOS_VAZIOS_DA_PRODUCAO_INTERNA } from "@shared/producao-interna";
 import type { ItemFormData, Marco, PecaDoEvento, TrabalhoAberto } from "./tipos";
@@ -62,10 +62,12 @@ export function calcularMarcos(event: EventoParaMarcos, today: Date): { marcos: 
   const countdownDays = Math.ceil((depDay.getTime() - today.getTime()) / 86400000);
   const adjustWeekend = (date: Date, skip: boolean): { date: Date; adjusted: 'fri' | 'mon' | null } => {
     if (skip) return { date, adjusted: null };
-    const dow = date.getDay();
-    if (dow === 6) { const d = new Date(date); d.setDate(d.getDate() - 1); return { date: d, adjusted: 'fri' }; }
-    if (dow === 0) { const d = new Date(date); d.setDate(d.getDate() + 1); return { date: d, adjusted: 'mon' }; }
-    return { date, adjusted: null };
+    // A regra (quantos dias e para que lado) é a de @shared/prazo-dates desde
+    // 06/10 — a mesma da Gestão de Prazos e do Calendário.
+    const passo = deslocamentoDeFimDeSemana(date.getDay());
+    if (passo === 0) return { date, adjusted: null };
+    const d = new Date(date); d.setDate(d.getDate() + passo);
+    return { date: d, adjusted: passo < 0 ? 'fri' : 'mon' };
   };
   const marcos = MARCOS_DO_EVENTO.map((m) => {
     const days: number = event[m.campo] ?? m.offset;

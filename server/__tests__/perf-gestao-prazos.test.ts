@@ -131,14 +131,6 @@ function gerarPayload() {
       solicitante: "Fulano",
     });
   }
-  const cobrancas: Record<string, any> = {};
-  for (let e = 0; e < 68; e += 5) {
-    cobrancas[`event:ev-${e}`] = {
-      userName: "Diretor", createdAt: "2026-09-12T12:00:00.000Z", daysAgo: 5, total: 2,
-      historico: [{ userName: "Diretor", createdAt: "2026-09-12T12:00:00.000Z", daysAgo: 5 }],
-      promessaData: "2026-09-15", promessaDiasRestantes: -2, nota: "Arte reenvia", houveMovimento: false,
-    };
-  }
   const atrasados = events.filter((e) => e.categoria === "atrasado").length;
   const semPecasN = events.filter((e) => e.categoria === "semPecas").length;
   return {
@@ -157,7 +149,6 @@ function gerarPayload() {
         emDia: events.length - atrasados - semPecasN, invalidCount: 0, semPecas: semPecasN,
       },
       trend: { atrasados: 1, saidas7d: 0, pecasAtrasadas: -4, emDia: 2 },
-      cobrancas,
       desdeOntem: { baseDay: "2026-09-16", entraramEmAtraso: [{ id: "ev-1", name: "Copa 1" }], sairamDoAtraso: [], pecasDestravadas: 12 },
     },
     totalPecas,

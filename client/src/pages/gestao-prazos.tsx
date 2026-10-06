@@ -27,13 +27,12 @@ import { HIDE_NATIVE_CLOSE, ModalFooter, ModalHeader, modalSurface } from "@/com
 import { FilterSelect } from "@/components/filter-select";
 import { ToastAction } from "@/components/ui/toast";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/contexts/auth-context";
 import { getPriorityMeta, PRIORITY } from "@/lib/status";
 import { MARCOS_DO_EVENTO } from "@shared/prazo-dates";
 import { alvo, useDensidadeDoConteudo, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { onPrazosInvalidated } from "@/hooks/use-websocket";
 import type {
-  CobrancaEntry, CobrancaMap, PrazoEvent, PrazosPayload, SponsorDelay,
+  PrazoEvent, PrazosPayload, SponsorDelay,
 } from "@shared/prazos-contract";
 import {
   addDaysStr, apiErrorMessage, currentStageIdx, diasTexto, eventHasOverdue,
@@ -43,7 +42,6 @@ import {
 } from "@/components/prazos/tokens";
 import { StageCell } from "@/components/prazos/stage-cell";
 import { KpiCard } from "@/components/prazos/kpi-card";
-import { CobradoControl } from "@/components/prazos/cobrado-control";
 import { EventDrilldown } from "@/components/prazos/event-drilldown";
 import { QuadroCard } from "@/components/prazos/quadro-card";
 import { QuadroColuna } from "@/components/prazos/quadro-coluna";
@@ -118,7 +116,6 @@ const linkComoBotao: React.CSSProperties = {
 // render, que invalidava todo `useMemo` que dependia deles e todo `memo` de
 // card que os recebia. Constantes de módulo têm a mesma cara e não mudam.
 const SEM_EVENTOS: PrazoEvent[] = [];
-const SEM_COBRANCAS: CobrancaMap = {};
 const SEM_PATROCINADORES: SponsorDelay[] = [];
 const STAGE_META_PADRAO = STAGE_HEADERS.map((h) => ({ key: h.key, label: h.full }));
 
@@ -160,11 +157,6 @@ export default function GestaoPrazos() {
   const { ref: corpoRef, cards: emCards, compacto, isMobile } = useDensidadeDoConteudo<HTMLDivElement>();
   const ponteiroGrosso = usePonteiroGrosso();
   const { toast } = useToast();
-  // Só para DESENHO: decide se a linha do "Comece por aqui" reserva a faixa
-  // de acompanhamento. Quem pode registrar continua decidido dentro do
-  // CobradoControl (e no servidor) — nada de permissão muda aqui.
-  const { user } = useAuth();
-  const veAcompanhamento = user?.role === "admin";
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery<PrazosPayload>({
     queryKey: ["/api/prazos"],
@@ -357,18 +349,8 @@ export default function GestaoPrazos() {
   // placar inteiro — melhor perder o clique e manter o número.
   const podeFiltrarSaidas = kpisDoServidor && !!data?.today;
   const trend = data?.trend ?? null;
-  const cobrancas = data?.cobrancas ?? SEM_COBRANCAS;
   const desdeOntem = data?.desdeOntem ?? null;
 
-  // `Partial<Record<...>>` de propósito no contrato: enquanto o db:push não
-  // rodar o mapa vem VAZIO, e um `cobrancas[key].historico.map(...)` sem
-  // guarda derrubaria a tela inteira do diretor.
-  // `useCallback`: vai como prop para a tabela e para o `renderCard` do quadro,
-  // e uma função nova por render derrubaria o `memo` das linhas e dos cards.
-  const cobrancaEvento = useCallback(
-    (id: string): CobrancaEntry | undefined => cobrancas[`event:${id}`],
-    [cobrancas],
-  );
 
   const prioridadesDisponiveis = useMemo(
     () => Array.from(new Set(events.map((e) => e.priority).filter(Boolean))) as string[],
@@ -745,12 +727,11 @@ export default function GestaoPrazos() {
     <QuadroCard
       ev={ev}
       stage={ev.stages[i]}
-      cobranca={cobrancaEvento(ev.eventId ?? ev.id)}
       onOpen={setDetailId}
       onFocusCard={focarCard}
       realce={movidos.has(ev.id)}
     />
-  ), [cobrancaEvento, focarCard, movidos]);
+  ), [focarCard, movidos]);
   const alternarExpandido = useCallback((id: string) => {
     setExpandedId((atual) => (atual === id ? null : id));
   }, []);
@@ -909,8 +890,6 @@ export default function GestaoPrazos() {
           ev={ev}
           expanded={expandedId === ev.id}
           onToggle={alternarExpandido}
-          cobranca={cobrancaEvento(ev.eventId ?? ev.id)}
-          today={today}
         />
       ))}
     </div>
@@ -1155,8 +1134,6 @@ export default function GestaoPrazos() {
         expandedId={expandedId}
         onToggleExpand={setExpandedId}
         printMode={printMode}
-        cobrancaDe={cobrancaEvento}
-        today={today}
         compacto={compacto}
         alvoBotao={alvo(36, ponteiroGrosso)}
       />
@@ -1255,7 +1232,11 @@ export default function GestaoPrazos() {
     rotuloEmDuasLinhas: emCards,
   });
 
-  // ── "Comece por aqui": os três piores, com setor e cobrança ───────────────
+  // ── "Comece por aqui": os três piores, com o setor que destrava ──────────
+  // SEM COBRANÇA (06/10, decisão do dono): cada linha tinha, embaixo, o
+  // "Marcar como cobrado" com o form de promessa. Saiu; a linha fica com o
+  // numeral, o nome, o diagnóstico e o "Resolver em {setor} →" — a única
+  // ação, que já era a principal.
   // A tela já sabia ordenar por pior atraso e já sabia qual setor destrava
   // cada etapa; faltava compor isso numa fila curta. Fica ACIMA da barra de
   // filtros, mesma posição do placar — que é a posição que o usuário já lê
@@ -1369,30 +1350,6 @@ export default function GestaoPrazos() {
                 >
                   Resolver em {setor} →
                 </Link>
-              )}
-              {(veAcompanhamento || cobrancaEvento(ev.eventId ?? ev.id)) && (
-              // Faixa PRÓPRIA, abaixo do nome e alinhada a ele. Na mesma
-              // linha, o status ("cobrado há 4 dias por … · nada se moveu")
-              // disputava a largura com o nome do evento, que virava
-              // "MEIA MARATONA DE BH (EX…" — a chave da linha cortada para
-              // caber um detalhe.
-              <div className="gp-no-print" style={{ flexBasis: "100%", paddingLeft: 32, minWidth: 0 }}>
-                {/* Contorno, não sólido: a ação primária SÓLIDA é a do bloco
-                    de cobrança do modal. Três botões pretos aqui em cima
-                    virariam mais um bloco competindo com o vermelho do
-                    diagnóstico. `showForm` (disclosure fechado por padrão)
-                    porque a fila é onde a ligação acontece: quem acabou de
-                    ouvir "te entrego quinta" registrava a promessa só abrindo
-                    o modal — dois cliques a mais bem no momento do combinado. */}
-                <CobradoControl
-                  targetType="event"
-                  targetId={ev.eventId ?? ev.id}
-                  cobranca={cobrancaEvento(ev.eventId ?? ev.id)}
-                  today={today}
-                  variant="secondary"
-                  showForm
-                />
-              </div>
               )}
             </div>
           );
@@ -1540,7 +1497,7 @@ export default function GestaoPrazos() {
 
   return (
     <div style={{ backgroundColor: TI.bg, minHeight: "100%", padding: isMobile ? "16px 12px 32px" : "24px 24px 48px" }}>
-      {/* Relatório de cobrança vai para reunião: a impressão esconde os
+      {/* O relatório de prazos vai para reunião: a impressão esconde os
           controles (filtros, botões), solta os scrollports (senão o Chromium
           recorta tudo o que passa da primeira dobra) e evita quebrar linha de
           tabela ao meio. O hover de linha da tabela e a elevação do card do
@@ -1599,8 +1556,8 @@ export default function GestaoPrazos() {
             <div className="gp-no-print" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               {/* ── COMO LER ESTA TELA (rodada 4) ─────────────────────────────
                   A tela abre para TODOS os perfis e falava a língua de quem a
-                  desenhou: "marco", "etapa vencida", "destravar", "Marcar como
-                  cobrado". Nada disso se deduz olhando. O guia é um disclosure
+                  desenhou: "marco", "etapa vencida", "destravar". Nada disso
+                  se deduz olhando. O guia é um disclosure
                   que nasce fechado (dono, 17/09).
 
                   Tudo que ele afirma vem de fonte única: nome, descrição e prazo
@@ -1706,15 +1663,19 @@ export default function GestaoPrazos() {
               <h2 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: TI.title }}>O que cada palavra quer dizer</h2>
               <p style={{ margin: 0 }}>
                 <strong style={{ color: TI.red }}>Vencida</strong> — o prazo da etapa passou e ainda há peça parada nela.
-                {" "}<strong style={{ color: TI.amber }}>Vence em até 3 dias</strong> — ainda dá tempo, mas é a próxima cobrança.
+                {" "}<strong style={{ color: TI.amber }}>Vence em até 3 dias</strong> — ainda dá tempo, mas é o próximo prazo a vencer.
                 {" "}<strong style={{ color: TI.green }}>Concluída</strong> — nenhuma peça parada nela. Cinza é prazo futuro.
               </p>
               <p style={{ margin: 0 }}>
                 <strong style={{ color: TI.title }}>Resolver em …</strong> abre a tela do setor que destrava a etapa, já recortada o mais perto possível daquele evento ou peça.
               </p>
+              {/* No lugar do "Marcar como cobrado" (saiu em 06/10), a regra
+                  do fim de semana: é a pergunta que sobra quando alguém
+                  confere a data aqui contra a do Calendário — e desde 06/10
+                  as duas telas dão o MESMO dia (@shared/prazo-dates). */}
               <p style={{ margin: 0 }}>
-                <strong style={{ color: TI.title }}>Marcar como cobrado</strong> anota que alguém cobrou o setor: quem cobrou, quando e, se quiser, o prazo combinado.
-                {" "}Não muda nenhuma peça e não envia mensagem a ninguém — serve para ver depois se algo andou. Só o administrador registra.
+                <strong style={{ color: TI.title }}>Fim de semana</strong> — prazo que cairia no sábado vence na sexta; no domingo, na segunda.
+                {" "}A Produção Gráfica é a exceção: roda no fim de semana, e o prazo dela fica no dia. O Calendário mostra o mesmo dia.
               </p>
               <p style={{ margin: 0, color: TI.secondary }}>
                 Evento que já começou ou com todas as peças entregues sai desta tela. A tela se atualiza sozinha.
@@ -2121,7 +2082,7 @@ export default function GestaoPrazos() {
             padding da página — que a tabela precisa caber. */}
         <div ref={corpoRef} className="gpz-corpo">{body}</div>
 
-        {/* Detalhe do evento: o drill de cobrança na casca da casa. */}
+        {/* Detalhe do evento: o drill na casca da casa. */}
         <Dialog open={modalAberto} onOpenChange={(open) => { if (!open) setDetailId(null); }}>
           <DialogContent
             // `p-0 gap-0` além do HIDE_NATIVE_CLOSE: o DialogContent base é um
@@ -2156,11 +2117,12 @@ export default function GestaoPrazos() {
             // extenso em components/modal-shell.tsx, e o comentário do corpo
             // logo abaixo explica por que o desconto fixo foi abandonado.
             style={modalSurface(1120)}
-            // Sem isto o Radix focava o PRIMEIRO tabulável do conteúdo, que era
-            // o botão de registrar cobrança: a primeira barra de espaço (gesto
-            // natural de quem abriu e quer rolar) gravava um POST em nome do
-            // diretor. O destino é obrigatório — `preventDefault` sem mover o
-            // foco joga tudo no <body>.
+            // Sem isto o Radix focava o PRIMEIRO tabulável do conteúdo (era o
+            // botão de registrar cobrança, que saiu em 06/10; hoje seria o
+            // primeiro "Resolver em" do drill): a primeira barra de espaço —
+            // gesto natural de quem abriu e quer rolar — disparava uma ação.
+            // O destino é obrigatório — `preventDefault` sem mover o foco joga
+            // tudo no <body>.
             onOpenAutoFocus={(e) => { e.preventDefault(); tituloModalRef.current?.focus(); }}
           >
             {modalEv && modalChip && (
@@ -2179,13 +2141,10 @@ export default function GestaoPrazos() {
                     pertencer a ESTE scrollport — é o que faz a barra de
                     espaço rolar.
 
-                    TUDO que tem altura variável (drill + bloco de cobrança
-                    com o form de promessa) mora AQUI DENTRO. O bloco de
-                    cobrança já viveu no ModalFooter: rodapé não rola, e com
-                    o form aberto num drill grande ele crescia para fora da
-                    viewport — o botão de confirmar sumia atrás da barra do
-                    Windows e o link do rodapé era desenhado fora do modal.
-                    No rodapé fixo fica só o que tem UMA linha (o link). */}
+                    TUDO que tem altura variável (o drill) mora AQUI DENTRO.
+                    No rodapé fixo fica só o que tem UMA linha (o link) —
+                    rodapé não rola, e conteúdo variável nele crescia para
+                    fora da viewport. */}
                 <div style={{
                   position: "relative", overflowY: "auto", padding: "18px 24px",
                   // O TETO SAIU DAQUI e virou layout — e a troca tem conta.
@@ -2212,8 +2171,8 @@ export default function GestaoPrazos() {
                   // tela — que é o bug de origem desta estrutura.
                   //
                   // O que NÃO mudou: este corpo segue o ÚNICO scrollport do
-                  // modal, e tudo de altura variável (drill + bloco de
-                  // cobrança com o form de promessa) segue morando aqui dentro.
+                  // modal, e tudo de altura variável (o drill) segue morando
+                  // aqui dentro.
                   flex: "1 1 auto", minHeight: 0,
                 }}>
                   {/* Título só para leitor de tela (o cabeçalho visual já
@@ -2222,7 +2181,7 @@ export default function GestaoPrazos() {
                     {modalEv.name}
                   </DialogTitle>
                   <DialogDescription className="sr-only">
-                    Prazos de cada etapa, peças pendentes e registro de cobrança do evento.
+                    Prazos de cada etapa e peças pendentes do evento.
                   </DialogDescription>
 
                   {saiuDoPayload && (
@@ -2262,36 +2221,7 @@ export default function GestaoPrazos() {
                     ))}
                   </div>
 
-                  <EventDrilldown
-                    ev={modalEv}
-                    cobranca={cobrancaEvento(modalEv.eventId ?? modalEv.id)}
-                    today={today}
-                    showCobranca={false}
-                  />
-
-                  {/* Bloco de cobrança — a ação primária do modal — no FIM do
-                      scrollport, nunca no rodapé: o form "Combinar um prazo"
-                      expande e conteúdo de altura variável fora do scrollport
-                      é exatamente o que estourava o modal. */}
-                  <div className="gp-no-print" style={{ marginTop: 18 }}>
-                    {/* O bloco virou um PAINEL próprio (fundo rebaixado,
-                        cabeçalho, ação à direita): ele usa a largura toda, e
-                        quem segura o tamanho dos campos é a grade dele (data
-                        com 190px, nota com o resto). O teto de 640 de antes
-                        deixava o botão parado no meio do modal. */}
-                    <div>
-                      <CobradoControl
-                        targetType="event"
-                        targetId={modalEv.eventId ?? modalEv.id}
-                        cobranca={cobrancaEvento(modalEv.eventId ?? modalEv.id)}
-                        today={today}
-                        variant="primary"
-                        layout="bloco"
-                        showForm
-                        showHistorico
-                      />
-                    </div>
-                  </div>
+                  <EventDrilldown ev={modalEv} />
                 </div>
                 <ModalFooter>
                   <div style={{ display: "flex", justifyContent: "flex-end" }}>
@@ -2329,8 +2259,6 @@ export default function GestaoPrazos() {
             sponsorDelays={sponsorDelays}
             eventosPorEtapa={eventosPorEtapa}
             proximosDias={proximosDias}
-            cobrancas={cobrancas}
-            today={today}
             etapaFoco={etapaFoco}
             // Filtrar por etapa/dia acontece bem abaixo da dobra: sem o
             // scroll o clique parecia não fazer nada (os dois botões — o de

@@ -16,8 +16,7 @@ import { Truck } from "lucide-react";
 import { getPriorityMeta } from "@/lib/status";
 import { Selo } from "@/components/ui/selo";
 import { FONT, MOTION } from "@/lib/theme";
-import type { CobrancaEntry, PrazoEvent, PrazoStage } from "@shared/prazos-contract";
-import { CobrancaLinha, cobrancaResumo } from "./cobrado-control";
+import type { PrazoEvent, PrazoStage } from "@shared/prazos-contract";
 import { PrioridadeChip, PrioridadePonto } from "./prioridade";
 import { SeloRisco } from "./selo-risco";
 import {
@@ -29,7 +28,6 @@ interface QuadroCardProps {
   ev: PrazoEvent;
   /** Etapa da COLUNA em que o card está (pode faltar num payload antigo). */
   stage?: PrazoStage;
-  cobranca?: CobrancaEntry;
   /**
    * Recebem o ID, e não um fechamento por card: com `(id) => void` a página
    * passa a MESMA função para todos os cards, e o `memo` abaixo consegue
@@ -44,10 +42,10 @@ interface QuadroCardProps {
   realce?: boolean;
 }
 
-// `memo`: todas as props são estáveis entre revalidações sem mudança — `ev`,
-// `stage` e `cobranca` preservam a identidade pelo structural sharing do
+// `memo`: todas as props são estáveis entre revalidações sem mudança — `ev`
+// e `stage` preservam a identidade pelo structural sharing do
 // React Query, e os dois handlers vêm de `useCallback` na página.
-export const QuadroCard = memo(function QuadroCard({ ev, stage, cobranca, onOpen, onFocusCard, realce }: QuadroCardProps) {
+export const QuadroCard = memo(function QuadroCard({ ev, stage, onOpen, onFocusCard, realce }: QuadroCardProps) {
   // A elevação de hover E de foco vem da classe `gp-card` (regra no <style>
   // da página, :hover e :focus-visible). Era um par onMouseEnter/Leave com
   // estado React: re-renderizava o card a cada passada do mouse e o foco só
@@ -119,9 +117,7 @@ export const QuadroCard = memo(function QuadroCard({ ev, stage, cobranca, onOpen
 
   // O `aria-label` do botão SUBSTITUI todo o texto interno para o leitor de
   // tela — então tudo o que é selo visual precisa estar aqui, e o critério do
-  // RISCO por extenso (um `sr-only` dentro do botão seria ignorado). A
-  // cobrança entra pelo mesmo motivo: "promessa vencida há 2d" é o rótulo
-  // mais forte da tela e ficava inaudível justamente na visão padrão.
+  // RISCO por extenso (um `sr-only` dentro do botão seria ignorado).
   const resumoAcessivel = [
     prio ? `prioridade ${prio.label}` : null,
     chip.full,
@@ -131,7 +127,6 @@ export const QuadroCard = memo(function QuadroCard({ ev, stage, cobranca, onOpen
     // este `aria-label` SUBSTITUI todo o texto interno do botão — ou seja,
     // ela nunca foi audível. Sai a barra, entra a informação.
     !semPecas ? `${ev.deliveredItems} de ${ev.totalItems} peças entregues` : null,
-    cobranca ? cobrancaResumo(cobranca) : null,
   ].filter(Boolean).join("; ");
 
   return (
@@ -307,12 +302,6 @@ export const QuadroCard = memo(function QuadroCard({ ev, stage, cobranca, onOpen
           </span>
         )}
       </span>
-
-      {cobranca && (
-        <span style={{ display: "block", marginTop: 6 }}>
-          <CobrancaLinha cobranca={cobranca} fontSize={10} />
-        </span>
-      )}
     </button>
   );
 });

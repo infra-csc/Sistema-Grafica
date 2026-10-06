@@ -7,6 +7,7 @@ import { responderErro } from "../../erros";
 // Régua do thumb (só objeto do nosso storage): ./thumb-url.ts.
 import { urlDeThumbValida, ERRO_THUMB_FORA_DO_STORAGE } from "../thumb-url";
 import { barraEventoFinalizado } from "../eventoFinalizado";
+import { recusaDaMarcaNaEscrita } from "@shared/producao-interna";
 import {
   updateItemSchema, normalizarReferencias, planejarEdicao, descreverEdicao, avisarDepoisDaEdicao,
 } from "../../services/edicao-da-peca";
@@ -93,6 +94,16 @@ export function registrarEdicao(app: Express): void {
       // contrato da peça. Num evento que já acabou, mudar o contrato só
       // reescreve o que foi fechado.
       if (await barraEventoFinalizado(currentItem, res)) return;
+
+      // PRODUÇÃO INTERNA (dono, 02/10): a marca "vai direto para a Gráfica"
+      // muda só na lista ainda não enviada, por admin/Solicitação, e só em
+      // peça sem patrocinador (shared/producao-interna.ts). A instrução é
+      // cobrada no ENVIO, não aqui — o rascunho não trava por ela.
+      const marcando = validatedData.producaoInterna === true && !currentItem.producaoInterna;
+      const temPatrocinador = marcando ? (await storage.getItemSponsors(currentItem.id)).length > 0 : false;
+      const daMarca = recusaDaMarcaNaEscrita(currentItem, validatedData, role, temPatrocinador);
+      if ("recusa" in daMarca) return res.status(daMarca.recusa.status).json(daMarca.recusa.corpo);
+      if (daMarca.instrucoes !== undefined) validatedData.instrucoesGrafica = daMarca.instrucoes;
 
       // MOLDE (revisão 22/09): o tipo não cruza a fronteira do molde fora do
       // rascunho — o fluxo curto e o comum não se conhecem (shared/molde.ts).

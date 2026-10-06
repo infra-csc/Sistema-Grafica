@@ -1,7 +1,7 @@
 // CABEÇALHO da ficha: identificação, título, saída do caminhão e a trilha de etapas.
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { X, Check, Recycle, Truck, ArrowLeftRight } from "lucide-react";
+import { X, Check, Minus, Recycle, Truck, ArrowLeftRight } from "lucide-react";
 import { SeloPrazoMolde } from "@/components/prazo-do-molde";
 import { prazoDoMolde } from "@shared/prazo-molde";
 import { toUTCDisplayDate } from "@/lib/utils";
@@ -176,24 +176,33 @@ export function CabecalhoDaFicha({ item, isMobile, onTransferir, onOpenChange }:
       {(() => {
         const etapas = ehMolde(item) ? ETAPAS_DO_MOLDE : TIMELINE_STEPS;
         const atual = etapas.find(s => s.idx === step);
+        // PRODUÇÃO INTERNA (02/10): a peça PULOU Vinculação → Revisão (foi da
+        // lista direto para a Gráfica). Marcar essas etapas com ✓ diria que
+        // alguém as fez. Elas ficam vazadas, com traço — e só nesta peça.
+        const pulouAteAProducao = !ehMolde(item) && !!item.producaoInterna && step >= 5;
         return (
           <>
             <div aria-hidden="true" style={{ display: "flex", gap: 6, margin: isMobile ? "16px 0 0" : "20px 0 0" }} data-testid="trilha-da-ficha">
               {etapas.map(s => {
-                const done    = s.idx < step;
+                const pulada  = pulouAteAProducao && s.idx < 5;
+                const done    = s.idx < step && !pulada;
                 const current = s.idx === step;
                 return (
-                  <div key={s.idx} style={{ flex: "1 1 0", minWidth: 0 }}>
+                  <div key={s.idx} style={{ flex: "1 1 0", minWidth: 0 }} title={pulada ? `${s.label}: pulada — produção interna` : undefined} data-pulada={pulada ? "sim" : undefined}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: isMobile ? "center" : undefined, gap: 6, marginBottom: 7, minWidth: 0 }}>
                       <span style={{
                         width: isMobile ? 22 : 18, height: isMobile ? 22 : 18, borderRadius: "50%", flexShrink: 0,
-                        backgroundColor: (done || current) ? T.accentText : "rgba(255,255,255,0.09)",
+                        backgroundColor: (done || current) ? T.accentText : pulada ? "transparent" : "rgba(255,255,255,0.09)",
+                        border: pulada ? "1.5px dashed rgba(255,255,255,0.55)" : undefined,
+                        boxSizing: "border-box",
                         boxShadow: current ? "0 0 0 3px rgba(251,146,60,0.25)" : "none",
                         display: "flex", alignItems: "center", justifyContent: "center",
                         color: (done || current) ? T.surface : "rgba(255,255,255,0.55)",
                         fontSize: isMobile ? 12 : 9, fontWeight: 800,
                       }}>
-                        {done ? <Check style={{ width: isMobile ? 12 : 10, height: isMobile ? 12 : 10, strokeWidth: 3 }} /> : s.idx + 1}
+                        {done ? <Check style={{ width: isMobile ? 12 : 10, height: isMobile ? 12 : 10, strokeWidth: 3 }} />
+                          : pulada ? <Minus style={{ width: isMobile ? 12 : 10, height: isMobile ? 12 : 10, strokeWidth: 3 }} />
+                          : s.idx + 1}
                       </span>
                       {/* NO CELULAR, SÓ O NÚMERO (revisão de 24/09). Seis
                           rótulos em ~50px cada viravam "Vín…", "Ap…" — a
@@ -211,11 +220,22 @@ export function CabecalhoDaFicha({ item, isMobile, onTransferir, onOpenChange }:
                         </span>
                       )}
                     </div>
-                    <div style={{ height: 3, borderRadius: 999, backgroundColor: (done || current) ? T.accentText : "rgba(255,255,255,0.09)" }} />
+                    <div style={{
+                      height: 3, borderRadius: 999,
+                      backgroundColor: (done || current) ? T.accentText : pulada ? "transparent" : "rgba(255,255,255,0.09)",
+                      // Pulada: barra tracejada — o caminho existe, a peça não passou por ele.
+                      backgroundImage: pulada ? "repeating-linear-gradient(90deg, rgba(255,255,255,0.45) 0 6px, transparent 6px 11px)" : undefined,
+                    }} />
                   </div>
                 );
               })}
             </div>
+            {pulouAteAProducao && (
+              <p data-testid="trilha-pulada-producao-interna" style={{ margin: "8px 0 0", fontSize: isMobile ? 13 : 12, color: "rgba(255,255,255,0.75)", display: "flex", alignItems: "center", gap: 6 }}>
+                <Minus aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0 }} />
+                Produção interna — pulou da lista para a Gráfica
+              </p>
+            )}
             {isMobile && (
               <p data-testid="etapa-atual-da-ficha" style={{ margin: "8px 0 0", fontSize: 13, color: "rgba(255,255,255,0.75)" }}>
                 {atual

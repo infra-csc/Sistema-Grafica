@@ -7,6 +7,7 @@ import { Botao } from "@/components/ui/botao";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { StatusPill } from "@/components/status-pill";
 import { SeloKit } from "@/components/kit/selo-kit";
+import { SeloProducaoInterna, InstrucoesParaAGrafica } from "@/components/selo-producao-interna";
 import { AvisoDoEstoqueNaPeca } from "@/components/consulta-de-estoque/aviso-na-grafica";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { FONT, FS, FW, N, R, T, TOM } from "@/lib/theme";
@@ -99,6 +100,7 @@ export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMo
             <span style={{ display: "inline-flex", alignItems: "center", flexWrap: "wrap", gap: 6, minWidth: 0 }}>
               <span style={{ fontFamily: FONT.display, fontWeight: 700, fontSize: isMobile ? 16 : 13, color: selectedItem.isReuse ? TOM.esmeralda.text : T.accentText }}>{selectedItem.displayId}</span>
               <SeloKit peca={selectedItem} style={{ flexShrink: 0 }} />
+              <SeloProducaoInterna peca={selectedItem} style={{ flexShrink: 0 }} />
               <AvisoDoEstoqueNaPeca peca={selectedItem} style={{ flexShrink: 0 }} />
               {/* Produzir/conferir/entregar um complemento é registrar
                   um LOTE SEPARADO: o modal precisa dizer isso, senão
@@ -191,6 +193,10 @@ export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMo
           </span>
         </div>
       )}
+
+      {/* Produção interna (02/10): as instruções em destaque, ANTES da
+          observação — sem arquivo, são elas que dizem o que imprimir. */}
+      <InstrucoesParaAGrafica peca={selectedItem} />
 
       {/* Observações */}
       {selectedItem.observations && (

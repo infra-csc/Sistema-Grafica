@@ -91,6 +91,9 @@ export interface ItemDaFicha extends PecaComProducao, PecaTravavel, PecaDividive
   visualHeight?: Decimal;
   printShop?: string | null;
   observations?: string | null;
+  /** Produção interna (02/10): direto para a Gráfica, sem Arte — e o que ela deve fazer. */
+  producaoInterna?: boolean | null;
+  instrucoesGrafica?: string | null;
   motivoCancelamento?: string | null;
   referenceUrl?: string | null;
   referenceUrls?: (string | null)[] | null;

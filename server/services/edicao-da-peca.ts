@@ -47,6 +47,10 @@ export const updateItemSchema = insertItemSchema
     referenceUrl: true,
     referenceUrls: true,
     standardItemId: true,
+    // Produção interna (02/10): a marca "vai direto para a Gráfica" e as
+    // instruções. Quem pode e quando: a rota (shared/producao-interna.ts).
+    producaoInterna: true,
+    instrucoesGrafica: true,
   })
   .partial();
 
@@ -367,6 +371,15 @@ export function descreverEdicao(
   }
   if ('skipApproval' in validatedData && item.skipApproval !== currentItem.skipApproval) {
     changedParts.push(item.skipApproval ? "Aprovação de patrocinador dispensada" : "Aprovação de patrocinador reativada");
+  }
+  if ('producaoInterna' in validatedData && !!item.producaoInterna !== !!currentItem.producaoInterna) {
+    changedParts.push(item.producaoInterna
+      ? "Marcada para ir DIRETO PARA A GRÁFICA (produção interna — pula Vinculação, Arte, Aprovação e Revisão Final no envio da lista)"
+      : "Desmarcada: deixa de ir direto para a Gráfica (segue o fluxo normal)");
+  }
+  if ('instrucoesGrafica' in validatedData && (item.instrucoesGrafica ?? null) !== (currentItem.instrucoesGrafica ?? null)) {
+    const instr = (item.instrucoesGrafica ?? "").trim();
+    changedParts.push(instr ? `Instruções para a Gráfica: "${instr.length > 300 ? `${instr.slice(0, 300)}...` : instr}"` : "Instruções para a Gráfica apagadas");
   }
   if ('isPriority' in validatedData && item.isPriority !== currentItem.isPriority) {
     changedParts.push(item.isPriority ? "Peça marcada como PRIORITÁRIA — fura a fila da Arte" : "Prioridade da peça removida");

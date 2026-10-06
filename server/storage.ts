@@ -441,7 +441,7 @@ export interface IStorage {
   setItemsBookUrl(itemIds: string[], bookUrl: string | null): Promise<number>;
   markLabelsPrinted(itemIds: string[]): Promise<Item[]>;
   clearEventBookUrl(eventId: string): Promise<number>;
-  updateItemWithStatusCheck(id: string, fromStatus: ItemStatus, toStatus: ItemStatus): Promise<Item | null>;
+  updateItemWithStatusCheck(id: string, fromStatus: ItemStatus, toStatus: ItemStatus, extras?: Partial<typeof items.$inferInsert>): Promise<Item | null>;
   approveItem(id: string): Promise<Item | undefined>;
   startProduction(id: string, quantityProduced: number): Promise<Item | undefined>;
   markItemAsDelivered(id: string, receivedBy: string, photoUrl?: string): Promise<Item | undefined>;
@@ -1048,10 +1048,14 @@ export class DatabaseStorage implements IStorage {
     return res.length;
   }
 
-  async updateItemWithStatusCheck(id: string, fromStatus: ItemStatus, toStatus: ItemStatus): Promise<Item | null> {
+  // `extras`: colunas gravadas JUNTO com a troca de status, na mesma linha
+  // e sob o mesmo WHERE de status — a produção interna do envio da lista
+  // (02/10) leva skipApproval, approvedAt e a marca (shared/producao-interna).
+  async updateItemWithStatusCheck(id: string, fromStatus: ItemStatus, toStatus: ItemStatus, extras?: Partial<typeof items.$inferInsert>): Promise<Item | null> {
     const [item] = await db
       .update(items)
       .set({
+        ...(extras ?? {}),
         status: toStatus,
         updatedAt: new Date(),
         // O `where` abaixo ja garante que o status era outro: se a linha for
@@ -2813,7 +2817,9 @@ export class DatabaseStorage implements IStorage {
       description: items.description,
     })
       .from(items)
-      .where(eq(items.eventId, eventId));
+      // Produção interna (02/10) não leva patrocinador: a vinculação
+      // automática por cota não a enxerga (shared/producao-interna.ts).
+      .where(and(eq(items.eventId, eventId), eq(items.producaoInterna, false)));
 
     // Get existing item-sponsor links to avoid duplicates
     const existingLinks = await db.select({ itemId: itemSponsors.itemId, sponsorId: itemSponsors.sponsorId })

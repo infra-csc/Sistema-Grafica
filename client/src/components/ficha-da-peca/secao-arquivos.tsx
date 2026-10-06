@@ -9,6 +9,7 @@ import { Selo } from "@/components/ui/selo";
 import { CARTAO, TITULO_SECAO, useLetraDaFicha } from "./estilos";
 import { fmtShort } from "./formatos";
 import type { ItemDaFicha } from "./tipos";
+import { SeloProducaoInterna, InstrucoesParaAGrafica, fraseDoArquivoDaProducaoInterna } from "@/components/selo-producao-interna";
 
 export function SecaoArquivos({ item, ALVO }: {
   item: ItemDaFicha;
@@ -40,7 +41,9 @@ export function SecaoArquivos({ item, ALVO }: {
             <p style={{ fontSize: 12, color: T.apoio, margin: "2px 0 0" }}>
               {item.finalFileUrl
                 ? `Pronto para impressão${item.finalFileUpdatedAt ? ` · ${fmtShort(item.finalFileUpdatedAt)}` : ""}`
-                : "Fica pronto quando a Arte finalizar o layout aprovado"}
+                // Produção interna (02/10): não passa pela Arte — sem arquivo,
+                // a peça é feita pelas instruções, e isso não é pendência.
+                : (fraseDoArquivoDaProducaoInterna(item) ?? "Fica pronto quando a Arte finalizar o layout aprovado")}
             </p>
           </div>
           {item.finalFileUrl ? (
@@ -75,12 +78,22 @@ export function SecaoArquivos({ item, ALVO }: {
                 </a>
               )}
             </div>
+          ) : item.producaoInterna ? (
+            <SeloProducaoInterna peca={item} style={{ flexShrink: 0 }} />
           ) : (
             <Selo tom="neutro" style={{ flexShrink: 0, fontSize: fsf(11) }}>
               Pendente
             </Selo>
           )}
         </div>
+
+        {/* As instruções da produção interna, logo abaixo do arquivo que
+            elas substituem (ou completam). */}
+        {item.producaoInterna && item.instrucoesGrafica?.trim() && (
+          <div style={{ padding: 12, borderBottom: `1px solid ${N.n2}` }}>
+            <InstrucoesParaAGrafica peca={item} />
+          </div>
+        )}
 
         {/* Book do evento */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 12 }}>

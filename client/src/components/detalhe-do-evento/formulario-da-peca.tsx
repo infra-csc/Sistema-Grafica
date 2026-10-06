@@ -14,6 +14,9 @@ import { rotuloDaRemessa, type RemessaDoKit } from "@shared/kit";
 import { alinharTipo } from "@shared/tipo-da-peca";
 import type { ItemFormData, ModeloDePeca } from "./tipos";
 import { formatarM2 } from "./regras";
+import { CampoProducaoInterna } from "@/components/campo-producao-interna";
+import { mostraCampoProducaoInterna } from "@shared/producao-interna";
+import { ehMolde } from "@shared/molde";
 
 // Tipografia e controles do formulário de peça — a MESMA cara nos dois fluxos.
 const FIELD_LABEL: React.CSSProperties = { fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: T.second };
@@ -53,6 +56,12 @@ interface ItemFormProps {
   onAumentarQuantidade?: () => void;
   /** admin|solicitacao: pode marcar a peça como prioritária (fura a fila da Arte). */
   podePriorizar?: boolean;
+  /** Edição: o status da peça — a marca "vai direto para a Gráfica" só muda no rascunho. */
+  statusDaPeca?: string;
+  /** Edição: a peça tem patrocinador vinculado (produção interna não leva). */
+  temPatrocinador?: boolean;
+  /** Edição: a peça já tem arquivo final — a instrução deixa de ser exigida. */
+  jaTemArquivo?: boolean;
 }
 
 // Formulário de peça unificado. Antes eram DUAS implementações independentes
@@ -68,7 +77,7 @@ export function ItemForm({
   setCustomFinish, isMobile, isAdmin, isPending, onSubmit, onCancel,
   localRefPreview, setLocalRefPreview, getUploadUrl,
   quantityLocked = false, quantityFloor = 0, quantityCeiling = Number.MAX_SAFE_INTEGER,
-  onAumentarQuantidade, podePriorizar = false,
+  onAumentarQuantidade, podePriorizar = false, statusDaPeca, temPatrocinador = false, jaTemArquivo = false,
   remessasDoKit = [], kitObrigatorio = false,
 }: ItemFormProps) {
   const isEdit = mode === "edit";
@@ -564,6 +573,23 @@ export function ItemForm({
               style={{ width: "20px", height: "20px", accentColor: TOM.perigo.dot }}
             />
           </div>
+        )}
+
+        {/* VAI DIRETO PARA A GRÁFICA (dono, 02/10: "essa peça tem que indicar
+            NA SOLICITAÇÃO que vai direto para a Gráfica"). Mesmo gate da
+            prioridade (admin|Solicitação), só no rascunho, e nunca em molde,
+            reaproveitamento total ou peça com patrocinador — a menos que já
+            esteja marcada (aí aparece, para poder desmarcar). */}
+        {podePriorizar && mostraCampoProducaoInterna("solicitacao", statusDaPeca)
+          && ((!ehMolde(formData) && !formData.isReuse && !temPatrocinador) || formData.producaoInterna) && (
+          <CampoProducaoInterna
+            valor={formData}
+            onChange={(v) => setFormData((f) => ({ ...f, ...v }))}
+            temPatrocinador={temPatrocinador}
+            jaTemArquivo={jaTemArquivo}
+            isMobile={isMobile}
+            idBase={isEdit ? "pi-edit" : "pi-create"}
+          />
         )}
 
         {/* Pular Aprovação — apenas Admin, só na edição */}

@@ -9,6 +9,8 @@ import { requireAuth, broadcast, createAuditLog, createAuditLogsEmLote, updateEv
 import { responderErro, fraseDoZod, erroPublico, corpoEventoFechado, EVENTO_NAO_ENCONTRADO } from "../../erros";
 import { motivoEventoFechado } from "../eventoFinalizado";
 import { deriveCalculatedM2, deriveMeasurement, quemVe, canCreateItemsFor } from "./comum";
+import { recusaDaMarcaNaEscrita } from "@shared/producao-interna";
+import { lerArquivoDaProducaoInterna } from "./producao-interna";
 
 /** POST /api/items, POST /api/items/bulk. */
 export function registrarCriacao(app: Express): void {
@@ -48,6 +50,22 @@ export function registrarCriacao(app: Express): void {
       // mesmo gate do PATCH. Criador de evento sem papel cria a peça normal.
       if (validatedData.isPriority && !["admin", "solicitacao"].includes(req.userRole ?? "")) {
         return res.status(403).json({ error: "Marcar peça como prioritária é do admin e da Solicitação." });
+      }
+      // PRODUÇÃO INTERNA (dono, 02/10): nascer marcada "vai direto para a
+      // Gráfica" é do admin e da Solicitação (shared/producao-interna.ts). O
+      // arquivo é opcional e entra só na peça marcada — é o MESMO campo que a
+      // Arte preencheria (finalFileUrl), porque esta peça não passa por ela.
+      const daMarca = recusaDaMarcaNaEscrita(null, validatedData, req.userRole, false);
+      if ("recusa" in daMarca) return res.status(daMarca.recusa.status).json(daMarca.recusa.corpo);
+      if (daMarca.instrucoes !== undefined) validatedData.instrucoesGrafica = daMarca.instrucoes;
+      if (validatedData.producaoInterna) {
+        const lido = lerArquivoDaProducaoInterna((req.body ?? {}) as Record<string, unknown>);
+        if (!lido.ok) return res.status(400).json({ error: lido.erro });
+        if (lido.arquivo) {
+          validatedData.finalFileUrl = lido.arquivo.url;
+          validatedData.finalFileName = lido.arquivo.nome;
+          validatedData.finalFileUpdatedAt = new Date();
+        }
       }
       // Não confiar no m² do cliente — recalcular no servidor quando derivável.
       const derivedM2 = deriveCalculatedM2(validatedData);
@@ -99,6 +117,7 @@ export function registrarCriacao(app: Express): void {
         `Item "${item.type}" criado - Qtd: ${item.quantity}, ${item.calculatedM2}m²`
         + (item.isPriority ? " — PRIORITÁRIA" : "")
         + (item.kitRemessaId ? " — KIT" : "")
+        + (item.producaoInterna ? " — DIRETO PARA A GRÁFICA (produção interna)" : "")
       );
 
       // Novo item adicionado - notifica Arte + Gráfica
@@ -180,6 +199,11 @@ export function registrarCriacao(app: Express): void {
           // remessa sem a conferência do POST unitário penduraria a peça numa
           // remessa de outro evento ou de outra pessoa.
           const parsed = publicInsertItemSchema.omit({ kitRemessaId: true }).parse(item);
+          // Produção interna na Entrada Rápida: mesma régua do POST unitário
+          // (sem arquivo — o lote é de linhas digitadas).
+          const daMarca = recusaDaMarcaNaEscrita(null, parsed, req.userRole, false);
+          if ("recusa" in daMarca) throw erroPublico(daMarca.recusa.status, `Linha ${index + 1}: ${daMarca.recusa.corpo.error}`);
+          if (daMarca.instrucoes !== undefined) parsed.instrucoesGrafica = daMarca.instrucoes;
           // Recalcular m² no servidor quando derivável (não confiar no cliente).
           const derivedM2 = deriveCalculatedM2(parsed);
           if (derivedM2 !== undefined) parsed.calculatedM2 = derivedM2;
@@ -208,7 +232,8 @@ export function registrarCriacao(app: Express): void {
       await createAuditLogsEmLote(req, createdItems.map((item) => ({
         action: 'created', entityType: 'item', entityId: item.id,
         details: `Item "${item.type}" criado - Qtd: ${item.quantity}, ${item.calculatedM2}m²`
-          + (item.isPriority ? " — PRIORITÁRIA" : ""),
+          + (item.isPriority ? " — PRIORITÁRIA" : "")
+          + (item.producaoInterna ? " — DIRETO PARA A GRÁFICA (produção interna)" : ""),
       })));
       
       // Get event for notification

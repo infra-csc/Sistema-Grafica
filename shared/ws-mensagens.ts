@@ -36,7 +36,9 @@ export type MensagemWS =
   | { type: "event_deleted"; eventId: Id }
   | { type: "event_closed"; eventId: Id; event?: EventoDoSinal | null }
   | { type: "event_reopened"; eventId: Id; event?: EventoDoSinal | null }
-  | { type: "items_submitted"; eventId: Id; count: number; items?: unknown[] }
+  // diretoParaGrafica (02/10): quantas do envio foram direto para a Gráfica
+  // (produção interna) — o aviso das outras abas não as chama de "vinculação".
+  | { type: "items_submitted"; eventId: Id; count: number; items?: unknown[]; diretoParaGrafica?: number }
   | { type: "account_executives_inferred"; count: number }
   | { type: "event_sponsors_repaired"; count: number }
 
@@ -118,6 +120,8 @@ export interface SinalWS {
   message?: string;
   label?: string;
   hoursRemaining?: number;
+  /** items_submitted: quantas foram direto para a Gráfica (produção interna, 02/10). */
+  diretoParaGrafica?: number;
 }
 
 const texto = (v: unknown): string | undefined =>
@@ -161,6 +165,8 @@ export function recortarParaSinal(msg: MensagemWS): SinalWS {
   if (label) sinal.label = label;
   const horas = numero(m.hoursRemaining);
   if (horas !== undefined) sinal.hoursRemaining = horas;
+  const direto = numero(m.diretoParaGrafica);
+  if (direto !== undefined) sinal.diretoParaGrafica = direto;
   return sinal;
 }
 

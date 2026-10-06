@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState } from "react";
 import { textoDaObservacao, type LinhaDoPedido, type PedidoDePeca } from "@shared/pedidos-de-peca";
 import type { useToast } from "@/hooks/use-toast";
+import { camposDaProducaoInternaDaPeca } from "@shared/producao-interna";
 import { EMPTY_ITEM_FORM } from "./regras";
 import type { ItemFormData, ModeloDePeca, PecaDoEvento } from "./tipos";
 
@@ -108,6 +109,8 @@ export function useFormularioDaPeca() {
       isReuse: item.isReuse || false,
       referenceUrl: item.referenceUrl || "",
       standardItemId: item.standardItemId || "",
+      // Produção interna (02/10): a marca e a instrução que a peça já tem.
+      ...camposDaProducaoInternaDaPeca(item),
     });
     setEditDialogOpen(true);
   };

@@ -3,10 +3,12 @@
 // principal exclui draft/requested), agrupados por grupo e tipo, com o envio
 // para a vinculação e o porquê de ele estar travado.
 // ─────────────────────────────────────────────────────────────────────────────
-import { Package, Pencil, Trash2, Check, Lock, Send } from "lucide-react";
+import { Package, Pencil, Trash2, Check, Lock, Send, Factory } from "lucide-react";
 import { Botao } from "@/components/ui/botao";
 import { Selo } from "@/components/ui/selo";
 import { SeloKit } from "@/components/kit/selo-kit";
+import { SeloProducaoInterna } from "@/components/selo-producao-interna";
+import { dividirEnvioDaLista, podeEnviarDiretoParaGrafica } from "@shared/producao-interna";
 import type { UserRole } from "@/contexts/auth-context";
 import type { useEventReference } from "@/hooks/use-event-reference";
 import { FINAL_STATUSES } from "@/lib/status";
@@ -21,7 +23,7 @@ export function CardDeRascunhos({
   draftItems, rascunhosQueEuEnvio, showAllDrafts, setShowAllDrafts, groupOf, user, hasPermission, isMobile,
   canUploadReference, canEditLists, canDeleteAny, eventoFinalizado, avisoEventoFim, isEditBlocked,
   motivoEdicaoBloqueada, handleEditItem, setDeletingItem, salvarReferenciasMutation, getUploadUrl,
-  enviando, setSubmitConfirmOpen,
+  enviando, setSubmitConfirmOpen, abrirEnvioDireto,
 }: {
   draftItems: PecaDoEvento[];
   rascunhosQueEuEnvio: PecaDoEvento[];
@@ -45,6 +47,8 @@ export function CardDeRascunhos({
   /** O envio dos rascunhos está em andamento. */
   enviando: boolean;
   setSubmitConfirmOpen: (v: boolean) => void;
+  /** Produção interna (02/10): abre "Enviar direto para a Gráfica" com estas peças. */
+  abrirEnvioDireto?: (pecas: PecaDoEvento[]) => void;
 }) {
   // O padrão da casa: cap de 50 (centenas de rascunhos travavam o DOM).
   const DRAFT_CAP = 50;
@@ -80,6 +84,21 @@ export function CardDeRascunhos({
             : "Estes rascunhos são do Kit — quem os criou é que envia.")
         : null;
   const alvo = isMobile ? 44 : 32;
+  // PRODUÇÃO INTERNA (02/10): o envio divide como o servidor divide — a
+  // marcada completa vai direto para a Gráfica; a marcada sem arquivo nem
+  // instrução fica aqui. O rodapé diz isso antes do clique.
+  const divisao = dividirEnvioDaLista(rascunhosQueEuEnvio);
+  const nGrafica = divisao.paraGrafica.length;
+  const nVinculacao = divisao.paraVinculacao.length;
+  const nPresas = divisao.ficamNoRascunho.length;
+  // Só sobraram marcadas incompletas: o envio da lista não teria o que mandar
+  // (o servidor responderia 400). O botão trava e a frase diz o caminho.
+  const nadaSai = !motivoTravado && nVinculacao + nGrafica === 0;
+  const podeDireto = (p: PecaDoEvento) => !eventoFinalizado && !!abrirEnvioDireto && podeEnviarDiretoParaGrafica(p, user?.role);
+  // O LOTE: as marcadas que podem ir agora, sem esperar o resto da lista —
+  // as completas e as que só precisam da instrução (o diálogo a pede e diz
+  // quais ficam de fora sem ela).
+  const marcadasProntas = rascunhosQueEuEnvio.filter((p) => p.producaoInterna && podeDireto(p));
 
   return (
     <section
@@ -146,6 +165,7 @@ export function CardDeRascunhos({
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap' }}>
                                 {item.displayId && <span style={{ fontFamily: FONT.mono, fontWeight: FW.forte, fontSize: FS.meta, color: T.accentText, flexShrink: 0 }}>{item.displayId}</span>}
                                 <SeloKit peca={item} />
+                                <SeloProducaoInterna peca={item} onde="lista" />
                                 {item.description
                                   ? <span style={{ fontSize: FS.body, fontWeight: FW.medio, color: T.text, minWidth: 0, overflowWrap: 'anywhere' }}>{item.description}</span>
                                   : <span style={{ fontSize: FS.body, color: T.second }}>sem descrição</span>}
@@ -174,6 +194,13 @@ export function CardDeRascunhos({
                               {/* canEditLists: mesmo gate da tabela principal. */}
                               {canEditLists && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginLeft: 2 }}>
+                                  {/* Direto para a Gráfica — só quando vale (papel, sem
+                                      patrocinador, não molde): ícone com nome por extenso. */}
+                                  {podeDireto(item) && (
+                                    <button type="button" className="evd-acao evd-acao-grafica" style={{ width: alvo, height: alvo }} onClick={() => abrirEnvioDireto!([item])} data-testid={`button-direto-grafica-${item.id}`} aria-label={`Enviar a peça ${item.displayId ?? ""} direto para a Gráfica`} title="Enviar direto para a Gráfica (produção interna)">
+                                      <Factory aria-hidden="true" className="h-4 w-4" />
+                                    </button>
+                                  )}
                                   {isEditBlocked(item.status) ? (
                                     <button
                                       type="button"
@@ -239,12 +266,34 @@ export function CardDeRascunhos({
               {motivoTravado
                 ? motivoTravado
                 : <>
-                    {nEnvio} {nEnvio === 1 ? 'peça vai' : 'peças vão'} para <strong>Vincular Patrocinadores</strong>, onde os patrocinadores são ligados e a peça segue para a Arte.
+                    {nGrafica === 0 && nPresas === 0
+                      ? <>{nEnvio} {nEnvio === 1 ? 'peça vai' : 'peças vão'} para <strong>Vincular Patrocinadores</strong>, onde os patrocinadores são ligados e a peça segue para a Arte.</>
+                      : <>
+                          {nVinculacao > 0 && <>{nVinculacao} {nVinculacao === 1 ? 'vai' : 'vão'} para <strong>Vincular Patrocinadores</strong>. </>}
+                          {nGrafica > 0 && <>{nGrafica} {nGrafica === 1 ? 'vai' : 'vão'} <strong>direto para a Gráfica</strong> (produção interna). </>}
+                          {nPresas > 0 && <span style={{ color: TOM.alerta.text }}>{nPresas} {nPresas === 1 ? 'marcada fica' : 'marcadas ficam'} aqui: falta arquivo ou instruções para a Gráfica{nadaSai ? " — edite a peça, ou escreva as instruções em “Enviar só " + (nPresas === 1 ? 'a marcada' : 'as marcadas') + "”." : '.'}</span>}
+                        </>}
                     {foraDoMeuEnvio > 0 && ` ${foraDoMeuEnvio} ${foraDoMeuEnvio === 1 ? 'rascunho do Kit fica' : 'rascunhos do Kit ficam'} para quem ${foraDoMeuEnvio === 1 ? 'o criou' : 'os criou'}.`}
                   </>}
             </p>
           </div>
         </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end', width: isMobile ? '100%' : undefined, flexDirection: isMobile ? 'column-reverse' : 'row' }}>
+        {/* EM LOTE (02/10): as marcadas que já podem ir, sem esperar o resto
+            da lista — o mesmo diálogo da ação por peça. */}
+        {!motivoTravado && marcadasProntas.length > 0 && (
+          <Botao
+            variante="secundario"
+            tamanho={isMobile ? "toque" : "md"}
+            icone={Factory}
+            onClick={() => abrirEnvioDireto?.(marcadasProntas)}
+            data-testid="button-direto-grafica-lote"
+            title="Envia agora só as peças marcadas 'vai direto para a Gráfica'; o resto da lista continua aqui"
+            style={isMobile ? { width: '100%' } : undefined}
+          >
+            {marcadasProntas.length === 1 ? 'Enviar só a marcada' : `Enviar só as ${marcadasProntas.length} marcadas`}
+          </Botao>
+        )}
         <Botao
           variante="primario"
           tamanho={isMobile ? "toque" : "md"}
@@ -254,10 +303,10 @@ export function CardDeRascunhos({
           // Gate: enviar rascunhos é ação de admin ou do papel "solicitação".
           // Evento finalizado também trava. Sem rascunho no recorte de quem
           // envia, o clique só devolveria "Nenhum item em rascunho".
-          disabled={!!motivoTravado}
-          title={motivoTravado ?? undefined}
+          disabled={!!motivoTravado || nadaSai}
+          title={motivoTravado ?? (nadaSai ? "A marcada precisa de arquivo ou instruções antes de sair" : undefined)}
           // Ligar o botão ao motivo faz o leitor de tela dizer POR QUE está travado.
-          aria-describedby={motivoTravado ? "texto-envio-rascunhos" : undefined}
+          aria-describedby={motivoTravado || nadaSai ? "texto-envio-rascunhos" : undefined}
           data-testid="button-submit-drafts"
           style={isMobile ? { width: '100%' } : undefined}
         >
@@ -267,6 +316,7 @@ export function CardDeRascunhos({
               ? `Enviar ${nEnvio} ${nEnvio === 1 ? 'peça' : 'peças'}`
               : 'Enviar todas as peças'}
         </Botao>
+        </div>
       </div>
     </section>
   );

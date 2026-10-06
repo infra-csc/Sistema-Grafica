@@ -4,11 +4,13 @@
 // que chegam em `PropsDaPeca`.
 // ─────────────────────────────────────────────────────────────────────────────
 import { Link } from "wouter";
-import { Plus, Pencil, Trash2, Lock, Recycle, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, Trash2, Lock, Recycle, AlertTriangle, Factory } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { DetalheProducao } from "@/components/detalhe-producao";
 import { faseDaArte } from "@/components/prazos/tokens";
 import { SeloKit } from "@/components/kit/selo-kit";
+import { SeloProducaoInterna } from "@/components/selo-producao-interna";
+import { podeEnviarDiretoParaGrafica } from "@shared/producao-interna";
 import { SeloPrazoMolde } from "@/components/prazo-do-molde";
 import { Botao } from "@/components/ui/botao";
 import { Selo } from "@/components/ui/selo";
@@ -43,7 +45,15 @@ export interface PropsDaPeca {
   updateItemIsReuseMutation: ReturnType<typeof useEventItemFlags>["updateItemIsReuseMutation"];
   getUploadUrl: () => Promise<{ method: "PUT"; url: string }>;
   toast: ReturnType<typeof useToast>["toast"];
+  /** Produção interna (02/10): o papel de quem vê e o gesto que abre o envio direto. */
+  papel?: string | null;
+  eventoFinalizado?: boolean;
+  abrirEnvioDireto?: (pecas: PecaDoEvento[]) => void;
 }
+
+/** "Enviar direto para a Gráfica" vale para esta peça agora? (shared/producao-interna) */
+const podeDireto = (p: Pick<PropsDaPeca, "papel" | "eventoFinalizado" | "abrirEnvioDireto">, item: PecaDoEvento) =>
+  !p.eventoFinalizado && !!p.abrirEnvioDireto && podeEnviarDiretoParaGrafica(item, p.papel);
 
 /**
  * AS MEDIDAS NA LÍNGUA DA CASA: ARQ. primeiro e escuro (é dele que sai o m² e
@@ -148,6 +158,7 @@ function SelosDaPeca({ item, estoque }: { item: PecaDoEvento; estoque: React.Rea
 export function CartaoDaPeca({
   item, event, canEditLists, canDeleteAny, isEditBlocked, motivoEdicaoBloqueada, canDeleteItem,
   setSelectedItemForDetails, handleEditItem, handleDeleteItem, estoqueResumo, setEstoqueDaPeca,
+  papel, eventoFinalizado, abrirEnvioDireto,
 }: PropsDaPeca & { item: PecaDoEvento }) {
   const refs = refsDaPeca(item);
   const { arq, vis } = medidas(item);
@@ -204,6 +215,7 @@ export function CartaoDaPeca({
                   PRIORITÁRIA
                 </Selo>
               )}
+              <SeloProducaoInterna peca={item} />
             </div>
             <StatusBadge status={statusDeExibicao(item)} />
           </div>
@@ -246,6 +258,16 @@ export function CartaoDaPeca({
           </Botao>
           {/* Aumentar quantidade NÃO mora aqui: o gatilho é exclusivo da
               tela da Gráfica (decisão do dono). Mesmos gates do desktop. */}
+          {/* Direto para a Gráfica (02/10): ícone de 44px, com o nome por extenso. */}
+          {podeDireto({ papel, eventoFinalizado, abrirEnvioDireto }, item) && (
+            <button type="button" onClick={() => abrirEnvioDireto!([item])}
+              aria-label={`Enviar a peça ${item.displayId ?? ''} direto para a Gráfica`} title="Enviar direto para a Gráfica (produção interna)"
+              data-testid={`button-direto-grafica-card-${item.id}`}
+              className="evd-acao evd-acao-grafica"
+              style={{ minHeight: 44, width: 44, border: `1px solid ${T.border}`, background: T.surface }}>
+              <Factory aria-hidden="true" style={{ width: 16, height: 16 }} />
+            </button>
+          )}
           {canDeleteAny && canDeleteItem(item.status) && (
             <button onClick={() => handleDeleteItem(item)}
               aria-label={`Excluir a peça ${item.displayId ?? ''}`} title="Excluir peça"
@@ -274,6 +296,7 @@ export function LinhaDaPeca({
   item, event, compacto, canEditLists, canDeleteAny, canUploadReference, isEditBlocked, motivoEdicaoBloqueada,
   canDeleteItem, setSelectedItemForDetails, handleEditItem, handleDeleteItem, estoqueResumo, setEstoqueDaPeca,
   salvarReferenciasMutation, updateItemIsReuseMutation, getUploadUrl, toast,
+  papel, eventoFinalizado, abrirEnvioDireto,
 }: PropsDaPeca & { item: PecaDoEvento; compacto: boolean }) {
   const celula: React.CSSProperties = { padding: '12px 10px', verticalAlign: 'middle' };
   return (
@@ -357,6 +380,7 @@ export function LinhaDaPeca({
             PRIORITÁRIA
           </Selo>
         )}
+        <SeloProducaoInterna peca={item} style={{ marginTop: 6 }} />
         <SelosDaPeca item={item} estoque={estoqueResumo[item.id] ? <SeloDoEstoque item={item} est={estoqueResumo[item.id]} onAbrir={setEstoqueDaPeca} /> : null} />
       </td>
       {/* Qtd — sem padStart: "05" parecia código, não quantidade. */}
@@ -417,6 +441,19 @@ export function LinhaDaPeca({
       <td style={{ ...celula, paddingLeft: 4, paddingRight: 10 }}>
         {canEditLists && (
         <div style={{ display: 'flex', gap: 0, justifyContent: 'flex-end', alignItems: 'center' }}>
+          {/* Direto para a Gráfica (02/10) — só quando vale para a peça. */}
+          {podeDireto({ papel, eventoFinalizado, abrirEnvioDireto }, item) && (
+            <button
+              type="button"
+              className="evd-acao evd-acao-grafica"
+              onClick={e => { e.stopPropagation(); abrirEnvioDireto!([item]); }}
+              data-testid={`button-direto-grafica-${item.id}`}
+              title="Enviar direto para a Gráfica (produção interna)"
+              aria-label={`Enviar a peça ${item.displayId ?? ''} direto para a Gráfica`}
+            >
+              <Factory aria-hidden="true" className="h-4 w-4" />
+            </button>
+          )}
           {/* Toggle reaproveitamento — enquanto não estiver em produção/entregue. */}
           {!isEditBlocked(item.status) && (
             <button

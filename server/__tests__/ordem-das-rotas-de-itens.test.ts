@@ -57,6 +57,11 @@ const ORDEM_ORIGINAL = [
   "PATCH /api/items/bulk-return-to-arte",
   // 28/09: admin devolve as peças do evento para a Arte (fim de registrarRevisao).
   "POST /api/events/:id/devolver-para-a-arte",
+  // 02/10: produção interna — direto para a Gráfica, por peça e em lote
+  // (registrarProducaoInterna, logo depois da Revisão). POST sem irmã que
+  // case o mesmo caminho: a ordem não muda o dono de nenhuma outra rota.
+  "POST /api/items/:id/direto-para-grafica",
+  "POST /api/items/direto-para-grafica",
   "PATCH /api/items/:id/cancel",
   "PATCH /api/items/:id/uncancel",
   "PATCH /api/items/bulk-cancel",

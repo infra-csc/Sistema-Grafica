@@ -52,6 +52,7 @@ import { SecoesDaLista } from "@/components/detalhe-do-evento/secoes-da-lista";
 import type { PropsDaPeca } from "@/components/detalhe-do-evento/linha-da-peca";
 import { ExcluirPecaDialog } from "@/components/detalhe-do-evento/excluir-peca-dialog";
 import { EditarPecaDialog } from "@/components/detalhe-do-evento/editar-peca-dialog";
+import { EnviarDiretoGraficaDialog } from "@/components/enviar-direto-grafica-dialog";
 
 export default function EventDetail() {
   const { hasPermission, user } = useAuth();
@@ -82,6 +83,9 @@ export default function EventDetail() {
     new URLSearchParams(window.location.search).get("item"),
   );
   const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
+  // PRODUÇÃO INTERNA (dono, 02/10): as peças do "Enviar direto para a
+  // Gráfica" aberto agora (uma, pela linha; várias, pelo lote das marcadas).
+  const [envioDireto, setEnvioDireto] = useState<PecaDoEvento[] | null>(null);
   // Régua única (use-mobile.tsx): a lista de peças escolhe tabela ou cartões
   // pela ÁREA ÚTIL medida, e o alvo de toque segue o PONTEIRO.
   const isMobile = useIsMobile();
@@ -294,6 +298,7 @@ export default function EventDetail() {
     event, canEditLists, canDeleteAny, canUploadReference, isEditBlocked, motivoEdicaoBloqueada, canDeleteItem,
     setSelectedItemForDetails, handleEditItem, handleDeleteItem, estoqueResumo, setEstoqueDaPeca,
     salvarReferenciasMutation, updateItemIsReuseMutation, getUploadUrl, toast,
+    papel: user?.role, eventoFinalizado, abrirEnvioDireto: setEnvioDireto,
   };
 
   return (
@@ -474,6 +479,7 @@ export default function EventDetail() {
           getUploadUrl={getUploadUrl}
           enviando={submitDraftsMutation.isPending}
           setSubmitConfirmOpen={setSubmitConfirmOpen}
+          abrirEnvioDireto={setEnvioDireto}
         />
 
         {/* ── Modal de confirmação de envio com lista de itens ── */}
@@ -685,6 +691,16 @@ export default function EventDetail() {
           toast={toast}
         />
       )}
+
+      {/* Enviar direto para a Gráfica — um diálogo para a linha, o cartão,
+          o rascunho e o lote das marcadas (components/enviar-direto-grafica-dialog). */}
+      <EnviarDiretoGraficaDialog
+        aberto={!!envioDireto}
+        aoFechar={() => setEnvioDireto(null)}
+        pecas={envioDireto ?? []}
+        papel={user?.role}
+        eventId={eventId}
+      />
 
       <ExcluirPecaDialog
         deletingItem={deletingItem}

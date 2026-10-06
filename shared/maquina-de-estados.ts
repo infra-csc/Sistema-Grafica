@@ -25,6 +25,7 @@ import { DISPENSAVEIS, DESTINO_DA_DISPENSA, POS_APROVACAO, EM_REVISAO, DEPOIS_DA
 import { DESTINO_DO_ENVIO_DO_MOLDE, MOLDE_LIBERADO } from "./molde";
 import { ARTE_DECIDE_NA_REVISAO } from "./troca-de-material";
 import { VOLTA_PARA_A_ARTE_DE } from "./devolver-evento-para-arte";
+import { ENVIAVEL_DIRETO_PARA_A_GRAFICA, MARCAVEL_NA_LISTA, DESTINO_DA_PRODUCAO_INTERNA } from "./producao-interna";
 
 /** Status gravado na peça — os canônicos e as grafias legadas que o banco ainda tem. */
 export type StatusDaPeca = string;
@@ -38,7 +39,8 @@ export type Destino = StatusDaPeca | typeof FICA_ONDE_ESTA | typeof VOLTA_PARA_O
 export type Origem = readonly StatusDaPeca[] | { readonly todosMenos: readonly StatusDaPeca[] };
 
 export type AcaoDaPeca =
-  | "enviar-lista-para-vinculacao" | "enviar-molde-da-lista" | "vincular-patrocinadores"
+  | "enviar-lista-para-vinculacao" | "enviar-molde-da-lista" | "enviar-producao-interna-da-lista" | "vincular-patrocinadores"
+  | "enviar-direto-para-a-grafica"
   | "enviar-para-a-arte" | "voltar-para-a-criacao"
   | "enviar-para-aprovacao" | "enviar-direto-para-finalizacao" | "enviar-molde-para-revisao"
   | "aprovar-peca-inteira" | "aprovar-o-ultimo-patrocinador" | "aprovar-um-patrocinador"
@@ -110,6 +112,8 @@ const CONFERIVEL: Origem = { todosMenos: [...Array.from(EM_REVISAO), ...FORA_DA_
 const EVENTO_ABERTO = "evento aberto (nem encerrado nem já realizado)";
 const NAO_TRAVADA = "peça não travada pela Solicitação";
 const MOTIVO = "motivo com pelo menos 10 caracteres";
+const SEM_PATROCINADOR = "sem patrocinador vinculado";
+const INSTRUCOES_SEM_ARQUIVO = "instruções para a Gráfica obrigatórias se não houver arquivo";
 
 const ROTA = {
   submitLista: "POST /api/events/:id/items/submit",
@@ -150,6 +154,8 @@ const ROTA = {
   entregarTubo: "POST /api/tubos/:id/entregar",
   entregarEmLote: "POST /api/tubos/entregar-em-lote",
   complemento: "POST /api/items/:id/complement",
+  diretoParaGrafica: "POST /api/items/:id/direto-para-grafica",
+  diretoParaGraficaLote: "POST /api/items/direto-para-grafica",
 } as const;
 
 export const TRANSICOES: readonly Transicao[] = [
@@ -158,6 +164,16 @@ export const TRANSICOES: readonly Transicao[] = [
     condicoes: [EVENTO_ABERTO, "peça do Kit só por quem a criou"], rotas: [ROTA.submitLista] },
   { acao: "enviar-molde-da-lista", de: ["draft", "requested"], para: "awaiting_submission", papeis: ["admin", "solicitacao"],
     condicoes: [EVENTO_ABERTO, "molde: não tem patrocinador, pula a vinculação"], rotas: [ROTA.submitLista] },
+  // PRODUÇÃO INTERNA (dono, 02/10: "da solicitação direto para a gráfica"):
+  // a peça marcada na lista pula Vinculação, Arte, Aprovação e Revisão Final
+  // (shared/producao-interna.ts). Uma linha para o envio da lista e uma para a
+  // ação avulsa — esta grava a marca na hora e parte também de "aguardando
+  // vinculação" (nunca de "aguardando envio": ali a peça já é da Arte).
+  { acao: "enviar-producao-interna-da-lista", de: MARCAVEL_NA_LISTA, para: DESTINO_DA_PRODUCAO_INTERNA, papeis: ["admin", "solicitacao"],
+    condicoes: [EVENTO_ABERTO, "marcada 'vai direto para a Gráfica'", SEM_PATROCINADOR, INSTRUCOES_SEM_ARQUIVO, "peça do Kit só por quem a criou"], rotas: [ROTA.submitLista] },
+  { acao: "enviar-direto-para-a-grafica", de: ENVIAVEL_DIRETO_PARA_A_GRAFICA, para: DESTINO_DA_PRODUCAO_INTERNA, papeis: ["admin", "solicitacao"],
+    condicoes: [EVENTO_ABERTO, SEM_PATROCINADOR, INSTRUCOES_SEM_ARQUIVO, "não é molde nem reaproveitamento total", NAO_TRAVADA, "a marca de produção interna é gravada"],
+    rotas: [ROTA.diretoParaGrafica, ROTA.diretoParaGraficaLote] },
   { acao: "vincular-patrocinadores", de: EM_VINCULACAO, para: FICA_ONDE_ESTA, papeis: ["admin", "arte", "atendimento", "solicitacao"],
     condicoes: [EVENTO_ABERTO, "molde não recebe patrocinador"], rotas: [ROTA.sync] },
   { acao: "enviar-para-a-arte", de: ["awaiting_linking"], para: "awaiting_submission", papeis: ["admin", "arte", "atendimento", "solicitacao"],

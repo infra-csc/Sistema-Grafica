@@ -43,7 +43,8 @@ describe("tabela ↔ código, sem sobras de nenhum lado", () => {
   });
 
   // 120 desde 28/09: POST /api/events/:id/devolver-para-a-arte (admin).
-  it("são as 120 — o número que o diagnóstico mediu; mudou, atualize os dois", () => {
+  // 122 desde 02/10: enviar direto para a Gráfica, por peça e em lote (produção interna).
+  it("são as 122 — o número que o diagnóstico mediu; mudou, atualize os dois", () => {
     // 96 = as 78 do diagnóstico + o descancelar do admin (01/09)
     //    + iniciar impressão da Gráfica (14/09)
     //    + reservar e liberar peça do estoque (14/09)
@@ -63,8 +64,8 @@ describe("tabela ↔ código, sem sobras de nenhum lado", () => {
     //    − DELETE /api/comments/:id: a rota de comentários saiu (nenhuma tela a chamava).
     //    + entregar volumes em lote (23/09).
     //    + restaurar evento e restaurar patrocinador ("excluir" virou arquivar).
-    expect(REGUA_DE_PAPEIS.length).toBe(120);
-    expect(doCodigo.length).toBe(120);
+    expect(REGUA_DE_PAPEIS.length).toBe(122);
+    expect(doCodigo.length).toBe(122);
   });
 });
 

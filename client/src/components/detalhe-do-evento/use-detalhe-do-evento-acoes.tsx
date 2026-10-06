@@ -10,7 +10,8 @@ import type { useToast } from "@/hooks/use-toast";
 import { invalidarPedidos } from "@/components/pedidos/ui";
 import { parseApiError } from "@/components/aumentar-quantidade-dialog";
 import { calculateM2 } from "@/lib/calculateM2";
-import { EMPTY_ITEM_FORM, finishes, materials } from "./regras";
+import { EMPTY_ITEM_FORM, finishes, materials, avisoDoEnvioDaLista, type RespostaDoEnvioDaLista } from "./regras";
+import { corpoDaProducaoInterna, type CamposDaProducaoInterna } from "@shared/producao-interna";
 import type { FormularioDaPeca } from "./use-formulario-da-peca";
 import type { DadosDaEdicao, ItemFormData, ModeloDePeca, OpcaoDoCatalogo, PecaDoEvento } from "./tipos";
 
@@ -93,7 +94,7 @@ export function useEncerrarEReabrir({ eventId, toast, setCloseDialogOpen, setReo
 /** O que o POST /api/items devolve e esta tela lê. */
 type PecaCriada = { displayId?: string; vinculoDoPedido?: { ok: boolean; erro?: string } };
 /** O que o POST /api/events/:id/items/submit devolve. */
-type EnvioDosRascunhos = { count: number; falharam?: unknown };
+type EnvioDosRascunhos = RespostaDoEnvioDaLista;
 
 /** Criar, criar em lote, editar, excluir e enviar rascunhos. */
 export function useAcoesDasPecas({
@@ -143,6 +144,9 @@ export function useAcoesDasPecas({
         ...(pedidoEmAtendimento ? { pedidoDePecaLinhaId: pedidoEmAtendimento.linha.id } : {}),
         // Peça do Kit: o servidor confere a remessa (mesmo evento, dona certa).
         ...(data.kitRemessaId ? { kitRemessaId: data.kitRemessaId } : {}),
+        // Produção interna (02/10): a marca, a instrução e — só na peça
+        // marcada — o arquivo (shared/producao-interna).
+        ...corpoDaProducaoInterna(data),
       };
 
       // Criar item
@@ -307,7 +311,13 @@ export function useAcoesDasPecas({
         area: toNum(data.visualWidth),   // Manter area para compatibilidade com backend
         visual: toNum(data.visualHeight), // Manter visual para compatibilidade com backend
         calculatedM2,
+        // Produção interna (02/10): só quando veio do formulário (a ficha
+        // manda um recorte sem estes campos). O arquivo só vai na peça
+        // marcada e preenchido — finalFileUrl "" apagaria o arquivo da Arte.
+        ...("producaoInterna" in data ? corpoDaProducaoInterna(data as CamposDaProducaoInterna) : {}),
       };
+      delete itemData.arquivoGrafica;
+      delete itemData.arquivoGraficaNome;
 
       // area/visual/calculatedM2 são colunas obrigatórias (notNull): se ficaram
       // sem valor, omitir do update parcial em vez de enviar null.
@@ -424,20 +434,20 @@ export function useAcoesDasPecas({
       // Vinculação já filtrada neste evento (?ev= é o filtro que ela lê da URL).
       // Falha parcial: as que foram, foram — e as que ficaram são nomeadas
       // (mudaram de status no meio do envio, outra pessoa mexeu).
-      const falharam: string[] = Array.isArray(data?.falharam) ? data.falharam : [];
-      const ficaram = falharam.length > 0
-        ? ` ${falharam.length} não ${falharam.length === 1 ? 'foi' : 'foram'} porque mudaram de status durante o envio: ${falharam.join(', ')} — recarregue e confira.`
-        : '';
+      // Produção interna (02/10): o mesmo envio manda peças para a Vinculação
+      // E direto para a Gráfica; a frase (regras.ts) diz quantas foram para
+      // cada lado e quais ficaram no rascunho.
+      const aviso = avisoDoEnvioDaLista(data);
       toast({
-        title: falharam.length > 0 ? `${data.count} de ${data.count + falharam.length} peças enviadas` : "Peças enviadas para a vinculação",
-        description: `${data.count} ${data.count === 1 ? 'peça já está' : 'peças já estão'} na fila de Vincular Patrocinadores. Aqui ${data.count === 1 ? 'ela aparece' : 'elas aparecem'} como Aguardando Vinculação.${ficaram}`,
-        action: (
+        title: aviso.titulo,
+        description: aviso.descricao,
+        action: aviso.temVinculacao ? (
           <ToastAction altText="Abrir a Vinculação deste evento" onClick={() => setLocation(`/vincular-patrocinadores?ev=${eventId}`)}>
             Ver na Vinculação
           </ToastAction>
-        ),
+        ) : undefined,
         // Envio parcial é aviso: as que ficaram estão nomeadas na descrição.
-        variant: falharam.length > 0 ? "warning" : "success",
+        variant: aviso.variante,
       });
     },
     onError: (error: Error) => {

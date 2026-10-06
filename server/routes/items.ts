@@ -20,6 +20,7 @@ import { registrarComplemento } from "./itens/complemento";
 import { registrarAprovacao } from "./itens/aprovacao";
 import { registrarArte } from "./itens/arte";
 import { registrarRevisao } from "./itens/revisao";
+import { registrarProducaoInterna } from "./itens/producao-interna";
 import { registrarCancelamento } from "./itens/cancelamento";
 import { registrarRotasDeImpressao, registrarRotaAposentadaDeProducao } from "./itens/impressao";
 import { registrarReaproveitamento } from "./itens/reaproveitamento";
@@ -71,6 +72,7 @@ export function registerItemRoutes(app: Express): void {
   registrarAprovacao(app); // envio para aprovação, aprovação, dispensa e aprovações por patrocinador
   registrarArte(app); // arquivo final e troca de thumb
   registrarRevisao(app); // Revisão Final: liberar e devolver (inclusive em lote)
+  registrarProducaoInterna(app); // produção interna: direto para a Gráfica, por peça e em lote (02/10)
   registrarCancelamento(app); // cancelar, descancelar e cancelar em lote
   registrarRotasDeImpressao(app); // approve (410), start-printing, start-production
   registrarReaproveitamento(app); // mark-reuse, correct-reuse

@@ -77,6 +77,13 @@ patrocinador, o reaproveitamento) e a peça não muda de status.
 | --- | --- | --- | --- | --- |
 | enviar-lista-para-vinculacao | `draft`, `requested` | `awaiting_linking` | admin, solicitacao | evento aberto (nem encerrado nem já realizado); peça do Kit só por quem a criou |
 | enviar-molde-da-lista | `draft`, `requested` | `awaiting_submission` | admin, solicitacao | evento aberto (nem encerrado nem já realizado); molde: não tem patrocinador, pula a vinculação |
+| enviar-producao-interna-da-lista | `draft`, `requested` | `ready_for_production` | admin, solicitacao | evento aberto (nem encerrado nem já realizado); marcada 'vai direto para a Gráfica'; sem patrocinador vinculado; instruções para a Gráfica obrigatórias se não houver arquivo; peça do Kit só por quem a criou |
+
+### POST /api/items/:id/direto-para-grafica · POST /api/items/direto-para-grafica
+
+| Ação | De | Para | Quem | Condições |
+| --- | --- | --- | --- | --- |
+| enviar-direto-para-a-grafica | `draft`, `requested`, `awaiting_linking` | `ready_for_production` | admin, solicitacao | evento aberto (nem encerrado nem já realizado); sem patrocinador vinculado; instruções para a Gráfica obrigatórias se não houver arquivo; não é molde nem reaproveitamento total; peça não travada pela Solicitação; a marca de produção interna é gravada |
 
 ### POST /api/items/:id/sponsors/sync
 

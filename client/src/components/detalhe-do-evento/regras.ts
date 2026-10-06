@@ -6,6 +6,7 @@ import { STATUS } from "@/lib/status";
 import { FORA_DO_FUNIL } from "@/lib/fases";
 import { MARCOS_DO_EVENTO, type MarcoDoEvento } from "@shared/prazo-dates";
 import { TIPOS_DE_PECA, statusParaContagem } from "@shared/molde";
+import { CAMPOS_VAZIOS_DA_PRODUCAO_INTERNA } from "@shared/producao-interna";
 import type { ItemFormData, Marco, PecaDoEvento, TrabalhoAberto } from "./tipos";
 
 /**
@@ -103,6 +104,8 @@ export const finishes = ["Dupla Face", "Ilhós", "Impressão UV", "Impresso", "R
 // repetido em 3 lugares (useState inicial, reset pós-criação e fechamento),
 // e qualquer campo novo tinha de ser adicionado três vezes.
 export const EMPTY_ITEM_FORM: ItemFormData = {
+  // Produção interna (02/10): desmarcada, sem instrução nem arquivo.
+  ...CAMPOS_VAZIOS_DA_PRODUCAO_INTERNA,
   type: "",
   description: "",
   quantity: 1,
@@ -174,4 +177,57 @@ export function fraseDeResolucao(
     return `${n} ${plural(n, 'marco já venceu', 'marcos já venceram')} com ${p} ${plural(p, 'peça atrás', 'peças atrás')}.${caminhao}`;
   }
   return `${entregues} de ${t} ${plural(t, 'peça entregue', 'peças entregues')} ·${caminhao ? caminhao.replace(/^ /, ' ').replace(/^ O/, ' o') : ' sem data de saída.'}`;
+}
+
+/** O que o POST /api/events/:id/items/submit devolve e o toast lê. */
+export type RespostaDoEnvioDaLista = {
+  count: number;
+  falharam?: unknown;
+  /** Produção interna (02/10): os códigos que foram direto para a Gráfica. */
+  diretoParaGrafica?: unknown;
+  /** Produção interna: as marcadas que ficaram no rascunho, com o motivo. */
+  ficaramNoRascunho?: unknown;
+};
+
+/**
+ * A FRASE DO ENVIO DA LISTA (02/10). Com a produção interna, o mesmo clique
+ * manda peças para dois lugares: "enviadas para a vinculação" passou a ser
+ * meia verdade. O toast diz quantas foram para cada lado, e NOMEIA as
+ * marcadas que ficaram no rascunho (sem arquivo nem instrução) — senão a
+ * pessoa achava que tinham ido.
+ */
+export function avisoDoEnvioDaLista(r: RespostaDoEnvioDaLista): {
+  titulo: string; descricao: string; variante: "success" | "warning"; temVinculacao: boolean;
+} {
+  const lista = (x: unknown): string[] => (Array.isArray(x) ? x.filter((v): v is string => typeof v === "string") : []);
+  const falharam = lista(r.falharam);
+  const grafica = lista(r.diretoParaGrafica);
+  const ficaram: Array<{ displayId: string; motivo: string }> = Array.isArray(r.ficaramNoRascunho)
+    ? (r.ficaramNoRascunho as Array<{ displayId?: unknown; motivo?: unknown }>).map((f) => ({ displayId: String(f?.displayId ?? "—"), motivo: String(f?.motivo ?? "") }))
+    : [];
+  const vinculacao = Math.max(0, r.count - grafica.length);
+  const partes: string[] = [];
+  if (grafica.length === 0 && ficaram.length === 0) {
+    // O envio de sempre: a frase de antes, inteira.
+    partes.push(`${r.count} ${r.count === 1 ? "peça já está" : "peças já estão"} na fila de Vincular Patrocinadores. Aqui ${r.count === 1 ? "ela aparece" : "elas aparecem"} como Aguardando Vinculação.`);
+  } else {
+    // Misto: CURTO — o toast corta a quarta linha. O motivo de cada uma que
+    // ficou mora no próprio rascunho (o rodapé e a confirmação o dizem).
+    // A que FICOU vem primeiro: é a única que pede ação, e o toast com botão
+    // corta o fim da frase (visto na revisão de 05/10).
+    if (ficaram.length > 0) partes.push(`No rascunho: ${ficaram.map((f) => f.displayId).join(", ")} (${ficaram.every((f) => /instru/i.test(f.motivo)) ? "falta arquivo ou instruções" : "veja o motivo no rascunho"}).`);
+    if (grafica.length > 0) partes.push(`Direto para a Gráfica: ${grafica.join(", ")}.`);
+    if (vinculacao > 0) partes.push(`Para a Vinculação: ${vinculacao}.`);
+  }
+  if (falharam.length > 0) partes.push(`${falharam.length} não ${falharam.length === 1 ? "foi" : "foram"} porque mudaram de status durante o envio: ${falharam.join(", ")} — recarregue e confira.`);
+  const total = r.count + falharam.length + ficaram.length;
+  const titulo = falharam.length > 0 || ficaram.length > 0
+    ? `${r.count} de ${total} peças enviadas`
+    : grafica.length > 0 && vinculacao === 0
+      ? (grafica.length === 1 ? "Peça enviada direto para a Gráfica" : "Peças enviadas direto para a Gráfica")
+      : grafica.length > 0 ? "Peças enviadas" : "Peças enviadas para a vinculação";
+  // O atalho "Ver na Vinculação" só no envio de sempre: no misto o botão
+  // estreita o toast e corta a frase que diz para onde cada peça foi.
+  const misto = grafica.length > 0 || ficaram.length > 0;
+  return { titulo, descricao: partes.join(" "), variante: falharam.length > 0 || ficaram.length > 0 ? "warning" : "success", temVinculacao: vinculacao > 0 && !misto };
 }

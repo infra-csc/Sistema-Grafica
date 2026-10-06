@@ -81,6 +81,9 @@ export function EditarPecaDialog({
           isMobile={isMobile}
           isAdmin={user?.role === 'admin'}
           podePriorizar={user?.role === 'admin' || user?.role === 'solicitacao'}
+          statusDaPeca={editingItem?.status}
+          temPatrocinador={(editingItem?.sponsors?.length ?? 0) > 0}
+          jaTemArquivo={!!editingItem?.finalFileUrl}
           isPending={updateItemMutation.isPending}
           onSubmit={(e) => {
             e.preventDefault();

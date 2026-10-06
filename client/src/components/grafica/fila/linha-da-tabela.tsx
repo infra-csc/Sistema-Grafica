@@ -12,6 +12,7 @@ import { Botao } from "@/components/ui/botao";
 import { Selo } from "@/components/ui/selo";
 import { StatusPill } from "@/components/status-pill";
 import { SeloKit } from "@/components/kit/selo-kit";
+import { SeloProducaoInterna, InstrucoesParaAGrafica } from "@/components/selo-producao-interna";
 import { AvisoDoEstoqueNaPeca } from "@/components/consulta-de-estoque/aviso-na-grafica";
 import { miniatura } from "@/lib/miniatura";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
@@ -317,6 +318,9 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
               Prioritária
             </Selo>
           )}
+          {/* PRODUÇÃO INTERNA (dono, 02/10): veio direto da Solicitação, sem
+              Arte — explica a falta de thumb aprovado e de arquivo. */}
+          <SeloProducaoInterna peca={item} style={{ marginBottom: 5, marginRight: 5 }} />
           {/* A cor verde da linha sozinha não diz o que é: o rótulo
               precisa aparecer sempre que houver reaproveitamento,
               inclusive nas peças marcadas antes de reuseQty existir. */}
@@ -563,6 +567,16 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
                 <strong>Observações:</strong> {item.observations}
               </span>
             </div>
+          </td>
+        </tr>
+      )}
+
+      {/* Instruções da produção interna — a linha inteira, logo abaixo da
+          peça: sem arquivo, é por elas que a Gráfica faz a peça. */}
+      {item.producaoInterna && item.instrucoesGrafica?.trim() && (
+        <tr style={{ borderBottom: `1px solid ${TOM.ceu.border}` }}>
+          <td colSpan={nColunas} style={{ padding: 0 }}>
+            <InstrucoesParaAGrafica peca={item} compacto />
           </td>
         </tr>
       )}

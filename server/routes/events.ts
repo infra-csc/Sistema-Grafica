@@ -18,12 +18,14 @@ import {
   broadcast,
   translateStatus,
   createAuditLog,
+  createAuditLogsEmLote,
   EVENT_CLOSED_STATUS,
 } from "./shared";
 
 import { eventsCache, setEventsCache, eventsCacheGeneration, EVENTS_CACHE_TTL_MS } from "../cache";
 import { ITENS_RESUMO, resumirItensDosEventos } from "@shared/eventos-resumo";
 import { statusParaContagem, statusAoEnviarALista, ehMolde } from "@shared/molde";
+import { motivoParaNaoEnviarDireto, faltamInstrucoes, camposDoEnvioDireto, fraseDaTrilhaDoEnvioDireto } from "@shared/producao-interna";
 import { prazoMoldeParaGravar, prazoMoldeBR } from "@shared/prazo-molde";
 
 const ERRO_PRAZO_MOLDE = "Prazo do molde inválido — escolha um dia no calendário (ou deixe em branco)";
@@ -1318,10 +1320,42 @@ export function registerEventRoutes(app: Express): void {
         return res.status(400).json({ error: "Nenhum item em rascunho para enviar" });
       }
 
+      // PRODUÇÃO INTERNA (dono, 02/10: "essa peça tem que indicar NA
+      // SOLICITAÇÃO que vai direto para a Gráfica"): a peça MARCADA na lista
+      // não vai para a Vinculação — vai para Pronto para Produção, com os
+      // campos de shared/producao-interna.ts. É aqui que a instrução é
+      // cobrada (não ao marcar, para não travar o rascunho): a marcada sem
+      // arquivo e sem instrução, ou que ganhou patrocinador, FICA no rascunho
+      // e a resposta diz por quê — as outras peças da lista seguem.
+      const marcadas = draftItems.filter((i) => i.producaoInterna);
+      const comPatrocinador = new Set(
+        marcadas.length > 0 ? (await storage.getItemSponsorsByItemIds(marcadas.map((i) => i.id))).map((v) => v.itemId) : [],
+      );
+      const ficaramNoRascunho: Array<{ id: string; displayId: string; motivo: string }> = [];
+      for (const i of marcadas) {
+        const motivo = motivoParaNaoEnviarDireto(i, { papel: userRole, temPatrocinador: comPatrocinador.has(i.id) });
+        if (motivo) ficaramNoRascunho.push({ id: i.id, displayId: i.displayId, motivo: motivo.frase });
+        else if (faltamInstrucoes(i.instrucoesGrafica, !!i.finalFileUrl)) ficaramNoRascunho.push({ id: i.id, displayId: i.displayId, motivo: "Vai direto para a Gráfica, mas está sem arquivo e sem instruções — escreva o que a Gráfica deve fazer." });
+      }
+      const presas = new Set(ficaramNoRascunho.map((f) => f.id));
+      const aEnviar = draftItems.filter((i) => !presas.has(i.id));
+      if (aEnviar.length === 0) {
+        return res.status(400).json({
+          error: ficaramNoRascunho.length === 1
+            ? `${ficaramNoRascunho[0].displayId}: ${ficaramNoRascunho[0].motivo}`
+            : "Nenhuma peça pôde ser enviada — as marcadas para ir direto para a Gráfica precisam de arquivo ou instruções, e não podem ter patrocinador.",
+          ficaramNoRascunho,
+        });
+      }
+      const agoraDoEnvio = new Date();
+
       // Atomic status transition: draft/requested → awaiting_linking
       // Cast is safe: draftItems was filtered to only draft/requested above.
       type ItemStatus = Parameters<typeof storage.updateItemWithStatusCheck>[1];
-      const updatePromises = draftItems.map(item =>
+      const updatePromises = aEnviar.map(item => item.producaoInterna
+        ? storage.updateItemWithStatusCheck(item.id, item.status as ItemStatus, "ready_for_production",
+            camposDoEnvioDireto(agoraDoEnvio, { instrucoes: item.instrucoesGrafica ?? null }))
+        :
         // MOLDE (22/09) não passa pela Vinculação: cai direto na Arte (shared/molde).
         storage.updateItemWithStatusCheck(item.id, item.status as ItemStatus, statusAoEnviarALista(item))
       );
@@ -1334,7 +1368,7 @@ export function registerEventRoutes(app: Express): void {
       // rota respondia 409 e saía sem trilha nem aviso delas, e a tela dizia
       // "não deu" sobre peças que tinham ido. Agora elas seguem o caminho
       // normal abaixo, e a resposta nomeia as que ficaram.
-      const falharam = draftItems.filter((_, i) => updatedItems[i] === null);
+      const falharam = aEnviar.filter((_, i) => updatedItems[i] === null);
       const failedCount = falharam.length;
 
       // Nenhuma passou: aí sim é conflito — nada foi feito.
@@ -1351,9 +1385,12 @@ export function registerEventRoutes(app: Express): void {
       // MOLDE (revisão 22/09): o molde NÃO foi para a Vinculação — foi direto
       // para a Arte (Aguardando envio). A trilha e o aviso dizem o destino de
       // cada grupo, em vez de chamar tudo de "aguardando vinculação".
+      const internas = successfulUpdates.filter((i) => i.status === "ready_for_production");
       const moldes = successfulUpdates.filter((i) => ehMolde(i)).length;
-      const comuns = successfulUpdates.length - moldes;
+      const comuns = successfulUpdates.length - moldes - internas.length;
       const frases: string[] = [];
+      if (internas.length > 0) frases.push(`${internas.length} ${internas.length === 1 ? 'peça' : 'peças'} de produção interna: Status alterado de Rascunho → Pronto para Produção (direto para a Gráfica, sem passar pela Arte): ${internas.map((i) => i.displayId).join(', ')}`);
+      if (ficaramNoRascunho.length > 0) frases.push(`${ficaramNoRascunho.length} ${ficaramNoRascunho.length === 1 ? 'marcada para a Gráfica ficou' : 'marcadas para a Gráfica ficaram'} no rascunho: ${ficaramNoRascunho.map((f) => `${f.displayId} (${f.motivo})`).join('; ')}`);
       if (comuns > 0) frases.push(`${comuns} ${comuns === 1 ? 'item' : 'itens'}: Status alterado de Rascunho → Aguardando Vinculação (${comuns === 1 ? 'enviado' : 'enviados'} para vinculação)`);
       if (moldes > 0) frases.push(`${moldes} ${moldes === 1 ? 'molde' : 'moldes'}: Status alterado de Rascunho → Aguardando Envio (molde vai direto para a Arte, sem vinculação)`);
       if (failedCount > 0) frases.push(`${failedCount} não ${failedCount === 1 ? 'foi' : 'foram'} (mudaram de status durante o envio): ${falharam.map((i) => i.displayId).join(', ')}`);
@@ -1367,8 +1404,34 @@ export function registerEventRoutes(app: Express): void {
         );
       }
 
+      // Produção interna: a trilha de CADA peça (é nela que a Gráfica e a
+      // ficha procuram por que a peça chegou sem passar pela Arte) e o aviso
+      // à Gráfica, que age agora — o da Arte abaixo fica só para o que é dela.
+      if (internas.length > 0) {
+        await createAuditLogsEmLote(req as any, internas.map((i) => ({
+          action: 'updated', entityType: 'item', entityId: i.id,
+          details: fraseDaTrilhaDoEnvioDireto(translateStatus(draftItems.find((d) => d.id === i.id)?.status ?? 'draft'), {
+            instrucoes: i.instrucoesGrafica ?? null, temArquivo: !!i.finalFileUrl, daLista: true,
+          }),
+        })));
+        try {
+          const notification = await storage.createNotification({
+            type: 'arteApproved',
+            message: internas.length === 1
+              ? `Produção interna, direto para a Gráfica (sem passar pela Arte): ${internas[0].displayId} ${internas[0].type} - Evento: ${event.name}${internas[0].finalFileUrl ? '' : ' — sem arquivo, ver instruções'}`
+              : `${internas.length} peças de produção interna chegaram direto para a Gráfica (sem passar pela Arte) - Evento: ${event.name}: ${internas.map((i) => i.displayId).join(', ')}`,
+            targetRoles: ['grafica', 'admin'],
+            eventId,
+            itemId: internas.length === 1 ? internas[0].id : null,
+          });
+          broadcast({ type: 'notification_created', notification });
+        } catch (e) {
+          console.error('[enviar rascunhos] produção interna enviada, mas o aviso à Gráfica falhou:', e);
+        }
+      }
+
       // Notify Arte and Admin profiles with actual count
-      if (successfulUpdates.length > 0) {
+      if (comuns + moldes > 0) {
         const partes: string[] = [];
         if (comuns > 0) partes.push(`${comuns} ${comuns === 1 ? 'novo item' : 'novos itens'} aguardando vinculação de patrocinadores`);
         if (moldes > 0) partes.push(`${moldes} ${moldes === 1 ? 'molde pronto' : 'moldes prontos'} para a Arte (sem vinculação)`);
@@ -1389,7 +1452,8 @@ export function registerEventRoutes(app: Express): void {
         type: "items_submitted",
         eventId,
         count: successfulUpdates.length,
-        items: successfulUpdates
+        items: successfulUpdates,
+        diretoParaGrafica: internas.length,
       });
 
       res.json({
@@ -1399,6 +1463,10 @@ export function registerEventRoutes(app: Express): void {
         failedCount,
         // Códigos das que não foram (mudaram de status no meio do envio).
         falharam: falharam.map((i) => i.displayId),
+        // Produção interna (02/10): as que foram direto para a Gráfica e as
+        // marcadas que ficaram no rascunho, com o motivo.
+        diretoParaGrafica: internas.map((i) => i.displayId),
+        ficaramNoRascunho,
       });
     } catch (error: any) {
       responderErro(res, error, "enviar rascunhos");

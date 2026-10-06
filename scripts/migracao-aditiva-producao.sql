@@ -374,3 +374,8 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS arquivado_por text;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS restaurado_em timestamp;
 ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS arquivado_em timestamp;
 ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS arquivado_por text;
+-- Produção interna — "direto para a Gráfica" (dono, 02/10; migração 0005): a
+-- marca da peça que pula Vinculação, Arte, Aprovação e Revisão Final, e as
+-- instruções para a Gráfica. Aditivo: o acervo fica false / NULL.
+ALTER TABLE "items" ADD COLUMN IF NOT EXISTS "producao_interna" boolean DEFAULT false NOT NULL;
+ALTER TABLE "items" ADD COLUMN IF NOT EXISTS "instrucoes_grafica" text;

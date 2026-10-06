@@ -114,6 +114,9 @@ export const REGUA_DE_PAPEIS: RegraDeRota[] = [
   { metodo: "POST", rota: "/api/items/:id/correct-reuse", papeis: ["admin", "grafica", "solicitacao"] },
   { metodo: "PATCH", rota: "/api/items/:id/creator-review", papeis: ["admin", "solicitacao"] },
   { metodo: "PATCH", rota: "/api/items/:id/dispense", papeis: ["admin", "arte"] },
+  // Produção interna — direto para a Gráfica, por peça e em lote (dono, 02/10).
+  { metodo: "POST", rota: "/api/items/:id/direto-para-grafica", papeis: ["admin", "solicitacao"] },
+  { metodo: "POST", rota: "/api/items/direto-para-grafica", papeis: ["admin", "solicitacao"] },
   { metodo: "POST", rota: "/api/items/:id/mark-reuse", papeis: ["admin", "grafica", "solicitacao"] },
   { metodo: "POST", rota: "/api/items/:id/restore", papeis: ["admin"] },
   { metodo: "PATCH", rota: "/api/items/:id/return-to-arte", papeis: ["admin", "solicitacao"] },

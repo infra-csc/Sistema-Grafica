@@ -206,7 +206,11 @@ export function registrarRevisao(app: Express): void {
       // liberada para produção trava a Gráfica. Reaproveitamento TOTAL
       // dispensa (não produz nada); parcial produz o restante e precisa.
       // MOLDE (22/09) não tem arquivo final: é liberado só com o thumb.
-      if (!currentItem.finalFileUrl && !isFullReuse && !dispensaArquivoFinal(currentItem)) {
+      // PRODUÇÃO INTERNA (02/10) sem arquivo é feita pelas instruções: se a
+      // Gráfica a devolveu para cá, liberar de novo não pode exigir o arquivo
+      // que ela nunca teve.
+      const internaComInstrucoes = !!currentItem.producaoInterna && !!currentItem.instrucoesGrafica?.trim();
+      if (!currentItem.finalFileUrl && !isFullReuse && !dispensaArquivoFinal(currentItem) && !internaComInstrucoes) {
         return res.status(409).json({
           error: "A peça ainda não tem arquivo final — a Arte precisa enviá-lo antes da liberação."
         });

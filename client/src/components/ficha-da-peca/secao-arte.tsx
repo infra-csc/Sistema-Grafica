@@ -92,7 +92,11 @@ export function SecaoArte({ item, conferencePhotos }: {
         ) : (
           <div style={{ aspectRatio: "16/9", borderRadius: 10, border: `1px dashed ${T.bdark}`, backgroundColor: T.surface, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
             <FileImage aria-hidden="true" style={{ width: 24, height: 24, color: T.muted }} />
-            <p style={{ fontSize: 12, color: T.apoio, margin: 0 }}>A Arte ainda não enviou</p>
+            {/* Produção interna (02/10): a peça não passa pela Arte — "ainda
+                não enviou" prometeria uma arte que nunca vem. */}
+            <p style={{ fontSize: 12, color: T.apoio, margin: 0, textAlign: "center", padding: "0 12px" }}>
+              {item.producaoInterna ? "Produção interna — não passa pela Arte. A Gráfica segue o arquivo ou as instruções." : "A Arte ainda não enviou"}
+            </p>
           </div>
         )}
 

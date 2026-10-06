@@ -7,6 +7,7 @@ import type { Item, Event as EventRecord, StandardItem, AuditLog, EventSponsor }
 import type { RemessaDoKit } from "@shared/kit";
 import type { MaeDoComplemento } from "@shared/api";
 import type { useAuth } from "@/contexts/auth-context";
+import type { CamposDaProducaoInterna } from "@shared/producao-interna";
 
 /**
  * O que o JSON da API entrega de uma linha do schema: `Date` vira texto ISO
@@ -54,8 +55,12 @@ export type ResumoDoEstoque = Record<string, EstoqueDaPeca>;
 /** Usuário logado (o contexto não exporta a interface). */
 export type UsuarioLogado = ReturnType<typeof useAuth>["user"];
 
-/** O formulário de peça (criar e editar) — ver EMPTY_ITEM_FORM em regras.ts. */
-export interface ItemFormData {
+/**
+ * O formulário de peça (criar e editar) — ver EMPTY_ITEM_FORM em regras.ts.
+ * Produção interna (02/10): a marca "vai direto para a Gráfica", as
+ * instruções e o arquivo opcional vêm de CamposDaProducaoInterna.
+ */
+export interface ItemFormData extends CamposDaProducaoInterna {
   type: string;
   description: string;
   quantity: number;

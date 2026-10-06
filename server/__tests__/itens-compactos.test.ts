@@ -137,8 +137,18 @@ const N_PECAS = 5128, N_EVENTOS = 68, N_PATROCINADORES = 159;
 const STATUS = ["draft", "requested", "awaiting_linking", "awaiting_submission", "awaiting_sponsor_approval", "sponsor_approved",
   "awaiting_final_review", "ready_for_production", "inProduction", "produced", "conferred"];
 
+// O STATUS sai de um sorteio PRÓPRIO (02/10). Ele vinha da mesma sequência
+// que preenche as colunas, então cada coluna nova na tabela mudava o passo
+// por linha — com items.producao_interna e instrucoes_grafica o passo caiu
+// num ciclo do gerador em que NENHUMA peça saía "requested" (as contagens
+// viraram múltiplos de 84) e o teste do delta perdeu a peça que "entra na
+// fila". Separado, o status não depende de quantas colunas a tabela tem.
+let sementeDoStatus = 7;
+const sorteioDoStatus = () => { sementeDoStatus = (sementeDoStatus * 1103515245 + 12345) % 2147483648; return sementeDoStatus / 2147483648; };
+
 function gerarMundo() {
   semente = 42;
+  sementeDoStatus = 7;
   const eventos = Array.from({ length: N_EVENTOS }, (_, n) => linha(tEvents, {
     id: uuid("e", n), name: `CIRCUITO ${n} ${texto(5, 25)}`, status: n % 11 === 0 ? "closed" : "created",
     startDate: data(n + 30), truckDepartureDate: data(n + 28), createdAt: data(n), updatedAt: data(n + 1),
@@ -159,7 +169,7 @@ function gerarMundo() {
     pecas.push(linha(tItems, {
       id: uuid("i", n), displayId: `#${String(n + 1).padStart(4, "0")}`,
       eventId: doKit ? doKit.eventId : eventos[n % N_EVENTOS].id,
-      status: aleatorio() < 0.6 ? "delivered" : escolher(STATUS),
+      status: sorteioDoStatus() < 0.6 ? "delivered" : STATUS[Math.floor(sorteioDoStatus() * STATUS.length)],
       parentItemId: null, complementSeq: null, kitRemessaId: doKit ? doKit.id : null,
       criadoPorId: doKit ? "u-kit" : "u-solic", deletedAt: null,
       // created_at único e decrescente: a ordem do storage (createdAt DESC).

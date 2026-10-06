@@ -24,6 +24,7 @@ import { barraSeArquivado, estaArquivado, PATROCINADOR_ARQUIVADO_ERRO } from "..
 import { invalidarCacheDeVersoes } from "./versoes";
 import { DEPOIS_DA_ARTE, POS_APROVACAO } from "@shared/fluxo-peca";
 import { ehMolde } from "@shared/molde";
+import { ERRO_PATROCINADOR_NA_PRODUCAO_INTERNA, CODIGO_COM_PATROCINADOR } from "@shared/producao-interna";
 import { responderFalha } from "../erros";
 import { vemDeOrigemValida } from "@shared/maquina-de-estados";
 
@@ -725,6 +726,12 @@ export function registerSponsorRoutes(app: Express): void {
       if (ehMolde(currentItem) && validSponsorIds.length > 0) {
         return res.status(409).json({ error: ERRO_PATROCINADOR_EM_MOLDE, code: "MOLDE_SEM_PATROCINADOR" });
       }
+      // PRODUÇÃO INTERNA (dono, 02/10): a peça marcada "vai direto para a
+      // Gráfica" não leva patrocinador — recusa, não desmarca sozinha (quem
+      // marcou decide). Limpar (lista vazia) passa, como no molde.
+      if (currentItem.producaoInterna && validSponsorIds.length > 0) {
+        return res.status(409).json({ error: ERRO_PATROCINADOR_NA_PRODUCAO_INTERNA, code: CODIGO_COM_PATROCINADOR });
+      }
       await storage.bulkSyncItemSponsors(itemId, validSponsorIds);
 
       // Update item with skipApproval only (status NOT changed here - user must click "Enviar para Arte").
@@ -874,6 +881,11 @@ export function registerSponsorRoutes(app: Express): void {
           // por patrocinador (nem pela Vinculação, nem pela aprovação).
           if (ehMolde(item)) {
             recusadas.push({ displayId: rotulo, motivo: "é um molde — molde não recebe patrocinador (não passa por Vincular nem por aprovação)" });
+            return;
+          }
+          // Produção interna (02/10): vai direto para a Gráfica, sem patrocinador.
+          if (item.producaoInterna) {
+            recusadas.push({ displayId: rotulo, motivo: "é de produção interna (vai direto para a Gráfica) — não leva patrocinador" });
             return;
           }
           if (!ACEITA.includes(item.status) && !jaPassou) {
@@ -1168,6 +1180,7 @@ export function registerSponsorRoutes(app: Express): void {
       if (!item) return res.status(404).json({ error: "Item não encontrado" });
       if (await barraEventoFinalizado(item, res)) return;
       if (ehMolde(item)) return res.status(409).json({ error: ERRO_PATROCINADOR_EM_MOLDE, code: "MOLDE_SEM_PATROCINADOR" });
+      if (item.producaoInterna) return res.status(409).json({ error: ERRO_PATROCINADOR_NA_PRODUCAO_INTERNA, code: CODIGO_COM_PATROCINADOR });
       if (barraSeArquivado(await storage.getSponsor(validatedData.sponsorId), res, PATROCINADOR_ARQUIVADO_ERRO)) return;
 
       const itemSponsor = await storage.addSponsorToItem(validatedData);

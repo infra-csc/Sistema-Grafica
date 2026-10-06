@@ -245,12 +245,17 @@ const CENARIOS: Cenario[] = [
   { acao: "desfazer-molde-produzido", papel: "grafica", rota: "PATCH /api/items/:id/molde-voltar-liberado", peca: { type: "Molde", quantityProduced: 10 }, tambem: ["desfazer-molde-ja-liberado"] },
   { acao: "desfazer-molde-ja-liberado", papel: "grafica", rota: "PATCH /api/items/:id/molde-voltar-liberado", peca: { type: "Molde", quantityProduced: 10 }, tambem: ["desfazer-molde-produzido"] },
   { acao: "criar-complemento", papel: "solicitacao", rota: "POST /api/items/:id/complement", body: { quantity: 2, reason: MOTIVO }, destinoEm: "filho" },
+  // Produção interna (02/10): a ação avulsa, com instrução (a peça do mundo já tem arquivo final).
+  ...(["solicitacao", "admin"] as const).map((papel): Cenario => ({
+    acao: "enviar-direto-para-a-grafica", papel, rota: "POST /api/items/:id/direto-para-grafica", body: { instrucoes: "Imprimir em lona fosca, 2 x 1 m, com ilhós" },
+  })),
 ];
 
 /** As ações cujas rotas vivem fora de routes/itens e molde — e quem as cobre. */
 const FORA_DESTE_TESTE: Partial<Record<AcaoDaPeca, string>> = {
   "enviar-lista-para-vinculacao": "events.ts — event-encerramento-pecas.test.ts / molde.test.ts",
   "enviar-molde-da-lista": "events.ts — molde.test.ts",
+  "enviar-producao-interna-da-lista": "events.ts — producao-interna-rotas.test.ts",
   "vincular-patrocinadores": "sponsors.ts — patrocinadores e vinculação",
   "enviar-para-a-arte": "sponsors.ts — vincular-falha-fica-na-linha / patrocinadores",
   "voltar-para-a-criacao": "sponsors.ts — patrocinadores",

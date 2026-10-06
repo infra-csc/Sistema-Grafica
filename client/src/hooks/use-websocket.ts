@@ -325,14 +325,20 @@ export function useWebSocket() {
             });
             break;
 
-          case 'items_submitted':
+          case 'items_submitted': {
+            // Produção interna (02/10): parte do envio pode ter ido direto
+            // para a Gráfica — essas não estão "aguardando vinculação".
+            const grafica = data.diretoParaGrafica ?? 0;
+            const vinc = Math.max(0, (data.count || 0) - grafica);
             toast({
-              title: 'Peças enviadas para vinculação',
-              description: (data.count || 0) === 1
-                ? '1 peça aguardando vinculação de patrocinadores'
-                : `${data.count || 0} peças aguardando vinculação de patrocinadores`,
+              title: grafica > 0 ? 'Lista enviada' : 'Peças enviadas para vinculação',
+              description: [
+                vinc > 0 ? (vinc === 1 ? '1 peça aguardando vinculação de patrocinadores' : `${vinc} peças aguardando vinculação de patrocinadores`) : null,
+                grafica > 0 ? `${grafica} direto para a Gráfica` : null,
+              ].filter(Boolean).join(' · '),
             });
             break;
+          }
 
           case 'item_approved':
             toast({

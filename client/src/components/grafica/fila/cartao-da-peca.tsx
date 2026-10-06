@@ -12,6 +12,7 @@ import { Botao } from "@/components/ui/botao";
 import { Selo } from "@/components/ui/selo";
 import { StatusPill } from "@/components/status-pill";
 import { SeloMolde } from "@/components/kit/selo-kit";
+import { SeloProducaoInterna, InstrucoesParaAGrafica } from "@/components/selo-producao-interna";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { diasNaFase, tomDaIdade } from "@/lib/idade-na-fase";
 import { splitDisplayId } from "@/lib/displayId";
@@ -273,6 +274,8 @@ export function CartaoDaPeca({ ctx, item, index, showEvHeader, corte }: {
             </span>
             <StatusPill status={statusDeExibicao(item)} size="sm" showDot={false} />
             <SeloMolde peca={item} />
+            {/* Produção interna (02/10): veio direto da Solicitação, sem Arte. */}
+            <SeloProducaoInterna peca={item} />
             {(() => {
               const d = diasNaFase(item, new Date());
               if (d === null || d < 1) return null;
@@ -425,6 +428,9 @@ export function CartaoDaPeca({ ctx, item, index, showEvHeader, corte }: {
               <AlertCircle aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0, marginTop: 1 }} />{item.observations}
             </div>
           )}
+          {/* As instruções da produção interna, inteiras: no celular do
+              galpão, sem arquivo, é o que diz o que fazer. */}
+          <InstrucoesParaAGrafica peca={item} style={{ marginTop: 6 }} />
         </div>
         </div>
 

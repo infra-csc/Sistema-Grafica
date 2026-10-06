@@ -404,6 +404,21 @@ export const items = pgTable("items", {
   // confundir com a prioridade DO EVENTO (events.priority, régua da saída do
   // caminhão em shared/prioridade-do-evento.ts).
   isPriority: boolean("is_priority").notNull().default(false),
+  // PRODUÇÃO INTERNA — "DIRETO PARA A GRÁFICA" (dono, 02/10: "liberar
+  // eventualmente alguma coisa direto pra gráfica… coisas que não passam pela
+  // arte… peças que fazemos internamente, sem logo de patrocinador, e que não
+  // necessariamente têm um arquivo"; e "essa peça tem que indicar NA
+  // SOLICITAÇÃO que vai direto para a Gráfica"). Uma MARCA, como o molde é um
+  // tipo: a Solicitação marca a peça na lista e, no envio, ela pula
+  // Vinculação, Arte, Aprovação e Revisão Final — cai em Pronto para Produção.
+  // Só peça SEM patrocinador. As regras: shared/producao-interna.ts.
+  producaoInterna: boolean("producao_interna").notNull().default(false),
+  // O QUE A GRÁFICA FAZ com a peça de produção interna. Coluna própria (e não
+  // dentro de `observations`) porque a observação é sobrescrita pelas
+  // devoluções da Revisão, e a instrução É a peça quando não há arquivo:
+  // obrigatória (mín. 10 caracteres) no envio sem arquivo final, e aparece em
+  // destaque na fila da Gráfica. NULL = peça comum, ou marcada sem instrução.
+  instrucoesGrafica: text("instrucoes_grafica"),
   // ONDE A PEÇA ESTAVA quando foi cancelada (dono, 01/09: "descancelar item e
   // ele voltar no fluxo onde estava"). Preenchida pelo cancelamento
   // (individual e em lote); o descancelar do admin restaura para cá e limpa.

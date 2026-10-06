@@ -75,6 +75,7 @@ import {
   compararComoARevisaoFinal,
   entraNoChecklist,
   grupoPorTipo,
+  quantidadeACaminhoParaChecklist,
   quantidadeEntregueParaChecklist,
   type PecaParaChecklist,
 } from "@shared/integracao-checklist";
@@ -578,6 +579,26 @@ describe("temImagemDaPeca", () => {
 // que o script de exportação para a demo local (scripts/exportar-checklist.ts)
 // usa. Recebe o banco por parâmetro: aqui, o db em fila lá de cima.
 // ═════════════════════════════════════════════════════════════════════════════
+describe("a regra da peça a caminho (vai chegar, fora da conferência)", () => {
+  it("peça no funil que não saiu vai inteira", () => {
+    expect(quantidadeACaminhoParaChecklist(peca({ status: "inProduction", deliveredQty: 0 }))).toBe(10);
+    expect(quantidadeACaminhoParaChecklist(peca({ status: "awaiting_approval", deliveredQty: null }))).toBe(10);
+  });
+  it("entrega parcial: o resto vai a caminho", () => {
+    expect(quantidadeACaminhoParaChecklist(peca({ status: "packed", deliveredQty: 7 }))).toBe(3);
+  });
+  it("entregue por inteiro (inclusive o legado com delivered_qty 0) não tem nada a caminho", () => {
+    expect(quantidadeACaminhoParaChecklist(peca())).toBe(0);
+    expect(quantidadeACaminhoParaChecklist(peca({ deliveredQty: 0 }))).toBe(0);
+  });
+  it("Kit, book, cancelada e excluída nunca vão chegar", () => {
+    expect(quantidadeACaminhoParaChecklist(peca({ status: "inProduction", deliveredQty: 0, kitRemessaId: "k1" }))).toBe(0);
+    expect(quantidadeACaminhoParaChecklist(peca({ type: "Book completo", status: "inProduction", deliveredQty: 0 }))).toBe(0);
+    expect(quantidadeACaminhoParaChecklist(peca({ status: "canceled", deliveredQty: 0 }))).toBe(0);
+    expect(quantidadeACaminhoParaChecklist(peca({ status: "inProduction", deliveredQty: 0, deletedAt: new Date() }))).toBe(0);
+  });
+});
+
 describe("a montagem das respostas, fora da rota", () => {
   beforeEach(() => { H.respostas = []; });
 
@@ -618,10 +639,44 @@ describe("a montagem das respostas, fora da rota", () => {
   it("a lista de eventos converte datas e contagem", async () => {
     const { db } = await import("../db");
     const quando = new Date("2026-09-20T12:00:00Z");
-    H.respostas = [[{ id: "ev-1", nome: "Evento", inicio: quando, saidaCaminhao: quando, status: "active", pecasEntregues: "12" }]];
+    H.respostas = [[
+      { id: "ev-1", nome: "Evento", inicio: quando, saidaCaminhao: quando, status: "active", pecasEntregues: "12", pecasACaminho: "3" },
+      // Nada entregue ainda, só a caminho: o evento já aparece (a Arena sabe o que vem).
+      { id: "ev-2", nome: "Só a caminho", inicio: quando, saidaCaminhao: null, status: "active", pecasEntregues: "0", pecasACaminho: "8" },
+    ]];
     expect(await listarEventosDoChecklist(db)).toEqual({
-      eventos: [{ id: "ev-1", nome: "Evento", inicio: quando.toISOString(), saidaCaminhao: quando.toISOString(), status: "active", pecasEntregues: 12 }],
+      eventos: [
+        { id: "ev-1", nome: "Evento", inicio: quando.toISOString(), saidaCaminhao: quando.toISOString(), status: "active", pecasEntregues: 12, pecasACaminho: 3 },
+        { id: "ev-2", nome: "Só a caminho", inicio: quando.toISOString(), saidaCaminhao: null, status: "active", pecasEntregues: 0, pecasACaminho: 8 },
+      ],
     });
+  });
+
+  it("a caminho: o que ainda não saiu (inteira ou resto de parcial) vai à parte, com a etapa", async () => {
+    const { db } = await import("../db");
+    const quando = new Date("2026-09-20T12:00:00Z");
+    const base = { description: null, material: "Lona", finish: "Ilhós", measurement: "3 × 1", deliveredAt: null, receivedBy: null, deletedAt: null, kitRemessaId: null, approvalThumbUrl: null };
+    H.respostas = [
+      [{ id: "ev-1", nome: "Evento", inicio: quando, saidaCaminhao: null, status: "active" }],
+      [
+        { ...base, id: "p-inteira", displayId: "0001", type: "Pórtico", quantity: 2, deliveredQty: 2, status: "delivered", deliveredAt: quando },
+        { ...base, id: "p-parcial", displayId: "0002", type: "Grade", quantity: 10, deliveredQty: 7, status: "packed" },
+        { ...base, id: "p-producao", displayId: "0003", type: "Grade", quantity: 5, deliveredQty: 0, status: "inProduction" },
+        { ...base, id: "p-arte", displayId: "0004", type: "Testeira", quantity: 1, deliveredQty: null, status: "awaiting_approval" },
+      ],
+      [], // volumes das entregues
+      [{ id: "m1", name: "Grade", group: "Grades", createdAt: quando }],
+    ];
+    const r = await montarEntreguesDoEvento(db, "ev-1");
+    // Conferência: só o que saiu (a parcial com o que saiu).
+    expect(r!.itens.map((i) => [i.codigo, i.quantidadeEntregue])).toEqual([["0001", 2], ["0002", 7]]);
+    // A caminho: o resto da parcial, a peça em produção e a da arte — com a etapa e o grupo.
+    expect(r!.aCaminho.map((p) => [p.codigo, p.faltam, p.etapa, p.grupo])).toEqual([
+      ["0004", 1, "awaiting_approval", null],
+      ["0002", 3, "packed", "Grades"],
+      ["0003", 5, "inProduction", "Grades"],
+    ]);
+    expect(r!.aCaminho.find((p) => p.codigo === "0002")).toMatchObject({ quantidade: 10, quantidadeEntregue: 7 });
   });
 
   it("o serviço não importa server/db (o script roda só com DATABASE_URL, cliente próprio)", () => {

@@ -56,6 +56,22 @@ export function quantidadeEntregueParaChecklist(p: PecaParaChecklist): number {
 export const entraNoChecklist = (p: PecaParaChecklist): boolean => quantidadeEntregueParaChecklist(p) > 0;
 
 /**
+ * Quantas unidades da peça AINDA VÃO para a Arena: peça da Arena no funil
+ * (arte, aprovação, produção, embalada) que não saiu, ou o resto de uma entrega
+ * parcial (7 de 10 → 3). O Checklist NÃO confere essas — mostra um aviso de que
+ * vão chegar. As mesmas exclusões da regra de entregue: Kit, book, cancelada e
+ * excluída nunca "vão chegar".
+ */
+export function quantidadeACaminhoParaChecklist(p: PecaParaChecklist): number {
+  if (p.deletedAt) return 0;
+  if (p.kitRemessaId) return 0;
+  if (ehBookCompleto(p)) return 0;
+  if (ehForaDoFunil(p.status)) return 0;
+  const quantidade = Math.max(0, Number(p.quantity) || 0);
+  return Math.max(0, quantidade - quantidadeEntregueParaChecklist(p));
+}
+
+/**
  * O grupo de cada tipo de peça, do jeito que a Revisão Final agrupa
  * (typeToGroup em client/src/pages/solicitacao.tsx): o `group` do item padrão
  * cujo NOME é o tipo da peça, ignorando grupo vazio. Quando dois modelos têm o

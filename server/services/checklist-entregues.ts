@@ -11,10 +11,11 @@
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, notInArray, or, sql, gt } from "drizzle-orm";
 import type { PgDatabase } from "drizzle-orm/pg-core";
 import { events, items, standardItems, tubos, tuboItens } from "@shared/schema";
-import { STATUS_ENTREGUES, STATUS_FORA_DO_FUNIL } from "@shared/fluxo-peca";
+import { STATUS_ENTREGUES, STATUS_FORA_DO_FUNIL, etapaDaPeca } from "@shared/fluxo-peca";
 import {
   compararComoARevisaoFinal,
   grupoPorTipo,
+  quantidadeACaminhoParaChecklist,
   quantidadeEntregueParaChecklist,
 } from "@shared/integracao-checklist";
 import { urlDeThumbValida } from "../routes/thumb-url";
@@ -33,6 +34,7 @@ export const JANELA_DE_EVENTOS_DIAS = 120;
 const BOOK_COMPLETO_SQL = "book[[:space:]_-]*completo";
 
 /** A conta de quantidadeEntregueParaChecklist, na linguagem do banco. */
+// (A de quantidadeACaminhoParaChecklist é quantity − esta, dentro do funil.)
 const quantidadeEntregueSql = sql`(case
   when ${inArray(items.status, [...STATUS_ENTREGUES])} and coalesce(${items.deliveredQty}, 0) = 0 then ${items.quantity}
   else least(coalesce(${items.deliveredQty}, 0), ${items.quantity})
@@ -82,6 +84,8 @@ export type EventoDaListaDoChecklist = {
   status: string;
   /** Peças (linhas), não unidades. */
   pecasEntregues: number;
+  /** Peças (linhas) da Arena ainda no funil — vão chegar (inclui o resto de entrega parcial). */
+  pecasACaminho: number;
 };
 export type RespostaDosEventos = { eventos: EventoDaListaDoChecklist[] };
 
@@ -103,11 +107,31 @@ export type PecaEntregueDoChecklist = {
   tubos: TuboDaPeca[];
   temImagem: boolean;
 };
+/**
+ * Peça da Arena que AINDA VAI chegar: o Checklist não confere, avisa. `faltam`
+ * é o que ainda não saiu (a peça inteira, ou o resto de uma entrega parcial);
+ * `etapa` é a etapa canônica (shared/fluxo-peca.ts), para dizer onde ela está.
+ */
+export type PecaACaminhoDoChecklist = {
+  id: string;
+  codigo: string;
+  grupo: string | null;
+  tipo: string;
+  descricao: string | null;
+  medida: string;
+  quantidade: number;
+  quantidadeEntregue: number;
+  faltam: number;
+  status: string;
+  etapa: string | null;
+};
 export type RespostaDasEntregues = {
-  evento: Omit<EventoDaListaDoChecklist, "pecasEntregues">;
+  evento: Omit<EventoDaListaDoChecklist, "pecasEntregues" | "pecasACaminho">;
   geradoEm: string;
   itens: PecaEntregueDoChecklist[];
   tubos: TuboDoEvento[];
+  /** O que ainda vai chegar (fora da conferência). Checklist antigo ignora. */
+  aCaminho: PecaACaminhoDoChecklist[];
 };
 
 // ── 1. Eventos recentes com peça da Arena entregue ──────────────────────────
@@ -129,7 +153,8 @@ export async function listarEventosDoChecklist(
       saidaCaminhao: events.truckDepartureDate,
       status: events.status,
       // Peças (linhas), não unidades: é o que o Checklist lista.
-      pecasEntregues: sql<number>`count(*)::int`,
+      pecasEntregues: sql<number>`(count(*) filter (where ${quantidadeEntregueSql} > 0))::int`,
+      pecasACaminho: sql<number>`(count(*) filter (where ${items.quantity} - ${quantidadeEntregueSql} > 0))::int`,
     })
     .from(events)
     .innerJoin(items, eq(items.eventId, events.id))
@@ -139,7 +164,9 @@ export async function listarEventosDoChecklist(
       isNull(items.kitRemessaId),
       notInArray(items.status, [...STATUS_FORA_DO_FUNIL]),
       sql`${items.type} !~* ${BOOK_COMPLETO_SQL}`,
-      sql`${quantidadeEntregueSql} > 0`,
+      // Peça com quantidade no funil: ou já saiu (entregue) ou vai sair (a caminho) — o evento
+      // aparece com o que já tem E com o que só está por vir.
+      sql`${items.quantity} > 0`,
     ))
     // events.id é a chave: o Postgres aceita as outras colunas do evento.
     .groupBy(events.id)
@@ -154,6 +181,7 @@ export async function listarEventosDoChecklist(
       saidaCaminhao: iso(e.saidaCaminhao),
       status: e.status,
       pecasEntregues: Number(e.pecasEntregues),
+      pecasACaminho: Number(e.pecasACaminho ?? 0),
     })),
   };
 }
@@ -198,15 +226,18 @@ export async function montarEntreguesDoEvento(banco: BancoDeLeitura, eventoId: s
       eq(items.eventId, evento.id),
       isNull(items.deletedAt),
       isNull(items.kitRemessaId),
-      // Pré-filtro: só quem PODE ter algo entregue. A decisão é da função.
-      or(gt(items.deliveredQty, 0), inArray(items.status, [...STATUS_ENTREGUES])),
+      // Pré-filtro: peças no funil (entregues E a caminho). A decisão é das funções.
+      notInArray(items.status, [...STATUS_FORA_DO_FUNIL]),
     ));
 
   const entregues = candidatas
     .map((p) => ({ p, qtd: quantidadeEntregueParaChecklist(p) }))
     .filter((x) => x.qtd > 0);
+  const aCaminho = candidatas
+    .map((p) => ({ p, faltam: quantidadeACaminhoParaChecklist(p) }))
+    .filter((x) => x.faltam > 0);
   const ids = entregues.map((x) => x.p.id);
-  const tipos = Array.from(new Set(entregues.map((x) => x.p.type)));
+  const tipos = Array.from(new Set([...entregues, ...aCaminho].map((x) => x.p.type)));
 
   // UMA consulta traz as linhas entregues (peça × volume × quantidade) E o
   // cabeçalho do volume de cada linha: dela saem `volumes`, os `tubos` da
@@ -292,6 +323,21 @@ export async function montarEntreguesDoEvento(banco: BancoDeLeitura, eventoId: s
   }));
   itens.sort(compararComoARevisaoFinal);
 
+  const listaACaminho: PecaACaminhoDoChecklist[] = aCaminho.map(({ p, faltam }) => ({
+    id: p.id,
+    codigo: p.displayId,
+    grupo: grupos.get(p.type) ?? null,
+    tipo: p.type,
+    descricao: p.description ?? null,
+    medida: p.measurement,
+    quantidade: p.quantity,
+    quantidadeEntregue: quantidadeEntregueParaChecklist(p),
+    faltam,
+    status: p.status,
+    etapa: etapaDaPeca(p.status),
+  }));
+  listaACaminho.sort(compararComoARevisaoFinal);
+
   return {
     evento: {
       id: evento.id,
@@ -305,5 +351,6 @@ export async function montarEntreguesDoEvento(banco: BancoDeLeitura, eventoId: s
     // Os volumes com ao menos uma linha entregue de peça listada em
     // `itens` — o Checklist nunca mostra tubo vazio.
     tubos: Array.from(tubosDoEvento.values()).sort(compararVolumes),
+    aCaminho: listaACaminho,
   };
 }

@@ -14,10 +14,11 @@ import { StatusPill } from "@/components/status-pill";
 import { SeloMolde } from "@/components/kit/selo-kit";
 import { SeloProducaoInterna, InstrucoesParaAGrafica } from "@/components/selo-producao-interna";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
+import { miniatura } from "@/lib/miniatura";
 import { diasNaFase, tomDaIdade } from "@/lib/idade-na-fase";
 import { splitDisplayId } from "@/lib/displayId";
 import { P } from "@/lib/status";
-import { FONT, FS, FW, N, T, TOM } from "@/lib/theme";
+import { FONT, FS, FW, N, R, T, TOM } from "@/lib/theme";
 import { statusDeExibicao } from "@shared/molde";
 import { EM_REVISAO } from "@shared/fluxo-peca";
 import { pecaTravada } from "@shared/trava-da-peca";
@@ -220,7 +221,7 @@ export function CartaoDaPeca({ ctx, item, index, showEvHeader, corte }: {
             e cada botão caía sozinho numa linha (Produzir /
             Reaproveitar / Devolver empilhados, 150px de botões). */}
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', alignItems: 'stretch', minHeight: item.approvalThumbUrl ? 104 : 74 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', minHeight: 74 }}>
         {/* Arte aprovada — no celular é ela que identifica a peça
             de relance, na hora de conferir com o material na mão.
             Some no modo lote era o pior momento possível para
@@ -232,15 +233,15 @@ export function CartaoDaPeca({ ctx, item, index, showEvHeader, corte }: {
         {item.approvalThumbUrl && (() => {
           const thumbW = bulkOn ? 64 : 88;
           const thumbImg = (
-            <img src={convertGCSUrlToLocalPath(item.approvalThumbUrl)} alt={`Arte da peça ${item.displayId}`}
+            <img src={miniatura(convertGCSUrlToLocalPath(item.approvalThumbUrl))} alt={`Arte da peça ${item.displayId}`}
               loading="lazy" decoding="async"
-              style={{ maxWidth: '100%', maxHeight: 104, objectFit: 'contain', display: 'block' }}
+              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }}
               onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
           );
           const boxStyle: React.CSSProperties = {
-            width: thumbW, minHeight: 44, flexShrink: 0, alignSelf: 'stretch', backgroundColor: T.bg,
-            borderRight: `1px solid ${T.border}`, display: 'flex', alignItems: 'center',
-            justifyContent: 'center', padding: 5,
+            width: thumbW, height: thumbW, flexShrink: 0, alignSelf: 'flex-start', margin: '10px 0 0 10px',
+            backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.md, overflow: 'hidden',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4, boxSizing: 'border-box',
           };
           if (bulkOn) {
             return (

@@ -54,6 +54,8 @@ import { partesDaPeca, estaDividida, lerPartes, resumoDaDivisao } from "@shared/
 import { disponivelParaAMaquina, livreParaReservar, reservaDaPeca, semImpressora } from "@shared/reserva-de-impressora";
 import { progressoDaImpressao, perguntaDaTroca, type OcupanteDaImpressora } from "@shared/progresso-da-impressao";
 import { T, N, TOM, FS, FW, FONT, R } from "@/lib/theme";
+import { miniatura } from "@/lib/miniatura";
+import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 
 /** O mínimo que o formulário precisa saber da peça. A fila passa o item inteiro. */
 export type PecaParaImprimir = SaldoItem & {
@@ -1076,11 +1078,11 @@ export function ModalImpressao({ item, onFechar, abrirNaTroca = false, maquinaIn
             <div style={{ backgroundColor: T.low, borderRadius: R.lg, padding: 14, display: "flex", gap: 12, alignItems: "flex-start" }}>
               {item.approvalThumbUrl ? (
                 <img
-                  src={item.approvalThumbUrl}
+                  src={miniatura(convertGCSUrlToLocalPath(item.approvalThumbUrl))}
                   alt=""
                   loading="lazy"
                   decoding="async"
-                  style={{ width: 56, height: 56, objectFit: "cover", borderRadius: R.md, background: T.surface, border: `1px solid ${T.border}`, flexShrink: 0 }}
+                  style={{ width: 56, height: 56, objectFit: "contain", borderRadius: R.md, background: T.surface, border: `1px solid ${T.border}`, flexShrink: 0 }}
                   onError={(e) => { e.currentTarget.style.display = "none"; }}
                 />
               ) : (

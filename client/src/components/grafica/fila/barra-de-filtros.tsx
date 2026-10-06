@@ -8,7 +8,8 @@
 // + "Filtros (N)", que abre uma FOLHA em tela cheia com os mesmos campos
 // empilhados, de dedo (100dvh: o 100vh clássico esconde o rodapé atrás da
 // barra do navegador). Nada some: mesmo vocabulário, mesmos testids, mesma URL.
-import { Fragment } from "react";
+import { Fragment, useRef } from "react";
+import { useBordasDeRolagem, VeusDeRolagem } from "@/components/grafica/degrade-de-rolagem";
 import type React from "react";
 import { Filter, ChevronDown, Search, Truck, Lock, X } from "lucide-react";
 import { FilterSelect, ShortcutPill } from "@/components/filter-select";
@@ -43,6 +44,9 @@ export function BarraDeFiltros({ fila, isMobile, usaCards, ponteiroGrosso, showA
   // idêntico a um vazio — e o de Evento, que nunca recebeu o override,
   // era o único branco da fileira.
   const trigger: React.CSSProperties = {};
+  // A fileira de atalhos do celular rola de lado: o degradê diz que há mais.
+  const linhaAtalhosRef = useRef<HTMLDivElement>(null);
+  const bordasDosAtalhos = useBordasDeRolagem(linhaAtalhosRef, isMobile);
   const SELECTS_PRINCIPAIS = [
     // O reaproveitamento mora DENTRO do menu de Status (pedido do dono,
     // 25/08 — o chip solto ficava longe de onde se filtra). "reuso" é um
@@ -268,7 +272,8 @@ export function BarraDeFiltros({ fila, isMobile, usaCards, ponteiroGrosso, showA
             respiro da página), então o chip cortado na borda direita diz
             "tem mais para o lado". O menu do evento abre em portal: a rolagem
             não o corta. */}
-        <div data-testid="linha-atalhos-mobile" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "nowrap", overflowX: "auto", marginLeft: -12, marginRight: -12, paddingLeft: 12, paddingRight: 12, scrollbarWidth: "none", overscrollBehaviorX: "contain" }}>
+        <div style={{ position: "relative" }}>
+        <div ref={linhaAtalhosRef} data-testid="linha-atalhos-mobile" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "nowrap", overflowX: "auto", marginLeft: -12, marginRight: -12, paddingLeft: 12, paddingRight: 12, scrollbarWidth: "none", overscrollBehaviorX: "contain" }}>
           <div data-testid="filtro-evento-mobile" style={{ display: "flex", gap: 8, alignItems: "center", flex: "0 0 auto" }}>
             <EventFilterDropdown
               values={filtros.evento}
@@ -287,6 +292,8 @@ export function BarraDeFiltros({ fila, isMobile, usaCards, ponteiroGrosso, showA
           <span style={{ flex: "0 0 auto", display: "inline-flex" }}>{pillProximos}</span>
           {pillTravadas && <span style={{ flex: "0 0 auto", display: "inline-flex" }}>{pillTravadas}</span>}
           {botaoLimpar && <span style={{ flex: "0 0 auto", display: "inline-flex" }}>{botaoLimpar}</span>}
+        </div>
+        <VeusDeRolagem bordas={bordasDosAtalhos} recuo={-12} testId="atalhos-degrade" />
         </div>
       </div>
 

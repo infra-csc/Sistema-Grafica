@@ -8,6 +8,7 @@ import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal
 import { SeloKit } from "@/components/kit/selo-kit";
 import { AvisoDoEstoqueNaPeca } from "@/components/consulta-de-estoque/aviso-na-grafica";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
+import { miniatura } from "@/lib/miniatura";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { FONT, FS, FW, N, R, T, TOM } from "@/lib/theme";
 import { isComplement } from "@/lib/saldo";
@@ -133,7 +134,7 @@ export function BulkActionDialog({
                   }}>
                     {item.approvalThumbUrl ? (
                       <img
-                        src={convertGCSUrlToLocalPath(item.approvalThumbUrl)}
+                        src={miniatura(convertGCSUrlToLocalPath(item.approvalThumbUrl))}
                         alt=""
                         loading="lazy" decoding="async"
                         style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", display: "block" }}

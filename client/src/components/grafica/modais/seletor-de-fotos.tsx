@@ -6,6 +6,7 @@ import { ObjectUploader } from "@/components/ObjectUploader";
 import { useConfirmar } from "@/components/ui/usar-confirmar";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { FS, FW, N, R, T, TOM } from "@/lib/theme";
+import { miniatura } from "@/lib/miniatura";
 
 export function PhotoPicker({ photos, onAdd, onRemove, onError, label = "Fotos", hint, dense = false, onEnviandoMudou }: {
   photos: string[];
@@ -87,7 +88,7 @@ export function PhotoPicker({ photos, onAdd, onRemove, onError, label = "Fotos",
         <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${dense ? 72 : 84}px, 1fr))`, gap: 8, marginTop: dense ? 10 : 12 }}>
           {photos.map(url => (
             <div key={url} style={{ position: "relative", aspectRatio: "1", borderRadius: 8, overflow: "hidden", border: `1px solid ${T.border}`, backgroundColor: N.n2 }}>
-              <img loading="lazy" decoding="async" src={url} alt="Foto anexada" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <img loading="lazy" decoding="async" src={miniatura(url) ?? url} alt="Foto anexada" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               {/* Alvo de toque 44×44 (área invisível maior que o X visível) e
                   confirmação antes de remover — o botão de 20px colado na
                   miniatura removia a foto num toque acidental, sem volta. */}

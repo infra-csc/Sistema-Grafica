@@ -23,12 +23,14 @@
 // AS AÇÕES não são reimplementadas aqui: cada cartão abre os MESMOS modais da
 // fila (o do tubo, o de entrega), pelo TubosDialog. Um lugar só para a regra.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useBordasDeRolagem, VeusDeRolagem } from "@/components/grafica/degrade-de-rolagem";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { CheckCircle2, Package, Search, Tag, Truck, X } from "lucide-react";
 import { TubosDialog, EntregarEmLoteDialog, type VolumeDoLote, type ResultadoDoLote } from "@/components/tubos-dialog";
 import { linhaDaLista, semAcento as tirarAcento } from "@/lib/etiqueta-lista";
+import { miniatura } from "@/lib/miniatura";
 import { useDensidadeDoConteudo, usePonteiroGrosso, alvo as alvoDe } from "@/hooks/use-mobile";
 import { intervaloDePolling } from "@/hooks/use-websocket";
 import { Abas } from "@/components/ui/abas";
@@ -53,6 +55,8 @@ const LOTE = 30;
 // Os papéis de cor da aba, em tokens (antes, dez hex locais).
 const COR = { texto: T.text, sec: T.apoio, borda: T.border, fundo: T.bg, laranja: T.accentText, verde: TOM.sucesso.text, azul: TOM.info.text, ambar: TOM.alerta.text };
 const SEM_TUBOS: TuboDaAba[] = [];
+/** O chevron (lucide chevron-down) na cor de apoio, para o <select> nativo. */
+const CHEVRON_DO_SELECT = `url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2714%27 height=%2714%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27${encodeURIComponent(T.apoio)}%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%27m6 9 6 6 6-6%27/%3E%3C/svg%3E")`;
 
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 // (a mesma de lib/etiqueta-lista — uma regra só para tirar acento)
@@ -155,6 +159,8 @@ export function AbaTubos({ sugestaoRecebedor, onEntregou, onAbrirPeca }: {
     border: `1px solid ${COR.borda}`, background: T.surface, color: T.strong,
   };
   const tamanhoDoBotao = toque ? "toque" : "sm";
+  const segmentosRef = useRef<HTMLDivElement>(null);
+  const bordasDosSegmentos = useBordasDeRolagem(segmentosRef);
   const campo: React.CSSProperties = { height: toque ? 44 : 38, boxSizing: "border-box", borderRadius: R.md, border: `1px solid ${COR.borda}`, background: T.surface, color: COR.texto, fontSize: isMobile ? FS.lead : FS.body, padding: "0 10px" };
   const nomeDo = (t: TuboDaAba) => (t.avulso ? `Embalagem de ${t.pecas[0]?.displayId ?? "peça"}` : `Tubo ${t.numero}`);
   const noLote = useMemo(() => data.filter((t) => marcados.has(t.id) && podeEntrar(t)), [data, marcados]);
@@ -185,7 +191,8 @@ export function AbaTubos({ sugestaoRecebedor, onEntregou, onAbrirPeca }: {
       {/* Segmentos: o MESMO <Abas> da Gráfica e de Máquinas (setas, roving
           tabindex e alvo de 44px moram lá). O wrapper guarda o testid antigo
           e a rolagem lateral do trilho no celular. */}
-      <div data-testid="tubos-segmentos" style={{ overflowX: "auto", scrollbarWidth: "none", maxWidth: "100%" }}>
+      <div style={{ position: "relative" }}>
+      <div ref={segmentosRef} data-testid="tubos-segmentos" style={{ overflowX: "auto", scrollbarWidth: "none", maxWidth: "100%" }}>
         <Abas
           itens={SEGMENTOS.map((x) => ({ id: x.id, rotulo: x.rotulo, contador: contagem[x.id] ?? 0 }))}
           ativo={segmento}
@@ -193,6 +200,8 @@ export function AbaTubos({ sugestaoRecebedor, onEntregou, onAbrirPeca }: {
           rotuloDaLista="Quais tubos"
           prefixoDeTestId="tubos-seg"
         />
+      </div>
+      <VeusDeRolagem bordas={bordasDosSegmentos} testId="segmentos-degrade" />
       </div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -207,7 +216,10 @@ export function AbaTubos({ sugestaoRecebedor, onEntregou, onAbrirPeca }: {
         </label>
         <label style={{ flex: "1 1 180px", minWidth: 0 }}>
           <span className="sr-only">Filtrar por evento</span>
-          <select value={eventoId} onChange={(e) => { setEventoId(e.target.value); setMostrando(LOTE); }} data-testid="tubos-evento" style={{ ...campo, width: "100%" }}>
+          <select value={eventoId} onChange={(e) => { setEventoId(e.target.value); setMostrando(LOTE); }} data-testid="tubos-evento" className="grf-campo" style={{ ...campo, width: "100%", appearance: "none", WebkitAppearance: "none", border: `1px solid ${T.bdark}`, paddingRight: 34, fontWeight: eventoId ? 600 : 500, cursor: "pointer", backgroundColor: eventoId ? TOM.laranja.bg : T.surface, borderColor: eventoId ? TOM.laranja.border : T.bdark,
+              // O chevron dos filtros da casa — inline, porque o `background` do
+              // `campo` (atalho) apagaria a imagem vinda da classe.
+              backgroundImage: CHEVRON_DO_SELECT, backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", backgroundSize: "14px 14px" }}>
             <option value="">Todos os eventos</option>
             {eventos.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
           </select>
@@ -291,7 +303,7 @@ export function AbaTubos({ sugestaoRecebedor, onEntregou, onAbrirPeca }: {
                 <div style={{ display: "flex", gap: 6, padding: "8px 12px 0", flexWrap: "wrap" }}>
                   {t.fotosFechamento.slice(0, 5).map((url, i) => (
                     <a key={url} href={url} target="_blank" rel="noreferrer" aria-label={`Foto ${i + 1} de ${nome} — abrir`} style={{ width: 44, height: 44, borderRadius: R.sm, overflow: "hidden", border: `1px solid ${COR.borda}`, display: "block" }}>
-                      <img src={url} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      <img src={miniatura(url)} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "contain", background: T.low }} />
                     </a>
                   ))}
                 </div>

@@ -1346,3 +1346,12 @@ a.ds-botao[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; filter: no
 
 /* Ponteiro numa pílula: só a pílula acende — a célula volta ao repouso. */
 .cal-celula.cal-realce:has(.cal-pilula:hover) { background-color: var(--base) !important; }
+
+/* ── Gestão de Prazos (prefixo gpz-) ──────────────────────────────────────
+   Entrada curta dos painéis que abrem por disclosure (guia, "desde o último
+   fechamento", análise, campos do prazo combinado, histórico): sem ela o
+   conteúdo surgia num salto seco e o olho perdia de onde ele veio. */
+@media (prefers-reduced-motion: no-preference) {
+  .gpz-entra { animation: gpz-entra var(--dur-media) var(--ease-saida) backwards; }
+}
+@keyframes gpz-entra { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }

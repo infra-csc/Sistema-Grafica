@@ -336,6 +336,10 @@ export const EventDrilldown = memo(function EventDrilldown({ ev, cobranca, today
                 title={recolhida ? "Mostrar as peças desta etapa" : "Recolher esta etapa"}
                 style={{
                   display: "inline-flex", alignItems: "center", gap: 8,
+                  // Quebra ENTRE os pedaços, nunca dentro deles: no celular
+                  // "5 peças · vencida há 14 dias" virava uma segunda coluna
+                  // de texto ao lado do nome da etapa.
+                  flexWrap: "wrap", rowGap: 2, minWidth: 0,
                   background: "none", border: "none", padding: 0, margin: 0,
                   cursor: "pointer", textAlign: "left", font: "inherit",
                   /* O DESKTOP TAMBÉM PRECISA DE ALVO.
@@ -358,7 +362,7 @@ export const EventDrilldown = memo(function EventDrilldown({ ev, cobranca, today
                 <span style={{ fontSize: 12, fontWeight: 700, color: TI.title }}>
                   {stage.label}
                 </span>
-                <span style={{ fontSize: 12, color: stage.state === "overdue" ? TI.red : TI.secondary, fontWeight: stage.state === "overdue" ? 700 : 500 }}>
+                <span style={{ fontSize: 12, color: stage.state === "overdue" ? TI.red : TI.secondary, fontWeight: stage.state === "overdue" ? 700 : 500, whiteSpace: "nowrap" }}>
                 {/* "peças" por extenso ao lado de "5d" abreviado era a mesma
                     unidade escrita de duas formas na mesma linha. */}
                 {pecasTexto(items.length)}
@@ -545,25 +549,42 @@ export const EventDrilldown = memo(function EventDrilldown({ ev, cobranca, today
       })}
 
       {seguintes.length > 0 && (
-        <div style={{
-          borderTop: `1px solid ${TI.border}`, paddingTop: 10,
-          display: "flex", flexDirection: "column", gap: 4,
-        }}>
-          {seguintes.map(({ stage }) => (
-            <span key={stage.key} style={{ fontSize: 12, color: stage.state === "overdue" ? TI.red : TI.secondary }}>
-              {/* Artigo e verbo flexionados juntos: "As 1 peça acima também
-                  travam" era concordância quebrada bem na frase que explica o
-                  efeito dominó. */}
-              {stage.pendingCount === 1 ? "A " : "As "}
-              {pecasTexto(stage.pendingCount)} acima também{" "}
-              {stage.pendingCount === 1 ? "trava" : "travam"} <strong style={{ fontWeight: 700 }}>{stage.label}</strong>
-              {ev.invalidDate
-                ? " (sem data confiável)"
-                : stage.state === "overdue"
-                ? ` (venceu há ${diasTexto(Math.abs(stage.diffDays))})`
-                : ` (vence em ${fmtDayMonth(stage.deadline)})`}
-            </span>
-          ))}
+        // EFEITO DOMINÓ numa frase só. Eram três linhas vermelhas idênticas
+        // ("As 5 peças acima também travam …") que liam como três alarmes
+        // novos quando são o MESMO fato: as peças da etapa acima seguram as
+        // próximas. Agora é um rótulo e uma fileira de etapas, cada uma com o
+        // tamanho e o prazo dela — a cor continua dizendo qual já venceu.
+        <div style={{ borderTop: `1px solid ${TI.border}`, paddingTop: 12 }}>
+          <span style={{ display: "block", fontSize: 12, color: TI.secondary, marginBottom: 8 }}>
+            {seguintes.length === 1 && seguintes[0].stage.pendingCount === 1
+              ? "A peça acima também segura a etapa seguinte:"
+              : "As peças acima também seguram as próximas etapas:"}
+          </span>
+          <ul style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: 0, padding: 0, listStyle: "none" }}>
+            {seguintes.map(({ stage }) => {
+              const vencida = !ev.invalidDate && stage.state === "overdue";
+              return (
+                <li key={stage.key} style={{
+                  display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0, maxWidth: "100%",
+                  padding: "4px 10px", borderRadius: R.pill,
+                  backgroundColor: vencida ? TI.redBg : TI.chipBg,
+                  border: `1px solid ${vencida ? TI.redEdge : TI.border}`,
+                  fontSize: 12, color: vencida ? TI.red : TI.secondary, lineHeight: 1.4,
+                }}>
+                  <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: R.pill, flexShrink: 0, backgroundColor: STAGE_STYLE[stage.state].dot }} />
+                  <span style={{ minWidth: 0 }}>
+                    <strong style={{ fontWeight: 700, color: vencida ? TI.red : TI.title }}>{stage.label}</strong>
+                    {" · "}{pecasTexto(stage.pendingCount)}
+                    {ev.invalidDate
+                      ? " · sem data confiável"
+                      : stage.state === "overdue"
+                      ? ` · venceu há ${diasTexto(Math.abs(stage.diffDays))}`
+                      : ` · vence em ${fmtDayMonth(stage.deadline)}`}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
     </div>

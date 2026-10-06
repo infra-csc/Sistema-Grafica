@@ -33,7 +33,9 @@ export type { SetorResumo };
 // para "Coca-Cola" inteiro e reticência com `title` no que passar disso.
 const COL_PECAS = 56;
 const COL_ESPERA = 92;
-const COL_ACAO = 88;
+// 112: "Atendimento →" em 11px/600 mede ~86px e a célula tem 20 de padding —
+// com 88 a seta era cortada pela borda da tabela.
+const COL_ACAO = 112;
 
 interface AnaliseBandProps {
   totalEventos: number;
@@ -124,7 +126,8 @@ export const AnaliseBand = memo(function AnaliseBand({
             {resumoGargalo}
             {/* Nome e dias em vez de "4 patrocinadores": "Coca-Cola há 11
                 dias" gera uma ligação, um numeral não gera nada. */}
-            {sponsorDelays.length > 0 && ` · pior aprovação: ${sponsorDelays[0].name} há ${diasTexto(sponsorDelays[0].maxDays)}`}
+            {/* "há 0 dias" lia como erro de conta: espera que começou hoje é "desde hoje". */}
+            {sponsorDelays.length > 0 && ` · pior aprovação: ${sponsorDelays[0].name} ${sponsorDelays[0].maxDays === 0 ? "desde hoje" : `há ${diasTexto(sponsorDelays[0].maxDays)}`}`}
           </span>
         )}
         <span style={{ fontSize: 11, fontWeight: 500, color: TI.label, flexBasis: "100%" }}>
@@ -133,9 +136,12 @@ export const AnaliseBand = memo(function AnaliseBand({
       </button>
 
       {aberta && (
-        <div id="gp-diag" style={{
+        <div id="gp-diag" className="gpz-entra" style={{
           display: "grid",
-          gridTemplateColumns: empilhada ? "1fr" : "3fr 2fr",
+          // minmax(0, …): com "1fr" puro o mínimo da trilha é o conteúdo, e a
+          // linha expandida de um patrocinador (botão + campos) empurrava a
+          // grade para 536px num celular de 390 — rolagem lateral.
+          gridTemplateColumns: empilhada ? "minmax(0, 1fr)" : "minmax(0, 3fr) minmax(0, 2fr)",
           gap: 14, marginTop: 12, alignItems: "start",
         }}>
           <section aria-label="Gargalo por setor">
@@ -193,7 +199,9 @@ export const AnaliseBand = memo(function AnaliseBand({
                         // alarmes reais — o alarme deste bloco é o selo de gargalo.
                         style={{ display: "block", fontSize: 11, color: TI.secondary, marginTop: 4 }}
                       >
-                        parada: média {s.avgDays}d · pior {s.maxDays}d
+                        {/* "média 0d · pior 0d" lia como dado quebrado: tudo
+                            que está ali entrou hoje, e é isso que se diz. */}
+                        {s.maxDays === 0 ? "todas entraram hoje nesta mesa" : `parada: média ${s.avgDays}d · pior ${s.maxDays}d`}
                       </span>
                     ) : (
                       <span style={{ display: "block", fontSize: 11, color: TI.label, marginTop: 4 }}>
@@ -306,10 +314,15 @@ export const AnaliseBand = memo(function AnaliseBand({
                       // Um só link, duas casas: coluna própria no desktop,
                       // dentro da célula do nome no celular. Duplicar a marcação
                       // seria duplicar `aria-label` e alvo de toque.
-                      const linkCobrar = (
+                      const linkAtendimento = (
                         <Link
                           href={`/atendimento?patrocinador=${sp.sponsorId}`}
-                          aria-label={`Cobrar ${sp.name} no Atendimento`}
+                          // Navegação para a fila do Atendimento já filtrada
+                          // pelo patrocinador. O rótulo diz ONDE leva, não
+                          // uma ação sobre o patrocinador (decisão do dono:
+                          // sem "Cobrar" patrocinador no app).
+                          aria-label={`Ver as peças de ${sp.name} no Atendimento`}
+                          title={`Abrir o Atendimento já filtrado por ${sp.name}`}
                           // Mesmo alvo de toque do toggle ao lado: era um
                           // link de 11px com ~15px de altura renderizado
                           // no mobile.
@@ -320,7 +333,7 @@ export const AnaliseBand = memo(function AnaliseBand({
                             fontSize: 11, fontWeight: 600, color: TI.secondary, textDecoration: "none",
                           }}
                         >
-                          Cobrar →
+                          Atendimento →
                         </Link>
                       );
                       return (
@@ -381,7 +394,7 @@ export const AnaliseBand = memo(function AnaliseBand({
                                 </span>
                               )}
                               {!acaoNaLinha && (
-                                <span style={{ display: "block", marginLeft: 19 }}>{linkCobrar}</span>
+                                <span style={{ display: "block", marginLeft: 19 }}>{linkAtendimento}</span>
                               )}
                             </th>
                             <td style={{
@@ -399,7 +412,7 @@ export const AnaliseBand = memo(function AnaliseBand({
                             </td>
                             {acaoNaLinha && (
                               <td style={{ padding: "8px 14px 8px 6px", textAlign: "right", whiteSpace: "nowrap" }}>
-                                {linkCobrar}
+                                {linkAtendimento}
                               </td>
                             )}
                           </tr>
@@ -420,6 +433,10 @@ export const AnaliseBand = memo(function AnaliseBand({
                                     variant="secondary"
                                     showForm
                                     showHistorico
+                                    // A linha do patrocinador, logo acima, já
+                                    // mostra a última cobrança: repetir aqui
+                                    // era a mesma frase duas vezes.
+                                    semStatus
                                   />
                                 </div>
                                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>

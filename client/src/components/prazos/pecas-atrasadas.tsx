@@ -275,13 +275,9 @@ const CartaoPeca = memo(function CartaoPeca({ p, onAbrirEvento }: {
           {p.eventName}
         </span>
       </button>
-      {temChipDePrioridade(p.eventPriority) && (
-        <span style={{ display: "block", marginTop: 3 }}>
-          <PrioridadeChip priority={p.eventPriority} />
-        </span>
-      )}
-      <span style={{ display: "block", fontSize: 11, color: TI.secondary, marginTop: 2 }}>
-        Saída {fmtDiaCurto(p.truckDepartureDate)} · prazo de {p.marco.label} venceu em {fmtDayMonth(p.marco.deadline)}
+      <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 11, color: TI.secondary }}>
+        {temChipDePrioridade(p.eventPriority) && <PrioridadeChip priority={p.eventPriority} />}
+        <span>Saída {fmtDiaCurto(p.truckDepartureDate)} · prazo de {p.marco.label} venceu em {fmtDayMonth(p.marco.deadline)}</span>
       </span>
       {/* Sem reticência no cartão: aqui a descrição pode ocupar duas linhas,
           que é mais barato que esconder texto numa tela sem mouse para
@@ -293,7 +289,10 @@ const CartaoPeca = memo(function CartaoPeca({ p, onAbrirEvento }: {
         {textoPeca(p)}
       </span>
       <span style={{ display: "block", fontSize: 11, color: TI.secondary, marginTop: 3 }}>
-        {p.stage.label} · {getStatusLabel(p.item.status)}
+        {/* A etapa só se repete quando é OUTRA que a do prazo da linha de
+            cima ("prazo de Aprovação de Layout venceu…" seguido de
+            "Aprovação de Layout · …" era a mesma palavra duas vezes). */}
+        {p.stage.label !== p.marco.label && `${p.stage.label} · `}{getStatusLabel(p.item.status)}
         {p.item.waitingDays !== null && (
           <>
             {" · "}
@@ -367,18 +366,17 @@ const LinhaPeca = memo(function LinhaPeca({ p, comEtapa, onAbrirEvento }: {
             {p.eventName}
           </button>
         </span>
-        <span style={{ display: "block", fontSize: 10, color: TI.label, marginTop: 2 }}>
-          Saída {fmtDiaCurto(p.truckDepartureDate)}
-        </span>
         {/* "urgente"/"alta" não têm ponto (viram chip de texto):
-            sem esta linha a prioridade que mais importa seria a
-            única sem marca nenhuma na lista. O `temChip` evita um
-            bloco vazio com margem nas outras. */}
-        {temChipDePrioridade(p.eventPriority) && (
-          <span style={{ display: "block", marginTop: 3 }}>
-            <PrioridadeChip priority={p.eventPriority} />
+            sem o chip a prioridade que mais importa seria a única sem
+            marca nenhuma na lista. Ele divide a linha com a saída — numa
+            linha própria ele fazia as linhas de prioridade alta ficarem
+            20px mais altas que as vizinhas e a tabela perdia o ritmo. */}
+        <span style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2, minWidth: 0 }}>
+          <span style={{ fontSize: 10, color: TI.label, whiteSpace: "nowrap" }}>
+            Saída {fmtDiaCurto(p.truckDepartureDate)}
           </span>
-        )}
+          {temChipDePrioridade(p.eventPriority) && <PrioridadeChip priority={p.eventPriority} />}
+        </span>
       </td>
       <td style={{ padding: "9px 8px", verticalAlign: "top", fontSize: 12, color: TI.strong }}>
         {/* Reticência com `title` da frase INTEIRA: num layout fixo
@@ -526,7 +524,7 @@ export function PecasAtrasadas({
   return (
     <div ref={caixaRef} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 13, color: TI.strong, fontWeight: 600 }} data-testid="contagem-pecas-atrasadas">
+        <span aria-live="polite" style={{ fontSize: 13, color: TI.title, fontWeight: 700, fontVariantNumeric: "tabular-nums" }} data-testid="contagem-pecas-atrasadas">
           {restantes > 0
             ? `Mostrando ${visiveis.length} de ${pecasTexto(pecas.length)} atrasada${pecas.length !== 1 ? "s" : ""}`
             : `${pecasTexto(pecas.length)} atrasada${pecas.length !== 1 ? "s" : ""}`}
@@ -535,8 +533,11 @@ export function PecasAtrasadas({
               12 linhas parece o problema inteiro. */}
           {pecas.length !== totalNoApp && ` · ${totalNoApp} no total, sem filtros`}
         </span>
-        <span style={{ fontSize: 11, color: TI.secondary }}>
-          Da mais atrasada para a menos atrasada
+        {/* A legenda da visão — antes uma terceira linha solta na barra de
+            filtros, longe da lista que ela explica. */}
+        <span style={{ fontSize: 11, color: TI.secondary, lineHeight: 1.45 }}>
+          Uma linha por peça, de todos os eventos · <strong style={{ color: TI.strong, fontWeight: 700 }}>atrasada</strong>{" "}
+          = o prazo da etapa que mede a peça já venceu · da mais atrasada para a menos atrasada
         </span>
       </div>
 

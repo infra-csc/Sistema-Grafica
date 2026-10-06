@@ -139,7 +139,10 @@ export const QuadroColuna = memo(function QuadroColuna({ stageKey, label, stageI
             junto do subtítulo, brigando por espaço com "Atendimento · 30
             eventos · 1353 peças" — o dado mais urgente da coluna atrás do
             menos urgente. */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+        {/* minHeight = altura do selo: a coluna SEM vencido (sem selo) tinha
+            a primeira linha 3px mais baixa e o subtítulo dela subia em
+            relação às vizinhas. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, minHeight: 20 }}>
           {/* O título da coluna é abreviado ("Final", "Lista") e não dizia o
               que a etapa é nem quando vence. O `title` completa com a mesma
               descrição e o mesmo prazo padrão do cadastro do evento. */}
@@ -182,9 +185,17 @@ export const QuadroColuna = memo(function QuadroColuna({ stageKey, label, stageI
           display: "block", marginTop: 3, minWidth: 0,
           fontSize: 11, lineHeight: 1.3, color: TI.label, minHeight: 29,
         }}>
-          {setor ? `${setor} · ` : ""}
-          {eventos.length} evento{eventos.length !== 1 ? "s" : ""}
-          {pecas > 0 && ` · ${pecasTexto(pecas)}`}
+          {/* Setor numa linha, contagens na outra — SEMPRE duas linhas, e
+              por isso sempre a mesma altura entre as seis colunas. Corrido,
+              o texto quebrava onde a largura mandava ("… · 79 / peças") e
+              uma coluna com três linhas descia os cards dela. */}
+          {setor && (
+            <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{setor}</span>
+          )}
+          <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+            {eventos.length} evento{eventos.length !== 1 ? "s" : ""}
+            {pecas > 0 && ` · ${pecasTexto(pecas)}`}
+          </span>
         </span>
       </div>
 

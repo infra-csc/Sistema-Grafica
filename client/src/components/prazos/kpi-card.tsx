@@ -47,7 +47,7 @@ export function TrendArrow({ delta, goodWhenUp }: { delta: number | undefined; g
 
 export function KpiCard({
   label, value, tone, active, onClick, title, hint, testId, trend, goodWhenUp,
-  divisorDireita, divisorBaixo,
+  divisorDireita, divisorBaixo, rotuloEmDuasLinhas,
 }: {
   label: string;
   value: number;
@@ -77,6 +77,12 @@ export function KpiCard({
    */
   divisorDireita?: boolean;
   divisorBaixo?: boolean;
+  /**
+   * Reserva DUAS linhas para o rótulo. No placar 2×2 do celular "Eventos com
+   * atraso" quebra e "Saídas em 7 dias" não: sem a reserva os dois numerais
+   * da mesma linha ficavam em alturas diferentes.
+   */
+  rotuloEmDuasLinhas?: boolean;
 }) {
   const colors = {
     // `tint` é o mesmo vocabulário da pílula "Só com atraso": filtro ligado
@@ -96,6 +102,13 @@ export function KpiCard({
   // uma superfície com três hairlines diz a mesma coisa com menos traço.
   const cardStyle: React.CSSProperties = {
     textAlign: "left", cursor: clickable ? "pointer" : "default",
+    // Coluna com o conteúdo no TOPO. O <button> centraliza o conteúdo na
+    // vertical por padrão do navegador: numa linha do placar em que uma
+    // célula tinha a frase em duas linhas e a vizinha em uma, o rótulo e o
+    // numeral da mais curta desciam alguns pixels — e a célula informativa
+    // (<div>) ficava no topo. Quatro números lado a lado precisam da mesma
+    // linha de base.
+    display: "flex", flexDirection: "column", alignItems: "stretch", justifyContent: "flex-start",
     // Os três tints medem ≥4,59:1 contra `TI.label` (o tom do rótulo e do
     // hint), então ligar o filtro não reprova AA em nenhum texto do card.
     // O realce de hover e foco vem da classe .ds-botao (index.css): o par
@@ -123,11 +136,12 @@ export function KpiCard({
       <span style={{
         display: "flex", alignItems: "center", gap: 5, fontSize: FS.micro, fontWeight: FW.forte,
         textTransform: "uppercase", letterSpacing: "0.1em", color: TI.label, marginBottom: 6,
-        fontFamily: FONT.corpo,
+        fontFamily: FONT.corpo, lineHeight: 1.3,
+        ...(rotuloEmDuasLinhas ? { minHeight: "2.6em", alignItems: "flex-start" } : null),
       }}>
         {/* O funil marca em repouso quais KPIs FILTRAM — antes o único sinal
             era o anel de 1,5px que só aparece depois do clique. */}
-        {clickable && <Filter aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0, color: TI.accentText }} />}
+        {clickable && <Filter aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0, color: TI.accentText, marginTop: rotuloEmDuasLinhas ? 1 : 0 }} />}
         <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>
       </span>
       <span style={{

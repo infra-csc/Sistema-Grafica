@@ -12,6 +12,7 @@
 // que é risco PROJETADO, virou contorno. O mais sólido tem que ser o mais
 // urgente.
 import { memo } from "react";
+import { Truck } from "lucide-react";
 import { getPriorityMeta } from "@/lib/status";
 import { Selo } from "@/components/ui/selo";
 import { FONT, MOTION } from "@/lib/theme";
@@ -97,6 +98,7 @@ export const QuadroCard = memo(function QuadroCard({ ev, stage, cobranca, onOpen
   // card comunicava posição de EVENTO. Um evento com 39 peças já na Produção e
   // 1 esquecida no rascunho aparecia na coluna Lista — o diretor lia "esse
   // evento está na Lista de Imagens" e escalava com o setor errado.
+  const bordaBase = realce ? `1.5px solid ${TI.amber}` : `1px solid ${TI.border}`;
   const travadasAqui = stage?.directCount ?? 0;
   const mostraTravadas = !semPecas && travadasAqui > 0 && travadasAqui < ev.totalItems;
 
@@ -146,7 +148,10 @@ export const QuadroCard = memo(function QuadroCard({ ev, stage, cobranca, onOpen
         textAlign: "left", width: "100%", cursor: "pointer",
         backgroundColor: realce ? TI.amberRow : TI.card,
         borderRadius: R.lg, padding: "12px 14px",
-        border: realce ? `1.5px solid ${TI.amber}` : `1px solid ${TI.border}`,
+        // Quatro arestas por extenso, nunca `border` + `borderLeft`: quando o
+        // realce de 1,2s entrava e saía, a abreviação mudava por cima da
+        // aresta longa e o React avisava de conflito (e podia apagar o trilho).
+        borderTop: bordaBase, borderRight: bordaBase, borderBottom: bordaBase,
         // TRILHO em vez de moldura. O card vencido tinha a borda inteira em
         // vermelho claro, o que engrossa o contorno dos quatro lados e deixa
         // uma coluna de 20 cards parecendo uma grade de caixas vermelhas.
@@ -155,7 +160,7 @@ export const QuadroCard = memo(function QuadroCard({ ev, stage, cobranca, onOpen
         // só para a vencida. `upcoming` fica sem trilho: não há o que marcar.
         borderLeft: stage && stage.state !== "upcoming"
           ? `3px solid ${STAGE_STYLE[stage.state].dot}`
-          : undefined,
+          : bordaBase,
         boxShadow: SHADOW.sm,
         transition: `box-shadow ${MOTION.rapida} ease, background-color 0.6s ease, border-color 0.6s ease`,
       }}
@@ -197,8 +202,12 @@ export const QuadroCard = memo(function QuadroCard({ ev, stage, cobranca, onOpen
       <span style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 7, flexWrap: "wrap" }}>
         <PrioridadeChip priority={ev.priority} />
         {!ev.invalidDate && (
-          <span style={{ fontSize: 11, fontWeight: 700, color: TI.secondary, whiteSpace: "nowrap" }}>
-            {fmtDiaCurto(ev.truckDepartureDate)} ·
+          // Caminhão + data, sem o " ·" pendurado: na coluna estreita o selo
+          // de saída quebra para a linha de baixo e o ponto ficava sozinho
+          // no fim da linha, apontando para nada.
+          <span title="Saída do caminhão" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: TI.secondary, whiteSpace: "nowrap" }}>
+            <Truck aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0 }} />
+            {fmtDiaCurto(ev.truckDepartureDate)}
           </span>
         )}
         {/* <Selo> já é `nowrap`: "Saída atrasada 12 dias" quebrava dentro

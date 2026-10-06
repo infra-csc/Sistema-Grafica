@@ -27,6 +27,7 @@ import { HIDE_NATIVE_CLOSE, ModalFooter, ModalHeader, modalSurface } from "@/com
 import { FilterSelect } from "@/components/filter-select";
 import { ToastAction } from "@/components/ui/toast";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/auth-context";
 import { getPriorityMeta, PRIORITY } from "@/lib/status";
 import { MARCOS_DO_EVENTO } from "@shared/prazo-dates";
 import { alvo, useDensidadeDoConteudo, usePonteiroGrosso } from "@/hooks/use-mobile";
@@ -87,6 +88,19 @@ const VISAO_TECLA: Record<Visao, string> = { quadro: "Q", tabela: "T", atrasadas
 // estavel entre renders.
 const RAIO_FILTRO: React.CSSProperties = { borderRadius: R.md };
 
+/**
+ * Largura mínima de uma coluna do quadro.
+ *
+ * 164 e não os 190 de antes: no notebook de 1366 (a tela do diretor) a área
+ * útil é ~1062px, e seis colunas de 190 + vãos pediam 1190 — a sexta etapa,
+ * PRODUÇÃO, ficava cortada pela metade atrás de uma rolagem lateral que
+ * ninguém percebia. Com 164 o funil inteiro cabe de 1366 para cima; abaixo
+ * disso continua valendo a rolagem (coluna ilegível é pior). O card foi
+ * conferido nessa largura: nome em duas linhas, selos quebrando para a linha
+ * de baixo, nada cortado sem reticência.
+ */
+const COL_QUADRO_MIN = 164;
+
 // Link de NAVEGAÇÃO com a cara do <Botao variante="primario">. O <Botao>
 // renderiza <button>, e trocar estes <a> por botão perderia o que só link tem
 // (abrir em outra aba, copiar endereço). Mesmos tokens do componente; o
@@ -146,6 +160,11 @@ export default function GestaoPrazos() {
   const { ref: corpoRef, cards: emCards, compacto, isMobile } = useDensidadeDoConteudo<HTMLDivElement>();
   const ponteiroGrosso = usePonteiroGrosso();
   const { toast } = useToast();
+  // Só para DESENHO: decide se a linha do "Comece por aqui" reserva a faixa
+  // de acompanhamento. Quem pode registrar continua decidido dentro do
+  // CobradoControl (e no servidor) — nada de permissão muda aqui.
+  const { user } = useAuth();
+  const veAcompanhamento = user?.role === "admin";
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery<PrazosPayload>({
     queryKey: ["/api/prazos"],
@@ -916,10 +935,29 @@ export default function GestaoPrazos() {
             Com `role="status"` + conteúdo, o leitor anuncia a carga, e o
             contraponto ("Prazos atualizados…") vive na região viva do topo. */}
         <span className="sr-only">Carregando prazos…</span>
-        <div style={{ display: "grid", gap: 10, gridTemplateColumns: isMobile ? "repeat(2, minmax(0,1fr))" : "repeat(4, minmax(0,1fr))" }}>
-          {[0, 1, 2, 3].map((i) => bloco(84, i))}
+        {/* A silhueta segue a página de verdade: o placar é UMA superfície
+            com quatro células (não quatro cartões soltos), logo abaixo vem a
+            faixa "Comece por aqui" e só então a barra de filtros, na altura
+            dela (36 no ponteiro, 44 no toque). Quatro blocos soltos e uma
+            barra de 44 davam um salto de layout na chegada do dado. */}
+        <div className="animate-pulse" style={{
+          display: "grid", gridTemplateColumns: isMobile ? "repeat(2, minmax(0,1fr))" : "repeat(4, minmax(0,1fr))",
+          backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: R.lg, overflow: "hidden",
+        }}>
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} style={{
+              padding: "14px 16px", display: "grid", gap: 8,
+              borderRight: (i + 1) % (isMobile ? 2 : 4) !== 0 ? `1px solid ${TI.track}` : undefined,
+              borderBottom: isMobile && i < 2 ? `1px solid ${TI.track}` : undefined,
+            }}>
+              <span style={{ height: 10, width: "55%", borderRadius: R.sm, backgroundColor: TI.track }} />
+              <span style={{ height: 30, width: 44, borderRadius: R.sm, backgroundColor: TI.track }} />
+              <span style={{ height: 10, width: "80%", borderRadius: R.sm, backgroundColor: TI.track }} />
+            </div>
+          ))}
         </div>
-        {bloco(44, "toolbar")}
+        {bloco(isMobile ? 260 : 190, "comece")}
+        {bloco(isMobile ? 44 : 36, "toolbar")}
         {visao === "atrasadas" ? (
           // Silhueta REAL desta visão: uma linha de contagem e uma pilha de
           // linhas de altura única — não o grid de colunas do quadro nem os
@@ -936,10 +974,10 @@ export default function GestaoPrazos() {
             {[0, 1, 2].map((i) => bloco(190, `m${i}`))}
           </div>
         ) : visao === "quadro" ? (
-          <div style={{ display: "grid", gap: 10, gridTemplateColumns: `repeat(${stageMeta.length}, minmax(190px, 1fr))` }}>
+          <div style={{ display: "grid", gap: 10, gridTemplateColumns: `repeat(${stageMeta.length}, minmax(${COL_QUADRO_MIN}px, 1fr))` }}>
             {stageMeta.map((m) => (
               <div key={m.key} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {bloco(30, `${m.key}-h`)}
+                {bloco(44, `${m.key}-h`)}
                 {bloco(160, `${m.key}-a`)}
                 {bloco(160, `${m.key}-b`)}
               </div>
@@ -1078,7 +1116,7 @@ export default function GestaoPrazos() {
     // ── Quadro (visão principal): uma coluna por etapa, o evento é um card
     // na coluna onde o funil dele está travado. Clique abre o drill em modal.
     //
-    // `minmax(190px, 1fr)` + scroll horizontal: um kanban tem uma largura
+    // `minmax(COL_QUADRO_MIN, 1fr)` + scroll horizontal: um kanban tem uma largura
     // mínima abaixo da qual deixa de ser kanban e vira um punhado de tarjas
     // ilegíveis. Em 1024px (iPad em paisagem) as colunas fluidas ficavam em
     // ~136px e a etapa virava "Apro…". Rolar de lado é preferível a coluna
@@ -1087,7 +1125,7 @@ export default function GestaoPrazos() {
     body = (
       <div className="gp-scroll" style={{
         display: "grid",
-        gridTemplateColumns: `repeat(${stageMeta.length}, minmax(190px, 1fr))`,
+        gridTemplateColumns: `repeat(${stageMeta.length}, minmax(${COL_QUADRO_MIN}px, 1fr))`,
         gap: 10, alignItems: "start", overflowX: "auto", paddingBottom: 4,
       }}>
         {stageMeta.map((m, i) => (
@@ -1168,10 +1206,21 @@ export default function GestaoPrazos() {
       gridColumn: "1 / -1",
       borderTop: `1px solid ${TI.track}`,
       backgroundColor: TI.sunken,
-      padding: "11px 20px",
+      // 16 à esquerda: a mesma margem das células do placar logo acima — o
+      // ícone alinha com o funil dos rótulos.
+      padding: "10px 16px",
       display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
     }}>
       <AlertTriangle aria-hidden="true" style={{ width: 15, height: 15, color: TI.red, flexShrink: 0 }} />
+      {/* No papel os botões somem (gp-no-print) e a frase ficava órfã,
+          começando com travessão. A versão impressa diz os mesmos números
+          em texto corrido. */}
+      <span className="gpz-so-impressao" aria-hidden="true" style={{ fontSize: 12, fontWeight: 700, color: TI.title }}>
+        {[
+          kpis.semPecas > 0 ? `${kpis.semPecas} evento${kpis.semPecas !== 1 ? "s" : ""} sem nenhuma peça` : null,
+          kpis.invalidCount > 0 ? `${kpis.invalidCount} com data de saída inválida` : null,
+        ].filter(Boolean).join(" · ")}
+      </span>
       {kpis.semPecas > 0 && triagemBotao(
         soSemPecas,
         `${kpis.semPecas} evento${kpis.semPecas !== 1 ? "s" : ""} sem nenhuma peça`,
@@ -1184,8 +1233,10 @@ export default function GestaoPrazos() {
         () => setSoInvalidos((v) => !v),
         "filtro-data-invalida",
       )}
-      <span style={{ fontSize: 12, color: TI.secondary }}>
-        — o funil nem começou a contar; corrija no cadastro do evento.
+      {/* No placar 2×2 a frase desce para a própria linha, alinhada ao
+          botão: começar uma linha com travessão solto parecia resto de frase. */}
+      <span style={{ fontSize: 12, color: TI.secondary, lineHeight: 1.45, ...(emCards ? { flexBasis: "100%", paddingLeft: 23 } : null) }}>
+        {emCards ? "O funil nem começou a contar; corrija no cadastro do evento." : "— o funil nem começou a contar; corrija no cadastro do evento."}
       </span>
     </div>
   ) : null;
@@ -1199,6 +1250,9 @@ export default function GestaoPrazos() {
   const divisorPlacar = (i: number) => ({
     divisorDireita: (i + 1) % colunasPlacar !== 0,
     divisorBaixo: i < 4 - colunasPlacar,
+    // No 2×2 o rótulo de uma célula quebra e o da vizinha não: a reserva de
+    // duas linhas mantém os dois numerais da mesma linha na mesma altura.
+    rotuloEmDuasLinhas: emCards,
   });
 
   // ── "Comece por aqui": os três piores, com setor e cobrança ───────────────
@@ -1237,10 +1291,14 @@ export default function GestaoPrazos() {
           const urlSetorAqui = setor ? urlSetorDoEvento(etapaKey, ev.eventId ?? ev.id, { atrasada: true }) : null;
           return (
             <div key={ev.id} style={{
-              display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
-              paddingTop: i > 0 ? 8 : 0, borderTop: i > 0 ? `1px solid ${TI.border}` : "none",
+              // Topo, não centro: com o diagnóstico embaixo do nome, centrar
+              // jogava o numeral e o "Resolver em" para a fresta entre as duas
+              // linhas. Alinhados ao nome, a linha lê da esquerda para a direita.
+              display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap",
+              paddingTop: i > 0 ? 10 : 0, borderTop: i > 0 ? `1px solid ${TI.rule}` : "none",
             }}>
               <span aria-hidden="true" style={{
+                marginTop: 7,
                 width: 22, height: 22, borderRadius: R.sm, flexShrink: 0,
                 display: "inline-flex", alignItems: "center", justifyContent: "center",
                 backgroundColor: TI.redBg, color: TI.red, fontSize: 12, fontWeight: 700,
@@ -1269,12 +1327,20 @@ export default function GestaoPrazos() {
                     // Alvo de 36: é um botão que abre modal e tinha ~17px de
                     // altura. `inline-flex` cresce a área sem desenhar caixa.
                     display: "inline-flex", alignItems: "center", minHeight: 36,
-                    minWidth: 0, maxWidth: "100%",
-                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    minWidth: 0, maxWidth: "100%", lineHeight: 1.25,
                   }}
                   title={`${ev.name} — abrir detalhes`}
                 >
-                  {ev.name}
+                  {/* A reticência mora num <span>: no próprio botão
+                      (inline-flex) o texto vira item anônimo e o corte
+                      acontecia SEM reticência — "MEIA MARATONA" no celular,
+                      com "DE BH (EXEMPLO)" sumido sem aviso. No celular o
+                      nome quebra em até duas linhas em vez de cortar. */}
+                  <span className="gpz-nome-comece" style={emCards
+                    ? { minWidth: 0, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }
+                    : { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {ev.name}
+                  </span>
                 </button>
                 <span style={{ display: "block", fontSize: 12, color: TI.secondary, minWidth: 0 }}>
                   {setor ? `${setor} · ` : ""}
@@ -1284,6 +1350,7 @@ export default function GestaoPrazos() {
                   {ev.pecasEmAtraso > 0 && ` · ${pecasTexto(ev.pecasEmAtraso)} parada${ev.pecasEmAtraso !== 1 ? "s" : ""}`}
                 </span>
               </div>
+              {emCards && <span aria-hidden="true" style={{ flexBasis: "100%", height: 0 }} />}
               {urlSetorAqui && (
                 <Link
                   href={urlSetorAqui}
@@ -1298,12 +1365,18 @@ export default function GestaoPrazos() {
                      da linha — o caminho de "achei o gargalo" para "vou
                      resolver" — e estava pintada com a cor do texto de apoio,
                      mais apagada que o diagnóstico ao lado. */
-                  style={{ display: "inline-flex", alignItems: "center", minHeight: 36, fontSize: 12, fontWeight: 700, color: TI.accentText, textDecoration: "none", whiteSpace: "nowrap" }}
+                  style={{ display: "inline-flex", alignItems: "center", minHeight: 36, fontSize: 12, fontWeight: 700, color: TI.accentText, textDecoration: "none", whiteSpace: "nowrap", ...(emCards ? { marginLeft: 32, minHeight: 44, marginTop: -8 } : null) }}
                 >
                   Resolver em {setor} →
                 </Link>
               )}
-              <div className="gp-no-print" style={{ marginLeft: "auto" }}>
+              {(veAcompanhamento || cobrancaEvento(ev.eventId ?? ev.id)) && (
+              // Faixa PRÓPRIA, abaixo do nome e alinhada a ele. Na mesma
+              // linha, o status ("cobrado há 4 dias por … · nada se moveu")
+              // disputava a largura com o nome do evento, que virava
+              // "MEIA MARATONA DE BH (EX…" — a chave da linha cortada para
+              // caber um detalhe.
+              <div className="gp-no-print" style={{ flexBasis: "100%", paddingLeft: 32, minWidth: 0 }}>
                 {/* Contorno, não sólido: a ação primária SÓLIDA é a do bloco
                     de cobrança do modal. Três botões pretos aqui em cima
                     virariam mais um bloco competindo com o vermelho do
@@ -1320,6 +1393,7 @@ export default function GestaoPrazos() {
                   showForm
                 />
               </div>
+              )}
             </div>
           );
         })}
@@ -1362,7 +1436,7 @@ export default function GestaoPrazos() {
         </span>
       </button>
       {showDesdeOntem && (
-        <div id="gp-desde-ontem" style={{
+        <div id="gp-desde-ontem" className="gpz-entra" style={{
           marginTop: 8, padding: "12px 14px", borderRadius: R.lg,
           border: `1px solid ${TI.border}`, backgroundColor: TI.card,
           display: "flex", flexDirection: "column", gap: 8,
@@ -1454,6 +1528,16 @@ export default function GestaoPrazos() {
 
   const modalChip = modalEv ? saidaChip(modalEv) : null;
 
+  // O contador fala da UNIDADE que a visão desenha. Dizer "12 de 40 eventos"
+  // sobre uma lista de peças é o mesmo tipo de número deslocado que a tela
+  // passou a revisão inteira caçando — na lista de peças a contagem mora no
+  // cabeçalho da própria lista (components/prazos/pecas-atrasadas.tsx).
+  const contadorEventos = (
+    <span aria-live="polite" style={{ marginLeft: "auto", flexShrink: 0, fontSize: 12, color: TI.secondary, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+      {`${filtered.length} de ${events.length} evento${events.length !== 1 ? "s" : ""}`}
+    </span>
+  );
+
   return (
     <div style={{ backgroundColor: TI.bg, minHeight: "100%", padding: isMobile ? "16px 12px 32px" : "24px 24px 48px" }}>
       {/* Relatório de cobrança vai para reunião: a impressão esconde os
@@ -1467,7 +1551,10 @@ export default function GestaoPrazos() {
           .gp-no-print { display: none !important; }
           .gp-scroll { max-height: none !important; overflow: visible !important; }
           tr { break-inside: avoid; }
+          .gpz-so-impressao { display: inline !important; }
+          .gpz-corpo { margin-top: 14px; }
         }
+        .gpz-so-impressao { display: none; }
         .gp-row:hover > td, .gp-row:hover > th { background-color: rgba(28,25,23,0.04); }
         .gp-card:hover, .gp-card:focus-visible { box-shadow: var(--sh-md) !important; }
       `}</style>
@@ -1555,7 +1642,9 @@ export default function GestaoPrazos() {
                   {novidades} mudança{novidades !== 1 ? "s" : ""} desde que você abriu
                 </Botao>
               )}
-              {data && !isMobile && (
+              {/* Sem evento ativo não há pauta: o botão imprimiria uma folha
+                  em branco. */}
+              {data && !isMobile && events.length > 0 && (
                 <Botao
                   variante="secundario"
                   icone={Printer}
@@ -1576,7 +1665,7 @@ export default function GestaoPrazos() {
             id="gp-guia"
             aria-label="Como ler a Gestão de Prazos"
             data-testid="guia-como-ler-prazos"
-            className="gp-no-print"
+            className="gp-no-print gpz-entra"
             style={{
               marginBottom: 16, padding: isMobile ? "12px 14px" : "14px 18px",
               backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: R.lg,
@@ -1661,8 +1750,9 @@ export default function GestaoPrazos() {
           </div>
         )}
 
-        {/* Placar */}
-        {data && (
+        {/* Placar — some no vazio TOTAL: quatro zeros acima de "Nenhum
+            evento ativo para acompanhar" diziam a mesma coisa duas vezes. */}
+        {data && events.length > 0 && (
           <div style={{ marginBottom: 16 }}>
             {/* UMA superfície com quatro células, não quatro cards soltos.
 
@@ -1775,7 +1865,14 @@ export default function GestaoPrazos() {
             <div role="group" aria-label="Modo de visualização" style={{
               display: "inline-flex", gap: 2, borderRadius: R.md,
               backgroundColor: TI.track, padding: "0 3px", boxSizing: "border-box",
-              flexShrink: 0, height: isMobile ? 44 : 36,
+              height: isMobile ? 44 : 36,
+              // No celular o seletor ocupa a linha inteira e as duas
+              // pastilhas dividem a largura: um trilho de 230px encostado à
+              // esquerda deixava um buraco ao lado e alvos de largura desigual.
+              // `flex` e `flexShrink` nunca juntos: alternar entre os dois
+              // (o celular é medido depois do primeiro render) fazia o React
+              // avisar de conflito entre a abreviação e a propriedade longa.
+              ...(isMobile ? { flex: "1 1 100%" } : { flexShrink: 0 }),
             }}>
               {(isMobile ? (["quadro", "atrasadas"] as const) : (["quadro", "tabela", "atrasadas"] as const)).map((v) => {
                 // No celular "Quadro" é o botão de VOLTAR para os eventos: a
@@ -1794,6 +1891,7 @@ export default function GestaoPrazos() {
                     style={{
                       padding: "0 14px", border: "none", cursor: "pointer",
                       borderRadius: R.sm,
+                      ...(isMobile ? { flex: 1 } : null),
                       fontSize: FS.meta, fontWeight: FW.forte,
                       backgroundColor: ativo ? TI.card : "transparent",
                       color: ativo ? TI.title : TI.strong,
@@ -1954,78 +2052,74 @@ export default function GestaoPrazos() {
               ]}
             />
             )}
-            {hasActiveFilters && (
-              <Botao
-                variante="fantasma"
-                tamanho={isMobile ? "toque" : "md"}
-                onClick={clearFilters}
-                data-testid="button-limpar-filtros-topo"
-                title="Atalho: Esc"
-                style={{ color: TI.accentText }}
-              >
-                Limpar
-              </Botao>
-            )}
-            {/* O contador fala da UNIDADE que a visão desenha. Dizer "12 de 40
-                eventos" sobre uma lista de peças é o mesmo tipo de número
-                deslocado que a tela passou a revisão inteira caçando. */}
-            <span aria-live="polite" style={{ marginLeft: "auto", fontSize: 12, color: TI.secondary }}>
-              {visao === "atrasadas"
-                ? `${pecasAtrasadas.length} de ${pecasAtrasadasTodas.length} peça${pecasAtrasadasTodas.length !== 1 ? "s" : ""} atrasada${pecasAtrasadasTodas.length !== 1 ? "s" : ""}`
-                : `${filtered.length} de ${events.length} evento${events.length !== 1 ? "s" : ""}`}
-            </span>
-            {visao === "atrasadas" && (
-              <span style={{ flexBasis: "100%", fontSize: 11, color: TI.label, paddingTop: 2 }}>
-                Uma linha por peça, de todos os eventos. <strong style={{ color: TI.strong }}>Atrasada</strong>{" "}
-                = o prazo da etapa que cobra a peça já venceu. Da mais atrasada para a menos atrasada.
-              </span>
-            )}
+            {/* No celular o contador fica na barra (não há legenda); no
+                desktop ele desce para a linha da legenda, alinhado à direita.
+                Na barra ele não cabia em 1366 e quebrava SOZINHO numa linha
+                própria, órfão abaixo dos filtros. */}
+            {visao !== "atrasadas" && isMobile && contadorEventos}
             {/* Legenda: a gramática do semáforo só existia no hover, célula a
                 célula — e só na TABELA, apesar de a mini-trilha de 5 pontos do
                 card do quadro usar exatamente as mesmas quatro cores. Cada
                 visão recebe a legenda do artefato que ela realmente desenha. */}
-            {!isMobile && visao === "tabela" && (
-              <span style={{ flexBasis: "100%", fontSize: 11, color: TI.label, paddingTop: 2 }}>
-                Semáforo: <strong style={{ color: TI.green }}>✓</strong> etapa concluída ·{" "}
-                <strong style={{ color: TI.amber }}>nº</strong> peças com prazo vencendo em até 3 dias ·{" "}
-                <strong style={{ color: TI.red }}>Nd</strong> dias vencida (com o total de peças abaixo) ·{" "}
-                cinza = prazo futuro (o número são as peças já paradas nela) · passe o mouse numa célula para a frase completa
-              </span>
-            )}
-            {!isMobile && visao === "quadro" && (
-              <span style={{
-                // Pontos de 8px e columnGap 10: com 6px e gap 5 a legenda era
-                // um borrão de pontinhos colados — o espaçamento maior separa
-                // cada par cor+palavra sem crescer a linha.
-                flexBasis: "100%", fontSize: 11, color: TI.label, paddingTop: 2,
-                display: "flex", alignItems: "center", rowGap: 5, columnGap: 10, flexWrap: "wrap",
-              }}>
-                Trilha do card:
-                {LEGENDA_TRILHA.map((l) => (
-                  <span key={l.texto} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                    <span aria-hidden="true" style={{
-                      width: 8, height: 8, borderRadius: R.pill, backgroundColor: l.cor, flexShrink: 0,
-                    }} />
-                    {l.texto}
+            {!isMobile && visao !== "atrasadas" && (
+              <div style={{ flexBasis: "100%", display: "flex", alignItems: "flex-start", gap: 16, paddingTop: 2 }}>
+                {visao === "tabela" ? (
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 11, color: TI.label, lineHeight: 1.5 }}>
+                    Semáforo: <strong style={{ color: TI.green }}>✓</strong> etapa concluída ·{" "}
+                    <strong style={{ color: TI.amber }}>nº</strong> peças com prazo vencendo em até 3 dias ·{" "}
+                    <strong style={{ color: TI.red }}>Nd</strong> dias vencida (com o total de peças abaixo) ·{" "}
+                    cinza = prazo futuro (o número são as peças já paradas nela) · passe o mouse numa célula para a frase completa
                   </span>
-                ))}
-                <span>· o ponto com anel é a etapa atual do evento</span>
-              </span>
+                ) : (
+                  <span style={{
+                    // Pontos de 8px e columnGap 10: com 6px e gap 5 a legenda era
+                    // um borrão de pontinhos colados — o espaçamento maior separa
+                    // cada par cor+palavra sem crescer a linha.
+                    flex: 1, minWidth: 0, fontSize: 11, color: TI.label,
+                    display: "flex", alignItems: "center", rowGap: 5, columnGap: 10, flexWrap: "wrap",
+                  }}>
+                    Trilha do card:
+                    {LEGENDA_TRILHA.map((l) => (
+                      <span key={l.texto} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        <span aria-hidden="true" style={{
+                          width: 8, height: 8, borderRadius: R.pill, backgroundColor: l.cor, flexShrink: 0,
+                        }} />
+                        {l.texto}
+                      </span>
+                    ))}
+                    <span>· o ponto com anel é a etapa atual do evento</span>
+                  </span>
+                )}
+                {contadorEventos}
+              </div>
             )}
           </div>
         )}
 
         {/* Chips de filtro ativo */}
         {data && chipsAtivos.length > 0 && (
-          <div className="gp-no-print" style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+          <div className="gp-no-print" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginBottom: 12 }}>
             {chipsAtivos.map((c) => <FilterChip key={c.key} label={c.label} onRemove={c.onRemove} />)}
+            {/* "Limpar" mora junto dos chips que ele apaga. Na barra de
+                filtros ele era o item que não cabia em 1366 e caía SOZINHO
+                numa linha própria, longe de tudo. */}
+            <Botao
+              variante="fantasma"
+              tamanho={isMobile ? "toque" : "sm"}
+              onClick={clearFilters}
+              data-testid="button-limpar-filtros-topo"
+              title="Atalho: Esc"
+              style={{ color: TI.accentText }}
+            >
+              Limpar {chipsAtivos.length > 1 ? "todos" : "filtro"}
+            </Botao>
           </div>
         )}
 
         {/* A caixa que MEDE a área útil da lista (ver use-mobile.tsx). Fica
             aqui, e não na raiz da página, porque é esta largura — já sem o
             padding da página — que a tabela precisa caber. */}
-        <div ref={corpoRef}>{body}</div>
+        <div ref={corpoRef} className="gpz-corpo">{body}</div>
 
         {/* Detalhe do evento: o drill de cobrança na casca da casa. */}
         <Dialog open={modalAberto} onOpenChange={(open) => { if (!open) setDetailId(null); }}>
@@ -2179,13 +2273,13 @@ export default function GestaoPrazos() {
                       scrollport, nunca no rodapé: o form "Combinar um prazo"
                       expande e conteúdo de altura variável fora do scrollport
                       é exatamente o que estourava o modal. */}
-                  <div className="gp-no-print" style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${TI.border}` }}>
-                    {/* O bloco de cobrança tem teto próprio: com o modal em
-                        1120 o layout "bloco" estica os campos, e uma caixa de
-                        data e um campo de nota com 1072px de largura são um
-                        alvo enorme para dois dados curtos. As tabelas usam a
-                        largura toda; o formulário, não. */}
-                    <div style={{ maxWidth: 640 }}>
+                  <div className="gp-no-print" style={{ marginTop: 18 }}>
+                    {/* O bloco virou um PAINEL próprio (fundo rebaixado,
+                        cabeçalho, ação à direita): ele usa a largura toda, e
+                        quem segura o tamanho dos campos é a grade dele (data
+                        com 190px, nota com o resto). O teto de 640 de antes
+                        deixava o botão parado no meio do modal. */}
+                    <div>
                       <CobradoControl
                         targetType="event"
                         targetId={modalEv.eventId ?? modalEv.id}
@@ -2200,15 +2294,26 @@ export default function GestaoPrazos() {
                   </div>
                 </div>
                 <ModalFooter>
-                  <div style={{ display: "flex", justifyContent: "flex-start" }}>
+                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
                     {/* Envolto num flex item: como filho DIRETO do rodapé o
                         link era blocado a 100% da largura e clicar no vazio à
                         direita navegava para fora do modal sem aviso. */}
+                    {/* Saída do modal para a tela do evento: link (abre em
+                        outra aba, copia endereço) com o desenho de botão
+                        secundário — era um texto cinza de 12px, o elemento
+                        mais apagado do modal, para o único caminho de
+                        EDITAR o que o modal mostra. */}
                     <Link
                       href={`/eventos/${modalEv.eventId ?? modalEv.id}`}
-                      style={{ display: "inline-flex", alignItems: "center", minHeight: alvoEstado, fontSize: 12, fontWeight: 600, color: TI.secondary, textDecoration: "none" }}
+                      className="ds-botao"
+                      data-testid="link-evento-completo"
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 6, minHeight: alvoEstado,
+                        padding: "0 14px", borderRadius: R.md, border: `1px solid ${TI.border}`, backgroundColor: TI.card,
+                        fontSize: FS.meta, fontWeight: FW.forte, color: TI.title, textDecoration: "none",
+                      }}
                     >
-                      Abrir o evento completo →
+                      Abrir o evento completo <span aria-hidden="true">→</span>
                     </Link>
                   </div>
                 </ModalFooter>

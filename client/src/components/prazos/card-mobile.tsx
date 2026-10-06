@@ -35,8 +35,11 @@ export const CardMobilePrazos = memo(function CardMobilePrazos({ ev, expanded, o
         <div style={{ minWidth: 0 }}>
           <p style={{
             margin: 0, fontSize: 14, fontWeight: 800, color: TI.title,
-            fontFamily: FONT.display, textTransform: "uppercase",
-            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            fontFamily: FONT.display, textTransform: "uppercase", lineHeight: 1.25,
+            // Até DUAS linhas: no celular o nome do evento é a chave do
+            // cartão, e numa linha só "COPA LITORAL 10K — DETALHE (…" perdia
+            // justamente o pedaço que distingue um evento do outro.
+            display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
           }} title={ev.name}>
             <PrioridadePonto priority={ev.priority} style={{ marginRight: 6 }} />
             {ev.name}

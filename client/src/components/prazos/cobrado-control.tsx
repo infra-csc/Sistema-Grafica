@@ -114,6 +114,11 @@ interface CobradoControlProps {
   showHistorico?: boolean;
   /** `bloco` empilha (rodapé); `inline` mantém tudo na mesma linha. */
   layout?: "bloco" | "inline";
+  /**
+   * Não repete a linha de status (só no `inline`): para quando a superfície
+   * em volta já mostra a mesma CobrancaLinha logo acima.
+   */
+  semStatus?: boolean;
 }
 
 // `memo`: as props são primitivas ou a `cobranca` do payload (estável pelo
@@ -122,7 +127,7 @@ interface CobradoControlProps {
 // o memo todos se refaziam a cada render da página.
 export const CobradoControl = memo(function CobradoControl({
   targetType, targetId, cobranca, today,
-  variant = "secondary", showForm = false, showHistorico = false, layout = "inline",
+  variant = "secondary", showForm = false, showHistorico = false, layout = "inline", semStatus = false,
 }: CobradoControlProps) {
   const { toast } = useToast();
   // "So visualizar" (decisao do dono, 17/08): a Gestao de Prazos passou a
@@ -225,160 +230,221 @@ export const CobradoControl = memo(function CobradoControl({
     fontSize: isMobile ? FS.lead : FS.body, color: TI.title, outlineOffset: 2,
   };
 
-  return (
-    <div style={{
-      display: "flex",
-      flexDirection: layout === "bloco" ? "column" : "row",
-      alignItems: layout === "bloco" ? "stretch" : "center",
-      gap: 10,
-      flexWrap: layout === "bloco" ? "nowrap" : "wrap",
-      minWidth: 0,
-    }}>
-      {/* A versão OTIMISTA cobre o vão entre o POST e o refetch: só o fato
-          certo ("cobrado agora por você"), sem inventar promessa nem
-          movimento. Vale também para a PRIMEIRA cobrança do alvo, quando nem
-          havia linha de status para atualizar. */}
-      {mostraOtimista ? (
-        <div style={{ minWidth: 0, flex: layout === "inline" ? "1 1 200px" : undefined }}>
-          <span style={{ display: "block", fontSize: 12, fontWeight: 600, color: TI.label, lineHeight: 1.5 }}>
-            cobrado agora por você
-          </span>
-        </div>
-      ) : cobranca ? (
-        <div style={{ minWidth: 0, flex: layout === "inline" ? "1 1 200px" : undefined }}>
-          <CobrancaLinha cobranca={cobranca} fontSize={12} />
-          {cobranca.nota && (
-            <span style={{ display: "block", fontSize: 12, color: TI.secondary, fontStyle: "italic", marginTop: 2 }}>
-              “{cobranca.nota}”
-            </span>
-          )}
-          {showHistorico && cobranca.total > 1 && (
-            <>
-              <Botao
-                variante="fantasma"
-                tamanho={isMobile ? "toque" : "sm"}
-                onClick={() => setHistAberto((v) => !v)}
-                aria-expanded={histAberto}
-                aria-controls={histAberto ? `hist-${targetType}-${targetId}` : undefined}
-                // Encosta o rótulo na margem do texto acima: o padding lateral
-                // do fantasma o descolaria da linha de cobrança que ele abre.
-                style={{ marginTop: 4, paddingLeft: 0, fontWeight: FW.medio, color: TI.secondary }}
-              >
-                <ChevronDown aria-hidden="true" style={{
-                  width: 13, height: 13,
-                  transform: histAberto ? "rotate(180deg)" : "none",
-                  transition: "transform 0.15s ease",
-                }} />
-                {histAberto ? "Esconder o histórico" : `Ver as ${Math.min(cobranca.total, 5)} últimas cobranças`}
-              </Botao>
-              {histAberto && (
-                // Teto de 5 vindo do servidor: a régua da pressão ("3 cobranças
-                // em 12 dias"), não o log completo — que o audit log já é.
-                <ul id={`hist-${targetType}-${targetId}`} style={{ margin: "2px 0 0", padding: "0 0 0 18px", listStyle: "disc" }}>
-                  {cobranca.historico.map((h, i) => (
-                    <li key={`${h.createdAt}-${i}`} style={{ fontSize: 12, color: TI.secondary, lineHeight: 1.6 }}>
-                      {new Date(h.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
-                      {" · "}{h.userName}
-                      {" · "}{h.daysAgo === 0 ? "hoje" : `há ${diasTexto(h.daysAgo)}`}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </>
-          )}
-        </div>
-      ) : null}
-
-      {showForm && podeCobrar && (
-        <div>
+  // ── Status: o que já foi registrado ────────────────────────────────────
+  // A versão OTIMISTA cobre o vão entre o POST e o refetch: só o fato certo
+  // ("cobrado agora por você"), sem inventar promessa nem movimento. Vale
+  // também para a PRIMEIRA cobrança do alvo, quando nem havia linha de
+  // status para atualizar.
+  // `semStatus` cala só a LINHA (e a nota), nunca o histórico: a superfície
+  // em volta já mostra a última cobrança, mas não as anteriores.
+  const status = mostraOtimista && !semStatus ? (
+    <span style={{ display: "block", fontSize: 12, fontWeight: 600, color: TI.label, lineHeight: 1.5 }}>
+      cobrado agora por você
+    </span>
+  ) : cobranca ? (
+    <>
+      {!semStatus && <CobrancaLinha cobranca={cobranca} fontSize={12} />}
+      {!semStatus && cobranca.nota && (
+        <span style={{ display: "block", fontSize: 12, color: TI.secondary, fontStyle: "italic", marginTop: 2 }}>
+          “{cobranca.nota}”
+        </span>
+      )}
+      {showHistorico && cobranca.total > 1 && (
+        <>
           <Botao
             variante="fantasma"
-            tamanho={isMobile ? "toque" : "md"}
-            onClick={() => {
-              // Recolher DESCARTA o rascunho. O rótulo do estado aberto é
-              // "Registrar sem combinar prazo": manter a data/nota digitadas
-              // depois dele faria a mutation enviar exatamente o que o
-              // diretor achou que tinha jogado fora — e gravaria uma promessa
-              // em nome do responsável sem ninguém ter combinado nada.
-              if (formAberto) { setPromessa(""); setNota(""); }
-              setFormAberto((v) => !v);
-            }}
-            aria-expanded={formAberto}
-            aria-controls={formAberto ? `combinado-${targetType}-${targetId}` : undefined}
-            /* ALVO DE 36/44 pelo tamanho do <Botao>. `paddingLeft: 0` para o
-               traço não mudar de lugar: o rótulo segue alinhado aos campos
-               que ele abre logo abaixo. */
-            style={{ paddingLeft: 0, fontSize: FS.meta, fontWeight: FW.medio, color: TI.secondary }}
+            tamanho={isMobile ? "toque" : "sm"}
+            onClick={() => setHistAberto((v) => !v)}
+            aria-expanded={histAberto}
+            aria-controls={histAberto ? `hist-${targetType}-${targetId}` : undefined}
+            // `padding` inteiro, e não `paddingLeft` sobre o shorthand do
+            // <Botao>: misturar os dois fazia o React avisar de conflito a
+            // cada render. A borda esquerda colada mantém o rótulo alinhado
+            // à linha de status acima.
+            style={{ marginTop: 4, padding: "0 10px 0 0", fontSize: FS.meta, fontWeight: FW.medio, color: TI.secondary }}
           >
             <ChevronDown aria-hidden="true" style={{
               width: 13, height: 13,
-              transform: formAberto ? "rotate(180deg)" : "none",
+              transform: histAberto ? "rotate(180deg)" : "none",
               transition: "transform 0.15s ease",
             }} />
-            {formAberto ? "Registrar sem combinar prazo" : "Combinar um prazo (opcional)"}
+            {histAberto ? "Esconder o histórico" : `Ver as ${Math.min(cobranca.total, 5)} últimas cobranças`}
           </Botao>
-          {formAberto && (
-            <div id={`combinado-${targetType}-${targetId}`} style={{ display: "grid", gap: 10, marginTop: 8 }}>
-              <div>
-                <label htmlFor={`promessa-${targetId}`} style={rotuloCampo}>Prometido para</label>
-                <input
-                  id={`promessa-${targetId}`}
-                  type="date"
-                  value={promessa}
-                  min={minDia}
-                  max={maxDia}
-                  onChange={(e) => setPromessa(e.target.value)}
-                  data-testid={`input-promessa-${targetType}-${targetId}`}
-                  style={{ ...campo, height: alturaAcao }}
-                />
-              </div>
-              <div>
-                <label htmlFor={`nota-${targetId}`} style={rotuloCampo}>O que ficou combinado</label>
-                <textarea
-                  id={`nota-${targetId}`}
-                  value={nota}
-                  maxLength={NOTA_MAX}
-                  rows={2}
-                  onChange={(e) => setNota(e.target.value)}
-                  placeholder="Ex.: Arte reenvia os 8 layouts até quinta."
-                  data-testid={`input-nota-${targetType}-${targetId}`}
-                  style={{ ...campo, resize: "vertical" }}
-                />
-                <span style={{ display: "block", fontSize: 11, color: TI.label, marginTop: 2, textAlign: "right" }}>
-                  {nota.length}/{NOTA_MAX}
-                </span>
-              </div>
+          {histAberto && (
+            <ul id={`hist-${targetType}-${targetId}`} className="gpz-entra" style={{ margin: "2px 0 0", padding: "0 0 0 18px", listStyle: "disc" }}>
+              {cobranca.historico.map((h, i) => (
+                <li key={`${h.createdAt}-${i}`} style={{ fontSize: 12, color: TI.secondary, lineHeight: 1.6, fontVariantNumeric: "tabular-nums" }}>
+                  {new Date(h.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+                  {" · "}{h.userName}
+                  {" · "}{h.daysAgo === 0 ? "hoje" : `há ${diasTexto(h.daysAgo)}`}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </>
+  ) : null;
+
+  // ── Formulário opcional: prazo combinado + nota ─────────────────────────
+  const formulario = showForm && podeCobrar ? (
+    <div style={layout === "inline"
+      // Na linha: fechado, o disclosure encosta à direita junto do botão (a
+      // mesma coluna do "Resolver em …" acima); aberto, os campos ganham a
+      // linha inteira em vez de uma coluna de 200px espremida ao lado do botão.
+      ? (formAberto ? { flex: "1 1 100%", minWidth: 0 } : { marginLeft: "auto" })
+      : undefined}>
+      <Botao
+        variante="fantasma"
+        tamanho={isMobile ? "toque" : "md"}
+        onClick={() => {
+          // Recolher DESCARTA o rascunho: o rótulo diz "Registrar sem
+          // combinar prazo", e uma data escondida que viajasse no POST
+          // seria uma promessa gravada sem a pessoa ver.
+          if (formAberto) { setPromessa(""); setNota(""); }
+          setFormAberto((v) => !v);
+        }}
+        aria-expanded={formAberto}
+        aria-controls={formAberto ? `combinado-${targetType}-${targetId}` : undefined}
+        /* ALVO DE 36/44 pelo tamanho do <Botao>. Borda esquerda colada para o
+           rótulo seguir alinhado aos campos que ele abre logo abaixo. */
+        style={{ padding: "0 10px 0 0", fontSize: FS.meta, fontWeight: FW.medio, color: TI.secondary }}
+      >
+        <ChevronDown aria-hidden="true" style={{
+          width: 13, height: 13,
+          transform: formAberto ? "rotate(180deg)" : "none",
+          transition: "transform 0.15s ease",
+        }} />
+        {formAberto ? "Registrar sem combinar prazo" : "Combinar um prazo (opcional)"}
+      </Botao>
+      {formAberto && (
+        <div
+          id={`combinado-${targetType}-${targetId}`}
+          className="gpz-entra"
+          style={{
+            display: "grid", gap: 12, marginTop: 6,
+            // No bloco com largura, data e nota lado a lado: a data é curta e
+            // um campo de data com 600px é alvo enorme para dez caracteres.
+            gridTemplateColumns: !isMobile ? "minmax(0, 190px) minmax(0, 1fr)" : "minmax(0, 1fr)",
+            alignItems: "start",
+            ...(layout === "inline" ? { maxWidth: 640 } : null),
+          }}
+        >
+          <div>
+            <label htmlFor={`promessa-${targetId}`} style={rotuloCampo}>Prometido para</label>
+            <input
+              id={`promessa-${targetId}`}
+              type="date"
+              value={promessa}
+              min={minDia}
+              max={maxDia}
+              onChange={(e) => setPromessa(e.target.value)}
+              aria-invalid={promessaForaDaJanela || undefined}
+              aria-describedby={promessaForaDaJanela ? `promessa-erro-${targetId}` : undefined}
+              data-testid={`input-promessa-${targetType}-${targetId}`}
+              style={{ ...campo, height: alturaAcao, ...(promessaForaDaJanela ? { borderColor: TI.red } : null) }}
+            />
+          </div>
+          <div>
+            <label htmlFor={`nota-${targetId}`} style={rotuloCampo}>O que ficou combinado</label>
+            <textarea
+              id={`nota-${targetId}`}
+              value={nota}
+              maxLength={NOTA_MAX}
+              rows={2}
+              onChange={(e) => setNota(e.target.value)}
+              placeholder="Ex.: Arte reenvia os 8 layouts até quinta."
+              data-testid={`input-nota-${targetType}-${targetId}`}
+              style={{ ...campo, resize: "vertical", display: "block", lineHeight: 1.45 }}
+            />
+            <span style={{
+              display: "block", fontSize: 11, marginTop: 2, textAlign: "right", fontVariantNumeric: "tabular-nums",
+              // Perto do teto o contador avisa antes do campo travar.
+              color: nota.length >= NOTA_MAX - 20 ? TI.amber : TI.label,
+            }}>
+              {nota.length}/{NOTA_MAX}
+            </span>
+          </div>
+        </div>
+      )}
+      {/* FORA do `formAberto` de propósito: este aviso é a CAUSA do botão
+          desabilitado. Escondê-lo junto com o form deixava um botão morto
+          sem explicação nenhuma na tela. */}
+      {promessaForaDaJanela && (
+        <span id={`promessa-erro-${targetId}`} role="alert" style={{ display: "block", fontSize: 12, fontWeight: 600, color: TI.red, marginTop: 4 }}>
+          A promessa precisa cair entre hoje e os próximos {PROMESSA_MAX_DIAS} dias.
+        </span>
+      )}
+    </div>
+  ) : null;
+
+  if (layout === "bloco") {
+    // ── BLOCO (fim do modal do evento): um painel com cabeçalho ───────────
+    // Antes os quatro pedaços (status, disclosure, botão e explicação) eram
+    // empilhados soltos, com o botão alinhado à direita de uma coluna de
+    // 640px — ele parava no MEIO do modal, e a explicação alinhada à direita
+    // abaixo dele parecia legenda de outra coisa. Agora é uma superfície só:
+    // o que já aconteceu à esquerda, a ação à direita, o detalhe opcional
+    // embaixo e a regra no rodapé do painel.
+    return (
+      <section
+        aria-label="Registro de acompanhamento"
+        style={{
+          backgroundColor: TI.sunken, border: `1px solid ${TI.border}`, borderRadius: R.lg,
+          padding: isMobile ? "12px 14px" : "14px 16px",
+          display: "grid", gap: 10, minWidth: 0,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+            <span style={{ ...rotuloCampo, marginBottom: 6 }}>Acompanhamento</span>
+            {status ?? (
+              <span style={{ display: "block", fontSize: 13, color: TI.secondary, lineHeight: 1.5 }}>
+                Sem registro até agora.
+              </span>
+            )}
+          </div>
+          {podeCobrar && !isMobile && (
+            <div style={{ flexShrink: 0 }}>
+              {botao}
             </div>
           )}
-          {/* FORA do `formAberto` de propósito: este aviso é a CAUSA do botão
-              desabilitado. Escondê-lo junto com o form deixava um botão morto
-              sem explicação nenhuma na tela. (Com o recolher limpando o
-              rascunho o caso ficou raro — a linha continua como rede.) */}
-          {promessaForaDaJanela && (
-            <span role="alert" style={{ display: "block", fontSize: 12, fontWeight: 600, color: TI.red, marginTop: 4 }}>
-              A promessa precisa cair entre hoje e os próximos {PROMESSA_MAX_DIAS} dias.
-            </span>
-          )}
         </div>
-      )}
-
-      {podeCobrar && (
-        <div style={{ display: "flex", justifyContent: layout === "bloco" ? "flex-end" : "flex-start" }}>
-          {botao}
-        </div>
-      )}
-      {/* No BLOCO (o rodapé do modal, onde há espaço) a consequência vira
-          texto visível — o `title` do botão não existe no toque. E quem não
-          é admin deixa de ver um vazio sem explicação: diz por que não há
-          botão e o que a linha de cobrança acima significa. */}
-      {layout === "bloco" && (
-        <span data-testid={`texto-cobranca-explica-${targetType}-${targetId}`} style={{ display: "block", fontSize: 12, color: TI.secondary, lineHeight: 1.5, textAlign: podeCobrar ? "right" : "left" }}>
+        {formulario}
+        {/* No celular a ação vai para DEPOIS dos campos opcionais e ocupa a
+            largura: é a ordem do polegar (preencher, depois confirmar). */}
+        {podeCobrar && isMobile && <div style={{ display: "grid" }}>{botao}</div>}
+        {/* A consequência em texto visível — o `title` do botão não existe
+            no toque. E quem não é admin deixa de ver um vazio sem
+            explicação: diz por que não há botão e o que a linha significa. */}
+        <span
+          data-testid={`texto-cobranca-explica-${targetType}-${targetId}`}
+          style={{ display: "block", fontSize: 12, color: TI.secondary, lineHeight: 1.5, borderTop: `1px solid ${TI.border}`, paddingTop: 10 }}
+        >
           {podeCobrar
             ? "Registrar a cobrança anota quem cobrou, quando e o prazo combinado. Não muda nenhuma peça e não avisa ninguém."
             : cobranca
               ? "Só o administrador registra cobranças. A linha acima mostra a última: quem cobrou, quando e se algo andou depois."
               : `Só o administrador registra cobranças. ${targetType === "event" ? "Este evento" : "Este patrocinador"} ainda não foi cobrado.`}
         </span>
+      </section>
+    );
+  }
+
+  return (
+    <div style={{
+      display: "flex", flexDirection: "row", alignItems: "center",
+      gap: 10, flexWrap: "wrap", minWidth: 0,
+    }}>
+      {status && <div style={{ minWidth: 0, flex: "1 1 200px" }}>{status}</div>}
+      {formulario}
+      {podeCobrar && (
+        // Só UM `marginLeft: auto` no grupo da direita: com o disclosure
+        // fechado é ele quem empurra; com dois, a sobra se dividia e o
+        // "Combinar um prazo" flutuava no meio da linha.
+        <div style={{ display: "flex", marginLeft: formulario && !formAberto ? 0 : "auto" }}>
+          {botao}
+        </div>
       )}
     </div>
   );

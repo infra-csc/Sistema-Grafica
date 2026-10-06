@@ -89,13 +89,30 @@ export const SIGNIFICADO_DO_PEDIDO: Record<StatusDaSolicitacao, string> = {
  * desfecho (andamento, motivo). "Quem monta a lista" é o perfil Solicitação:
  * o nome do perfil entre parênteses desfaz a confusão com "solicitação" (o pedido).
  */
-export function QuemAgeNaLinha({ linha }: { linha: LinhaDoPedido }) {
-  const texto = linha.status === "aberto"
+/**
+ * Quem está vendo a peça, para a frase de quem age: "atende" (perfil
+ * Solicitação), "pede" (Atendimento). Sem vista (painel do evento, admin), a
+ * frase continua neutra, nomeando o perfil.
+ */
+export type VistaDoPedido = "pede" | "atende";
+
+export function QuemAgeNaLinha({ linha, vista }: { linha: LinhaDoPedido; vista?: VistaDoPedido }) {
+  const abre = linha.status === "aberto";
+  const ajuste = linha.status === "atendido" && ajustePendente(linha);
+  if (!abre && !ajuste) return null;
+  // QUEM ATENDE lia "Esperando: quem monta a lista (perfil Solicitação)…" em
+  // toda peça — uma frase sobre ela mesma, na terceira pessoa. Para ela, a
+  // frase vira a vez dela; para quem pede, fica o "esperando" de sempre.
+  if (vista === "atende") {
+    return (
+      <p data-testid={`quem-age-linha-${linha.id}`} style={{ margin: 0, fontSize: FS.small, color: TOM.alerta.text, lineHeight: 1.45 }}>
+        <strong style={{ fontWeight: FW.forte }}>Sua vez:</strong> {abre ? "crie a peça no evento ou recuse, com motivo." : "aceite ou recuse o ajuste pedido."}
+      </p>
+    );
+  }
+  const texto = abre
     ? "quem monta a lista (perfil Solicitação) criar a peça no evento ou recusar."
-    : linha.status === "atendido" && ajustePendente(linha)
-      ? "quem monta a lista (perfil Solicitação) aceitar ou recusar o ajuste."
-      : null;
-  if (!texto) return null;
+    : "quem monta a lista (perfil Solicitação) aceitar ou recusar o ajuste.";
   return (
     <p data-testid={`quem-age-linha-${linha.id}`} style={{ margin: 0, fontSize: FS.small, color: T.apoio, lineHeight: 1.45 }}>
       <strong style={{ fontWeight: FW.forte, color: T.strong }}>Esperando:</strong> {texto}
@@ -123,7 +140,8 @@ export function ReferenciasDoPedido({ urls, tamanho = 44, onRemover, legenda = f
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
         {urls.map((url, i) => (
           <div key={`${url}-${i}`} style={{ position: "relative" }}>
-            <a href={url} target="_blank" rel="noopener noreferrer" title="Referência do solicitante — não é arte final"
+            <a href={url} target="_blank" rel="noopener noreferrer" title="Referência do solicitante — não é arte final" className="ped-ref"
+              aria-label={`Abrir a referência ${i + 1} em outra aba`}
               style={{ display: "block", width: tamanho, height: tamanho, borderRadius: R.md, overflow: "hidden", border: `1px solid ${T.border}`, background: N.n2 }}>
               <img src={miniatura(url)} alt={`Referência ${i + 1}`} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             </a>
@@ -162,10 +180,15 @@ export function IdadeDoPedido({ pedido, agora }: { pedido: { id: string; status:
 }
 
 /** "precisa até 20/09" — vermelho vencido, âmbar a 3 dias. Só em peça aberta. */
-export function PrazoDaLinha({ linha, agora }: { linha: LinhaDoPedido; agora: Date }) {
+export function PrazoDaLinha({ linha, agora, soAlerta = false }: {
+  linha: LinhaDoPedido; agora: Date;
+  /** Só quando vence/está perto: onde a data já está escrita ao lado (o
+   *  detalhe), o "precisa até 21/10" neutro repetia "21/10/2026". */
+  soAlerta?: boolean;
+}) {
   if (linha.status !== "aberto") return null;
   const prazo = prazoDoPedido(linha.precisaAte, agora);
-  if (!prazo) return null;
+  if (!prazo || (soAlerta && prazo.nivel !== "vencido" && prazo.nivel !== "perto")) return null;
   const tom = prazo.nivel === "vencido"
     ? { cor: TOM.perigo.text, fundo: TOM.perigo.bg, borda: TOM.perigo.border }
     : prazo.nivel === "perto"
@@ -227,7 +250,7 @@ export function AndamentoDaLinha({ linha }: { linha: LinhaDoPedido }) {
         const etapa = etapaDaPecaDoPedido(p);
         return (
           <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", minWidth: 0 }}>
-            <Link href={`/eventos/${linha.eventId}?item=${p.id}`} data-testid={`link-peca-gerada-${p.id}`}
+            <Link href={`/eventos/${linha.eventId}?item=${p.id}`} data-testid={`link-peca-gerada-${p.id}`} className="ped-link-peca"
               style={{ fontFamily: FONT.mono, fontSize: FS.body, fontWeight: FW.rotulo, color: TOM.esmeralda.text, textDecoration: "underline", textUnderlineOffset: 2 }}>
               {p.displayId ?? "abrir"}
             </Link>
@@ -282,17 +305,40 @@ export function AjusteDaLinha({ linha }: { linha: LinhaDoPedido }) {
   );
 }
 
+/**
+ * ESQUELETO COM A FORMA DO CARTÃO. Eram três pares de barras genéricas; agora
+ * cada cartão tem o envelope (título, quem pediu, "Detalhes" à direita) e o
+ * bloco da peça com o trilho, o título, a linha de evento e o lugar das
+ * ações — a lista chega no mesmo lugar onde o esqueleto estava, sem pulo.
+ */
 export function ListaCarregando({ linhas = 3 }: { linhas?: number }) {
+  const barra = (largura: string | number, altura = 10, cor: string = N.n3): React.CSSProperties => ({ width: largura, maxWidth: "100%", height: altura, borderRadius: R.sm, background: cor });
   return (
-    <div aria-busy="true" data-testid="skeleton-pedidos" style={{ padding: "8px 16px" }}>
+    <div aria-busy="true" data-testid="skeleton-pedidos">
       {/* O esqueleto é mudo para quem não vê as barras piscando: sem esta
           frase, "carregando" e "vazio" soavam iguais. */}
       <span role="status" className="sr-only">Carregando as solicitações…</span>
       {Array.from({ length: linhas }, (_, i) => (
-        <div key={i} className="animate-pulse" style={{ display: "flex", flexDirection: "column", gap: 8, padding: "14px 0", borderBottom: i < linhas - 1 ? `1px solid ${N.n3}` : "none" }}>
-          <div style={{ width: "45%", height: 12, borderRadius: R.sm, background: T.border }} />
-          <div style={{ width: "80%", height: 10, borderRadius: R.sm, background: N.n3 }} />
-          <div style={{ width: "30%", height: 10, borderRadius: R.sm, background: N.n3 }} />
+        <div key={i} className="animate-pulse" aria-hidden="true" style={{ padding: "18px 20px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 7, flex: 1 }}>
+              <div style={barra(i === 1 ? 210 : 150, 13, T.border)} />
+              <div style={barra(190, 9)} />
+            </div>
+            <div style={{ ...barra(88, 32), borderRadius: R.md }} />
+          </div>
+          <div style={{ position: "relative", border: `1px solid ${T.border}`, borderRadius: R.md, padding: "14px 16px 14px 19px", display: "flex", justifyContent: "space-between", gap: 20 }}>
+            <span style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: T.bdark, borderRadius: `${R.md}px 0 0 ${R.md}px` }} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
+              <div style={barra(i === 2 ? "38%" : "30%", 13, T.border)} />
+              <div style={barra("55%")} />
+              <div style={barra("70%")} />
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ ...barra(90, 34, T.border), borderRadius: R.md }} />
+              <div style={{ ...barra(72, 34), borderRadius: R.md }} />
+            </div>
+          </div>
         </div>
       ))}
     </div>

@@ -14,7 +14,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Copy, ImagePlus, Inbox, Plus, Send, Trash2, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Copy, ImagePlus, Inbox, Plus, Send, Trash2, X } from "lucide-react";
 import type { Sponsor } from "@shared/schema";
 import {
   MAX_PECAS_POR_SOLICITACAO,
@@ -37,12 +37,22 @@ import { useConfirmar } from "@/components/ui/usar-confirmar";
 import { ReferenciasDoPedido, diaDoEvento, invalidarPedidos, mensagemDaApi, type EventoDoPedido } from "@/components/pedidos/ui";
 
 const ROTULO: React.CSSProperties = { display: "block", fontSize: FS.small, fontWeight: FW.rotulo, letterSpacing: "0.08em", textTransform: "uppercase", color: T.apoio, marginBottom: 6 };
-const CAMPO: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: 40, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, fontSize: FS.read, color: T.text, fontFamily: "inherit" };
+// Bordas em longhand: o campo inválido troca só a cor, e misturar `border` com
+// `borderColor` entre renders é o aviso do React (e estilo que fica preso).
+const CAMPO_BASE: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: 40, padding: "0 12px", borderRadius: R.md, borderWidth: 1, borderStyle: "solid", borderColor: T.bdark, backgroundColor: T.surface, fontSize: FS.read, color: T.text, fontFamily: "inherit" };
 // Sem `outline: "none"` de propósito: o estilo inline vencia o :focus-visible
 // global e os campos do formulário não mostravam onde estava o foco — quem
 // navega por Tab via só o cursor piscando, e nos gatilhos de seleção nem isso.
 /** O gatilho do FilterSelect herda centralizado do botão — aqui é campo. */
-const GATILHO: React.CSSProperties = { ...CAMPO, textAlign: "left", justifyContent: "space-between" };
+/** No toque: 44 de altura (a régua da casa) e 16px de letra — abaixo disso o
+ *  iOS dá zoom no campo ao focar. */
+const camposDe = (toque: boolean) => {
+  const CAMPO: React.CSSProperties = toque ? { ...CAMPO_BASE, height: 44, fontSize: FS.lead } : CAMPO_BASE;
+  // O gatilho do FilterSelect escreve `border` (shorthand) por baixo: aqui
+  // também, senão o React avisa da mistura a cada render.
+  const { borderWidth: _w, borderStyle: _s, borderColor: _c, ...semBorda } = CAMPO;
+  return { CAMPO, GATILHO: { ...semBorda, border: `1px solid ${T.bdark}`, textAlign: "left", justifyContent: "space-between" } as React.CSSProperties };
+};
 const OPCIONAL = <span style={{ fontWeight: FW.medio, textTransform: "none", letterSpacing: 0 }}>(opcional)</span>;
 const TAMANHO_MAXIMO = 10 * 1024 * 1024;
 
@@ -122,6 +132,11 @@ function BlocoDaPeca({ peca, numero, total, eventos, eventosCarregando, opcoesDe
   const evento = eventos.find((e) => e.id === peca.eventId) ?? null;
   const saida = evento?.truckDepartureDate ?? null;
   const caminhaoSaiu = caminhaoJaSaiu(saida, new Date());
+  // Medida que não é número: o campo diz na hora, não só a frase do rodapé.
+  const larguraInvalida = !!peca.largura.trim() && !numeroDoCampo(peca.largura);
+  const alturaInvalida = !!peca.altura.trim() && !numeroDoCampo(peca.altura);
+  const { CAMPO, GATILHO } = camposDe(isMobile);
+  const CAMPO_INVALIDO: React.CSSProperties = { ...CAMPO, borderColor: TOM.perigo.text };
   const avisoPrazo = avisoDoPrazo(peca.precisaAte ? `${peca.precisaAte}T12:00:00Z` : null, saida);
 
   const escolherEvento = (eventId: string) => {
@@ -178,7 +193,13 @@ function BlocoDaPeca({ peca, numero, total, eventos, eventosCarregando, opcoesDe
         <span className="sr-only">Peça {numero}</span>
       </legend>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-        <span aria-hidden="true" style={{ fontSize: FS.body, fontWeight: FW.rotulo, color: T.text }}>Peça {numero}</span>
+        {/* O número da peça em destaque: com cinco blocos iguais, é ele que a
+            frase do rodapé ("Peça 3: descreva o que precisa") manda achar. */}
+        <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: FS.read, fontWeight: FW.forte, color: T.text, minWidth: 0 }}>
+          <span style={{ width: 24, height: 24, borderRadius: R.pill, background: T.text, color: T.surface, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: FS.meta, fontWeight: FW.rotulo, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{numero}</span>
+          Peça {numero}
+          {peca.tipoDePeca.trim() && <span style={{ fontWeight: FW.medio, color: T.apoio, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: isMobile ? 110 : 320 }}>· {peca.tipoDePeca.trim()}</span>}
+        </span>
         <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
           {total < MAX_PECAS_POR_SOLICITACAO && (
             <Botao variante="secundario" tamanho={tamanhoPequeno} icone={Copy} onClick={onDuplicar} data-testid={`button-duplicar-peca-${numero}`} style={{ padding: "0 10px", fontSize: FS.meta }}>
@@ -219,7 +240,7 @@ function BlocoDaPeca({ peca, numero, total, eventos, eventosCarregando, opcoesDe
                 testId={`select-pedido-patrocinador-${numero}`} triggerProps={{ id: id("patrocinador") }}
                 triggerStyle={GATILHO} />
             ) : (
-              <div id={id("patrocinador")} style={{ ...CAMPO, display: "flex", alignItems: "center", color: T.second, background: T.bg }}>Escolha o evento primeiro</div>
+              <div id={id("patrocinador")} style={{ ...CAMPO, display: "flex", alignItems: "center", color: T.second, backgroundColor: T.bg }}>Escolha o evento primeiro</div>
             )}
             {peca.sponsorIds.length > 0 && (
               <div data-testid={`patrocinadores-escolhidos-${numero}`} style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
@@ -267,11 +288,11 @@ function BlocoDaPeca({ peca, numero, total, eventos, eventosCarregando, opcoesDe
             <div>
               <span style={ROTULO}>Medida (m) {OPCIONAL}</span>
               <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto minmax(0, 1fr)", gap: 6, alignItems: "center" }}>
-                <input aria-label={`Largura em metros da peça ${numero}`} data-testid={`input-pedido-largura-${numero}`} inputMode="decimal" value={peca.largura}
-                  onChange={(e) => onMudar({ largura: e.target.value })} placeholder="Larg." style={CAMPO} />
+                <input id={id("largura")} aria-label={`Largura em metros da peça ${numero}`} data-testid={`input-pedido-largura-${numero}`} inputMode="decimal" value={peca.largura}
+                  onChange={(e) => onMudar({ largura: e.target.value })} placeholder="Larg." aria-invalid={larguraInvalida || undefined} style={larguraInvalida ? CAMPO_INVALIDO : CAMPO} />
                 <span aria-hidden="true" style={{ color: T.apoio }}>×</span>
                 <input aria-label={`Altura em metros da peça ${numero}`} data-testid={`input-pedido-altura-${numero}`} inputMode="decimal" value={peca.altura}
-                  onChange={(e) => onMudar({ altura: e.target.value })} placeholder="Alt." style={CAMPO} />
+                  onChange={(e) => onMudar({ altura: e.target.value })} placeholder="Alt." aria-invalid={alturaInvalida || undefined} style={alturaInvalida ? CAMPO_INVALIDO : CAMPO} />
               </div>
             </div>
           </div>
@@ -280,7 +301,7 @@ function BlocoDaPeca({ peca, numero, total, eventos, eventosCarregando, opcoesDe
         <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
           <div>
             <label htmlFor={id("observacao")} style={ROTULO}>O que precisa</label>
-            <textarea id={id("observacao")} data-testid={`input-pedido-observacao-${numero}`} rows={isMobile ? 3 : 4}
+            <textarea id={id("observacao")} data-testid={`input-pedido-observacao-${numero}`} rows={isMobile ? 3 : 6}
               value={peca.observacao} onChange={(e) => onMudar({ observacao: e.target.value })}
               placeholder="Ex.: banner com a nova logo, para a área de largada — o patrocinador pediu cor mais escura."
               style={{ ...CAMPO, height: "auto", padding: "10px 12px", resize: "vertical", lineHeight: 1.45 }} />
@@ -391,6 +412,24 @@ export function FormularioDoPedido({ aberto, onFechar }: { aberto: boolean; onFe
 
   const primeiraFalta = pecas.map((p, i) => ({ i, falta: faltaNaPeca(p) })).find((x) => x.falta);
   const faltando = primeiraFalta ? `Peça ${primeiraFalta.i + 1}: ${primeiraFalta.falta}` : null;
+  // A FRASE DO RODAPÉ LEVA AO CAMPO. "Peça 3: descreva o que precisa" dizia
+  // o quê, mas com cinco blocos a pessoa ainda rolava atrás da peça 3. Agora
+  // a frase é um botão: rola até o bloco e põe o cursor no campo que falta.
+  const campoDaFalta = (falta: string) =>
+    falta.startsWith("escolha o evento") ? "evento"
+    : falta.startsWith("informe a quantidade") ? "quantidade"
+    : falta.startsWith("medida") ? "largura"
+    : falta.startsWith("descreva") ? "observacao"
+    : null;
+  const irParaFalta = () => {
+    if (!primeiraFalta?.falta) return;
+    const campo = campoDaFalta(primeiraFalta.falta);
+    const alvo = campo ? document.getElementById(`${pecas[primeiraFalta.i].chave}-${campo}`) : null;
+    if (!alvo) return;
+    const semMovimento = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    alvo.scrollIntoView({ behavior: semMovimento ? "auto" : "smooth", block: "center" });
+    alvo.focus({ preventScroll: true });
+  };
   const eventosDistintos = new Set(pecas.map((p) => p.eventId).filter(Boolean)).size;
 
   const salvar = useMutation({
@@ -468,7 +507,10 @@ export function FormularioDoPedido({ aberto, onFechar }: { aberto: boolean; onFe
           icon={Inbox}
           tint={TOM.alerta.text}
           title="Solicitar peças para a lista"
-          subtitle="Várias peças numa solicitação só, cada uma com evento, patrocinadores e status próprios. Quem monta a lista recebe e cria cada peça no evento."
+          subtitle={isMobile
+            // No celular a frase longa ocupava cinco linhas do topo fixo.
+            ? "Várias peças, cada uma com evento e status próprios."
+            : "Várias peças numa solicitação só — cada uma com evento, patrocinadores e status próprios. Quem monta a lista cria cada peça no evento."}
           onClose={fechar}
         />
 
@@ -487,7 +529,7 @@ export function FormularioDoPedido({ aberto, onFechar }: { aberto: boolean; onFe
             /* Tracejado âmbar de propósito: é a "vaga" da próxima peça, no
                tom do cabeçalho do formulário. */
             <Botao variante="secundario" tamanho={tamanhoDoRodape} icone={Plus} onClick={adicionar} data-testid="button-adicionar-peca"
-              style={{ alignSelf: "flex-start", padding: "0 16px", border: `1.5px dashed ${TOM.alerta.text}`, background: TOM.alerta.bg, color: TOM.alerta.text, fontSize: FS.read, fontWeight: FW.rotulo }}>
+              style={{ alignSelf: "flex-start", padding: "0 16px", borderWidth: 1.5, borderStyle: "dashed", borderColor: TOM.alerta.text, backgroundColor: TOM.alerta.bg, color: TOM.alerta.text, fontSize: FS.read, fontWeight: FW.rotulo }}>
               Adicionar outra peça
             </Botao>
           )}
@@ -496,10 +538,19 @@ export function FormularioDoPedido({ aberto, onFechar }: { aberto: boolean; onFe
         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, flexWrap: "wrap", padding: isMobile ? "12px 16px" : "14px 24px", borderTop: `1px solid ${T.border}`, background: T.surface, flexShrink: 0 }}>
           {/* Pronto para enviar, a frase diz também PARA QUEM vai — o rodapé
               era o único lugar sem destino, justo antes do clique. */}
-          <span aria-live="polite" style={{ fontSize: FS.body, color: faltando ? TOM.alerta.text : T.apoio, marginRight: "auto" }}>
-            {faltando
-              ? `${faltando}.`
-              : `${pecas.length} ${pecas.length === 1 ? "peça" : "peças"}${eventosDistintos > 1 ? ` · ${eventosDistintos} eventos` : ""} · vai para quem monta a lista`}
+          <span aria-live="polite" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: FS.body, color: faltando ? TOM.alerta.text : T.apoio, marginRight: "auto", minWidth: 0, flex: isMobile ? "1 1 100%" : "0 1 auto" }}>
+            {faltando ? (
+              <button type="button" onClick={irParaFalta} data-testid="button-ir-para-falta"
+                style={{ display: "inline-flex", alignItems: "flex-start", gap: 6, padding: 0, border: "none", background: "none", color: TOM.alerta.text, fontSize: FS.body, fontWeight: FW.medio, lineHeight: 1.45, textAlign: "left", cursor: "pointer", minHeight: isMobile ? 44 : 32, alignSelf: "center" }}>
+                <AlertTriangle size={14} aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
+                <span><span style={{ textDecoration: "underline", textUnderlineOffset: 3, textDecorationColor: TOM.alerta.border }}>{faltando}</span>.</span>
+              </button>
+            ) : (
+              <>
+                <CheckCircle2 size={15} aria-hidden="true" style={{ flexShrink: 0, color: TOM.esmeralda.text }} />
+                {`${pecas.length} ${pecas.length === 1 ? "peça" : "peças"}${eventosDistintos > 1 ? ` · ${eventosDistintos} eventos` : ""} · vai para quem monta a lista`}
+              </>
+            )}
           </span>
           {/* O motivo do desabilitado já está VISÍVEL na frase à esquerda
               ("Peça 2: escolha o evento."), por isso o Botao não repete `motivo`. */}

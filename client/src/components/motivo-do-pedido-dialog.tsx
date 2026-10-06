@@ -179,8 +179,10 @@ export function MotivoDoPedidoDialog({ alvo, pendente, onConfirmar, onFechar }: 
                 "faltam 8"… a cada tecla. Ele segue ligado ao campo pelo
                 aria-describedby; quem ouve só é avisado quando fica pronto. */}
             <span className="sr-only" aria-live="polite">{falta === 0 ? (ehAjuste ? "Texto pronto para enviar." : "Motivo pronto para confirmar.") : ""}</span>
-            <p id="motivo-do-pedido-contador" style={{ margin: "4px 0 0", fontSize: FS.small, color: falta > 0 ? TOM.alerta.text : TOM.esmeralda.text }}>
-              {falta > 0 ? `Faltam ${falta} ${falta === 1 ? "caractere" : "caracteres"}` : ehAjuste ? "Texto pronto" : "Motivo pronto"}
+            {/* Antes de digitar, a régua é neutra ("mínimo 10"): o "Faltam 10"
+                âmbar logo ao abrir soava como erro de quem nem começou. */}
+            <p id="motivo-do-pedido-contador" style={{ margin: "6px 0 0", fontSize: FS.small, fontWeight: FW.medio, color: !motivo.trim() ? T.apoio : falta > 0 ? TOM.alerta.text : TOM.esmeralda.text, fontVariantNumeric: "tabular-nums" }}>
+              {!motivo.trim() ? `Mínimo de ${MIN_MOTIVO_DO_PEDIDO} caracteres` : falta > 0 ? `Faltam ${falta} ${falta === 1 ? "caractere" : "caracteres"}` : ehAjuste ? "✓ Texto pronto" : "✓ Motivo pronto"}
               {falta === 0 && !isMobile && <span style={{ color: T.apoio }}> · Ctrl+Enter confirma</span>}
             </p>
           </div>
@@ -194,8 +196,9 @@ export function MotivoDoPedidoDialog({ alvo, pendente, onConfirmar, onFechar }: 
           <Botao variante={meta.variante} data-testid="button-confirmar-motivo" disabled={falta > 0}
             carregando={pendente}
             onClick={() => onConfirmar(motivo.trim())}
-            title={falta > 0 ? `O texto precisa de pelo menos ${MIN_MOTIVO_DO_PEDIDO} caracteres` : undefined}
-            motivo={falta > 0 ? `Escreva pelo menos ${MIN_MOTIVO_DO_PEDIDO} caracteres.` : undefined}
+            // O porquê do desabilitado já está escrito sob o campo (o contador);
+            // repeti-lo sob o botão eram duas frases iguais na mesma janela.
+            aria-describedby="motivo-do-pedido-contador"
             style={{ minHeight: alvoDoToque + 4, fontSize: FS.read }}>
             {pendente ? "Salvando…" : meta.confirmar(inteira)}
           </Botao>

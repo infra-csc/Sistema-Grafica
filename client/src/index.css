@@ -1410,3 +1410,47 @@ a.ds-botao[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; filter: no
   .grf-lote { animation: grf-sobe var(--dur-media) var(--ease-saida) backwards; }
 }
 @keyframes grf-sobe { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+/* ── SOLICITAÇÃO DE PEÇAS (prefixo ped-): a grade da peça, hover e entrada
+   que estilo inline não alcança. Movimento só sem prefers-reduced-motion. ── */
+/* As peças de uma solicitação são UM bloco: um fio entre elas. */
+.ped-linhas { container-type: inline-size; }
+.ped-linhas > .ped-linha + .ped-linha { border-top: 1px solid var(--n4); }
+/* Com espaço, as ações da peça sobem para uma coluna à direita, alinhadas de
+   peça em peça; sem espaço (celular, painel estreito), descem para baixo. */
+.ped-linha__grade { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px 24px; align-items: start; }
+@container (min-width: 760px) {
+  .ped-linha__grade { grid-template-columns: minmax(0, 1fr) auto; }
+  .ped-linha__acoes { max-width: 340px; align-items: flex-end; }
+  .ped-linha__botoes { justify-content: flex-end; }
+}
+/* O título da solicitação abre o detalhe: o sublinhado aparece sob o ponteiro. */
+.ped-cartao__abrir:hover .ped-cartao__nome { text-decoration: underline; text-decoration-color: var(--n6); text-underline-offset: 3px; }
+.ped-cartao__abrir:focus-visible { outline-offset: 3px; }
+/* Pílulas que rolam de lado no celular: sem a barra de rolagem (o corte na
+   borda já diz que tem mais). */
+.ped-pilulas-rolam::-webkit-scrollbar { display: none; }
+.ped-pilulas-rolam > * { flex-shrink: 0; }
+/* Sem espaço para a coluna, os botões da peça esticam e preenchem a fileira:
+   "Recusar" sozinho e encolhido na segunda linha parecia sobra. */
+@container (max-width: 759px) {
+  .ped-linha__botoes > * { flex: 1 1 auto; }
+}
+.ped-rodape-toque > * { flex: 1 1 auto; }
+/* O #0023 da peça criada é um link de texto (20px de altura): no toque, uma
+   área invisível em volta leva o alvo aos 44 sem esticar a linha. */
+@media (pointer: coarse) {
+  .ped-link-peca { position: relative; }
+  .ped-link-peca::after { content: ""; position: absolute; inset: -12px -8px; }
+}
+/* O vazio e o erro já moram dentro do cartão da lista: sem a moldura própria
+   (borda dentro de borda vira grade). */
+.ped-vazio > [data-testid="estado-vazio"] { border-color: transparent !important; background-color: transparent !important; }
+/* Miniatura de referência: o anel diz "abre a imagem". */
+.ped-ref { transition: box-shadow var(--dur-rapida) ease, border-color var(--dur-rapida) ease; }
+.ped-ref:hover { border-color: var(--n6) !important; box-shadow: 0 2px 8px -2px rgba(28,25,23,0.2); }
+@media (prefers-reduced-motion: no-preference) {
+  /* O "Como funciona" desce do cabeçalho ao abrir. */
+  .ped-surge { animation: ped-surge var(--dur-media) var(--ease-saida) backwards; }
+}
+@keyframes ped-surge { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }

@@ -11,7 +11,7 @@
 //     recusar, aceitar/recusar ajuste, reabrir a recusada.
 // Clicar na solicitação abre o detalhe, com histórico.
 // ─────────────────────────────────────────────────────────────────────────────
-import { memo, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { memo, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Inbox, Plus, Search, X } from "lucide-react";
 import {
@@ -52,6 +52,19 @@ const ORDENS: Array<{ value: Ordem; label: string }> = [
   { value: "recentes", label: "Mais recentes" },
   { value: "antigos", label: "Mais antigas" },
 ];
+
+/** A bolinha de cada pílula: o tom saturado do selo do status que ela recorta. */
+const BOLINHA_DO_FILTRO: Record<Filtro, string | null> = {
+  aberto: TOM.alerta.dot,
+  atendido: TOM.esmeralda.dot,
+  recusado: TOM.perigo.dot,
+  cancelado: T.muted,
+  ajuste: TOM.laranja.dot,
+  todos: null,
+};
+
+/** Referência estável para "sem dados": um `[]` novo a cada render refazia os memos. */
+const LISTA_VAZIA: PedidoDePeca[] = [];
 
 const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
@@ -167,10 +180,17 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
   // `placeholderData` mantém a lista atual enquanto a página maior chega: o
   // limite faz parte da chave, então "Carregar mais antigas" trocava a lista
   // inteira pelo esqueleto e jogava a rolagem de volta ao topo.
-  const { data: pedidosCrus = [], isLoading, isError, isPlaceholderData, refetch } = useQuery<PedidoDePeca[]>({
+  const { data: dadosDaLista, isLoading, isError, isPlaceholderData, refetch } = useQuery<PedidoDePeca[]>({
     queryKey: [`/api/pedidos-de-peca?limite=${limite}`],
     placeholderData: (anterior) => anterior,
   });
+  // A ÚLTIMA LISTA BOA fica guardada: quando "Carregar mais antigas" falha,
+  // a chave nova não tem dado nem placeholder, e a tela trocava as 300
+  // solicitações que a pessoa lia por um erro de página inteira. Com ela, a
+  // falha vira o aviso "pode estar desatualizada" sobre a lista que já estava.
+  const ultimaLista = useRef<PedidoDePeca[] | null>(null);
+  if (dadosDaLista) ultimaLista.current = dadosDaLista;
+  const pedidosCrus = dadosDaLista ?? (isError ? ultimaLista.current ?? LISTA_VAZIA : LISTA_VAZIA);
   // Servidor antigo (sem reiniciar depois do Pull) manda solicitação sem as
   // peças: fica de fora em vez de derrubar a tela.
   const pedidos = useMemo(() => pedidosCrus.filter((p) => Array.isArray(p?.linhas)), [pedidosCrus]);
@@ -310,12 +330,16 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
   // O detalhe lê a solicitação VIVA da lista: depois de uma ação, reflete na hora.
   const pedidoDoDetalhe = detalhe ? pedidos.find((p) => p.id === detalhe) ?? null : null;
 
+  // A PÍLULA DO RECORTE — a mesma família das pílulas de Eventos: a bolinha
+  // tem a cor do selo daquele status (a legenda da lista mora no próprio
+  // filtro) e o número fica num degrau de peso abaixo do rótulo. "Ajuste
+  // pendente" com ajuste esperando acende o número em âmbar: é trabalho.
   const CHIP = (ativo: boolean, zerado: boolean): React.CSSProperties => ({
-    height: toque, padding: "0 11px", borderRadius: R.pill, cursor: "pointer",
-    border: `1px solid ${ativo ? T.text : T.border}`, background: ativo ? T.text : T.surface,
+    height: toque, padding: "0 12px", borderRadius: R.pill, cursor: "pointer",
+    borderWidth: 1, borderStyle: "solid", borderColor: ativo ? T.text : T.border, backgroundColor: ativo ? T.text : T.surface,
     color: ativo ? T.surface : zerado ? T.second : T.strong,
-    fontSize: FS.meta, fontWeight: FW.forte, display: "inline-flex", alignItems: "center", gap: 5, whiteSpace: "nowrap",
-    transition: "background-color 0.12s, border-color 0.12s",
+    fontSize: FS.body, fontWeight: FW.forte, display: "inline-flex", alignItems: "center", gap: 7, whiteSpace: "nowrap",
+    transition: "background-color 0.12s, border-color 0.12s, color 0.12s",
   });
 
   const limparRecorte = () => { setBusca(""); setEventoFiltro(""); };
@@ -327,17 +351,32 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
     : `Nenhuma solicitação ${FILTROS.find((f) => f.k === filtro)?.rotulo.toLowerCase() ?? ""}`;
 
   const tamanhoDoBotao = isMobile ? "toque" as const : "md" as const;
+  // Quem está vendo: a frase "quem precisa agir" diz "Sua vez" a quem atende.
+  const semContagem = isLoading || (isError && pedidos.length === 0);
+  const vista = podeResolver && !podePedir ? "atende" as const : podePedir && !podeResolver ? "pede" as const : undefined;
 
   return (
     <section data-testid="lista-pedidos" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, boxShadow: SHADOW.sm, overflow: "hidden", minWidth: 0 }}>
       <div style={{ padding: "14px 16px", borderBottom: `1px solid ${N.n3}`, display: "flex", flexDirection: "column", gap: 10 }}>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ position: "relative", flex: isMobile ? "1 1 100%" : "1 1 240px", minWidth: 0 }}>
+        {/* No celular a faixa vira uma grade: a ação de quem pede vem
+            primeiro e em largura cheia, a busca embaixo, e Evento e Ordenar
+            dividem uma linha — antes eram quatro fileiras de larguras
+            diferentes, cada controle num tamanho. */}
+        <div style={isMobile
+          ? { display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 8 }
+          : { display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          {isMobile && podePedir && (
+            <Botao variante="primario" tamanho="toque" icone={Plus} data-testid="button-novo-pedido" onClick={() => setNovaAberta(true)}
+              larguraCheia style={{ gridColumn: "1 / -1", marginBottom: 4 }}>
+              Nova solicitação
+            </Botao>
+          )}
+          <div style={{ position: "relative", flex: "1 1 240px", minWidth: 0, gridColumn: isMobile && opcoesDeEvento.length > 1 ? "1 / -1" : undefined }}>
             <Search size={14} aria-hidden="true" style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: T.apoio }} />
             <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} data-testid="input-busca-pedidos"
               onKeyDown={(e) => { if (e.key === "Escape" && busca) { e.preventDefault(); setBusca(""); } }}
               aria-label="Buscar solicitações por evento, patrocinador, observação, quem solicitou ou peça"
-              placeholder="Evento, patrocinador, observação, quem solicitou…"
+              placeholder="Buscar evento, patrocinador, peça…"
               style={{ width: "100%", boxSizing: "border-box", height: toque, padding: "0 34px 0 32px", borderRadius: R.md, border: `1px solid ${T.border}`, fontSize: FS.body, color: T.text }} />
             {busca && (
               <button type="button" onClick={() => setBusca("")} aria-label="Limpar a busca" data-testid="button-limpar-busca-pedidos"
@@ -347,31 +386,56 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
             )}
           </div>
           {opcoesDeEvento.length > 1 && (
-            <FilterSelect label="Evento" allLabel="Todos os eventos" showAllLabelWhenEmpty hideWhenEmpty={false}
+            <div style={{ minWidth: 0 }}>
+            <FilterSelect label="Evento" allLabel="Todos os eventos" showAllLabelWhenEmpty hideWhenEmpty={false} fullWidth={isMobile}
               value={eventoFiltro} onChange={setEventoFiltro} options={opcoesDeEvento}
               searchPlaceholder="Buscar evento..." emptyText="Nenhum evento." testId="select-evento-pedidos"
-              triggerStyle={{ height: toque, borderRadius: R.md, border: `1px solid ${T.border}`, padding: "0 12px", fontSize: FS.body, background: T.surface }} />
+              triggerStyle={{ height: toque, borderRadius: R.md, border: `1px solid ${T.border}`, padding: "0 12px", fontSize: FS.body, backgroundColor: T.surface }} />
+            </div>
           )}
           {/* Ordenação veste o controle da casa (kind="sort"), não o <select>
               nativo — que desenhava o menu do Windows no meio da faixa. */}
+          <div style={{ minWidth: 0 }}>
           <FilterSelect kind="sort" hideSearch hideWhenEmpty={false}
             label="Ordenar" value={ordem} onChange={(v) => setOrdem(v as Ordem)} options={ORDENS}
+            // No celular só o ícone ↑↓ (44×44) ao lado do evento: com o texto,
+            // "Ordenar: Prazo mais próximo" virava "Ordenar: Pra…".
+            somenteIcone={isMobile} dropdownAlign={isMobile ? "right" : undefined}
             panelWidth={200} testId="select-ordem-pedidos"
             triggerStyle={{ height: toque }} />
-          {podePedir && (
+          </div>
+          {podePedir && !isMobile && (
             <Botao variante="primario" tamanho={tamanhoDoBotao} icone={Plus} data-testid="button-novo-pedido" onClick={() => setNovaAberta(true)}
-              style={{ minHeight: toque, padding: "0 16px", marginLeft: isMobile ? 0 : "auto" }}>
+              style={{ minHeight: toque, padding: "0 16px", marginLeft: "auto" }}>
               Nova solicitação
             </Botao>
           )}
         </div>
 
-        <div role="group" aria-label="Filtrar por estado" style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-          {FILTROS.map((f) => (
-            <button key={f.k} type="button" aria-pressed={filtro === f.k} title={f.dica} data-testid={`filtro-pedidos-${f.k}`} onClick={() => setFiltro(f.k)} style={CHIP(filtro === f.k, f.n === 0)}>
-              {f.rotulo}<span style={{ fontVariantNumeric: "tabular-nums" }}>{f.n}</span>
-            </button>
-          ))}
+        {/* No celular as pílulas rolam de lado numa fileira só (eram três
+            fileiras de pílulas empurrando a lista para baixo da dobra); a
+            faixa sangra até a borda do cartão para o corte dizer "tem mais". */}
+        <div role="group" aria-label="Filtrar por estado" className={isMobile ? "ped-pilulas-rolam" : undefined}
+          style={isMobile
+            ? { display: "flex", gap: 6, flexWrap: "nowrap", overflowX: "auto", margin: "0 -16px", padding: "2px 16px", scrollbarWidth: "none" }
+            : { display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {FILTROS.map((f) => {
+            const ativo = filtro === f.k;
+            const bolinha = BOLINHA_DO_FILTRO[f.k];
+            const urgente = f.k === "ajuste" && f.n > 0 && !ativo;
+            return (
+              <button key={f.k} type="button" aria-pressed={ativo} title={f.dica} data-testid={`filtro-pedidos-${f.k}`} onClick={() => setFiltro(f.k)}
+                className={ativo ? undefined : "ds-botao ds-botao-fantasma"} style={CHIP(ativo, f.n === 0 && !semContagem)}>
+                {bolinha && <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: R.pill, flexShrink: 0, background: f.n === 0 && !ativo && !semContagem ? T.bdark : bolinha }} />}
+                {f.rotulo}
+                {/* Sem dados ainda (carregando ou falha), o número não aparece: "0"
+                    ali diria "não há nenhuma", que ninguém sabe ainda. */}
+                {semContagem
+                  ? null
+                  : <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: FW.rotulo, color: ativo ? T.surface : urgente ? TOM.alerta.text : f.n === 0 ? T.second : T.apoio }}>{f.n}</span>}
+              </button>
+            );
+          })}
         </div>
         {/* Quem usa leitor de tela não vê a lista encolher enquanto digita. */}
         <p className="sr-only" aria-live="polite">
@@ -380,15 +444,22 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
       </div>
 
       {parados.length > 0 && (
-        <div data-testid="faixa-pedidos-parados" role="status" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "12px 16px", background: TOM.alerta.bg, borderBottom: `1px solid ${TOM.alerta.border}` }}>
+        <div data-testid="faixa-pedidos-parados" role="status" style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", gap: 12, flexWrap: "wrap", padding: "12px 16px", background: TOM.alerta.bg, borderBottom: `1px solid ${TOM.alerta.border}` }}>
           <AlertTriangle size={18} color={TOM.alerta.text} aria-hidden="true" style={{ flexShrink: 0 }} />
           <div style={{ flex: "1 1 260px", minWidth: 0 }}>
             <div style={{ fontSize: FS.body, fontWeight: FW.forte, color: TOM.alerta.text }}>
               {parados.length} {parados.length === 1 ? "solicitação esperando" : "solicitações esperando"} há mais de {IDADE_DE_ATENCAO} dias
             </div>
-            <div style={{ fontSize: FS.small, color: TOM.alerta.text, marginTop: 2, lineHeight: 1.45 }}>
-              {parados.slice(0, 3).map((p) => `${p.pedidoPor ?? "—"} · ${p.linhas[0]?.eventName ?? "evento"} · ${idadeDoPedido(p.createdAt, agora).texto}`).join("; ")}
-            </div>
+            {/* As três mais antigas, uma por item (eram uma frase só, com
+                ponto e vírgula, que quebrava no meio de um nome). Quem pede
+                não lê o próprio nome em cada uma. */}
+            <ul style={{ listStyle: "none", margin: "4px 0 0", padding: 0, display: "flex", flexWrap: "wrap", columnGap: 16, rowGap: 2, fontSize: FS.meta, color: TOM.alerta.text, lineHeight: 1.45 }}>
+              {parados.slice(0, 3).map((p) => (
+                <li key={p.id} style={{ minWidth: 0 }}>
+                  <strong style={{ fontWeight: FW.forte }}>{idadeDoPedido(p.createdAt, agora).texto}</strong> · {p.linhas[0]?.eventName ?? "evento"}{vista === "pede" ? "" : ` · ${p.pedidoPor ?? "—"}`}
+                </li>
+              ))}
+            </ul>
           </div>
           <Botao variante="secundario" tamanho={tamanhoDoBotao} data-testid="button-ver-mais-antigos" onClick={() => { setFiltro("aberto"); setOrdem("antigos"); limparRecorte(); }}
             style={{ minHeight: toque, padding: "0 12px", borderColor: TOM.alerta.border, color: TOM.alerta.text, fontSize: FS.meta, fontWeight: FW.rotulo }}>
@@ -411,7 +482,8 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
           escondia justamente o que a pessoa estava lendo. */}
       {isError && pedidos.length > 0 && (
         <p role="alert" data-testid="aviso-pedidos-desatualizados" style={{ margin: 0, padding: "8px 16px", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: FS.body, color: TOM.perigo.text, background: TOM.perigo.bg, borderBottom: `1px solid ${TOM.perigo.border}` }}>
-          Não foi possível atualizar — a lista abaixo pode estar desatualizada.
+          <AlertTriangle size={16} aria-hidden="true" style={{ flexShrink: 0 }} />
+          <span style={{ flex: "1 1 220px", minWidth: 0 }}>Não foi possível atualizar — a lista abaixo pode estar desatualizada.</span>
           <Botao variante="secundario" tamanho="sm" onClick={() => refetch()} style={{ minHeight: toque }}>Tentar de novo</Botao>
         </p>
       )}
@@ -426,12 +498,17 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
         /* O testid antigo fica no invólucro; o vazio em si é o do design
            system. Sem a moldura tracejada dele: aqui já estamos dentro do
            cartão da lista, e borda dentro de borda vira grade. */
-        <div data-testid="pedidos-vazio" style={{ padding: 16 }}>
+        <div data-testid="pedidos-vazio" className="ped-vazio" style={{ padding: isMobile ? "28px 16px" : "40px 24px" }}>
           <EstadoVazio
             compacto
             icone={Inbox}
             titulo={vazio}
-            descricao={pedidos.length === 0 && podePedir ? "Use “Nova solicitação” para pedir peças a quem monta a lista." : undefined}
+            descricao={termo || eventoFiltro
+              ? "Nada combina com a busca e o evento escolhidos."
+              : pedidos.length === 0 && podePedir ? "Use “Nova solicitação” para pedir peças a quem monta a lista."
+              : pedidos.length === 0 ? "Quando o Atendimento pedir uma peça, ela aparece aqui — e você é avisado."
+              : filtro === "aberto" ? "Tudo o que foi pedido já foi atendido, recusado ou cancelado."
+              : undefined}
             acao={
               /* A SAÍDA do vazio: quem recortou demais precisa de um clique
                  de volta, não de caçar qual controle está ligado. */
@@ -452,7 +529,7 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
           {visiveis.map((p) => (
             <CartaoMemoizado key={p.id} deps={[p, eventoPorId, hoje, minutoAgora, aceitarAjuste.isPending, aceitarAjuste.variables?.id, podePedir, podeResolver, isMobile]}
               desenhar={() => (
-            <CartaoDoPedido key={p.id} pedido={p} agora={agora} seloDe={seloDe} acoesDaLinha={acoesDaLinha(p)} acoes={acoesDaSolicitacao(p)} onAbrir={() => setDetalhe(p.id)} />
+            <CartaoDoPedido key={p.id} pedido={p} agora={agora} seloDe={seloDe} acoesDaLinha={acoesDaLinha(p)} acoes={acoesDaSolicitacao(p)} onAbrir={() => setDetalhe(p.id)} vista={vista} />
               )} />
           ))}
         </ul>
@@ -475,6 +552,7 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
         acoesDaLinha={pedidoDoDetalhe ? acoesDaLinha(pedidoDoDetalhe) : () => []}
         acoes={pedidoDoDetalhe ? acoesDaSolicitacao(pedidoDoDetalhe) : []}
         onFechar={() => setDetalhe(null)}
+        vista={vista}
       />
       <FormularioDoPedido aberto={novaAberta} onFechar={() => setNovaAberta(false)} />
       <MotivoDoPedidoDialog

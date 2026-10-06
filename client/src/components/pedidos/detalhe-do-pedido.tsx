@@ -23,9 +23,9 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { T, FS, R, TOM, FW } from "@/lib/theme";
+import { T, FS, R, N, TOM, FW } from "@/lib/theme";
 import { EstadoErro } from "@/components/ui/estados";
-import { BotaoDoCartao, MotivosDoBloqueio, type AcaoDoCartao } from "@/components/pedidos/cartao-do-pedido";
+import { BotaoDoCartao, MotivosDoBloqueio, TRILHO_DO_PEDIDO, type AcaoDoCartao } from "@/components/pedidos/cartao-do-pedido";
 import {
   AjusteDaLinha,
   AndamentoDaLinha,
@@ -37,6 +37,7 @@ import {
   diaDoEvento,
   medidaDaLinha,
   quandoFoi,
+  type VistaDoPedido,
 } from "@/components/pedidos/ui";
 
 type RegistroDeAuditoria = { id: string; action: string; details: string | null; userName: string | null; createdAt: string };
@@ -61,31 +62,39 @@ const saidaDoCaminhao = (d: string | null | undefined) => {
   return `${iso.slice(8, 10)}/${iso.slice(5, 7)} às ${iso.slice(11, 16)}`;
 };
 
-function PecaDoDetalhe({ linha, numero, agora, selo, acoes }: { linha: LinhaDoPedido; numero: number; agora: Date; selo: SeloDoEvento | null; acoes: AcaoDoCartao[] }) {
+function PecaDoDetalhe({ linha, numero, agora, selo, acoes, vista }: { linha: LinhaDoPedido; numero: number; agora: Date; selo: SeloDoEvento | null; acoes: AcaoDoCartao[]; vista?: VistaDoPedido }) {
   const isMobile = useIsMobile();
   const pecas = linha.pecas ?? [];
   const referencias = linha.referencias ?? [];
   const criadas = unidadesCriadas(pecas);
   const medida = medidaDaLinha(linha);
   return (
-    <section data-testid={`detalhe-linha-${linha.id}`} style={{ border: `1px solid ${T.border}`, borderRadius: R.lg, padding: isMobile ? 12 : 16, display: "flex", flexDirection: "column", gap: 14 }}>
+    <section data-testid={`detalhe-linha-${linha.id}`} style={{ border: `1px solid ${T.border}`, borderLeft: `3px solid ${TRILHO_DO_PEDIDO[linha.status] ?? T.bdark}`, borderRadius: R.lg, padding: isMobile ? 12 : 16, display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <span style={{ fontSize: FS.small, fontWeight: FW.rotulo, color: T.apoio, letterSpacing: "0.06em", textTransform: "uppercase" }}>Peça {numero}</span>
+        {/* Sem tipo informado, o nome da peça JÁ é "Peça N": o sobrescrito
+            repetia "PEÇA 1 · … Peça 1". */}
+        {!/^Peça d+$/.test(rotuloDaLinha(linha)) && (
+          <span style={{ fontSize: FS.small, fontWeight: FW.rotulo, color: T.apoio, letterSpacing: "0.06em", textTransform: "uppercase" }}>Peça {numero}</span>
+        )}
         <EstadoDoPedido status={linha.status} />
         <strong style={{ fontSize: FS.strong, color: T.text }}>{quantidadeDoPedido(linha.quantidade)} · {rotuloDaLinha(linha)}</strong>
       </div>
-      <dl style={{ margin: 0, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: "12px 20px" }}>
+      {/* No celular, duas colunas de campos (eram seis linhas empilhadas,
+          uma tela inteira de rótulo-valor antes de "O que precisa"). */}
+      <dl style={{ margin: 0, display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${isMobile ? 130 : 170}px, 1fr))`, gap: isMobile ? "12px 14px" : "12px 20px" }}>
         <Campo rotulo="Evento">{linha.eventName ?? "Evento removido"}{linha.eventStart ? ` · ${diaDoEvento(linha.eventStart)}` : ""}</Campo>
         <Campo rotulo="Patrocinadores">{patrocinadoresDaLinha(linha)}</Campo>
-        <Campo rotulo="Quantidade">
-          {quantidadeDoPedido(linha.quantidade)}
-          {pecas.length > 0 && criadas !== linha.quantidade && (
+        {/* A quantidade já está no título da peça; o campo só existe quando
+            o que foi criado diverge do que foi pedido. */}
+        {pecas.length > 0 && criadas !== linha.quantidade && (
+          <Campo rotulo="Quantidade">
+            pedida {quantidadeDoPedido(linha.quantidade)}
             <span style={{ display: "block", fontSize: FS.small, color: TOM.alerta.text, fontWeight: FW.forte }}>criadas {criadas} un.</span>
-          )}
-        </Campo>
+          </Campo>
+        )}
         <Campo rotulo="Precisa até">
           {linha.precisaAte ? new Date(linha.precisaAte).toISOString().slice(0, 10).split("-").reverse().join("/") : "—"}
-          <span style={{ display: "block", marginTop: 4 }}><PrazoDaLinha linha={linha} agora={agora} /></span>
+          <span style={{ display: "flex", marginTop: 4 }}><PrazoDaLinha linha={linha} agora={agora} soAlerta /></span>
         </Campo>
         <Campo rotulo="Saída do caminhão">
           {saidaDoCaminhao(linha.eventSaida) ?? "—"}
@@ -116,9 +125,9 @@ function PecaDoDetalhe({ linha, numero, agora, selo, acoes }: { linha: LinhaDoPe
       {linha.status === "cancelado" && (
         <p style={{ margin: 0, fontSize: FS.read, color: T.strong, lineHeight: 1.5 }}><strong>Motivo do cancelamento:</strong> {linha.motivoCancelamento ?? "—"}</p>
       )}
-      <QuemAgeNaLinha linha={linha} />
+      <QuemAgeNaLinha linha={linha} vista={vista} />
       {acoes.length > 0 && (
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div className={isMobile ? "ped-rodape-toque" : undefined} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {acoes.map((a) => <BotaoDoCartao key={a.chave} acao={a} altura={isMobile ? 44 : 36} descritoPor={`bloqueio-detalhe-${linha.id}`} />)}
         </div>
       )}
@@ -127,13 +136,15 @@ function PecaDoDetalhe({ linha, numero, agora, selo, acoes }: { linha: LinhaDoPe
   );
 }
 
-export function DetalheDoPedido({ pedido, agora, seloDe, acoesDaLinha, acoes = [], onFechar }: {
+export function DetalheDoPedido({ pedido, agora, seloDe, acoesDaLinha, acoes = [], onFechar, vista }: {
   pedido: PedidoDePeca | null;
   agora: Date;
   seloDe: (linha: LinhaDoPedido) => SeloDoEvento | null;
   acoesDaLinha: (linha: LinhaDoPedido) => AcaoDoCartao[];
   acoes?: AcaoDoCartao[];
   onFechar: () => void;
+  /** Quem está vendo (página de solicitações): "Sua vez" para quem atende. */
+  vista?: VistaDoPedido;
 }) {
   const isMobile = useIsMobile();
   // Durante o fade de saída a solicitação já é null: mantém a última na tela.
@@ -163,7 +174,7 @@ export function DetalheDoPedido({ pedido, agora, seloDe, acoesDaLinha, acoes = [
           icon={Inbox}
           tint={TOM.alerta.text}
           title={`Solicitação · ${linhas.length} ${linhas.length === 1 ? "peça" : "peças"}`}
-          subtitle={`Solicitada por ${p.pedidoPor ?? "—"} · ${quandoFoi(p.createdAt)}${linhas.length > 1 ? ` · ${resumoDasLinhas(linhas)}` : ""}`}
+          subtitle={`Solicitada por ${p.pedidoPor ?? "—"} · ${quandoFoi(p.createdAt)}`}
           onClose={onFechar}
         />
 
@@ -173,22 +184,51 @@ export function DetalheDoPedido({ pedido, agora, seloDe, acoesDaLinha, acoes = [
           gridTemplateColumns: isMobile ? "minmax(0, 1fr)" : "minmax(0, 1.6fr) minmax(0, 1fr)",
         }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <EstadoDoPedido status={p.status} />
-              {acoes.length > 0 && fechandoAntes(acoes).map((a) => <BotaoDoCartao key={a.chave} acao={a} altura={isMobile ? 44 : 36} />)}
-            </div>
+            {/* O status da SOLICITAÇÃO só quando diz algo a mais que o da
+                peça (várias peças), e as ações dela à direita. Com uma peça só,
+                era um selo solto no topo, repetido logo abaixo. */}
+            {(linhas.length > 1 || acoes.length > 0) && (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", minHeight: 36 }}>
+                {linhas.length > 1 && (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: FS.body, color: T.apoio }}>
+                    <EstadoDoPedido status={p.status} /> {resumoDasLinhas(linhas)}
+                  </span>
+                )}
+                {acoes.length > 0 && (
+                  <span style={{ display: "flex", gap: 8, flexWrap: "wrap", marginLeft: isMobile ? 0 : "auto" }}>
+                    {fechandoAntes(acoes).map((a) => <BotaoDoCartao key={a.chave} acao={a} altura={isMobile ? 44 : 36} />)}
+                  </span>
+                )}
+              </div>
+            )}
             {linhas.map((l, i) => (
-              <PecaDoDetalhe key={l.id} linha={l} numero={i + 1} agora={agora} selo={seloDe(l)} acoes={fechandoAntes(acoesDaLinha(l))} />
+              <PecaDoDetalhe key={l.id} linha={l} numero={i + 1} agora={agora} selo={seloDe(l)} acoes={fechandoAntes(acoesDaLinha(l))} vista={vista} />
             ))}
           </div>
 
-          <section data-testid="historico-do-pedido" aria-labelledby="titulo-historico-pedido" style={{ minWidth: 0 }}>
+          {/* O histórico acompanha a rolagem das peças (sticky): com três peças
+              abertas, a linha do tempo sumia no topo logo na primeira. */}
+          <section data-testid="historico-do-pedido" aria-labelledby="titulo-historico-pedido"
+            style={{ minWidth: 0, ...(isMobile ? { paddingTop: 16, borderTop: `1px solid ${T.border}` } : { position: "sticky", top: 0, padding: "16px 18px", borderRadius: R.lg, background: T.bg, border: `1px solid ${T.border}` }) }}>
             <h3 id="titulo-historico-pedido" style={TITULO_DA_SECAO}>Histórico</h3>
             {/* Falha no histórico tem botão de tentar de novo: a frase antiga
                 ("feche e abra a solicitação") mandava perder o lugar para
                 refazer o que um clique faz. */}
             {isLoading ? (
-              <p role="status" style={{ margin: 0, fontSize: FS.body, color: T.apoio }}>Carregando o histórico…</p>
+              // O esqueleto tem a forma da linha do tempo (ponto + duas linhas), e
+              // a frase fica para o leitor de tela.
+              <div role="status" aria-busy="true">
+                <span className="sr-only">Carregando o histórico…</span>
+                {[0, 1, 2].map((i) => (
+                  <div key={i} aria-hidden="true" className="animate-pulse" style={{ display: "grid", gridTemplateColumns: "12px minmax(0, 1fr)", gap: 10, paddingBottom: i < 2 ? 16 : 0 }}>
+                    <span style={{ width: 12, height: 12, marginTop: 3, borderRadius: R.pill, background: T.border }} />
+                    <span style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <span style={{ width: i === 1 ? "70%" : "90%", height: 11, borderRadius: R.sm, background: T.border }} />
+                      <span style={{ width: "45%", height: 9, borderRadius: R.sm, background: N.n3 }} />
+                    </span>
+                  </div>
+                ))}
+              </div>
             ) : isError ? (
               /* O testid antigo do "tentar de novo" fica no invólucro: o
                  botão do EstadoErro sai com o testid do design system
@@ -208,7 +248,7 @@ export function DetalheDoPedido({ pedido, agora, seloDe, acoesDaLinha, acoes = [
                     {i < historico.length - 1 && (
                       <span aria-hidden="true" style={{ position: "absolute", left: 5, top: 14, bottom: 0, width: 2, background: T.border }} />
                     )}
-                    <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 4, width: 12, height: 12, borderRadius: R.pill, background: i === historico.length - 1 ? TOM.alerta.text : T.bdark, border: `2px solid ${T.surface}`, boxShadow: `0 0 0 1px ${T.bdark}` }} />
+                    <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 4, width: 12, height: 12, borderRadius: R.pill, background: i === historico.length - 1 ? TOM.alerta.text : T.bdark, border: `2px solid ${isMobile ? T.surface : T.bg}`, boxShadow: `0 0 0 1px ${T.bdark}` }} />
                     <div style={{ fontSize: FS.body, color: T.text, fontWeight: FW.medio, lineHeight: 1.45, overflowWrap: "anywhere" }}>{fraseDoRegistro(r)}</div>
                     <div style={{ fontSize: FS.small, color: T.apoio, marginTop: 2 }}>
                       {r.userName ?? "Sistema"} · {quandoFoi(r.createdAt)}

@@ -12,7 +12,7 @@
 // env(safe-area-inset-bottom), teclado não esconde o primário, DOM = tela).
 // O jsdom não faz layout: as regras são estruturais (estilo inline).
 // ─────────────────────────────────────────────────────────────────────────────
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
 import * as React from "react";
 import { render, act, cleanup, fireEvent } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -136,6 +136,15 @@ function prepararJsdom() {
 const json = (corpo: unknown) => new Response(JSON.stringify(corpo), { status: 200, headers: { "content-type": "application/json" } });
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+// A primeira montagem transformava o grafo de módulos da tela INTEIRO dentro
+// do teste 1 (30s): com a máquina ocupada (outras suítes em paralelo) só a
+// importação passava de 30s, o teste 1 estourava e os seguintes herdavam a
+// montagem pela metade. A importação fria vem para cá, com folga própria; os
+// testes continuam medindo o mesmo (e com o mesmo teto de 30s).
+beforeAll(async () => {
+  await import("@/lib/queryClient");
+  await import("@/pages/grafica-maquinas");
+}, 120_000);
 
 // ═════════════════════════════════════════════════════════════════════════════
 // Os dados: o cenário do dono (21/09) — #0396 "2×1", 34 un.: 20 reservadas à

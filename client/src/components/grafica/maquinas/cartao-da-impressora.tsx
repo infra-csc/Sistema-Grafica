@@ -405,7 +405,7 @@ export function CartaoDaImpressora({ m, maquinaEmFoco, itemEmFoco, agora, hojeMs
           </p>
           {podeAgir && (
             <Botao variante="secundarioForte" onClick={() => setSeletorDaMaquina(m.codigo)} data-testid={`link-escolher-peca-${m.codigo}`} title="Escolher, entre as peças liberadas, a que vai imprimir nesta impressora" style={{ ...botaoNeutro, width: isMobile ? "100%" : "fit-content" }}>
-              Escolher peça para imprimir <ArrowRight aria-hidden="true" className="mq-seta" style={{ width: 13, height: 13, color: T.accentText }} />
+              Escolher peça para imprimir <ArrowRight aria-hidden="true" className="maq-seta" style={{ width: 13, height: 13, color: T.accentText }} />
             </Botao>
           )}
         </div>
@@ -450,7 +450,7 @@ export function CartaoDaImpressora({ m, maquinaEmFoco, itemEmFoco, agora, hojeMs
           "Impressora" de lá usa a mesma régua deste cartão
           (impressorasDaPeca: imprimindo, reservada ou impressa nela). */}
       <Link href={linkDaImpressoraNaGrafica(m.codigo)} className="mq-link" data-testid={`link-impressora-na-grafica-${m.codigo}`} title={`Abrir a fila da Gráfica filtrada na ${m.rotulo}`} style={{ display: "inline-flex", alignItems: "center", gap: 5, minHeight: alvoDe(28, toque), marginTop: -4, fontSize: isMobile ? 12 : FS.small, fontWeight: FW.forte, color: T.apoio, textDecoration: "none", width: "fit-content" }}>
-        Peças desta impressora na Gráfica <ArrowRight aria-hidden="true" className="mq-seta" style={{ width: 12, height: 12, color: T.accentText }} />
+        Peças desta impressora na Gráfica <ArrowRight aria-hidden="true" className="maq-seta" style={{ width: 12, height: 12, color: T.accentText }} />
       </Link>
 
       {/* Rodapé: o que saiu desta máquina no dia aberto — e o atalho para o
@@ -470,7 +470,7 @@ export function CartaoDaImpressora({ m, maquinaEmFoco, itemEmFoco, agora, hojeMs
             : `${plural(m.unidadesNoDia, "un. impressa", "un. impressas")} · ${plural(m.pecasNoDia, "peça", "peças")}`}
         </span>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 3, flexShrink: 0, fontWeight: FW.forte, color: T.apoio }}>
-          Diário <ChevronRight aria-hidden="true" className="mq-seta" style={{ width: 13, height: 13 }} />
+          Diário <ChevronRight aria-hidden="true" className="maq-seta" style={{ width: 13, height: 13 }} />
         </span>
       </button>
     </article>

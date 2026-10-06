@@ -1688,3 +1688,45 @@ a.ds-botao[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; filter: no
 .sol-link:hover { text-decoration: underline; text-underline-offset: 3px; }
 .sol-esqueleto { background: linear-gradient(90deg, var(--n2) 0%, var(--n1) 50%, var(--n2) 100%) !important; background-size: 200% 100% !important; animation: sol-brilho 1.2s ease-in-out infinite; }
 @keyframes sol-brilho { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+
+/* ── Máquinas da Gráfica (prefixo maq-) ───────────────────────────────────
+   Hover, foco e movimento que estilo inline não alcança. As 6 regras base
+   (mq-*) seguem no <style> da própria tela; tudo o que veio com o redesign
+   mora aqui — no <style> inline cada regra pesava em todo getComputedStyle. */
+.maq-pagina .mq-acao { transition: background-color var(--dur-rapida) ease, border-color var(--dur-rapida) ease, color var(--dur-rapida) ease; }
+.maq-pagina .mq-acao:hover:not(:disabled) { border-color: var(--n6) !important; }
+.maq-pagina .mq-acao:active:not(:disabled) { transform: translateY(0.5px); }
+.maq-pagina .mq-chip { transition: background-color var(--dur-rapida) ease, border-color var(--dur-rapida) ease, color var(--dur-rapida) ease; }
+.maq-pagina .mq-peca { transition: background-color var(--dur-rapida) ease; }
+.maq-pagina .mq-link { text-underline-offset: 3px; text-decoration-color: var(--n5); }
+.maq-seta { transition: transform var(--dur-rapida) ease; flex-shrink: 0; }
+.maq-pagina .mq-link:hover .maq-seta, .maq-pagina .mq-acao:hover .maq-seta { transform: translateX(2px); }
+/* O cartão da impressora: a faixa de cima diz o estado de longe; sob o
+   ponteiro ele acende de leve. */
+.maq-cartao { transition: border-color var(--dur-media) ease, box-shadow var(--dur-media) ease; }
+@media (hover: hover) { .maq-cartao:hover { box-shadow: var(--sh-md); } }
+.maq-cartao[data-em-foco="true"] { box-shadow: 0 0 0 3px var(--orange-soft), var(--sh-md); }
+/* A barra de progresso do cartão ocupa a largura (a do modal é curta). */
+.maq-barra [role="progressbar"] { max-width: none !important; height: 8px !important; margin: 0 !important; background: var(--n3) !important; }
+.maq-trilho { height: 8px; border-radius: 999px; background: var(--n3); }
+/* "Ao vivo" respira devagar; confirmações entram suaves — só com movimento. */
+@media (prefers-reduced-motion: no-preference) {
+  .maq-vivo { animation: maq-vivo 2.4s ease-in-out infinite; }
+  .maq-entra { animation: maq-entra var(--dur-media) var(--ease-saida) backwards; }
+}
+@keyframes maq-vivo { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok-text) 35%, transparent); } 50% { box-shadow: 0 0 0 4px transparent; } }
+@keyframes maq-entra { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+/* Campos (quantidade, data, impressora, busca): foco no laranja da casa. */
+.maq-campo { transition: border-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease; }
+.maq-campo:hover:not(:disabled):not(:focus) { border-color: var(--n6) !important; }
+.maq-campo:focus { outline: none; border-color: var(--orange-deep) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--orange-deep) 16%, transparent); }
+.maq-campo[aria-invalid="true"] { border-color: var(--perigo-text) !important; }
+.maq-campo:disabled { background-color: var(--n2) !important; color: var(--n7) !important; }
+.maq-campo::placeholder { color: var(--n7); }
+.maq-campo::-webkit-search-cancel-button { display: none; }
+/* Segmentado do período e setas do dia (‹ dia ›) numa peça só. */
+.maq-seg, .maq-nav { transition: background-color var(--dur-rapida) ease, color var(--dur-rapida) ease; }
+.maq-seg[aria-pressed="false"]:hover { background-color: var(--n2) !important; color: var(--n10) !important; }
+.maq-nav:hover:not(:disabled) { background-color: var(--n2) !important; }
+.maq-nav:disabled { cursor: not-allowed; }
+.maq-seg:focus-visible, .maq-nav:focus-visible { outline-offset: -2px; }

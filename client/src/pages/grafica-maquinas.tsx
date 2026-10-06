@@ -457,6 +457,7 @@ export default function GraficaMaquinas() {
     <FichaContext.Provider value={abrirFicha}>
     <div
       data-testid="pagina-maquinas"
+      className="maq-pagina"
       style={{
         backgroundColor: T.bg, minHeight: "100%",
         paddingTop: isMobile ? 12 : 24, paddingLeft: isMobile ? 16 : 24, paddingRight: isMobile ? 16 : 24,
@@ -499,7 +500,7 @@ export default function GraficaMaquinas() {
             frescor={data ? <Atualizado em={dataUpdatedAt} buscando={isFetching && !isLoading} fonte={isMobile ? 12 : FS.meta} /> : undefined}
             acoes={(
               <Link href={GRAFICA_EM_IMPRESSAO} data-testid="link-grafica-em-impressao" className="mq-acao" title='Abrir a fila da Gráfica já filtrada em "Em Impressão"' style={botaoNeutro}>
-                Em impressão na Gráfica <ArrowRight aria-hidden="true" className="mq-seta" style={{ width: 12, height: 12, color: T.accentText }} />
+                Em impressão na Gráfica <ArrowRight aria-hidden="true" className="maq-seta" style={{ width: 12, height: 12, color: T.accentText }} />
               </Link>
             )}
           />
@@ -614,7 +615,7 @@ export default function GraficaMaquinas() {
                         descricao="Quando a Revisão Final liberar, elas aparecem aqui para você reservar uma impressora."
                         acao={(
                           <Link href={GRAFICA_LIBERADOS} className="mq-acao" data-testid="link-fila-ver-na-grafica" style={botaoNeutro}>
-                            Ver na Gráfica <ArrowRight aria-hidden="true" className="mq-seta" style={{ width: 12, height: 12, color: T.accentText }} />
+                            Ver na Gráfica <ArrowRight aria-hidden="true" className="maq-seta" style={{ width: 12, height: 12, color: T.accentText }} />
                           </Link>
                         )}
                       />

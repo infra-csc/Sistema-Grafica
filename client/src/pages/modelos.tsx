@@ -28,17 +28,22 @@ import type { ModeloComUso } from "@shared/api";
 // já diz a dimensão ("Grupo", "Tipo"…) enquanto está vazio — igual a Usuários
 // e Logs.
 function SearchableSelect({
-  label, placeholder, value, options, onChange, testId, counts,
+  label, placeholder, value, options, onChange, testId, counts, cheio = false, altura = 40,
 }: {
   label: string; placeholder: string; value: string;
   options: string[]; onChange: (v: string) => void; testId?: string;
   counts?: Record<string, number>;
+  /** No celular os quatro filtros viram uma grade 2×2 — cada um ocupa a célula. */
+  cheio?: boolean;
+  /** 40 no mouse, 44 no dedo: a mesma altura da busca ao lado. */
+  altura?: number;
 }) {
   return (
     <FilterSelect
       label={label}
       allLabel={placeholder}
       hideWhenEmpty={false}
+      fullWidth={cheio}
       value={value === "" ? "all" : value}
       onChange={v => onChange(v === "all" ? "" : v)}
       options={options.map(o => ({ value: o, label: o, count: counts?.[o] }))}
@@ -47,7 +52,7 @@ function SearchableSelect({
       panelWidth={220}
       testId={testId}
       triggerStyle={{
-        height: 40, padding: "0 12px", fontSize: FS.meta, fontWeight: FW.forte, color: T.second,
+        height: altura, padding: "0 12px", fontSize: FS.meta, fontWeight: FW.forte, color: T.second,
         backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.md,
       }}
     />
@@ -142,6 +147,104 @@ function ChipSangria({ s, testId }: { s: Sangria; testId: string }) {
   );
 }
 
+/** VIS (peça montada) e ARQ (arquivo de impressão) — a sigla da linha de medida. */
+function Sigla({ arq = false }: { arq?: boolean }) {
+  // T.apoio sobre o n3: o n7 ficaria em 4,38:1.
+  return (
+    <span style={{ display: "inline-block", minWidth: 30, textAlign: "center", fontSize: FS.micro, fontWeight: FW.forte, letterSpacing: "0.06em", borderRadius: R.sm, padding: "1px 5px", color: arq ? TOM.alerta.text : T.apoio, backgroundColor: arq ? TOM.alerta.bg : N.n3 }}>
+      {arq ? "ARQ" : "VIS"}
+    </span>
+  );
+}
+
+function SeloDoTipo({ tipo }: { tipo: string }) {
+  const p = tipoPillStyle(tipo);
+  return <Selo tamanho="sm" cores={{ bg: p.backgroundColor, text: p.color, border: p.backgroundColor }}>{tipo}</Selo>;
+}
+
+/**
+ * AS MEDIDAS DE UM MODELO — na tabela e no cartão, um desenho só: a linha VIS,
+ * a linha ARQ com o selo da sangria, ou o selo "Variável".
+ */
+function MedidasDoModelo({ item }: { item: ModeloComUso }) {
+  if (item.hasVariableMeasurement) return <Selo tom="info" tamanho="sm" icone={Ruler}>Variável</Selo>;
+  if (!(item.area || item.visual || item.fileWidth || item.fileHeight)) return <span style={{ fontSize: FS.body, color: T.second }}>—</span>;
+  const numero: React.CSSProperties = { fontSize: FS.body, fontWeight: FW.medio, fontFamily: FONT.mono, fontVariantNumeric: "tabular-nums" };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {(item.area || item.visual) && (
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <Sigla />
+          <span style={{ ...numero, color: T.text }}>{item.area ?? "—"} × {item.visual ?? "—"}m</span>
+        </div>
+      )}
+      {(item.fileWidth || item.fileHeight) && (
+        <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+          <Sigla arq />
+          <span style={{ ...numero, color: T.apoio }}>{item.fileWidth ?? "—"} × {item.fileHeight ?? "—"}m</span>
+          {/* A sangria, calculada — e o arquivo menor, denunciado. */}
+          {(() => {
+            const s = sangriaDe(item.area, item.visual, item.fileWidth, item.fileHeight);
+            return s ? <ChipSangria s={s} testId={`chip-sangria-${item.id}`} /> : null;
+          })()}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * USO — quantas peças usam este modelo. Duas medidas, rotuladas de forma
+ * diferente de propósito: "N peças" é vínculo gravado (criadas a partir);
+ * "~N compatíveis" é peça antiga sem vínculo que bate tipo, material e
+ * medidas — compatibilidade, não origem. A tela não promete o que não sabe.
+ * "sem uso" passa a ser TEXTO discreto, não selo: com o catálogo novo, uma
+ * coluna inteira de pílulas cinza iguais era ruído que competia com as medidas.
+ */
+function UsoDoModelo({ item, emLinha = false }: { item: ModeloComUso; emLinha?: boolean }) {
+  const uso = item.uso ?? { exato: 0, compativel: 0, ultimaEm: null };
+  const nenhum = uso.exato === 0 && uso.compativel === 0;
+  return (
+    <div data-testid={`cell-uso-${item.id}`} style={{ display: "flex", flexDirection: emLinha ? "row" : "column", alignItems: emLinha ? "center" : "flex-start", flexWrap: "wrap", gap: emLinha ? "4px 10px" : 3 }}>
+      {uso.exato > 0 ? (
+        // TOM.ceu: texto sobre o próprio fundo em 5,9:1.
+        <Selo tom="ceu" forma="retangulo" title={`${uso.exato} ${uso.exato === 1 ? 'peça já foi criada' : 'peças já foram criadas'} a partir deste modelo; excluí-lo não altera nenhuma delas`}
+          style={{ fontFamily: FONT.mono }}>
+          {uso.exato} {uso.exato === 1 ? 'peça' : 'peças'}
+        </Selo>
+      ) : nenhum ? (
+        <span title="Nenhuma peça foi criada a partir deste modelo — excluir não afeta nada"
+          style={{ fontSize: FS.small, fontWeight: FW.medio, color: T.second }}>
+          sem uso
+        </span>
+      ) : null}
+      {uso.compativel > 0 && (
+        <span title={`${uso.compativel} ${uso.compativel === 1 ? 'peça antiga' : 'peças antigas'} com o mesmo tipo, material e medidas — criadas antes de o vínculo existir. Compatibilidade, não origem.`} style={{ fontSize: FS.small, color: T.second, fontFamily: FONT.mono }}>
+          ~{uso.compativel} compat.
+        </span>
+      )}
+      {uso.ultimaEm && (
+        <span style={{ fontSize: FS.small, color: T.second }}>última em {new Date(uso.ultimaEm).toLocaleDateString("pt-BR")}</span>
+      )}
+    </div>
+  );
+}
+
+/** Título de seção da lista: o Grupo Pai e quantos modelos do recorte estão nele. */
+function CabecaDaSecao({ grupo, total, cartao = false }: { grupo: string; total: number; cartao?: boolean }) {
+  return (
+    <div className="mod-secao" style={{ display: "flex", alignItems: "center", gap: 8, padding: cartao ? "14px 16px 8px" : "14px 20px 8px", backgroundColor: T.surface, borderBottom: `1px solid ${N.n3}` }}>
+      <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", flexShrink: 0, backgroundColor: grupo ? TOM.ceu.dot : T.muted }} />
+      <span style={{ fontSize: FS.small, fontWeight: FW.rotulo, letterSpacing: "0.08em", textTransform: "uppercase", color: grupo ? TOM.ceu.text : T.second }}>
+        {grupo || "Sem grupo pai"}
+      </span>
+      <span style={{ fontSize: FS.small, fontWeight: FW.medio, color: T.second, fontFamily: FONT.mono }}>
+        {total}<span className="sr-only"> {total === 1 ? "modelo" : "modelos"}</span>
+      </span>
+    </div>
+  );
+}
+
 /** O corpo de POST/PATCH /api/standard-items: o formulário com os opcionais vazios como null. */
 type CorpoDoModelo = Omit<typeof EMPTY_FORM, "group" | "material" | "finish" | "area" | "visual" | "visualWidth" | "visualHeight" | "fileWidth" | "fileHeight"> & {
   group: string | null;
@@ -170,6 +273,9 @@ const EMPTY_FORM = {
   hasVariableMeasurement: false,
 };
 
+// O que sobra no modelo quando a categoria é removida (texto da confirmação).
+const SEM_ROTULO: Record<string, string> = { group: "sem grupo pai", material: "sem material", finish: "sem acabamento" };
+
 /* pill color by tipo */
 function tipoPillStyle(type: string) {
   const orange = ["Palco", "Stand", "Arena"];
@@ -186,8 +292,10 @@ function tipoPillStyle(type: string) {
 function CatRow({ name, count, accentColor, accentBg,
   isEditing, editValue, onEditChange, onEditConfirm, onEditCancel, isPendingRename,
   isDeleting, onDeleteConfirm, onDeleteCancel, isPendingDelete,
-  onStartEdit, onStartDelete, toque = 32,
+  onStartEdit, onStartDelete, toque = 32, semRotulo,
 }: {
+  /** O que sobra no modelo depois da remoção: "sem grupo pai", "sem material"… */
+  semRotulo: string;
   name: string; count: number; accentColor: string; accentBg: string;
   isEditing: boolean; editValue: string; onEditChange: (v: string) => void;
   onEditConfirm: () => void; onEditCancel: () => void; isPendingRename: boolean;
@@ -200,16 +308,17 @@ function CatRow({ name, count, accentColor, accentBg,
   // Botão só de ícone: quadrado, com o alvo inteiro clicável.
   const soIcone: React.CSSProperties = { width: toque, padding: 0, flexShrink: 0 };
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderRadius: R.lg, backgroundColor: isDeleting ? TOM.perigo.bg : T.bg, border: `1px solid ${isDeleting ? TOM.perigo.border : N.n3}`, transition: "all 0.15s" }}>
+    <div role="listitem" className="mod-cat-linha" style={{ display: "flex", alignItems: "center", flexWrap: isDeleting ? "wrap" : "nowrap", gap: 10, padding: "9px 10px 9px 14px", minHeight: toque + 18, backgroundColor: isDeleting ? TOM.perigo.bg : isEditing ? T.bg : T.surface, borderBottom: `1px solid ${N.n3}`, transition: "background-color 0.15s" }}>
       {/* Dot */}
-      <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: accentColor, flexShrink: 0, opacity: isDeleting ? 0.4 : 1 }} />
+      <div aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: accentColor, flexShrink: 0, opacity: isDeleting ? 0.4 : 1 }} />
 
       {isEditing ? (
         <>
           <input autoFocus value={editValue} onChange={e => onEditChange(e.target.value)}
             aria-label={`Novo nome para "${name}"`}
             onKeyDown={e => { if (e.key === "Enter") onEditConfirm(); if (e.key === "Escape") onEditCancel(); }}
-            style={{ flex: 1, minWidth: 0, fontSize: toque >= 44 ? FS.lead : FS.body, fontWeight: FW.medio, borderRadius: R.md, padding: "5px 10px", border: `1.5px solid ${accentColor}`, color: T.text, background: accentBg }}
+            className="mod-campo"
+            style={{ flex: 1, minWidth: 0, height: toque, fontSize: toque >= 44 ? FS.lead : FS.body, fontWeight: FW.medio, borderRadius: R.md, padding: "0 10px", border: `1px solid ${T.bdark}`, color: T.text, background: T.surface }}
           />
           {/* O confirmar mantém a cor da aba: é o que amarra a linha à categoria. */}
           <Botao variante="primario" tamanho={tamanho} icone={Check} onClick={onEditConfirm} carregando={isPendingRename}
@@ -219,10 +328,14 @@ function CatRow({ name, count, accentColor, accentBg,
         </>
       ) : isDeleting ? (
         <>
-          <div style={{ flex: 1 }}>
-            <span style={{ fontSize: FS.body, fontWeight: FW.medio, color: TOM.perigo.text }}>Remover </span>
-            <span style={{ fontSize: FS.body, fontWeight: FW.rotulo, color: TOM.perigo.text }}>"{name}"</span>
-            <span style={{ fontSize: FS.body, color: TOM.perigo.text }}> de {count} {count === 1 ? "modelo" : "modelos"}?</span>
+          {/* O EFEITO, dito: "remover de 4 modelos" não dizia o que sobra
+              neles. Remover limpa o campo em cada modelo e tira a opção do
+              catálogo (as duas etapas do onDeleteConfirm). */}
+          <div style={{ flex: "1 1 200px", minWidth: 0, fontSize: FS.body, lineHeight: 1.4, color: TOM.perigo.text }}>
+            <span style={{ fontWeight: FW.rotulo }}>Remover “{name}”?</span>{" "}
+            <span style={{ fontSize: FS.meta }}>
+              {count === 0 ? "Nenhum modelo usa." : `${count === 1 ? "O modelo que usa fica" : `Os ${count} modelos que usam ficam`} ${semRotulo}.`}
+            </span>
           </div>
           <Botao variante="perigo" tamanho={tamanho} onClick={onDeleteConfirm} carregando={isPendingDelete} style={{ flexShrink: 0 }}>
             {isPendingDelete ? "Removendo..." : "Remover"}
@@ -236,7 +349,7 @@ function CatRow({ name, count, accentColor, accentBg,
           <span style={{ flex: 1, fontSize: FS.body, fontWeight: FW.medio, color: T.text }}>{name}</span>
           {/* T.apoio, e não T.second: sobre o n3 o n7 fica em 4,38:1. */}
           <span style={{ fontSize: FS.small, fontWeight: FW.medio, color: T.apoio, backgroundColor: N.n3, borderRadius: R.sm, padding: "2px 8px", marginRight: 2 }}>
-            {count} {count === 1 ? "modelo" : "modelos"}
+            {count === 0 ? "sem uso" : `${count} ${count === 1 ? "modelo" : "modelos"}`}
           </span>
           <Botao variante="fantasma" tamanho={tamanho} icone={Pencil} onClick={onStartEdit}
             title={`Renomear "${name}"`} aria-label={`Renomear "${name}"`} style={soIcone} />
@@ -304,6 +417,9 @@ export default function Modelos() {
   // arquivo e exige ser VISTO — não bloqueia o salvamento (há recorte
   // legítimo), mas o botão só libera depois que a pessoa marca que entendeu.
   const [arqTocado, setArqTocado] = useState(false);
+  // Nome vazio no envio: a mensagem da casa no lugar do balão do navegador.
+  const [nomeFaltando, setNomeFaltando] = useState(false);
+  useEffect(() => { if (!open) setNomeFaltando(false); }, [open]);
   const [cienteDoCorte, setCienteDoCorte] = useState(false);
   // Manage modal
   const [manageOpen, setManageOpen] = useState(false);
@@ -648,6 +764,10 @@ export default function Modelos() {
     const matchFinish = !filterFinish   || item.finish   === filterFinish;
     return matchSearch && matchGroup && matchType && matchMat && matchFinish;
   }).sort((a, b) => {
+    // Os SEM grupo pai vão para o fim: a lista agora é desenhada em seções
+    // por grupo, e "Sem grupo pai" abrindo a tabela empurrava os grupos de
+    // verdade para baixo. Só ordem de exibição — o filtro é o mesmo.
+    if (!a.group !== !b.group) return a.group ? -1 : 1;
     const ga = (a.group || "").localeCompare(b.group || "", "pt-BR");
     if (ga !== 0) return ga;
     return a.name.localeCompare(b.name, "pt-BR");
@@ -680,24 +800,82 @@ export default function Modelos() {
   const safePage = Math.min(page, totalPages);
   const paginatedItems = filteredItems.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
+  // A página atual em SEÇÕES por Grupo Pai (a ordem já vem por grupo). A
+  // contagem do título é a do RECORTE inteiro, não só desta página.
+  const secoes = paginatedItems.reduce<{ grupo: string; itens: ModeloComUso[] }[]>((acc, item) => {
+    const g = item.group || "";
+    const ultima = acc[acc.length - 1];
+    if (ultima && ultima.grupo === g) ultima.itens.push(item);
+    else acc.push({ grupo: g, itens: [item] });
+    return acc;
+  }, []);
+  const totalNoGrupo = (g: string) => filteredItems.filter(i => (i.group || "") === g).length;
+
+  // As três ações da linha, uma vez só: a tabela e o cartão usam as mesmas.
+  const acoesDe = (item: ModeloComUso) => (
+    <>
+      <HoverIconBtn
+        icon={<Pencil style={{ width: 16, height: 16 }} />}
+        onClick={() => handleEdit(item)}
+        testId={`button-edit-model-${item.id}`}
+        title="Editar modelo"
+        ariaLabel={`Editar modelo ${item.name}`}
+        tamanho={toque}
+      />
+      <HoverIconBtn
+        icon={<Copy style={{ width: 16, height: 16 }} />}
+        onClick={() => handleDuplicate(item)}
+        testId={`button-duplicate-model-${item.id}`}
+        title="Duplicar modelo"
+        ariaLabel={`Duplicar modelo ${item.name}`}
+        tamanho={toque}
+      />
+      <HoverIconBtn
+        icon={<Trash2 style={{ width: 16, height: 16 }} />}
+        onClick={() => setDeleteConfirm(item)}
+        testId={`button-delete-model-${item.id}`}
+        title="Excluir modelo"
+        ariaLabel={`Excluir modelo ${item.name}`}
+        tamanho={toque}
+        perigo
+      />
+    </>
+  );
+
   // Opções do combobox de Tipo: catálogo fixo + valores já usados nos modelos
   // (fim do palco/Palco/PALCO — quem digita escolhe um valor existente).
   const allTypeOptions = Array.from(new Set([...itemTypes, ...allTypes])).sort((a, b) => a.localeCompare(b, "pt-BR"));
 
-  // "Limpar" do campo: fantasma, colado embaixo do seletor.
-  const LIMPAR_CAMPO: React.CSSProperties = { marginTop: 4, padding: "0 6px" };
   /* ── shared field style ── */
   const fieldStyle: React.CSSProperties = {
-    width: "100%", padding: "11px 14px", backgroundColor: N.n3,
+    // Altura ÚNICA de 44: campo de texto e seletor com selo dentro tinham
+    // 41 e 46px lado a lado — o topo alinhava e o pé não.
+    width: "100%", minHeight: 44, padding: "10px 14px", backgroundColor: N.n3,
     // Raio 8 (R.md), o dos campos de Usuários e Patrocinadores — era 12.
     // 16px no celular: abaixo disso o iOS dá zoom ao focar o campo.
     border: "none", borderRadius: R.md, fontSize: isMobile ? FS.lead : FS.body, color: T.text,
-    fontFamily: FONT.display,
+    fontFamily: FONT.corpo,
   };
+  // Seletor: texto à esquerda, chevron à direita; com valor, sobra lugar para o ×.
+  const gatilhoStyle = (comValor: boolean): React.CSSProperties => ({
+    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, cursor: "pointer",
+    textAlign: "left", color: comValor ? T.text : T.second, paddingRight: comValor ? toque + 12 : 14, minWidth: 0,
+  });
+  // Números das medidas em mono tabular: as casas decimais alinham na vertical.
+  const numeroStyle: React.CSSProperties = { fontFamily: FONT.mono, fontVariantNumeric: "tabular-nums" };
   const labelStyle: React.CSSProperties = {
     display: "block", fontSize: FS.micro, fontWeight: FW.forte, color: T.second,
-    textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, marginLeft: 2,
+    textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 7, marginLeft: 2,
   };
+  const opcionalStyle: React.CSSProperties = { fontWeight: FW.corpo, color: T.second, textTransform: "none", letterSpacing: 0 };
+  // T.apoio sobre o branco do modal = 7,6:1.
+  const ajudaStyle: React.CSSProperties = { margin: "6px 2px 0", fontSize: FS.small, lineHeight: 1.45, color: T.apoio };
+  // Seções do formulário: um fio em cima e o título em caixa normal — o
+  // rótulo de campo continua em caixa alta, e as duas camadas não se confundem.
+  const secaoStyle: React.CSSProperties = { borderTop: `1px solid ${T.border}`, paddingTop: 16 };
+  const tituloSecaoStyle: React.CSSProperties = { margin: "0 0 14px", fontSize: FS.read, fontWeight: FW.forte, color: T.text, fontFamily: FONT.display, letterSpacing: "-0.01em" };
+  const colunaStyle: React.CSSProperties = { fontSize: FS.micro, fontWeight: FW.forte, color: T.second, textTransform: "uppercase", letterSpacing: "0.08em", paddingLeft: 2 };
+  const linhaMedidaStyle: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, fontSize: FS.meta, lineHeight: 1.35 };
 
   return (
     <div ref={raizRef} className="modelos-page" style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "16px 16px 48px" : "28px 32px 64px" }}>
@@ -756,24 +934,30 @@ export default function Modelos() {
               value={searchTerm}
               onChange={(e) => atualizar({ busca: e.target.value, pagina: 1 })}
               data-testid="input-search-models"
-              style={{ width: "100%", height: toque >= 44 ? 44 : 40, padding: "0 12px 0 36px", backgroundColor: N.n3, border: "none", borderRadius: R.md, fontSize: isMobile ? FS.lead : FS.body, color: T.text, transition: "background-color 0.15s ease, box-shadow 0.15s ease" }}
-              onFocus={e => { e.currentTarget.style.backgroundColor = T.surface; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
-              onBlur={e => { e.currentTarget.style.backgroundColor = N.n3; e.currentTarget.style.boxShadow = "none"; }}
+              className="mod-campo"
+              style={{ width: "100%", height: toque >= 44 ? 44 : 40, padding: "0 12px 0 36px", backgroundColor: N.n3, border: "none", borderRadius: R.md, fontSize: isMobile ? FS.lead : FS.body, color: T.text }}
             />
           </div>
 
+          {/* NO CELULAR, UMA GRADE 2×2. Soltos, os quatro gatilhos quebravam
+              em duas linhas tortas (três e um), com o "Acabamento" sozinho
+              embaixo. Na grade cada filtro ocupa a sua célula, alinhado. */}
+          <div className="mod-filtros" style={isMobile
+            ? { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, flex: "1 1 100%" }
+            : { display: "contents" }}>
           {allGroups.length > 0 && (
-            <SearchableSelect label="Grupo" placeholder="Todos os grupos" value={filterGroup} options={allGroups} counts={groupCounts} onChange={v => atualizar({ grupo: v, pagina: 1 })} testId="filter-group-select" />
+            <SearchableSelect label="Grupo" placeholder="Todos os grupos" value={filterGroup} options={allGroups} counts={groupCounts} onChange={v => atualizar({ grupo: v, pagina: 1 })} testId="filter-group-select" cheio={isMobile} altura={toque >= 44 ? 44 : 40} />
           )}
           {allTypes.length > 0 && (
-            <SearchableSelect label="Tipo" placeholder="Todos os tipos" value={filterType} options={allTypes} counts={typeCounts} onChange={v => atualizar({ tipo: v, pagina: 1 })} testId="filter-type-select" />
+            <SearchableSelect label="Tipo" placeholder="Todos os tipos" value={filterType} options={allTypes} counts={typeCounts} onChange={v => atualizar({ tipo: v, pagina: 1 })} testId="filter-type-select" cheio={isMobile} altura={toque >= 44 ? 44 : 40} />
           )}
           {allMats.length > 0 && (
-            <SearchableSelect label="Material" placeholder="Todos os materiais" value={filterMaterial} options={allMats} counts={materialCounts} onChange={v => atualizar({ material: v, pagina: 1 })} testId="filter-material-select" />
+            <SearchableSelect label="Material" placeholder="Todos os materiais" value={filterMaterial} options={allMats} counts={materialCounts} onChange={v => atualizar({ material: v, pagina: 1 })} testId="filter-material-select" cheio={isMobile} altura={toque >= 44 ? 44 : 40} />
           )}
           {allFinishes.length > 0 && (
-            <SearchableSelect label="Acabamento" placeholder="Todos os acabamentos" value={filterFinish} options={allFinishes} counts={finishCounts} onChange={v => atualizar({ acabamento: v, pagina: 1 })} testId="filter-finish-select" />
+            <SearchableSelect label="Acabamento" placeholder="Todos os acabamentos" value={filterFinish} options={allFinishes} counts={finishCounts} onChange={v => atualizar({ acabamento: v, pagina: 1 })} testId="filter-finish-select" cheio={isMobile} altura={toque >= 44 ? 44 : 40} />
           )}
+          </div>
 
           {/* Limpar — o mesmo "Limpar (N)" das outras telas, e agora conta e
               desfaz a busca também (antes a busca ficava para trás). */}
@@ -814,40 +998,37 @@ export default function Modelos() {
       ) : standardItems.length === 0 ? (
         <EstadoVazio
           icone={Layers}
-          titulo="Nenhum modelo criado"
-          descricao="Crie modelos para reutilizar configurações de itens"
+          titulo="O catálogo ainda está vazio"
+          descricao="Cadastre as peças padrão — pórtico, palco, backdrop — com medidas, material e acabamento. Ao adicionar peça no evento, o modelo preenche tudo."
           acao={
             <Botao variante="primario" icone={Plus} onClick={openCreate}>
-              Criar Primeiro Modelo
+              Criar o primeiro modelo
             </Botao>
           }
         />
       ) : (
-        <div style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, overflow: "hidden" }}>
+        <div className="mod-catalogo" style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, overflow: "hidden" }}>
 
-          {/* Tool strip */}
-          <div style={{ padding: apertado ? "12px 16px" : "14px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: T.surface, borderBottom: `1px solid ${T.border}` }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <div aria-hidden="true" style={{ width: 36, height: 36, borderRadius: R.md, backgroundColor: TOM.laranja.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Layers style={{ width: 18, height: 18, color: T.accent }} />
-              </div>
-              <div>
-                <span style={{ fontSize: FS.body, fontWeight: FW.forte, color: T.text, display: "block" }}>
-                  {filteredItems.length} modelo{filteredItems.length !== 1 ? "s" : ""}
-                  {/* "filtrado de" valia só para a busca: com um filtro de
-                      Grupo ativo, "3 modelos · Total no Catálogo" lia como se
-                      o catálogo inteiro tivesse 3. */}
-                  {(searchTerm || activeFilters > 0) && <span style={{ color: T.second, fontWeight: 400 }}> — filtrado de {standardItems.length}</span>}
-                </span>
-                <span style={{ fontSize: FS.micro, fontWeight: FW.forte, color: T.second, textTransform: "uppercase", letterSpacing: "0.08em" }}>{searchTerm || activeFilters > 0 ? "Recorte atual" : "Total no Catálogo"}</span>
-              </div>
-            </div>
+          {/* FAIXA DO RECORTE. Era um bloco com ícone laranja de 36px e o
+              rótulo "TOTAL NO CATÁLOGO" — repetia o subtítulo do cabeçalho
+              com mais peso do que ele. Agora é uma linha: quantos estão à
+              vista (e de quantos) e, à direita, a legenda das siglas VIS e
+              ARQ, que a coluna Medidas usava sem explicar. */}
+          <div style={{ padding: apertado ? "12px 16px" : "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px 16px", flexWrap: "wrap", borderBottom: `1px solid ${T.border}` }}>
+            <p data-testid="modelos-recorte" style={{ margin: 0, fontSize: FS.body, fontWeight: FW.forte, color: T.text }}>
+              {filteredItems.length} modelo{filteredItems.length !== 1 ? "s" : ""}
+              {/* "filtrado de" vale para busca E filtro: com um Grupo ativo,
+                  "3 modelos" sozinho lia como se o catálogo tivesse 3. */}
+              {(searchTerm || activeFilters > 0) && <span style={{ color: T.second, fontWeight: FW.corpo }}> — filtrado de {standardItems.length}</span>}
+            </p>
+            <p aria-label="Legenda das medidas" style={{ margin: 0, display: "flex", alignItems: "center", gap: "4px 14px", flexWrap: "wrap", fontSize: FS.small, color: T.second }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Sigla /> peça montada</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Sigla arq /> arquivo de impressão, com a sangria</span>
+            </p>
           </div>
 
           {filteredItems.length === 0 ? (
-            // Uma saída só: antes havia "Limpar busca" lá no topo do card e
-            // "Limpar filtros" aqui, cada um desfazendo metade do recorte — e
-            // nenhum voltava a paginação para a página 1.
+            // Uma saída só: desfaz busca e filtros e volta à página 1.
             <div style={{ padding: 16 }}>
               <EstadoVazio
                 compacto
@@ -865,184 +1046,114 @@ export default function Modelos() {
                 }
               />
             </div>
+          ) : apertado ? (
+            /* CARTÃO POR MODELO abaixo de 820px de área útil. A tabela no
+               celular virava rolagem lateral: o nome à vista e as medidas, o
+               uso e as AÇÕES fora da tela. No cartão tudo cabe em três linhas
+               — o que é, as medidas, o uso e o que fazer. */
+            <div data-testid="lista-modelos-cards">
+              {secoes.map(s => (
+                <section key={s.grupo || "__sem__"} aria-label={s.grupo ? `Grupo ${s.grupo}` : "Sem grupo pai"}>
+                  <CabecaDaSecao grupo={s.grupo} total={totalNoGrupo(s.grupo)} cartao />
+                  <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                    {s.itens.map(item => (
+                      <li key={item.id} data-testid={`row-model-${item.id}`} className="mod-cartao"
+                        style={{ padding: "14px 16px", borderBottom: `1px solid ${N.n3}`, display: "flex", flexDirection: "column", gap: 10 }}>
+                        <div style={{ minWidth: 0 }}>
+                          <span style={{ display: "block", fontSize: FS.read, fontWeight: FW.forte, color: T.text, lineHeight: 1.3, overflowWrap: "anywhere" }}>{item.name}</span>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
+                            {item.type && <SeloDoTipo tipo={item.type} />}
+                            {(item.material || item.finish) && (
+                              <span style={{ fontSize: FS.meta, color: T.apoio }}>
+                                {[item.material, item.finish].filter(Boolean).join(" · ")}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <MedidasDoModelo item={item} />
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                          <UsoDoModelo item={item} emLinha />
+                          <div style={{ display: "flex", gap: 2, flexShrink: 0, marginRight: -8 }}>{acoesDe(item)}</div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
           ) : (
             <div className="scrollbar-visible" style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              {/* SEÇÕES POR GRUPO PAI. A lista já vinha ordenada por grupo e
+                  repetia o mesmo selo azul em cada linha; agora o grupo é o
+                  título da seção (com quantos modelos tem) e a coluna saiu —
+                  sobra largura para as Medidas e as Ações cabem sem rolar. */}
+              <table className="mod-tabela" style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ backgroundColor: T.low, borderBottom: `1px solid ${T.border}` }}>
-                    {["Nome", "Grupo", "Tipo", "Medidas", "Uso", "Material", "Acabamento", "Ações"].map(col => (
+                    {["Modelo", "Tipo", "Medidas", "Material · Acabamento", "Uso", "Ações"].map((col, i) => (
                       <th key={col} scope="col" style={{
-                        padding: "12px 24px",
+                        padding: i === 0 ? "11px 16px 11px 20px" : "11px 16px",
                         textAlign: col === "Ações" ? "right" : "left",
                         fontSize: FS.micro, fontWeight: FW.rotulo, color: T.second,
-                        textTransform: "uppercase", letterSpacing: "0.16em", whiteSpace: "nowrap",
+                        textTransform: "uppercase", letterSpacing: "0.14em", whiteSpace: "nowrap",
                       }}>
                         {col}
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody style={{ borderTop: "none" }}>
-                  {paginatedItems.map((item) => {
-                    const pillStyle = tipoPillStyle(item.type || "");
-                    // O realce de hover vem da classe (linha-modelo, no <style>
-                    // da página): o par onMouseEnter/Leave que trocava a cor
-                    // re-renderizava a tabela a cada linha.
-                    return (
+                {secoes.map(s => (
+                  <tbody key={s.grupo || "__sem__"}>
+                    <tr>
+                      <th colSpan={6} scope="colgroup" style={{ padding: 0, textAlign: "left", fontWeight: "inherit" }}>
+                        <CabecaDaSecao grupo={s.grupo} total={totalNoGrupo(s.grupo)} />
+                      </th>
+                    </tr>
+                    {s.itens.map((item) => (
+                      // Realce de hover pela classe (linha-modelo), não por handler.
                       <tr
                         key={item.id}
                         data-testid={`row-model-${item.id}`}
                         className="linha-modelo"
                         style={{ borderBottom: `1px solid ${N.n3}`, transition: "background-color 0.1s" }}
                       >
-                        {/* Nome */}
-                        <td style={{ padding: "18px 24px", minWidth: 200 }}>
-                          <span style={{ fontSize: FS.body, fontWeight: FW.forte, color: T.text, display: "block" }}>{item.name}</span>
+                        <td style={{ padding: "14px 16px 14px 20px", minWidth: 180 }}>
+                          <span style={{ fontSize: FS.body, fontWeight: FW.forte, color: T.text, display: "block", lineHeight: 1.35 }}>{item.name}</span>
                           {item.hasVariableMeasurement && (
-                            <span style={{ fontSize: FS.micro, color: T.second, marginTop: 2, display: "block" }}>Medida variável</span>
+                            <span style={{ fontSize: FS.small, color: T.second, marginTop: 2, display: "block" }}>Medida variável</span>
                           )}
                         </td>
-
-                        {/* Grupo */}
-                        <td style={{ padding: "18px 24px", whiteSpace: "nowrap" }}>
-                          {item.group ? (
-                            <Selo tom="ceu" tamanho="sm">{item.group}</Selo>
+                        <td style={{ padding: "14px 16px" }}>
+                          {item.type ? <SeloDoTipo tipo={item.type} /> : <span style={{ color: T.second, fontSize: FS.body }}>—</span>}
+                        </td>
+                        <td style={{ padding: "14px 16px", whiteSpace: "nowrap" }}>
+                          <MedidasDoModelo item={item} />
+                        </td>
+                        <td style={{ padding: "14px 16px", minWidth: 130 }}>
+                          {item.material || item.finish ? (
+                            <>
+                              <span style={{ display: "block", fontSize: FS.body, color: item.material ? T.strong : T.second, lineHeight: 1.35 }}>{item.material || "—"}</span>
+                              <span style={{ display: "block", fontSize: FS.small, color: T.second, marginTop: 2 }}>{item.finish || "sem acabamento"}</span>
+                            </>
                           ) : <span style={{ color: T.second, fontSize: FS.body }}>—</span>}
                         </td>
-
-                        {/* Tipo */}
-                        <td style={{ padding: "18px 24px" }}>
-                          {item.type ? (
-                            <Selo tamanho="sm" cores={{ bg: pillStyle.backgroundColor, text: pillStyle.color, border: pillStyle.backgroundColor }}>
-                              {item.type}
-                            </Selo>
-                          ) : <span style={{ color: T.second, fontSize: FS.body }}>—</span>}
+                        <td style={{ padding: "14px 16px", whiteSpace: "nowrap" }}>
+                          <UsoDoModelo item={item} />
                         </td>
-
-                        {/* Medidas */}
-                        <td style={{ padding: "18px 24px", whiteSpace: "nowrap" }}>
-                          {item.hasVariableMeasurement ? (
-                            <Selo tom="info" tamanho="sm" icone={Ruler}>Variável</Selo>
-                          ) : (item.area || item.visual || item.fileWidth || item.fileHeight) ? (
-                            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                              {(item.area || item.visual) && (
-                                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                  {/* T.apoio sobre o n3: o n7 ficaria em 4,38:1. */}
-                                  <span style={{ fontSize: FS.micro, fontWeight: FW.forte, color: T.apoio, backgroundColor: N.n3, borderRadius: R.sm, padding: "1px 5px", letterSpacing: "0.06em" }}>VIS</span>
-                                  <span style={{ fontSize: FS.body, fontWeight: FW.medio, color: T.text, fontFamily: FONT.mono }}>
-                                    {item.area ?? "—"} × {item.visual ?? "—"}m
-                                  </span>
-                                </div>
-                              )}
-                              {(item.fileWidth || item.fileHeight) && (
-                                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                  <span style={{ fontSize: FS.micro, fontWeight: FW.forte, color: TOM.alerta.text, backgroundColor: TOM.alerta.bg, borderRadius: R.sm, padding: "1px 5px", letterSpacing: "0.06em" }}>ARQ</span>
-                                  <span style={{ fontSize: FS.body, fontWeight: FW.medio, color: T.apoio, fontFamily: FONT.mono }}>
-                                    {item.fileWidth ?? "—"} × {item.fileHeight ?? "—"}m
-                                  </span>
-                                  {/* A sangria, calculada — e o arquivo menor, denunciado. */}
-                                  {(() => {
-                                    const s = sangriaDe(item.area, item.visual, item.fileWidth, item.fileHeight);
-                                    return s ? <ChipSangria s={s} testId={`chip-sangria-${item.id}`} /> : null;
-                                  })()}
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <span style={{ fontSize: FS.body, color: T.second }}>—</span>
-                          )}
-                        </td>
-
-                        {/* Uso — quantas peças usam este modelo. Duas medidas,
-                            rotuladas de forma diferente de propósito: "N peças"
-                            é vínculo gravado (criadas a partir); "~N compatíveis"
-                            é peça antiga sem vínculo que bate tipo, material e
-                            medidas — compatibilidade, não origem. A tela não
-                            promete o que não sabe. TOM.ceu: texto sobre o
-                            próprio fundo em 5,9:1. */}
-                        <td style={{ padding: "18px 24px", whiteSpace: "nowrap" }} data-testid={`cell-uso-${item.id}`}>
-                          {(() => {
-                            const uso = item.uso ?? { exato: 0, compativel: 0, ultimaEm: null };
-                            const nenhum = uso.exato === 0 && uso.compativel === 0;
-                            return (
-                              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                                {uso.exato > 0 ? (
-                                  <Selo tom="ceu" forma="retangulo" title={`${uso.exato} ${uso.exato === 1 ? 'peça já foi criada' : 'peças já foram criadas'} a partir deste modelo; excluí-lo não altera nenhuma delas`}
-                                    style={{ alignSelf: "flex-start", fontFamily: FONT.mono }}>
-                                    {uso.exato} {uso.exato === 1 ? 'peça' : 'peças'}
-                                  </Selo>
-                                ) : nenhum ? (
-                                  // TOM.neutro, e não T.second sobre o n3: aquele par ficava em 4,38:1.
-                                  <Selo tom="neutro" forma="retangulo" title="Nenhuma peça foi criada a partir deste modelo — excluir não afeta nada"
-                                    style={{ alignSelf: "flex-start", fontWeight: FW.medio }}>
-                                    sem uso
-                                  </Selo>
-                                ) : null}
-                                {uso.compativel > 0 && (
-                                  <span title={`${uso.compativel} ${uso.compativel === 1 ? 'peça antiga' : 'peças antigas'} com o mesmo tipo, material e medidas — criadas antes de o vínculo existir. Compatibilidade, não origem.`} style={{ fontSize: FS.micro, color: T.second, fontFamily: FONT.mono }}>
-                                    ~{uso.compativel} compat.
-                                  </span>
-                                )}
-                                {uso.ultimaEm && (
-                                  <span style={{ fontSize: FS.micro, color: T.second }}>última em {new Date(uso.ultimaEm).toLocaleDateString("pt-BR")}</span>
-                                )}
-                              </div>
-                            );
-                          })()}
-                        </td>
-
-                        {/* Material */}
-                        <td style={{ padding: "18px 24px" }}>
-                          <span style={{ fontSize: FS.body, color: item.material ? T.apoio : T.second }}>
-                            {item.material || "—"}
-                          </span>
-                        </td>
-
-                        {/* Acabamento */}
-                        <td style={{ padding: "18px 24px" }}>
-                          <span style={{ fontSize: FS.body, color: item.finish ? T.apoio : T.second }}>
-                            {item.finish || "—"}
-                          </span>
-                        </td>
-
                         {/* Ações — o gate real de escrita é o requireRole
                             (solicitacao/admin) do servidor + o guard da rota */}
-                        <td style={{ padding: "18px 24px", textAlign: "right", whiteSpace: "nowrap" }}>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
-                            <HoverIconBtn
-                              icon={<Pencil style={{ width: 16, height: 16 }} />}
-                              onClick={() => handleEdit(item)}
-                              testId={`button-edit-model-${item.id}`}
-                              title="Editar modelo"
-                              ariaLabel={`Editar modelo ${item.name}`}
-                              tamanho={toque}
-                            />
-                            <HoverIconBtn
-                              icon={<Copy style={{ width: 16, height: 16 }} />}
-                              onClick={() => handleDuplicate(item)}
-                              testId={`button-duplicate-model-${item.id}`}
-                              title="Duplicar modelo"
-                              ariaLabel={`Duplicar modelo ${item.name}`}
-                              tamanho={toque}
-                            />
-                            <HoverIconBtn
-                              icon={<Trash2 style={{ width: 16, height: 16 }} />}
-                              onClick={() => setDeleteConfirm(item)}
-                              testId={`button-delete-model-${item.id}`}
-                              title="Excluir modelo"
-                              ariaLabel={`Excluir modelo ${item.name}`}
-                              tamanho={toque}
-                            />
+                        <td style={{ padding: "10px 12px 10px 8px", textAlign: "right", whiteSpace: "nowrap" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
+                            {acoesDe(item)}
                           </div>
                         </td>
                       </tr>
-                    );
-                  })}
-                </tbody>
+                    ))}
+                  </tbody>
+                ))}
               </table>
             </div>
           )}
-
           {/* Paginação */}
           {filteredItems.length > PAGE_SIZE && (
             <div style={{ padding: "10px 24px", borderTop: `1px solid ${T.border}`, backgroundColor: T.low, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
@@ -1060,7 +1171,7 @@ export default function Modelos() {
         {/* Casca da casa (`modalSurface` + ModalHeader + ModalFooter), a mesma
             dos cadastros de Usuários e Patrocinadores. Antes: teto de 90vh,
             raio próprio, sem X desenhado e salvar em laranja. */}
-        <DialogContent className={`p-0 gap-0 border-none ${HIDE_NATIVE_CLOSE}`} style={modalSurface(640)}>
+        <DialogContent className={`p-0 gap-0 border-none ${HIDE_NATIVE_CLOSE}`} style={modalSurface(680)}>
           {/* POR QUE congelar aqui: este é o modal com MAIS primitivas do Radix
               do app — 4 Popover + 4 Command (com CommandInput/List/Empty/Group
               e uma CommandItem por opção do catálogo), além do título e da
@@ -1080,272 +1191,301 @@ export default function Modelos() {
             icon={editingItem ? Pencil : duplicando ? Copy : Layers}
             tint={T.accentText}
             title={editingItem ? "Editar modelo de item" : duplicando ? "Duplicar modelo de item" : "Novo modelo de item"}
-            subtitle="Definição Técnica do Template"
+            subtitle={editingItem ? `Editando “${editingItem.name}”` : duplicando ? "Uma cópia do original — troque o nome e o que mudar" : "Definição Técnica do Template"}
             onClose={requestCloseDialog}
           />
 
-          {/* Body */}
+          {/* Body — TRÊS BLOCOS, na ordem em que se pensa a peça: o que ela é
+              (nome, tipo, grupo), quanto mede, de que é feita. Antes era uma
+              grade de duas colunas corrida, com o Grupo sozinho numa linha, o
+              interruptor solto e as quatro medidas em duas seções de rótulo
+              em caixa alta — o formulário mais longo dos cadastros sem um
+              único respiro. */}
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0 }}>
-            <div style={{ padding: isMobile ? "20px 18px" : "24px 28px", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
+            <div style={{ padding: isMobile ? "18px 16px 22px" : "22px 28px 26px", display: "flex", flexDirection: "column", gap: 22, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
 
               {/* "SALVOU?" com o modal aberto — e o aviso de que o resto do
                   formulário veio do modelo anterior (medida herdada sem aviso
                   vira peça errada). */}
               {!editingItem && criadosNestaSequencia.length > 0 && (
-                <p role="status" data-testid="modelos-criados-na-sequencia" style={{ gridColumn: "1 / -1", margin: 0, padding: "9px 12px", borderRadius: 6, backgroundColor: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}`, fontSize: 12, lineHeight: 1.45, color: TOM.sucesso.text }}>
-                  {criadosNestaSequencia.length === 1 ? "1 modelo criado" : `${criadosNestaSequencia.length} modelos criados`} nesta sequência: {criadosNestaSequencia.join(", ")}. Tipo, grupo, medidas, material e acabamento ficaram como no anterior — confira antes de salvar o próximo.
+                <p role="status" data-testid="modelos-criados-na-sequencia" className="mod-aviso" style={{ margin: 0, display: "flex", gap: 8, alignItems: "flex-start", padding: "10px 12px", borderRadius: R.md, backgroundColor: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}`, fontSize: FS.meta, lineHeight: 1.45, color: TOM.sucesso.text }}>
+                  <Check aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0, marginTop: 2 }} />
+                  <span>
+                    {criadosNestaSequencia.length === 1 ? "1 modelo criado" : `${criadosNestaSequencia.length} modelos criados`} nesta sequência: {criadosNestaSequencia.join(", ")}. Tipo, grupo, medidas, material e acabamento ficaram como no anterior — confira antes de salvar o próximo.
+                  </span>
                 </p>
               )}
 
-              {/* Nome */}
-              <div>
-                <label htmlFor="model-name" style={labelStyle}>Nome do Modelo</label>
-                <input
-                  id="model-name"
-                  ref={nomeRef}
-                  value={formData.name}
-                  onChange={e => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Ex: Backdrop Premium v2"
-                  required
-                  data-testid="input-model-name"
-                  style={fieldStyle}
-                />
-                {/* Cada campo diz ONDE reaparece — é o que decide como
-                    preenchê-lo. T.apoio sobre o branco do modal = 7,6:1.
-                    A dica do começo do nome é regra, não estilo: a peça criada
-                    do modelo recebe o NOME como tipo, e o Auto-vincular por
-                    cota casa o grupo pelo INÍCIO do tipo (matchesGroup em
-                    server/storage.ts) — "Backdrop Palco" não cai em "Palco". */}
-                <p style={{ margin: "5px 2px 0", fontSize: 11, lineHeight: 1.4, color: T.apoio }}>Aparece no campo Tipo ao adicionar peça no evento. Comece pelo Tipo (ex.: “Palco Lateral”) para o Auto-vincular por cota reconhecer a peça.</p>
-              </div>
+              {/* ── 1 · O modelo ── */}
+              <section aria-labelledby="mod-sec-modelo">
+                <h3 id="mod-sec-modelo" style={tituloSecaoStyle}>O modelo</h3>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 18 : "18px 16px", alignItems: "start" }}>
 
-              {/* Tipo — combobox: catálogo + valores já usados, com criação.
-                  O texto livre gerava variações como palco/Palco/PALCO. */}
-              <div>
-                <label htmlFor="model-type" style={labelStyle}>
-                  Tipo{" "}
-                  <span style={{ fontWeight: 400, color: T.second, textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
-                </label>
-                <Popover open={typePopoverOpen} onOpenChange={open => { setTypePopoverOpen(open); if (!open) setCustomTypeInput(""); }}>
-                  <PopoverTrigger asChild>
-                    <button type="button" id="model-type" data-testid="input-model-type"
-                      style={{ ...fieldStyle, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", color: formData.type ? T.text : T.second }}>
-                      {formData.type ? (
-                        <span style={{ ...tipoPillStyle(formData.type), display: "inline-flex", alignItems: "center", borderRadius: 6, padding: "2px 10px", fontSize: 13, fontWeight: FW.medio }}>
-                          {formData.type}
-                        </span>
-                      ) : (
-                        <span>Selecionar ou criar tipo...</span>
-                      )}
-                      <ChevronsUpDown style={{ width: 14, height: 14, color: T.muted, flexShrink: 0, marginLeft: 4 }} />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent style={{ width: 300, padding: 0 }} align="start">
-                    {/* Congelado enquanto SAI: o popover fecha com o modal
-                        ainda aberto — ver popover-congelado.test.ts. */}
-                    <FreezeWhileClosing open={typePopoverOpen}>
-                    <Command>
-                      <CommandInput placeholder="Buscar ou criar tipo..." value={customTypeInput} onValueChange={setCustomTypeInput} />
-                      <CommandList>
-                        <CommandEmpty>
-                          {customTypeInput ? (
-                            <div style={{ padding: "8px 12px" }}>
-                              <Botao variante="primario" tamanho="sm" larguraCheia icone={Plus} style={{ justifyContent: "flex-start" }}
-                                onClick={() => { setFormData({ ...formData, type: customTypeInput }); setCustomTypeInput(""); setTypePopoverOpen(false); }}>
-                                Criar "{customTypeInput}"
-                              </Botao>
-                            </div>
-                          ) : (
-                            <p style={{ padding: "12px 16px", fontSize: 13, color: T.second, margin: 0 }}>Nenhum tipo cadastrado</p>
-                          )}
-                        </CommandEmpty>
-                        {allTypeOptions.length > 0 && (
-                          <CommandGroup heading="Tipos existentes">
-                            {allTypeOptions.map(t => (
-                              <CommandItem key={t} value={t}
-                                onSelect={() => { setFormData({ ...formData, type: t }); setCustomTypeInput(""); setTypePopoverOpen(false); }}>
-                                <span style={{ ...tipoPillStyle(t), display: "inline-flex", alignItems: "center", borderRadius: 6, padding: "2px 10px", fontSize: 13, fontWeight: FW.medio, marginRight: 8 }}>
-                                  {t}
-                                </span>
-                                <Check className={cn("ml-auto h-4 w-4", formData.type === t ? "opacity-100" : "opacity-0")} />
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        )}
-                        {customTypeInput && !allTypeOptions.some(t => t.toLowerCase() === customTypeInput.toLowerCase()) && (
-                          <CommandGroup heading="Novo">
-                            <CommandItem value={`__new__${customTypeInput}`}
-                              onSelect={() => { setFormData({ ...formData, type: customTypeInput }); setCustomTypeInput(""); setTypePopoverOpen(false); }}>
-                              <Plus style={{ width: 14, height: 14, marginRight: 8, color: T.apoio }} />
-                              <span style={{ fontSize: 13, color: T.apoio, fontWeight: FW.medio }}>Criar "{customTypeInput}"</span>
-                            </CommandItem>
-                          </CommandGroup>
-                        )}
-                      </CommandList>
-                    </Command>
-                  </FreezeWhileClosing>
-                  </PopoverContent>
-                </Popover>
-                {formData.type && (
-                  <Botao variante="fantasma" tamanho="sm" onClick={() => setFormData({ ...formData, type: "" })} style={LIMPAR_CAMPO}>
-                    Limpar
-                  </Botao>
-                )}
-                {/* /api/quota-rules/groups lista o `type` dos modelos: é daqui
-                    que nasce a linha da grade de Configurar Cotas. */}
-                <p style={{ margin: "5px 2px 0", fontSize: 11, lineHeight: 1.4, color: T.apoio }}>Vira uma linha em Configurar Cotas (ex.: Palco, Pórtico).</p>
-              </div>
-
-              {/* Grupo Pai */}
-              <div>
-                <label htmlFor="model-group" style={labelStyle}>
-                  Grupo Pai{" "}
-                  <span style={{ fontWeight: 400, color: T.second, textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
-                </label>
-                <Popover open={groupPopoverOpen} onOpenChange={open => { setGroupPopoverOpen(open); if (!open) setCustomGroupInput(""); }}>
-                  <PopoverTrigger asChild>
-                    <button
-                      type="button"
-                      id="model-group"
-                      data-testid="input-model-group"
-                      style={{
-                        ...fieldStyle,
-                        display: "flex", alignItems: "center", justifyContent: "space-between",
-                        cursor: "pointer",
-                        color: formData.group ? T.text : T.second,
-                      }}
-                    >
-                      {formData.group ? (
-                        <span style={{
-                          display: "inline-flex", alignItems: "center", gap: 6,
-                          backgroundColor: TOM.info.border, color: TOM.info.text,
-                          borderRadius: 6, padding: "2px 10px 2px 8px",
-                          fontSize: 13, fontWeight: FW.forte,
-                        }}>
-                          <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: TOM.info.dot, flexShrink: 0 }} />
-                          {formData.group}
-                        </span>
-                      ) : (
-                        <span>Selecionar ou criar grupo...</span>
-                      )}
-                      <ChevronsUpDown style={{ width: 14, height: 14, color: T.muted, flexShrink: 0, marginLeft: 4 }} />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent style={{ width: 300, padding: 0 }} align="start">
-                    {/* Congelado enquanto SAI: o popover fecha com o modal
-                        ainda aberto — ver popover-congelado.test.ts. */}
-                    <FreezeWhileClosing open={groupPopoverOpen}>
-                    <Command>
-                      <CommandInput
-                        placeholder="Buscar ou criar grupo..."
-                        value={customGroupInput}
-                        onValueChange={setCustomGroupInput}
-                      />
-                      <CommandList>
-                        <CommandEmpty>
-                          {customGroupInput ? (
-                            <div style={{ padding: "8px 12px" }}>
-                              <Botao variante="primario" tamanho="sm" larguraCheia icone={Plus} style={{ justifyContent: "flex-start" }}
-                                onClick={() => { setFormData({ ...formData, group: customGroupInput }); setCustomGroupInput(""); setGroupPopoverOpen(false); }}>
-                                Criar grupo "{customGroupInput}"
-                              </Botao>
-                            </div>
-                          ) : (
-                            <p style={{ padding: "12px 16px", fontSize: 13, color: T.second, margin: 0 }}>Nenhum grupo cadastrado</p>
-                          )}
-                        </CommandEmpty>
-                        {allGroups.length > 0 && (
-                          <CommandGroup heading="Grupos existentes">
-                            {allGroups.map(g => (
-                              <CommandItem
-                                key={g}
-                                value={g}
-                                onSelect={() => { setFormData({ ...formData, group: g }); setCustomGroupInput(""); setGroupPopoverOpen(false); }}
-                              >
-                                <span style={{
-                                  display: "inline-flex", alignItems: "center", gap: 6,
-                                  backgroundColor: formData.group === g ? TOM.info.border : TOM.ceu.bg,
-                                  color: TOM.info.text, borderRadius: 6,
-                                  padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: FW.medio,
-                                  marginRight: 8,
-                                }}>
-                                  <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: TOM.info.dot, flexShrink: 0 }} />
-                                  {g}
-                                </span>
-                                <Check className={cn("ml-auto h-4 w-4", formData.group === g ? "opacity-100" : "opacity-0")} />
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        )}
-                        {customGroupInput && allGroups.some(g => g.toLowerCase() === customGroupInput.toLowerCase()) === false && (
-                          <CommandGroup heading="Novo">
-                            <CommandItem
-                              value={`__new__${customGroupInput}`}
-                              onSelect={() => { setFormData({ ...formData, group: customGroupInput }); setCustomGroupInput(""); setGroupPopoverOpen(false); }}
-                            >
-                              <Plus style={{ width: 14, height: 14, marginRight: 8, color: TOM.info.text }} />
-                              <span style={{ fontSize: 13, color: TOM.info.text, fontWeight: FW.medio }}>Criar "{customGroupInput}"</span>
-                            </CommandItem>
-                          </CommandGroup>
-                        )}
-                      </CommandList>
-                    </Command>
-                  </FreezeWhileClosing>
-                  </PopoverContent>
-                </Popover>
-                {formData.group && (
-                  <Botao variante="fantasma" tamanho="sm" onClick={() => setFormData({ ...formData, group: "" })} style={LIMPAR_CAMPO}>
-                    Limpar
-                  </Botao>
-                )}
-                <p style={{ margin: "5px 2px 0", fontSize: 11, lineHeight: 1.4, color: T.apoio }}>Agrupa as peças nas listas do evento, da Arte e da Gráfica.</p>
-              </div>
-
-              {/* Toggle Medida Variável — col-span-2 */}
-              <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", paddingBottom: 4 }}>
-                {/* Interruptor desenhado com <div>: não havia campo por trás,
-                    então alternar "medida variável" era exclusivamente com
-                    mouse. role="switch" dá o papel que a aparência promete e
-                    aria-checked informa o estado. */}
-                <label
-                  role="switch"
-                  tabIndex={0}
-                  aria-checked={formData.hasVariableMeasurement}
-                  aria-label="Medida variável"
-                  onClick={() => setFormData({ ...formData, hasVariableMeasurement: !formData.hasVariableMeasurement })}
-                  onKeyDown={e => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      setFormData({ ...formData, hasVariableMeasurement: !formData.hasVariableMeasurement });
-                    }
-                  }}
-                  style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}
-                >
-                  <div
-                    style={{ position: "relative", width: 40, height: 22, borderRadius: 999, backgroundColor: formData.hasVariableMeasurement ? T.accent : T.bdark, transition: "background-color 0.2s", cursor: "pointer", flexShrink: 0 }}
-                  >
-                    <div style={{ position: "absolute", top: 3, left: formData.hasVariableMeasurement ? 21 : 3, width: 16, height: 16, borderRadius: "50%", backgroundColor: T.surface, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+                  {/* Nome — a linha inteira: é o campo que mais se lê depois. */}
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <label htmlFor="model-name" style={labelStyle}>Nome do modelo</label>
+                    <input
+                      id="model-name"
+                      ref={nomeRef}
+                      value={formData.name}
+                      onChange={e => { setFormData({ ...formData, name: e.target.value }); if (nomeFaltando) setNomeFaltando(false); }}
+                      placeholder="Ex.: Palco Lateral 6 × 3 m"
+                      required
+                      // A MESMA regra (required), com a mensagem da casa: o balão
+                      // nativo saía no idioma do navegador ("Please fill out
+                      // this field") e flutuava por cima da dica do campo.
+                      onInvalid={e => { e.preventDefault(); continuarRef.current = false; setNomeFaltando(true); e.currentTarget.focus(); }}
+                      aria-invalid={nomeFaltando || undefined}
+                      aria-describedby={nomeFaltando ? "model-name-erro" : undefined}
+                      data-testid="input-model-name"
+                      className="mod-campo"
+                      style={{ ...fieldStyle, ...(nomeFaltando ? { boxShadow: `inset 0 0 0 1.5px ${TOM.perigo.text}`, backgroundColor: TOM.perigo.bg } : {}) }}
+                    />
+                    {nomeFaltando && (
+                      <p id="model-name-erro" role="alert" data-testid="erro-nome-modelo" className="mod-aviso" style={{ margin: "6px 2px 0", display: "flex", gap: 6, alignItems: "center", fontSize: FS.small, fontWeight: FW.medio, color: TOM.perigo.text }}>
+                        <AlertTriangle aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0 }} />
+                        Dê um nome ao modelo — é ele que aparece no campo Tipo.
+                      </p>
+                    )}
+                    {/* Cada campo diz ONDE reaparece — é o que decide como
+                        preenchê-lo. A dica do começo do nome é regra, não
+                        estilo: a peça criada do modelo recebe o NOME como tipo,
+                        e o Auto-vincular por cota casa o grupo pelo INÍCIO do
+                        tipo (matchesGroup em server/storage.ts) — "Backdrop
+                        Palco" não cai em "Palco". */}
+                    <p style={ajudaStyle}>Aparece no campo Tipo ao adicionar peça no evento. Comece pelo Tipo (ex.: “Palco Lateral”) para o Auto-vincular por cota reconhecer a peça.</p>
                   </div>
-                  <span style={{ fontSize: FS.small, fontWeight: FW.forte, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                    Medida Variável
-                  </span>
-                </label>
-              </div>
 
-              {/* ── Medidas visuais ── */}
-              <div style={{ gridColumn: "1 / -1" }}>
-                <label style={{ ...labelStyle, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
-                  Medidas Visuais
-                  <span style={{ fontSize: FS.micro, fontWeight: FW.forte, color: T.apoio, backgroundColor: N.n3, borderRadius: R.sm, padding: "2px 6px", letterSpacing: "0.06em" }}>VIS.</span>
-                  {/* VIS × ARQ era sigla sem legenda para quem chega. */}
-                  <span style={{ fontSize: FS.micro, fontWeight: FW.corpo, color: T.second, textTransform: "none", letterSpacing: 0 }}>— o que aparece na peça montada</span>
-                </label>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  {/* Tipo — combobox: catálogo + valores já usados, com criação.
+                      O texto livre gerava variações como palco/Palco/PALCO. */}
                   <div>
-                    <label htmlFor="model-vis-w" style={{ ...labelStyle, color: T.second }}>Largura — VIS. L (m)</label>
+                    <label htmlFor="model-type" style={labelStyle}>
+                      Tipo <span style={opcionalStyle}>(opcional)</span>
+                    </label>
+                    <div style={{ position: "relative" }}>
+                      <Popover open={typePopoverOpen} onOpenChange={open => { setTypePopoverOpen(open); if (!open) setCustomTypeInput(""); }}>
+                        <PopoverTrigger asChild>
+                          <button type="button" id="model-type" data-testid="input-model-type" className="mod-campo"
+                            style={{ ...fieldStyle, ...gatilhoStyle(!!formData.type) }}>
+                            {formData.type ? (
+                              <span style={{ ...tipoPillStyle(formData.type), display: "inline-flex", alignItems: "center", borderRadius: 6, padding: "2px 10px", fontSize: 13, fontWeight: FW.medio, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {formData.type}
+                              </span>
+                            ) : (
+                              <span>Selecionar ou criar tipo…</span>
+                            )}
+                            {!formData.type && <ChevronsUpDown aria-hidden="true" style={{ width: 14, height: 14, color: T.muted, flexShrink: 0, marginLeft: 4 }} />}
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent style={{ width: 300, padding: 0 }} align="start">
+                          {/* Congelado enquanto SAI: o popover fecha com o modal
+                              ainda aberto — ver popover-congelado.test.ts. */}
+                          <FreezeWhileClosing open={typePopoverOpen}>
+                          <Command>
+                            <CommandInput placeholder="Buscar ou criar tipo..." value={customTypeInput} onValueChange={setCustomTypeInput} />
+                            <CommandList>
+                              <CommandEmpty>
+                                {customTypeInput ? (
+                                  <div style={{ padding: "8px 12px" }}>
+                                    <Botao variante="primario" tamanho="sm" larguraCheia icone={Plus} style={{ justifyContent: "flex-start" }}
+                                      onClick={() => { setFormData({ ...formData, type: customTypeInput }); setCustomTypeInput(""); setTypePopoverOpen(false); }}>
+                                      Criar "{customTypeInput}"
+                                    </Botao>
+                                  </div>
+                                ) : (
+                                  <p style={{ padding: "12px 16px", fontSize: 13, color: T.second, margin: 0 }}>Nenhum tipo cadastrado</p>
+                                )}
+                              </CommandEmpty>
+                              {allTypeOptions.length > 0 && (
+                                <CommandGroup heading="Tipos existentes">
+                                  {allTypeOptions.map(t => (
+                                    <CommandItem key={t} value={t}
+                                      onSelect={() => { setFormData({ ...formData, type: t }); setCustomTypeInput(""); setTypePopoverOpen(false); }}>
+                                      <span style={{ ...tipoPillStyle(t), display: "inline-flex", alignItems: "center", borderRadius: 6, padding: "2px 10px", fontSize: 13, fontWeight: FW.medio, marginRight: 8 }}>
+                                        {t}
+                                      </span>
+                                      <Check className={cn("ml-auto h-4 w-4", formData.type === t ? "opacity-100" : "opacity-0")} />
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              )}
+                              {customTypeInput && !allTypeOptions.some(t => t.toLowerCase() === customTypeInput.toLowerCase()) && (
+                                <CommandGroup heading="Novo">
+                                  <CommandItem value={`__new__${customTypeInput}`}
+                                    onSelect={() => { setFormData({ ...formData, type: customTypeInput }); setCustomTypeInput(""); setTypePopoverOpen(false); }}>
+                                    <Plus style={{ width: 14, height: 14, marginRight: 8, color: T.apoio }} />
+                                    <span style={{ fontSize: 13, color: T.apoio, fontWeight: FW.medio }}>Criar "{customTypeInput}"</span>
+                                  </CommandItem>
+                                </CommandGroup>
+                              )}
+                            </CommandList>
+                          </Command>
+                        </FreezeWhileClosing>
+                        </PopoverContent>
+                      </Popover>
+                      {formData.type && <LimparCampo rotulo="tipo" toque={toque} onClick={() => setFormData({ ...formData, type: "" })} />}
+                    </div>
+                    {/* /api/quota-rules/groups lista o `type` dos modelos: é daqui
+                        que nasce a linha da grade de Configurar Cotas. */}
+                    <p style={ajudaStyle}>Vira uma linha em Configurar Cotas (ex.: Palco, Pórtico).</p>
+                  </div>
+
+                  {/* Grupo Pai */}
+                  <div>
+                    <label htmlFor="model-group" style={labelStyle}>
+                      Grupo pai <span style={opcionalStyle}>(opcional)</span>
+                    </label>
+                    <div style={{ position: "relative" }}>
+                      <Popover open={groupPopoverOpen} onOpenChange={open => { setGroupPopoverOpen(open); if (!open) setCustomGroupInput(""); }}>
+                        <PopoverTrigger asChild>
+                          <button type="button" id="model-group" data-testid="input-model-group" className="mod-campo"
+                            style={{ ...fieldStyle, ...gatilhoStyle(!!formData.group) }}>
+                            {formData.group ? (
+                              <span style={{
+                                display: "inline-flex", alignItems: "center", gap: 6,
+                                backgroundColor: TOM.info.border, color: TOM.info.text,
+                                borderRadius: 6, padding: "2px 10px 2px 8px",
+                                fontSize: 13, fontWeight: FW.forte, maxWidth: "100%", overflow: "hidden", whiteSpace: "nowrap",
+                              }}>
+                                <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: TOM.info.dot, flexShrink: 0 }} />
+                                {formData.group}
+                              </span>
+                            ) : (
+                              <span>Selecionar ou criar grupo…</span>
+                            )}
+                            {!formData.group && <ChevronsUpDown aria-hidden="true" style={{ width: 14, height: 14, color: T.muted, flexShrink: 0, marginLeft: 4 }} />}
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent style={{ width: 300, padding: 0 }} align="start">
+                          {/* Congelado enquanto SAI: o popover fecha com o modal
+                              ainda aberto — ver popover-congelado.test.ts. */}
+                          <FreezeWhileClosing open={groupPopoverOpen}>
+                          <Command>
+                            <CommandInput
+                              placeholder="Buscar ou criar grupo..."
+                              value={customGroupInput}
+                              onValueChange={setCustomGroupInput}
+                            />
+                            <CommandList>
+                              <CommandEmpty>
+                                {customGroupInput ? (
+                                  <div style={{ padding: "8px 12px" }}>
+                                    <Botao variante="primario" tamanho="sm" larguraCheia icone={Plus} style={{ justifyContent: "flex-start" }}
+                                      onClick={() => { setFormData({ ...formData, group: customGroupInput }); setCustomGroupInput(""); setGroupPopoverOpen(false); }}>
+                                      Criar grupo "{customGroupInput}"
+                                    </Botao>
+                                  </div>
+                                ) : (
+                                  <p style={{ padding: "12px 16px", fontSize: 13, color: T.second, margin: 0 }}>Nenhum grupo cadastrado</p>
+                                )}
+                              </CommandEmpty>
+                              {allGroups.length > 0 && (
+                                <CommandGroup heading="Grupos existentes">
+                                  {allGroups.map(g => (
+                                    <CommandItem
+                                      key={g}
+                                      value={g}
+                                      onSelect={() => { setFormData({ ...formData, group: g }); setCustomGroupInput(""); setGroupPopoverOpen(false); }}
+                                    >
+                                      <span style={{
+                                        display: "inline-flex", alignItems: "center", gap: 6,
+                                        backgroundColor: formData.group === g ? TOM.info.border : TOM.ceu.bg,
+                                        color: TOM.info.text, borderRadius: 6,
+                                        padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: FW.medio,
+                                        marginRight: 8,
+                                      }}>
+                                        <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: TOM.info.dot, flexShrink: 0 }} />
+                                        {g}
+                                      </span>
+                                      <Check className={cn("ml-auto h-4 w-4", formData.group === g ? "opacity-100" : "opacity-0")} />
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              )}
+                              {customGroupInput && allGroups.some(g => g.toLowerCase() === customGroupInput.toLowerCase()) === false && (
+                                <CommandGroup heading="Novo">
+                                  <CommandItem
+                                    value={`__new__${customGroupInput}`}
+                                    onSelect={() => { setFormData({ ...formData, group: customGroupInput }); setCustomGroupInput(""); setGroupPopoverOpen(false); }}
+                                  >
+                                    <Plus style={{ width: 14, height: 14, marginRight: 8, color: TOM.info.text }} />
+                                    <span style={{ fontSize: 13, color: TOM.info.text, fontWeight: FW.medio }}>Criar "{customGroupInput}"</span>
+                                  </CommandItem>
+                                </CommandGroup>
+                              )}
+                            </CommandList>
+                          </Command>
+                        </FreezeWhileClosing>
+                        </PopoverContent>
+                      </Popover>
+                      {formData.group && <LimparCampo rotulo="grupo" toque={toque} onClick={() => setFormData({ ...formData, group: "" })} />}
+                    </div>
+                    <p style={ajudaStyle}>Agrupa as peças nas listas do evento, da Arte e da Gráfica.</p>
+                  </div>
+                </div>
+              </section>
+
+              {/* ── 2 · Medidas ── uma MATRIZ: linhas VIS e ARQ, colunas
+                  Largura e Altura. As quatro medidas em duas seções empilhadas
+                  repetiam "Largura — VIS. L (m)" quatro vezes; aqui cada número
+                  tem o seu lugar e a diferença (a sangria) se lê na vertical. */}
+              <section aria-labelledby="mod-sec-medidas" style={secaoStyle}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+                  <h3 id="mod-sec-medidas" style={{ ...tituloSecaoStyle, marginBottom: 0 }}>Medidas</h3>
+                  {/* Interruptor da casa: role="switch" com aria-checked, Enter
+                      e Espaço alternam, e o foco tem anel (classe mod-switch). */}
+                  <label
+                    role="switch"
+                    tabIndex={0}
+                    aria-checked={formData.hasVariableMeasurement}
+                    aria-label="Medida variável"
+                    className="mod-switch"
+                    onClick={() => setFormData({ ...formData, hasVariableMeasurement: !formData.hasVariableMeasurement })}
+                    onKeyDown={e => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setFormData({ ...formData, hasVariableMeasurement: !formData.hasVariableMeasurement });
+                      }
+                    }}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 10, cursor: "pointer", minHeight: toque >= 44 ? 44 : 32, padding: "0 4px" }}
+                  >
+                    <span style={{ fontSize: FS.meta, fontWeight: FW.medio, color: formData.hasVariableMeasurement ? T.text : T.apoio }}>
+                      Medida variável
+                    </span>
+                    <span className="mod-switch-trilho" aria-hidden="true"
+                      style={{ position: "relative", width: 38, height: 22, borderRadius: 999, backgroundColor: formData.hasVariableMeasurement ? T.accentText : T.bdark, flexShrink: 0 }}>
+                      <span className="mod-switch-bola" style={{ position: "absolute", top: 3, left: 3, width: 16, height: 16, borderRadius: "50%", backgroundColor: T.surface, boxShadow: "0 1px 2px rgba(0,0,0,0.25)", transform: formData.hasVariableMeasurement ? "translateX(16px)" : "none" }} />
+                    </span>
+                  </label>
+                </div>
+
+                {formData.hasVariableMeasurement && (
+                  // O porquê dos campos apagados — e a promessa de que nada se
+                  // perdeu: as medidas só saem no salvar (ver handleSubmit).
+                  <p className="mod-aviso" style={{ margin: "0 0 12px", display: "flex", gap: 8, alignItems: "flex-start", padding: "9px 12px", borderRadius: R.md, backgroundColor: TOM.info.bg, border: `1px solid ${TOM.info.border}`, fontSize: FS.meta, lineHeight: 1.45, color: TOM.info.text }}>
+                    <Ruler aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0, marginTop: 2 }} />
+                    <span>Cada peça criada deste modelo recebe a medida na hora. O que estiver digitado abaixo fica guardado se você desligar — só não é salvo com a medida variável ligada.</span>
+                  </p>
+                )}
+
+                <div role="group" aria-label="Medidas em metros" style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "minmax(150px, auto) 1fr 1fr", gap: isMobile ? "8px 10px" : "10px 12px", alignItems: "center", opacity: formData.hasVariableMeasurement ? 0.5 : 1, transition: "opacity 0.18s ease" }}>
+                  {/* Cabeça das colunas — o leitor de tela lê o rótulo de cada campo. */}
+                  {!isMobile && <>
+                    <span aria-hidden="true" />
+                    <span aria-hidden="true" style={colunaStyle}>Largura (m)</span>
+                    <span aria-hidden="true" style={colunaStyle}>Altura (m)</span>
+                  </>}
+
+                  <span style={{ ...linhaMedidaStyle, gridColumn: isMobile ? "1 / -1" : undefined }}>
+                    <Sigla /> <span><b style={{ fontWeight: FW.forte, color: T.text }}>Visual</b> <span style={{ color: T.second }}>— a peça montada</span></span>
+                  </span>
+                  <div>
+                    {/* No celular a matriz perde a cabeça das colunas: o rótulo curto aparece em cima do campo. */}
+                    <label htmlFor="model-vis-w" className={isMobile ? undefined : "sr-only"} style={isMobile ? { ...colunaStyle, display: "block", marginBottom: 5 } : undefined}>Largura (m)</label>
                     <input
                       id="model-vis-w"
-                      type="number" step="0.01" min="0"
+                      aria-label="Largura visual, em metros"
+                      type="number" step="0.01" min="0" inputMode="decimal"
                       value={formData.area}
                       onChange={e => {
                         const v = e.target.value;
@@ -1353,114 +1493,129 @@ export default function Modelos() {
                         const autoSync = !formData.fileWidth || formData.fileWidth === formData.area;
                         setFormData(prev => ({ ...prev, area: v, fileWidth: autoSync ? v : prev.fileWidth }));
                       }}
-                      placeholder="0.00"
+                      placeholder="0,00"
                       disabled={formData.hasVariableMeasurement}
                       data-testid="input-model-area"
-                      style={{ ...fieldStyle, opacity: formData.hasVariableMeasurement ? 0.5 : 1, cursor: formData.hasVariableMeasurement ? "not-allowed" : "text" }}
+                      className="mod-campo"
+                      style={{ ...fieldStyle, ...numeroStyle, cursor: formData.hasVariableMeasurement ? "not-allowed" : "text" }}
                     />
                   </div>
                   <div>
-                    <label htmlFor="model-vis-h" style={{ ...labelStyle, color: T.second }}>Altura — VIS. A (m)</label>
+                    {/* No celular a matriz perde a cabeça das colunas: o rótulo curto aparece em cima do campo. */}
+                    <label htmlFor="model-vis-h" className={isMobile ? undefined : "sr-only"} style={isMobile ? { ...colunaStyle, display: "block", marginBottom: 5 } : undefined}>Altura (m)</label>
                     <input
                       id="model-vis-h"
-                      type="number" step="0.01" min="0"
+                      aria-label="Altura visual, em metros"
+                      type="number" step="0.01" min="0" inputMode="decimal"
                       value={formData.visual}
                       onChange={e => {
                         const v = e.target.value;
                         const autoSync = !formData.fileHeight || formData.fileHeight === formData.visual;
                         setFormData(prev => ({ ...prev, visual: v, fileHeight: autoSync ? v : prev.fileHeight }));
                       }}
-                      placeholder="0.00"
+                      placeholder="0,00"
                       disabled={formData.hasVariableMeasurement}
                       data-testid="input-model-visual"
-                      style={{ ...fieldStyle, opacity: formData.hasVariableMeasurement ? 0.5 : 1, cursor: formData.hasVariableMeasurement ? "not-allowed" : "text" }}
+                      className="mod-campo"
+                      style={{ ...fieldStyle, ...numeroStyle, cursor: formData.hasVariableMeasurement ? "not-allowed" : "text" }}
                     />
                   </div>
-                </div>
-              </div>
 
-              {/* ── Medidas do arquivo ── */}
-              <div style={{ gridColumn: "1 / -1" }}>
-                <label style={{ ...labelStyle, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
-                  Medidas do Arquivo
-                  <span style={{ fontSize: FS.micro, fontWeight: FW.forte, color: TOM.alerta.text, backgroundColor: TOM.alerta.bg, borderRadius: R.sm, padding: "2px 6px", letterSpacing: "0.06em" }}>ARQ.</span>
-                  <span style={{ fontSize: FS.micro, fontWeight: FW.corpo, color: T.second, textTransform: "none", letterSpacing: 0 }}>— o que vai para impressão, com a sangria; pré-preenchido igual ao visual</span>
-                </label>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <span style={{ ...linhaMedidaStyle, gridColumn: isMobile ? "1 / -1" : undefined, marginTop: isMobile ? 6 : 0 }}>
+                    <Sigla arq /> <span><b style={{ fontWeight: FW.forte, color: T.text }}>Arquivo</b> <span style={{ color: T.second }}>— com a sangria</span></span>
+                  </span>
                   <div>
-                    <label htmlFor="model-arq-w" style={{ ...labelStyle, color: T.second }}>Largura — ARQ. L (m)</label>
+                    {/* No celular a matriz perde a cabeça das colunas: o rótulo curto aparece em cima do campo. */}
+                    <label htmlFor="model-arq-w" className={isMobile ? undefined : "sr-only"} style={isMobile ? { ...colunaStyle, display: "block", marginBottom: 5 } : undefined}>Largura (m)</label>
                     <input
                       id="model-arq-w"
-                      type="number" step="0.01" min="0"
+                      aria-label="Largura do arquivo, em metros"
+                      type="number" step="0.01" min="0" inputMode="decimal"
                       value={formData.fileWidth}
                       onChange={e => setFormData({ ...formData, fileWidth: e.target.value })}
                       onBlur={() => setArqTocado(true)}
-                      placeholder="0.00"
+                      placeholder="0,00"
                       disabled={formData.hasVariableMeasurement}
                       data-testid="input-model-fileWidth"
-                      style={{ ...fieldStyle, opacity: formData.hasVariableMeasurement ? 0.5 : 1, cursor: formData.hasVariableMeasurement ? "not-allowed" : "text" }}
+                      className="mod-campo"
+                      style={{ ...fieldStyle, ...numeroStyle, cursor: formData.hasVariableMeasurement ? "not-allowed" : "text" }}
                     />
                   </div>
                   <div>
-                    <label htmlFor="model-arq-h" style={{ ...labelStyle, color: T.second }}>Altura — ARQ. A (m)</label>
+                    {/* No celular a matriz perde a cabeça das colunas: o rótulo curto aparece em cima do campo. */}
+                    <label htmlFor="model-arq-h" className={isMobile ? undefined : "sr-only"} style={isMobile ? { ...colunaStyle, display: "block", marginBottom: 5 } : undefined}>Altura (m)</label>
                     <input
                       id="model-arq-h"
-                      type="number" step="0.01" min="0"
+                      aria-label="Altura do arquivo, em metros"
+                      type="number" step="0.01" min="0" inputMode="decimal"
                       value={formData.fileHeight}
                       onChange={e => setFormData({ ...formData, fileHeight: e.target.value })}
                       onBlur={() => setArqTocado(true)}
-                      placeholder="0.00"
+                      placeholder="0,00"
                       disabled={formData.hasVariableMeasurement}
                       data-testid="input-model-fileHeight"
-                      style={{ ...fieldStyle, opacity: formData.hasVariableMeasurement ? 0.5 : 1, cursor: formData.hasVariableMeasurement ? "not-allowed" : "text" }}
+                      className="mod-campo"
+                      style={{ ...fieldStyle, ...numeroStyle, cursor: formData.hasVariableMeasurement ? "not-allowed" : "text" }}
                     />
                   </div>
                 </div>
-                {/* A MESMA conta da tabela, aqui: o aviso no formulário evita o
-                    cadastro errado; na tabela só o denuncia depois. Não bloqueia
-                    — há recorte legítimo — mas exige que a pessoa veja. */}
-                {sangriaDoForm && (arqTocado || sangriaDoForm.estado !== "ok") && (
-                  <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <ChipSangria s={sangriaDoForm} testId="chip-sangria-form" />
-                    {sangriaDoForm.estado === "sem" && (
-                      <span style={{ fontSize: 11, color: TOM.alerta.text }}>Arquivo igual ao visual: sem margem para o refile.</span>
-                    )}
-                  </div>
-                )}
+
+                {/* A MESMA conta da tabela, aqui, numa linha de rodapé da
+                    matriz: o aviso no formulário evita o cadastro errado; na
+                    tabela só o denuncia depois. Não bloqueia — há recorte
+                    legítimo — mas exige que a pessoa veja. */}
+                <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minHeight: 20 }}>
+                  {sangriaDoForm ? (
+                    <>
+                      <span style={{ fontSize: FS.small, color: T.second }}>Sangria</span>
+                      <ChipSangria s={sangriaDoForm} testId="chip-sangria-form" />
+                      {sangriaDoForm.estado === "sem" && (
+                        <span style={{ fontSize: FS.small, color: TOM.alerta.text }}>Arquivo igual ao visual: sem margem para o refile.</span>
+                      )}
+                    </>
+                  ) : !formData.hasVariableMeasurement && (
+                    <span style={{ fontSize: FS.small, color: T.second }}>O arquivo começa igual ao visual; some a sangria nele.</span>
+                  )}
+                </div>
                 {mostrarAvisoDeCorte && (
-                  <div role="alert" data-testid="aviso-arquivo-menor" style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, backgroundColor: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}`, display: "flex", flexDirection: "column", gap: 8 }}>
-                    <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: TOM.perigo.text }}>
-                      <strong>O arquivo é menor que o visual</strong> — a peça sairia cortada. Confira o cadastro antes de salvar.
+                  <div role="alert" data-testid="aviso-arquivo-menor" className="mod-aviso" style={{ marginTop: 10, padding: "11px 13px", borderRadius: R.md, backgroundColor: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}`, display: "flex", flexDirection: "column", gap: 9 }}>
+                    <p style={{ margin: 0, display: "flex", gap: 8, alignItems: "flex-start", fontSize: FS.meta, lineHeight: 1.5, color: TOM.perigo.text }}>
+                      <AlertTriangle aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0, marginTop: 2 }} />
+                      <span><strong>O arquivo é menor que o visual</strong> — a peça sairia cortada. Confira o cadastro antes de salvar.</span>
                     </p>
-                    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: TOM.perigo.text, cursor: "pointer" }}>
-                      <input type="checkbox" checked={cienteDoCorte} onChange={e => setCienteDoCorte(e.target.checked)} data-testid="checkbox-ciente-do-corte" />
+                    <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: toque >= 44 ? 44 : 28, fontSize: FS.meta, fontWeight: FW.medio, color: TOM.perigo.text, cursor: "pointer", paddingLeft: 22 }}>
+                      <input type="checkbox" checked={cienteDoCorte} onChange={e => setCienteDoCorte(e.target.checked)} data-testid="checkbox-ciente-do-corte"
+                        style={{ width: 16, height: 16, accentColor: TOM.perigo.text, flexShrink: 0 }} />
                       Entendi — o recorte é intencional, salvar assim mesmo
                     </label>
                   </div>
                 )}
-              </div>
+              </section>
 
+              {/* ── 3 · Material e acabamento ── os quatro opcionais vão
+                  nulos quando vazios, e todos dizem isso. */}
+              <section aria-labelledby="mod-sec-material" style={secaoStyle}>
+                <h3 id="mod-sec-material" style={tituloSecaoStyle}>Material e acabamento</h3>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 18 : "18px 16px", alignItems: "start" }}>
               {/* Material */}
               <div>
-                {/* "(opcional)" como em Tipo e Grupo: os quatro campos vão
-                    nulos quando vazios, e só dois deles diziam isso. */}
                 <label htmlFor="model-material" style={labelStyle}>
-                  Material Base{" "}
-                  <span style={{ fontWeight: 400, color: T.second, textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
+                  Material base <span style={opcionalStyle}>(opcional)</span>
                 </label>
+                <div style={{ position: "relative" }}>
                 <Popover open={materialPopoverOpen} onOpenChange={open => { setMaterialPopoverOpen(open); if (!open) setCustomMaterialInput(""); }}>
                   <PopoverTrigger asChild>
-                    <button type="button" id="model-material" data-testid="input-model-material"
-                      style={{ ...fieldStyle, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", color: formData.material ? T.text : T.second }}>
+                    <button type="button" id="model-material" data-testid="input-model-material" className="mod-campo"
+                      style={{ ...fieldStyle, ...gatilhoStyle(!!formData.material) }}>
                       {formData.material ? (
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: TOM.laranja.bg, color: T.accentText, borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: FW.medio }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: TOM.laranja.bg, color: T.accentText, borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: FW.medio, maxWidth: "100%", overflow: "hidden", whiteSpace: "nowrap" }}>
                           <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: T.accent, flexShrink: 0 }} />
                           {formData.material}
                         </span>
                       ) : (
-                        <span>Selecionar ou criar material...</span>
+                        <span>Selecionar ou criar material…</span>
                       )}
-                      <ChevronsUpDown style={{ width: 14, height: 14, color: T.muted, flexShrink: 0, marginLeft: 4 }} />
+                      {!formData.material && <ChevronsUpDown aria-hidden="true" style={{ width: 14, height: 14, color: T.muted, flexShrink: 0, marginLeft: 4 }} />}
                     </button>
                   </PopoverTrigger>
                   <PopoverContent style={{ width: 300, padding: 0 }} align="start">
@@ -1511,32 +1666,29 @@ export default function Modelos() {
                   </FreezeWhileClosing>
                   </PopoverContent>
                 </Popover>
-                {formData.material && (
-                  <Botao variante="fantasma" tamanho="sm" onClick={() => setFormData({ ...formData, material: "" })} style={LIMPAR_CAMPO}>
-                    Limpar
-                  </Botao>
-                )}
+                {formData.material && <LimparCampo rotulo="material" toque={toque} onClick={() => setFormData({ ...formData, material: "" })} />}
+                </div>
               </div>
 
               {/* Acabamento */}
               <div>
                 <label htmlFor="model-finish" style={labelStyle}>
-                  Acabamento{" "}
-                  <span style={{ fontWeight: 400, color: T.second, textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
+                  Acabamento <span style={opcionalStyle}>(opcional)</span>
                 </label>
+                <div style={{ position: "relative" }}>
                 <Popover open={finishPopoverOpen} onOpenChange={open => { setFinishPopoverOpen(open); if (!open) setCustomFinishInput(""); }}>
                   <PopoverTrigger asChild>
-                    <button type="button" id="model-finish" data-testid="input-model-finish"
-                      style={{ ...fieldStyle, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", color: formData.finish ? T.text : T.second }}>
+                    <button type="button" id="model-finish" data-testid="input-model-finish" className="mod-campo"
+                      style={{ ...fieldStyle, ...gatilhoStyle(!!formData.finish) }}>
                       {formData.finish ? (
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: N.n3, color: T.apoio, borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: FW.medio }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: N.n4, color: T.apoio, borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: FW.medio, maxWidth: "100%", overflow: "hidden", whiteSpace: "nowrap" }}>
                           <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: T.muted, flexShrink: 0 }} />
                           {formData.finish}
                         </span>
                       ) : (
-                        <span>Selecionar ou criar acabamento...</span>
+                        <span>Selecionar ou criar acabamento…</span>
                       )}
-                      <ChevronsUpDown style={{ width: 14, height: 14, color: T.muted, flexShrink: 0, marginLeft: 4 }} />
+                      {!formData.finish && <ChevronsUpDown aria-hidden="true" style={{ width: 14, height: 14, color: T.muted, flexShrink: 0, marginLeft: 4 }} />}
                     </button>
                   </PopoverTrigger>
                   <PopoverContent style={{ width: 300, padding: 0 }} align="start">
@@ -1586,22 +1738,33 @@ export default function Modelos() {
                   </FreezeWhileClosing>
                   </PopoverContent>
                 </Popover>
-                {formData.finish && (
-                  <Botao variante="fantasma" tamanho="sm" onClick={() => setFormData({ ...formData, finish: "" })} style={LIMPAR_CAMPO}>
-                    Limpar
-                  </Botao>
-                )}
+                {formData.finish && <LimparCampo rotulo="acabamento" toque={toque} onClick={() => setFormData({ ...formData, finish: "" })} />}
+                </div>
               </div>
+                </div>
+              </section>
 
             </div>
 
-            {/* Footer — primário ESCURO, como o de todo cadastro. O laranja
-                cheio daqui era o único botão de salvar laranja do app. */}
-            <ModalFooter>
+            {/* RODAPÉ DA CASA PARA FORMULÁRIO (o de Adicionar peça e o de
+                Evento): no computador, uma linha — o atalho à esquerda e as
+                ações à direita, o primário por último; no celular, empilhado
+                com o primário em cima, cheio, ao alcance do polegar. Antes
+                eram três botões de largura cheia empilhados também no
+                computador: 190px de rodapé que espremiam o formulário. */}
+            <ModalFooter
+              fundo={T.bg}
+              style={isMobile
+                ? { flexDirection: "column", gap: 8, padding: "12px 16px calc(12px + env(safe-area-inset-bottom))" }
+                : { flexDirection: "row-reverse", justifyContent: "flex-start", alignItems: "center", gap: 10, padding: "14px 28px" }}
+            >
               <Botao type="submit" variante="primario" tamanho="toque"
+                larguraCheia={isMobile}
+                icone={editingItem ? Check : Plus}
                 carregando={createStandardItemMutation.isPending}
                 data-testid="button-submit-model"
                 onClick={() => { continuarRef.current = false; }}
+                style={isMobile ? undefined : { minWidth: 160, padding: "0 20px" }}
               >
                 {createStandardItemMutation.isPending
                   ? (editingItem ? "Atualizando…" : "Criando…")
@@ -1611,6 +1774,7 @@ export default function Modelos() {
                   submit, sem fechar o modal. */}
               {!editingItem && (
                 <Botao type="submit" variante="secundario" tamanho="toque"
+                  larguraCheia={isMobile}
                   disabled={createStandardItemMutation.isPending}
                   data-testid="button-submit-model-e-outro"
                   onClick={() => { continuarRef.current = true; }}
@@ -1618,10 +1782,16 @@ export default function Modelos() {
                   Salvar e cadastrar outro
                 </Botao>
               )}
-              <Botao variante="fantasma" tamanho="toque" onClick={requestCloseDialog}>
+              <Botao variante="fantasma" tamanho="toque" larguraCheia={isMobile} onClick={requestCloseDialog}>
                 {/* Depois de criar na sequência, "Cancelar" sugeria desfazer. */}
                 {criadosNestaSequencia.length > 0 && !editingItem ? "Fechar" : "Cancelar"}
               </Botao>
+              {!isMobile && (
+                <span aria-hidden="true" style={{ marginRight: "auto", fontSize: FS.meta, color: T.second, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <kbd style={{ fontFamily: FONT.mono, fontSize: FS.small, padding: "1px 6px", borderRadius: R.sm, border: `1px solid ${T.border}`, backgroundColor: T.surface, color: T.apoio }}>Enter</kbd>
+                  salva
+                </span>
+              )}
             </ModalFooter>
           </form>
           </FreezeWhileClosing>
@@ -1663,7 +1833,7 @@ export default function Modelos() {
                 ativo={manageTab}
                 aoTrocar={id => { setManageTab(id as "group" | "material" | "finish"); setNewCatValue(""); setMgEditingGroup(null); setMgEditingFinish(null); setMgEditingMaterial(null); setMgDeleteGroupConfirm(null); setMgDeleteFinishConfirm(null); setMgDeleteMaterialConfirm(null); }}
                 itens={[
-                  { id: "group",    rotulo: "Grupos Pai", contador: allGroups.length },
+                  { id: "group",    rotulo: isMobile ? "Grupos" : "Grupos Pai", contador: allGroups.length },
                   { id: "material", rotulo: "Material",   contador: allMats.length },
                   { id: "finish",   rotulo: "Acabamento", contador: allFinishes.length },
                 ]}
@@ -1674,9 +1844,9 @@ export default function Modelos() {
             <div style={{ overflowY: "auto", padding: isMobile ? "12px 16px 20px" : "16px 28px 24px", flex: "1 1 auto", minHeight: 0 }}>
               {(() => {
                 const tabCfg = {
-                  group:    { items: allGroups,   color: TOM.ceu.text, bg: TOM.ceu.border, empty: "Nenhum grupo cadastrado." },
-                  material: { items: allMats,      color: TOM.alerta.text, bg: TOM.alerta.bg, empty: "Nenhum material cadastrado." },
-                  finish:   { items: allFinishes,  color: TOM.sucesso.text, bg: TOM.sucesso.bg, empty: "Nenhum acabamento cadastrado." },
+                  group:    { items: allGroups,   color: TOM.ceu.text, bg: TOM.ceu.border, empty: "Nenhum grupo cadastrado" },
+                  material: { items: allMats,      color: TOM.alerta.text, bg: TOM.alerta.bg, empty: "Nenhum material cadastrado" },
+                  finish:   { items: allFinishes,  color: TOM.sucesso.text, bg: TOM.sucesso.bg, empty: "Nenhum acabamento cadastrado" },
                 }[manageTab];
 
                 const addLabel = manageTab === "group" ? "grupo" : manageTab === "material" ? "material" : "acabamento";
@@ -1697,7 +1867,7 @@ export default function Modelos() {
                 return (
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 4 }}>
                     {/* Adicionar nova opção */}
-                    <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                    <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
                       <input
                         value={newCatValue}
                         onChange={e => setNewCatValue(e.target.value)}
@@ -1721,8 +1891,14 @@ export default function Modelos() {
                     </div>
 
                     {tabCfg.items.length === 0 && (
-                      <p style={{ fontSize: FS.body, color: T.second, margin: "12px 0", textAlign: "center" }}>{tabCfg.empty}</p>
+                      <EstadoVazio compacto icone={Settings} titulo={tabCfg.empty}
+                        descricao={`Adicione acima, ou crie direto no formulário do modelo — o ${addLabel} novo aparece aqui.`} />
                     )}
+                    {/* UMA LISTA, NÃO UMA PILHA DE CARTÕES: cada linha era um
+                        cartão com borda e raio próprios — seis caixas iguais
+                        empilhadas. Agora é uma caixa só, com fios entre as linhas. */}
+                    {tabCfg.items.length > 0 && (
+                    <div role="list" aria-label={`${tabCfg.items.length} ${addLabel === "grupo" ? "grupos" : addLabel === "material" ? "materiais" : "acabamentos"}`} style={{ border: `1px solid ${T.border}`, borderRadius: R.lg, overflow: "hidden" }}>
                     {tabCfg.items.map(name => {
                       const count = manageTab === "group"
                         ? standardItems.filter(s => s.group === name).length
@@ -1731,7 +1907,7 @@ export default function Modelos() {
                         : standardItems.filter(s => s.finish === name).length;
 
                       if (manageTab === "group") return (
-                        <CatRow key={name} name={name} count={count} accentColor={tabCfg.color} accentBg={tabCfg.bg} toque={toque}
+                        <CatRow key={name} name={name} count={count} accentColor={tabCfg.color} accentBg={tabCfg.bg} toque={toque} semRotulo={SEM_ROTULO[manageTab]}
                           isEditing={mgEditingGroup === name} editValue={mgEditGroupValue} onEditChange={setMgEditGroupValue}
                           onEditConfirm={() => { const t = mgEditGroupValue.trim(); if (t && t !== name) renameGroupMutation.mutate({ oldName: name, newName: t }); else setMgEditingGroup(null); }}
                           onEditCancel={() => setMgEditingGroup(null)} isPendingRename={renameGroupMutation.isPending}
@@ -1746,7 +1922,7 @@ export default function Modelos() {
                         />
                       );
                       if (manageTab === "material") return (
-                        <CatRow key={name} name={name} count={count} accentColor={tabCfg.color} accentBg={tabCfg.bg} toque={toque}
+                        <CatRow key={name} name={name} count={count} accentColor={tabCfg.color} accentBg={tabCfg.bg} toque={toque} semRotulo={SEM_ROTULO[manageTab]}
                           isEditing={mgEditingMaterial === name} editValue={mgEditMaterialValue} onEditChange={setMgEditMaterialValue}
                           onEditConfirm={() => { const t = mgEditMaterialValue.trim(); if (t && t !== name) renameMaterialMutation.mutate({ oldName: name, newName: t }); else setMgEditingMaterial(null); }}
                           onEditCancel={() => setMgEditingMaterial(null)} isPendingRename={renameMaterialMutation.isPending}
@@ -1761,7 +1937,7 @@ export default function Modelos() {
                         />
                       );
                       return (
-                        <CatRow key={name} name={name} count={count} accentColor={tabCfg.color} accentBg={tabCfg.bg} toque={toque}
+                        <CatRow key={name} name={name} count={count} accentColor={tabCfg.color} accentBg={tabCfg.bg} toque={toque} semRotulo={SEM_ROTULO[manageTab]}
                           isEditing={mgEditingFinish === name} editValue={mgEditFinishValue} onEditChange={setMgEditFinishValue}
                           onEditConfirm={() => { const t = mgEditFinishValue.trim(); if (t && t !== name) renameFinishMutation.mutate({ oldName: name, newName: t }); else setMgEditingFinish(null); }}
                           onEditCancel={() => setMgEditingFinish(null)} isPendingRename={renameFinishMutation.isPending}
@@ -1776,6 +1952,8 @@ export default function Modelos() {
                         />
                       );
                     })}
+                    </div>
+                    )}
                   </div>
                 );
               })()}
@@ -1817,13 +1995,18 @@ export default function Modelos() {
                 subtitle="Esta ação não pode ser desfeita."
                 onClose={() => setDeleteConfirm(null)}
               />
-              <div style={{ padding: "16px 24px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
+              <div style={{ padding: "16px 24px 18px", overflowY: "auto", flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+                {/* O QUE SAI: o modelo deixa de ser oferecido no campo Tipo
+                    ao adicionar peça no evento — é o único lugar onde ele age. */}
+                <p style={{ margin: 0, fontSize: FS.body, lineHeight: 1.5, color: T.strong }}>
+                  O modelo sai do catálogo e deixa de aparecer no campo Tipo ao adicionar peça no evento.
+                </p>
                 {/* O IMPACTO, que a coluna Uso já sabia: a pergunta "posso
                     excluir?" é respondida aqui, não num tooltip da tabela. */}
                 {(() => {
                   const exato = deleteConfirm.uso?.exato ?? 0;
                   return (
-                    <p data-testid="delete-model-impacto" style={{ margin: 0, padding: "9px 12px", borderRadius: R.sm, fontSize: 12, lineHeight: 1.5, backgroundColor: N.n3, border: `1px solid ${T.border}`, color: T.apoio }}>
+                    <p data-testid="delete-model-impacto" style={{ margin: 0, padding: "9px 12px", borderRadius: R.sm, fontSize: FS.meta, lineHeight: 1.5, backgroundColor: T.low, border: `1px solid ${T.border}`, color: T.apoio }}>
                       {exato > 0
                         ? `${exato} ${exato === 1 ? "peça foi criada" : "peças foram criadas"} a partir dele — ${exato === 1 ? "ela continua" : "elas continuam"} como estão.`
                         : "Nenhuma peça foi criada a partir dele."}
@@ -1831,10 +2014,17 @@ export default function Modelos() {
                   );
                 })()}
               </div>
-              <ModalFooter>
+              {/* O PAR DA CASA (useConfirmar): no computador, à direita, o
+                  recuar antes e o vermelho por último; no celular, empilhado,
+                  o vermelho em cima e cheio. */}
+              <ModalFooter style={isMobile
+                ? { padding: "12px 16px calc(12px + env(safe-area-inset-bottom))" }
+                : { flexDirection: "row-reverse", justifyContent: "flex-start", alignItems: "center", gap: 8, padding: "14px 24px" }}>
                 <Botao
                   variante="perigo"
-                  tamanho="toque"
+                  tamanho={isMobile ? "toque" : "md"}
+                  larguraCheia={isMobile}
+                  icone={Trash2}
                   onClick={() => deleteStandardItemMutation.mutate(deleteConfirm.id)}
                   carregando={deleteStandardItemMutation.isPending}
                   data-testid="button-confirm-delete-model"
@@ -1843,7 +2033,8 @@ export default function Modelos() {
                 </Botao>
                 <Botao
                   variante="fantasma"
-                  tamanho="toque"
+                  tamanho={isMobile ? "toque" : "md"}
+                  larguraCheia={isMobile}
                   data-testid="button-cancel-delete-model"
                   onClick={() => setDeleteConfirm(null)}
                 >
@@ -1860,20 +2051,38 @@ export default function Modelos() {
   );
 }
 
+/* ── O × de limpar um seletor do formulário ──
+   Era um botão "Limpar" embaixo do campo: aparecia só nos preenchidos e
+   desalinhava a coluna vizinha (Tipo com 30px a mais que Grupo). Agora mora
+   DENTRO do campo, no lugar do chevron — o mesmo gesto dos filtros. Fica
+   fora do <button> do gatilho (botão dentro de botão é HTML inválido). */
+function LimparCampo({ rotulo, onClick, toque }: { rotulo: string; onClick: () => void; toque: number }) {
+  const lado = toque >= 44 ? 40 : 30;
+  return (
+    <button type="button" onClick={onClick} aria-label={`Limpar ${rotulo}`} title={`Limpar ${rotulo}`} className="mod-limpar"
+      style={{ position: "absolute", right: toque >= 44 ? 2 : 7, top: "50%", transform: "translateY(-50%)", width: lado, height: lado, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: R.sm, border: "none", background: "transparent", color: T.second, cursor: "pointer" }}>
+      <X aria-hidden="true" style={{ width: 15, height: 15 }} />
+    </button>
+  );
+}
+
 /* ── Ação de linha, só com ícone ──
    É o <Botao> fantasma: o realce de hover E de foco de teclado vem da classe
    .ds-botao-fantasma. Antes um estado `hovered`, ligado por mouse e foco,
    pintava cada ação de uma cor — e re-renderizava a linha a cada passada. */
-function HoverIconBtn({ icon, onClick, testId, title, ariaLabel, tamanho = 32 }: {
+function HoverIconBtn({ icon, onClick, testId, title, ariaLabel, tamanho = 32, perigo = false }: {
   icon: React.ReactNode;
   onClick: () => void; testId: string; title: string; ariaLabel?: string;
   /** 32 no mouse, 44 no dedo — o alvo de toque das outras tabelas. */
   tamanho?: number;
+  /** A lixeira acende em vermelho no hover/foco (classe mod-acao-perigo). */
+  perigo?: boolean;
 }) {
   return (
     <Botao variante="fantasma" tamanho={tamanho >= 44 ? "toque" : "sm"} onClick={onClick}
       data-testid={testId} title={title} aria-label={ariaLabel ?? title}
-      style={{ width: tamanho, minHeight: tamanho, padding: 0 }}>
+      className={perigo ? "mod-acao mod-acao-perigo" : "mod-acao"}
+      style={{ width: tamanho, minHeight: tamanho, padding: 0, color: T.second }}>
       {icon}
     </Botao>
   );

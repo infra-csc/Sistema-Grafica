@@ -1730,3 +1730,48 @@ a.ds-botao[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; filter: no
 .maq-nav:hover:not(:disabled) { background-color: var(--n2) !important; }
 .maq-nav:disabled { cursor: not-allowed; }
 .maq-seg:focus-visible, .maq-nav:focus-visible { outline-offset: -2px; }
+
+/* ── MODELOS (prefixo mod-): ações da linha, cartões, interruptor e o
+   limpar dos seletores. Tudo curto e zerado por prefers-reduced-motion. ── */
+.mod-acao { transition: color var(--dur-rapida) ease, background-color var(--dur-rapida) ease; }
+@media (hover: hover) { .mod-acao:hover:not(:disabled) { color: var(--n10) !important; } }
+.mod-acao-perigo:hover:not(:disabled), .mod-acao-perigo:focus-visible { color: var(--perigo-text) !important; background-color: var(--perigo-bg) !important; }
+.mod-cartao { transition: background-color var(--dur-rapida) ease; }
+.mod-cartao:active { background-color: var(--n1); }
+.mod-switch { border-radius: 999px; outline: none; }
+.mod-switch:focus-visible { box-shadow: 0 0 0 2px var(--n0), 0 0 0 4px var(--orange-deep); }
+.mod-switch-trilho { transition: background-color var(--dur-media) ease; }
+.mod-switch-bola { transition: transform var(--dur-media) var(--ease-saida); }
+.mod-campo { transition: background-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease; }
+.mod-campo:hover:not(:disabled):not(:focus) { background-color: var(--n4) !important; }
+.mod-campo:focus, .mod-campo:focus-visible, .mod-campo[data-state="open"] { outline: none; background-color: var(--n0) !important; box-shadow: 0 0 0 2px color-mix(in srgb, var(--orange-deep) 28%, transparent) !important; }
+.mod-limpar { transition: color var(--dur-rapida) ease, background-color var(--dur-rapida) ease; }
+.mod-limpar:hover { color: var(--n10) !important; background-color: var(--n4) !important; }
+.mod-limpar:focus-visible { outline: 2px solid var(--orange-deep); outline-offset: 1px; }
+.mod-aviso { animation: mod-entra var(--dur-media) var(--ease-saida) both; }
+@keyframes mod-entra { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+.mod-cat-linha:last-child { border-bottom: none !important; }
+
+/* ── USUÁRIOS (prefixo usu-): linha, cartão, chips de perfil, campos e
+   o quadro do perfil. Curto e zerado por prefers-reduced-motion. ── */
+.usu-linha { transition: background-color var(--dur-rapida) ease; }
+@media (hover: hover) { .usu-linha:hover { background-color: var(--n1); } }
+.usu-cartao:active { background-color: var(--n1); }
+.usu-chip { transition: background-color var(--dur-rapida) ease, border-color var(--dur-rapida) ease, color var(--dur-rapida) ease; }
+@media (hover: hover) { .usu-chip[aria-pressed="false"]:hover { border-color: var(--n6) !important; color: var(--n10) !important; filter: none !important; } }
+.usu-campo { transition: background-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease; }
+.usu-campo:hover:not(:disabled):not(:focus) { background-color: var(--n4) !important; }
+.usu-campo:focus, .usu-campo:focus-visible { outline: none; background-color: var(--n0) !important; box-shadow: 0 0 0 2px color-mix(in srgb, var(--orange-deep) 28%, transparent) !important; }
+.usu-acao { transition: color var(--dur-rapida) ease, background-color var(--dur-rapida) ease; }
+@media (hover: hover) { .usu-acao:hover:not(:disabled) { color: var(--n10) !important; } }
+.usu-acao-perigo:hover:not(:disabled), .usu-acao-perigo:focus-visible { color: var(--perigo-text) !important; background-color: var(--perigo-bg) !important; }
+.usu-marca { transition: background-color var(--dur-rapida) ease, border-color var(--dur-rapida) ease; }
+.usu-marca:has(input:focus-visible) { box-shadow: 0 0 0 2px var(--n0), 0 0 0 4px var(--orange-deep); }
+.usu-quadro { animation: usu-troca var(--dur-media) var(--ease-saida) both; }
+.usu-aviso { animation: usu-troca var(--dur-media) var(--ease-saida) both; }
+@keyframes usu-troca { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+.usu-chips-rolam::-webkit-scrollbar { display: none; }
+.mod-campo[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+.mod-campo[type="number"]::-webkit-inner-spin-button, .mod-campo[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.mod-campo[aria-invalid="true"], .mod-campo[aria-invalid="true"]:focus { background-color: var(--perigo-bg) !important; box-shadow: inset 0 0 0 1.5px var(--perigo-text) !important; }
+.usu-campo[aria-invalid="true"], .usu-campo[aria-invalid="true"]:focus { background-color: var(--perigo-bg) !important; box-shadow: inset 0 0 0 1.5px var(--perigo-text) !important; }

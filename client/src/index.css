@@ -1355,3 +1355,37 @@ a.ds-botao[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; filter: no
   .gpz-entra { animation: gpz-entra var(--dur-media) var(--ease-saida) backwards; }
 }
 @keyframes gpz-entra { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+
+/* ── HISTÓRICO (prefixo his-): hover, foco e entrada que o estilo inline não
+   alcança. Movimento só sem prefers-reduced-motion. ─────────────────────── */
+/* A linha acende sob o ponteiro e ganha um fio à esquerda — "é esta". */
+.his-linha { transition: background-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease; }
+@media (hover: hover) {
+  .his-linha:hover { background-color: var(--n1); box-shadow: inset 3px 0 0 var(--n5); }
+  .his-linha:hover .his-acao { color: var(--n9) !important; }
+  .his-linha:hover .his-acao-rota { color: var(--orange-deep) !important; }
+}
+.his-linha:focus-within { background-color: var(--n1); }
+/* Evento e peça dentro da descrição: fio discreto, que escurece no ponteiro. */
+.his-link { text-decoration: underline; text-decoration-color: var(--n5); text-decoration-thickness: 1px; text-underline-offset: 3px; border-radius: 2px; transition: text-decoration-color var(--dur-rapida) ease, color var(--dur-rapida) ease; }
+.his-link:hover { text-decoration-color: currentColor; color: var(--n10) !important; }
+/* Ações da linha (trilha, detalhe): discretas até a linha pedir. */
+.his-acao { color: var(--n7) !important; transition: color var(--dur-rapida) ease, background-color var(--dur-rapida) ease; }
+.his-acao:hover, .his-acao:focus-visible { color: var(--n10) !important; }
+.his-acao-rota:hover, .his-acao-rota:focus-visible { color: var(--orange-deep) !important; }
+/* Atalhos (pílulas): respondem ao ponteiro e ao toque. */
+@media (hover: hover) { .his-atalho:hover:not([aria-pressed="true"]) { filter: brightness(0.96); } }
+.his-atalho:active { filter: brightness(0.92); }
+/* Campo de busca: a mesma família de foco da casa. */
+.his-busca { transition: border-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease; }
+.his-busca:hover:not(:focus) { border-color: var(--n5) !important; }
+.his-busca::placeholder { color: var(--n7); }
+/* Progresso do "Completando a trilha": um fio que anda. */
+.his-progresso { height: 3px; border-radius: 999px; background-color: var(--n3); overflow: hidden; }
+.his-progresso > span { display: block; height: 100%; border-radius: inherit; background-color: var(--n8); transition: width var(--dur-media) var(--ease-saida); }
+@media (prefers-reduced-motion: no-preference) {
+  .his-surge { animation: his-surge var(--dur-media) var(--ease-saida) backwards; }
+  .his-novidades { animation: his-sobe var(--dur-media) var(--ease-saida) backwards; }
+}
+@keyframes his-surge { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes his-sobe { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }

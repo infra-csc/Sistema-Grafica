@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import { Check, LogOut, RotateCcw, Save, Search, SearchX, Layers, X } from "lucide-react";
 import { useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
-import { T, FS, FW, R, FONT, darkenToContrast } from "@/lib/theme";
+import { T, N, TOM, FS, FW, R, FONT, darkenToContrast } from "@/lib/theme";
 import { Botao } from "@/components/ui/botao";
 import { Selo } from "@/components/ui/selo";
 import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
@@ -27,9 +27,6 @@ const QUOTAS = [
   { key: "MIDIA",      label: "Mídia",      color: darkenToContrast("#0891b2", "#cffafe"), bg: "#ecfeff", light: "#cffafe" },
   { key: "MINISTERIO", label: "Ministério", color: darkenToContrast("#059669", "#d1fae5"), bg: "#ecfdf5", light: "#d1fae5" },
 ];
-
-// Listra da zebra — o n1 da escada (mesmo tom do fundo da página).
-const STRIPE = T.bg;
 
 const DEFAULT_QUOTA_RULES: Record<string, string[]> = {
   MASTER:     ["Palco", "Gradil", "Pórtico", "Rolo"],
@@ -338,36 +335,48 @@ export default function ConfigurarCotas() {
   // Com piso, a matriz passa a rolar na horizontal dentro do card — que já é o
   // scrollport das duas direções, com a coluna de grupo grudada à esquerda.
   const COL_GRUPO = isMobile ? 132 : 200;
-  const COL_COTA = isMobile ? 88 : 100;
+  const COL_COTA = isMobile ? 104 : 116;
   const COLS = `${COL_GRUPO}px repeat(${QUOTAS.length}, minmax(${COL_COTA}px, 1fr))`;
   const GRID_MIN = COL_GRUPO + QUOTAS.length * COL_COTA;
+
+  // Todos/Limpar: 28px de desenho; no dedo, a área de toque cresce por uma
+  // camada invisível (.cot-acao::after no index.css) — esticados a 44, os dois
+  // quebravam em duas linhas e o cabeçalho da grade dobrava de altura.
+  const ALVO = 28;
+  const pendentes = Array.from(dirty);
+  const gradePronta = !isLoading && !isError && groups.length > 0;
 
   return (
     <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "16px 16px 48px" : "28px 32px 64px" }}>
 
-      {/* ── Header ── Mesmo cabeçalho das outras telas de administração:
-          título e estado à esquerda, pendência + ações à direita. */}
-      {/* AVISO + AÇÕES DE PENDÊNCIA. O "N cotas com alterações" morava só no
-          rodapé da matriz — que, com muitos grupos, fica abaixo da dobra — e
-          a única saída era salvar. Agora o estado fica à vista no topo, com
-          as duas saídas lado a lado: descartar (secundário) e salvar tudo
-          (primário). A região viva (sempre montada, só o texto muda) avisa o
-          leitor de tela quando a contagem muda — sem reler os botões. */}
+      {/* ── Cabeçalho ── título e o que a tela faz à esquerda; a pendência e as
+          duas saídas (descartar, salvar tudo) à direita, à vista no topo — o
+          aviso morava só no rodapé da matriz, abaixo da dobra. A região viva
+          (sempre montada, só o texto muda) avisa o leitor de tela. */}
       <CabecalhoDaPagina
         titulo="Configurar Cotas"
-        subtitulo={isLoading || isError ? undefined : `${groups.length} grupo${groups.length !== 1 ? "s" : ""} de peça em ${QUOTAS.length} cotas`}
+        margemInferior={16}
+        subtitulo={
+          <span style={{ display: "block", maxWidth: 620 }}>
+            Quais grupos de peça cada cota de patrocinador recebe. Configuração global, usada pelo Auto-vincular.
+            {!isLoading && !isError && (
+              <span style={{ color: T.apoio, fontWeight: FW.medio }}> {groups.length} grupo{groups.length !== 1 ? "s" : ""} × {QUOTAS.length} cotas.</span>
+            )}
+          </span>
+        }
         acoes={
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", width: isMobile ? "100%" : undefined }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", width: isMobile ? "100%" : undefined, justifyContent: isMobile ? undefined : "flex-end" }}>
             <span className="sr-only" aria-live="polite">
               {dirty.size === 0 ? "" : dirty.size === 1 ? "1 cota com alterações não salvas" : `${dirty.size} cotas com alterações não salvas`}
             </span>
-            {dirty.size > 0 && (
+            {dirty.size > 0 && !isMobile ? (
               <>
                 <Selo
                   tom="laranja"
                   ponto
                   data-testid="aviso-alteracoes-nao-salvas"
-                  style={{ height: 32, padding: "0 12px", fontSize: FS.meta, animation: "norte-surge 0.18s ease-out", flex: isMobile ? "1 1 100%" : undefined, justifyContent: isMobile ? "center" : undefined }}
+                  title={pendentes.map(rotuloDaCota).join(", ")}
+                  style={{ height: toque ? 44 : 36, padding: "0 12px", fontSize: FS.meta, animation: "norte-surge 0.18s ease-out", flex: isMobile ? "1 1 100%" : undefined, justifyContent: isMobile ? "center" : undefined, borderRadius: R.md }}
                 >
                   {dirty.size === 1 ? "1 cota com alterações não salvas" : `${dirty.size} cotas com alterações não salvas`}
                 </Selo>
@@ -380,7 +389,7 @@ export default function ConfigurarCotas() {
                   data-testid="discard-all-button"
                   style={{ flex: isMobile ? "1 1 0" : undefined }}
                 >
-                  Descartar alterações
+                  Descartar
                 </Botao>
                 <Botao
                   variante="primario"
@@ -389,179 +398,181 @@ export default function ConfigurarCotas() {
                   onClick={saveAll}
                   carregando={saveMutation.isPending}
                   data-testid="save-all-button"
+                  title="Salvar todas as cotas alteradas (Ctrl+S)"
                   style={{ flex: isMobile ? "1 1 0" : undefined }}
                 >
                   {saveMutation.isPending ? "Salvando…" : `Salvar Tudo (${dirty.size})`}
                 </Botao>
               </>
-            )}
+            ) : dirty.size === 0 && !isLoading && !isError && groups.length > 0 ? (
+              // SALVO — o estado de repouso também se diz: sem isto, depois do
+              // "Salvar Tudo" o canto só ficava vazio e não dava para saber se
+              // ainda havia algo pendente.
+              <span data-testid="estado-tudo-salvo" className="cot-entra" style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, fontSize: FS.meta, fontWeight: FW.medio, color: T.second }}>
+                <Check aria-hidden="true" style={{ width: 14, height: 14, color: TOM.sucesso.text }} />
+                Tudo salvo
+              </span>
+            ) : null}
           </div>
         }
       />
-      <div style={{ margin: "-8px 0 24px" }}>
-        <p style={{ fontSize: FS.body, color: T.second, margin: 0, lineHeight: 1.5, maxWidth: 640 }}>
-          Defina quais grupos de peças cada cota de patrocinador recebe. Configuração global usada no Auto-vincular.
-        </p>
-        {/* PARA QUE SERVE E ONDE APARECE DEPOIS. "Auto-vincular" sozinho não
-            dizia onde fica, de onde vem a cota de cada patrocinador nem se
-            salvar mexe no que já está vinculado. Cada frase vem do código:
-            a cota é do vínculo evento↔patrocinador (eventos.tsx, seletor de
-            cota); a regra só é lida por previewAutoLink/autoLinkByQuota
-            (server/storage.ts), que casa o grupo pelo INÍCIO do tipo da
-            peça ("Palco" pega "Palco Lateral") e só CRIA vínculo que falta. */}
-        <ul data-testid="cotas-como-funciona" style={{ margin: "12px 0 0", padding: "10px 14px 10px 30px", maxWidth: 700, borderRadius: R.md, backgroundColor: T.surface, border: `1px solid ${T.border}`, fontSize: FS.meta, lineHeight: 1.55, color: T.strong, display: "flex", flexDirection: "column", gap: 3 }}>
-          <li>A cota de cada patrocinador (Master, Gold…) é escolhida no evento, ao vinculá-lo.</li>
-          <li>
-            Em{" "}
-            <Link href="/vincular-patrocinadores" style={{ color: T.accentText, fontWeight: FW.forte, textDecoration: "underline", textUnderlineOffset: 2 }}>Vincular Patrocinadores</Link>
-            , o botão <strong>Auto-vincular por cota</strong> dá a cada patrocinador as peças dos grupos marcados na coluna da cota dele — o grupo “Palco” também pega “Palco Lateral”.
+
+      {/* COMO FUNCIONA — três passos, em fileira: de onde vem a cota, onde a
+          regra é usada e o que salvar muda. Cada frase vem do código: a cota é
+          do vínculo evento↔patrocinador (eventos.tsx); a regra só é lida por
+          previewAutoLink/autoLinkByQuota (server/storage.ts), que casa o grupo
+          pelo INÍCIO do tipo ("Palco" pega "Palco Lateral") e só CRIA vínculo
+          que falta. */}
+      <ol data-testid="cotas-como-funciona" aria-label="Como funciona" style={{ listStyle: "none", margin: "0 0 20px", padding: 0, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))", gap: isMobile ? 8 : 12, maxWidth: 1100 }}>
+        {[
+          <>A <strong style={{ color: T.text, fontWeight: FW.forte }}>cota</strong> de cada patrocinador (Master, Gold…) é escolhida no evento, ao vinculá-lo.</>,
+          <>Em <Link href="/vincular-patrocinadores" className="cot-link" style={{ color: T.accentText, fontWeight: FW.forte, textDecoration: "underline", textUnderlineOffset: 2 }}>Vincular Patrocinadores</Link>, o <strong style={{ color: T.text, fontWeight: FW.forte }}>Auto-vincular por cota</strong> dá a cada patrocinador as peças dos grupos marcados na coluna dele — “Palco” também pega “Palco Lateral”.</>,
+          <>Salvar aqui <strong style={{ color: T.text, fontWeight: FW.forte }}>não muda vínculos já feitos</strong>: vale a partir do próximo Auto-vincular, em qualquer evento.</>,
+        ].map((texto, i) => (
+          <li key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 12px", borderRadius: R.md, backgroundColor: T.surface, border: `1px solid ${T.border}`, fontSize: FS.meta, lineHeight: 1.5, color: T.apoio }}>
+            <span aria-hidden="true" style={{ flexShrink: 0, width: 20, height: 20, borderRadius: R.pill, backgroundColor: N.n3, color: T.strong, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: FS.small, fontWeight: FW.forte, fontFamily: FONT.mono, marginTop: 0 }}>{i + 1}</span>
+            <span>{texto}</span>
           </li>
-          <li>Salvar aqui não muda vínculos já feitos: vale a partir do próximo Auto-vincular, em qualquer evento.</li>
-        </ul>
-      </div>
+        ))}
+      </ol>
 
-      {/* ── Matrix card ── */}
+      {/* ── A matriz ── */}
       {/* O card é o ÚNICO contêiner de rolagem (as duas direções): sticky-top
-          e sticky-left grudam no mesmo scrollport. Antes, quem rolava era a
-          página e o card só clipava — o cabeçalho sticky ficava inerte. */}
-      <div style={{ backgroundColor: T.surface, borderRadius: R.lg, border: `1px solid ${T.border}`, overflow: "auto", maxHeight: isMobile ? "calc(100vh - 150px)" : "calc(100vh - 230px)" }}>
+          e sticky-left grudam no mesmo scrollport. */}
+      <div style={{ backgroundColor: T.surface, borderRadius: R.lg, border: `1px solid ${T.border}`, overflow: "auto", maxHeight: isMobile ? "calc(100dvh - 150px)" : "calc(100vh - 200px)" }}>
 
-        {/* ── Sticky header ── */}
+        {/* ── Cabeçalho grudado ── */}
         <div style={{
           position: "sticky", top: 0, zIndex: 10,
           display: "grid", gridTemplateColumns: COLS, minWidth: GRID_MIN,
-          borderBottom: `2px solid ${T.border}`,
+          borderBottom: `1px solid ${T.border}`,
           backgroundColor: T.surface,
-          boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+          boxShadow: "0 1px 0 rgba(28,25,23,0.04), 0 4px 10px -6px rgba(28,25,23,0.12)",
         }}>
-          {/* Left corner: search — sticky à esquerda para a coluna de grupo
-              não sumir no scroll horizontal */}
-          <div style={{ position: "sticky", left: 0, zIndex: 11, backgroundColor: T.surface, padding: "14px 16px", borderRight: `1px solid ${T.border}`, display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: 8 }}>
-            <span style={{ fontSize: FS.micro, fontWeight: FW.rotulo, color: T.second, textTransform: "uppercase", letterSpacing: "0.16em", fontFamily: FONT.display }}>
-              Grupo de Peça
+          {/* Canto: o filtro de grupos — grudado à esquerda para a coluna de
+              grupo não sumir no scroll horizontal. */}
+          <div style={{ position: "sticky", left: 0, zIndex: 11, backgroundColor: T.surface, padding: "12px 14px", borderRight: `1px solid ${T.border}`, display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: 8 }}>
+            <span style={{ fontSize: FS.micro, fontWeight: FW.rotulo, color: T.second, textTransform: "uppercase", letterSpacing: "0.14em" }}>
+              Grupo de peça
             </span>
             {groups.length > 6 && (
               <div style={{ position: "relative" }}>
-                <Search aria-hidden="true" style={{ position: "absolute", left: 7, top: "50%", transform: "translateY(-50%)", width: 12, height: 12, color: T.muted }} />
+                <Search aria-hidden="true" style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: T.second, pointerEvents: "none" }} />
                 <input
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  placeholder="Filtrar grupos..."
+                  placeholder={isMobile ? "Filtrar…" : "Filtrar grupos…"}
                   aria-label="Filtrar grupos de peça"
                   data-testid="input-search-groups"
-                  // Sem `outline: none`: o inline vencia o anel de foco global
-                  // (:focus-visible) e quem navega por teclado perdia o cursor.
-                  style={{ width: "100%", height: toque ? 44 : 30, padding: "0 26px 0 24px", fontSize: isMobile ? FS.lead : FS.meta, border: `1px solid ${T.border}`, borderRadius: R.sm, background: T.low, color: T.text, boxSizing: "border-box" }}
+                  type="search"
+                  className="cot-campo"
+                  style={{ width: "100%", height: toque ? 44 : 32, padding: `0 ${search ? (toque ? 40 : 28) : 8}px 0 28px`, fontSize: isMobile ? FS.lead : FS.meta, border: `1px solid ${T.border}`, borderRadius: R.sm, background: T.surface, color: T.text, boxSizing: "border-box", fontFamily: "inherit" }}
                 />
                 {search && (
-                  <button type="button" onClick={() => setSearch("")} aria-label="Limpar filtro de grupos" style={{ position: "absolute", right: 2, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 6, display: "flex", borderRadius: R.sm }}>
-                    <X aria-hidden="true" style={{ width: 12, height: 12, color: T.second }} />
+                  <button type="button" onClick={() => setSearch("")} aria-label="Limpar filtro de grupos" className="cot-acao"
+                    style={{ position: "absolute", right: 2, top: "50%", transform: "translateY(-50%)", width: toque ? 40 : 26, height: toque ? 40 : 26, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: R.sm, color: T.second }}>
+                    <X aria-hidden="true" style={{ width: 12, height: 12 }} />
                   </button>
                 )}
               </div>
             )}
-            {!isLoading && (
-              <span style={{ fontSize: FS.micro, color: T.second, fontWeight: FW.medio }}>
-                {search ? `${filteredGroups.length} de ${groups.length}` : `${groups.length} grupos`}
+            {!isLoading && !isError && (
+              <span aria-live="polite" style={{ fontSize: FS.small, color: T.second, fontWeight: FW.medio, fontVariantNumeric: "tabular-nums" }}>
+                {search ? `${filteredGroups.length} de ${groups.length} grupos` : `${groups.length} grupo${groups.length !== 1 ? "s" : ""}`}
               </span>
             )}
           </div>
 
-          {/* Quota columns */}
+          {/* Uma coluna por cota: o nome na cor de identidade da cota (a mesma
+              das outras telas), quantos grupos ela recebe, e as ações. A
+              coluna com alteração pendente ganha o laranja de "não salvo" —
+              antes ganhava a própria cor da cota, a mesma das células
+              marcadas, e as duas coisas se confundiam. */}
           {QUOTAS.map(q => {
             const count = matrix[q.key]?.size ?? 0;
             const isDirtyQ = dirty.has(q.key);
+            const acao: React.CSSProperties = {
+              fontSize: FS.small, fontWeight: FW.forte, color: T.apoio, background: "none", border: "none",
+              borderRadius: R.sm, padding: "0 4px", minHeight: ALVO, whiteSpace: "nowrap", cursor: "pointer", fontFamily: "inherit",
+            };
             return (
-              <div key={q.key} style={{
-                padding: "14px 10px 12px",
+              <div key={q.key} data-testid={`cabecalho-cota-${q.key}`} style={{
+                position: "relative",
+                padding: toque ? "14px 4px 8px" : "14px 6px 10px",
                 borderLeft: `1px solid ${T.border}`,
                 display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
-                backgroundColor: isDirtyQ ? q.bg : T.surface,
-                transition: "background 0.15s",
+                backgroundColor: isDirtyQ ? TOM.laranja.bg : T.surface,
+                transition: "background-color var(--dur-media) ease",
               }}>
-                {/* Label + count */}
+                {/* O fio da cor da cota: identidade sem pintar a coluna inteira. */}
+                <span aria-hidden="true" style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, backgroundColor: q.color }} />
                 <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: FS.small, fontWeight: FW.rotulo, color: q.color, textTransform: "uppercase", letterSpacing: "0.1em", fontFamily: FONT.display }}>
+                  <div style={{ fontSize: FS.meta, fontWeight: FW.rotulo, color: q.color, textTransform: "uppercase", letterSpacing: "0.1em", fontFamily: FONT.display }}>
                     {q.label}
                   </div>
-                  <div style={{
-                    marginTop: 3,
-                    display: "inline-block",
-                    padding: "1px 8px",
-                    borderRadius: R.pill,
-                    backgroundColor: count > 0 ? q.light : T.low,
-                    fontSize: FS.micro, fontWeight: FW.forte,
-                    color: count > 0 ? q.color : T.second,
-                  }}>
+                  {/* Contagem e ações só com a grade pronta: carregando, em erro ou
+                      sem grupo, "0 grupos" e "Todos" afirmavam o que não se sabe. */}
+                  {gradePronta && <div style={{ marginTop: 2, fontSize: FS.small, fontWeight: FW.medio, color: count > 0 ? T.strong : T.second, fontVariantNumeric: "tabular-nums" }}>
                     {count} grupo{count !== 1 ? "s" : ""}
-                  </div>
-                  {/* O fundo colorido era o ÚNICO sinal de coluna com alteração
-                      pendente — e a própria coluna já usa essa cor quando a
-                      célula está marcada. O rótulo tira a ambiguidade. */}
-                  {isDirtyQ && (
-                    <div style={{ marginTop: 3, fontSize: FS.micro, fontWeight: FW.rotulo, color: T.accentText, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                      não salvo
-                    </div>
-                  )}
+                    {/* O laranja da coluna diz "pendente"; o rótulo tira a dúvida. */}
+                    {isDirtyQ && <span style={{ color: T.accentText, fontWeight: FW.forte }}> · não salvo</span>}
+                  </div>}
                 </div>
 
-                {/* Actions row — quebra linha: no celular a coluna tem 88px e
-                    Todos + Limpar + salvar, com alvo de 44px, somavam ~150 e
-                    invadiam a coluna vizinha. Nada abaixo de 10px de fonte. */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flexWrap: "wrap", gap: 3 }}>
-                  {/* Todos/Limpar ficam <button> nativo: são chips na cor da cota,
-                      desenho que o Botao não tem. Alvo de 44px pelo ponteiro. */}
-                  <button
-                    type="button"
-                    onClick={() => selectAll(q.key)}
-                    data-testid={`btn-all-${q.key}`}
-                    aria-label={`Marcar todos os grupos para a cota ${q.label}`}
-                    style={{ fontSize: FS.micro, fontWeight: FW.forte, color: q.color, background: q.bg, border: `1px solid ${q.light}`, borderRadius: R.sm, padding: toque ? "12px 10px" : "0 8px", minHeight: toque ? 44 : 24, cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em" }}
-                  >
+                {/* Ações — quebram linha na coluna estreita do celular. */}
+                {gradePronta && <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flexWrap: "wrap", gap: 2 }}>
+                  <button type="button" className="cot-acao" onClick={() => selectAll(q.key)} data-testid={`btn-all-${q.key}`}
+                    aria-label={`Marcar todos os grupos${search ? " visíveis" : ""} para a cota ${q.label}`}
+                    title={search ? "Marca os grupos visíveis no filtro" : "Marca todos os grupos"}
+                    style={acao}>
                     Todos
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => clearAll(q.key)}
-                    data-testid={`btn-clear-${q.key}`}
-                    aria-label={`Desmarcar todos os grupos da cota ${q.label}`}
-                    style={{ fontSize: FS.micro, fontWeight: FW.forte, color: T.second, background: T.low, border: `1px solid ${T.border}`, borderRadius: R.sm, padding: toque ? "12px 10px" : "0 8px", minHeight: toque ? 44 : 24, cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em" }}
-                  >
+                  {!toque && <span aria-hidden="true" style={{ color: T.muted, fontSize: FS.small }}>·</span>}
+                  <button type="button" className="cot-acao" onClick={() => clearAll(q.key)} data-testid={`btn-clear-${q.key}`}
+                    aria-label={`Desmarcar todos os grupos${search ? " visíveis" : ""} da cota ${q.label}`}
+                    title={search ? "Desmarca os grupos visíveis no filtro" : "Desmarca todos os grupos"}
+                    style={acao}>
                     Limpar
                   </button>
-                  {isDirtyQ && (
-                    <button
-                      type="button"
+                </div>}
+
+                {/* Não salvo: o salvar só desta cota. */}
+                {isDirtyQ && (
+                  <div className="cot-entra" style={{ display: "flex", justifyContent: "center" }}>
+                    <Botao
+                      variante="primario"
+                      tamanho={toque ? "toque" : "sm"}
+                      icone={Save}
+                      tamanhoDoIcone={12}
                       onClick={() => saveQuota(q.key)}
                       disabled={saveMutation.isPending}
                       data-testid={`save-quota-${q.key}`}
                       aria-label={`Salvar regras da cota ${q.label}`}
-                      style={{ display: "flex", alignItems: "center", justifyContent: "center", width: toque ? 44 : 24, height: toque ? 44 : 24, backgroundColor: T.dark, border: "none", borderRadius: R.sm, cursor: saveMutation.isPending ? "wait" : "pointer", opacity: saveMutation.isPending ? 0.6 : 1, flexShrink: 0 }}
-                      title={`Salvar ${q.label}`}
+                      title={`Salvar só ${q.label}`}
+                      style={{ height: toque ? 44 : 26, padding: "0 10px", fontSize: FS.small }}
                     >
-                      <Save aria-hidden="true" style={{ width: 11, height: 11, color: T.surface }} />
-                    </button>
-                  )}
-                </div>
+                      Salvar
+                    </Botao>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
 
-        {/* ── Rows ── */}
+        {/* ── Linhas ── */}
         {isLoading ? (
-          // Esqueleto na silhueta das linhas da matriz. O pulso era um
-          // `animation` inline, que ignorava "reduzir movimento"; agora é o
-          // `motion-safe:` das outras telas.
+          // Esqueleto na silhueta das linhas da matriz, com o pulso
+          // `motion-safe:` (respeita "reduzir movimento").
           <div role="status" aria-label="Carregando regras de cota" style={{ minWidth: GRID_MIN }}>
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="motion-safe:animate-pulse" style={{ display: "grid", gridTemplateColumns: COLS, borderBottom: `1px solid ${T.border}` }}>
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="motion-safe:animate-pulse" style={{ display: "grid", gridTemplateColumns: COLS, borderBottom: `1px solid ${N.n3}` }}>
                 <div style={{ padding: "13px 16px", borderRight: `1px solid ${T.border}` }}>
-                  <div style={{ width: "70%", height: 12, borderRadius: R.sm, backgroundColor: T.low }} />
+                  <div style={{ width: `${55 + ((i * 17) % 35)}%`, height: 11, borderRadius: R.sm, backgroundColor: N.n3 }} />
                 </div>
                 {QUOTAS.map(q => (
-                  <div key={q.key} style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: toque ? 44 : 40, borderLeft: `1px solid ${T.border}` }}>
-                    <div style={{ width: 18, height: 18, borderRadius: R.sm, backgroundColor: T.low }} />
+                  <div key={q.key} style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: toque ? 44 : 40, borderLeft: `1px solid ${N.n3}` }}>
+                    <div style={{ width: 18, height: 18, borderRadius: 5, backgroundColor: N.n3 }} />
                   </div>
                 ))}
               </div>
@@ -572,20 +583,19 @@ export default function ConfigurarCotas() {
             <EstadoErro
               compacto
               titulo="Não foi possível carregar as regras de cota"
-              detalhe="Verifique sua conexão e tente novamente."
+              detalhe="Verifique sua conexão e tente novamente. Nada do que está salvo foi alterado."
               aoTentarDeNovo={() => { refetchGroups(); refetchRules(); }}
             />
           </div>
         ) : filteredGroups.length === 0 ? (
           <div style={{ padding: 16, position: "sticky", left: 0, maxWidth: "100%" }}>
             {search ? (
-              // Mesmo botão "Limpar filtros" dos vazios de Usuários, Logs e
-              // Patrocinadores — era um link laranja solto.
               <EstadoVazio
                 compacto
                 icone={SearchX}
                 titulo={`Nenhum grupo encontrado para "${search}"`}
-                acao={<Botao variante="secundario" onClick={() => setSearch("")}>Limpar filtro</Botao>}
+                descricao="As marcações escondidas pelo filtro continuam como estão."
+                acao={<Botao variante="secundario" icone={X} onClick={() => setSearch("")}>Limpar filtro</Botao>}
               />
             ) : (
               // De onde vêm as linhas: /api/quota-rules/groups junta o `type`
@@ -593,37 +603,40 @@ export default function ConfigurarCotas() {
               <EstadoVazio
                 compacto
                 icone={Layers}
-                titulo="Nenhum grupo de peça encontrado"
+                titulo="Nenhum grupo de peça ainda"
                 descricao={<>Os grupos vêm do Tipo dos <Link href="/modelos" style={{ color: T.accentText, fontWeight: FW.forte, textDecoration: "underline" }}>Modelos</Link> e das peças dos eventos — cadastre um modelo ou importe um evento para eles aparecerem.</>}
               />
             )}
           </div>
         ) : (
-          filteredGroups.map((group, idx) => {
-            const isEven = idx % 2 === 0;
-            return (
+          <div style={{ minWidth: GRID_MIN }}>
+          {filteredGroups.map((group, idx) => (
               <div
                 key={group}
+                className="cot-linha"
                 style={{
                   display: "grid", gridTemplateColumns: COLS, minWidth: GRID_MIN,
-                  borderBottom: idx < filteredGroups.length - 1 ? `1px solid ${T.border}` : "none",
-                  backgroundColor: isEven ? T.surface : STRIPE,
+                  borderBottom: idx < filteredGroups.length - 1 ? `1px solid ${N.n3}` : "none",
+                  backgroundColor: T.surface,
                 }}
               >
-                {/* Group name — sticky à esquerda, acompanha o cabeçalho */}
-                <div style={{ position: "sticky", left: 0, zIndex: 1, backgroundColor: isEven ? T.surface : STRIPE, padding: "10px 16px", display: "flex", alignItems: "center", borderRight: `1px solid ${T.border}` }}>
-                  <span style={{ fontSize: FS.meta, fontWeight: FW.medio, color: T.text, fontFamily: FONT.display }}>
+                {/* Nome do grupo — grudado à esquerda, acompanha o cabeçalho. */}
+                <div className="cot-grupo" style={{ position: "sticky", left: 0, zIndex: 1, backgroundColor: T.surface, padding: "8px 16px", display: "flex", alignItems: "center", borderRight: `1px solid ${T.border}` }}>
+                  <span style={{ fontSize: FS.body, fontWeight: FW.medio, color: T.text, overflowWrap: "anywhere", lineHeight: 1.3 }}>
                     {group}
                   </span>
                 </div>
 
-                {/* Quota cells */}
+                {/* Células: a caixa cheia na cor da cota quando marcada; a
+                    coluna não é mais pintada inteira — seis colunas tingidas
+                    viravam um arco-íris que escondia o padrão. */}
                 {QUOTAS.map((q, col) => {
                   const checked = matrix[q.key]?.has(group) ?? false;
                   return (
                     <div
                       key={q.key}
                       role="checkbox"
+                      className="cot-celula"
                       aria-checked={checked}
                       aria-label={`${group} na cota ${q.label}`}
                       tabIndex={0}
@@ -640,39 +653,35 @@ export default function ConfigurarCotas() {
                       }}
                       data-testid={`cell-${q.key}-${group}`}
                       style={{
-                        borderLeft: `1px solid ${T.border}`,
+                        ["--cot-cor" as string]: q.color,
+                        borderLeft: `1px solid ${N.n3}`,
                         display: "flex", alignItems: "center", justifyContent: "center",
-                        cursor: "pointer",
-                        backgroundColor: checked ? q.bg : "transparent",
-                        transition: "background 0.1s",
                         minHeight: toque ? 44 : 40,
+                        backgroundColor: dirty.has(q.key) ? TOM.laranja.bg : "transparent",
                       }}
                     >
-                      <div style={{
-                        width: 18, height: 18, borderRadius: R.sm,
-                        border: checked ? `2px solid ${q.color}` : `2px solid ${T.border}`,
-                        backgroundColor: checked ? q.color : "transparent",
+                      <div className="cot-caixa" data-marcada={checked} style={{
+                        width: 18, height: 18, borderRadius: 5,
+                        border: `1.5px solid ${checked ? q.color : T.bdark}`,
+                        backgroundColor: checked ? q.color : T.surface,
                         display: "flex", alignItems: "center", justifyContent: "center",
-                        transition: "all 0.12s",
                         flexShrink: 0,
                       }}>
-                        {checked && <Check aria-hidden="true" style={{ width: 11, height: 11, color: T.surface }} />}
+                        {checked && <Check aria-hidden="true" strokeWidth={3} style={{ width: 12, height: 12, color: T.surface }} />}
                       </div>
                     </div>
                   );
                 })}
               </div>
-            );
-          })
+          ))}
+          </div>
         )}
 
-        {/* ── Footer ── */}
-        {!isLoading && groups.length > 0 && (
-          <div style={{ padding: "10px 16px", backgroundColor: T.low, borderTop: `2px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+        {/* ── Rodapé ── os atalhos só existem se forem ditos. */}
+        {!isLoading && !isError && groups.length > 0 && (
+          <div style={{ position: "sticky", left: 0, padding: "10px 16px", backgroundColor: T.bg, borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, minWidth: isMobile ? undefined : GRID_MIN }}>
             <span style={{ fontSize: FS.small, color: T.second, fontWeight: FW.medio }}>
-              {/* Os atalhos só existem se forem ditos: setas e Ctrl+S não se
-                  descobrem sozinhos numa grade de caixinhas. */}
-              {filteredGroups.length} de {groups.length} grupo{groups.length !== 1 ? "s" : ""}{toque ? " · toque na célula para marcar" : " · clique ou Espaço marca · setas andam na grade · Ctrl+S salva tudo"}
+              {filteredGroups.length} de {groups.length} grupo{groups.length !== 1 ? "s" : ""}{toque ? " · toque na célula para marcar" : <> · clique ou <Tecla>Espaço</Tecla> marca · <Tecla>↑↓←→</Tecla> andam na grade · <Tecla>Ctrl+S</Tecla> salva tudo</>}
             </span>
             {dirty.size > 0 && (
               <span style={{ fontSize: FS.small, fontWeight: FW.forte, color: T.accentText }}>
@@ -682,7 +691,34 @@ export default function ConfigurarCotas() {
           </div>
         )}
       </div>
+      {/* CELULAR: a pendência e as duas saídas descem para uma barra grudada
+          no pé da tela — no topo, sumiam assim que a pessoa rolava a grade
+          para marcar, e salvar exigia voltar lá em cima. */}
+      {isMobile && dirty.size > 0 && (
+        <div data-testid="barra-pendencias" className="cot-entra" style={{ position: "sticky", bottom: 0, zIndex: 20, margin: "16px -16px -48px", padding: "12px 16px calc(12px + env(safe-area-inset-bottom))", backgroundColor: T.surface, borderTop: `1px solid ${T.border}`, boxShadow: "0 -6px 16px -8px rgba(28,25,23,0.18)", display: "flex", flexDirection: "column", gap: 8 }}>
+          <Selo tom="laranja" ponto data-testid="aviso-alteracoes-nao-salvas" style={{ alignSelf: "flex-start", fontSize: FS.meta }}>
+            {dirty.size === 1 ? "1 cota com alterações não salvas" : `${dirty.size} cotas com alterações não salvas`}: {pendentes.map(rotuloDaCota).join(", ")}
+          </Selo>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Botao variante="secundario" tamanho="toque" icone={RotateCcw} onClick={descartarAlteracoes} disabled={saveMutation.isPending} data-testid="discard-all-button" style={{ flex: "1 1 0" }}>
+              Descartar
+            </Botao>
+            <Botao variante="primario" tamanho="toque" icone={Save} onClick={saveAll} carregando={saveMutation.isPending} data-testid="save-all-button" style={{ flex: "1 1 0" }}>
+              {saveMutation.isPending ? "Salvando…" : `Salvar Tudo (${dirty.size})`}
+            </Botao>
+          </div>
+        </div>
+      )}
       {dialogo}
     </div>
+  );
+}
+
+/** Tecla de atalho no rodapé — o mesmo desenho do "Ctrl K" da busca global. */
+function Tecla({ children }: { children: React.ReactNode }) {
+  return (
+    <kbd style={{ display: "inline-block", padding: "0 5px", margin: "0 1px", borderRadius: 4, border: `1px solid ${T.border}`, backgroundColor: T.surface, fontFamily: FONT.mono, fontSize: FS.micro, fontWeight: FW.forte, color: T.apoio, lineHeight: "16px" }}>
+      {children}
+    </kbd>
   );
 }

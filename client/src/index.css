@@ -1517,3 +1517,97 @@ a.ds-botao[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; filter: no
 /* Baixar sobre a foto do cartão: escurece sob o ponteiro. */
 .reg-baixar-foto { transition: background-color var(--dur-rapida) ease; }
 @media (hover: hover) { .reg-baixar-foto:hover:not(:disabled) { background-color: rgba(28,25,23,0.88) !important; } }
+
+/* ── PATROCINADORES (prefixo pat-): hover, foco e entrada que o estilo inline
+   não alcança. A cor da marca chega na var --pat-cor (dado do usuário, não
+   tema). Movimento só sem prefers-reduced-motion. ─────────────────────────── */
+/* A linha (tabela) e o item (lista do celular) acendem e ganham um fio na cor
+   da marca à esquerda — "é esta". O fio mora na 1ª célula: box-shadow em <tr>
+   não pinta em todos os navegadores. */
+.pat-linha { cursor: pointer; transition: background-color var(--dur-rapida) ease; }
+.pat-linha > .pat-primeira { transition: box-shadow var(--dur-rapida) ease; }
+@media (hover: hover) {
+  .pat-linha:hover { background-color: var(--n1); }
+  .pat-linha:hover > .pat-primeira { box-shadow: inset 3px 0 0 var(--pat-cor, var(--n5)); }
+  .pat-linha:hover .pat-nome { text-decoration: underline; text-decoration-color: var(--n5); text-underline-offset: 3px; }
+}
+.pat-linha:focus-visible { outline: 2px solid var(--orange-deep); outline-offset: -2px; background-color: var(--n1); }
+.pat-linha:focus-visible > .pat-primeira { box-shadow: inset 3px 0 0 var(--pat-cor, var(--n5)); }
+/* Ações da linha: discretas até a linha pedir; no toque, inteiras. */
+.pat-acoes { opacity: 0.62; transition: opacity var(--dur-rapida) ease; }
+.pat-linha:hover .pat-acoes, .pat-linha:focus-within .pat-acoes { opacity: 1; }
+@media (pointer: coarse) { .pat-acoes { opacity: 1; } }
+.pat-acao-perigo:hover { color: var(--perigo-text) !important; background-color: var(--perigo-bg) !important; }
+/* Uso por evento: o fio laranja escurece sob o ponteiro. */
+.pat-uso { text-decoration: underline; text-decoration-color: var(--orange-border); text-decoration-thickness: 1px; text-underline-offset: 4px; transition: text-decoration-color var(--dur-rapida) ease; }
+.pat-uso:hover { text-decoration-color: var(--orange-deep); }
+.pat-uso:hover .pat-uso-seta { opacity: 1; transform: translateX(1px); }
+.pat-uso-seta { opacity: 0; transition: opacity var(--dur-rapida) ease, transform var(--dur-rapida) ease; }
+@media (pointer: coarse) { .pat-uso-seta { opacity: 1; } .pat-uso { position: relative; } .pat-uso::after { content: ""; position: absolute; inset: -12px -6px; } }
+/* Cabeçalho que ordena: o rótulo escurece no ponteiro. */
+.pat-ordem { transition: color var(--dur-rapida) ease; }
+.pat-ordem:hover { color: var(--n10) !important; }
+.pat-ordem:focus-visible { outline-offset: 2px; border-radius: 4px; }
+/* Campos: branco com borda — a mesma família da busca de Eventos. */
+.pat-campo { transition: border-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease; }
+.pat-campo:hover:not(:disabled):not(:focus) { border-color: var(--n6) !important; }
+.pat-campo:focus { outline: none; border-color: var(--orange-deep) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--orange-deep) 16%, transparent) !important; }
+.pat-campo[aria-invalid="true"] { border-color: var(--perigo-text) !important; }
+.pat-campo[aria-invalid="true"]:focus { box-shadow: 0 0 0 3px var(--perigo-bg) !important; }
+.pat-campo::placeholder { color: var(--n7); font-weight: 500; font-family: Inter, system-ui, sans-serif; text-transform: none; }
+.pat-campo::-webkit-search-cancel-button { display: none; }
+/* Amostras de cor: crescem sob o ponteiro; a marcada fica com o anel. */
+.pat-amostra { transition: transform var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease; }
+@media (hover: hover) { .pat-amostra[aria-pressed="false"]:hover { transform: scale(1.1); } }
+.pat-amostra:focus-visible { outline-offset: 3px; border-radius: 50%; }
+/* A regra de aprovação: a linha inteira é o alvo; marcada, ganha o laranja. */
+.pat-regra { transition: border-color var(--dur-rapida) ease, background-color var(--dur-rapida) ease; }
+.pat-regra:hover { border-color: var(--n6) !important; }
+.pat-regra:has(input:checked) { border-color: var(--orange-border) !important; background-color: var(--orange-soft) !important; }
+.pat-regra:has(input:focus-visible) { outline: 2px solid var(--orange-deep); outline-offset: 2px; }
+.pat-regra input:focus-visible { outline: none; }
+/* O vazio e o erro já moram dentro do contêiner da lista: sem a moldura própria. */
+.pat-vazio > [data-testid="estado-vazio"], .pat-vazio > [data-testid="estado-erro"] { border-color: transparent !important; background-color: transparent !important; }
+@media (prefers-reduced-motion: no-preference) {
+  .pat-entra { animation: pat-entra var(--dur-media) var(--ease-saida) backwards; }
+}
+@keyframes pat-entra { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+
+/* ── CONFIGURAR COTAS (prefixo cot-): a grade, hover, foco e entrada que o
+   estilo inline não alcança. A cor de cada cota chega na var --cot-cor (cor de
+   identidade da cota, a mesma das outras telas). Movimento só sem
+   prefers-reduced-motion. ─────────────────────────────────────────────────── */
+/* A linha acende inteira sob o ponteiro: o olho segue o grupo até a coluna. */
+.cot-linha { transition: background-color var(--dur-rapida) ease; }
+.cot-linha > .cot-grupo { transition: background-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease; }
+@media (hover: hover) {
+  .cot-linha:hover, .cot-linha:hover > .cot-grupo { background-color: var(--n1) !important; }
+  .cot-linha:hover > .cot-grupo { box-shadow: inset 3px 0 0 var(--n5); }
+  .cot-celula:hover { background-color: color-mix(in srgb, var(--cot-cor) 7%, transparent) !important; }
+  .cot-celula:hover .cot-caixa[data-marcada="false"] { border-color: var(--cot-cor) !important; }
+}
+.cot-linha:focus-within, .cot-linha:focus-within > .cot-grupo { background-color: var(--n1) !important; }
+.cot-celula { cursor: pointer; transition: background-color var(--dur-rapida) ease; }
+.cot-celula:focus-visible { outline: 2px solid var(--orange-deep); outline-offset: -3px; }
+.cot-caixa { transition: background-color var(--dur-rapida) ease, border-color var(--dur-rapida) ease, transform var(--dur-rapida) ease; }
+.cot-celula:active .cot-caixa { transform: scale(0.9); }
+@media (prefers-reduced-motion: reduce) { .cot-celula:active .cot-caixa { transform: none; } }
+/* Todos / Limpar do cabeçalho: texto discreto que escurece no ponteiro. */
+.cot-acao { transition: color var(--dur-rapida) ease, background-color var(--dur-rapida) ease; }
+.cot-acao:hover:not(:disabled) { color: var(--n10) !important; background-color: var(--n2) !important; }
+.cot-acao:focus-visible { outline-offset: 1px; }
+/* Busca do canto da grade: a mesma família de foco da casa. */
+.cot-campo { transition: border-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease; }
+.cot-campo:hover:not(:focus) { border-color: var(--n6) !important; }
+.cot-campo:focus { outline: none; border-color: var(--orange-deep) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--orange-deep) 16%, transparent) !important; }
+.cot-campo::placeholder { color: var(--n7); }
+.cot-campo::-webkit-search-cancel-button { display: none; }
+/* O link "Vincular Patrocinadores" do como-funciona: alvo de 44 no toque sem
+   esticar a linha de texto. */
+@media (pointer: coarse) { .cot-link { position: relative; } .cot-link::after { content: ""; position: absolute; inset: -12px -4px; } }
+@media (prefers-reduced-motion: no-preference) {
+  .cot-entra { animation: cot-entra var(--dur-media) var(--ease-saida) backwards; }
+}
+@keyframes cot-entra { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+/* Todos/Limpar no toque: 28px de desenho, 44 de alvo por uma área invisível. */
+@media (pointer: coarse) { .cot-acao { position: relative; } .cot-acao::after { content: ""; position: absolute; inset: -8px -1px; } }

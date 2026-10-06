@@ -19,7 +19,7 @@
 // SEM LOCALIZAÇÃO (dono, 21/09): o sistema não guarda onde a peça fica no
 // galpão. "No galpão" é SITUAÇÃO, e continua.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Archive, BookmarkCheck, CalendarDays, CheckCircle2, ChevronRight, Package, Pencil, Wrench, Warehouse } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -38,6 +38,7 @@ import { T, N, TOM, FS, R, FW, FONT } from "@/lib/theme";
 import { Botao } from "@/components/ui/botao";
 import { Selo } from "@/components/ui/selo";
 import { Esqueleto } from "@/components/ui/estados";
+import { BarraDeSituacao } from "@/components/estoque/barra-de-situacao";
 
 export const SITUACAO_META: Record<string, { label: string; color: string; bg: string; border: string }> = {
   NO_GALPAO: { label: "No galpão", color: TOM.sucesso.text, bg: TOM.sucesso.bg, border: TOM.sucesso.border },
@@ -58,6 +59,24 @@ const dataLonga = (d: Date | string | null | undefined) => (d ? new Date(d).toLo
 
 const TITULO: React.CSSProperties = { margin: "0 0 10px", fontSize: FS.body, fontWeight: FW.forte, color: T.text, fontFamily: FONT.display };
 const CARTAO: React.CSSProperties = { background: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, padding: 16 };
+
+/** A ação da trilha em português — o registro guarda o código ("reserva_liberada",
+ *  "triagem") e o detalhe em JSON; a tela mostrava o código cru, com sublinhado. */
+const DESTINO_DA_TRIAGEM: Record<string, string> = { NO_GALPAO: "volta ao galpão", EM_MANUTENCAO: "manutenção", DESCARTADO: "descarte" };
+function fraseDaTrilha(l: { action: string; details?: string | null }): string {
+  let d: Record<string, unknown> = {};
+  try { d = l.details ? JSON.parse(l.details) : {}; } catch { d = {}; }
+  const txt = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+  switch (l.action) {
+    case "cadastrado": case "created": return "Entrou no acervo";
+    case "triagem": return `Triada${txt(d.destino) && DESTINO_DA_TRIAGEM[txt(d.destino)!] ? ` — ${DESTINO_DA_TRIAGEM[txt(d.destino)!]}` : ""}`;
+    case "reservado": return `Reservada${txt(d.peca) ? ` para a peça ${txt(d.peca)}` : ""}${txt(d.evento) ? ` (${txt(d.evento)})` : ""}`;
+    case "reserva_liberada": return `Reserva liberada${txt(d.motivo) ? ` — ${txt(d.motivo)}` : ""}`;
+    case "updated": return "Dados atualizados";
+    case "deleted": return "Excluída";
+    default: { const t = l.action.replace(/_/g, " "); return t.charAt(0).toUpperCase() + t.slice(1); }
+  }
+}
 
 function Linha({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
   return (
@@ -89,6 +108,10 @@ export function DetalheDoAtivo({ grupo, unidade, linkedItem, sponsors, reservaPo
   const superficieRef = useRef<HTMLDivElement>(null);
   useAcompanharAreaVisivel(superficieRef, "centro", isMobile);
   const [gravando, setGravando] = useState(false);
+  // Trocar de grupo para unidade (e de volta) é outra ficha: o corpo volta ao
+  // topo, em vez de abrir a unidade no meio da rolagem da lista anterior.
+  const corpoRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (corpoRef.current) corpoRef.current.scrollTop = 0; }, [unidade?.id]);
 
   const umaSo = unidade ?? (grupo.ativos.length === 1 ? grupo.ativos[0] : null);
   const alvos = umaSo ? [umaSo] : grupo.ativos;
@@ -142,6 +165,7 @@ export function DetalheDoAtivo({ grupo, unidade, linkedItem, sponsors, reservaPo
   // Rodapé: os botões dividem a largura no celular.
   const noRodape: React.CSSProperties = { flex: isMobile ? 1 : undefined };
 
+  const semPecaDeOrigem = alvos.every((a) => !a.originalItemId);
   const titulo = umaSo ? umaSo.name : grupo.nome;
   const subtitulo = umaSo
     ? `${umaSo.displayId} · ${(umaSo.quantity ?? 1) === 1 ? "1 unidade" : `${umaSo.quantity} unidades`}${grupo.ativos.length > 1 ? ` · uma das ${grupo.unidades} deste material` : ""}`
@@ -149,13 +173,15 @@ export function DetalheDoAtivo({ grupo, unidade, linkedItem, sponsors, reservaPo
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent ref={superficieRef} data-testid="detalhe-do-ativo" className={HIDE_NATIVE_CLOSE} style={modalSurface(760)}>
+      <DialogContent ref={superficieRef} data-testid="detalhe-do-ativo" className={`gap-0 ${HIDE_NATIVE_CLOSE}`} style={modalSurface(760)}>
         <DialogTitle className="sr-only">{titulo}</DialogTitle>
         <DialogDescription className="sr-only">{subtitulo}</DialogDescription>
-        <ModalHeader icon={Archive} tint={T.accentText} title={titulo} subtitle={subtitulo} onClose={onClose}
-          trailing={sm ? <Selo data-testid="detalhe-situacao" ponto cores={{ bg: sm.bg, text: sm.color, border: sm.border }} style={{ padding: "4px 10px", fontSize: FS.meta }}>{sm.label}</Selo> : undefined} />
+        {/* A situação vai no `selo` (ao lado do título, quebra junto) e não no
+            `trailing`: no celular o selo à direita espremia o nome em 4 linhas. */}
+        <ModalHeader icon={Archive} tint={T.accentText} title={titulo} subtitle={subtitulo} onClose={onClose} compacto={isMobile}
+          selo={sm ? <Selo data-testid="detalhe-situacao" ponto cores={{ bg: sm.bg, text: sm.color, border: sm.border }} style={{ padding: "4px 10px", fontSize: FS.meta }}>{sm.label}</Selo> : undefined} />
 
-        <div style={{ padding: isMobile ? 16 : 24, overflowY: "auto", flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", gap: 16, background: T.bg }}>
+        <div ref={corpoRef} style={{ padding: isMobile ? 16 : 24, overflowY: "auto", flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", gap: 16, background: T.bg }}>
           {unidade && grupo.ativos.length > 1 && (
             <Botao variante="fantasma" data-testid="detalhe-voltar-ao-grupo" onClick={() => onAbrirUnidade(null)}
               style={{ alignSelf: "flex-start", minHeight: alvo(32, dedo), padding: "0 8px", marginLeft: -8, fontSize: FS.body }}>
@@ -172,10 +198,12 @@ export function DetalheDoAtivo({ grupo, unidade, linkedItem, sponsors, reservaPo
 
             <section aria-label="Situação agora" style={CARTAO}>
               <h3 style={TITULO}>Situação agora</h3>
+              {!umaSo && <div style={{ margin: "2px 0 10px" }}><BarraDeSituacao porSituacao={grupo.porSituacao} separadas={grupo.separadas} altura={8} /></div>}
               <p data-testid="detalhe-situacao-frase" style={{ margin: "0 0 12px", fontSize: FS.read, color: T.text, fontWeight: FW.medio, lineHeight: 1.45 }}>
                 {umaSo ? sm!.label : situacoes}
                 {!umaSo && <span style={{ display: "block", fontSize: FS.body, fontWeight: FW.corpo, color: T.apoio }}>{fraseDaCondicao(grupo)}</span>}
               </p>
+              <span aria-hidden="true" style={{ display: "block", margin: "0 0 6px", fontSize: FS.small, fontWeight: FW.medio, color: T.apoio }}>{podeEditar ? "Condição — toque para mudar" : "Condição"}</span>
               <div role="radiogroup" aria-label={alvos.length > 1 ? `Condição das ${unidades} unidades` : "Condição"} style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {CONDICOES.map((c) => {
                   const meta = CONDITION_META[c];
@@ -207,10 +235,16 @@ export function DetalheDoAtivo({ grupo, unidade, linkedItem, sponsors, reservaPo
           <section aria-label="Especificações" style={CARTAO}>
             <h3 style={TITULO}>Especificações</h3>
             <dl style={{ margin: 0, display: "grid", gridTemplateColumns: isMobile ? "minmax(0, 1fr)" : "repeat(2, minmax(0, 1fr))", columnGap: 24 }}>
-              <Linha rotulo="Tipo">{linkedItem?.type ?? "—"}</Linha>
-              <Linha rotulo="Material">{linkedItem?.material ?? "—"}</Linha>
-              <Linha rotulo="Acabamento">{linkedItem?.finish ?? "—"}</Linha>
-              <Linha rotulo="Medida">{linkedItem?.visualWidth && linkedItem?.visualHeight ? `${linkedItem.visualWidth} × ${linkedItem.visualHeight} m` : linkedItem?.measurement ?? "—"}</Linha>
+              {/* Cadastro manual não tem peça de origem: quatro linhas de "—"
+                  não diziam nada — fica só o que existe (e a frase abaixo). */}
+              {semPecaDeOrigem ? null : (
+                <>
+                  <Linha rotulo="Tipo">{linkedItem?.type ?? "—"}</Linha>
+                  <Linha rotulo="Material">{linkedItem?.material ?? "—"}</Linha>
+                  <Linha rotulo="Acabamento">{linkedItem?.finish ?? "—"}</Linha>
+                  <Linha rotulo="Medida">{linkedItem?.visualWidth && linkedItem?.visualHeight ? `${linkedItem.visualWidth} × ${linkedItem.visualHeight} m` : linkedItem?.measurement ?? "—"}</Linha>
+                </>
+              )}
               <Linha rotulo="Patrocinadores">{nomesDePatrocinador.length ? nomesDePatrocinador.join(" · ") : "Sem patrocinador"}</Linha>
               <Linha rotulo="Origem">{alvos[0].autoAdded ? "Produção da Gráfica" : "Cadastro manual"}</Linha>
               {/* As DUAS quantidades, cada uma dizendo de quem é — antes "1 un."
@@ -218,6 +252,7 @@ export function DetalheDoAtivo({ grupo, unidade, linkedItem, sponsors, reservaPo
               <Linha rotulo={umaSo ? "Este registro" : "Neste material"}>{unidades} un.</Linha>
               {linkedItem?.quantity ? <Linha rotulo={`Peça de origem ${linkedItem.displayId ?? ""}`.trim()}>{linkedItem.quantity} un. pedidas</Linha> : null}
             </dl>
+            {semPecaDeOrigem && <p style={{ margin: "10px 0 0", fontSize: FS.meta, color: T.second, lineHeight: 1.5 }}>Cadastrado à mão, sem peça de origem — tipo, material e medida só existem nas peças produzidas pela Gráfica.</p>}
             {umaSo?.notes && <p style={{ margin: "12px 0 0", fontSize: FS.body, color: T.apoio, lineHeight: 1.5 }}><strong style={{ color: T.text }}>Observações:</strong> {umaSo.notes}</p>}
           </section>
 
@@ -255,8 +290,8 @@ export function DetalheDoAtivo({ grupo, unidade, linkedItem, sponsors, reservaPo
                   {(trilha ?? []).slice(0, 12).map((l) => (
                     <li key={l.id} style={{ position: "relative", fontSize: FS.body, color: T.text }}>
                       <span aria-hidden="true" style={{ position: "absolute", left: -20, top: 5, width: 10, height: 10, borderRadius: "50%", background: T.surface, border: `2px solid ${T.accent}` }} />
-                      <strong style={{ textTransform: "capitalize" }}>{l.action}</strong>
-                      <span style={{ color: T.second }}> · {l.userName ?? "Sistema"} · {dataLonga(l.createdAt)}</span>
+                      <strong style={{ fontWeight: FW.medio }}>{fraseDaTrilha(l)}</strong>
+                      <span style={{ display: "block", fontSize: FS.meta, color: T.second, marginTop: 1 }}>{l.userName ?? "Sistema"} · {dataLonga(l.createdAt)}</span>
                     </li>
                   ))}
                 </ol>
@@ -305,7 +340,7 @@ export function DetalheDoAtivo({ grupo, unidade, linkedItem, sponsors, reservaPo
                 disabled={manutencaoBloqueada} carregando={gravando}
                 aria-describedby={manutencaoBloqueada ? "detalhe-manutencao-motivo" : undefined}
                 onClick={() => mudar({ trackingStatus: todosEmManutencao ? "NO_GALPAO" : "EM_MANUTENCAO" }, todosEmManutencao ? "De volta ao galpão" : "Mandada para manutenção")}
-                style={noRodape}>
+                style={{ ...noRodape, flex: isMobile ? "1 1 100%" : undefined, order: isMobile ? -1 : 0 }}>
                 {todosEmManutencao ? "Voltar ao galpão" : "Mandar para manutenção"}
               </Botao>
             )}

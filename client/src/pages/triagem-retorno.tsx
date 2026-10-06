@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useLayoutEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
@@ -9,23 +9,20 @@ import {
   CalendarDays, X, Scissors, Sparkles, Trash2, Eye, Wrench,
   ClipboardCheck, Users, Search, BookmarkCheck, ArrowLeft, ChevronDown,
 } from "lucide-react";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { TriagemModal } from "@/components/triagem-modal";
+import { ConfirmacaoDaTriagem } from "@/components/triagem/confirmacao-da-triagem";
 import { EventosDaTriagem, SEM_EVENTO } from "@/components/triagem/eventos-da-triagem";
 import { QuadroDaTriagem, emGrupos, GRAVACOES_POR_VEZ } from "@/components/triagem/quadro-da-triagem";
 import { diaEMes, ehRecusaDeJaTriada } from "@shared/estoque";
 import { chaveDoGrupo, resumoDaGravacao } from "@/components/triagem/grupos-da-triagem";
 import { SponsorChips } from "@/components/sponsor-chips";
 import { useAuth } from "@/contexts/auth-context";
-import { useDensidadeDoConteudo, usePonteiroGrosso } from "@/hooks/use-mobile";
+import { useDensidadeDoConteudo, useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { CONDITION_META, type Condition, type ConditionMeta, type EnrichedAsset } from "@/lib/inventory-meta";
 import type { OrigemDoAtivo } from "@shared/api";
-import { T, N, TOM, FS, FW, R, FONT, SHADOW } from "@/lib/theme";
+import { T, N, TOM, TOM_FORTE, ESCURO, FS, FW, R, FONT, SHADOW } from "@/lib/theme";
 import { Botao } from "@/components/ui/botao";
-import { CartaoKpi } from "@/components/ui/cartao-kpi";
+import { CartaoKpi, FaixaDeKpis } from "@/components/ui/cartao-kpi";
 import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
 import { EstadoErro, EstadoVazio, Esqueleto } from "@/components/ui/estados";
 
@@ -238,6 +235,15 @@ function SplitProgress({ splits, total }: { splits: SplitLine[]; total: number }
   );
 }
 
+// ─── MedeDensidade ────────────────────────────────────────────────────────────
+// Mede a área útil da tabela (régua única de use-mobile) e devolve à página.
+// useLayoutEffect: a troca tabela ↔ cartões acontece antes da primeira pintura.
+function MedeDensidade({ aoMudar, children }: { aoMudar: (d: { cards: boolean; compacto: boolean }) => void; children: React.ReactNode }) {
+  const { ref, cards, compacto } = useDensidadeDoConteudo<HTMLDivElement>();
+  useLayoutEffect(() => { aoMudar({ cards, compacto }); }, [cards, compacto, aoMudar]);
+  return <div ref={ref}>{children}</div>;
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function TriagemRetorno() {
   // Régua única (use-mobile.tsx). A tabela da triagem tem `minWidth: 920` e a
@@ -245,7 +251,14 @@ export default function TriagemRetorno() {
   // barra lateral aberta ela ficava fora da área visível, e a triagem é
   // exatamente o trabalho de tablet no galpão. Abaixo de 820px de área útil
   // entram os cartões que já existiam para o celular.
-  const { ref: listaRef, cards: emCards, compacto, isMobile } = useDensidadeDoConteudo<HTMLDivElement>();
+  // A densidade é medida por <MedeDensidade>, que monta JUNTO com a tabela: o
+  // hook observa o elemento que existe na montagem, e esta página monta na
+  // lista de eventos (sem a tabela) — a medida ficava em 0 e a tabela de 920px
+  // aparecia inteira num notebook, cortando Observação e o Salvar.
+  const isMobile = useIsMobile();
+  const [densidade, setDensidade] = useState<{ cards: boolean; compacto: boolean }>({ cards: isMobile, compacto: false });
+  const emCards = isMobile || densidade.cards;
+  const compacto = !isMobile && densidade.compacto;
   const ponteiroGrosso = usePonteiroGrosso();
   /** Dedo (celular OU tablet do galpão): manda no TAMANHO do alvo, só nele. */
   const dedo = ponteiroGrosso || isMobile;
@@ -676,10 +689,11 @@ export default function TriagemRetorno() {
     );
   }
 
+  // Cabeçalho claro, o mesmo do Estoque e da Revisão Final.
   const TH: React.CSSProperties = {
-    padding: "12px 14px", fontSize: FS.small, fontWeight: FW.forte, letterSpacing: "0.06em",
-    textTransform: "uppercase", color: N.n0, fontFamily: FONT.display,
-    textAlign: "left", background: T.dark, borderBottom: "none",
+    padding: "12px 14px", fontSize: FS.micro, fontWeight: 900, letterSpacing: "0.1em",
+    textTransform: "uppercase", color: T.apoio, fontFamily: FONT.display,
+    textAlign: "left", background: T.bg, borderBottom: `1px solid ${T.border}`,
     whiteSpace: "nowrap",
   };
 
@@ -688,18 +702,18 @@ export default function TriagemRetorno() {
 
   return (
     <div style={{
-      padding: isMobile ? "14px 16px" : "32px 36px",
+      paddingTop: isMobile ? 14 : 32, paddingLeft: isMobile ? 16 : 36, paddingRight: isMobile ? 16 : 36,
       // Compensa a pill flutuante de lote: sem isso ela cobre as últimas
       // linhas da tabela quando há seleção.
       // No celular a pill quebra em três linhas de 44px — os 130 do desktop
       // deixavam o Salvar da última peça escondido atrás dela.
-      paddingBottom: selectedIds.length > 0 ? (isMobile ? 240 : 130) : undefined,
+      paddingBottom: selectedIds.length > 0 ? (isMobile ? 240 : 130) : (isMobile ? 14 : 32),
       background: T.bg, height: "100%", overflowY: "auto", display: "flex", flexDirection: "column", gap: isMobile ? 16 : 28,
     }}>
 
       <div>
         <Botao variante="fantasma" tamanho={dedo ? "toque" : "sm"} icone={ArrowLeft} data-testid="button-voltar-eventos-triagem" onClick={() => setVista("eventos")}
-          style={{ fontSize: FS.body, paddingLeft: 4 }}>
+          style={{ fontSize: FS.body, marginLeft: -8 }}>
           Eventos da triagem
         </Botao>
         {/* Subtítulo = o ESTADO da fila (quantas peças pendentes); a ação do
@@ -711,7 +725,9 @@ export default function TriagemRetorno() {
           icone={ClipboardCheck}
           subtitulo={isLoading ? "Carregando…" : `${pendingAssets.length} ${pendingAssets.length === 1 ? "peça pendente" : "peças pendentes"}${hasFilters ? " neste recorte" : ""} — escolha a condição e o destino`}
           acoes={(
-            <Botao variante="primario" tamanho="toque" icone={CheckCircle2} data-testid="button-bulk-triage-header" onClick={() => handleBulk()}
+            // Sem seleção ele é SECUNDÁRIO: um bloco cinza "desabilitado" do
+            // tamanho do primário era a coisa mais pesada da tela.
+            <Botao variante={selectedIds.length > 0 ? "primario" : "secundario"} tamanho="toque" icone={CheckCircle2} data-testid="button-bulk-triage-header" onClick={() => handleBulk()}
               disabled={selectedIds.length === 0} carregando={savingIds.size > 0}
               motivo={selectedIds.length === 0 ? "Marque a caixa à esquerda das peças para triar várias de uma vez" : undefined} alinharMotivo="end"
               title={loteTravado ? undefined : `Grava a triagem das ${selectedIds.length} peças marcadas`}
@@ -725,17 +741,19 @@ export default function TriagemRetorno() {
       {/* ── Números ── minmax(0, 1fr): com `1fr` puro o mínimo automático é o
           min-content do cartão e, em 375px, "Triados nesta sessão" estourava
           a grade e dava rolagem lateral na página. */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: isMobile ? 8 : 14 }}>
+      {/* Uma faixa só (FaixaDeKpis), como no Estoque: três números de um
+          mesmo placar, e não três cartões soltos com faixa colorida. */}
+      <FaixaDeKpis minimo={isMobile ? 100 : 180} rotulo="Placar da triagem" style={{ flexShrink: 0 }}>
         {/* Desconta os já triados na sessão — o card acompanha a fila real. */}
-        <CartaoKpi compacto={isMobile} rotulo="Na fila" valor={Math.max(0, awaitingAssets.length - savedIds.size)} tom="laranja" icone={ScanSearch} />
-        <CartaoKpi compacto={isMobile} rotulo="Selecionados" valor={selectedIds.length} tom="sucesso" icone={Users} />
-        <CartaoKpi compacto={isMobile} rotulo="Triados nesta sessão" valor={savedIds.size} tom="info" icone={CheckCircle2} />
-      </div>
+        <CartaoKpi variante="celula" compacto={isMobile} rotulo="Na fila" valor={isLoading ? "—" : Math.max(0, awaitingAssets.length - savedIds.size)} tom="laranja" icone={isMobile ? undefined : ScanSearch} sub={isMobile ? undefined : "Esperando triagem"} />
+        <CartaoKpi variante="celula" compacto={isMobile} rotulo="Selecionadas" valor={selectedIds.length} tom="neutro" icone={isMobile ? undefined : Users} sub={isMobile ? undefined : selectedIds.length > 0 ? "Prontas para o lote" : "Marque na lista"} />
+        <CartaoKpi variante="celula" compacto={isMobile} rotulo={isMobile ? "Triadas" : "Triadas nesta sessão"} valor={savedIds.size} tom="sucesso" icone={isMobile ? undefined : CheckCircle2} sub={isMobile ? undefined : "Saíram da fila"} />
+      </FaixaDeKpis>
 
       {/* ── Filter bar ── */}
       {(() => {
         const FL: React.CSSProperties = {
-          fontSize: FS.small, fontWeight: FW.corpo, color: T.second,
+          fontSize: FS.small, fontWeight: FW.medio, color: T.apoio,
           fontFamily: FONT.corpo, marginBottom: 6, display: "block",
         };
         // Sem `outline: none`: o inline anulava o anel de foco global e o
@@ -743,11 +761,11 @@ export default function TriagemRetorno() {
         // accentText — o laranja da marca não carrega leitura.
         const SEL = (active: boolean): React.CSSProperties => ({
           height: 44, width: "100%",
-          border: `1.5px solid ${active ? T.accentText : T.border}`,
-          borderRadius: R.md, fontSize: FS.body, fontWeight: FW.corpo,
+          border: `1px solid ${active ? T.accentText : T.border}`,
+          borderRadius: R.md, fontSize: FS.body, fontWeight: active ? FW.medio : FW.corpo,
           fontFamily: FONT.corpo,
-          padding: "0 12px", background: T.surface,
-          color: active ? T.accentText : T.strong,
+          padding: "0 12px", backgroundColor: active ? TOM.laranja.bg : T.surface,
+          color: active ? TOM_FORTE.laranja.text : T.strong,
           cursor: "pointer",
           transition: "border-color 0.15s",
         });
@@ -788,15 +806,15 @@ export default function TriagemRetorno() {
                 <Search size={14} color={T.second} aria-hidden="true" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
                 <input
                   data-testid="input-triage-search"
+                  type="search"
+                  className="tri-campo"
                   style={{
                     width: "100%", paddingLeft: 34, paddingRight: 12, height: 44,
-                    border: `1.5px solid ${search ? T.accentText : T.border}`, borderRadius: R.md,
+                    border: `1px solid ${search ? T.accentText : T.border}`, borderRadius: R.md,
                     fontSize: isMobile ? FS.lead : FS.body, fontWeight: 400, fontFamily: FONT.corpo,
                     background: T.surface, color: T.strong, boxSizing: "border-box",
                     transition: "border-color 0.15s",
                   }}
-                  onFocus={e => (e.target.style.borderColor = T.accentText)}
-                  onBlur={e => (e.target.style.borderColor = search ? T.accentText : T.border)}
                   aria-label="Buscar peças na triagem"
                   placeholder="Nome ou ID..."
                   value={search}
@@ -806,27 +824,28 @@ export default function TriagemRetorno() {
             </div>
 
             {/* Limpar + contador */}
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 10, marginLeft: "auto" }}>
-              <Botao
-                tamanho="toque"
-                icone={X}
-                data-testid="button-triage-clear-filters"
-                disabled={!hasFilters}
-                motivo={!hasFilters ? "Nenhum filtro ativo" : undefined}
-                onClick={limparFiltros}
-                style={{ fontSize: FS.meta }}>
-                Limpar filtros
-              </Botao>
-              <span style={{ fontSize: FS.small, color: T.second, fontFamily: FONT.mono, fontWeight: FW.medio, whiteSpace: "nowrap", paddingBottom: 12 }}>
-                {pendingAssets.length} pend. · {savedIds.size} triados
+            {/* "Limpar" só aparece quando há o que limpar; o contador fala
+                por extenso (era "50 pend. · 0 triados" em mono). */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto", minHeight: 44, flexWrap: "wrap" }}>
+              <span role="status" style={{ fontSize: FS.meta, color: T.apoio, whiteSpace: "nowrap" }}>
+                {isLoading ? "Carregando…" : <><strong style={{ color: T.text, fontFamily: FONT.display, fontVariantNumeric: "tabular-nums" }}>{pendingAssets.length}</strong> {pendingAssets.length === 1 ? "pendente" : "pendentes"}</>}
+                {savedIds.size > 0 && <> · <strong style={{ color: TOM.sucesso.text, fontFamily: FONT.display }}>{savedIds.size}</strong> {savedIds.size === 1 ? "triada" : "triadas"}</>}
               </span>
+              {hasFilters && (
+                <Botao variante="fantasma" tamanho="toque" icone={X}
+                  data-testid="button-triage-clear-filters"
+                  onClick={limparFiltros}
+                  style={{ color: T.accentText }}>
+                  Limpar filtros
+                </Botao>
+              )}
             </div>
           </div>
         );
       })()}
 
       {/* ── Table ── */}
-      <div>
+      <MedeDensidade aoMudar={setDensidade}>
       {isLoading ? (
         /* Esqueleto no desenho da tabela — evita o "salto" do spinner. */
         <div data-testid="skeleton-triagem">
@@ -868,13 +887,13 @@ export default function TriagemRetorno() {
             quem marcava "Avaria leve" via o destino pular para Manutenção e
             achava que tinha tocado errado. Uma linha diz a regra e o caminho
             de volta; também diz o que o Salvar grava. */}
-        <p data-testid="dica-triagem-tabela" style={{ margin: "0 0 10px", fontSize: 12.5, color: T.apoio, lineHeight: 1.5, fontFamily: FONT.corpo }}>
+        <p data-testid="dica-triagem-tabela" style={{ margin: "0 0 12px", fontSize: FS.body, color: T.apoio, lineHeight: 1.55, fontFamily: FONT.corpo, maxWidth: 860 }}>
           A condição já sugere o destino (Perfeito → Galpão, Avaria leve → Manutenção, Sucata → Descartar) — troque o destino se precisar.
           Nada é gravado até <strong style={{ color: T.text }}>Salvar</strong> na linha ou <strong style={{ color: T.text }}>Confirmar lote</strong>.
         </p>
         {/* `listaRef` mede a ÁREA ÚTIL desta caixa: é ela que decide entre
             tabela e cartões (ver a régua em use-mobile.tsx). */}
-        <div ref={listaRef} style={{ background: T.surface, borderRadius: isMobile ? R.lg : R.xl, border: `1px solid ${T.border}`, overflow: "hidden", boxShadow: SHADOW.sm }}>
+        <div style={{ background: T.surface, borderRadius: isMobile ? R.lg : R.xl, border: `1px solid ${T.border}`, overflow: "hidden", boxShadow: SHADOW.sm }}>
           {(() => {
             // As peças de cada linha são montadas UMA vez e servem às duas
             // vistas: tabela no desktop, cartões quando a área útil aperta.
@@ -944,7 +963,7 @@ export default function TriagemRetorno() {
                     {asset.displayId}
                   </span>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                    <span style={{ fontWeight: FW.forte, fontSize: isMobile ? FS.read : FS.body, color: T.text, fontFamily: FONT.corpo, overflowWrap: "anywhere" }}>{asset.name}</span>
+                    <span style={{ fontWeight: FW.forte, fontSize: isMobile ? FS.read : FS.body, color: T.text, fontFamily: FONT.corpo, overflowWrap: "break-word", lineHeight: 1.3 }}>{asset.name}</span>
                     <span style={{
                       display: "inline-flex", alignItems: "center", justifyContent: "center",
                       height: 18, borderRadius: 5, padding: "0 5px",
@@ -976,32 +995,18 @@ export default function TriagemRetorno() {
               const dataDoEvento = asset.eventDate
                 ? new Date(asset.eventDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).replace(".", "")
                 : null;
+              // Evento sem ladrilho azul e sem data em mono: ícone pequeno,
+              // nome e a data por extenso embaixo — a coluna lia mais pesada
+              // que a própria decisão da linha.
               const eventoEl = asset.eventName ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      padding: 6, background: TOM.info.bg, borderRadius: R.sm, flexShrink: 0,
-                    }}>
-                      <CalendarDays size={14} color={TOM.info.text} aria-hidden="true" />
-                    </span>
-                    <span style={{
-                      fontSize: FS.body, fontWeight: FW.forte, color: T.text,
-                      fontFamily: FONT.corpo, lineHeight: 1.25,
-                    }}>
-                      {asset.eventName}
-                    </span>
-                  </div>
-                  <div style={{ paddingLeft: 34, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                    {dataDoEvento && (
-                      <span style={{ fontFamily: FONT.mono, fontSize: FS.small, color: T.second, letterSpacing: "-0.02em" }}>
-                        {dataDoEvento}
-                      </span>
-                    )}
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 6, minWidth: 0 }}>
+                  <CalendarDays size={13} color={T.second} aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
+                  <div style={{ minWidth: 0 }}>
+                    <span style={{ display: "block", fontSize: compacto || emCards ? FS.meta : FS.body, fontWeight: FW.medio, color: compacto || emCards ? T.apoio : T.text, lineHeight: 1.35, overflowWrap: "break-word" }}>{asset.eventName}</span>
+                    {dataDoEvento && <span style={{ display: "block", fontSize: FS.meta, color: T.second }}>evento em {dataDoEvento}</span>}
                   </div>
                 </div>
-              ) : <span style={{ fontSize: FS.meta, color: T.second, fontStyle: "italic", fontFamily: FONT.corpo }}>Sem evento</span>;
-
+              ) : <span style={{ fontSize: FS.meta, color: T.second, fontFamily: FONT.corpo }}>Sem evento</span>;
               const patrocinadoresEl = <SponsorChips sponsors={asset.sponsors ?? []} />;
 
               // Botão de modo (qty > 1). Caixa alta em 10px saiu: é um controle,
@@ -1017,7 +1022,7 @@ export default function TriagemRetorno() {
               // Atalhos do lote: <Botao> com a tinta do destino (a cor diz o
               // que o atalho faz antes de ler).
               const botaoPreset = (tom: { bg: string; text: string; border: string }): React.CSSProperties => ({
-                minHeight: dedo ? 40 : 26, borderColor: tom.border, background: tom.bg, color: tom.text, fontWeight: FW.medio,
+                minHeight: dedo ? 40 : 26, borderColor: tom.border, backgroundColor: tom.bg, color: tom.text, fontWeight: FW.medio,
               });
               const botaoPasso: React.CSSProperties = { width: alvo, minHeight: alvo, padding: 0, fontSize: 16 };
 
@@ -1266,7 +1271,7 @@ export default function TriagemRetorno() {
                     {linhas.map((asset, idx) => {
                       const p = pecasDe(asset);
                       const { entry, isSaved, isFocused } = p;
-                      const baseRowBg = idx % 2 === 1 ? T.bg : T.surface;
+                      const baseRowBg = T.surface;
                       return (
                         <tr key={asset.id} data-testid={`row-triage-${asset.id}`}
                           /* Sem role="button" no <tr>: a linha mantém a semântica
@@ -1279,39 +1284,39 @@ export default function TriagemRetorno() {
                             backgroundColor: entry.selected && !isSaved ? TOM.laranja.bg
                               : isFocused && !isSaved ? N.n2 : baseRowBg,
                             transition: "background-color 0.12s",
-                            borderBottom: "1px solid rgba(226,232,240,0.6)",
+                            borderBottom: `1px solid ${T.border}`,
                             borderLeft: (entry.selected || isFocused) && !isSaved ? `3px solid ${T.accentText}` : "3px solid transparent",
                             cursor: isSaved ? "default" : "pointer",
                           }}
                           className={!isSaved && !isFocused && !entry.selected ? "triagem-linha" : undefined}
                         >
-                          <td style={{ padding: "12px 14px", verticalAlign: "middle" }}>
+                          <td style={{ padding: "12px 14px", verticalAlign: "top" }}>
                             {p.checkboxEl}
                           </td>
 
-                          <td style={{ padding: "10px 14px", verticalAlign: "middle", minWidth: compacto ? 220 : undefined }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <td style={{ padding: "12px 14px", verticalAlign: "top", minWidth: compacto ? 240 : 220 }}>
+                            <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
                               {p.miniaturaEl}
                               <div style={{ minWidth: 0 }}>
                                 {p.materialEl}
                                 {compacto && (
-                                  <>
+                                  <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
                                     {p.eventoEl}
                                     {p.patrocinadoresEl}
-                                  </>
+                                  </div>
                                 )}
                               </div>
                             </div>
                           </td>
 
                           {!compacto && (
-                            <td style={{ padding: "10px 14px", verticalAlign: "middle", minWidth: 190 }}>
+                            <td style={{ padding: "10px 14px", verticalAlign: "top", minWidth: 190 }}>
                               {p.eventoEl}
                             </td>
                           )}
 
                           {!compacto && (
-                            <td style={{ padding: "12px 14px", verticalAlign: "middle", maxWidth: 140 }}>
+                            <td style={{ padding: "12px 14px", verticalAlign: "top", maxWidth: 140 }}>
                               {p.patrocinadoresEl}
                             </td>
                           )}
@@ -1320,11 +1325,11 @@ export default function TriagemRetorno() {
                             {p.togglesEl}
                           </td>
 
-                          <td style={{ padding: "12px 14px", verticalAlign: "middle", minWidth: 200 }}>
+                          <td style={{ padding: "12px 14px", verticalAlign: "top", minWidth: 200 }}>
                             {p.notaEl}
                           </td>
 
-                          <td style={{ padding: "12px 14px", verticalAlign: "middle", textAlign: "right" }}>
+                          <td style={{ padding: "12px 14px", verticalAlign: "top", textAlign: "right" }}>
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
                               {p.verEl}
                               {p.salvarEl}
@@ -1352,7 +1357,7 @@ export default function TriagemRetorno() {
         </div>
         </>
       )}
-      </div>
+      </MedeDensidade>
 
       {/* ── Floating pill ── */}
       {selectedIds.length > 0 && (
@@ -1363,16 +1368,16 @@ export default function TriagemRetorno() {
           position: "fixed", zIndex: 50, pointerEvents: "auto",
           ...(isMobile
             ? { left: 12, right: 12, bottom: "calc(12px + env(safe-area-inset-bottom, 0px))", transform: "none" }
-            : { left: "50%", bottom: 52, transform: "translateX(-50%)" }),
+            : { left: "50%", bottom: 52, transform: "translateX(-50%)", maxWidth: "calc(100vw - 32px)" }),
         }}>
           <div style={{
             display: "flex", alignItems: "center", gap: isMobile ? 8 : 16,
             flexWrap: isMobile ? "wrap" : "nowrap",
             justifyContent: isMobile ? "space-between" : "flex-start",
-            padding: isMobile ? "10px 12px" : "10px 12px 10px 16px", borderRadius: isMobile ? 16 : 9999,
-            background: T.dark,
-            boxShadow: "0 12px 40px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.06)",
-          }}>
+            padding: isMobile ? "10px 12px" : "10px 12px 10px 16px", borderRadius: isMobile ? R.xl : R.pill,
+            background: ESCURO.gradiente,
+            boxShadow: `0 12px 40px rgba(0,0,0,0.35), 0 0 0 1px ${ESCURO.borda}`,
+          }} className="ds-sobre-escuro tri-barra">
             {/* Count badge — "1 item selecionados" corrigido para concordar.
                 A pill é escura: os botões dela seguem nativos, porque nenhuma
                 variante do <Botao> foi desenhada para superfície escura. */}
@@ -1380,43 +1385,43 @@ export default function TriagemRetorno() {
               <div style={{ width: 28, height: 28, borderRadius: "50%", background: T.accentText, display: "flex", alignItems: "center", justifyContent: "center", color: N.n0, fontSize: FS.meta, fontWeight: FW.forte, fontFamily: FONT.display, fontVariantNumeric: "tabular-nums" }}>
                 {selectedIds.length}
               </div>
-              <span style={{ fontSize: FS.body, fontWeight: FW.medio, color: N.n2, fontFamily: FONT.display, whiteSpace: "nowrap" }}>
+              <span style={{ fontSize: FS.body, fontWeight: FW.medio, color: ESCURO.texto, fontFamily: FONT.display, whiteSpace: "nowrap" }}>
                 {selectedIds.length === 1 ? "item selecionado" : "itens selecionados"}
               </span>
             </div>
             {/* Presets rápidos — ocultos no mobile: já existem por linha e não
                 cabem na pill estreita. */}
-            {!isMobile && (
+            {!isMobile && !emCards && (
               <>
-                <div aria-hidden="true" style={{ width: 1, height: 24, background: "rgba(255,255,255,0.12)" }} />
+                <div aria-hidden="true" style={{ width: 1, height: 24, background: ESCURO.borda }} />
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                  <button data-testid="button-bulk-preset-perfeito" onClick={() => applyBulkPreset("PERFEITO", "NO_GALPAO")}
-                    style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 32, padding: "0 12px", borderRadius: 9999, border: "1px solid rgba(147,197,253,0.4)", background: "rgba(30,64,175,0.5)", color: TOM.info.border, fontSize: FS.meta, fontWeight: FW.medio, fontFamily: FONT.display, cursor: "pointer", whiteSpace: "nowrap" }}>
+                  <button type="button" className="ds-botao tri-pilula" data-testid="button-bulk-preset-perfeito" onClick={() => applyBulkPreset("PERFEITO", "NO_GALPAO")}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 32, padding: "0 12px", borderRadius: 9999, border: `1px solid ${ESCURO.borda}`, background: ESCURO.realce, color: TOM.info.border, fontSize: FS.meta, fontWeight: FW.medio, fontFamily: FONT.display, cursor: "pointer", whiteSpace: "nowrap" }}>
                     <Sparkles size={12} aria-hidden="true" /> Perfeitos → Galpão
                   </button>
-                  <button data-testid="button-bulk-preset-manutencao" onClick={() => applyBulkPreset("AVARIA_LEVE", "MANUTENCAO")}
-                    style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 32, padding: "0 12px", borderRadius: 9999, border: "1px solid rgba(252,211,77,0.4)", background: "rgba(146,64,14,0.45)", color: TOM.alerta.border, fontSize: FS.meta, fontWeight: FW.medio, fontFamily: FONT.display, cursor: "pointer", whiteSpace: "nowrap" }}>
+                  <button type="button" className="ds-botao tri-pilula" data-testid="button-bulk-preset-manutencao" onClick={() => applyBulkPreset("AVARIA_LEVE", "MANUTENCAO")}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 32, padding: "0 12px", borderRadius: 9999, border: `1px solid ${ESCURO.borda}`, background: ESCURO.realce, color: TOM.alerta.border, fontSize: FS.meta, fontWeight: FW.medio, fontFamily: FONT.display, cursor: "pointer", whiteSpace: "nowrap" }}>
                     <Wrench size={12} aria-hidden="true" /> Avaria → Manutenção
                   </button>
-                  <button data-testid="button-bulk-preset-sucata" onClick={() => applyBulkPreset("SUCATA", "DESCARTADO")}
-                    style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 32, padding: "0 12px", borderRadius: 9999, border: "1px solid rgba(252,165,165,0.4)", background: "rgba(185,28,28,0.45)", color: TOM.perigo.border, fontSize: FS.meta, fontWeight: FW.medio, fontFamily: FONT.display, cursor: "pointer", whiteSpace: "nowrap" }}>
+                  <button type="button" className="ds-botao tri-pilula" data-testid="button-bulk-preset-sucata" onClick={() => applyBulkPreset("SUCATA", "DESCARTADO")}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 32, padding: "0 12px", borderRadius: 9999, border: `1px solid ${ESCURO.borda}`, background: ESCURO.realce, color: TOM.perigo.border, fontSize: FS.meta, fontWeight: FW.medio, fontFamily: FONT.display, cursor: "pointer", whiteSpace: "nowrap" }}>
                     <Trash2 size={12} aria-hidden="true" /> Sucata → Descartar
                   </button>
                 </div>
-                <div aria-hidden="true" style={{ width: 1, height: 24, background: "rgba(255,255,255,0.12)" }} />
+                <div aria-hidden="true" style={{ width: 1, height: 24, background: ESCURO.borda }} />
               </>
             )}
             {/* Actions */}
             <div style={{ display: "flex", gap: 8, flex: isMobile ? "1 1 100%" : undefined }}>
-              <button data-testid="button-bulk-confirm" onClick={() => handleBulk()}
+              <button type="button" className="ds-botao" data-testid="button-bulk-confirm" onClick={() => handleBulk()}
                 disabled={savingIds.size > 0}
                 style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: dedo ? 44 : 36, padding: "0 16px", flex: isMobile ? 1 : undefined, borderRadius: R.pill, border: "none", background: savingIds.size > 0 ? T.second : TOM.sucesso.text, color: N.n0, fontSize: FS.body, fontWeight: FW.forte, fontFamily: FONT.display, cursor: savingIds.size > 0 ? "not-allowed" : "pointer", whiteSpace: "nowrap", boxShadow: "0 2px 8px rgba(21,128,61,0.3)", transition: "background-color 0.15s" }}>
                 <CheckCircle2 size={14} aria-hidden="true" /> {savingIds.size > 1 ? `Registrando ${gravadasDoLote} de ${savingIds.size}…` : savingIds.size > 0 ? "Registrando…" : "Confirmar triagem"}
               </button>
               {/* "Cancelar" soava como desfazer a triagem; o botão só
                   desmarca as linhas (o que foi preenchido nelas fica). */}
-              <button data-testid="button-bulk-cancel" onClick={() => toggleAll(false)}
-                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, height: dedo ? 44 : 36, padding: "0 14px", borderRadius: R.pill, border: "1px solid rgba(255,255,255,0.18)", background: "transparent", color: T.border, fontSize: FS.body, fontWeight: FW.medio, fontFamily: FONT.display, cursor: "pointer", whiteSpace: "nowrap" }}>
+              <button type="button" className="ds-botao tri-pilula" data-testid="button-bulk-cancel" onClick={() => toggleAll(false)}
+                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, height: dedo ? 44 : 36, padding: "0 14px", borderRadius: R.pill, border: `1px solid ${ESCURO.borda}`, background: "transparent", color: ESCURO.texto, fontSize: FS.body, fontWeight: FW.medio, fontFamily: FONT.display, cursor: "pointer", whiteSpace: "nowrap" }}>
                 <X size={13} aria-hidden="true" /> Limpar seleção
               </button>
             </div>
@@ -1444,35 +1449,28 @@ export default function TriagemRetorno() {
         }}
       />
 
-      <AlertDialog open={!!descarte} onOpenChange={(aberto) => { if (!aberto) setDescarte(null); }}>
-        <AlertDialogContent style={{ width: "min(440px, calc(100vw - 32px))", maxWidth: "min(440px, calc(100vw - 32px))", borderRadius: 16 }}>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {descarte?.tipo === "uma" ? `Descartar ${descarte.asset.displayId}?` : `Descartar ${descarte?.tipo === "lote" ? descarte.quantas : 0} ${descarte?.tipo === "lote" && descarte.quantas === 1 ? "peça" : "peças"}?`}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {descarte?.tipo === "uma" ? `${descarte.asset.name} sai` : "Elas saem"} do inventário como sucata e a triagem não pode ser desfeita por aqui.
-              {descarte?.tipo === "lote" && selectedIds.length > descarte.quantas ? ` As outras ${selectedIds.length - descarte.quantas} selecionadas seguem para o destino marcado.` : ""}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter style={{ gap: 8 }}>
-            <AlertDialogCancel data-testid="button-rever-descarte" style={{ minHeight: 44 }}>Rever</AlertDialogCancel>
-            <AlertDialogAction data-testid="button-confirmar-descarte" style={{ minHeight: 44, background: TOM.perigo.text, color: N.n0 }}
-              onClick={async () => {
-                const d = descarte;
-                setDescarte(null);
-                if (d?.tipo === "lote") { handleBulk(true); return; }
-                if (d?.tipo === "uma") {
-                  const ok = await handleSingle(d.asset, true);
-                  // Veio do modal de detalhe: fecha, como o Salvar dele faria.
-                  if (ok) setSelectedAsset(atual => (atual?.id === d.asset.id ? null : atual));
-                }
-              }}>
-              Descartar e salvar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmacaoDaTriagem
+        open={!!descarte}
+        onOpenChange={(aberto) => { if (!aberto) setDescarte(null); }}
+        icone={Trash2}
+        titulo={descarte?.tipo === "uma" ? `Descartar ${descarte.asset.displayId}?` : `Descartar ${descarte?.tipo === "lote" ? descarte.quantas : 0} ${descarte?.tipo === "lote" && descarte.quantas === 1 ? "peça" : "peças"}?`}
+        descricao={<>
+          {descarte?.tipo === "uma" ? `${descarte.asset.name} sai` : "Elas saem"} do inventário como sucata e a triagem não pode ser desfeita por aqui.
+          {descarte?.tipo === "lote" && selectedIds.length > descarte.quantas ? ` As outras ${selectedIds.length - descarte.quantas} selecionadas seguem para o destino marcado.` : ""}
+        </>}
+        cancelar="Rever" testIdCancelar="button-rever-descarte"
+        confirmar="Descartar e salvar" testIdConfirmar="button-confirmar-descarte"
+        onConfirmar={async () => {
+          const d = descarte;
+          setDescarte(null);
+          if (d?.tipo === "lote") { handleBulk(true); return; }
+          if (d?.tipo === "uma") {
+            const ok = await handleSingle(d.asset, true);
+            // Veio do modal de detalhe: fecha, como o Salvar dele faria.
+            if (ok) setSelectedAsset(atual => (atual?.id === d.asset.id ? null : atual));
+          }
+        }}
+      />
 
       {/* Iguala o trigger do EventFilterDropdown aos demais filtros (44px de
           altura e largura total) — componente compartilhado, sem prop de estilo. */}

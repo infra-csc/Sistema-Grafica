@@ -170,7 +170,7 @@ export function EventosDaTriagem({ ativos, reservaPorAtivo, isLoading, isError, 
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <div style={{ position: "relative", flex: "1 1 260px", maxWidth: isMobile ? undefined : 380 }}>
               <Search size={15} color={T.second} aria-hidden="true" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
-              <input type="search" data-testid="input-busca-eventos-triagem" aria-label="Buscar evento da triagem por nome ou patrocinador"
+              <input type="search" className="tri-campo" data-testid="input-busca-eventos-triagem" aria-label="Buscar evento da triagem por nome ou patrocinador"
                 placeholder="Buscar evento ou patrocinador…" value={busca}
                 onChange={(ev) => { setBusca(ev.target.value); setMostrando(LOTE_DE_EVENTOS); }}
                 style={{ width: "100%", boxSizing: "border-box", height: 44, padding: "0 12px 0 36px", borderRadius: R.md, border: `1px solid ${T.border}`, background: T.surface, fontFamily: FONT.corpo, fontSize: isMobile ? FS.lead : FS.body, color: T.text }} />
@@ -195,6 +195,10 @@ export function EventosDaTriagem({ ativos, reservaPorAtivo, isLoading, isError, 
         <div data-testid="lista-eventos-triagem" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 290px), 1fr))", gap: isMobile ? 12 : 16 }}>
           {visiveis.map((e) => {
             const espera = tempoDeEspera(e.desde, agora);
+            // A faixa do topo SIGNIFICA algo: azul = tem peça reservada (hora
+            // marcada), vermelho/âmbar = espera longa. Sem nada disso, sem faixa
+            // — eram oito cartões com o mesmo laranja.
+            const faixa = e.reservadas ? TOM.info.text : espera.dias > 14 ? TOM.perigo.text : espera.dias > 7 ? TOM.alerta.text : T.border;
             // O cartão inteiro é o botão (é a escolha da pilha): <button> de
             // verdade, com o realce de hover/foco da classe da casa.
             return (
@@ -203,8 +207,8 @@ export function EventosDaTriagem({ ativos, reservaPorAtivo, isLoading, isError, 
                 type="button"
                 data-testid={`evento-triagem-${e.id}`}
                 onClick={() => onAbrir(e.id)}
-                className="ds-botao"
-                style={{ textAlign: "left", display: "flex", flexDirection: "column", gap: 12, padding: isMobile ? 16 : 18, borderRadius: R.xl, cursor: "pointer", background: T.surface, border: `1px solid ${e.reservadas ? TOM.info.border : T.border}`, borderTop: `3px solid ${e.reservadas ? TOM.info.text : T.accentText}`, boxShadow: SHADOW.sm }}
+                className="ds-botao tri-evento"
+                style={{ textAlign: "left", display: "flex", flexDirection: "column", gap: 12, padding: isMobile ? 16 : 18, borderRadius: R.xl, cursor: "pointer", background: T.surface, border: `1px solid ${e.reservadas ? TOM.info.border : T.border}`, borderTop: `3px solid ${faixa}`, boxShadow: SHADOW.sm }}
               >
                 {/* Miniaturas decorativas (aria-hidden): o leitor de tela lia o
                     "+N" solto antes do nome do evento. */}
@@ -222,19 +226,19 @@ export function EventosDaTriagem({ ativos, reservaPorAtivo, isLoading, isError, 
                 </div>
 
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 17, fontWeight: FW.rotulo, color: T.text, fontFamily: FONT.display, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.nome}</div>
+                  <div title={e.nome} className="tri-duas-linhas" style={{ fontSize: FS.lead, fontWeight: FW.rotulo, color: T.text, fontFamily: FONT.display, lineHeight: 1.25, letterSpacing: "-0.01em" }}>{e.nome}</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
                     {e.data && (
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: FS.meta, color: T.apoio }}>
                         <CalendarDays size={12} aria-hidden="true" /> evento {diaEMes(e.data)}
                       </span>
                     )}
-                    <span data-testid={`espera-evento-triagem-${e.id}`} style={{ fontSize: 12.5, fontWeight: espera.dias > 7 ? FW.rotulo : FW.medio, color: espera.cor }}>{espera.texto}</span>
+                    <span data-testid={`espera-evento-triagem-${e.id}`} style={{ fontSize: FS.meta, fontWeight: espera.dias > 7 ? FW.forte : FW.medio, color: espera.cor, ...(espera.dias > 7 ? { padding: "1px 7px", borderRadius: R.pill, background: espera.dias > 14 ? TOM.perigo.bg : TOM.alerta.bg } : {}) }}>{espera.texto}</span>
                   </div>
                 </div>
 
                 <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                  <span style={{ fontSize: 30, fontWeight: 900, color: T.text, fontFamily: FONT.display, lineHeight: 1 }}>{e.pecas}</span>
+                  <span style={{ fontSize: 30, fontWeight: 900, color: T.text, fontFamily: FONT.display, lineHeight: 1, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em" }}>{e.pecas}</span>
                   <span style={{ fontSize: FS.body, color: T.apoio, fontWeight: FW.medio }}>
                     {e.pecas === 1 ? "peça" : "peças"}{e.unidades !== e.pecas ? ` · ${e.unidades} un.` : ""}
                   </span>
@@ -252,8 +256,8 @@ export function EventosDaTriagem({ ativos, reservaPorAtivo, isLoading, isError, 
                   </div>
                 )}
 
-                <span style={{ marginTop: "auto", display: "inline-flex", alignItems: "center", gap: 6, fontSize: FS.body, fontWeight: FW.rotulo, color: T.accentText }}>
-                  Começar triagem <ArrowRight size={14} aria-hidden="true" />
+                <span className="tri-evento-cta" style={{ marginTop: "auto", paddingTop: 12, borderTop: `1px solid ${N.n3}`, display: "flex", alignItems: "center", gap: 6, fontSize: FS.body, fontWeight: FW.forte, color: T.accentText }}>
+                  Começar triagem <ArrowRight size={14} aria-hidden="true" className="tri-seta" />
                 </span>
               </button>
             );

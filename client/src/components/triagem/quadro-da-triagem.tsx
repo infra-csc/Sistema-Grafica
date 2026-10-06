@@ -23,14 +23,11 @@ import { ArrowLeft, BookmarkCheck, CheckCircle2, ChevronDown, Package, Search, S
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useElementSize, useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
-import { T, N, TOM, FS, FW, R, FONT, SHADOW } from "@/lib/theme";
+import { T, N, TOM, FS, FW, R, FONT, SHADOW, ESCURO } from "@/lib/theme";
 import { Botao } from "@/components/ui/botao";
 import { Selo } from "@/components/ui/selo";
 import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { ConfirmacaoDaTriagem } from "@/components/triagem/confirmacao-da-triagem";
 import { miniatura } from "@/lib/miniatura";
 import { diaEMes, ehRecusaDeJaTriada, recusaPorReserva } from "@shared/estoque";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -158,7 +155,9 @@ const CartaoDoGrupo = memo(function CartaoDoGrupo({ grupo, coluna, quantidade, r
             {ehImagem(grupo.miniatura) ? <img src={miniatura(grupo.miniatura!)} alt="" loading="lazy" decoding="async" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Package size={16} color={T.muted} aria-hidden="true" />}
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div title={grupo.nome} style={{ fontSize: FS.body, fontWeight: FW.forte, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{grupo.nome}</div>
+            {/* Duas linhas antes da reticência: numa coluna de 250px "Percurso — Placa
+                de quilometragem" virava "Percurso — Placa ...". */}
+            <div title={grupo.nome} className="tri-duas-linhas" style={{ fontSize: FS.body, fontWeight: FW.forte, color: T.text, lineHeight: 1.3 }}>{grupo.nome}</div>
             {grupo.patrocinadores.length > 0 && (
               <div style={{ fontSize: FS.meta, color: T.apoio, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{grupo.patrocinadores.join(" · ")}</div>
             )}
@@ -242,7 +241,7 @@ function DividirGrupo({ grupo, inicial, reservadas, toque, onAplicar, onFechar }
   const alvo = toque ? 44 : 38;
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onFechar(); }}>
-      <DialogContent ref={superficieRef} data-testid="dialogo-dividir" className={HIDE_NATIVE_CLOSE} style={modalSurface(460)}>
+      <DialogContent ref={superficieRef} data-testid="dialogo-dividir" className={`gap-0 ${HIDE_NATIVE_CLOSE}`} style={modalSurface(460)}>
         <DialogTitle className="sr-only">Dividir {grupo.nome}</DialogTitle>
         <DialogDescription className="sr-only">Distribua as {grupo.unidades} unidades entre Galpão, Manutenção e Descartar.</DialogDescription>
         <ModalHeader icon={Split} tint={T.accentText} title={grupo.nome} subtitle={`${grupo.unidades} unidades — quantas vão para cada destino?`} onClose={onFechar} />
@@ -254,12 +253,16 @@ function DividirGrupo({ grupo, inicial, reservadas, toque, onAplicar, onFechar }
             // Passo de ±1: quadrado, do tamanho do alvo (44px no toque).
             const passo: React.CSSProperties = { width: alvo, minHeight: alvo, padding: 0, fontSize: 18, flexShrink: 0 };
             return (
-              <div key={destino} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              // No celular os controles descem para a linha de baixo (alinhados
+              // ao texto): lado a lado, o "Fora do estoque até o reparo"
+              // quebrava em quatro linhas de uma palavra.
+              <div key={destino} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: isMobile ? "wrap" : "nowrap", paddingBottom: isMobile ? 12 : 0, borderBottom: isMobile ? `1px solid ${N.n3}` : "none" }}>
                 <span aria-hidden="true" style={{ width: 34, height: 34, borderRadius: R.md, background: meta.fundo, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><meta.Icon size={16} color={meta.cor} /></span>
-                <label htmlFor={`qtd-${destino}`} style={{ flex: 1, minWidth: 0, fontSize: FS.read, fontWeight: FW.forte, color: meta.cor }}>
+                <label htmlFor={`qtd-${destino}`} style={{ flex: isMobile ? "1 1 calc(100% - 44px)" : 1, minWidth: 0, fontSize: FS.read, fontWeight: FW.forte, color: meta.cor }}>
                   {meta.titulo}
                   <span style={{ display: "block", fontSize: FS.meta, fontWeight: FW.corpo, color: T.second }}>{meta.sub}</span>
                 </label>
+                {isMobile && <span aria-hidden="true" style={{ width: 34, flexShrink: 0 }} />}
                 <Botao aria-label={`Uma a menos em ${meta.titulo}`} disabled={d[destino] === 0} onClick={() => muda(d[destino] - 1)} style={passo}>−</Botao>
                 <input id={`qtd-${destino}`} data-testid={`qtd-${destino}`} type="text" inputMode="numeric" pattern="[0-9]*" autoComplete="off"
                   value={String(d[destino])}
@@ -268,7 +271,7 @@ function DividirGrupo({ grupo, inicial, reservadas, toque, onAplicar, onFechar }
                   style={{ width: 64, height: alvo, textAlign: "center", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, fontFamily: FONT.display, fontSize: toque ? 16 : 15, fontWeight: FW.forte, color: T.text, fontVariantNumeric: "tabular-nums" }} />
                 <Botao aria-label={`Uma a mais em ${meta.titulo}`} disabled={resta === 0} onClick={() => muda(d[destino] + 1)} style={passo}>+</Botao>
                 <Botao tamanho="sm" data-testid={`tudo-para-${destino}`} onClick={() => setD(tudoPara(grupo.unidades, destino))} title={`Tudo para ${meta.titulo}`}
-                  style={{ minHeight: alvo }}>
+                  style={{ minHeight: alvo, marginLeft: isMobile ? "auto" : undefined }}>
                   {isMobile ? "Tudo" : teto === d[destino] && resta === 0 && d[destino] === grupo.unidades ? "Tudo aqui" : "Tudo"}
                 </Botao>
               </div>
@@ -311,7 +314,11 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
   // arrastar (HTML5 drag) nem existe em tela de toque. O efeito que fazia esta
   // detecção aqui virou `usePonteiroGrosso` (use-mobile.tsx): era a única
   // cópia dela no app e agora todas as telas usam a mesma.
-  const toque = isMobile || usePonteiroGrosso();
+  // O hook é chamado SEMPRE (antes do ||): com `isMobile || usePonteiroGrosso()`
+  // ele deixava de ser chamado quando a janela cruzava os 768px, a ordem dos
+  // hooks mudava e o quadro inteiro caía ("Should have a queue").
+  const ponteiroGrosso = usePonteiroGrosso();
+  const toque = isMobile || ponteiroGrosso;
   // Largura REAL do quadro (não da janela): com a barra lateral aberta, um
   // tablet de 1024px deixa ~700px para quatro colunas de ~160px cada.
   const { ref: refDoQuadro, width: larguraDoQuadro } = useElementSize<HTMLDivElement>();
@@ -608,7 +615,7 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             <div style={{ position: "relative", flex: "1 1 180px", minWidth: 0 }}>
               <Search size={14} color={T.second} aria-hidden="true" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
-              <input type="search" data-testid="input-busca-quadro" aria-label="Buscar material a triar por nome, código ou patrocinador"
+              <input type="search" className="tri-campo" data-testid="input-busca-quadro" aria-label="Buscar material a triar por nome, código ou patrocinador"
                 placeholder="Buscar nesta pilha…" value={busca}
                 onChange={(e) => { setBusca(e.target.value); setMostrando((m) => ({ ...m, triar: LOTE_DA_COLUNA })); }}
                 style={{ width: "100%", boxSizing: "border-box", height: alvo, padding: "0 10px 0 30px", borderRadius: R.md, border: `1px solid ${T.border}`, background: T.surface, fontFamily: FONT.corpo, fontSize: toque ? 16 : 13, color: T.text }} />
@@ -629,9 +636,17 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
             ? { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", alignItems: "start" }
             : { display: "flex", flexDirection: "column" }),
         }}>
+          {/* Vazio da coluna: ícone do destino + a instrução ("Solte aqui"
+              sozinho no meio de 300px de tracejado parecia erro). */}
           {pecas.length === 0 ? (
-            <div style={{ flex: 1, gridColumn: "1 / -1", minHeight: 70, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", fontSize: FS.body, color: T.second, padding: 12 }}>
-              {destino === "triar" ? (termo && porColuna.triar.length > 0 ? `Nenhum material com “${busca.trim()}” nesta pilha` : "Tudo arrumado — salve a triagem") : toque ? "Selecione e toque no destino" : "Solte aqui"}
+            <div style={{ flex: 1, gridColumn: "1 / -1", minHeight: 96, display: "flex", flexDirection: "column", gap: 6, alignItems: "center", justifyContent: "center", textAlign: "center", fontSize: FS.body, color: T.second, padding: 12 }}>
+              {destino === "triar"
+                ? <CheckCircle2 size={22} color={termo && porColuna.triar.length > 0 ? T.muted : TOM.sucesso.text} aria-hidden="true" />
+                : <meta.Icon size={22} color={destacada ? meta.cor : T.muted} aria-hidden="true" />}
+              <span style={{ maxWidth: 200, lineHeight: 1.4, fontWeight: destino === "triar" && !termo ? FW.medio : FW.corpo, color: destino === "triar" && !termo ? TOM.sucesso.text : T.second }}>
+                {destino === "triar" ? (termo && porColuna.triar.length > 0 ? `Nenhum material com “${busca.trim()}” nesta pilha` : "Tudo arrumado — salve a triagem") : toque ? "Selecione e toque no destino" : "Solte aqui"}
+              </span>
+              {destino !== "triar" && !toque && <span style={{ fontSize: FS.meta, color: T.second, maxWidth: 200 }}>ou selecione e use a barra · tecla {destino === "galpao" ? "G" : destino === "manutencao" ? "M" : "D"}</span>}
             </div>
           ) : pecas.map(({ grupo, quantidade }) => {
             const f = fatia(destino, grupo.chave);
@@ -676,7 +691,7 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
     <div data-testid="quadro-triagem" style={{ display: "flex", flexDirection: "column", gap: 16, paddingBottom: selecionadas.size > 0 ? (isMobile ? 200 : 96) : 0 }}>
       <div style={{ minWidth: 0 }}>
         <Botao variante="fantasma" tamanho={toque ? "toque" : "sm"} icone={ArrowLeft} onClick={voltar} data-testid="button-voltar-eventos"
-          style={{ fontSize: FS.body, paddingLeft: 4 }}>
+          style={{ fontSize: FS.body, marginLeft: -8 }}>
           Eventos da triagem
         </Botao>
         {/* Subtítulo = o ESTADO da pilha (quantos materiais, quanto falta
@@ -696,7 +711,7 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
                 larguraCheia={isMobile} style={{ minHeight: alvo, fontSize: FS.body }}>
                 Tabela (registro por registro)
               </Botao>
-              <Botao variante="primario" tamanho={toque ? "toque" : "md"} icone={CheckCircle2} onClick={salvar} data-testid="button-salvar-triagem"
+              <Botao variante={unidadesMovidas > 0 || salvando ? "primario" : "secundario"} tamanho={toque ? "toque" : "md"} icone={CheckCircle2} onClick={salvar} data-testid="button-salvar-triagem"
                 disabled={unidadesMovidas === 0 || atualizando} carregando={salvando}
                 motivo={unidadesMovidas === 0 && !atualizando ? "Dê destino a pelo menos uma unidade" : undefined} alinharMotivo="end"
                 title={unidadesMovidas === 0 ? "Dê destino a pelo menos uma unidade" : `Grava o destino de ${unidadesMovidas} un.`}
@@ -719,31 +734,31 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
       </div>
 
       {selecionadas.size > 0 && (
-        <div role="toolbar" aria-label="Mover o material selecionado" data-testid="barra-mover-selecionadas"
+        <div role="toolbar" aria-label="Mover o material selecionado" data-testid="barra-mover-selecionadas" className="ds-sobre-escuro tri-barra"
           style={{
-            position: "fixed", zIndex: 50, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "10px 12px", borderRadius: R.xl, background: T.dark, boxShadow: "0 12px 40px rgba(0,0,0,0.35)",
+            position: "fixed", zIndex: 50, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "10px 12px", borderRadius: R.xl, background: ESCURO.gradiente, boxShadow: `0 12px 40px rgba(0,0,0,0.35), 0 0 0 1px ${ESCURO.borda}`,
             ...(isMobile
               ? { left: 12, right: 12, bottom: "calc(12px + env(safe-area-inset-bottom, 0px))", transform: "none" }
               : { left: "50%", bottom: 20, transform: "translateX(-50%)", maxWidth: "calc(100vw - 32px)" }),
           }}>
-          <span role="status" style={{ color: N.n2, fontSize: FS.body, fontWeight: FW.forte, padding: "0 6px", flex: isMobile ? "1 1 100%" : undefined }}>
+          <span role="status" style={{ color: ESCURO.texto, fontSize: FS.body, fontWeight: FW.forte, padding: "0 6px", flex: isMobile ? "1 1 100%" : undefined }}>
             {selecionadas.size} {selecionadas.size === 1 ? "selecionado" : "selecionados"} →
           </span>
           {DESTINOS.map((d) => {
             const meta = COLUNAS[d];
             return (
-              <button key={d} type="button" data-testid={`mover-para-${d}`} onClick={() => mover(Array.from(selecionadas), d)}
-                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, height: alvo, padding: "0 12px", borderRadius: R.md, border: "none", background: meta.fundo, color: meta.cor, fontFamily: FONT.corpo, fontSize: FS.body, fontWeight: FW.forte, cursor: "pointer", flex: isMobile ? "1 1 0" : undefined, minWidth: 0 }}>
+              <button key={d} type="button" className="ds-botao" data-testid={`mover-para-${d}`} onClick={() => mover(Array.from(selecionadas), d)}
+                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, height: alvo, padding: "0 12px", borderRadius: R.md, border: "none", background: meta.fundo, color: meta.cor, fontFamily: FONT.corpo, fontSize: FS.body, fontWeight: FW.forte, cursor: "pointer", flex: isMobile ? "1 1 30%" : undefined, minWidth: 0, ...(isMobile ? { padding: "0 6px" } : {}) }}>
                 <meta.Icon size={15} aria-hidden="true" /> {meta.titulo}
               </button>
             );
           })}
-          <button type="button" data-testid="mover-para-triar" onClick={() => mover(Array.from(selecionadas), "triar")}
-            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, height: alvo, padding: "0 12px", borderRadius: R.md, border: "1px solid rgba(255,255,255,0.2)", background: "transparent", color: T.border, fontFamily: FONT.corpo, fontSize: FS.body, fontWeight: FW.medio, cursor: "pointer", flex: isMobile ? "1 1 0" : undefined }}>
+          <button type="button" className="ds-botao tri-pilula" data-testid="mover-para-triar" onClick={() => mover(Array.from(selecionadas), "triar")}
+            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, height: alvo, padding: "0 12px", borderRadius: R.md, border: `1px solid ${ESCURO.borda}`, background: "transparent", color: ESCURO.texto, fontFamily: FONT.corpo, fontSize: FS.body, fontWeight: FW.medio, cursor: "pointer", flex: isMobile ? "1 1 auto" : undefined, whiteSpace: "nowrap" }}>
             <Undo2 size={15} aria-hidden="true" /> A triar
           </button>
-          <button type="button" aria-label="Limpar seleção" title="Limpar seleção" onClick={() => setSelecionadas(new Set())}
-            style={{ width: alvo, height: alvo, borderRadius: R.md, border: "none", background: "rgba(255,255,255,0.1)", color: T.border, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <button type="button" className="ds-botao tri-pilula" aria-label="Limpar seleção" title="Limpar seleção" onClick={() => setSelecionadas(new Set())}
+            style={{ width: alvo, height: alvo, borderRadius: R.md, border: "none", background: ESCURO.realce, color: ESCURO.texto, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <X size={16} aria-hidden="true" />
           </button>
         </div>
@@ -768,42 +783,31 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
         />
       )}
 
-      <AlertDialog open={confirmarDescarte} onOpenChange={setConfirmarDescarte}>
-        <AlertDialogContent style={{ width: "min(440px, calc(100vw - 32px))", maxWidth: "min(440px, calc(100vw - 32px))", borderRadius: 16 }}>
-          <AlertDialogHeader>
-            <AlertDialogTitle data-testid="titulo-confirmar-descarte">{fraseDoDescarte(paraDescartar)}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {unidadesEm("descartar") === 1 ? "Ela sai" : "Elas saem"} do inventário como sucata e a triagem não pode ser desfeita por aqui.
-              {unidadesMovidas > unidadesEm("descartar") ? ` As outras ${unidadesMovidas - unidadesEm("descartar")} un. seguem para Galpão e Manutenção.` : ""}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter style={{ gap: 8 }}>
-            <AlertDialogCancel data-testid="button-rever-descarte" style={{ minHeight: 44 }}>Rever</AlertDialogCancel>
-            <AlertDialogAction data-testid="button-confirmar-descarte" onClick={() => gravar()}
-              style={{ minHeight: 44, background: TOM.perigo.text, color: N.n0 }}>
-              Descartar e salvar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmacaoDaTriagem
+        open={confirmarDescarte}
+        onOpenChange={setConfirmarDescarte}
+        icone={Trash2}
+        titulo={fraseDoDescarte(paraDescartar)}
+        tituloTestId="titulo-confirmar-descarte"
+        descricao={<>
+          {unidadesEm("descartar") === 1 ? "Ela sai" : "Elas saem"} do inventário como sucata e a triagem não pode ser desfeita por aqui.
+          {unidadesMovidas > unidadesEm("descartar") ? ` As outras ${unidadesMovidas - unidadesEm("descartar")} un. seguem para Galpão e Manutenção.` : ""}
+        </>}
+        cancelar="Rever" testIdCancelar="button-rever-descarte"
+        confirmar="Descartar e salvar" testIdConfirmar="button-confirmar-descarte"
+        onConfirmar={() => gravar()}
+      />
 
-      <AlertDialog open={confirmarSaida} onOpenChange={setConfirmarSaida}>
-        <AlertDialogContent style={{ width: "min(420px, calc(100vw - 32px))", maxWidth: "min(420px, calc(100vw - 32px))", borderRadius: 16 }}>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Sair sem salvar?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {unidadesMovidas} {unidadesMovidas === 1 ? "unidade foi arrumada e ainda não foi salva" : "unidades foram arrumadas e ainda não foram salvas"}. Saindo agora, a arrumação se perde.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter style={{ gap: 8 }}>
-            <AlertDialogCancel data-testid="button-ficar-no-quadro" style={{ minHeight: 44 }}>Continuar arrumando</AlertDialogCancel>
-            <AlertDialogAction data-testid="button-sair-sem-salvar" onClick={() => { setConfirmarSaida(false); onVoltar(); }}
-              style={{ minHeight: 44, background: TOM.perigo.text, color: N.n0 }}>
-              Sair sem salvar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmacaoDaTriagem
+        open={confirmarSaida}
+        onOpenChange={setConfirmarSaida}
+        icone={Undo2}
+        titulo="Sair sem salvar?"
+        descricao={<>{unidadesMovidas} {unidadesMovidas === 1 ? "unidade foi arrumada e ainda não foi salva" : "unidades foram arrumadas e ainda não foram salvas"}. Saindo agora, a arrumação se perde.</>}
+        cancelar="Continuar arrumando" testIdCancelar="button-ficar-no-quadro"
+        confirmar="Sair sem salvar" testIdConfirmar="button-sair-sem-salvar"
+        onConfirmar={() => { setConfirmarSaida(false); onVoltar(); }}
+      />
     </div>
   );
 }

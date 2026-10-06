@@ -1611,3 +1611,80 @@ a.ds-botao[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; filter: no
 @keyframes cot-entra { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
 /* Todos/Limpar no toque: 28px de desenho, 44 de alvo por uma área invisível. */
 @media (pointer: coarse) { .cot-acao { position: relative; } .cot-acao::after { content: ""; position: absolute; inset: -8px -1px; } }
+
+/* ── ESTOQUE (prefixo est-): linha, ações, barra da situação, campos e a
+   entrada das unidades. Zerado por prefers-reduced-motion como o resto. ── */
+/* A barra da situação: segmentos proporcionais, com um fio claro entre eles. */
+.est-barra { display: flex; gap: 2px; border-radius: 999px; overflow: hidden; background-color: var(--n3); }
+.est-barra > span { display: block; min-width: 4px; height: 100%; }
+/* A linha do material acende sob o ponteiro (é o atalho do detalhe). */
+.est-linha { cursor: pointer; transition: background-color var(--dur-rapida) ease; }
+@media (hover: hover) { .est-linha:hover { background-color: var(--n1); } }
+.est-linha:focus-within { background-color: var(--n1); }
+.est-linha-aberta > td { border-bottom-color: transparent !important; }
+.est-linha .est-miniatura { transition: box-shadow var(--dur-rapida) ease; }
+@media (hover: hover) { .est-linha:hover .est-miniatura { box-shadow: 0 0 0 3px var(--n0), 0 0 0 4px var(--n5); } }
+/* Ações da linha: discretas até a linha pedir; no toque, inteiras. */
+.est-acoes { opacity: 0.72; transition: opacity var(--dur-rapida) ease; }
+.est-linha:hover .est-acoes, .est-linha:focus-within .est-acoes, .est-sub:hover .est-acoes, .est-sub:focus-within .est-acoes { opacity: 1; }
+@media (pointer: coarse) { .est-acoes { opacity: 1; } }
+.est-acao-perigo:hover:not(:disabled) { background-color: var(--perigo-bg) !important; }
+/* Campos: borda que escurece no ponteiro e o anel laranja no foco. */
+.est-campo { transition: border-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease; }
+.est-campo:hover:not(:disabled):not(:focus) { border-color: var(--n6) !important; }
+.est-campo:focus { outline: none; border-color: var(--orange-deep) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--orange-deep) 16%, transparent) !important; }
+.est-campo::placeholder { color: var(--n7); }
+.est-campo::-webkit-search-cancel-button { cursor: pointer; }
+/* Chips de alternar (patrocinador no formulário, "Reservadas"). */
+.est-chip { transition: border-color var(--dur-rapida) ease, background-color var(--dur-rapida) ease; }
+@media (hover: hover) { .est-chip[aria-pressed="false"]:hover { border-color: var(--n6) !important; } }
+.est-chip:active { transform: scale(0.98); }
+/* Link dentro de frase. */
+.est-link { text-decoration: underline; text-decoration-color: var(--n5); text-underline-offset: 3px; transition: text-decoration-color var(--dur-rapida) ease; }
+.est-link:hover { text-decoration-color: currentColor; }
+/* O cartão do celular responde ao toque. */
+.est-toque { border-radius: 8px; transition: background-color var(--dur-rapida) ease; }
+.est-toque:active { background-color: var(--n2); }
+/* Unidades que se abrem e recortes que descem: entram sem pular. */
+.est-entra { animation: est-entra var(--dur-media) var(--ease-saida) both; }
+@keyframes est-entra { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+
+/* ── TRIAGEM (prefixo tri-): campos, cartões de evento, opções da ficha,
+   barra escura e textos de duas linhas. Zerado por prefers-reduced-motion. ── */
+.tri-campo { transition: border-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease; }
+.tri-campo:hover:not(:disabled):not(:focus) { border-color: var(--n6) !important; }
+.tri-campo:focus { outline: none; border-color: var(--orange-deep) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--orange-deep) 16%, transparent) !important; }
+.tri-campo::placeholder { color: var(--n7); }
+.tri-duas-linhas { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+/* Cartão de evento: sobe 1px e a seta anda — "é por aqui". */
+.tri-evento { transition: box-shadow var(--dur-rapida) ease, transform var(--dur-rapida) ease, border-color var(--dur-rapida) ease; }
+@media (hover: hover) { .tri-evento:hover { box-shadow: 0 6px 18px -8px rgba(28,25,23,0.22) !important; transform: translateY(-1px); filter: none !important; } }
+.tri-evento .tri-seta { transition: transform var(--dur-rapida) ease; }
+@media (hover: hover) { .tri-evento:hover .tri-seta { transform: translateX(3px); } }
+.tri-evento:active { transform: translateY(0); }
+/* Opções da ficha (condição/destino): borda escurece no ponteiro. */
+.tri-opcao { transition: background-color var(--dur-rapida) ease, border-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease, color var(--dur-rapida) ease; }
+@media (hover: hover) { .tri-opcao[aria-checked="false"]:hover:not(:disabled) { border-color: var(--n6) !important; } }
+.tri-link { text-decoration: none; border-radius: 4px; }
+.tri-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+/* Pílulas da barra escura (lote/mover): acendem um degrau no ponteiro. */
+.tri-pilula { transition: background-color var(--dur-rapida) ease, border-color var(--dur-rapida) ease; }
+@media (hover: hover) { .tri-pilula:hover:not(:disabled) { background-color: rgba(255,255,255,0.16) !important; filter: none !important; } }
+.tri-barra { animation: tri-sobe var(--dur-media) var(--ease-saida) both; }
+@keyframes tri-sobe { from { opacity: 0; translate: 0 8px; } to { opacity: 1; translate: 0 0; } }
+
+/* ── SOLICITAÇÕES AO ESTOQUE (prefixo sol-): campos, sugestões, o cartão em
+   procura e o esqueleto das sugestões. Zerado por prefers-reduced-motion. ── */
+.sol-campo { transition: border-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease; }
+.sol-campo:hover:not(:disabled):not(:focus) { border-color: var(--n6) !important; }
+.sol-campo:focus { outline: none; border-color: var(--orange-deep) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--orange-deep) 16%, transparent) !important; }
+.sol-campo::placeholder { color: var(--n7); }
+.sol-sugestao { transition: background-color var(--dur-rapida) ease, border-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease; }
+@media (hover: hover) { .sol-sugestao:hover { border-color: var(--n5) !important; } }
+.sol-cartao { transition: border-color var(--dur-media) ease, box-shadow var(--dur-media) ease; }
+.sol-cartao-ativo { animation: sol-entra var(--dur-media) var(--ease-saida) both; }
+@keyframes sol-entra { from { opacity: 0.6; transform: translateY(2px); } to { opacity: 1; transform: none; } }
+.sol-link { text-decoration: none; border-radius: 6px; }
+.sol-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.sol-esqueleto { background: linear-gradient(90deg, var(--n2) 0%, var(--n1) 50%, var(--n2) 100%) !important; background-size: 200% 100% !important; animation: sol-brilho 1.2s ease-in-out infinite; }
+@keyframes sol-brilho { from { background-position: 100% 0; } to { background-position: -100% 0; } }

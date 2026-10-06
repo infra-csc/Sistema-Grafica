@@ -9,7 +9,7 @@ import type { AtivoJson as InventoryAsset, AtivoDoAcervo, EventoDaLista as Event
 import {
   Archive, Search, Pencil, Trash2, CheckCircle2,
   XCircle, Tag, X, Package, Warehouse, Truck, ScanSearch, Calendar, CalendarDays,
-  Grid3X3, Eye, Check, Layers, ClipboardCheck, Wrench, BookmarkCheck, ChevronDown, Plus,
+  Grid3X3, Eye, Check, Layers, ClipboardCheck, Wrench, BookmarkCheck, ChevronDown, Plus, SlidersHorizontal,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -18,6 +18,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { diaEMes, eventoJaAcabou, eventosDeUso, usosDoAtivo, ROTULO_DO_USO, type AlocacaoDoAcervo, type UsoDoAtivo } from "@shared/estoque";
 import { agruparAcervo, fraseDaCondicao, fraseDaSituacao, type GrupoDoAcervo } from "@/lib/agrupar-acervo";
 import { DetalheDoAtivo } from "@/components/estoque/detalhe-do-ativo";
+import { BarraDeSituacao } from "@/components/estoque/barra-de-situacao";
 import { miniatura } from "@/lib/miniatura";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {
@@ -26,9 +27,9 @@ import {
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { HIDE_NATIVE_CLOSE, FreezeWhileClosing, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { CONDITIONS, CONDITION_META, conditionMeta, type Condition } from "@/lib/inventory-meta";
-import { T, N, TOM, FS, R, FW, FONT, SHADOW } from "@/lib/theme";
+import { T, N, TOM, TOM_FORTE, FS, R, FW, FONT, SHADOW } from "@/lib/theme";
 import { Botao } from "@/components/ui/botao";
-import { CartaoKpi } from "@/components/ui/cartao-kpi";
+import { CartaoKpi, FaixaDeKpis } from "@/components/ui/cartao-kpi";
 import { Selo } from "@/components/ui/selo";
 import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
 import { EstadoErro, EstadoVazio, Esqueleto } from "@/components/ui/estados";
@@ -43,10 +44,10 @@ const VAZIO: never[] = [];
 // essas peças moram na tela da Triagem; aqui o rótulo só aparece no campo
 // travado do formulário, sem cor.
 const STATUS_META: Record<string, { label: string; color: string }> = {
-  NO_GALPAO:          { label: "No Galpão",   color: TOM.sucesso.text },
-  EM_USO:             { label: "Em Uso",       color: TOM.laranja.text },
-  AGUARDANDO_TRIAGEM: { label: "Ag. Triagem",  color: TOM.alerta.text },
-  EM_MANUTENCAO:      { label: "Manutenção",   color: TOM.alerta.text },
+  NO_GALPAO:          { label: "No galpão",      color: TOM.sucesso.text },
+  EM_USO:             { label: "Em uso",         color: TOM.laranja.text },
+  AGUARDANDO_TRIAGEM: { label: "Ag. triagem",    color: TOM.alerta.text },
+  EM_MANUTENCAO:      { label: "Em manutenção",  color: TOM.alerta.text },
   DESCARTADO:         { label: "Descartado",   color: T.second },
 };
 const ALL_STATUSES = ["NO_GALPAO", "EM_USO", "AGUARDANDO_TRIAGEM", "EM_MANUTENCAO", "DESCARTADO"] as const;
@@ -107,37 +108,46 @@ function DeleteModal({ asset, reserva, onClose, onConfirm, isPending }: {
       <AlertDialogContent
         className="p-0 gap-0 border-0"
         style={{
-          display: "block", padding: 0, overflow: "hidden", borderRadius: R.xl,
-          width: "min(420px, calc(100vw - 32px))", maxWidth: "min(420px, calc(100vw - 32px))",
+          display: "block", padding: 0, background: T.surface, overflow: "hidden", borderRadius: R.xl,
+          width: "min(440px, calc(100vw - 32px))", maxWidth: "min(440px, calc(100vw - 32px))",
           boxShadow: SHADOW.lg,
         }}
       >
-        {/* TOM.perigo.text (#b91c1c): branco sobre o #ef4444 dava 3,8:1. */}
-        <div style={{ background: TOM.perigo.text, padding: "16px 20px" }}>
-          <AlertDialogTitle asChild>
-            <p style={{ color: T.surface, fontWeight: FW.forte, fontSize: FS.strong, fontFamily: FONT.display, margin: 0, letterSpacing: "-0.01em" }}>
-              Atenção: ação irreversível
-            </p>
-          </AlertDialogTitle>
+        {/* Confirmação da casa: ladrilho vermelho + pergunta com o NOME do
+            ativo. A faixa vermelha "Atenção: ação irreversível" gritava o
+            perigo e escondia o que ia ser excluído. */}
+        <div style={{ padding: "22px 24px 20px", display: "flex", gap: 14, alignItems: "flex-start" }}>
+          <span aria-hidden="true" style={{ width: 40, height: 40, borderRadius: R.md, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}` }}>
+            <Trash2 size={18} color={TOM.perigo.text} />
+          </span>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <AlertDialogTitle asChild>
+              <h2 style={{ color: T.text, fontWeight: FW.rotulo, fontSize: FS.title, fontFamily: FONT.display, margin: 0, letterSpacing: "-0.02em", lineHeight: 1.25 }}>
+                Excluir este ativo do acervo?
+              </h2>
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <p style={{ fontSize: FS.body, color: T.apoio, margin: "6px 0 0", fontFamily: FONT.corpo, lineHeight: 1.5 }}>
+                Ele some do acervo de vez — não dá para desfazer pelo app. Se a peça só saiu de uso, prefira mudar o status para Descartado.
+              </p>
+            </AlertDialogDescription>
+          </div>
         </div>
-        <div style={{ padding: 24 }}>
-          <AlertDialogDescription asChild>
-            <p style={{ fontSize: FS.read, color: T.text, margin: "0 0 8px", fontFamily: FONT.corpo }}>
-              Tem certeza que deseja excluir este ativo permanentemente?
-            </p>
-          </AlertDialogDescription>
-          <p style={{ fontSize: FS.meta, color: T.second, fontFamily: FONT.mono, margin: "0 0 24px" }}>
-            {asset.displayId} — {asset.name}
-          </p>
+        <div style={{ padding: "0 24px 22px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: R.md, background: T.bg, border: `1px solid ${T.border}`, marginBottom: 16, minWidth: 0 }}>
+            <span style={{ fontFamily: FONT.mono, fontSize: FS.meta, fontWeight: FW.medio, color: T.accentText, flexShrink: 0 }}>{asset.displayId}</span>
+            <span style={{ fontSize: FS.body, fontWeight: FW.medio, color: T.text, overflowWrap: "anywhere", minWidth: 0 }}>{asset.name}</span>
+            {(asset.quantity ?? 1) > 1 && <span style={{ marginLeft: "auto", flexShrink: 0, fontSize: FS.meta, color: T.apoio, fontWeight: FW.medio }}>{asset.quantity} un.</span>}
+          </div>
           {reserva && <AvisoDeReserva reserva={reserva} acao="excluir" />}
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "flex-start" }}>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "flex-start", flexWrap: "wrap" }}>
             <Botao variante="secundario" tamanho="toque" onClick={onClose} disabled={isPending} data-testid="button-cancel-delete">Manter</Botao>
             {/* O motivo do bloqueio já está no aviso azul logo acima; aqui ele
                 vira a frase curta sob o botão, e não mais um `title`. */}
-            <Botao variante="perigo" tamanho="toque" onClick={onConfirm} disabled={!!reserva} carregando={isPending}
+            <Botao variante="perigo" tamanho="toque" icone={Trash2} onClick={onConfirm} disabled={!!reserva} carregando={isPending}
               data-testid="button-confirm-delete" alinharMotivo="end"
               motivo={reserva ? "Peça reservada — libere a reserva antes de excluir" : undefined}>
-              {isPending ? "Excluindo..." : "Sim, Excluir"}
+              {isPending ? "Excluindo…" : "Excluir ativo"}
             </Botao>
           </div>
         </div>
@@ -199,7 +209,7 @@ function AssetModal({ asset, reserva, onClose, onSaved }: {
   // estava. 16px no celular: abaixo disso o Safari dá zoom ao focar.
   const INP: React.CSSProperties = {
     width: "100%", minHeight: 44, padding: "10px 12px", borderRadius: R.md, border: `1px solid ${T.bdark}`,
-    fontSize: isMobile ? FS.lead : FS.body, fontFamily: FONT.corpo, background: T.surface,
+    fontSize: isMobile ? FS.lead : FS.body, fontFamily: FONT.corpo, backgroundColor: T.surface,
     color: T.text, boxSizing: "border-box",
   };
   const LBL: React.CSSProperties = {
@@ -238,33 +248,30 @@ function AssetModal({ asset, reserva, onClose, onSaved }: {
           tint={T.accentText}
           title={isEdit ? "Editar ativo" : "Cadastrar novo ativo"}
           subtitle={isEdit ? `${asset!.displayId} · acervo do galpão` : "Entra no acervo do galpão"}
-          trailing={
-            // Botão redondo sobre o cabeçalho ESCURO: nenhuma variante do
-            // Botao é clara-sobre-escuro, então fica nativo; o realce vem da
-            // .ds-botao e o alvo de 44px no toque, da .modal-fechar.
-            <button type="button" onClick={onClose} data-testid="button-close-modal" aria-label="Fechar" title="Fechar (Esc)"
-              className="modal-fechar ds-botao"
-              style={{ width: isMobile ? 44 : 40, height: isMobile ? 44 : 40, borderRadius: R.pill, flexShrink: 0, border: "1px solid rgba(255,255,255,0.12)", backgroundColor: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.72)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <X size={16} aria-hidden="true" />
-            </button>
-          }
+          compacto={isMobile}
+          onClose={onClose}
+          testIdDoFechar="button-close-modal"
         />
-        <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", padding: isMobile ? 16 : 24, display: "flex", flexDirection: "column", gap: 18 }}>
-          <div>
-            <label htmlFor="asset-name" style={LBL}>Nome / Descrição *</label>
-            <input id="asset-name" data-testid="input-asset-name" style={INP} value={form.name}
-              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              placeholder="Ex: Banner 3×1m — Patrocinador A" />
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
+        <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", padding: isMobile ? 16 : 24, display: "flex", flexDirection: "column", gap: 20 }}>
+          {/* Nome e quantidade na MESMA linha: a quantidade sozinha numa
+              grade de duas colunas deixava meia linha morta. */}
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "minmax(0, 1fr) 96px" : "minmax(0, 1fr) 120px", gap: 12, alignItems: "start" }}>
+            <div style={{ minWidth: 0 }}>
+              <label htmlFor="asset-name" style={LBL}>Nome / Descrição <span aria-hidden="true" style={{ color: TOM.perigo.text }}>*</span></label>
+              <input id="asset-name" data-testid="input-asset-name" className="est-campo" style={INP} value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                aria-required="true"
+                placeholder="Ex.: Banner 3×1 m — Patrocinador A" />
+            </div>
             <div>
               <label htmlFor="asset-quantity" style={LBL}>Quantidade</label>
-              <input id="asset-quantity" data-testid="input-asset-quantity" type="number" min={1} style={INP}
+              <input id="asset-quantity" data-testid="input-asset-quantity" type="number" min={1} inputMode="numeric" className="est-campo"
+                style={{ ...INP, fontFamily: FONT.display, fontWeight: FW.forte, fontVariantNumeric: "tabular-nums" }}
                 value={form.quantity}
                 onChange={e => setForm(f => ({ ...f, quantity: Math.max(1, parseInt(e.target.value) || 1) }))} />
             </div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 20 : 12, alignItems: "start" }}>
             <div>
               <label htmlFor="asset-condition" style={LBL}>Condição</label>
               {/* kind="field" — campo de formulário, não filtro (vocabulário em
@@ -294,9 +301,10 @@ function AssetModal({ asset, reserva, onClose, onSaved }: {
                 <div>
                   <input id="asset-status" data-testid="select-asset-status" readOnly disabled
                     value={STATUS_META[form.trackingStatus]?.label ?? form.trackingStatus}
-                    style={{ ...INP, color: T.second, cursor: "not-allowed" }} />
-                  <p style={AJUDA}>
-                    Status definido pelo ciclo do evento.
+                    aria-describedby="asset-status-ajuda"
+                    style={{ ...INP, color: T.apoio, backgroundColor: N.n2, borderStyle: "dashed", cursor: "not-allowed" }} />
+                  <p id="asset-status-ajuda" style={AJUDA}>
+                    Definido pelo ciclo do evento — muda sozinho na saída e na volta do caminhão.
                   </p>
                 </div>
               ) : (
@@ -324,7 +332,12 @@ function AssetModal({ asset, reserva, onClose, onSaved }: {
             </div>
           </div>
           <div>
-            <label id="asset-sponsors-label" style={LBL}>Patrocinadores</label>
+            <label id="asset-sponsors-label" style={{ ...LBL, display: "flex", alignItems: "baseline", gap: 8 }}>
+              Patrocinadores
+              <span style={{ fontWeight: FW.corpo, color: T.second, fontFamily: FONT.corpo }}>
+                {form.sponsorIds.length === 0 ? "nenhum marcado" : `${form.sponsorIds.length} ${form.sponsorIds.length === 1 ? "marcado" : "marcados"}`}
+              </span>
+            </label>
             {allSponsors.length === 0 ? (
               <p style={{ margin: 0, fontSize: FS.meta, color: T.second, fontFamily: FONT.corpo, fontStyle: "italic" }}>
                 Nenhum patrocinador cadastrado no sistema.
@@ -341,16 +354,18 @@ function AssetModal({ asset, reserva, onClose, onSaved }: {
                       aria-pressed={selected}
                       // Chip de alternar com desenho próprio (preto = marcado):
                       // fica <button> nativo, com o realce da .ds-botao.
-                      className="ds-botao"
+                      // Marcado na tinta laranja da casa (e não preto chapado:
+                      // seis chips pretos pesavam mais que o próprio título).
+                      className="ds-botao est-chip"
                       style={{
-                        display: "inline-flex", alignItems: "center", gap: 5,
-                        minHeight: isMobile ? 44 : 32, padding: "0 12px", borderRadius: R.md, cursor: "pointer",
-                        fontSize: FS.meta, fontWeight: FW.medio, fontFamily: FONT.display,
-                        background: selected ? T.dark : N.n2,
-                        color: selected ? T.surface : T.apoio,
-                        border: `1px solid ${selected ? T.dark : T.border}`,
+                        display: "inline-flex", alignItems: "center", gap: 6,
+                        minHeight: isMobile ? 44 : 34, padding: "0 12px", borderRadius: R.pill, cursor: "pointer",
+                        fontSize: FS.body, fontWeight: FW.medio, fontFamily: FONT.corpo,
+                        background: selected ? TOM.laranja.bg : T.surface,
+                        color: selected ? TOM_FORTE.laranja.text : T.apoio,
+                        border: `1px solid ${selected ? TOM.laranja.border : T.border}`,
                       }}>
-                      {selected && <CheckCircle2 size={12} aria-hidden="true" />}
+                      {selected ? <CheckCircle2 size={14} aria-hidden="true" color={T.accentText} /> : <Plus size={14} aria-hidden="true" color={T.second} />}
                       {sp.name}
                     </button>
                   );
@@ -360,10 +375,10 @@ function AssetModal({ asset, reserva, onClose, onSaved }: {
           </div>
           <div>
             <label htmlFor="asset-notes" style={LBL}>Observações</label>
-            <textarea id="asset-notes" data-testid="input-asset-notes" style={{ ...INP, minHeight: 72, resize: "vertical" as const }}
+            <textarea id="asset-notes" data-testid="input-asset-notes" className="est-campo" style={{ ...INP, minHeight: 80, resize: "vertical" as const, lineHeight: 1.5 }}
               value={form.notes}
               onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-              placeholder="Informações adicionais..." />
+              placeholder="Ex.: ilhós reforçado nas pontas, dobra marcada no centro…" />
           </div>
         </div>
         <div style={{ flexShrink: 0, padding: isMobile ? "12px 16px" : "16px 24px", borderTop: `1px solid ${T.border}`, display: "flex", justifyContent: "flex-end", alignItems: "flex-start", gap: 8, background: T.surface }}>
@@ -376,7 +391,7 @@ function AssetModal({ asset, reserva, onClose, onSaved }: {
             alinharMotivo="end"
             motivo={!form.name.trim() ? "Preencha o nome do ativo" : tiraDoGalpaoReservada ? "Peça reservada — veja o aviso acima" : undefined}
             onClick={() => mutation.mutate(form)}>
-            {mutation.isPending ? "Salvando..." : isEdit ? "Salvar alterações" : "Cadastrar ativo"}
+            {mutation.isPending ? "Salvando…" : isEdit ? "Salvar alterações" : "Cadastrar ativo"}
           </Botao>
         </div>
       </DialogContent>
@@ -420,6 +435,8 @@ export default function Estoque() {
   // e que não tinha resposta sem abrir peça por peça.
   const [soReservadas, setSoReservadas] = useState(() => urlInicial.get("reserva") === "1");
   const [mostrando, setMostrando] = useState(LOTE_DO_ESTOQUE);
+  // Celular: os seis recortes ficam atrás do botão Filtros (a busca não).
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
   const limparFiltros = () => { setSearch(""); setFilterStatus([]); setFilterCondition([]); setFilterAutoAdded("all"); setFilterEvent([]); setFilterSponsor([]); setFilterFranchise([]); setSoReservadas(false); };
   // Trocar o recorte volta ao primeiro lote.
   useEffect(() => { setMostrando(LOTE_DO_ESTOQUE); }, [search, filterStatus, filterCondition, filterAutoAdded, filterEvent, filterSponsor, filterFranchise, soReservadas]);
@@ -662,17 +679,23 @@ export default function Estoque() {
 
   // Cabeçalho e célula com o MESMO recuo lateral (24px): eram 20 no th e 24 no
   // td, e todo rótulo de coluna ficava 4px à esquerda do seu conteúdo.
+  // Cabeçalho CLARO, o mesmo da Revisão Final e da Gráfica: a faixa preta
+  // chapada pesava mais que o conteúdo e era a única do app.
   const TH: React.CSSProperties = {
-    padding: "12px 24px", fontSize: FS.small, fontWeight: FW.forte, letterSpacing: "0.06em",
-    textTransform: "uppercase", color: T.surface, fontFamily: FONT.display,
-    textAlign: "left", background: T.dark, borderBottom: "none",
+    padding: "12px 20px", fontSize: FS.micro, fontWeight: 900, letterSpacing: "0.1em",
+    textTransform: "uppercase", color: T.apoio, fontFamily: FONT.display,
+    textAlign: "left", background: T.bg, borderBottom: `1px solid ${T.border}`,
     whiteSpace: "nowrap",
   };
   const TD: React.CSSProperties = {
-    padding: "14px 24px", verticalAlign: "middle",
+    padding: "16px 20px", verticalAlign: "middle",
     fontFamily: FONT.corpo, fontSize: FS.body, color: T.text,
     borderBottom: `1px solid ${N.n3}`,
   };
+
+  // Carregando ou com erro, os números são "—" e não 0: zero dizia que o
+  // acervo estava vazio enquanto ele só não tinha chegado.
+  const semNumero = isLoading || isError;
 
   // Subtítulo = o ESTADO do acervo agora, não uma paráfrase do título.
   const estadoDoAcervo = isLoading
@@ -703,204 +726,197 @@ export default function Estoque() {
           Em 375px cada coluna vale ~103px, e "Disponivel no deposito" nao cabe
           — as tres trilhas estouravam e a PAGINA inteira ganhava rolagem
           lateral. Com o minimo em 0 o texto quebra e a grade fica na largura. */}
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, minmax(0, 1fr))" : "repeat(auto-fit, minmax(160px, 1fr))", gap: isMobile ? 8 : 14, marginBottom: isMobile ? 16 : 24 }}>
-        {/* Os cartões FILTRAM a lista: o CartaoKpi com onClick é <button
-            aria-pressed>, então o teclado alcança os seis atalhos. */}
-        <CartaoKpi compacto={isMobile}
-          rotulo="Total Acervo" valor={total.toLocaleString("pt-BR")} icone={Package} tom="info"
+      {/* UMA faixa com divisores (FaixaDeKpis), e não seis cartões soltos: os
+          números são um resumo só do acervo, lido da esquerda para a direita
+          na ordem do ciclo — guardado, saiu, em reparo, descartado — e por
+          último o atalho que LEVA à Triagem. As células FILTRAM a lista
+          (<button aria-pressed>), menos a da Triagem, que navega. */}
+      <FaixaDeKpis minimo={isMobile ? 104 : 150} rotulo="Resumo do acervo" style={{ marginBottom: isMobile ? 16 : 20 }}>
+        <CartaoKpi variante="celula" compacto={isMobile}
+          rotulo="Total do acervo" valor={semNumero ? "—" : total.toLocaleString("pt-BR")} icone={isMobile ? undefined : Package} tom="info"
           // O cartão LIMPA os filtros ao ser tocado — e nada dizia isso: com
           // filtro ativo, o subtexto vira o convite.
-          sub={hasFilters ? "Toque para ver tudo (limpa filtros)" : registrosNoTotal !== total ? `${registrosNoTotal} registros · ${total} unidades` : "Unidades no acervo"}
+          sub={hasFilters ? "Toque para ver tudo" : registrosNoTotal !== total ? `${registrosNoTotal} registros · ${total} unidades` : "Unidades no acervo"}
           ativo={!hasFilters}
           onClick={limparFiltros}
         />
-        <CartaoKpi compacto={isMobile}
-          rotulo="Descartados" valor={byStatus("DESCARTADO").toLocaleString("pt-BR")} icone={XCircle} tom="neutro"
-          sub={byStatus("DESCARTADO") > 0 ? "Ocultos na tabela · ver →" : "Nenhum descartado"}
-          ativo={filterStatus.length === 1 && filterStatus[0] === "DESCARTADO"}
-          onClick={() => setFilterStatus(filterStatus.length === 1 && filterStatus[0] === "DESCARTADO" ? [] : ["DESCARTADO"])}
-        />
-        <CartaoKpi compacto={isMobile}
-          rotulo="No Galpão" valor={byStatus("NO_GALPAO").toLocaleString("pt-BR")} icone={Warehouse} tom="sucesso"
+        <CartaoKpi variante="celula" compacto={isMobile}
+          rotulo="No galpão" valor={semNumero ? "—" : byStatus("NO_GALPAO").toLocaleString("pt-BR")} icone={isMobile ? undefined : Warehouse} tom="sucesso"
           // "Disponível" prometia o que a regra de 14/09 nega: no galpão pode
           // estar reservada ou separada para o evento de origem.
           sub={reservadasNoGalpao > 0 ? `${reservadasNoGalpao} com reserva` : "Guardadas no depósito"}
           ativo={filterStatus.length === 1 && filterStatus[0] === "NO_GALPAO"}
           onClick={() => setFilterStatus(filterStatus.length === 1 && filterStatus[0] === "NO_GALPAO" ? [] : ["NO_GALPAO"])}
         />
-        <CartaoKpi compacto={isMobile}
-          rotulo="Em Uso" valor={byStatus("EM_USO").toLocaleString("pt-BR")} icone={Truck} tom="laranja"
+        <CartaoKpi variante="celula" compacto={isMobile}
+          rotulo="Em uso" valor={semNumero ? "—" : byStatus("EM_USO").toLocaleString("pt-BR")} icone={isMobile ? undefined : Truck} tom="laranja"
           sub="Num evento agora"
           ativo={filterStatus.length === 1 && filterStatus[0] === "EM_USO"}
           onClick={() => setFilterStatus(filterStatus.length === 1 && filterStatus[0] === "EM_USO" ? [] : ["EM_USO"])}
         />
-        <CartaoKpi compacto={isMobile}
-          rotulo="Manutenção" valor={byStatus("EM_MANUTENCAO").toLocaleString("pt-BR")} icone={Wrench} tom="alerta"
-          sub="Fora do estoque até o reparo"
+        <CartaoKpi variante="celula" compacto={isMobile}
+          rotulo="Manutenção" valor={semNumero ? "—" : byStatus("EM_MANUTENCAO").toLocaleString("pt-BR")} icone={isMobile ? undefined : Wrench} tom="alerta"
+          sub="Fora até o reparo"
           ativo={filterStatus.length === 1 && filterStatus[0] === "EM_MANUTENCAO"}
           onClick={() => setFilterStatus(filterStatus.length === 1 && filterStatus[0] === "EM_MANUTENCAO" ? [] : ["EM_MANUTENCAO"])}
         />
-        {/* Este não filtra: LEVA à Triagem. O subtexto em âmbar quando há
-            fila é o convite; sem fila, fica no cinza de apoio. */}
-        <CartaoKpi compacto={isMobile}
-          rotulo="Ag. Triagem" valor={triageCount.toLocaleString("pt-BR")} icone={ScanSearch} tom="alerta"
-          sub={<span style={{ color: triageCount > 0 ? TOM.alerta.text : T.second }}>{triageCount > 0 ? "Ir para triagem ↗" : "Abrir triagem ↗"}</span>}
+        <CartaoKpi variante="celula" compacto={isMobile}
+          rotulo="Descartados" valor={semNumero ? "—" : byStatus("DESCARTADO").toLocaleString("pt-BR")} icone={isMobile ? undefined : XCircle} tom="neutro"
+          sub={byStatus("DESCARTADO") > 0 ? "Ocultos na lista" : "Nenhum descartado"}
+          ativo={filterStatus.length === 1 && filterStatus[0] === "DESCARTADO"}
+          onClick={() => setFilterStatus(filterStatus.length === 1 && filterStatus[0] === "DESCARTADO" ? [] : ["DESCARTADO"])}
+        />
+        {/* Este não filtra: LEVA à Triagem (navegação, com a seta da casa). */}
+        <CartaoKpi variante="celula" compacto={isMobile} navegacao
+          rotulo="Ag. triagem" valor={semNumero ? "—" : triageCount.toLocaleString("pt-BR")} icone={isMobile ? undefined : ScanSearch} tom="alerta"
+          sub={triageCount > 0 ? "Ir para a triagem" : "Fila vazia"}
           onClick={() => navigate("/triagem-retorno")}
         />
-      </div>
+      </FaixaDeKpis>
 
-      {/* ── Filter bar ── */}
+      {/* ── Filtros ──
+          Duas faixas: a BUSCA (o gesto mais comum) e o atalho "Reservadas" na
+          primeira; os seis recortes numa grade alinhada na segunda. Antes os
+          oito controles quebravam onde dava e "Limpar filtros" ficava apagado
+          com "Nenhum filtro ativo" embaixo — agora ele só aparece quando há o
+          que limpar. No celular os seis recortes moram atrás do botão
+          "Filtros": a busca fica à mão e a lista sobe. */}
       {(() => {
         const FL: React.CSSProperties = {
-          fontSize: FS.small, fontWeight: FW.corpo, color: T.second,
+          fontSize: FS.small, fontWeight: FW.medio, color: T.apoio,
           fontFamily: FONT.corpo, marginBottom: 6, display: "block",
         };
         const SEL = (active: boolean): React.CSSProperties => ({
           height: 44, width: "100%",
-          border: `1.5px solid ${active ? T.accentText : T.border}`,
-          borderRadius: R.md, fontSize: FS.body, fontWeight: FW.corpo,
+          border: `1px solid ${active ? T.accentText : T.border}`,
+          borderRadius: R.md, fontSize: FS.body, fontWeight: active ? FW.medio : FW.corpo,
           fontFamily: FONT.corpo,
-          padding: "0 12px", background: T.surface,
-          color: active ? T.accentText : T.strong,
+          padding: "0 12px", backgroundColor: active ? TOM.laranja.bg : T.surface,
+          color: active ? TOM_FORTE.laranja.text : T.strong,
           cursor: "pointer",
-          transition: "border-color 0.15s",
+          transition: "border-color 0.15s, background-color 0.15s",
         });
+        const recortesAtivos = [filterEvent.length > 0, filterSponsor.length > 0, filterFranchise.length > 0, filterStatus.length > 0, filterCondition.length > 0, filterAutoAdded !== "all"].filter(Boolean).length;
+        const mostraRecortes = !isMobile || filtrosAbertos;
         return (
-          <div style={{
+          <div className="est-filtros" style={{
             background: T.surface, borderRadius: R.lg, border: `1px solid ${T.border}`,
-            padding: isMobile ? "12px 14px 14px" : "16px 20px 18px", marginBottom: isMobile ? 16 : 20,
-            display: "flex", alignItems: "flex-end", gap: isMobile ? 10 : 14, flexWrap: "wrap",
+            padding: isMobile ? 12 : "16px 20px", marginBottom: isMobile ? 16 : 20,
+            display: "flex", flexDirection: "column", gap: isMobile ? 10 : 14,
           }}>
-            {/* Evento — wrapper .event-filter-44 iguala a altura do trigger (44px)
-                aos demais filtros; o componente é compartilhado e não expõe
-                triggerStyle. */}
-            <div className="event-filter-44" style={{ display: "flex", flexDirection: "column", flex: "1 1 160px" }}>
-              <label style={FL}>Evento</label>
-              <EventFilterDropdown
-                values={filterEvent}
-                onValuesChange={setFilterEvent}
-                options={eventFilterOptions}
-              />
-            </div>
-
-            {/* Patrocinador */}
-            <div style={{ display: "flex", flexDirection: "column", flex: "1 1 180px" }}>
-              <label style={FL}>Patrocinador</label>
-              <FilterSelect
-                fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
-                label="Patrocinador" allLabel="Todos os patrocinadores"
-                values={filterSponsor} onValuesChange={setFilterSponsor}
-                options={sponsorFilterOptions}
-                searchPlaceholder="Buscar patrocinador..." emptyText="Nenhum patrocinador encontrado."
-                testId="select-filter-sponsor" triggerStyle={SEL(filterSponsor.length > 0)}
-              />
-            </div>
-
-            {/* Franquia */}
-            <div style={{ display: "flex", flexDirection: "column", flex: "1 1 140px" }}>
-              <label style={FL}>Franquia</label>
-              <FilterSelect
-                fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
-                label="Franquia" allLabel="Todas as franquias"
-                values={filterFranchise} onValuesChange={setFilterFranchise}
-                options={franchiseFilterOptions}
-                searchPlaceholder="Buscar franquia..." emptyText="Nenhuma franquia encontrada."
-                testId="select-filter-franchise" triggerStyle={SEL(filterFranchise.length > 0)}
-              />
-            </div>
-
-            {/* Status */}
-            <div style={{ display: "flex", flexDirection: "column", flex: "1 1 140px" }}>
-              <label style={FL}>Status</label>
-              <FilterSelect
-                fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
-                label="Status" allLabel="Qualquer status"
-                values={filterStatus} onValuesChange={setFilterStatus}
-                options={statusFilterOptions}
-                searchPlaceholder="Buscar status..." emptyText="Nenhum status encontrado."
-                testId="select-filter-status" triggerStyle={SEL(filterStatus.length > 0)}
-              />
-            </div>
-
-            {/* Condição */}
-            <div style={{ display: "flex", flexDirection: "column", flex: "1 1 130px" }}>
-              <label style={FL}>Condição</label>
-              <FilterSelect
-                fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
-                label="Condição" allLabel="Todas as condições"
-                values={filterCondition} onValuesChange={setFilterCondition}
-                options={conditionFilterOptions}
-                searchPlaceholder="Buscar condição..." emptyText="Nenhuma condição encontrada."
-                testId="select-filter-condition" triggerStyle={SEL(filterCondition.length > 0)}
-              />
-            </div>
-
-            {/* Origem */}
-            <div style={{ display: "flex", flexDirection: "column", flex: "0 1 110px" }}>
-              <label style={FL}>Origem</label>
-              <FilterSelect
-                fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
-                label="Origem" allLabel="Todas"
-                value={filterAutoAdded} onChange={setFilterAutoAdded}
-                options={originFilterOptions}
-                searchPlaceholder="Buscar origem..." emptyText="Nenhuma origem encontrada."
-                testId="select-filter-origin" triggerStyle={SEL(filterAutoAdded !== "all")}
-              />
-            </div>
-
-            {/* Busca */}
-            <div style={{ display: "flex", flexDirection: "column", flex: "1 1 160px" }}>
-              <label style={FL}>Buscar</label>
-              <div style={{ position: "relative" }}>
-                <Search size={14} color={T.second} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
-                <input data-testid="input-search-assets" style={{
-                  width: "100%", paddingLeft: 34, paddingRight: 12, height: 44,
-                  border: `1.5px solid ${search ? T.accentText : T.border}`, borderRadius: R.md,
-                  fontSize: isMobile ? FS.lead : FS.body, fontWeight: 400, fontFamily: FONT.corpo,
+            <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 10, flexWrap: "wrap" }}>
+              <div style={{ position: "relative", flex: "1 1 260px", minWidth: 0 }}>
+                <Search size={16} color={T.second} aria-hidden="true" style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+                <input data-testid="input-search-assets" type="search" className="est-campo" style={{
+                  width: "100%", paddingLeft: 38, paddingRight: 12, height: 44,
+                  border: `1px solid ${search ? T.accentText : T.border}`, borderRadius: R.md,
+                  fontSize: isMobile ? FS.lead : FS.body, fontWeight: FW.corpo, fontFamily: FONT.corpo,
                   background: T.surface, color: T.strong, boxSizing: "border-box",
-                  transition: "border-color 0.15s",
                 }}
-                onFocus={e => (e.target.style.borderColor = T.accentText)}
-                onBlur={e => (e.target.style.borderColor = search ? T.accentText : T.border)}
                 aria-label="Buscar ativos"
                 placeholder="Nome, ID ou franquia..." value={search} onChange={e => setSearch(e.target.value)} />
               </div>
-            </div>
-
-            {/* Só reservadas — botão de alternar (aria-pressed), não depende
-                só da cor: o ícone preenche e o texto muda. */}
-            {(reservasAtivas.length > 0 || soReservadas) && (
-              <div style={{ display: "flex", flexDirection: "column", flex: "0 0 auto" }}>
-                <label style={{ ...FL, visibility: "hidden" }} aria-hidden="true">·</label>
-                {/* Chip de filtro com desenho próprio (alterna, com contagem):
-                    fica <button> nativo; o realce vem da .ds-botao. */}
+              {isMobile && (
+                <Botao variante={recortesAtivos > 0 || filtrosAbertos ? "secundarioForte" : "secundario"} tamanho="toque" icone={SlidersHorizontal}
+                  data-testid="button-filtros-estoque" aria-expanded={filtrosAbertos} aria-controls="est-recortes"
+                  onClick={() => setFiltrosAbertos(v => !v)} style={{ flex: "1 1 0" }}>
+                  {recortesAtivos > 0 ? `Filtros · ${recortesAtivos}` : "Filtros"}
+                </Botao>
+              )}
+              {/* Só reservadas — botão de alternar (aria-pressed), não depende
+                  só da cor: o ícone preenche e o texto muda. */}
+              {(reservasAtivas.length > 0 || soReservadas) && (
                 <button type="button" data-testid="button-so-reservadas" aria-pressed={soReservadas}
                   onClick={() => setSoReservadas(v => !v)}
                   title="Peças que a Gráfica reservou para outra peça de um evento"
-                  className="ds-botao"
-                  style={{ height: 44, display: "flex", alignItems: "center", gap: 6, padding: "0 14px", borderRadius: R.md, border: `1.5px solid ${soReservadas ? TOM.info.text : T.border}`, background: soReservadas ? TOM.info.bg : T.surface, color: soReservadas ? TOM.info.text : T.strong, fontSize: FS.body, fontWeight: FW.medio, fontFamily: FONT.corpo, cursor: "pointer", whiteSpace: "nowrap" }}>
-                  <BookmarkCheck size={14} aria-hidden="true" fill={soReservadas ? TOM.info.border : "none"} />
+                  className="ds-botao est-chip"
+                  style={{ height: 44, flex: isMobile ? "1 1 0" : undefined, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "0 14px", borderRadius: R.md, border: `1px solid ${soReservadas ? TOM.info.text : T.border}`, background: soReservadas ? TOM.info.bg : T.surface, color: soReservadas ? TOM.info.text : T.strong, fontSize: FS.body, fontWeight: FW.medio, fontFamily: FONT.corpo, cursor: "pointer", whiteSpace: "nowrap" }}>
+                  <BookmarkCheck size={15} aria-hidden="true" fill={soReservadas ? TOM.info.border : "none"} />
                   {soReservadas ? "Só reservadas" : "Reservadas"}
-                  <span style={{ fontFamily: FONT.display, fontWeight: FW.forte, fontVariantNumeric: "tabular-nums" }}>{reservasAtivas.length}</span>
+                  <span style={{ minWidth: 20, height: 20, padding: "0 6px", borderRadius: R.pill, display: "inline-flex", alignItems: "center", justifyContent: "center", background: soReservadas ? T.surface : N.n2, fontFamily: FONT.display, fontSize: FS.meta, fontWeight: FW.forte, fontVariantNumeric: "tabular-nums" }}>{reservasAtivas.length}</span>
                 </button>
+              )}
+              {/* Limpar não é destrutivo — fantasma, e não vermelho. */}
+              {hasFilters && (
+                <Botao variante="fantasma" tamanho="toque" icone={X}
+                  data-testid="button-clear-filters"
+                  onClick={limparFiltros}
+                  style={{ color: T.accentText, flex: isMobile ? "1 1 100%" : undefined }}>
+                  Limpar filtros
+                </Botao>
+              )}
+            </div>
+
+            {mostraRecortes && (
+              <div id="est-recortes" className={isMobile ? "est-entra" : undefined} style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(auto-fit, minmax(150px, 1fr))", gap: isMobile ? "10px 8px" : 12, alignItems: "end" }}>
+                {/* Evento — wrapper .event-filter-44 iguala a altura do trigger (44px)
+                    aos demais filtros; o componente é compartilhado e não expõe
+                    triggerStyle. */}
+                <div className="event-filter-44" style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                  <label style={FL}>Evento</label>
+                  <EventFilterDropdown
+                    values={filterEvent}
+                    onValuesChange={setFilterEvent}
+                    options={eventFilterOptions}
+                  />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                  <label style={FL}>Patrocinador</label>
+                  <FilterSelect
+                    fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
+                    label="Patrocinador" allLabel="Todos"
+                    values={filterSponsor} onValuesChange={setFilterSponsor}
+                    options={sponsorFilterOptions}
+                    searchPlaceholder="Buscar patrocinador..." emptyText="Nenhum patrocinador encontrado."
+                    testId="select-filter-sponsor" triggerStyle={SEL(filterSponsor.length > 0)}
+                  />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                  <label style={FL}>Franquia</label>
+                  <FilterSelect
+                    fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
+                    label="Franquia" allLabel="Todas"
+                    values={filterFranchise} onValuesChange={setFilterFranchise}
+                    options={franchiseFilterOptions}
+                    searchPlaceholder="Buscar franquia..." emptyText="Nenhuma franquia encontrada."
+                    testId="select-filter-franchise" triggerStyle={SEL(filterFranchise.length > 0)}
+                  />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                  <label style={FL}>Status</label>
+                  <FilterSelect
+                    fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
+                    label="Status" allLabel="Todos"
+                    values={filterStatus} onValuesChange={setFilterStatus}
+                    options={statusFilterOptions}
+                    searchPlaceholder="Buscar status..." emptyText="Nenhum status encontrado."
+                    testId="select-filter-status" triggerStyle={SEL(filterStatus.length > 0)}
+                  />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                  <label style={FL}>Condição</label>
+                  <FilterSelect
+                    fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
+                    label="Condição" allLabel="Todas"
+                    values={filterCondition} onValuesChange={setFilterCondition}
+                    options={conditionFilterOptions}
+                    searchPlaceholder="Buscar condição..." emptyText="Nenhuma condição encontrada."
+                    testId="select-filter-condition" triggerStyle={SEL(filterCondition.length > 0)}
+                  />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                  <label style={FL}>Origem</label>
+                  <FilterSelect
+                    fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
+                    label="Origem" allLabel="Todas"
+                    value={filterAutoAdded} onChange={setFilterAutoAdded}
+                    options={originFilterOptions}
+                    searchPlaceholder="Buscar origem..." emptyText="Nenhuma origem encontrada."
+                    testId="select-filter-origin" triggerStyle={SEL(filterAutoAdded !== "all")}
+                  />
+                </div>
               </div>
             )}
-
-            {/* Limpar */}
-            {/* alignSelf start: a frase do motivo pendura ABAIXO do botão sem
-                tirá-lo da linha dos outros campos. Limpar não é destrutivo —
-                secundário, e não vermelho. */}
-            <div style={{ display: "flex", flexDirection: "column", flex: "0 0 auto", alignSelf: "flex-start" }}>
-              <label style={{ ...FL, visibility: "hidden" }} aria-hidden="true">·</label>
-              <Botao variante="secundario" tamanho="toque" icone={X}
-                data-testid="button-clear-filters"
-                disabled={!hasFilters}
-                motivo={!hasFilters ? "Nenhum filtro ativo" : undefined}
-                onClick={limparFiltros}
-                style={{ height: 44, fontSize: FS.meta }}>
-                Limpar filtros
-              </Botao>
-            </div>
           </div>
         );
       })()}
@@ -953,13 +969,15 @@ export default function Estoque() {
                 const cm = conditionMeta(asset.condition);
                 const thumbOk = asset.approvalThumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(asset.approvalThumbUrl) || asset.approvalThumbUrl.startsWith('/objects/'));
                 const assetSponsors = (asset.sponsorIds ?? []).map(id => patrocinadorPorId.get(id)).filter(Boolean);
-                const lado = emCards ? 48 : 40;
+                const lado = 48;
 
+                // A arte é o reconhecimento mais rápido da peça no galpão: 48px
+                // nas duas vistas, com o anel que acende quando a linha acende.
                 const miniaturaEl = (
-                  <div style={{ width: lado, height: lado, borderRadius: R.md, overflow: "hidden", background: N.n2, border: `1px solid ${T.border}`, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div className="est-miniatura" style={{ width: lado, height: lado, borderRadius: R.md, overflow: "hidden", background: N.n2, border: `1px solid ${T.border}`, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
                     {thumbOk
-                      ? <img loading="lazy" decoding="async" src={miniatura(asset.approvalThumbUrl!)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                      : <Package size={16} color={T.muted} aria-hidden="true" />
+                      ? <img loading="lazy" decoding="async" src={miniatura(asset.approvalThumbUrl!)} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                      : <Package size={18} color={T.muted} aria-hidden="true" />
                     }
                   </div>
                 );
@@ -967,42 +985,45 @@ export default function Estoque() {
                 const quantidadeEl = (
                   <span style={{
                     display: "inline-flex", alignItems: "center", justifyContent: "center",
-                    padding: "1px 6px", borderRadius: R.sm,
-                    background: (asset.quantity ?? 1) > 1 ? T.accentText : N.n2,
-                    color: (asset.quantity ?? 1) > 1 ? T.surface : T.second,
+                    padding: "1px 7px", borderRadius: R.sm,
+                    background: (asset.quantity ?? 1) > 1 ? TOM.laranja.bg : N.n2,
+                    color: (asset.quantity ?? 1) > 1 ? TOM_FORTE.laranja.text : T.second,
+                    border: `1px solid ${(asset.quantity ?? 1) > 1 ? TOM.laranja.border : T.border}`,
                     fontSize: FS.small, fontWeight: FW.forte, fontFamily: FONT.mono, flexShrink: 0,
                   }}>×{asset.quantity ?? 1}</span>
                 );
 
+                // Evento de ORIGEM: na mesma linha do código (meta), e não numa
+                // linha só dele — a célula do material empilhava cinco linhas.
                 const eventoEl = assetEventMap[asset.id] ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3, minWidth: 0 }}>
-                    <CalendarDays size={11} color={T.second} aria-hidden="true" style={{ flexShrink: 0 }} />
-                    <span style={{ fontSize: FS.meta, color: T.second, fontFamily: FONT.corpo, fontWeight: FW.corpo, whiteSpace: "normal", overflowWrap: "anywhere" }}>
-                      {assetEventMap[asset.id].name}
-                    </span>
-                  </div>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4, minWidth: 0, fontSize: FS.meta, color: T.second, fontFamily: FONT.corpo, fontWeight: FW.corpo, overflowWrap: "anywhere" }}>
+                    <CalendarDays size={12} color={T.second} aria-hidden="true" style={{ flexShrink: 0 }} />
+                    {assetEventMap[asset.id].name}
+                  </span>
                 ) : null;
 
-                // Patrocinador no laranja LEGÍVEL (TOM.laranja: #c2410c sobre
-                // o tinte claro). Caixa alta em 9px saiu — o nome da marca já
-                // é o que se lê, não precisa gritar.
+                // Patrocinador no laranja LEGÍVEL e franquia no neutro, numa
+                // ÚNICA fileira de etiquetas (eram duas fileiras, uma por tipo).
                 const patrocinadoresEl = assetSponsors.length > 0 ? (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 5 }}>
+                  <>
                     {assetSponsors.slice(0, 2).map(sp => (
-                      <Selo key={sp!.id} tom="laranja" forma="retangulo" style={{ padding: "1px 6px", fontWeight: FW.medio, fontFamily: FONT.display }}>{sp!.name}</Selo>
+                      <Selo key={sp!.id} tom="laranja" forma="retangulo" style={{ padding: "1px 7px", fontWeight: FW.medio, fontFamily: FONT.corpo }}>{sp!.name}</Selo>
                     ))}
                     {assetSponsors.length > 2 && (
-                      <span style={{ fontSize: FS.small, color: T.second, fontFamily: FONT.mono, alignSelf: "center" }}>+{assetSponsors.length - 2}</span>
+                      <span title={assetSponsors.slice(2).map(sp => sp!.name).join(", ")} style={{ fontSize: FS.small, color: T.apoio, fontWeight: FW.medio, alignSelf: "center" }}>+{assetSponsors.length - 2}</span>
                     )}
-                  </div>
+                  </>
                 ) : null;
 
                 const franquiasEl = (asset.franchiseTags ?? []).length > 0 ? (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 5 }}>
+                  <>
                     {(asset.franchiseTags ?? []).map(t => (
-                      <Selo key={t} tom="info" forma="retangulo" style={{ padding: "1px 6px", fontWeight: FW.medio, fontFamily: FONT.display }}>{t}</Selo>
+                      <Selo key={t} tom="neutro" forma="retangulo" style={{ padding: "1px 7px", fontWeight: FW.medio, fontFamily: FONT.mono }}>{t}</Selo>
                     ))}
-                  </div>
+                  </>
+                ) : null;
+                const etiquetasEl = patrocinadoresEl || franquiasEl ? (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>{patrocinadoresEl}{franquiasEl}</div>
                 ) : null;
 
                 // Condição — edição rápida via ui/popover: portal (não é
@@ -1024,7 +1045,7 @@ export default function Estoque() {
                         className="ds-botao"
                         style={{
                           display: "inline-flex", alignItems: "center", gap: 4,
-                          minHeight: isMobile ? 36 : 26, padding: "0 10px", borderRadius: R.pill, border: "none",
+                          minHeight: isMobile || ponteiroGrosso ? 44 : 26, padding: "0 12px", borderRadius: R.pill, border: "none",
                           background: cm.bg, color: cm.color,
                           fontSize: FS.meta, fontWeight: FW.forte, fontFamily: FONT.display,
                           cursor: podeEditar ? "pointer" : "default", whiteSpace: "nowrap",
@@ -1096,9 +1117,10 @@ export default function Estoque() {
                 );
 
                 // Excluir leva o vermelho legível no próprio ícone (destrutivo
-                // se lê antes do hover); os outros ficam no cinza de apoio.
+                // se lê antes do hover, e o hover acende a tinta vermelha); os
+                // outros ficam no cinza de apoio.
                 const acoesEl = (
-                  <div className="row-actions" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2, transition: "opacity 0.15s" }}>
+                  <div className="est-acoes" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
                     <Botao variante="fantasma" data-testid={`button-view-asset-${asset.id}`}
                       title="Ver detalhes" aria-label={`Ver detalhes de ${asset.name}`}
                       onClick={e => { e.stopPropagation(); setViewingAsset(asset); }}
@@ -1113,6 +1135,7 @@ export default function Estoque() {
                     </Botao>}
                     {podeExcluir && <Botao variante="fantasma" data-testid={`button-delete-asset-${asset.id}`}
                       title="Excluir" aria-label={`Excluir ${asset.name}`}
+                      className="est-acao-perigo"
                       onClick={e => { e.stopPropagation(); setDeleting(asset); }}
                       style={{ ...botaoAcao, color: TOM.perigo.text }}>
                       <Trash2 size={tamanhoDoIcone} aria-hidden="true" />
@@ -1120,7 +1143,7 @@ export default function Estoque() {
                   </div>
                 );
 
-                return { miniaturaEl, quantidadeEl, eventoEl, patrocinadoresEl, franquiasEl, condicaoEl, reservaEl, statusEl, acoesEl };
+                return { miniaturaEl, quantidadeEl, eventoEl, etiquetasEl, condicaoEl, reservaEl, statusEl, acoesEl };
               };
 
               // ── AGRUPADO POR QUANTIDADE (dono, 21/09) ─────────────────────
@@ -1136,26 +1159,34 @@ export default function Estoque() {
                   <div data-testid={`usado-em-${g.ativos[0].id}`} style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
                     {eventos.slice(0, 2).map(e => (
                       <span key={e.eventId} title={`${ROTULO_DO_USO[e.situacao]} ${e.eventName} · ${e.unidades} un.`}
-                        style={{ whiteSpace: "normal", overflowWrap: "anywhere", padding: "2px 7px", borderRadius: R.sm, fontSize: FS.small, fontWeight: FW.medio, background: e.situacao === "separada" ? TOM.info.bg : N.n2, color: e.situacao === "separada" ? TOM.info.text : T.strong }}>
+                        style={{ whiteSpace: "normal", overflowWrap: "anywhere", padding: "2px 8px", borderRadius: R.sm, fontSize: FS.small, fontWeight: FW.medio, lineHeight: 1.4, background: e.situacao === "separada" ? TOM.info.bg : T.surface, color: e.situacao === "separada" ? TOM.info.text : T.strong, border: `1px solid ${e.situacao === "separada" ? TOM.info.border : T.border}` }}>
                         {e.eventName}
                       </span>
                     ))}
-                    {eventos.length > 2 && <span style={{ fontSize: FS.small, color: T.second, fontFamily: FONT.display, fontWeight: FW.forte }}>+{eventos.length - 2}</span>}
+                    {eventos.length > 2 && <span title={eventos.slice(2).map(e => e.eventName).join(", ")} style={{ fontSize: FS.small, color: T.apoio, fontFamily: FONT.display, fontWeight: FW.forte }}>+{eventos.length - 2}</span>}
                   </div>
                 );
               };
               const quantidadeDoGrupoEl = (g: GrupoDoAcervo<InventoryAsset>) => (
                 <span data-testid={`unidades-${g.ativos[0].id}`} style={{ whiteSpace: "nowrap" }}>
-                  <span style={{ fontFamily: FONT.display, fontSize: FS.title, fontWeight: FW.forte, color: T.text, fontVariantNumeric: "tabular-nums" }}>{g.unidades}</span>
+                  <span style={{ fontFamily: FONT.display, fontSize: FS.title, fontWeight: FW.forte, color: T.text, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em" }}>{g.unidades}</span>
                   <span style={{ fontSize: FS.small, fontWeight: FW.medio, color: T.second, marginLeft: 3 }}>un.</span>
                 </span>
+              );
+              // A situação do MATERIAL: a barra dá a proporção num relance e a
+              // frase (com o testid que os testes leem) dá a conta exata.
+              const situacaoDoGrupoEl = (g: GrupoDoAcervo<InventoryAsset>) => (
+                <div style={{ display: "flex", flexDirection: "column", gap: 7, minWidth: 0 }}>
+                  <BarraDeSituacao porSituacao={g.porSituacao} separadas={g.separadas} largura={emCards ? "100%" : 132} />
+                  <span data-testid={`situacao-${g.ativos[0].id}`} style={{ fontSize: FS.body, fontWeight: FW.medio, color: T.text, lineHeight: 1.4 }}>{fraseDaSituacao(g)}</span>
+                </div>
               );
               const alternarEl = (g: GrupoDoAcervo<InventoryAsset>, aberto: boolean) => (
                 <Botao variante="fantasma" data-testid={`expandir-${g.ativos[0].id}`} aria-expanded={aberto}
                   aria-label={`${aberto ? "Recolher" : "Ver"} as ${g.ativos.length} unidades de ${g.nome}`}
                   onClick={e => { e.stopPropagation(); alternarGrupo(g.chave); }}
-                  style={{ ...botaoAcao, width: "auto", padding: "0 8px", gap: 4, fontSize: FS.meta, color: T.strong }}>
-                  {aberto ? "Recolher" : "Unidades"} <ChevronDown size={14} aria-hidden="true" style={{ transform: aberto ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+                  style={{ ...botaoAcao, width: "auto", padding: "0 10px", gap: 5, fontSize: FS.meta, fontWeight: FW.medio, color: aberto ? T.text : T.apoio, backgroundColor: aberto ? N.n2 : undefined }}>
+                  {aberto ? "Recolher" : `${g.ativos.length} unidades`} <ChevronDown size={14} aria-hidden="true" style={{ transform: aberto ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
                 </Botao>
               );
               const verGrupoEl = (g: GrupoDoAcervo<InventoryAsset>) => (
@@ -1165,6 +1196,7 @@ export default function Estoque() {
                 </Botao>
               );
               const LIMITE_DE_UNIDADES = 40;
+              const codigo: React.CSSProperties = { fontFamily: FONT.mono, fontSize: FS.meta, fontWeight: FW.medio, color: T.accentText, whiteSpace: "nowrap" };
 
               if (emCards) {
                 return (
@@ -1176,38 +1208,56 @@ export default function Estoque() {
                       const aberto = abertos.has(g.chave);
                       return (
                         <li key={g.chave} data-testid={unico ? `row-asset-${asset.id}` : `row-group-${asset.id}`}
-                          style={{ padding: "14px 14px 10px", borderBottom: i < gruposVisiveis.length - 1 ? `1px solid ${N.n3}` : "none", display: "flex", flexDirection: "column", gap: 10 }}>
+                          style={{ padding: "16px 14px 12px", borderBottom: i < gruposVisiveis.length - 1 ? `1px solid ${T.border}` : "none", display: "flex", flexDirection: "column", gap: 12 }}>
                           {/* Toque no cartão abre o detalhe; o teclado tem o
                               botão Ver explícito logo abaixo, nas ações. */}
-                          <div onClick={() => setVendo({ chave: g.chave, unidadeId: unico ? asset.id : null })} style={{ display: "flex", gap: 12, minWidth: 0, cursor: "pointer" }}>
+                          <div className="est-toque" onClick={() => setVendo({ chave: g.chave, unidadeId: unico ? asset.id : null })} style={{ display: "flex", gap: 12, minWidth: 0, cursor: "pointer" }}>
                             {p.miniaturaEl}
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              {unico && <span style={{ fontFamily: FONT.mono, fontSize: FS.meta, fontWeight: FW.medio, color: T.accentText }}>{asset.displayId}</span>}
                               <div style={{ fontSize: FS.read, fontWeight: FW.forte, color: T.text, lineHeight: 1.3, overflowWrap: "anywhere" }}>{g.nome}</div>
-                              {p.eventoEl}
-                              {p.patrocinadoresEl}
+                              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "2px 8px", marginTop: 3 }}>
+                                <span style={codigo}>{asset.displayId}{!unico ? ` +${g.ativos.length - 1}` : ""}</span>
+                                {p.eventoEl}
+                              </div>
+                              {p.etiquetasEl}
                             </div>
                             <div style={{ flexShrink: 0 }}>{quantidadeDoGrupoEl(g)}</div>
                           </div>
                           {unico ? (
                             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>{p.condicaoEl}{p.statusEl}{p.reservaEl}</div>
                           ) : (
-                            <div style={{ fontSize: FS.body, color: T.text, lineHeight: 1.45 }}>
-                              <div data-testid={`situacao-${asset.id}`} style={{ fontWeight: FW.medio }}>{fraseDaSituacao(g)}</div>
-                              <div style={{ color: T.apoio }}>{fraseDaCondicao(g)}</div>
+                            <div style={{ fontSize: FS.body, color: T.text, lineHeight: 1.45, display: "flex", flexDirection: "column", gap: 4 }}>
+                              {situacaoDoGrupoEl(g)}
+                              <div data-testid={`condicao-${asset.id}`} style={{ color: T.apoio }}>{fraseDaCondicao(g)}</div>
                             </div>
                           )}
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                            <div style={{ minWidth: 0 }}>{usadoEmEl(g)}</div>
-                            <div style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>{unico ? p.acoesEl : <>{alternarEl(g, aberto)}{verGrupoEl(g)}</>}</div>
+                          {/* Rodapé do cartão: onde já foi usado (largura toda quando
+                              há eventos, para as etiquetas correrem na horizontal)
+                              e as ações à direita. */}
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "6px 8px", paddingTop: 10, borderTop: `1px dashed ${T.border}` }}>
+                            {(() => {
+                              const usado = eventosDeUso(g.ativos.map(a => usosPorAtivo.get(a.id) ?? []), g.ativos.map(a => a.quantity)).length > 0;
+                              return usado ? (
+                                <div style={{ minWidth: 0, flex: "1 1 100%" }}>
+                                  <span style={{ display: "block", marginBottom: 4, fontSize: FS.small, color: T.second, fontWeight: FW.medio }}>Onde já foi usado</span>
+                                  {usadoEmEl(g)}
+                                </div>
+                              ) : (
+                                <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 6 }}>
+                                  <span style={{ fontSize: FS.small, color: T.second, fontWeight: FW.medio }}>Uso:</span>
+                                  {usadoEmEl(g)}
+                                </div>
+                              );
+                            })()}
+                            <div style={{ display: "flex", alignItems: "center", flexShrink: 0, marginLeft: "auto" }}>{unico ? p.acoesEl : <>{alternarEl(g, aberto)}{verGrupoEl(g)}</>}</div>
                           </div>
                           {!unico && aberto && (
-                            <ul data-testid={`unidades-de-${asset.id}`} style={{ listStyle: "none", margin: 0, padding: "4px 0 0", borderTop: `1px dashed ${T.border}` }}>
-                              {g.ativos.slice(0, LIMITE_DE_UNIDADES).map(u => {
+                            <ul data-testid={`unidades-de-${asset.id}`} className="est-entra" style={{ listStyle: "none", margin: 0, padding: "2px 10px", borderRadius: R.md, background: T.bg, border: `1px solid ${T.border}` }}>
+                              {g.ativos.slice(0, LIMITE_DE_UNIDADES).map((u, j) => {
                                 const pu = pecasDe(u);
                                 return (
-                                  <li key={u.id} data-testid={`row-asset-${u.id}`} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 0", borderBottom: `1px solid ${N.n2}` }}>
-                                    <span style={{ fontFamily: FONT.mono, fontSize: FS.meta, fontWeight: FW.medio, color: T.accentText, flex: "1 1 120px" }}>{u.displayId}</span>
+                                  <li key={u.id} data-testid={`row-asset-${u.id}`} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "8px 0", borderBottom: j < Math.min(g.ativos.length, LIMITE_DE_UNIDADES) - 1 ? `1px solid ${T.border}` : "none" }}>
+                                    <span style={{ ...codigo, flex: "1 1 120px" }}>{u.displayId}</span>
                                     {pu.condicaoEl}{pu.statusEl}
                                     <div style={{ marginLeft: "auto" }}>{pu.acoesEl}</div>
                                   </li>
@@ -1226,20 +1276,22 @@ export default function Estoque() {
                 <div style={{ overflowX: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", minWidth: compacto ? 720 : 900 }}>
                     <thead>
-                      <tr style={{ background: T.dark }}>
+                      <tr>
                         {/* Entre 820 e 1180px de área útil "Onde já foi usado"
                             desce para dentro da célula do material: é a coluna
                             mais larga e a menos consultada, e era ela que
                             empurrava Ações para fora da tela. */}
+                        {/* Larguras ditas: sem elas a Situação e a Condição
+                            ficavam com o vão e o Material espremia o nome. */}
                         {[
-                          { label: "Material", align: "left" },
-                          { label: "Quantidade", align: "left" },
-                          { label: "Situação", align: "left" },
-                          { label: "Condição", align: "left" },
-                          ...(compacto ? [] : [{ label: "Onde já foi usado", align: "left" }]),
-                          { label: "Ações", align: "right" },
-                        ].map(({ label, align }) => (
-                          <th key={label} scope="col" style={{ ...TH, textAlign: align as React.CSSProperties["textAlign"] }}>{label}</th>
+                          { label: "Material", align: "left", w: compacto ? "40%" : "30%" },
+                          { label: "Quantidade", align: "left", w: 104 },
+                          { label: "Situação", align: "left", w: 230 },
+                          { label: "Condição", align: "left", w: 170 },
+                          ...(compacto ? [] : [{ label: "Onde já foi usado", align: "left", w: undefined }]),
+                          { label: "Ações", align: "right", w: 112 },
+                        ].map(({ label, align, w }) => (
+                          <th key={label} scope="col" style={{ ...TH, width: w, textAlign: align as React.CSSProperties["textAlign"] }}>{label}</th>
                         ))}
                       </tr>
                     </thead>
@@ -1253,56 +1305,62 @@ export default function Estoque() {
                           <Fragment key={g.chave}>
                             {/* Clique na linha abre o detalhe (atalho do mouse); o
                                 teclado usa o botão Ver explícito da coluna Ações.
-                                O realce de hover vem do CSS (tr.linha-estoque). */}
-                            <tr data-testid={unico ? `row-asset-${asset.id}` : `row-group-${asset.id}`} className="group linha-estoque"
-                              onClick={() => setVendo({ chave: g.chave, unidadeId: unico ? asset.id : null })}
-                              style={{ transition: "background 0.12s", cursor: "pointer" }}>
-                              <td style={{ ...TD, maxWidth: 320 }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+                                O realce de hover vem do CSS (.est-linha). */}
+                            <tr data-testid={unico ? `row-asset-${asset.id}` : `row-group-${asset.id}`} className={`group est-linha${aberto ? " est-linha-aberta" : ""}`}
+                              onClick={() => setVendo({ chave: g.chave, unidadeId: unico ? asset.id : null })}>
+                              <td style={TD}>
+                                <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
                                   {p.miniaturaEl}
                                   <div style={{ minWidth: 0 }}>
                                     <span style={{ display: "block", fontSize: FS.body, fontWeight: FW.forte, color: T.text, whiteSpace: "normal", overflowWrap: "anywhere", lineHeight: 1.3 }}>{g.nome}</span>
-                                    <span style={{ fontFamily: FONT.mono, fontSize: FS.small, fontWeight: FW.medio, color: T.accentText }}>
-                                      {asset.displayId}{!unico ? ` +${g.ativos.length - 1}` : ""}
-                                    </span>
-                                    {p.eventoEl}
-                                    {p.patrocinadoresEl}
-                                    {p.franquiasEl}
-                                    {compacto && <div style={{ marginTop: 3 }}>{usadoEmEl(g)}</div>}
+                                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "2px 8px", marginTop: 3 }}>
+                                      <span style={codigo}>{asset.displayId}{!unico ? ` +${g.ativos.length - 1}` : ""}</span>
+                                      {p.eventoEl}
+                                    </div>
+                                    {p.etiquetasEl}
+                                    {compacto && (
+                                      <div style={{ marginTop: 8 }}>
+                                        <span style={{ display: "block", marginBottom: 4, fontSize: FS.small, color: T.second, fontWeight: FW.medio }}>Onde já foi usado</span>
+                                        {usadoEmEl(g)}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               </td>
                               <td style={TD}>{quantidadeDoGrupoEl(g)}</td>
-                              <td style={TD}>
-                                {unico ? <>{p.statusEl}{p.reservaEl}</> : <span data-testid={`situacao-${asset.id}`} style={{ fontSize: FS.body, fontWeight: FW.medio, color: T.text, lineHeight: 1.4 }}>{fraseDaSituacao(g)}</span>}
+                              <td style={{ ...TD, minWidth: 170 }}>
+                                {unico ? <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 0 }}>{p.statusEl}{p.reservaEl}</div> : situacaoDoGrupoEl(g)}
                               </td>
                               <td style={TD} onClick={e => { if (unico) e.stopPropagation(); }}>
-                                {unico ? p.condicaoEl : <span data-testid={`condicao-${asset.id}`} style={{ fontSize: FS.body, color: T.strong }}>{fraseDaCondicao(g)}</span>}
+                                {unico ? p.condicaoEl : <span data-testid={`condicao-${asset.id}`} style={{ fontSize: FS.body, color: T.strong, lineHeight: 1.4 }}>{fraseDaCondicao(g)}</span>}
                               </td>
                               {!compacto && <td style={TD}>{usadoEmEl(g)}</td>}
-                              <td style={{ ...TD, textAlign: "right", paddingRight: 20 }}>
-                                {unico ? p.acoesEl : <div className="row-actions" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>{alternarEl(g, aberto)}{verGrupoEl(g)}</div>}
+                              <td style={{ ...TD, textAlign: "right", paddingRight: 16 }}>
+                                {unico ? p.acoesEl : <div className="est-acoes" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>{alternarEl(g, aberto)}{verGrupoEl(g)}</div>}
                               </td>
                             </tr>
                             {!unico && aberto && g.ativos.slice(0, LIMITE_DE_UNIDADES).map(u => {
                               const pu = pecasDe(u);
+                              // A unidade herda o recuo do NOME do material (20 +
+                              // 48 da arte + 12): lê-se como filha da linha de cima.
+                              const TDU: React.CSSProperties = { ...TD, paddingTop: 10, paddingBottom: 10, background: T.bg };
                               return (
-                                <tr key={u.id} data-testid={`row-asset-${u.id}`} className="group" style={{ background: T.bg }}>
-                                  <td style={{ ...TD, paddingLeft: 75 }}><span style={{ fontFamily: FONT.mono, fontSize: FS.meta, fontWeight: FW.medio, color: T.accentText }}>{u.displayId}</span></td>
-                                  <td style={TD}>{pu.quantidadeEl}</td>
-                                  <td style={TD}>{pu.statusEl}{pu.reservaEl}</td>
-                                  <td style={TD}>{pu.condicaoEl}</td>
-                                  {!compacto && <td style={TD} />}
-                                  <td style={{ ...TD, textAlign: "right", paddingRight: 20 }}>{pu.acoesEl}</td>
+                                <tr key={u.id} data-testid={`row-asset-${u.id}`} className="group est-sub est-entra">
+                                  <td style={{ ...TDU, paddingLeft: 80 }}><span style={codigo}>{u.displayId}</span></td>
+                                  <td style={TDU}>{pu.quantidadeEl}</td>
+                                  <td style={TDU}><div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>{pu.statusEl}{pu.reservaEl}</div></td>
+                                  <td style={TDU}>{pu.condicaoEl}</td>
+                                  {!compacto && <td style={TDU} />}
+                                  <td style={{ ...TDU, textAlign: "right", paddingRight: 16 }}>{pu.acoesEl}</td>
                                 </tr>
                               );
                             })}
                             {!unico && aberto && g.ativos.length > LIMITE_DE_UNIDADES && (
-                              <tr style={{ background: T.bg }}>
-                                <td colSpan={compacto ? 5 : 6} style={{ ...TD, paddingLeft: 75, fontSize: FS.meta, color: T.apoio }}>
+                              <tr>
+                                <td colSpan={compacto ? 5 : 6} style={{ ...TD, paddingLeft: 80, fontSize: FS.meta, color: T.apoio, background: T.bg }}>
                                   Mostrando {LIMITE_DE_UNIDADES} de {g.ativos.length} unidades —{" "}
                                   {/* Link dentro da frase: nativo, sublinhado. */}
-                                  <button type="button" onClick={() => setVendo({ chave: g.chave, unidadeId: null })} style={{ background: "none", border: "none", padding: 0, font: "inherit", fontWeight: FW.forte, color: T.text, textDecoration: "underline", cursor: "pointer" }}>ver todas no detalhe</button>
+                                  <button type="button" className="est-link" onClick={() => setVendo({ chave: g.chave, unidadeId: null })} style={{ background: "none", border: "none", padding: 0, font: "inherit", fontWeight: FW.forte, color: T.text, cursor: "pointer" }}>ver todas no detalhe</button>
                                 </td>
                               </tr>
                             )}
@@ -1341,7 +1399,7 @@ export default function Estoque() {
                       <>
                         {" · "}
                         <button type="button" data-testid="button-ver-descartados-rodape" onClick={() => setFilterStatus(["DESCARTADO"])}
-                          style={{ background: "none", border: "none", padding: 0, minHeight: isMobile ? 32 : undefined, font: "inherit", fontWeight: FW.forte, color: T.text, textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer" }}>
+                          style={{ background: "none", border: "none", padding: 0, minHeight: isMobile ? 44 : undefined, font: "inherit", fontWeight: FW.forte, color: T.text, textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer" }}>
                           {descartadosNoRecorte} {descartadosNoRecorte === 1 ? "descartado oculto" : "descartados ocultos"} · ver
                         </button>
                       </>
@@ -1361,14 +1419,10 @@ export default function Estoque() {
         )}
       </div>
 
-      {/* Ícones de ação: base 0.7, revelação por hover OU foco de teclado na
-          linha (.group é a classe realmente aplicada no <tr>). O wrapper
-          .event-filter-44 iguala o trigger do EventFilterDropdown aos demais
-          filtros (44px de altura e largura total). */}
+      {/* O wrapper .event-filter-44 iguala o trigger do EventFilterDropdown
+          aos demais filtros (44px de altura e largura total). O realce da
+          linha e das ações mora no index.css (.est-linha, .est-acoes). */}
       <style>{`
-        tr.group .row-actions { opacity: 0.7; }
-        tr.group:hover .row-actions, tr.group:focus-within .row-actions { opacity: 1; }
-        tr.linha-estoque:hover { background-color: var(--n1); }
         .event-filter-44 > div { width: 100%; }
         .event-filter-44 > div > button { height: 44px !important; width: 100%; }
       `}</style>

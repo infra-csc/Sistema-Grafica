@@ -1270,3 +1270,79 @@ a.ds-botao[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; filter: no
   .evl-patrocinios button { min-height: 0 !important; position: relative; }
   .evl-patrocinios button::after { content: ""; position: absolute; inset: -12px -6px; }
 }
+
+/* ── Calendário (prefixo cal-) ────────────────────────────────────────────
+   A página é um CONTÊINER (container query): a régua do layout é a área
+   útil, não a janela — com a barra lateral aberta ou fechada a mesma janela
+   tem 250px a mais ou a menos. Larga (≥1480 úteis): grade + coluna lateral
+   com Próximos e Resumo; média: os dois lado a lado embaixo; estreita: um
+   embaixo do outro. */
+.cal-pagina { container-type: inline-size; }
+.cal-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; }
+.cal-lateral { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; }
+@container (min-width: 700px) { .cal-lateral { grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); } }
+@container (min-width: 1480px) {
+  .cal-layout { grid-template-columns: minmax(0, 1fr) 360px; }
+  .cal-lateral { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Realce de hover das marcações clicáveis: a cor de cada uma vem na var
+   --realce (a do prazo é a cor do próprio marco; a de hoje, o laranja). */
+.cal-realce { transition: background-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease; }
+.cal-realce:hover { background-color: var(--realce) !important; }
+.cal-celula:focus-visible, .cal-linha:focus-visible { outline-offset: -2px; border-radius: 0; }
+
+/* Pílula da grade: sobe 1px e ganha sombra sob o ponteiro. */
+.cal-pilula { transition: box-shadow var(--dur-rapida) ease, filter var(--dur-rapida) ease, transform var(--dur-rapida) ease; }
+.cal-pilula:hover { filter: brightness(0.97); box-shadow: var(--sh-md) !important; }
+@media (prefers-reduced-motion: no-preference) { .cal-pilula:hover { transform: translateY(-1px); } }
+.cal-pilula:focus-visible { outline-offset: 1px; }
+
+/* Linhas que navegam (semana, próximos, dialog do dia): a seta aparece com
+   o ponteiro ou o foco — no toque fica sempre, não há hover para revelar. */
+.cal-linha { transition: background-color var(--dur-rapida) ease; }
+.cal-linha .cal-seta { opacity: 0; transition: opacity var(--dur-rapida) ease, transform var(--dur-rapida) ease; }
+.cal-linha:hover .cal-seta, .cal-linha:focus-visible .cal-seta { opacity: 1; transform: translateX(2px); }
+@media (pointer: coarse) { .cal-linha .cal-seta { opacity: 1; } }
+
+/* Busca: branca com borda — a mesma família da busca de Eventos. */
+.cal-campo { transition: border-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease; }
+.cal-campo:hover:not(:focus) { border-color: var(--n6) !important; }
+.cal-campo:focus { outline: none; border-color: var(--orange-deep) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--orange-deep) 16%, transparent) !important; }
+.cal-campo::placeholder { color: var(--n7); }
+.cal-campo::-webkit-search-cancel-button { display: none; }
+
+/* Segmentado Semana | Mês e o chip "Todos os marcos". */
+.cal-seg { transition: color var(--dur-rapida) ease, background-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease; }
+.cal-seg[aria-checked="false"]:hover { color: var(--n10) !important; background-color: var(--n3) !important; }
+.cal-chip { transition: border-color var(--dur-rapida) ease, background-color var(--dur-rapida) ease, color var(--dur-rapida) ease; }
+.cal-chip[aria-pressed="false"]:hover { border-color: var(--n6) !important; color: var(--n10) !important; }
+.cal-chip:active, .cal-seg:active { transform: translateY(0.5px); }
+
+/* Botões de seta (‹ ›) agrupados numa peça só. */
+.cal-seta-nav { transition: background-color var(--dur-rapida) ease, color var(--dur-rapida) ease; }
+.cal-seta-nav:hover { background-color: var(--n2) !important; color: var(--n10) !important; }
+.cal-seta-nav:focus-visible { outline-offset: -2px; }
+
+/* Troca de período: a grade entra suave — só com movimento permitido. */
+@media (prefers-reduced-motion: no-preference) {
+  .cal-entra { animation: cal-entra var(--dur-media) var(--ease-saida) backwards; }
+}
+@keyframes cal-entra { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+
+/* Legenda recolhível do celular: sem o triângulo nativo. */
+.cal-legenda > summary { list-style: none; cursor: pointer; }
+.cal-legenda > summary::-webkit-details-marker { display: none; }
+.cal-legenda[open] .cal-legenda-seta { transform: rotate(180deg); }
+.cal-legenda-seta { transition: transform var(--dur-rapida) ease; }
+
+/* No toque o chip "Todos os marcos" continua do tamanho dos rótulos ao lado
+   (30px): os 44 de alvo vêm de uma área invisível em volta — esticado, ele
+   virava um bloco de 44px de altura no meio de uma linha de texto. */
+@media (pointer: coarse) {
+  .cal-chip { position: relative; }
+  .cal-chip::after { content: ""; position: absolute; inset: -8px -4px; }
+}
+
+/* Ponteiro numa pílula: só a pílula acende — a célula volta ao repouso. */
+.cal-celula.cal-realce:has(.cal-pilula:hover) { background-color: var(--base) !important; }

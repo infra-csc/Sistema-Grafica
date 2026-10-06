@@ -2,12 +2,18 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { FilterSelect } from "@/components/filter-select";
-import { format } from "date-fns";
+import { format, isToday, isYesterday } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Search, ChevronLeft, ChevronRight, X, Download, Copy, Check } from "lucide-react";
-import { T, FS, R } from "@/lib/theme";
+import { Search, ChevronLeft, ChevronRight, ChevronRight as Abrir, X, Download, Copy, Check, Info, ScrollText, SearchX } from "lucide-react";
+import { T, TOM, FS, FW, R, FONT, type NomeDeTom } from "@/lib/theme";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useFiltrosNaUrl, paginaValida } from "@/hooks/use-filtros-na-url";
+import { Botao } from "@/components/ui/botao";
+import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
+import { EstadoErro, EstadoVazio } from "@/components/ui/estados";
+import { Selo } from "@/components/ui/selo";
+import { DetalheDoLog } from "@/components/admin/detalhe-do-log";
+import { useLarguraDoElemento } from "@/components/admin/ferramenta-de-reparo";
 
 interface AuditLog {
   id: string;
@@ -21,46 +27,52 @@ interface AuditLog {
 }
 
 /* ── Action config ── */
-// Tons 700 das mesmas famílias: os 500/600 anteriores reprovavam o piso de
-// contraste 4.5:1 sobre os fundos pastéis dos badges.
-const ACTION_CFG: Record<string, { label: string; bg: string; color: string }> = {
-  created:            { label: "Criado",         bg: "#eff6ff", color: "#1d4ed8" },
-  updated:            { label: "Atualizado",      bg: "#fff7ed", color: "#c2410c" },
-  deleted:            { label: "Excluído",        bg: "#fef2f2", color: "#b91c1c" },
-  approved:           { label: "Aprovado",        bg: "#f0fdf4", color: "#15803d" },
-  delivered:          { label: "Entregue",        bg: "#f0fdf4", color: "#047857" },
-  status_changed:     { label: "Status",          bg: "#faf5ff", color: "#7e22ce" },
-  sponsor_linked:     { label: "Patrocinador",    bg: "#fff7ed", color: "#c2410c" },
-  sponsor_approved:   { label: "Pat. Aprovado",   bg: "#f0fdf4", color: "#15803d" },
-  submitted:          { label: "Enviado",         bg: "#eff6ff", color: "#1d4ed8" },
-  released:           { label: "Liberado",        bg: "#f0fdf4", color: "#047857" },
-  rejected:           { label: "Reprovado",       bg: "#fef2f2", color: "#b91c1c" },
-  password_changed:   { label: "Senha",           bg: "#faf5ff", color: "#7e22ce" },
+// O TOM de cada ação vem da paleta semântica (TOM): azul cria, laranja altera,
+// vermelho exclui/reprova, verde aprova, esmeralda entrega, roxo muda estado.
+// Eram hexes cravados — os mesmos valores, agora pelo token.
+const ACTION_CFG: Record<string, { label: string; tom: NomeDeTom }> = {
+  created:            { label: "Criado",          tom: "info" },
+  updated:            { label: "Atualizado",      tom: "laranja" },
+  deleted:            { label: "Excluído",        tom: "perigo" },
+  approved:           { label: "Aprovado",        tom: "sucesso" },
+  delivered:          { label: "Entregue",        tom: "esmeralda" },
+  status_changed:     { label: "Status",          tom: "roxo" },
+  sponsor_linked:     { label: "Patrocinador",    tom: "laranja" },
+  sponsor_approved:   { label: "Pat. Aprovado",   tom: "sucesso" },
+  submitted:          { label: "Enviado",         tom: "info" },
+  released:           { label: "Liberado",        tom: "esmeralda" },
+  rejected:           { label: "Reprovado",       tom: "perigo" },
+  password_changed:   { label: "Senha",           tom: "roxo" },
   // COMPLEMENTO: aumento de quantidade pedido depois que a peça entrou em
   // produção. Sem estas duas entradas o badge saía com a action CRUA
   // ("complement_created") em cinza de fallback — legível só para quem já
   // conhece o código.
-  complement_created:  { label: "Complemento",     bg: "#fff7ed", color: "#c2410c" },
-  complement_canceled: { label: "Compl. Cancelado", bg: "#fef2f2", color: "#b91c1c" },
+  complement_created:  { label: "Complemento",      tom: "laranja" },
+  complement_canceled: { label: "Compl. Cancelado", tom: "perigo" },
   // Ações que o servidor grava e a tela mostrava CRUAS ("label_printed",
   // "reserva_liberada") no cinza de fallback — levantadas por varredura dos
   // createAuditLog/insert em auditLogs de server/ (16/09).
-  canceled:          { label: "Cancelado",        bg: "#fef2f2", color: "#b91c1c" },
-  added:             { label: "Adicionado",       bg: "#eff6ff", color: "#1d4ed8" },
-  removed:           { label: "Removido",         bg: "#fef2f2", color: "#b91c1c" },
-  restored:          { label: "Restaurado",       bg: "#f0fdf4", color: "#15803d" },
-  dispensed:         { label: "Dispensado",       bg: "#faf5ff", color: "#7e22ce" },
-  triagem:           { label: "Triagem",          bg: "#faf5ff", color: "#7e22ce" },
-  reservado:         { label: "Reservado",        bg: "#eff6ff", color: "#1d4ed8" },
-  reserva_liberada:  { label: "Reserva liberada", bg: "#f0fdf4", color: "#047857" },
-  label_printed:     { label: "Etiqueta",         bg: "#faf5ff", color: "#7e22ce" },
-  corrected_text:    { label: "Texto corrigido",  bg: "#fff7ed", color: "#c2410c" },
+  canceled:          { label: "Cancelado",        tom: "perigo" },
+  added:             { label: "Adicionado",       tom: "info" },
+  removed:           { label: "Removido",         tom: "perigo" },
+  restored:          { label: "Restaurado",       tom: "sucesso" },
+  dispensed:         { label: "Dispensado",       tom: "roxo" },
+  triagem:           { label: "Triagem",          tom: "roxo" },
+  reservado:         { label: "Reservado",        tom: "info" },
+  reserva_liberada:  { label: "Reserva liberada", tom: "esmeralda" },
+  label_printed:     { label: "Etiqueta",         tom: "roxo" },
+  corrected_text:    { label: "Texto corrigido",  tom: "laranja" },
+  // Nova varredura (06/10): ainda saíam cruas na trilha local.
+  cadastrado:        { label: "Cadastrado",       tom: "info" },
+  produced:          { label: "Produzido",        tom: "esmeralda" },
+  production:        { label: "Produção",         tom: "laranja" },
+  archived:          { label: "Arquivado",        tom: "neutro" },
   // 'login' saiu de propósito: o sistema NÃO grava log de login — manter o
   // badge sugeria um rastreamento de acessos que não existe.
 };
 
 const getActionCfg = (action: string) =>
-  ACTION_CFG[action] ?? { label: action, bg: T.low, color: T.second };
+  ACTION_CFG[action] ?? { label: action, tom: "neutro" as NomeDeTom };
 
 /* ── Entity type labels ── */
 const ENTITY_LABELS: Record<string, string> = {
@@ -81,52 +93,34 @@ const ENTITY_LABELS: Record<string, string> = {
   gestao: "Avisos por e-mail",
   revisao: "Aviso da revisão",
   item_sponsor_approval: "Aprovação de patrocinador",
+  // Nova varredura (06/10): "standardItem" e "tubo" saíam crus.
+  standardItem: "Modelo",
+  catalogOption: "Opção de catálogo",
+  tubo: "Tubo",
+  sistema: "Sistema",
 };
+
+const rotuloDaEntidade = (tipo: string) => ENTITY_LABELS[tipo] ?? tipo;
+const descricaoDo = (l: AuditLog) => l.details ?? `${getActionCfg(l.action).label} em ${rotuloDaEntidade(l.entityType)}`;
 
 /* ── Avatar ── */
 // O payload de /api/audit-logs NÃO traz o papel do usuário (só userName), então
 // colorir o avatar "por papel" era mentira: todos caíam no mesmo fallback verde
 // de atendimento. Até o log carregar userRole, um neutro único é o honesto.
-const AVATAR_NEUTRAL = { bg: T.low, color: T.second };
-
 function initials(name: string) {
   return name.split(" ").filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join("");
 }
 
+/** "Hoje" e "Ontem" leem mais rápido que a data — o resto, a data. */
+function dia(data: Date) {
+  if (isToday(data)) return "Hoje";
+  if (isYesterday(data)) return "Ontem";
+  return format(data, "dd/MM/yyyy", { locale: ptBR });
+}
+
 const PAGE_SIZE = 20;
 
-const tiInput: React.CSSProperties = {
-  width: "100%", height: 40, padding: "0 12px 0 36px",
-  backgroundColor: "#f0efee", border: "none", borderRadius: R.md,
-  fontSize: 13, color: T.text,
-  transition: "background-color 0.15s ease, box-shadow 0.15s ease",
-};
-
-const filterSel: React.CSSProperties = {
-  height: 40, padding: "0 12px", backgroundColor: T.surface,
-  border: `1px solid ${T.border}`, borderRadius: R.md,
-  fontSize: 12, fontWeight: 700, color: T.second,
-  cursor: "pointer",
-  appearance: "none", WebkitAppearance: "none",
-};
-
-/* ── Desenho comum das telas de cadastro ──
-   Usuários, Patrocinadores, Modelos e Logs repetem estes controles com as
-   MESMAS medidas (40px de alvo, raio 8, rótulo 12/800 em caixa alta). Copiado
-   (e não importado) porque cada tela é dona do próprio arquivo; se mudar aqui,
-   mude nas outras três. */
-const BTN_PRIMARIO: React.CSSProperties = {
-  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
-  height: 40, padding: "0 18px", backgroundColor: T.dark, color: "#fff",
-  border: "none", borderRadius: R.md, cursor: "pointer",
-  fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em",
-  whiteSpace: "nowrap", transition: "background-color 0.15s ease",
-};
-const BTN_LIMPAR: React.CSSProperties = {
-  display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 12px",
-  backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: R.md, cursor: "pointer",
-  fontSize: 11, fontWeight: 800, color: "#b91c1c", textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap",
-};
+const ROTULO: React.CSSProperties = { fontSize: FS.micro, fontWeight: FW.rotulo, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em", whiteSpace: "nowrap" };
 
 /**
  * PAGINAÇÃO — janela de até 5 páginas em volta da atual, alvos de 32px (44 no
@@ -138,25 +132,34 @@ function Paginacao({ pagina, totalPaginas, onIr, toque }: { pagina: number; tota
   const paginas = Array.from({ length: Math.min(5, totalPaginas) }, (_, i) => inicio + i);
   const base: React.CSSProperties = {
     minWidth: toque, height: toque, padding: "0 6px", display: "inline-flex", alignItems: "center", justifyContent: "center",
-    borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.surface, color: T.second,
-    fontSize: 12, fontWeight: 700, cursor: "pointer", transition: "background-color 0.12s ease, border-color 0.12s ease",
+    borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.surface, color: T.apoio,
+    fontSize: FS.meta, fontWeight: FW.forte, fontFamily: FONT.mono, cursor: "pointer",
   };
   const seta = (desligada: boolean): React.CSSProperties => ({ ...base, opacity: desligada ? 0.4 : 1, cursor: desligada ? "not-allowed" : "pointer" });
   return (
     <nav aria-label="Paginação" style={{ display: "flex", alignItems: "center", gap: 4 }}>
-      <button type="button" onClick={() => onIr(pagina - 1)} disabled={pagina === 1} aria-label="Página anterior" style={seta(pagina === 1)}>
+      <button type="button" className="adm-pagina" onClick={() => onIr(pagina - 1)} disabled={pagina === 1} aria-label="Página anterior" style={seta(pagina === 1)}>
         <ChevronLeft aria-hidden="true" style={{ width: 14, height: 14 }} />
       </button>
       {paginas.map(p => (
-        <button key={p} type="button" onClick={() => onIr(p)} aria-label={`Página ${p}`} aria-current={p === pagina ? "page" : undefined}
-          style={p === pagina ? { ...base, backgroundColor: T.dark, borderColor: T.dark, color: "#fff" } : base}>
+        <button key={p} type="button" className="adm-pagina" onClick={() => onIr(p)} aria-label={`Página ${p}`} aria-current={p === pagina ? "page" : undefined}
+          style={p === pagina ? { ...base, backgroundColor: T.dark, borderColor: T.dark, color: T.surface } : base}>
           {p}
         </button>
       ))}
-      <button type="button" onClick={() => onIr(pagina + 1)} disabled={pagina === totalPaginas} aria-label="Próxima página" style={seta(pagina === totalPaginas)}>
+      <button type="button" className="adm-pagina" onClick={() => onIr(pagina + 1)} disabled={pagina === totalPaginas} aria-label="Próxima página" style={seta(pagina === totalPaginas)}>
         <ChevronRight aria-hidden="true" style={{ width: 14, height: 14 }} />
       </button>
     </nav>
+  );
+}
+
+function Numero({ rotulo, valor, cor, testId }: { rotulo: string; valor: number | string; cor?: string; testId?: string }) {
+  return (
+    <div>
+      <p style={{ ...ROTULO, margin: "0 0 4px" }}>{rotulo}</p>
+      <p data-testid={testId} style={{ margin: 0, fontFamily: FONT.display, fontSize: FS.h2, fontWeight: FW.forte, lineHeight: 1, color: cor ?? T.text, fontVariantNumeric: "tabular-nums" }}>{valor}</p>
+    </div>
   );
 }
 
@@ -175,7 +178,13 @@ export default function LogsSistema() {
   const page = filtros.pagina;
   const setPage = (p: number) => definir("pagina", p);
   const toque = isMobile ? 44 : 32;
+  // Cartões pela LARGURA DA TELA ÚTIL, não da janela: no tablet a barra lateral
+  // fica aberta e a tabela de cinco colunas não cabia nos ~510px que sobram.
+  const [refRaiz, larguraRaiz] = useLarguraDoElemento<HTMLDivElement>();
+  const cartoes = isMobile || larguraRaiz < 860;
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  // O registro aberto no detalhe (descrição e ID inteiros).
+  const [aberto, setAberto] = useState<AuditLog | null>(null);
 
   // ?withTotal=1: além da lista (a PRIMEIRA página da trilha — 500 registros,
   // o tamanho padrão da rota), devolve o count REAL da tabela — sem ele o KPI
@@ -190,7 +199,7 @@ export default function LogsSistema() {
   // invalidação nunca alcançava este cache, e a tela também baixava o mesmo
   // payload de novo sob uma chave própria em vez de reaproveitar o cache do
   // Histórico.
-  const { data, isLoading, isError, refetch } = useQuery<{ logs: AuditLog[]; total: number }>({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery<{ logs: AuditLog[]; total: number }>({
     queryKey: ["/api/audit-logs", "?withTotal=1"],
   });
   const logs = data?.logs ?? [];
@@ -277,6 +286,7 @@ export default function LogsSistema() {
   const activeFilters = [search, actionFilter !== "all", entityFilter !== "all"].filter(Boolean).length;
 
   const clearFilters = () => limpar();
+  const filtrarPessoa = (nome: string) => { atualizar({ busca: nome, pagina: 1 }); setAberto(null); };
 
   /* ── CSV export (client-side, from the already-loaded/filtered logs) ── */
   const csvEscape = (value: string) => `"${value.replace(/"/g, '""')}"`;
@@ -314,90 +324,118 @@ export default function LogsSistema() {
   /* ── Stats ── */
   const todayCount  = logs.filter(l => new Date(l.createdAt).toDateString() === new Date().toDateString()).length;
   const errorCount  = logs.filter(l => ["deleted", "rejected"].includes(l.action)).length;
+  const semDados = isLoading || isError;
+
+  const estadoDaCopia = (id: string) => (copiedId === id ? "copiado" : copyFailedId === id ? "falhou" : null);
+
+  // O botão de copiar da linha — o resultado anunciado em voz alta (aria-live).
+  const botaoCopiar = (log: AuditLog) => (
+    <>
+      <button
+        type="button"
+        className="adm-copiar"
+        onClick={(e) => { e.stopPropagation(); copyEntityId(log.id, log.entityId); }}
+        aria-label={`Copiar ID completo ${log.entityId}`}
+        title={copyFailedId === log.id ? "Não foi possível copiar — selecione o ID manualmente" : "Copiar ID completo"}
+        style={{ background: "none", border: "none", cursor: "pointer", width: isMobile ? 44 : 24, height: isMobile ? 44 : 24, margin: isMobile ? -12 : -4, borderRadius: R.sm, display: "inline-flex", alignItems: "center", justifyContent: "center", color: copiedId === log.id ? TOM.sucesso.text : copyFailedId === log.id ? TOM.perigo.text : T.second }}
+      >
+        {copiedId === log.id
+          ? <Check aria-hidden="true" style={{ width: 12, height: 12 }} />
+          : copyFailedId === log.id
+            ? <X aria-hidden="true" style={{ width: 12, height: 12 }} />
+            : <Copy aria-hidden="true" style={{ width: 12, height: 12 }} />
+        }
+      </button>
+      <span className="sr-only" aria-live="polite">
+        {copiedId === log.id ? "ID copiado" : copyFailedId === log.id ? "Não foi possível copiar o ID" : ""}
+      </span>
+    </>
+  );
 
   return (
-    <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "16px 16px 48px" : "28px 32px 64px" }}>
+    <div ref={refRaiz} style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "16px 16px 48px" : "28px 32px 64px" }}>
 
-      {/* ── Header ── */}
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 24, gap: 16, flexWrap: "wrap" }}>
-        <div>
-          <h1 style={{ fontSize: FS.h1, fontWeight: 700, color: T.text, margin: "0 0 6px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", lineHeight: 1.1 }}>
-            Logs do Sistema
-          </h1>
-          <p style={{ fontSize: FS.body, color: T.second, margin: 0, lineHeight: 1.5, maxWidth: 640 }}>
-            {/* COMO INVESTIGAR, em uma frase — "rastreamento das operações"
-                não dizia por onde começar. O login não entra: o sistema não o
-                grava (ver ACTION_CFG). */}
-            Quem criou, alterou, aprovou ou excluiu cada registro. Para descobrir quem fez algo, busque pelo número da peça, nome do evento ou patrocinador — ou clique no nome de alguém para ver só as ações dessa pessoa. Entradas no sistema (login) não são registradas.
-          </p>
-        </div>
-        {/* Secundário (contorno), não primário: exportar não cria nada. O
-            desabilitado mantém o texto em T.second — o cinza decorativo
-            anterior reprovava contraste justamente no estado que precisa
-            explicar por que não dá. */}
-        <button
-          onClick={handleExport}
-          disabled={filtered.length === 0}
-          title={filtered.length === 0 ? "Nada para exportar no recorte atual" : `Baixar os ${filtered.length} registros do recorte atual`}
-          data-testid="button-export-logs"
-          style={{ ...BTN_PRIMARIO, width: isMobile ? "100%" : undefined, backgroundColor: T.surface, color: filtered.length === 0 ? T.second : T.text, border: `1px solid ${T.bdark}`, cursor: filtered.length === 0 ? "not-allowed" : "pointer", opacity: filtered.length === 0 ? 0.6 : 1 }}
-          onMouseEnter={e => { if (filtered.length > 0) e.currentTarget.style.backgroundColor = T.low; }}
-          onMouseLeave={e => { e.currentTarget.style.backgroundColor = T.surface; }}
-        >
-          <Download aria-hidden="true" style={{ width: 14, height: 14 }} />
-          {/* O formato no rótulo: "Exportar" sozinho não dizia o que baixa. */}
-          Exportar CSV
-        </button>
-      </div>
-
-      {/* ── KPI chips ── */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
-        {[
-          { label: "Total de registros", value: total, color: T.text, bg: T.surface },
-          { label: "Hoje",               value: todayCount,  color: "#1d4ed8", bg: "#eff6ff" },
-          { label: "Exclusões e reprovações", value: errorCount, color: "#b91c1c", bg: "#fef2f2" },
-          { label: "Filtrados",          value: filtered.length, color: "#c2410c", bg: "#fff7ed" },
-        ].map(({ label, value, color, bg }) => (
-          <div key={label} style={{ padding: "8px 16px", backgroundColor: bg, border: `1px solid ${T.border}`, borderRadius: 8, display: "flex", flexDirection: "column", gap: 1 }}>
-            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, fontWeight: 700, color, lineHeight: 1 }}>{value}</span>
-            <span style={{ fontSize: 10, color: T.second, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</span>
+      {/* ── Cabeçalho ── o que é a trilha e COMO investigar, em uma frase; os
+          números e a exportação à direita (como Patrocinadores). O login não
+          entra: o sistema não o grava (ver ACTION_CFG). */}
+      <CabecalhoDaPagina
+        titulo="Logs do Sistema"
+        testId="title-logs-sistema"
+        margemInferior={isTruncated ? 14 : 22}
+        subtitulo={
+          <span style={{ display: "block", maxWidth: 600 }}>
+            Quem criou, alterou, aprovou ou excluiu cada registro. Busque pelo número da peça, evento ou patrocinador — ou clique no nome de alguém para ver só as ações dessa pessoa. Entradas no sistema (login) não são registradas.
+          </span>
+        }
+        acoes={
+          <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 14 : 20, flexWrap: "wrap", width: isMobile ? "100%" : undefined }}>
+            <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 14 : 20, flex: isMobile ? "1 1 100%" : undefined }}>
+              <Numero rotulo="Registros" valor={semDados ? "–" : total.toLocaleString("pt-BR")} testId="stat-total-logs" />
+              <span aria-hidden="true" style={{ width: 1, height: 34, backgroundColor: T.border }} />
+              <Numero rotulo="Hoje" valor={semDados ? "–" : todayCount} />
+              <span aria-hidden="true" style={{ width: 1, height: 34, backgroundColor: T.border }} />
+              <Numero rotulo="Exclusões e reprovações" valor={semDados ? "–" : errorCount} cor={!semDados && errorCount > 0 ? TOM.perigo.text : undefined} />
+            </div>
+            {/* Secundário, não primário: exportar não cria nada. O motivo do
+                desabilitado aparece escrito — no toque não há title. */}
+            <Botao
+              variante="secundario"
+              tamanho={isMobile ? "toque" : "md"}
+              icone={Download}
+              onClick={handleExport}
+              disabled={filtered.length === 0}
+              motivo={!semDados && filtered.length === 0 ? "Nada para exportar no recorte atual" : undefined}
+              title={filtered.length === 0 ? "Nada para exportar no recorte atual" : `Baixar os ${filtered.length} registros do recorte atual`}
+              data-testid="button-export-logs"
+              larguraCheia={isMobile}
+            >
+              {/* O formato no rótulo: "Exportar" sozinho não dizia o que baixa. */}
+              Exportar CSV
+            </Botao>
           </div>
-        ))}
-        {isTruncated && (
-          <span style={{ fontSize: 11, color: T.second, fontWeight: 600 }}>
-            Exibindo os últimos {logs.length} de {total} registros.{" "}
+        }
+      />
+
+      {isTruncated && (
+        <p role="note" style={{ display: "flex", alignItems: "flex-start", gap: 8, margin: "0 0 20px", padding: "10px 14px", fontSize: FS.meta, lineHeight: 1.5, color: T.apoio, backgroundColor: TOM.info.bg, border: `1px solid ${TOM.info.border}`, borderRadius: R.md }}>
+          <Info aria-hidden="true" style={{ width: 15, height: 15, flexShrink: 0, marginTop: 1, color: TOM.info.text }} />
+          <span>
+            Exibindo os últimos <strong style={{ color: T.text }}>{logs.length.toLocaleString("pt-BR")}</strong> de <strong style={{ color: T.text }}>{total.toLocaleString("pt-BR")}</strong> registros — busca, filtros e exportação valem para eles.{" "}
             {/* O PRÓXIMO PASSO quando o que se procura é mais antigo: o
                 Histórico caminha a trilha inteira por cursor (ver o comentário
                 da query acima). Sem o link, a busca vazia parecia "não houve". */}
-            <Link href="/historico" style={{ color: "#c2410c", fontWeight: 700, textDecoration: "underline", textUnderlineOffset: 2 }}>
+            <Link href="/historico" className="adm-link" style={{ color: TOM.info.text, fontWeight: FW.forte }}>
               Mais antigos: Histórico
             </Link>
           </span>
-        )}
-      </div>
+        </p>
+      )}
 
-      {/* ── Filter bar ── */}
-      {/* Barra solta acima da tabela, como em Usuários e Modelos — o cartão
-          branco em volta dela era um quarto desenho de barra de busca. */}
-      <div style={{ marginBottom: 16, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-        {/* Search */}
-        <div style={{ position: "relative", flex: isMobile ? "1 1 100%" : "1 1 240px", maxWidth: isMobile ? "none" : 360 }}>
-          <Search aria-hidden="true" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: T.muted }} />
-          <input
-            value={search}
-            onChange={e => atualizar({ busca: e.target.value, pagina: 1 })}
-            placeholder="Pessoa, nº da peça, evento, ação ou ID..."
-            aria-label="Buscar nos logs por pessoa, descrição, ação, entidade ou ID"
-            type="search"
-            data-testid="input-search-logs"
-            style={tiInput}
-            onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
-            onBlur={e =>  { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
-          />
-        </div>
+      {/* ── Busca e filtros ── soltos acima da tabela, como em Patrocinadores.
+          Somem com a trilha vazia (não há o que recortar) e no erro.
+          A contagem do recorte mora aqui, colada em quem a muda. */}
+      {!isError && (isLoading || logs.length > 0) && (
+        <div role="search" aria-label="Filtrar os logs" style={{ marginBottom: 12, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ position: "relative", flex: isMobile ? "1 1 100%" : "0 1 380px", minWidth: 0 }}>
+            <Search aria-hidden="true" style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", width: 15, height: 15, color: T.second, pointerEvents: "none" }} />
+            <input
+              value={search}
+              onChange={e => atualizar({ busca: e.target.value, pagina: 1 })}
+              placeholder={isMobile ? "Pessoa, peça, evento ou ID…" : "Pessoa, nº da peça, evento, ação ou ID…"}
+              aria-label="Buscar nos logs por pessoa, descrição, ação, entidade ou ID"
+              type="search"
+              data-testid="input-search-logs"
+              className="adm-campo"
+              style={{ width: "100%", height: isMobile ? 44 : 40, padding: `0 ${search ? 40 : 12}px 0 36px`, boxSizing: "border-box", backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.md, fontSize: isMobile ? FS.lead : FS.body, color: T.text, fontFamily: "inherit" }}
+            />
+            {search && (
+              <button type="button" onClick={() => atualizar({ busca: "", pagina: 1 })} aria-label="Limpar a busca" className="ds-botao"
+                style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)", width: isMobile ? 40 : 32, height: isMobile ? 40 : 32, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: R.sm, cursor: "pointer", color: T.second }}>
+                <X aria-hidden="true" style={{ width: 14, height: 14 }} />
+              </button>
+            )}
+          </div>
 
-        {/* Action filter */}
-        <div style={{ position: "relative", flexShrink: 0 }}>
           <FilterSelect
             label="Tipo de ação" allLabel="Todos os tipos de ação"
             value={actionFilter}
@@ -405,12 +443,10 @@ export default function LogsSistema() {
             options={actionFilterOptions}
             searchPlaceholder="Buscar ação..." emptyText="Nenhuma ação encontrada."
             hideWhenEmpty={false} testId="select-action-filter"
-            triggerStyle={{ ...filterSel, minWidth: 160 }}
+            panelWidth={260}
+            triggerStyle={{ height: isMobile ? 44 : 40, padding: "0 12px", backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.md, fontSize: FS.meta, fontWeight: FW.forte, color: T.apoio }}
           />
-        </div>
 
-        {/* Entity filter */}
-        <div style={{ position: "relative", flexShrink: 0 }}>
           <FilterSelect
             label="Entidade" allLabel="Todas as entidades"
             value={entityFilter}
@@ -418,199 +454,175 @@ export default function LogsSistema() {
             options={entityFilterOptions}
             searchPlaceholder="Buscar entidade..." emptyText="Nenhuma entidade encontrada."
             hideWhenEmpty={false} testId="select-entity-filter"
-            triggerStyle={{ ...filterSel, minWidth: 140 }}
+            panelWidth={260}
+            triggerStyle={{ height: isMobile ? 44 : 40, padding: "0 12px", backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.md, fontSize: FS.meta, fontWeight: FW.forte, color: T.apoio }}
           />
+
+          {activeFilters > 0 && (
+            <Botao variante="fantasma" tamanho={isMobile ? "toque" : "md"} icone={X} onClick={clearFilters}>
+              Limpar ({activeFilters})
+            </Botao>
+          )}
+
+          <span aria-live="polite" style={{ marginLeft: "auto", fontSize: FS.meta, color: T.second, fontWeight: FW.medio, whiteSpace: "nowrap" }}>
+            {isLoading ? "Carregando…" : <><strong style={{ fontFamily: FONT.mono, color: T.text }}>{filtered.length}</strong> {filtered.length === 1 ? "resultado" : "resultados"}</>}
+          </span>
         </div>
+      )}
 
-        {activeFilters > 0 && (
-          <button
-            type="button"
-            onClick={clearFilters}
-            style={{ ...BTN_LIMPAR, flexShrink: 0 }}
-          >
-            <X aria-hidden="true" style={{ width: 11, height: 11 }} />
-            Limpar ({activeFilters})
-          </button>
-        )}
-
-        <span style={{ marginLeft: "auto", fontSize: 11, color: T.second, fontWeight: 600, flexShrink: 0 }}>
-          {filtered.length} resultado{filtered.length !== 1 ? "s" : ""}
-        </span>
-      </div>
-
-      {/* ── Table ── */}
-      <section style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden" }}>
-        {isLoading ? (
-          // Esqueleto na silhueta da linha (data · avatar+nome · selo ·
-          // descrição): a trilha chega no lugar em que vai ficar.
-          <div role="status" aria-label="Carregando logs" style={{ padding: "6px 0" }}>
-            {Array.from({ length: 8 }, (_, i) => (
-              <div key={i} className="motion-safe:animate-pulse" style={{ display: "flex", alignItems: "center", gap: 18, padding: "15px 18px", borderBottom: `1px solid ${T.low}` }}>
-                <div style={{ width: 72, height: 22, borderRadius: 4, backgroundColor: T.low, flexShrink: 0 }} />
-                <div style={{ width: 30, height: 30, borderRadius: "50%", backgroundColor: T.low, flexShrink: 0 }} />
-                <div style={{ width: 110, height: 12, borderRadius: 4, backgroundColor: T.low, flexShrink: 0 }} />
-                <div style={{ width: 70, height: 18, borderRadius: 999, backgroundColor: T.low, flexShrink: 0 }} />
-                <div style={{ flex: 1, maxWidth: 320, height: 12, borderRadius: 4, backgroundColor: T.low }} />
-              </div>
-            ))}
-          </div>
-        ) : isError ? (
-          <div style={{ padding: "64px 24px", textAlign: "center" }}>
-            <p style={{ fontSize: 13, color: T.text, fontWeight: 700, margin: "0 0 4px" }}>
-              Não foi possível carregar os logs
-            </p>
-            <p style={{ fontSize: 12, color: T.second, margin: "0 0 16px" }}>
-              Verifique sua conexão e tente novamente.
-            </p>
-            <button
-              type="button"
-              onClick={() => refetch()}
-              style={{ ...BTN_PRIMARIO, height: 36, fontSize: 11 }}
-            >
-              Tentar novamente
-            </button>
-          </div>
-        ) : filtered.length === 0 ? (
-          <div style={{ padding: "64px 24px", textAlign: "center" }}>
-            {logs.length === 0 ? (
-              <p style={{ fontSize: 13, color: T.second, margin: 0 }}>
-                Nenhuma atividade registrada ainda — os logs aparecem aqui conforme o sistema é usado.
-              </p>
-            ) : (
-              <>
-                <p style={{ fontSize: 13, color: T.second, margin: "0 0 14px" }}>
-                  Nenhum registro corresponde à busca e aos filtros aplicados.
-                </p>
-                <button
-                  type="button"
-                  onClick={clearFilters}
-                  style={{ ...BTN_PRIMARIO, height: 36, backgroundColor: T.surface, color: T.text, border: `1px solid ${T.bdark}`, fontSize: 11 }}
-                >
-                  Limpar filtros
-                </button>
-              </>
-            )}
-          </div>
+      {/* ── Lista ── */}
+      {isError ? (
+        <EstadoErro
+          titulo="Não foi possível carregar os logs"
+          detalhe={<>Verifique sua conexão e tente novamente. {error instanceof Error ? error.message : ""}</>}
+          aoTentarDeNovo={() => refetch()}
+          carregando={isFetching}
+          tamanhoDoBotao={isMobile ? "toque" : "md"}
+          rotuloDoBotao="Tentar novamente"
+        />
+      ) : !isLoading && filtered.length === 0 ? (
+        logs.length === 0 ? (
+          <EstadoVazio
+            icone={ScrollText}
+            titulo="Nenhuma atividade registrada ainda"
+            descricao="Os logs aparecem aqui conforme o sistema é usado."
+          />
         ) : (
-          <>
+          <EstadoVazio
+            icone={SearchX}
+            titulo="Nenhum registro neste recorte"
+            descricao="Nenhum registro corresponde à busca e aos filtros aplicados."
+            acao={<Botao variante="secundario" tamanho={isMobile ? "toque" : "md"} icone={X} onClick={clearFilters}>Limpar filtros</Botao>}
+          />
+        )
+      ) : (
+        <section aria-label="Registros da trilha" style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, overflow: "hidden" }}>
+          {isLoading ? (
+            // Esqueleto na silhueta da linha (data · avatar+nome · selo ·
+            // descrição): a trilha chega no lugar em que vai ficar.
+            <div role="status" aria-label="Carregando logs" style={{ padding: "6px 0" }}>
+              {Array.from({ length: 8 }, (_, i) => (
+                <div key={i} className="motion-safe:animate-pulse" style={{ display: "flex", alignItems: "center", gap: 18, padding: "15px 18px", borderBottom: `1px solid ${T.low}` }}>
+                  <div style={{ width: 72, height: 22, borderRadius: 4, backgroundColor: T.low, flexShrink: 0 }} />
+                  <div style={{ width: 30, height: 30, borderRadius: "50%", backgroundColor: T.low, flexShrink: 0 }} />
+                  {!isMobile && <div style={{ width: 110, height: 12, borderRadius: 4, backgroundColor: T.low, flexShrink: 0 }} />}
+                  <div style={{ width: 70, height: 18, borderRadius: 999, backgroundColor: T.low, flexShrink: 0 }} />
+                  <div style={{ flex: 1, maxWidth: 320, height: 12, borderRadius: 4, backgroundColor: T.low }} />
+                </div>
+              ))}
+            </div>
+          ) : cartoes ? (
+            // CELULAR (e tablet com a barra aberta): cartões. A tabela de 5 colunas virava rolagem lateral;
+            // aqui cada registro é um alvo inteiro que abre o detalhe.
+            <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+              {paginated.map((log, i) => {
+                const aCfg = getActionCfg(log.action);
+                const quando = new Date(log.createdAt);
+                return (
+                  <li key={log.id} data-testid={`row-log-${log.id}`} style={{ borderTop: i ? `1px solid ${T.border}` : undefined }}>
+                    <div className="adm-linha" role="button" tabIndex={0} aria-label={`Abrir o registro: ${aCfg.label} por ${log.userName}`}
+                      onClick={() => setAberto(log)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setAberto(log); } }}
+                      style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 7 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                        <Selo tom={aCfg.tom}>{aCfg.label}</Selo>
+                        <span style={{ fontFamily: FONT.mono, fontSize: FS.small, color: T.second, whiteSpace: "nowrap" }}>{dia(quando)} · {format(quando, "HH:mm")}</span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: FS.body, lineHeight: 1.5, color: T.strong, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere" }}>{descricaoDo(log)}</p>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, fontSize: FS.meta, color: T.second }}>
+                        <span style={{ fontWeight: FW.forte, color: T.apoio, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{log.userName}</span>
+                        <span style={{ whiteSpace: "nowrap" }}>{rotuloDaEntidade(log.entityType)}</span>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
                 <thead>
-                  <tr style={{ backgroundColor: T.low, borderBottom: `1px solid ${T.border}` }}>
+                  <tr style={{ backgroundColor: T.bg, borderBottom: `1px solid ${T.border}` }}>
                     {[
-                      { label: "Data e Hora",   w: 160 },
-                      { label: "Usuário",       w: undefined },
-                      { label: "Tipo de Ação",  w: 130 },
-                      { label: "Descrição",     w: undefined },
-                      { label: "Entidade",      w: 120 },
+                      { label: "Quando",     w: 120 },
+                      { label: "Quem",       w: 210 },
+                      { label: "Ação",       w: 130 },
+                      { label: "Descrição",  w: undefined },
+                      { label: "Entidade",   w: 150 },
                     ].map(col => (
-                      <th key={col.label} scope="col" style={{ padding: "11px 18px", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.16em", whiteSpace: "nowrap", width: col.w }}>
+                      <th key={col.label} scope="col" style={{ ...ROTULO, padding: "11px 16px", width: col.w }}>
                         {col.label}
                       </th>
                     ))}
+                    <th scope="col" style={{ width: 40 }}><span className="sr-only">Abrir</span></th>
                   </tr>
                 </thead>
                 <tbody>
                   {paginated.map(log => {
                     const aCfg = getActionCfg(log.action);
-                    const init = initials(log.userName);
-                    const avatarCfg = AVATAR_NEUTRAL;
-                    const description = log.details ?? `${aCfg.label} em ${ENTITY_LABELS[log.entityType] ?? log.entityType}`;
-
+                    const quando = new Date(log.createdAt);
                     return (
                       <tr
                         key={log.id}
                         data-testid={`row-log-${log.id}`}
-                        style={{ borderBottom: `1px solid ${T.low}`, transition: "background 0.1s" }}
-                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#fafaf9")}
-                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
+                        className="adm-linha"
+                        onClick={() => setAberto(log)}
+                        style={{ borderBottom: `1px solid ${T.border}` }}
                       >
-                        {/* Data e Hora */}
-                        <td style={{ padding: "13px 18px", whiteSpace: "nowrap" }}>
-                          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: T.text, fontWeight: 500 }}>
-                            {format(new Date(log.createdAt), "dd/MM/yyyy", { locale: ptBR })}
-                          </div>
-                          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: T.second, marginTop: 2 }}>
-                            {format(new Date(log.createdAt), "HH:mm:ss", { locale: ptBR })}
-                          </div>
+                        <td style={{ padding: "12px 16px", whiteSpace: "nowrap", verticalAlign: "top" }}>
+                          <div style={{ fontSize: FS.meta, fontWeight: FW.forte, color: T.text }}>{dia(quando)}</div>
+                          <div style={{ fontFamily: FONT.mono, fontSize: FS.small, color: T.second, marginTop: 2 }}>{format(quando, "HH:mm:ss", { locale: ptBR })}</div>
                         </td>
 
-                        {/* Usuário */}
-                        <td style={{ padding: "13px 18px" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                            <div style={{
-                              width: 30, height: 30, borderRadius: "50%",
-                              backgroundColor: avatarCfg.bg, color: avatarCfg.color,
-                              display: "flex", alignItems: "center", justifyContent: "center",
-                              fontSize: 10, fontWeight: 800, flexShrink: 0,
-                            }}>
-                              {init}
-                            </div>
+                        <td style={{ padding: "12px 16px", verticalAlign: "top" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
+                            <span aria-hidden="true" style={{ width: 28, height: 28, borderRadius: R.pill, backgroundColor: T.low, color: T.apoio, display: "flex", alignItems: "center", justifyContent: "center", fontSize: FS.micro, fontWeight: FW.rotulo, flexShrink: 0 }}>
+                              {initials(log.userName)}
+                            </span>
                             {/* Um clique no nome = "o que mais esta pessoa
                                 fez?". Era copiar o nome à mão para a busca. */}
                             <button type="button"
-                              onClick={() => atualizar({ busca: log.userName, pagina: 1 })}
+                              className="adm-nome"
+                              onClick={(e) => { e.stopPropagation(); filtrarPessoa(log.userName); }}
                               title={`Ver só as ações de ${log.userName}`}
                               aria-label={`Filtrar a trilha pelas ações de ${log.userName}`}
-                              style={{ fontSize: 13, fontWeight: 700, color: T.text, whiteSpace: "nowrap", background: "none", border: "none", padding: 0, cursor: "pointer", font: "inherit", textDecoration: "underline", textDecorationColor: T.border, textUnderlineOffset: 3 }}>
+                              style={{ fontFamily: "inherit", fontSize: FS.body, fontWeight: FW.forte, color: T.strong, background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", lineHeight: 1.35 }}>
                               {log.userName}
                             </button>
                           </div>
                         </td>
 
-                        {/* Tipo de Ação */}
-                        <td style={{ padding: "13px 18px" }}>
-                          <span style={{
-                            padding: "3px 9px", borderRadius: 999,
-                            backgroundColor: aCfg.bg, color: aCfg.color,
-                            fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em",
-                            whiteSpace: "nowrap",
-                          }}>
-                            {aCfg.label}
+                        <td style={{ padding: "12px 16px", verticalAlign: "top" }}>
+                          <Selo tom={aCfg.tom} style={{ whiteSpace: "nowrap" }}>{aCfg.label}</Selo>
+                        </td>
+
+                        <td style={{ padding: "12px 16px", fontSize: FS.body, lineHeight: 1.5, color: T.apoio, verticalAlign: "top" }}>
+                          {/* Duas linhas aqui; a frase inteira no detalhe (clique na linha). */}
+                          <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere" }}>
+                            {descricaoDo(log)}
                           </span>
                         </td>
 
-                        {/* Descrição */}
-                        <td style={{ padding: "13px 18px", fontSize: 13, color: T.second, maxWidth: 380 }}>
-                          {/* O corte em 2 linhas não tinha volta: numa trilha
-                              de investigação, o fim da frase é justamente o
-                              detalhe. O title devolve o texto inteiro. */}
-                          <span title={description} style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                            {description}
-                          </span>
-                        </td>
-
-                        {/* Entidade */}
-                        <td style={{ padding: "13px 18px" }}>
+                        <td style={{ padding: "12px 16px", verticalAlign: "top" }}>
                           {/* Sem `capitalize`: os rótulos já vêm grafados, e ele
                               transformava "Patrocinador do evento" em
                               "Patrocinador Do Evento". */}
-                          <div style={{ fontSize: 11, fontWeight: 700, color: T.second }}>
-                            {ENTITY_LABELS[log.entityType] ?? log.entityType}
+                          <div style={{ fontSize: FS.meta, fontWeight: FW.forte, color: T.apoio }}>
+                            {rotuloDaEntidade(log.entityType)}
                           </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 1 }}>
-                            <span title={log.entityId} style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: T.second }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+                            <span title={log.entityId} style={{ fontFamily: FONT.mono, fontSize: FS.small, color: T.second }}>
                               {log.entityId.slice(0, 8)}…
                             </span>
-                            {/* Alvo de 21px (era 15) e o resultado dito em voz
-                                alta: aria-live anuncia "Copiado" ou a falha. */}
-                            <button
-                              onClick={() => copyEntityId(log.id, log.entityId)}
-                              aria-label={`Copiar ID completo ${log.entityId}`}
-                              title={copyFailedId === log.id ? "Não foi possível copiar — selecione o ID manualmente" : "Copiar ID completo"}
-                              style={{ background: "none", border: "none", cursor: "pointer", padding: isMobile ? 16 : 7, margin: isMobile ? -14 : -5, borderRadius: 4, display: "flex", color: copiedId === log.id ? "#15803d" : copyFailedId === log.id ? "#b91c1c" : T.second }}
-                            >
-                              {copiedId === log.id
-                                ? <Check style={{ width: 11, height: 11 }} />
-                                : copyFailedId === log.id
-                                  ? <X style={{ width: 11, height: 11 }} />
-                                  : <Copy style={{ width: 11, height: 11 }} />
-                              }
-                            </button>
-                            <span className="sr-only" aria-live="polite">
-                              {copiedId === log.id ? "ID copiado" : copyFailedId === log.id ? "Não foi possível copiar o ID" : ""}
-                            </span>
+                            {botaoCopiar(log)}
                           </div>
+                        </td>
+
+                        <td style={{ padding: "12px 10px 12px 0", verticalAlign: "middle" }}>
+                          <button type="button" className="adm-abrir adm-copiar" aria-label={`Abrir o registro: ${aCfg.label} por ${log.userName}`}
+                            onClick={(e) => { e.stopPropagation(); setAberto(log); }}
+                            style={{ width: 28, height: 28, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: R.sm, cursor: "pointer", color: T.second }}>
+                            <Abrir aria-hidden="true" style={{ width: 15, height: 15 }} />
+                          </button>
                         </td>
                       </tr>
                     );
@@ -618,18 +630,32 @@ export default function LogsSistema() {
                 </tbody>
               </table>
             </div>
+          )}
 
-            {/* ── Pagination footer ── */}
-            <div style={{ padding: "10px 18px", borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, backgroundColor: T.low }}>
-              <p style={{ fontSize: 11, color: T.second, fontWeight: 600, margin: 0 }}>
-                Exibindo {Math.min((safePage - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(safePage * PAGE_SIZE, filtered.length)} de{" "}
-                <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, color: T.second }}>{filtered.length}</span> registros
+          {/* ── Rodapé da paginação ── */}
+          {!isLoading && (
+            <div style={{ padding: isMobile ? "12px 16px" : "10px 16px", borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, backgroundColor: T.bg }}>
+              <p style={{ fontSize: FS.meta, color: T.second, fontWeight: FW.medio, margin: 0 }}>
+                {Math.min((safePage - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(safePage * PAGE_SIZE, filtered.length)} de{" "}
+                <span style={{ fontFamily: FONT.mono, fontWeight: FW.forte, color: T.apoio }}>{filtered.length}</span> registros
               </p>
               <Paginacao pagina={safePage} totalPaginas={totalPages} onIr={setPage} toque={toque} />
             </div>
-          </>
-        )}
-      </section>
+          )}
+        </section>
+      )}
+
+      <DetalheDoLog
+        log={aberto}
+        rotuloDaAcao={aberto ? getActionCfg(aberto.action).label : ""}
+        tomDaAcao={aberto ? getActionCfg(aberto.action).tom : "neutro"}
+        rotuloDaEntidade={aberto ? rotuloDaEntidade(aberto.entityType) : ""}
+        descricao={aberto ? descricaoDo(aberto) : ""}
+        estadoDaCopia={aberto ? estadoDaCopia(aberto.id) : null}
+        aoCopiar={() => aberto && copyEntityId(aberto.id, aberto.entityId)}
+        aoFiltrarPessoa={() => aberto && filtrarPessoa(aberto.userName)}
+        aoFechar={() => setAberto(null)}
+      />
     </div>
   );
 }

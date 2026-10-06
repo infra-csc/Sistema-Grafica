@@ -1,12 +1,18 @@
-import { CheckCircle2, Link2, ShieldCheck, Wrench } from "lucide-react";
+import { useMemo, useState } from "react";
+import { CalendarDays, Link2, RotateCw } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { T, TOM, FS, FW, R } from "@/lib/theme";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { T, TOM, FS, FW, FONT } from "@/lib/theme";
 import { Botao } from "@/components/ui/botao";
-import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
-import { EstadoErro, Esqueleto } from "@/components/ui/estados";
+import { EstadoErro } from "@/components/ui/estados";
 import { useConfirmar } from "@/components/ui/usar-confirmar";
+import {
+  CARTAO, CabecalhoDaFerramenta, CascaDaFerramenta, ChipsDeIds, EsqueletoDaFerramenta, NadaPendente,
+  PainelDoEfeito, PassosDoReparo, ResultadoDoReparo, ResumoDaConfirmacao, SemPermissao, TituloDeSecao,
+  ehSemPermissao, plural, useLarguraDaCasca,
+} from "@/components/admin/ferramenta-de-reparo";
 
 type Vinculo = {
   eventId: string;
@@ -19,25 +25,45 @@ type Vinculo = {
 type Previa = { vinculos: Vinculo[]; total: number };
 type Resultado = { totalEncontrado: number; aplicados: number };
 
-// Rótulo em caixa-alta acima de cada campo do cartão de vínculo.
-const rotulo = {
-  display: "block", color: T.second, fontSize: FS.micro, fontWeight: FW.rotulo,
-  letterSpacing: "0.08em", textTransform: "uppercase",
-} as const;
+// Cada vínculo criado vira action "added" em "event_sponsor" na trilha.
+const LOGS = "/logs-sistema?acao=added&entidade=event_sponsor";
 
+/**
+ * Reparo pontual do estoque antigo: uma marca presente em peças de um evento
+ * que o evento não conhece. A aplicação só ACRESCENTA (services/
+ * repararVinculosEvento.ts): o vínculo entra sem cota, e cada um ganha uma
+ * linha na trilha.
+ */
 export default function ReparoVinculosEvento() {
   const { toast } = useToast();
   const { confirmar, dialogo } = useConfirmar();
-  const { data, isLoading, isError, refetch } = useQuery<Previa>({
+  const isMobile = useIsMobile();
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery<Previa>({
     queryKey: ["/api/admin/reparo-vinculos-evento"],
   });
+  const [resultado, setResultado] = useState<{ r: Resultado; quando: Date } | null>(null);
+  const [erroAoAplicar, setErroAoAplicar] = useState<string | null>(null);
+
+  // A prévia agrupada pelo EVENTO — é o evento que muda ("passa a listar
+  // estes patrocinadores"); a lista solta repetia o nome dele a cada linha.
+  const porEvento = useMemo(() => {
+    const mapa = new Map<string, { eventName: string; vinculos: Vinculo[] }>();
+    for (const v of data?.vinculos ?? []) {
+      const g = mapa.get(v.eventId) ?? { eventName: v.eventName, vinculos: [] };
+      g.vinculos.push(v);
+      mapa.set(v.eventId, g);
+    }
+    return Array.from(mapa.entries()).map(([eventId, g]) => ({ eventId, ...g }));
+  }, [data?.vinculos]);
 
   const aplicarMutation = useMutation({
     mutationFn: async () => {
       const resposta = await apiRequest("POST", "/api/admin/reparo-vinculos-evento", { confirm: true });
       return resposta.json() as Promise<Resultado>;
     },
+    onMutate: () => setErroAoAplicar(null),
     onSuccess: async (resultado) => {
+      setResultado({ r: resultado, quando: new Date() });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["/api/admin/reparo-vinculos-evento"] }),
         queryClient.invalidateQueries({ queryKey: ["/api/events"] }),
@@ -45,11 +71,12 @@ export default function ReparoVinculosEvento() {
       ]);
       toast({
         title: "Vínculos reparados",
-        description: `${resultado.aplicados} vínculo(s) criado(s) na produção.`,
+        description: `${plural(resultado.aplicados, "vínculo criado", "vínculos criados")} na produção.`,
         variant: "success",
       });
     },
     onError: (error: Error) => {
+      setErroAoAplicar(error.message);
       toast({
         title: "Não foi possível reparar os vínculos",
         description: error.message,
@@ -58,84 +85,157 @@ export default function ReparoVinculosEvento() {
     },
   });
 
+  const total = data?.total ?? 0;
+  const temPendente = total > 0;
+  const eventos = porEvento.length;
+  const pecas = useMemo(() => new Set((data?.vinculos ?? []).flatMap((v) => v.provas)).size, [data?.vinculos]);
+
   const confirmarAplicacao = async () => {
-    const total = data?.total ?? 0;
     if (!total || aplicarMutation.isPending) return;
     // Não é perigo: a aplicação só ACRESCENTA vínculos.
     const confirmado = await confirmar({
-      titulo: `Criar os ${total} vínculos evento–patrocinador agora?`,
-      descricao: "A ação não remove nem altera peças, aprovações ou cotas. Cada vínculo será registrado na auditoria.",
-      confirmar: "Criar vínculos",
+      titulo: total === 1 ? "Criar o vínculo evento–patrocinador agora?" : `Criar os ${total} vínculos evento–patrocinador agora?`,
+      descricao: (
+        <ResumoDaConfirmacao
+          numeros={[
+            { n: total, rotulo: total === 1 ? "vínculo novo, sem cota" : "vínculos novos, sem cota" },
+            { n: eventos, rotulo: eventos === 1 ? "evento passa a listar o patrocinador" : "eventos passam a listar os patrocinadores" },
+          ]}
+          naoMuda="A ação não remove nem altera peças, aprovações ou cotas. Cada vínculo será registrado na auditoria."
+          rodape="Se precisar de cota, defina depois em Vincular Patrocinadores."
+        />
+      ),
+      confirmar: total === 1 ? "Criar vínculo" : `Criar ${total} vínculos`,
       icone: Link2,
     });
     if (confirmado) aplicarMutation.mutate();
   };
 
-  const temPendente = !!data?.total;
+  const semPermissao = isError && ehSemPermissao(error);
 
   return (
-    <main style={{ maxWidth: 1180, margin: "0 auto", padding: "28px 24px 56px" }}>
-      <CabecalhoDaPagina
-        icone={Wrench}
+    <CascaDaFerramenta testId="tela-reparo-vinculos">
+      <CabecalhoDaFerramenta
         titulo="Reparo de vínculos"
-        subtitulo={data ? (data.total ? `${data.total} vínculo(s) pendente(s)` : "Nenhum vínculo pendente") : undefined}
+        testId="title-reparo-vinculos"
+        estado={isLoading ? "Gerando a prévia…" : data ? (temPendente ? `${plural(total, "vínculo pendente", "vínculos pendentes")} em ${plural(eventos, "evento", "eventos")}` : "Nenhum vínculo pendente") : undefined}
+        descricao="Patrocinadores que já aparecem nas peças de um evento, mas não estão cadastrados nele. Confira as peças que comprovam cada caso e crie os vínculos de uma vez."
+        acoes={data && !semPermissao ? (
+          <Botao variante="secundario" tamanho={isMobile ? "toque" : "md"} icone={RotateCw} carregando={isFetching && !isLoading} onClick={() => refetch()} disabled={aplicarMutation.isPending}>
+            Atualizar prévia
+          </Botao>
+        ) : undefined}
       />
-      <p style={{ margin: "-8px 0 22px", color: T.second, maxWidth: 720, fontSize: FS.body, lineHeight: 1.55 }}>
-        Confirme os patrocinadores que já estão nas peças, mas ainda não foram cadastrados no evento.
-      </p>
 
       {isLoading ? (
-        <Esqueleto variante="lista" linhas={4} rotulo="Carregando prévia dos vínculos" />
+        <EsqueletoDaFerramenta rotulo="Carregando prévia dos vínculos" />
+      ) : semPermissao ? (
+        <SemPermissao />
       ) : isError ? (
-        <EstadoErro titulo="Não foi possível carregar a prévia." aoTentarDeNovo={() => refetch()} />
+        <EstadoErro
+          titulo="Não foi possível carregar a prévia"
+          detalhe={<>Nenhum vínculo foi criado. {error instanceof Error ? error.message : ""}</>}
+          aoTentarDeNovo={() => refetch()}
+          carregando={isFetching}
+          tamanhoDoBotao={isMobile ? "toque" : "md"}
+        />
       ) : (
         <>
-          <section style={{ display: "flex", gap: 14, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", padding: "18px 20px", border: `1px solid ${temPendente ? TOM.info.border : TOM.sucesso.border}`, borderRadius: R.lg, background: temPendente ? TOM.info.bg : TOM.sucesso.bg, marginBottom: 18 }}>
-            <div style={{ display: "flex", gap: 11, alignItems: "center" }}>
-              {temPendente ? <Link2 aria-hidden="true" color={TOM.info.text} size={22} /> : <CheckCircle2 aria-hidden="true" color={TOM.sucesso.text} size={22} />}
-              <div>
-                <strong style={{ display: "block", color: temPendente ? TOM.info.text : TOM.sucesso.text, fontSize: FS.strong }}>
-                  {temPendente ? `${data!.total} vínculo(s) pendente(s)` : "Nenhum vínculo pendente"}
-                </strong>
-                <span style={{ color: T.second, fontSize: FS.meta }}>
-                  {temPendente ? "Revise as provas abaixo antes de aplicar." : "O cadastro de patrocinadores já bate com as peças ativas."}
-                </span>
-              </div>
-            </div>
-            {temPendente && (
-              <Botao variante="primario" onClick={confirmarAplicacao} carregando={aplicarMutation.isPending}>
-                {aplicarMutation.isPending ? "Aplicando…" : `Aplicar ${data!.total} vínculos`}
-              </Botao>
-            )}
-          </section>
+          {resultado && !temPendente && <PassosDoReparo etapa="feito" hrefDosLogs={LOGS} />}
+          {resultado && (
+            <ResultadoDoReparo
+              titulo="Vínculos criados"
+              quando={resultado.quando}
+              hrefDosLogs={LOGS}
+              linhas={[
+                <><strong>{plural(resultado.r.aplicados, "vínculo criado", "vínculos criados")}</strong> de {resultado.r.totalEncontrado} na prévia, sem cota.</>,
+                "Se algum precisar de cota, defina em Vincular Patrocinadores.",
+              ]}
+              rodape={temPendente ? undefined : "O cadastro já bate com as peças ativas."}
+            />
+          )}
 
-          <section style={{ display: "flex", gap: 8, alignItems: "center", padding: "11px 14px", background: T.bg, border: `1px solid ${T.border}`, borderRadius: R.md, color: T.apoio, fontSize: FS.meta, lineHeight: 1.45, marginBottom: 18 }}>
-            <ShieldCheck aria-hidden="true" size={17} style={{ flexShrink: 0, color: TOM.info.text }} />
-            A aplicação é somente aditiva: não remove vínculos existentes, não altera cotas e grava uma linha de auditoria por inclusão.
-          </section>
+          {temPendente ? (
+            <>
+              <PassosDoReparo etapa="revisar" hrefDosLogs={LOGS} />
+              <PainelDoEfeito
+                tom="info"
+                numero={total}
+                rotuloDoNumero={total === 1 ? "vínculo pendente" : "vínculos pendentes"}
+                detalheDoNumero={`${plural(eventos, "evento", "eventos")} · ${plural(pecas, "peça como prova", "peças como prova")}`}
+                faz={[
+                  <><strong>{eventos}</strong> {eventos === 1 ? "evento passa" : "eventos passam"} a listar <strong>{plural(total, "patrocinador", "patrocinadores")}</strong> que já estão nas peças</>,
+                  <>Os vínculos entram <strong>sem cota</strong> — defina em Vincular Patrocinadores se precisar</>,
+                  "Uma linha de auditoria por vínculo criado",
+                ]}
+                naoMuda={["Peças, aprovações e cotas", "Vínculos que já existem"]}
+                garantia="A aplicação é somente aditiva: não remove vínculos existentes, não altera cotas e grava uma linha de auditoria por inclusão."
+                rotuloDaAcao={total === 1 ? "Criar 1 vínculo" : `Criar ${total} vínculos`}
+                iconeDaAcao={Link2}
+                aoAplicar={confirmarAplicacao}
+                aplicando={aplicarMutation.isPending}
+                erro={erroAoAplicar}
+              />
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {data?.vinculos.map((vinculo) => (
-              <article key={`${vinculo.eventId}-${vinculo.sponsorId}`} style={{ display: "flex", gap: 14, alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", padding: "15px 17px", border: `1px solid ${T.border}`, borderRadius: R.lg, background: T.surface }}>
-                {/* min() evita estouro lateral quando a coluna é mais estreita que 240px. */}
-                <div style={{ minWidth: "min(240px, 100%)" }}>
-                  <span style={rotulo}>Evento</span>
-                  <strong style={{ display: "block", marginTop: 3, color: T.text, fontSize: FS.read }}>{vinculo.eventName}</strong>
+              <section aria-labelledby="titulo-vinculos">
+                <TituloDeSecao
+                  id="titulo-vinculos"
+                  titulo="Vínculos que serão criados"
+                  contagem={total}
+                  descricao="Por evento. Ao lado de cada patrocinador, as peças do evento em que ele já aparece — é a prova de que o vínculo falta."
+                />
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  {porEvento.map((grupo) => (
+                    <article key={grupo.eventId} className="adm-entra" style={CARTAO}>
+                      <header style={{ display: "flex", alignItems: "center", gap: 10, padding: "13px 18px", borderBottom: `1px solid ${T.border}`, backgroundColor: T.bg }}>
+                        <CalendarDays aria-hidden="true" style={{ width: 16, height: 16, flexShrink: 0, color: T.apoio }} />
+                        <div style={{ minWidth: 0 }}>
+                          <h3 style={{ margin: 0, fontSize: FS.body, fontWeight: FW.forte, color: T.text, overflowWrap: "anywhere" }}>{grupo.eventName}</h3>
+                          <p style={{ margin: "1px 0 0", fontSize: FS.meta, color: T.second }}>
+                            {grupo.vinculos.length === 1 ? "ganha 1 patrocinador" : `ganha ${grupo.vinculos.length} patrocinadores`}
+                          </p>
+                        </div>
+                      </header>
+                      <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                        {grupo.vinculos.map((vinculo, i) => (
+                          <LinhaDoVinculo key={`${vinculo.eventId}-${vinculo.sponsorId}`} vinculo={vinculo} primeira={i === 0} />
+                        ))}
+                      </ul>
+                    </article>
+                  ))}
                 </div>
-                <div style={{ minWidth: "min(220px, 100%)" }}>
-                  <span style={rotulo}>Patrocinador</span>
-                  <strong style={{ display: "block", marginTop: 3, color: TOM.info.text, fontSize: FS.read }}>{vinculo.sponsorName}</strong>
-                </div>
-                <div style={{ flex: "1 1 260px", color: T.second, fontSize: FS.meta }}>
-                  Presente em {vinculo.provas.length} peça(s):{" "}
-                  <span style={{ color: T.text, overflowWrap: "anywhere" }}>{vinculo.provas.slice(0, 8).join(", ")}{vinculo.provas.length > 8 ? "…" : ""}</span>
-                </div>
-              </article>
-            ))}
-          </div>
+              </section>
+            </>
+          ) : !resultado ? (
+            <NadaPendente
+              titulo="Nenhum vínculo pendente"
+              descricao="O cadastro de patrocinadores já bate com as peças ativas: toda marca que aparece numa peça está vinculada ao evento."
+              hrefDosLogs={LOGS}
+              rotuloDosLogs="Ver vínculos já criados"
+            />
+          ) : null}
         </>
       )}
       {dialogo}
-    </main>
+    </CascaDaFerramenta>
+  );
+}
+
+/** Um patrocinador a vincular e as peças que provam. Pela largura do conteúdo. */
+function LinhaDoVinculo({ vinculo, primeira }: { vinculo: Vinculo; primeira: boolean }) {
+  const estreito = useLarguraDaCasca() < 640;
+  return (
+    <li style={{ display: "grid", gridTemplateColumns: estreito ? "1fr" : "minmax(200px, 300px) 1fr", gap: estreito ? 10 : 24, alignItems: "start", padding: "14px 18px", borderTop: primeira ? undefined : `1px solid ${T.border}` }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 9, minWidth: 0 }}>
+        <Link2 aria-hidden="true" style={{ width: 15, height: 15, flexShrink: 0, marginTop: 2, color: TOM.info.text }} />
+        <div style={{ minWidth: 0 }}>
+          <strong style={{ display: "block", fontSize: FS.read, fontWeight: FW.forte, color: T.text, overflowWrap: "anywhere" }}>{vinculo.sponsorName}</strong>
+          <span style={{ display: "block", marginTop: 2, fontSize: FS.meta, color: T.second }}>
+            Presente em <span style={{ fontFamily: FONT.mono, fontWeight: FW.forte, color: T.apoio }}>{vinculo.provas.length}</span> {vinculo.provas.length === 1 ? "peça" : "peças"}
+          </span>
+        </div>
+      </div>
+      <ChipsDeIds ids={vinculo.provas} limite={estreito ? 6 : 10} />
+    </li>
   );
 }

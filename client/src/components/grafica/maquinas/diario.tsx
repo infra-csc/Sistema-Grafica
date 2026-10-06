@@ -39,16 +39,16 @@ export const LinhaDoDiario = memo(function LinhaDoDiario({ l, mostrarMaquina, is
 
   if (emCartao) {
     return (
-      <div data-testid={`linha-diario-${l.id}`} style={{ padding: "10px 14px", borderTop: `1px solid ${T.low}`, display: "flex", flexDirection: "column", gap: 6 }}>
+      <div data-testid={`linha-diario-${l.id}`} style={{ padding: "12px 14px", borderTop: `1px solid ${T.low}`, display: "flex", flexDirection: "column", gap: 4 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <span style={{ fontFamily: MONO, fontSize: FS.meta, color: T.second, fontVariantNumeric: "tabular-nums" }}>{l.hora}</span>
           <Pilula pal={meta.pal} fonte={isMobile ? 12 : FS.small}>{meta.rotulo}</Pilula>
           {mostrarMaquina && <span style={{ fontSize: FS.meta, color: T.second }}>{l.rotuloMaquina}</span>}
         </div>
-        <div style={{ fontSize: FS.body, color: T.text, fontWeight: FW.forte }}>{texto}</div>
+        {/* O que aconteceu, a peça (abre a ficha) e o apoio numa linha só. */}
+        <div style={{ fontSize: FS.body, color: T.text, fontWeight: l.tipo === "parcial" || l.tipo === "conclusao" ? FW.forte : FW.medio, lineHeight: 1.4 }}>{texto}</div>
         <TituloDaPeca id={l.itemId} codigo={l.displayId} tipo={l.tipoPeca} descricao={l.descricaoPeca} isMobile fonte={FS.body} testId={`nome-diario-${l.id}`} />
-        {l.evento && <span style={{ fontSize: FS.meta, color: T.second, overflowWrap: "anywhere" }}>{l.evento}</span>}
-        <span style={{ fontSize: FS.meta, color: T.second }}>{l.quem ?? "—"}</span>
+        <span style={{ fontSize: FS.meta, color: T.second, overflowWrap: "anywhere", lineHeight: 1.4 }}>{[l.evento, l.quem ?? "—"].filter(Boolean).join(" · ")}</span>
       </div>
     );
   }
@@ -98,26 +98,30 @@ export function AbaDiario({ isMobile, alvo, dia, hoje, ehHoje, maquinas, maquina
         </div>
 
         {dia && hoje && (
-          <div role="group" aria-label="Escolher o dia" data-testid="navegar-dia" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <button type="button" className="mq-acao" onClick={() => irParaDia(somarDias(dia, -1))} aria-label="Dia anterior" data-testid="dia-anterior" style={botaoIcone}>
-              <ChevronLeft aria-hidden="true" style={{ width: 15, height: 15 }} />
-            </button>
-            <span aria-live="polite" style={{ minWidth: 92, textAlign: "center", fontSize: FS.body, fontWeight: FW.forte, color: T.text }}>{rotuloDoDia(dia, hoje)}</span>
-            <button type="button" className="mq-acao" onClick={() => irParaDia(somarDias(dia, 1))} disabled={ehHoje} aria-label="Próximo dia" title={ehHoje ? "Já está em hoje" : undefined} data-testid="dia-seguinte" style={{ ...botaoIcone, cursor: ehHoje ? "not-allowed" : "pointer", opacity: ehHoje ? 0.4 : 1 }}>
-              <ChevronRight aria-hidden="true" style={{ width: 15, height: 15 }} />
-            </button>
+          <div role="group" aria-label="Escolher o dia" data-testid="navegar-dia" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", ...(isMobile ? { flex: "1 1 100%" } : {}) }}>
+            {/* ‹ dia › numa peça só: a seta e o dia que ela muda andam juntos. */}
+            <div style={{ display: "inline-flex", alignItems: "stretch", border: `1px solid ${T.bdark}`, borderRadius: R.md, background: T.surface, overflow: "hidden", ...(isMobile ? { flex: "1 1 auto" } : {}) }}>
+              <button type="button" className="maq-nav" onClick={() => irParaDia(somarDias(dia, -1))} aria-label="Dia anterior" data-testid="dia-anterior" style={{ ...botaoIcone, border: "none", borderRadius: 0, borderRight: `1px solid ${T.border}` }}>
+                <ChevronLeft aria-hidden="true" style={{ width: 16, height: 16 }} />
+              </button>
+              <span aria-live="polite" style={{ minWidth: 96, flex: isMobile ? "1 1 auto" : undefined, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 10px", fontFamily: GROTESK, fontSize: FS.body, fontWeight: FW.forte, color: T.text, fontVariantNumeric: "tabular-nums" }}>{rotuloDoDia(dia, hoje)}</span>
+              <button type="button" className="maq-nav" onClick={() => irParaDia(somarDias(dia, 1))} disabled={ehHoje} aria-label="Próximo dia" title={ehHoje ? "Já está em hoje" : undefined} data-testid="dia-seguinte" style={{ ...botaoIcone, border: "none", borderRadius: 0, borderLeft: `1px solid ${T.border}`, cursor: ehHoje ? "not-allowed" : "pointer", color: ehHoje ? T.muted : T.text }}>
+                <ChevronRight aria-hidden="true" style={{ width: 16, height: 16 }} />
+              </button>
+            </div>
             <input
-              type="date"
+              type="date" className="maq-campo"
               value={dia}
               max={hoje}
               onChange={(e) => { if (e.target.value) irParaDia(e.target.value); }}
               aria-label="Ir para uma data"
               data-testid="escolher-data"
-              style={{ height: alvo, borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, padding: "0 8px", fontSize: isMobile ? 16 : 12.5, color: T.text }}
+              style={{ height: alvo, boxSizing: "border-box", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, padding: "0 8px", fontSize: isMobile ? 16 : FS.body, color: T.text, fontFamily: "inherit" }}
             />
-            {!ehHoje && (
-              <Botao variante="primario" tamanho="sm" onClick={() => escreverURL({ dia: null })} data-testid="dia-hoje" style={{ minHeight: alvo }}>
-                Hoje
+            {/* Dia sem lançamento: o "Voltar para hoje" já está no vazio, logo abaixo. */}
+            {!ehHoje && diario.length > 0 && (
+              <Botao variante="secundarioForte" tamanho="sm" onClick={() => escreverURL({ dia: null })} data-testid="dia-hoje" style={{ minHeight: alvo }}>
+                Voltar para hoje
               </Botao>
             )}
           </div>

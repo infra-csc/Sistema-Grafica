@@ -35,7 +35,7 @@ export const LinhaDaFilaGeral = memo(function LinhaDaFilaGeral({ p, marcada, pod
   const prazo = prazoDaPeca(p.saidaCaminhao, p.prazoProducaoGrafica);
   const direcionamento = textoDoDirecionamento(p.reserva, p.semImpressora, p.imprimindoEm);
   return (
-    <div data-testid={`fila-peca-${p.id}`} className="mq-peca" style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", gap: isMobile ? 8 : 10, padding: isMobile ? "10px 12px" : "6px 14px", borderTop: `1px solid ${T.low}`, flexWrap: "wrap" }}>
+    <div data-testid={`fila-peca-${p.id}`} data-marcada={marcada || undefined} className="mq-peca" style={{ ...(marcada ? { background: T.low, boxShadow: `inset 3px 0 0 ${T.text}` } : {}), display: "flex", alignItems: isMobile ? "flex-start" : "center", gap: isMobile ? 8 : 10, padding: isMobile ? "10px 12px" : "6px 14px", borderTop: `1px solid ${T.low}`, flexWrap: "wrap" }}>
       {podeAgir && (
         <label style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: alvo, minWidth: alvoDe(28, toque), flexShrink: 0, cursor: selo ? "not-allowed" : "pointer" }}>
           <input type="checkbox" checked={marcada} disabled={!!selo} onChange={() => onAlternar(p.id)} aria-label={`Selecionar ${p.displayId ?? "peça"}`} data-testid={`selecionar-fila-${p.id}`} style={{ width: isMobile ? 22 : 18, height: isMobile ? 22 : 18, accentColor: T.text }} />

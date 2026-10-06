@@ -61,13 +61,13 @@ export function ControleDeReserva({ id, codigoDaPeca, semImpressora, disabled, a
     : null;
   return (
     <div role="group" aria-label="Reservar impressora" data-testid={`controle-reserva-${id}`} style={{ display: isMobile ? "flex" : "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap", ...(isMobile ? { flex: "1 1 100%", width: "100%" } : {}) }}>
-      <select aria-label="Impressora" value={maquina} disabled={disabled} onChange={(e) => { setMaquina(e.target.value); setConfirmando(false); }} data-testid={`reservar-fila-${id}`} style={{ ...campo, padding: "0 8px", cursor: disabled ? "not-allowed" : "pointer", maxWidth: "100%", ...(isMobile ? { flex: "1 1 100%", width: "100%" } : {}) }}>
+      <select className="maq-campo" aria-label="Impressora" value={maquina} disabled={disabled} onChange={(e) => { setMaquina(e.target.value); setConfirmando(false); }} data-testid={`reservar-fila-${id}`} style={{ ...campo, padding: "0 8px", cursor: disabled ? "not-allowed" : "pointer", maxWidth: "100%", ...(isMobile ? { flex: "1 1 100%", width: "100%" } : {}) }}>
         <option value="">Impressora…</option>
         {impressorasComLivresPrimeiro(ocupacao).map((m) => (
           <option key={m} value={m}>{rotuloDaMaquina(m)}{onImprimir ? ((ocupacao[m]?.n ?? 0) > 0 ? ` — imprimindo ${ocupacao[m].primeira ?? ocupacao[m].n}` : " — livre") : ""}</option>
         ))}
       </select>
-      <input
+      <input className="maq-campo"
         type="number" inputMode="numeric" pattern="[0-9]*" min={1} max={semImpressora}
         value={qtd} placeholder={String(semImpressora)} disabled={disabled}
         onChange={(e) => setQtd(e.target.value === "" ? "" : Math.max(0, parseInt(e.target.value) || 0))}
@@ -79,7 +79,9 @@ export function ControleDeReserva({ id, codigoDaPeca, semImpressora, disabled, a
       />
       {onImprimir && (
         <Botao
-          variante="primario"
+          // Sólido só quando dá para imprimir (impressora livre escolhida): apagado
+          // e cheio em cada linha da fila, ele virava uma coluna de blocos cinza.
+          variante={maquina && !ocupada && valida && !disabled ? "primario" : "secundario"}
           icone={Play}
           carregando={imprimindo}
           disabled={disabled || imprimindo || !maquina || !valida || ocupada}
@@ -119,8 +121,9 @@ export function ControleDeReserva({ id, codigoDaPeca, semImpressora, disabled, a
         </span>
       )}
       {confirmando && ocupada && atual && (
-        <div role="alertdialog" aria-label="Trocar a peça da impressora" data-testid={`confirmar-troca-${id}`} style={{ flex: "1 1 100%", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "8px 10px", borderRadius: R.md, background: AMBAR.bg, border: `1px solid ${AMBAR.border}`, color: AMBAR.text, fontSize: isMobile ? 13 : 12, lineHeight: 1.45 }}>
-          <span style={{ flex: "1 1 240px", fontWeight: FW.forte }}>{perguntaDaTroca(atual, codigoDaPeca ?? null, maquina)}</span>
+        <div role="alertdialog" aria-label="Trocar a peça da impressora" className="maq-entra" data-testid={`confirmar-troca-${id}`} style={{ flex: "1 1 100%", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "10px 12px", borderRadius: R.md, background: AMBAR.bg, border: `1px solid ${AMBAR.border}`, color: AMBAR.text, fontSize: isMobile ? 13 : 12, lineHeight: 1.45 }}>
+          <strong style={{ flex: "1 1 100%", fontSize: isMobile ? 14 : FS.body, color: T.text }}>Trocar a peça da {rotuloDaMaquina(maquina)}?</strong>
+          <span style={{ flex: "1 1 240px", fontWeight: FW.medio }}>{perguntaDaTroca(atual, codigoDaPeca ?? null, maquina)}</span>
           <Botao variante="primario" disabled={disabled || imprimindo} onClick={trocar} data-testid={`button-trocar-${id}`} style={{ minHeight: alvo, padding: "0 14px", fontSize: letra, ...(isMobile ? { flex: "1 1 100%" } : {}) }}>Trocar</Botao>
           <Botao variante="secundario" onClick={() => setConfirmando(false)} data-testid={`button-cancelar-troca-${id}`} style={{ minHeight: alvo, padding: "0 12px", fontSize: letra, ...(isMobile ? { flex: "1 1 100%" } : {}) }}>Cancelar</Botao>
         </div>

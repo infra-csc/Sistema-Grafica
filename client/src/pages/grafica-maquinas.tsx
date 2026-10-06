@@ -34,6 +34,7 @@ import { AlertTriangle, ArrowLeft, ArrowRight, HelpCircle, Printer, RotateCcw } 
 import { useIsMobile, useDensidadeDoConteudo, densityFromWidth, usePonteiroGrosso, alvo as alvoDe } from "@/hooks/use-mobile";
 import { Botao } from "@/components/ui/botao";
 import { Abas } from "@/components/ui/abas";
+import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
 import { EstadoVazio } from "@/components/ui/estados";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/contexts/auth-context";
@@ -49,7 +50,7 @@ import { invalidarGraficaEMaquinas } from "@/lib/tempo-real-grafica";
 import { intervaloDePolling } from "@/hooks/use-websocket";
 import { ocupacaoDasImpressoras, linkDaPecaNaGrafica } from "@shared/progresso-da-impressao";
 import {
-  ABAS, AMBAR, CSS_DA_TELA, GRAFICA_EM_IMPRESSAO, GRAFICA_LIBERADOS, INICIO_DO_DIARIO, LENTO_APOS_MS, LOTE, TITULO, VERMELHO,
+  ABAS, AMBAR, CSS_DA_TELA, GRAFICA_EM_IMPRESSAO, GRAFICA_LIBERADOS, GROTESK, IMP, INICIO_DO_DIARIO, LENTO_APOS_MS, LIVRE, LOTE, TITULO, VERMELHO,
 } from "@/components/grafica/maquinas/constantes";
 import { FichaContext, ToqueContext } from "@/components/grafica/maquinas/contexto";
 import {
@@ -421,6 +422,36 @@ export default function GraficaMaquinas() {
     </div>
   ) : null;
 
+  // O "?" da linha de estado: o que a tela mostra (e, para quem age, o que dá
+  // para fazer) + a legenda das cores do cartão — à mão, sem ocupar a tela.
+  const botaoComoFunciona = (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="mq-acao"
+          aria-label="O que a tela Máquinas mostra e o que dá para fazer nela"
+          data-testid="button-como-funciona-maquinas"
+          style={{ width: alvoDe(28, toque), height: alvoDe(28, toque), borderRadius: R.pill, border: "1px solid transparent", background: "transparent", color: T.apoio, display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, margin: "-4px 0", verticalAlign: "middle" }}
+        >
+          <HelpCircle aria-hidden="true" style={{ width: 16, height: 16 }} />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" data-testid="explicacao-maquinas" style={{ width: 320, maxWidth: "calc(100vw - 32px)", padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+        <p style={{ margin: 0, fontFamily: GROTESK, fontSize: FS.strong, fontWeight: FW.forte, color: T.text }}>Como funciona</p>
+        <p style={{ margin: 0, fontSize: FS.body, color: T.strong, lineHeight: 1.5 }}>
+          O que cada impressora está imprimindo agora, a fila do que vem, o resumo do período e o diário do que saiu de cada uma.
+          {podeAgir && " Daqui você reserva impressora, inicia, informa as impressas, manda para o acabamento ou troca de máquina."}
+        </p>
+        <div aria-hidden="true" style={{ display: "flex", gap: 14, flexWrap: "wrap", paddingTop: 10, borderTop: `1px solid ${T.border}`, fontSize: FS.meta, color: T.apoio }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 14, height: 4, borderRadius: R.pill, background: IMP.dot }} />Imprimindo</span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 14, height: 4, borderRadius: R.pill, background: LIVRE.dot }} />Livre</span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 14, height: 4, borderRadius: R.pill, background: AMBAR.dot }} />Atenção</span>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+
   return (
     <ToqueContext.Provider value={toque}>
     <FichaContext.Provider value={abrirFicha}>
@@ -436,52 +467,42 @@ export default function GraficaMaquinas() {
       }}
     >
       <style>{CSS_DA_TELA}</style>
-      <div ref={medida.ref} style={{ maxWidth: 1180, margin: "0 auto", display: "flex", flexDirection: "column", gap: isMobile ? 18 : 24 }}>
+      <div ref={medida.ref} style={{ maxWidth: 1400, margin: "0 auto", display: "flex", flexDirection: "column", gap: isMobile ? 18 : 24 }}>
 
         {/* ── Cabeçalho: onde estou, o que a tela faz, atalhos ── */}
-        <header style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <Link href="/grafica" data-testid="link-voltar-fila" className="mq-link" style={{ display: "inline-flex", alignItems: "center", gap: 5, minHeight: toque ? 44 : undefined, fontSize: isMobile ? 12 : FS.small, fontWeight: FW.forte, color: T.second, textDecoration: "none", width: "fit-content" }}>
+        <header style={{ display: "flex", flexDirection: "column", gap: isMobile ? 2 : 4 }}>
+          <Link href="/grafica" data-testid="link-voltar-fila" className="mq-link" style={{ display: "inline-flex", alignItems: "center", gap: 5, minHeight: toque ? 44 : 24, fontSize: isMobile ? 12 : FS.meta, fontWeight: FW.forte, color: T.apoio, textDecoration: "none", width: "fit-content" }}>
             <ArrowLeft aria-hidden="true" style={{ width: 13, height: 13 }} /> Fila da Gráfica
           </Link>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-            <h1 style={{ ...TITULO, fontSize: isMobile ? 22 : FS.h1, display: "flex", alignItems: "center", gap: 10 }}>
-              <Printer aria-hidden="true" style={{ width: isMobile ? 18 : 22, height: isMobile ? 18 : 22, color: T.accentText }} />
-              Máquinas
-            </h1>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-              {data && <Atualizado em={dataUpdatedAt} buscando={isFetching && !isLoading} fonte={isMobile ? 12 : FS.small} />}
-              <Link href={GRAFICA_EM_IMPRESSAO} data-testid="link-grafica-em-impressao" className="mq-acao" title='Abrir a fila da Gráfica já filtrada em "Em Impressão"' style={botaoNeutro}>
-                Em impressão na Gráfica <ArrowRight aria-hidden="true" style={{ width: 12, height: 12, color: T.accentText }} />
-              </Link>
-            </div>
-          </div>
-          {/* UMA linha de ESTADO, como o subtítulo das outras telas; o que a
-              tela faz mora no "?" ao lado (à mão, sem ocupar três linhas). */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: FS.body, lineHeight: 1.45, color: T.second }}>
-            {data && (
-              <span data-testid="estado-maquinas">
-                {`${impressorasImprimindo} de ${maquinas.length} impressoras imprimindo · ${plural(liberadasNaTela, "peça", "peças")} na fila`}
+          {/* A régua de toda tela (CabecalhoDaPagina): ONDE ESTOU, COMO ESTÁ
+              (a linha de estado + o "Atualizado"), O QUE POSSO FAZER. O que a
+              tela faz mora no "?" ao lado do estado. */}
+          <CabecalhoDaPagina
+            titulo="Máquinas"
+            semMargem
+            subtitulo={(
+              <span>
+                {data && (
+                  <span data-testid="estado-maquinas" style={{ color: T.strong, fontVariantNumeric: "tabular-nums", marginRight: 4 }}>
+                    <span aria-hidden="true" style={{ display: "inline-block", width: 8, height: 8, marginRight: 7, verticalAlign: "1px", borderRadius: R.pill, background: impressorasImprimindo > 0 ? IMP.dot : LIVRE.dot }} />
+                    {`${impressorasImprimindo} de ${maquinas.length} impressoras imprimindo · ${plural(liberadasNaTela, "peça", "peças")} na fila`}
+                  </span>
+                )}
+                {!data && (
+                  <span data-testid="estado-maquinas-carregando" style={{ marginRight: 4 }}>
+                    {isError ? "Sem o retrato das impressoras" : "Carregando as impressoras…"}
+                  </span>
+                )}
+                {botaoComoFunciona}
               </span>
             )}
-            <Popover>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  aria-label="O que a tela Máquinas mostra e o que dá para fazer nela"
-                  data-testid="button-como-funciona-maquinas"
-                  style={{ width: alvoDe(28, toque), height: alvoDe(28, toque), borderRadius: R.pill, border: "none", background: "transparent", color: T.apoio, display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, margin: "-4px 0" }}
-                >
-                  <HelpCircle aria-hidden="true" style={{ width: 16, height: 16 }} />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent align="start" data-testid="explicacao-maquinas" style={{ width: 300, maxWidth: "calc(100vw - 32px)", padding: 14 }}>
-                <p style={{ margin: 0, fontSize: FS.body, color: T.strong, lineHeight: 1.5 }}>
-                  O que cada impressora está imprimindo agora, a fila do que vem, o resumo do período e o diário do que saiu de cada uma.
-                  {podeAgir && " Daqui você reserva impressora, inicia, informa as impressas, manda para o acabamento ou troca de máquina."}
-                </p>
-              </PopoverContent>
-            </Popover>
-          </div>
+            frescor={data ? <Atualizado em={dataUpdatedAt} buscando={isFetching && !isLoading} fonte={isMobile ? 12 : FS.meta} /> : undefined}
+            acoes={(
+              <Link href={GRAFICA_EM_IMPRESSAO} data-testid="link-grafica-em-impressao" className="mq-acao" title='Abrir a fila da Gráfica já filtrada em "Em Impressão"' style={botaoNeutro}>
+                Em impressão na Gráfica <ArrowRight aria-hidden="true" className="mq-seta" style={{ width: 12, height: 12, color: T.accentText }} />
+              </Link>
+            )}
+          />
         </header>
 
         {/* As abas: o MESMO <Abas> da Gráfica (Fila | Tubos) e da aba Tubos —
@@ -503,9 +524,12 @@ export default function GraficaMaquinas() {
         {isLoading && <Esqueleto lento={lento} />}
 
         {isError && !data && (
-          <div role="alert" data-testid="maquinas-erro" style={{ padding: "14px 16px", borderRadius: R.lg, background: VERMELHO.bg, border: `1px solid ${VERMELHO.border}`, color: VERMELHO.text, fontSize: FS.body, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-            <span>{ehServidorNaVersaoAnterior(error) ? AVISO_SERVIDOR_ANTIGO : "Não foi possível carregar as máquinas. Confira a conexão e tente de novo."}</span>
-            <Botao variante="secundario" icone={RotateCcw} onClick={() => refetch()} data-testid="button-tentar-novamente" style={{ minHeight: alvo }}>
+          <div role="alert" data-testid="maquinas-erro" style={{ padding: isMobile ? "14px" : "16px 18px", borderRadius: R.lg, background: VERMELHO.bg, border: `1px solid ${VERMELHO.border}`, color: VERMELHO.text, fontSize: FS.body, lineHeight: 1.5, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <span style={{ display: "flex", gap: 10, alignItems: "flex-start", flex: "1 1 260px", minWidth: 0 }}>
+              <AlertTriangle aria-hidden="true" style={{ width: 18, height: 18, flexShrink: 0, marginTop: 1 }} />
+              <span>{ehServidorNaVersaoAnterior(error) ? AVISO_SERVIDOR_ANTIGO : <><strong style={{ display: "block", color: VERMELHO.text }}>Não foi possível carregar as máquinas.</strong>Confira a conexão e tente de novo — o resto do sistema segue funcionando.</>}</span>
+            </span>
+            <Botao variante="secundarioForte" icone={RotateCcw} carregando={isFetching} onClick={() => refetch()} data-testid="button-tentar-novamente" style={{ minHeight: alvo, ...(isMobile ? { flex: "1 1 100%" } : {}) }}>
               Tentar novamente
             </Botao>
           </div>
@@ -523,15 +547,15 @@ export default function GraficaMaquinas() {
             {aba === "agora" && (
             <section id="painel-maquinas" role="tabpanel" aria-label="Agora" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-                <h2 id="titulo-agora" style={{ ...TITULO, fontSize: FS.title }}>Agora</h2>
+                <h2 id="titulo-agora" style={{ ...TITULO, fontSize: FS.title }}>Impressoras</h2>
                 <span data-testid="resumo-agora" style={{ fontSize: FS.body, color: T.second }}>
                   {totalImprimindo === 0 ? "nenhuma peça em impressão" : `${plural(totalImprimindo, "peça", "peças")} em impressão`}
                 </span>
               </div>
 
               {data.semMaquina.length > 0 && (
-                <div role="status" data-testid="sem-maquina" style={{ padding: "11px 14px", borderRadius: R.lg, background: AMBAR.bg, border: `1px solid ${AMBAR.border}`, color: AMBAR.text, fontSize: isMobile ? 13 : 12.5, lineHeight: 1.5, display: "flex", gap: 8 }}>
-                  <AlertTriangle aria-hidden="true" style={{ width: 15, height: 15, flexShrink: 0, marginTop: 2 }} />
+                <div role="status" data-testid="sem-maquina" style={{ padding: "12px 14px", borderRadius: R.lg, background: AMBAR.bg, border: `1px solid ${AMBAR.border}`, color: AMBAR.text, fontSize: FS.body, lineHeight: 1.5, display: "flex", gap: 10 }}>
+                  <AlertTriangle aria-hidden="true" style={{ width: 16, height: 16, flexShrink: 0, marginTop: 2 }} />
                   <span>
                     <strong>{plural(data.semMaquina.length, "peça está", "peças estão")} em impressão sem máquina anotada</strong> — foram
                     iniciadas antes do controle por máquina. Abra na fila e escolha a impressora:{" "}
@@ -569,13 +593,17 @@ export default function GraficaMaquinas() {
                   </div>
                   {!isMobile && barraDoLote}
                 </div>
-                <p style={{ margin: 0, fontSize: FS.body, color: T.second, maxWidth: 680 }}>
+                {/* A regra da fila, numa nota só (antes eram dois parágrafos soltos
+                    disputando com o título): o que reservar faz, e a conta. */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, maxWidth: 720, paddingLeft: 12, borderLeft: `2px solid ${T.border}`, marginTop: -4 }}>
+                <p style={{ margin: 0, fontSize: FS.body, color: T.apoio, lineHeight: 1.5 }}>
                   Reservar só organiza a fila desta tela: a peça continua liberada na Gráfica até alguém iniciar a impressão.
                 </p>
-                <p data-testid="relacao-liberados" style={{ margin: 0, fontSize: isMobile ? 12 : FS.small, color: T.second, maxWidth: 680 }}>
+                <p data-testid="relacao-liberados" style={{ margin: 0, fontSize: isMobile ? 12 : FS.meta, color: T.second, lineHeight: 1.5 }}>
                   {`${plural(liberadasNaTela, "peça liberada", "peças liberadas")} ao todo — é o "Liberados" da Gráfica. `}
                   Uma peça com parte reservada e parte sem impressora aparece aqui e num cartão; a que já imprime só uma parte continua na fila com o resto.
                 </p>
+                </div>
                 <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, overflow: "hidden" }}>
                   {filaGeral.length === 0 ? (
                     <div data-testid="fila-vazia">
@@ -586,7 +614,7 @@ export default function GraficaMaquinas() {
                         descricao="Quando a Revisão Final liberar, elas aparecem aqui para você reservar uma impressora."
                         acao={(
                           <Link href={GRAFICA_LIBERADOS} className="mq-acao" data-testid="link-fila-ver-na-grafica" style={botaoNeutro}>
-                            Ver na Gráfica <ArrowRight aria-hidden="true" style={{ width: 12, height: 12, color: T.accentText }} />
+                            Ver na Gráfica <ArrowRight aria-hidden="true" className="mq-seta" style={{ width: 12, height: 12, color: T.accentText }} />
                           </Link>
                         )}
                       />

@@ -4,7 +4,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { Fragment } from "react";
 import type { UseQueryResult } from "@tanstack/react-query";
-import { Download, Printer, RotateCcw } from "lucide-react";
+import { AlertTriangle, Download, Printer, RotateCcw } from "lucide-react";
 import { Botao } from "@/components/ui/botao";
 import { EstadoVazio } from "@/components/ui/estados";
 import { T, FS, FW, R } from "@/lib/theme";
@@ -16,7 +16,8 @@ import type { Periodo, Relatorio, ResumoDaMaquinaNoDia, ResumoDoDia } from "./ti
 // O relatório diário da operação. Num dia só, uma tabela com as
 // quatro impressoras e o total; em semana/mês/intervalo, um bloco por dia. Em
 // tela estreita, cartões — os mesmos números, sem coluna cortada.
-export function ResumoDoPeriodo({ dias, emCartoes, isMobile, hoje, onVerDiario }: {
+export function ResumoDoPeriodo({ dias, emCartoes, isMobile, hoje, onVerDiario, umDia = true }: {
+  /** O período escolhido é um dia só (o fecho diz "do dia"); senão, quantos dias tiveram impressão. */ umDia?: boolean;
   dias: ResumoDoDia[]; emCartoes: boolean; isMobile: boolean; hoje: string; onVerDiario: (dia: string, maquina: string) => void;
 }) {
   const th: React.CSSProperties = { padding: "9px 12px", ...ROTULO_MICRO, whiteSpace: "nowrap", textAlign: "left" };
@@ -52,7 +53,7 @@ export function ResumoDoPeriodo({ dias, emCartoes, isMobile, hoje, onVerDiario }
                   ) : (
                     <>
                       <span style={{ fontSize: isMobile ? 12 : FS.small, color: T.second, fontVariantNumeric: "tabular-nums" }}>
-                        <strong style={{ color: IMP.text }}>{m.unidades} un.</strong> · {plural(m.pecas, "peça", "peças")} · {m.concluidas} concl. · {m.aindaNaMaquina} na máquina
+                        <strong style={{ color: m.unidades > 0 ? IMP.text : T.strong }}>{m.unidades} un.</strong> · {plural(m.pecas, "peça", "peças")} · {m.concluidas} concl. · {m.aindaNaMaquina} na máquina
                       </span>
                       <span style={{ fontSize: isMobile ? 12 : FS.small, color: T.second, fontVariantNumeric: "tabular-nums" }}>
                         {m.primeira} → {m.ultima} · {duracaoCurta(m.minutosAtivos)}{m.quem.length ? ` · ${m.quem.join(", ")}` : ""}
@@ -122,7 +123,7 @@ export function ResumoDoPeriodo({ dias, emCartoes, isMobile, hoje, onVerDiario }
         </tbody>
       </table>
       <div data-testid="fecho-resumo" style={{ padding: "8px 14px", borderTop: `1px solid ${T.low}`, background: T.bg, textAlign: "center", fontSize: FS.small, color: T.second, fontVariantNumeric: "tabular-nums" }}>
-        {dias.length === 1 ? "Fim do resumo do dia" : `Fim do resumo · ${dias.length} dias`}
+        {umDia && dias.length === 1 ? "Fim do resumo do dia" : `Fim do resumo · ${plural(dias.length, "dia com impressão", "dias com impressão")}`}
       </div>
     </div>
   );
@@ -158,7 +159,7 @@ export function AbaResumo({ isMobile, alvo, periodo, intervalo, dia, hoje, ehHoj
                 <button
                   key={p.valor}
                   type="button"
-                  className="mq-chip"
+                  className="maq-seg"
                   aria-pressed={ativo}
                   onClick={() => escreverURL({ periodo: p.valor === "dia" ? null : p.valor, ...(p.valor !== "intervalo" ? { de: null, ate: null } : {}) })}
                   data-testid={`periodo-${p.valor}`}
@@ -172,10 +173,10 @@ export function AbaResumo({ isMobile, alvo, periodo, intervalo, dia, hoje, ehHoj
           {periodo === "intervalo" && intervalo && hoje && (
             <div role="group" aria-label="Intervalo de datas" style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               <label htmlFor="intervalo-de" className="sr-only">De</label>
-              <input id="intervalo-de" type="date" value={intervalo.de} max={intervalo.ate} data-testid="intervalo-de" onChange={(e) => { if (e.target.value) escreverURL({ de: e.target.value, ate: intervalo.ate }); }} style={{ height: alvo, borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, padding: "0 8px", fontSize: isMobile ? 16 : 12.5, color: T.text }} />
+              <input id="intervalo-de" className="maq-campo" type="date" value={intervalo.de} max={intervalo.ate} data-testid="intervalo-de" onChange={(e) => { if (e.target.value) escreverURL({ de: e.target.value, ate: intervalo.ate }); }} style={{ height: alvo, borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, padding: "0 8px", fontSize: isMobile ? 16 : 12.5, color: T.text }} />
               <span aria-hidden="true" style={{ fontSize: isMobile ? 12 : FS.small, color: T.second }}>a</span>
               <label htmlFor="intervalo-ate" className="sr-only">Até</label>
-              <input id="intervalo-ate" type="date" value={intervalo.ate} min={intervalo.de} max={hoje} data-testid="intervalo-ate" onChange={(e) => { if (e.target.value) escreverURL({ de: intervalo.de, ate: e.target.value }); }} style={{ height: alvo, borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, padding: "0 8px", fontSize: isMobile ? 16 : 12.5, color: T.text }} />
+              <input id="intervalo-ate" className="maq-campo" type="date" value={intervalo.ate} min={intervalo.de} max={hoje} data-testid="intervalo-ate" onChange={(e) => { if (e.target.value) escreverURL({ de: intervalo.de, ate: e.target.value }); }} style={{ height: alvo, borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, padding: "0 8px", fontSize: isMobile ? 16 : 12.5, color: T.text }} />
             </div>
           )}
           <Botao
@@ -200,9 +201,12 @@ export function AbaResumo({ isMobile, alvo, periodo, intervalo, dia, hoje, ehHoj
             {[0, 1, 2, 3].map((i) => <div key={i} className="animate-pulse" aria-hidden="true" style={{ height: 12, borderRadius: 4, background: T.border, width: `${70 - i * 8}%` }} />)}
           </div>
         ) : relatorio.isError && !relatorio.data ? (
-          <div role="alert" data-testid="resumo-erro" style={{ padding: "14px 16px", color: VERMELHO.text, fontSize: FS.body, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-            <span>{ehServidorNaVersaoAnterior(relatorio.error) ? AVISO_SERVIDOR_ANTIGO : "Não foi possível montar o resumo deste período."}</span>
-            <Botao variante="secundario" icone={RotateCcw} onClick={() => relatorio.refetch()} style={botaoNeutro}>Tentar novamente</Botao>
+          <div role="alert" data-testid="resumo-erro" style={{ margin: diarioEmCartoes ? 0 : 12, padding: "14px 16px", borderRadius: R.md, background: VERMELHO.bg, border: `1px solid ${VERMELHO.border}`, color: VERMELHO.text, fontSize: FS.body, lineHeight: 1.5, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <span style={{ display: "flex", gap: 10, alignItems: "flex-start", flex: "1 1 240px", minWidth: 0 }}>
+              <AlertTriangle aria-hidden="true" style={{ width: 17, height: 17, flexShrink: 0, marginTop: 1 }} />
+              <span>{ehServidorNaVersaoAnterior(relatorio.error) ? AVISO_SERVIDOR_ANTIGO : <><strong style={{ display: "block" }}>Não foi possível montar o resumo deste período.</strong>Confira a conexão e tente de novo.</>}</span>
+            </span>
+            <Botao variante="secundarioForte" icone={RotateCcw} carregando={relatorio.isFetching} onClick={() => relatorio.refetch()} data-testid="button-resumo-tentar" style={{ ...botaoNeutro, ...(isMobile ? { flex: "1 1 100%" } : {}) }}>Tentar novamente</Botao>
           </div>
         ) : relatorio.data && relatorio.data.dias.length === 0 ? (
           <div data-testid="resumo-vazio" style={{ padding: 12 }}>
@@ -221,6 +225,7 @@ export function AbaResumo({ isMobile, alvo, periodo, intervalo, dia, hoje, ehHoj
             emCartoes={diarioEmCartoes}
             isMobile={isMobile}
             hoje={relatorio.data.hoje}
+            umDia={periodo === "dia"}
             onVerDiario={(d, m) => escreverURL({ dia: hoje && d >= hoje ? null : d, maquina: m, aba: "diario" })}
           />
         ) : null}

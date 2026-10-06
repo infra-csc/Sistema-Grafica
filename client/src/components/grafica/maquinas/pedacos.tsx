@@ -34,7 +34,7 @@ export function TituloDaPeca({ id, codigo, tipo, descricao, isMobile, testId, fo
       aria-label={`Ver detalhes de ${codigo ?? "peça"}`}
       title={`${codigo ?? ""} ${nomeDaPeca(tipo, descricao)} — ver detalhes`.trim()}
       data-testid={testId}
-      style={{ border: "none", background: "transparent", padding: 0, margin: 0, font: "inherit", textAlign: "left", cursor: "pointer", color: T.text, fontSize: fonte, fontWeight: FW.forte, lineHeight: 1.3, minWidth: 0, maxWidth: "100%", minHeight: toque && !emLinha ? 44 : undefined, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}
+      style={{ border: "none", background: "transparent", padding: 0, margin: toque && !emLinha ? "-6px 0" : 0, font: "inherit", textAlign: "left", cursor: "pointer", color: T.text, fontSize: fonte, fontWeight: FW.forte, lineHeight: 1.3, minWidth: 0, maxWidth: "100%", minHeight: toque && !emLinha ? 44 : undefined, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}
     >
       <span style={{ fontFamily: MONO, color: T.accentText, marginRight: 6 }}>{codigo ?? "—"}</span>
       {nome.destaque}
@@ -65,7 +65,7 @@ export function Atualizado({ em, buscando, fonte }: { em: number; buscando: bool
     <span data-testid="atualizado-ha" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: fonte, color: T.second, whiteSpace: "nowrap" }}>
       {buscando
         ? <RotateCcw aria-hidden="true" className="animate-spin" style={{ width: 11, height: 11 }} />
-        : <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: R.pill, background: LIVRE.dot, flexShrink: 0 }} />}
+        : <span aria-hidden="true" className="maq-vivo" style={{ width: 7, height: 7, borderRadius: R.pill, background: LIVRE.dot, flexShrink: 0 }} />}
       {buscando ? "Atualizando…" : em ? `Atualizado ${fmtRelative(new Date(em).toISOString(), agora)}` : "Ao vivo"}
     </span>
   );
@@ -89,15 +89,16 @@ export function Esqueleto({ lento }: { lento: boolean }) {
     <div role="status" aria-busy="true" data-testid="maquinas-carregando" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <span className="sr-only">Carregando as máquinas…</span>
       {lento && (
-        <p data-testid="maquinas-lento" style={{ margin: 0, fontSize: FS.body, color: AMBAR.text }}>
+        <p data-testid="maquinas-lento" style={{ margin: 0, fontSize: FS.body, lineHeight: 1.5, color: AMBAR.text, background: AMBAR.bg, border: `1px solid ${AMBAR.border}`, borderRadius: R.md, padding: "10px 14px" }}>
           Está demorando mais que o normal. A conexão do galpão pode estar lenta — a tela carrega assim que responder.
         </p>
       )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 12 }}>
         {[0, 1, 2, 3].map((i) => (
-          <div key={i} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>{bloco(120, 14)}{bloco(56, 18, { borderRadius: R.pill })}</div>
-            {bloco("80%", 12)}{bloco("100%", 6, { borderRadius: R.pill })}{bloco("55%", 10)}
+          <div key={i} style={{ background: T.surface, border: `1px solid ${T.border}`, borderTop: `3px solid ${T.border}`, borderRadius: R.lg, padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>{bloco(36, 36, { borderRadius: R.md, flexShrink: 0 })}{bloco(110, 14)}{bloco(64, 20, { borderRadius: R.pill, marginLeft: "auto" })}</div>
+            <div style={{ display: "flex", gap: 10 }}>{bloco(52, 52, { borderRadius: R.md, flexShrink: 0 })}<div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, paddingTop: 4 }}>{bloco("85%", 12)}{bloco("60%", 10)}</div></div>
+            {bloco("100%", 8, { borderRadius: R.pill })}{bloco("100%", 36, { borderRadius: R.md })}
           </div>
         ))}
       </div>
@@ -128,11 +129,12 @@ export function SeloDePrazo({ p, fonte }: { p: { data: string; diff: number } | 
  * fila geral — no galpão, muitas vezes no celular, o menu nativo é o mais
  * confiável e já vem acessível. `excluir` tira a opção atual.
  */
-export function SeletorDeReserva({ valor, excluir, disabled, alvo, isMobile, testId, rotulo, onEscolher }: {
+export function SeletorDeReserva({ valor, excluir, disabled, alvo, isMobile, testId, rotulo, onEscolher, preencher = false }: {
+  /** Desktop: ocupa o resto da linha (ao lado da quantidade). */ preencher?: boolean;
   valor: string | null; excluir: string | null; disabled?: boolean; alvo: number; isMobile: boolean; testId: string; rotulo: string; onEscolher: (maquina: string | null) => void;
 }) {
   return (
-    <select
+    <select className="maq-campo"
       aria-label={rotulo}
       data-testid={testId}
       value=""
@@ -140,7 +142,7 @@ export function SeletorDeReserva({ valor, excluir, disabled, alvo, isMobile, tes
       onChange={(e) => { const v = e.target.value; if (v !== "") onEscolher(v === "geral" ? null : v); }}
       // Celular: 16px (sem zoom do iOS) e a linha inteira — o menu nativo
       // abre de um alvo de 44px que o dedo acha sem mirar.
-      style={{ minHeight: alvo, height: alvo, padding: "0 8px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: T.text, fontSize: isMobile ? 16 : 12, fontWeight: FW.forte, cursor: disabled ? "not-allowed" : "pointer", maxWidth: "100%", ...(isMobile ? { flex: "1 1 100%", width: "100%" } : {}) }}
+      style={{ minHeight: alvo, height: alvo, padding: "0 8px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: T.text, fontSize: isMobile ? 16 : 12, fontWeight: FW.forte, cursor: disabled ? "not-allowed" : "pointer", maxWidth: "100%", ...(isMobile ? { flex: "1 1 100%", width: "100%" } : preencher ? { flex: "1 1 0%", minWidth: 0 } : {}) }}
     >
       <option value="">{rotulo}</option>
       {MAQUINAS_DE_IMPRESSAO.filter((m) => m !== excluir).map((m) => (

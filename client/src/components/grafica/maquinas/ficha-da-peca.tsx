@@ -8,13 +8,13 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { ArrowRight, Eye, Loader2, RotateCcw } from "lucide-react";
+import { AlertTriangle, ArrowRight, Eye, Loader2, RotateCcw } from "lucide-react";
 import { Botao } from "@/components/ui/botao";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import type { PecaDaFila, RegistroDoHistorico } from "@/components/grafica/tipos";
-import { T, FS } from "@/lib/theme";
+import { T, FS, R } from "@/lib/theme";
 import { linkDaPecaNaGrafica } from "@shared/progresso-da-impressao";
 import { VERMELHO } from "./constantes";
 import { AVISO_SERVIDOR_ANTIGO, ehServidorNaVersaoAnterior } from "./regras";
@@ -47,11 +47,11 @@ export function FichaDaPeca({ fichaId, setFichaId, isMobile, botaoNeutro }: {
           <ModalHeader icon={Eye} tint={T.text} title="Detalhes da peça" subtitle={pecasDaGrafica.isError ? "Não foi possível carregar" : pecasDaGrafica.isFetching || pecasDaGrafica.isLoading ? "Carregando…" : "Peça não encontrada na fila"} onClose={() => setFichaId(null)} />
           <div style={{ padding: isMobile ? 16 : 24, display: "flex", flexDirection: "column", gap: 12, fontSize: FS.body, color: T.second }}>
             {pecasDaGrafica.isError ? (
-              <p role="alert" style={{ margin: 0, color: VERMELHO.text }}>{ehServidorNaVersaoAnterior(pecasDaGrafica.error) ? AVISO_SERVIDOR_ANTIGO : "Não foi possível carregar a ficha desta peça. Confira a conexão e tente de novo."}</p>
+              <p role="alert" style={{ margin: 0, color: VERMELHO.text, background: VERMELHO.bg, border: `1px solid ${VERMELHO.border}`, borderRadius: R.md, padding: "10px 12px", lineHeight: 1.5, display: "flex", gap: 8 }}><AlertTriangle aria-hidden="true" style={{ width: 15, height: 15, flexShrink: 0, marginTop: 2 }} />{ehServidorNaVersaoAnterior(pecasDaGrafica.error) ? AVISO_SERVIDOR_ANTIGO : "Não foi possível carregar a ficha desta peça. Confira a conexão e tente de novo."}</p>
             ) : pecasDaGrafica.isFetching || pecasDaGrafica.isLoading ? (
               <p role="status" aria-busy="true" style={{ margin: 0, display: "flex", alignItems: "center", gap: 8 }}><Loader2 aria-hidden="true" className="animate-spin" style={{ width: 14, height: 14 }} /> Buscando as informações da peça…</p>
             ) : (
-              <p role="status" style={{ margin: 0 }}>Esta peça não está mais na fila da Gráfica (pode ter sido concluída, cancelada ou devolvida).</p>
+              <p role="status" style={{ margin: 0, lineHeight: 1.5 }}>Esta peça não está mais na fila da Gráfica (pode ter sido concluída, cancelada ou devolvida).</p>
             )}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {pecasDaGrafica.isError && <Botao variante="secundario" icone={RotateCcw} onClick={() => pecasDaGrafica.refetch()} style={botaoNeutro}>Tentar novamente</Botao>}

@@ -53,7 +53,7 @@ export function SeletorDePeca({ maquina, reservadas, filaGeral, atualizando, hoj
       <DialogContent ref={superficieRef} className={HIDE_NATIVE_CLOSE} style={modalSurface(620)} data-testid="seletor-de-peca">
         <DialogTitle className="sr-only">Escolher peça para imprimir{maquina ? ` na ${maquina.rotulo}` : ""}</DialogTitle>
         <DialogDescription className="sr-only">Lista das peças liberadas; um toque abre a impressão nesta impressora.</DialogDescription>
-        <ModalHeader icon={Printer} tint={T.text} title={maquina ? `Imprimir na ${maquina.rotulo}` : "Escolher peça"} subtitle={total === 0 ? "Nenhuma peça liberada agora" : `${plural(total, "peça liberada", "peças liberadas")}${reservadas.length ? ` · ${reservadas.length} reservada${reservadas.length === 1 ? "" : "s"} para esta` : ""} — toque numa para iniciar`} onClose={onFechar} />
+        <ModalHeader icon={Printer} tint={T.text} title={maquina ? `Imprimir na ${maquina.rotulo}` : "Escolher peça"} subtitle={total === 0 ? "Nenhuma peça liberada agora" : `${plural(total, "peça liberada", "peças liberadas")}${reservadas.length ? ` · ${reservadas.length} reservada${reservadas.length === 1 ? "" : "s"} para esta` : ""} — ${toque ? "toque" : "clique"} numa para iniciar`} onClose={onFechar} />
         {maquina && (
           <div style={{ padding: padModal, display: "flex", flexDirection: "column", gap: 12, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -61,7 +61,7 @@ export function SeletorDePeca({ maquina, reservadas, filaGeral, atualizando, hoj
               <div style={{ flex: "1 1 220px", position: "relative", minWidth: 0 }}>
                 <Search aria-hidden="true" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: T.muted }} />
                 <input
-                  id="busca-peca"
+                  id="busca-peca" className="maq-campo"
                   type="search"
                   value={busca}
                   onChange={(e) => { setBusca(e.target.value); setVisiveis(LOTE_DO_SELETOR); }}
@@ -82,7 +82,9 @@ export function SeletorDePeca({ maquina, reservadas, filaGeral, atualizando, hoj
                 <EstadoVazio compacto icone={Printer} titulo="Nenhuma peça liberada agora." descricao="Quando a Arte liberar uma peça para a Gráfica, ela aparece aqui." />
               </div>
             ) : lista.length === 0 ? (
-              <p data-testid="seletor-sem-resultado" style={{ margin: 0, padding: "20px 8px", textAlign: "center", fontSize: FS.body, color: T.second }}>Nada bate com “{busca}”.</p>
+              <div data-testid="seletor-sem-resultado">
+                <EstadoVazio compacto icone={Search} titulo={`Nada bate com “${busca}”.`} descricao="Confira o código ou busque pelo nome do evento." acao={<Botao variante="secundarioForte" onClick={() => { setBusca(""); setVisiveis(LOTE_DO_SELETOR); }} data-testid="seletor-limpar-busca" style={{ minHeight: alvoDe(36, toque) }}>Limpar busca</Botao>} />
+              </div>
             ) : (
               <div role="list" data-testid="seletor-lista" style={{ display: "flex", flexDirection: "column", border: `1px solid ${T.border}`, borderRadius: R.lg, overflow: "hidden" }}>
                 {mostradas.map((p, i) => {
@@ -100,9 +102,12 @@ export function SeletorDePeca({ maquina, reservadas, filaGeral, atualizando, hoj
                     </>
                   );
                   return (
-                    <Fragment key={p.id}>
+                    <Fragment key={`${p.reservada ? "reservada" : "geral"}-${p.id}`}>
+                      {i === 0 && p.reservada && (
+                        <div style={{ ...ROTULO_MICRO, fontSize: isMobile ? 12 : FS.meta, padding: "8px 12px 4px", background: T.bg }}>Reservadas para esta impressora</div>
+                      )}
                       {cabecalhoGeral && reservadas.length > 0 && (
-                        <div style={{ ...ROTULO_MICRO, fontSize: isMobile ? 12 : FS.micro, padding: "8px 12px 4px", background: T.bg, borderTop: i ? `1px solid ${T.low}` : "none" }}>Fila geral</div>
+                        <div style={{ ...ROTULO_MICRO, fontSize: isMobile ? 12 : FS.meta, padding: "8px 12px 4px", background: T.bg, borderTop: i ? `1px solid ${T.low}` : "none" }}>Fila geral</div>
                       )}
                       <div role="listitem" style={{ display: "flex", alignItems: "stretch" }}>
                       <button
@@ -112,7 +117,7 @@ export function SeletorDePeca({ maquina, reservadas, filaGeral, atualizando, hoj
                         disabled={!!selo}
                         data-testid={`escolher-peca-${p.id}`}
                         title={selo ? motivoBloqueio(selo, "iniciar impressão", p) : `Iniciar a impressão de ${p.displayId ?? "esta peça"} na ${maquina.rotulo}`}
-                        style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: isMobile ? "8px 12px" : "8px 12px", minHeight: 56, border: "none", borderTop: i || (cabecalhoGeral && reservadas.length) ? `1px solid ${T.low}` : "none", background: p.reservada ? AMBAR.bg : T.surface, cursor: selo ? "not-allowed" : "pointer", opacity: selo ? 0.6 : 1, color: T.text }}
+                        style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: isMobile ? "8px 12px" : "8px 12px", minHeight: 56, border: "none", borderTop: i || (cabecalhoGeral && reservadas.length) ? `1px solid ${T.low}` : "none", background: p.reservada ? AMBAR.bg : T.surface, cursor: selo ? "not-allowed" : "pointer", color: selo ? T.second : T.text }}
                       >
                         <span aria-hidden="true" style={{ width: 40, height: 40, borderRadius: R.md, background: T.low, border: `1px solid ${T.border}`, flexShrink: 0, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
                           {thumb ? <img src={thumb} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /> : <Printer style={{ width: 14, height: 14, color: T.muted }} />}
@@ -126,6 +131,7 @@ export function SeletorDePeca({ maquina, reservadas, filaGeral, atualizando, hoj
                             {[p.evento, `${p.aImprimir} un.`, p.m2 != null ? `${p.m2.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} m²` : null].filter(Boolean).join(" · ")}
                           </span>
                           {apoioDaPeca(p) && <span style={{ fontSize: fonte, color: T.second, overflowWrap: "anywhere" }}>{apoioDaPeca(p)}</span>}
+                          {selo && <span data-testid={`seletor-bloqueada-${p.id}`} style={{ fontSize: fonte, color: selo.text, fontWeight: FW.forte, overflowWrap: "anywhere" }}>{selo.label}</span>}
                           {isMobile && <span data-testid={`selos-peca-${p.id}`} style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>{selos}</span>}
                         </span>
                         {!isMobile && <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>{selos}</span>}

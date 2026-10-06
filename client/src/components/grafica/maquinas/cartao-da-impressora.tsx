@@ -4,7 +4,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useContext, useState, type Dispatch, type SetStateAction } from "react";
 import { Link } from "wouter";
-import { ArrowLeftRight, ArrowRight, ChevronDown, ChevronRight, ExternalLink, Play, Printer } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, ArrowRight, ChevronDown, ChevronRight, ExternalLink, Play, Printer } from "lucide-react";
 import { alvo as alvoDe } from "@/hooks/use-mobile";
 import { Botao } from "@/components/ui/botao";
 import { BarraDeImpressao, progressoDaImpressao, rotuloCurtoDaAcao, horaDeInicio } from "@/components/grafica/modal-impressao";
@@ -16,7 +16,7 @@ import { nomeDaPeca } from "@shared/nome-da-peca";
 import { fraseDaTrava } from "@shared/trava-da-peca";
 import { eventoBarraImpressas } from "@shared/impressao-dividida";
 import { numerosDaImpressao, linkDaPecaNaGrafica, linkDaImpressoraNaGrafica } from "@shared/progresso-da-impressao";
-import { AMBAR, IMP, LIVRE, ROTULO_MICRO, TITULO, VERMELHO } from "./constantes";
+import { AMBAR, GROTESK, IMP, LIVRE, MONO, ROTULO_MICRO, TITULO, VERMELHO } from "./constantes";
 import { ToqueContext } from "./contexto";
 import { Pilula, SeletorDeReserva, SeloDePrazo, TituloDaPeca } from "./pedacos";
 import {
@@ -32,8 +32,8 @@ const FILA_DO_CARTAO_NO_DESKTOP = 5;
 // ─── A peça reservada, dentro do cartão da impressora ─────────────────────────
 // (Uma impressora pode ter mais de uma peça ao mesmo tempo — "Imprimindo 2" —
 // então iniciar nunca é barrado por ela estar ocupada.)
-export function PecaNaFilaDoCartao({ p, podeAgir, hojeMs, isMobile, proxima = false, ocupante = null, mexendo = false, onTrocar, onIniciar, onReservar }: {
-  p: PecaNaFila; podeAgir: boolean; hojeMs: number; isMobile: boolean; /** Impressora LIVRE: esta é a próxima a entrar — o Iniciar ganha destaque. */ proxima?: boolean;
+export function PecaNaFilaDoCartao({ p, ordem, podeAgir, hojeMs, isMobile, proxima = false, ocupante = null, mexendo = false, onTrocar, onIniciar, onReservar }: {
+  p: PecaNaFila; /** A posição na fila desta impressora (1 = a próxima). */ ordem?: number; podeAgir: boolean; hojeMs: number; isMobile: boolean; /** Impressora LIVRE: esta é a próxima a entrar — o Iniciar ganha destaque. */ proxima?: boolean;
   /** A peça que OCUPA a impressora agora: com ela, a fila não inicia (uma por vez) — só troca por prioridade. */
   ocupante?: OcupanteDaImpressora | null; /** Tirar/trocar em voo: sem segundo disparo. */ mexendo?: boolean; onTrocar?: (p: PecaNaFila, sai: OcupanteDaImpressora) => void; onIniciar: (p: PecaNaFila) => void; onReservar: (p: PecaNaFila, maquina: string | null, quantidade: number | null) => void;
 }) {
@@ -58,15 +58,21 @@ export function PecaNaFilaDoCartao({ p, podeAgir, hojeMs, isMobile, proxima = fa
   const mostrarMover = !isMobile || moverAberto;
   const idMover = `mover-painel-${p.id}`;
   return (
-    <div data-testid={`peca-na-fila-${p.id}`} style={{ display: "flex", flexDirection: "column", gap: 6, padding: "8px 0", borderTop: `1px solid ${T.low}` }}>
+    <div data-testid={`peca-na-fila-${p.id}`} style={{ display: "flex", flexDirection: "column", gap: 6, padding: "10px 0", borderTop: `1px solid ${T.border}` }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-        <span style={{ flex: "1 1 140px", minWidth: 0, display: "flex" }}>
+        <span style={{ flex: "1 1 140px", minWidth: 0, display: "flex", gap: 8, alignItems: "center" }}>
+          {ordem != null && (
+            <span aria-hidden="true" style={{ flexShrink: 0, width: 20, height: 20, borderRadius: R.pill, background: proxima && !selo ? T.text : T.low, color: proxima && !selo ? T.surface : T.apoio, border: `1px solid ${proxima && !selo ? T.text : T.border}`, display: "inline-flex", alignItems: "center", justifyContent: "center", fontFamily: MONO, fontSize: 12, fontWeight: FW.forte, fontVariantNumeric: "tabular-nums" }}>{ordem}</span>
+          )}
           <TituloDaPeca id={p.id} codigo={p.displayId} tipo={p.tipo} descricao={p.descricao} isMobile={isMobile} testId={`nome-fila-${p.id}`} />
         </span>
-        <SeloDePrazo p={prazo} fonte={isMobile ? 12 : FS.small} />
       </div>
-      <div style={{ fontSize: isMobile ? 12 : FS.small, color: T.second, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>
+      {/* O prazo abre a linha de apoio (antes ocupava uma linha sozinho). */}
+      <div style={{ display: "flex", alignItems: "baseline", gap: "4px 8px", flexWrap: "wrap", paddingLeft: ordem != null ? 28 : 0 }}>
+        <SeloDePrazo p={prazo} fonte={isMobile ? 12 : FS.small} />
+        <span style={{ flex: "1 1 120px", minWidth: 0, fontSize: isMobile ? 12 : FS.small, color: T.second, lineHeight: 1.45, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>
         {[p.pausadaEm ? "Pausada — volta primeiro" : null, p.evento, reservadas < p.aImprimir ? `${reservadas} de ${p.aImprimir} un.` : `${p.aImprimir} un.`, p.impressas > 0 ? `${p.impressas} de ${p.aImprimir} já impressas` : null, p.m2 != null ? `${p.m2.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} m²` : null].filter(Boolean).join(" · ")}
+        </span>
       </div>
       {jaImprimindo.length > 0 && (
         <div data-testid={`ja-imprimindo-${p.id}`} style={{ fontSize: isMobile ? 12 : FS.small, color: IMP.text, fontWeight: FW.forte }}>
@@ -84,7 +90,7 @@ export function PecaNaFilaDoCartao({ p, podeAgir, hojeMs, isMobile, proxima = fa
           {ocupado && onTrocar && !selo ? (
             <Botao variante="secundario" icone={ArrowLeftRight} disabled={mexendo || confirmandoTroca} onClick={() => setConfirmandoTroca(true)} data-testid={`button-imprimir-no-lugar-fila-${p.id}`}
               title={`${motivoImpressoraOcupada(ocupante?.displayId ?? null)}. Tira a peça atual (as impressas ficam anotadas) e imprime esta no lugar.`}
-              style={{ flex: isMobile ? "1 1 100%" : "1 1 130px", minHeight: alvo, padding: "0 12px", border: `1px solid ${T.text}`, color: T.text, fontSize: letra }}>
+              style={{ flex: isMobile ? "1 1 100%" : "1 1 130px", minHeight: alvo, padding: "0 12px", border: `1px solid ${T.bdark}`, color: T.text, fontSize: letra }}>
               Imprimir esta no lugar
             </Botao>
           ) : (
@@ -118,14 +124,14 @@ export function PecaNaFilaDoCartao({ p, podeAgir, hojeMs, isMobile, proxima = fa
             </Botao>
           )}
           {mostrarMover && (
-          <div id={idMover} role="group" aria-label="Mover ou devolver" data-testid={idMover} style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", ...(isMobile ? { flex: "1 1 100%", width: "100%" } : { flex: "0 1 auto" }) }}>
+          <div id={idMover} role="group" aria-label="Mover ou devolver" data-testid={idMover} style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", ...(isMobile ? { flex: "1 1 100%", width: "100%" } : { flex: "1 1 100%", flexWrap: "nowrap", minWidth: 0 }) }}>
           {isMobile && reservadas > 1 && (
             <label htmlFor={`qtd-mover-${p.id}`} style={{ flex: "1 1 0%", minWidth: 0, fontSize: FS.meta, color: T.second, lineHeight: 1.3 }}>
               Quantas das {reservadas} un. (vazio = todas)
             </label>
           )}
           {reservadas > 1 && (
-            <input
+            <input className="maq-campo"
               id={`qtd-mover-${p.id}`}
               type="number" inputMode="numeric" pattern="[0-9]*" min={1} max={reservadas}
               value={qtd} placeholder={String(reservadas)}
@@ -133,10 +139,10 @@ export function PecaNaFilaDoCartao({ p, podeAgir, hojeMs, isMobile, proxima = fa
               aria-label={`Quantas das ${reservadas} un. mover ou devolver (vazio = todas)`}
               aria-invalid={!qtdValida || undefined}
               data-testid={`qtd-mover-fila-${p.id}`}
-              style={{ width: isMobile ? 84 : 64, ...(isMobile ? { flex: "0 0 84px" } : {}), minHeight: alvo, height: alvo, boxSizing: "border-box", textAlign: "center", borderRadius: R.md, border: `1px solid ${qtdValida ? T.bdark : VERMELHO.border}`, background: T.surface, color: T.text, fontSize: isMobile ? 16 : 12, fontWeight: FW.forte, padding: "0 6px" }}
+              style={{ width: isMobile ? 84 : 56, ...(isMobile ? { flex: "0 0 84px" } : { flex: "0 0 56px" }), minHeight: alvo, height: alvo, boxSizing: "border-box", textAlign: "center", borderRadius: R.md, border: `1px solid ${qtdValida ? T.bdark : VERMELHO.border}`, background: T.surface, color: T.text, fontSize: isMobile ? 16 : 12, fontWeight: FW.forte, padding: "0 6px" }}
             />
           )}
-          <SeletorDeReserva valor={p.maquinaPrevista} excluir={p.maquinaPrevista} disabled={!qtdValida || !!selo} alvo={alvo} isMobile={isMobile} testId={`mover-fila-${p.id}`} rotulo={qtd === "" ? "Mover para…" : `Mover ${qtd} para…`} onEscolher={(m) => onReservar(p, m, qtd === "" ? null : qtd)} />
+          <SeletorDeReserva valor={p.maquinaPrevista} excluir={p.maquinaPrevista} disabled={!qtdValida || !!selo} alvo={alvo} isMobile={isMobile} preencher testId={`mover-fila-${p.id}`} rotulo={qtd === "" ? "Mover para…" : `Mover ${qtd} para…`} onEscolher={(m) => onReservar(p, m, qtd === "" ? null : qtd)} />
           </div>
           )}
         </div>
@@ -154,8 +160,9 @@ export function PecaNaFilaDoCartao({ p, podeAgir, hojeMs, isMobile, proxima = fa
         <div data-testid={`fila-travada-${p.id}`} title={fraseDaTrava(p)} style={{ fontSize: isMobile ? 12 : FS.small, fontWeight: FW.forte, color: selo.text, overflowWrap: "anywhere" }}>{selo.label}</div>
       )}
       {confirmandoTroca && ocupante && onTrocar && (
-        <div role="alertdialog" aria-label="Trocar a peça da impressora" data-testid={`confirmar-troca-fila-${p.id}`} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "8px 10px", borderRadius: R.md, background: AMBAR.bg, border: `1px solid ${AMBAR.border}`, color: AMBAR.text, fontSize: isMobile ? 13 : 12, lineHeight: 1.45 }}>
-          <span style={{ flex: "1 1 200px", fontWeight: FW.forte }}>{perguntaDaTroca(ocupante, [p.displayId, `(${nomeDaPeca(p.tipo, p.descricao)})`].filter(Boolean).join(" "), p.maquinaPrevista ?? "")}</span>
+        <div role="alertdialog" aria-label="Trocar a peça da impressora" className="maq-entra" data-testid={`confirmar-troca-fila-${p.id}`} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "10px 12px", borderRadius: R.md, background: AMBAR.bg, border: `1px solid ${AMBAR.border}`, color: AMBAR.text, fontSize: isMobile ? 13 : 12, lineHeight: 1.45 }}>
+          <strong style={{ flex: "1 1 100%", fontSize: isMobile ? 14 : FS.body, color: T.text }}>Trocar a peça desta impressora?</strong>
+          <span style={{ flex: "1 1 200px", fontWeight: FW.medio }}>{perguntaDaTroca(ocupante, [p.displayId, `(${nomeDaPeca(p.tipo, p.descricao)})`].filter(Boolean).join(" "), p.maquinaPrevista ?? "")}</span>
           <Botao variante="primario" disabled={mexendo} onClick={() => { setConfirmandoTroca(false); onTrocar(p, ocupante); }} data-testid={`button-trocar-fila-${p.id}`} style={{ minHeight: alvo, padding: "0 14px", fontSize: letra, ...(isMobile ? { flex: "1 1 100%" } : {}) }}>Trocar</Botao>
           <Botao variante="secundario" onClick={() => setConfirmandoTroca(false)} style={{ minHeight: alvo, padding: "0 12px", fontSize: letra, ...(isMobile ? { flex: "1 1 100%" } : {}) }}>Cancelar</Botao>
         </div>
@@ -207,9 +214,9 @@ export function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir, onT
 
   return (
     <div data-testid={`peca-na-maquina-${p.id}`} data-em-foco={emFoco || undefined} style={{ borderTop: `1px solid ${T.border}`, paddingTop: 10, display: "flex", flexDirection: "column", gap: 8, ...(emFoco ? { outline: `2px solid ${IMP.text}`, outlineOffset: 4, borderRadius: R.sm } : {}) }}>
-      <div style={{ display: "flex", gap: 10, minWidth: 0 }}>
+      <div style={{ display: "flex", gap: 12, minWidth: 0 }}>
         {/* A arte em miniatura: é o que o galpão reconhece de relance. */}
-        <div aria-hidden="true" style={{ width: 48, height: 48, borderRadius: R.md, background: T.low, border: `1px solid ${T.border}`, flexShrink: 0, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div aria-hidden="true" style={{ width: 52, height: 52, borderRadius: R.md, background: T.low, border: `1px solid ${T.border}`, flexShrink: 0, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
           {thumb && !semThumb
             ? <img src={thumb} alt="" loading="lazy" decoding="async" onError={() => setSemThumb(true)} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
             : <Printer style={{ width: 16, height: 16, color: T.muted }} />}
@@ -224,19 +231,47 @@ export function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir, onT
             </div>
           )}
           <div style={{ fontSize: isMobile ? 12 : FS.small, color: T.second, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>
-            {hora ? `Desde ${hora}` : "Na máquina"}{desde ? ` · ${desde}` : ""}
+            <span style={{ whiteSpace: "nowrap" }}>{hora ? `Desde ${hora}` : "Na máquina"}</span>{desde ? <> · <span style={{ whiteSpace: "nowrap" }}>{desde}</span></> : null}
           </div>
         </div>
+        {/* A ida para a Gráfica: um atalho discreto no canto da peça (era um
+            quarto botão disputando a linha das ações). */}
+        {!isMobile && (
+          <Link
+            href={linkDaPecaNaGrafica(p.id)}
+            className="mq-acao"
+            data-testid={`link-peca-grafica-${p.id}`}
+            aria-label="Ver na Gráfica"
+            title="Abrir esta peça na fila da Gráfica"
+            style={{ flexShrink: 0, alignSelf: "flex-start", width: alvoDe(30, toque), minWidth: alvoDe(30, toque), minHeight: alvoDe(30, toque), height: alvoDe(30, toque), margin: toque ? "-6px -8px 0 0" : "-2px -4px 0 0", display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: R.md, border: "1px solid transparent", color: T.apoio, textDecoration: "none" }}
+          >
+            <ExternalLink aria-hidden="true" style={{ width: 15, height: 15 }} />
+          </Link>
+          )}
       </div>
 
-      {/* Progresso: o número em palavras (o que se lê) e a barra (o que se vê de longe). */}
-      <div>
-        <div data-testid={`progresso-${p.id}`} style={{ fontSize: isMobile ? 12 : FS.small, fontWeight: FW.forte, color: IMP.text, fontVariantNumeric: "tabular-nums" }}>
+      {/* Progresso: o número grande (o que se vê de longe, no painel de
+          parede), a barra de ponta a ponta e a frase (o que se lê). */}
+      <div data-testid={`bloco-progresso-${p.id}`} style={{ display: "flex", flexDirection: "column", gap: 6, padding: "10px 12px", borderRadius: R.md, background: T.bg, border: `1px solid ${T.low}` }}>
+        <div aria-hidden="true" style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+          <span style={{ fontFamily: GROTESK, fontVariantNumeric: "tabular-nums", color: T.text, lineHeight: 1 }}>
+            <span style={{ fontSize: FS.h2, fontWeight: FW.forte, letterSpacing: "-0.02em" }}>{feitas}</span>
+            <span style={{ fontSize: FS.body, fontWeight: FW.medio, color: T.second }}> / {teto}</span>
+          </span>
+          <span style={{ fontFamily: GROTESK, fontSize: FS.body, fontWeight: FW.forte, color: feitas > 0 ? IMP.text : T.second, fontVariantNumeric: "tabular-nums" }}>
+            {teto > 0 ? `${Math.min(100, Math.round((feitas / teto) * 100))}%` : "—"}
+          </span>
+        </div>
+        <div className="maq-barra">
+          {feitas > 0
+            ? <BarraDeImpressao feitas={feitas} teto={teto} rotulo={`${p.displayId ?? "peça"}: ${feitas} de ${teto} impressas${dividida ? " nesta impressora" : ""}`} />
+            : <div className="maq-trilho" aria-hidden="true" />}
+        </div>
+        <div data-testid={`progresso-${p.id}`} style={{ fontSize: isMobile ? 12 : FS.small, fontWeight: FW.forte, color: IMP.text, fontVariantNumeric: "tabular-nums", lineHeight: 1.4 }}>
           {dividida
             ? `${feitas} de ${teto} nesta impressora · peça ${n.feitasDaPeca} de ${n.tetoDaPeca} no total`
             : n.frase}
         </div>
-        <BarraDeImpressao feitas={feitas} teto={teto} rotulo={`${p.displayId ?? "peça"}: ${feitas} de ${teto} impressas${dividida ? " nesta impressora" : ""}`} />
       </div>
 
       {/* Ações: a principal (o mesmo modal da fila), a troca de máquina
@@ -254,7 +289,7 @@ export function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir, onT
               ? motivoBloqueio(seloImpressas, "informar impressas", p)
               : concluir ? `Todas as ${teto} saíram${dividida ? " desta impressora" : " — mandar a peça para o acabamento"}` : `Informar quantas já saíram da ${rotuloDaMaquina(p.maquina)} (${progressoDaImpressao(feitas, teto)})`}
             // O motivo do bloqueio já está à vista no parágrafo abaixo (motivo-bloqueio), ligado por aria-describedby.
-            style={{ ...largura("1 1 140px"), minHeight: alvo, padding: "0 12px", fontSize: letra }}
+            style={{ ...largura("1 1 100%"), minHeight: toque ? alvo : 38, padding: "0 12px", fontSize: isMobile ? 14 : FS.body }}
           >
             {rotuloAcao}
           </Botao>
@@ -289,16 +324,18 @@ export function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir, onT
             Tirar da impressora
           </Botao>
         )}
-        <Link
-          href={linkDaPecaNaGrafica(p.id)}
-          className="mq-acao"
-          data-testid={`link-peca-grafica-${p.id}`}
-          title="Abrir esta peça na fila da Gráfica"
-          style={{ ...largura(podeAgir ? "1 1 110px" : "1 1 140px"), minHeight: alvo, padding: "0 10px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: T.text, fontSize: letra, fontWeight: FW.forte, textDecoration: "none", whiteSpace: "nowrap" }}
-        >
-          <ExternalLink aria-hidden="true" style={{ width: 12, height: 12, color: T.accentText }} />
-          Ver na Gráfica
-        </Link>
+        {isMobile && (
+          <Link
+            href={linkDaPecaNaGrafica(p.id)}
+            className="mq-acao"
+            data-testid={`link-peca-grafica-${p.id}`}
+            title="Abrir esta peça na fila da Gráfica"
+            style={{ ...largura("1 1 100%"), minHeight: alvo, padding: "0 10px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: T.text, fontSize: letra, fontWeight: FW.forte, textDecoration: "none", whiteSpace: "nowrap" }}
+          >
+            <ExternalLink aria-hidden="true" style={{ width: 12, height: 12, color: T.accentText }} />
+            Ver na Gráfica
+          </Link>
+        )}
       </div>
       {selo && (
         <div data-testid={`selo-evento-${p.id}`} title={selo.hint} style={{ fontSize: isMobile ? 12 : FS.small, color: selo.text, fontWeight: FW.forte }}>
@@ -338,27 +375,37 @@ export function CartaoDaImpressora({ m, maquinaEmFoco, itemEmFoco, agora, hojeMs
   // ou travada, pausada no topo, não fica anunciada como a próxima — ela
   // só oferece "Devolver".
   const idDaProxima = naFila.find((x) => !seloDaPecaNaMaquina(x, hojeMs))?.id ?? null;
+  const emFoco = maquinaEmFoco === m.codigo;
+  // "Impressora 1 (New XT)": o número vira a marca do cartão (o galpão fala
+  // "a 3"), o nome fica no título e o modelo, entre parênteses, mais leve.
+  const modelo = /^(.*?)\s*(\([^)]*\))$/.exec(m.rotulo);
+  const tom = ocupada ? IMP : LIVRE;
   return (
-    <article aria-label={m.rotulo} data-testid={`maquina-agora-${m.codigo}`} data-em-foco={maquinaEmFoco === m.codigo || undefined} style={{ ...(maquinaEmFoco === m.codigo ? { boxShadow: `0 0 0 3px ${IMP.border}` } : {}), background: T.surface, border: `1px solid ${maquinaEmFoco === m.codigo ? IMP.text : ocupada ? IMP.border : T.border}`, borderRadius: R.lg, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+    <article aria-label={m.rotulo} className="maq-cartao" data-testid={`maquina-agora-${m.codigo}`} data-em-foco={emFoco || undefined} style={{ background: T.surface, border: `1px solid ${emFoco ? IMP.text : ocupada ? IMP.border : T.border}`, borderTop: `3px solid ${tom.dot}`, borderRadius: R.lg, padding: isMobile ? "12px 14px 0" : "14px 16px 0", display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
       {/* O nome inteiro ("Impressora 1 (New XT)") quebra em duas
           linhas se precisar; a pílula não disputa espaço com
           ele — vai para a direita ou para a linha de baixo. */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-        <h3 style={{ ...TITULO, fontSize: FS.strong, lineHeight: 1.25, flex: "1 1 140px", minWidth: 0, overflowWrap: "anywhere" }}>{m.rotulo}</h3>
-        <Pilula pal={ocupada ? IMP : LIVRE} testId={`estado-${m.codigo}`} fonte={isMobile ? 12 : FS.small}>
-          {ocupada ? (m.imprimindo.length === 1 ? "Imprimindo" : `Imprimindo ${m.imprimindo.length}`) : "Livre"}
-          {naFila.length > 0 && <span style={{ fontWeight: FW.medio }}> · Na fila {naFila.length}</span>}
-        </Pilula>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+        <span aria-hidden="true" data-testid={`numero-${m.codigo}`} style={{ width: 36, height: 36, flexShrink: 0, borderRadius: R.md, background: tom.bg, border: `1px solid ${tom.border}`, color: tom.text, display: "inline-flex", alignItems: "center", justifyContent: "center", fontFamily: GROTESK, fontSize: FS.title, fontWeight: FW.forte, fontVariantNumeric: "tabular-nums" }}>{m.codigo}</span>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: "4px 8px", flexWrap: "wrap", flex: "1 1 0%", minWidth: 0 }}>
+          <h3 style={{ ...TITULO, fontSize: FS.strong, lineHeight: 1.25, flex: "1 1 100%", minWidth: 0, overflowWrap: "anywhere" }}>
+            {modelo ? <>{modelo[1]} <span style={{ fontFamily: "inherit", fontWeight: FW.medio, color: T.second, fontSize: isMobile ? 13 : FS.body, letterSpacing: 0 }}>{modelo[2]}</span></> : m.rotulo}
+          </h3>
+          <Pilula pal={tom} testId={`estado-${m.codigo}`} fonte={isMobile ? 12 : FS.small}>
+            {ocupada ? (m.imprimindo.length === 1 ? "Imprimindo" : `Imprimindo ${m.imprimindo.length}`) : "Livre"}
+            {naFila.length > 0 && <span style={{ fontWeight: FW.medio }}> · Na fila {naFila.length}</span>}
+          </Pilula>
+        </div>
       </div>
 
       {!ocupada && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <p style={{ margin: 0, fontSize: FS.body, color: T.second }}>
+        <div data-testid={`livre-${m.codigo}`} style={{ display: "flex", flexDirection: "column", gap: 10, padding: isMobile ? "12px" : "14px 12px", borderRadius: R.md, background: T.bg, border: `1px dashed ${T.bdark}` }}>
+          <p style={{ margin: 0, fontSize: FS.body, color: T.apoio, lineHeight: 1.45 }}>
             {naFila.length ? "Nenhuma peça imprimindo agora — a fila abaixo espera." : "Nenhuma peça nesta máquina."}
           </p>
           {podeAgir && (
-            <Botao variante="secundario" onClick={() => setSeletorDaMaquina(m.codigo)} data-testid={`link-escolher-peca-${m.codigo}`} title="Escolher, entre as peças liberadas, a que vai imprimir nesta impressora" style={{ ...botaoNeutro, width: isMobile ? "100%" : "fit-content" }}>
-              Escolher peça para imprimir <ArrowRight aria-hidden="true" style={{ width: 12, height: 12, color: T.accentText }} />
+            <Botao variante="secundarioForte" onClick={() => setSeletorDaMaquina(m.codigo)} data-testid={`link-escolher-peca-${m.codigo}`} title="Escolher, entre as peças liberadas, a que vai imprimir nesta impressora" style={{ ...botaoNeutro, width: isMobile ? "100%" : "fit-content" }}>
+              Escolher peça para imprimir <ArrowRight aria-hidden="true" className="mq-seta" style={{ width: 13, height: 13, color: T.accentText }} />
             </Botao>
           )}
         </div>
@@ -372,23 +419,27 @@ export function CartaoDaImpressora({ m, maquinaEmFoco, itemEmFoco, agora, hojeMs
           ordem da saída do caminhão. Só controle — a etapa da
           peça não muda até "Iniciar impressão". */}
       {naFila.length > 0 && (
-        <div data-testid={`fila-maquina-${m.codigo}`} style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 2 }}>
-          <div style={{ ...ROTULO_MICRO, fontSize: isMobile ? 12 : FS.micro, paddingTop: 6 }}>Na fila desta impressora · {naFila.length}</div>
+        <div data-testid={`fila-maquina-${m.codigo}`} style={{ display: "flex", flexDirection: "column", gap: 0, marginTop: 2 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, paddingBottom: 6 }}>
+            <span style={{ ...ROTULO_MICRO, fontSize: isMobile ? 12 : FS.meta, color: T.strong }}>Na fila desta impressora<span className="sr-only"> · {naFila.length}</span></span>
+            <span aria-hidden="true" style={{ minWidth: 22, height: 20, padding: "0 7px", boxSizing: "border-box", borderRadius: R.pill, background: T.low, border: `1px solid ${T.border}`, display: "inline-flex", alignItems: "center", justifyContent: "center", fontFamily: GROTESK, fontSize: isMobile ? 12 : FS.small, fontWeight: FW.forte, color: T.strong, fontVariantNumeric: "tabular-nums" }}>{naFila.length}</span>
+          </div>
           {ocupada && podeAgir && (
-            <p role="status" data-testid={`fila-ocupada-maquina-${m.codigo}`} style={{ margin: "2px 0 4px", fontSize: isMobile ? 12 : FS.meta, color: AMBAR.text, fontWeight: FW.forte, lineHeight: 1.4 }}>
-              {motivoImpressoraOcupada(ocupacao[m.codigo]?.atual?.displayId ?? m.imprimindo[0]?.displayId ?? null)}
+            <p role="status" data-testid={`fila-ocupada-maquina-${m.codigo}`} style={{ margin: "0 0 4px", padding: "8px 10px", borderRadius: R.md, background: AMBAR.bg, border: `1px solid ${AMBAR.border}`, fontSize: isMobile ? 12 : FS.meta, color: AMBAR.text, fontWeight: FW.forte, lineHeight: 1.4, display: "flex", gap: 7, alignItems: "flex-start" }}>
+              <AlertTriangle aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0, marginTop: 1 }} />
+              <span>{motivoImpressoraOcupada(ocupacao[m.codigo]?.atual?.displayId ?? m.imprimindo[0]?.displayId ?? null)}</span>
             </p>
           )}
-          {(!filasAbertas.has(m.codigo) ? naFila.slice(0, isMobile ? FILA_DO_CARTAO_NO_CELULAR : FILA_DO_CARTAO_NO_DESKTOP) : naFila).map((p) => (
-            <PecaNaFilaDoCartao key={p.id} p={p} proxima={!ocupada && p.id === idDaProxima} ocupante={ocupada ? ocupacao[m.codigo]?.atual ?? null : null} mexendo={mexendo} onTrocar={(entra, sai) => mexer({ maquina: m.codigo, sai, entra, quantidade: entra.reservadas ?? null })} podeAgir={podeAgir} hojeMs={hojeMs} isMobile={isMobile} onIniciar={iniciarDaFila} onReservar={(peca, maquina, quantidade) => reservar([peca.id], maquina, quantidade ?? (peca.reservadas != null ? peca.reservadas : null), peca.reservadas != null ? m.codigo : null)} />
+          {(!filasAbertas.has(m.codigo) ? naFila.slice(0, isMobile ? FILA_DO_CARTAO_NO_CELULAR : FILA_DO_CARTAO_NO_DESKTOP) : naFila).map((p, i) => (
+            <PecaNaFilaDoCartao key={p.id} p={p} ordem={i + 1} proxima={!ocupada && p.id === idDaProxima} ocupante={ocupada ? ocupacao[m.codigo]?.atual ?? null : null} mexendo={mexendo} onTrocar={(entra, sai) => mexer({ maquina: m.codigo, sai, entra, quantidade: entra.reservadas ?? null })} podeAgir={podeAgir} hojeMs={hojeMs} isMobile={isMobile} onIniciar={iniciarDaFila} onReservar={(peca, maquina, quantidade) => reservar([peca.id], maquina, quantidade ?? (peca.reservadas != null ? peca.reservadas : null), peca.reservadas != null ? m.codigo : null)} />
           ))}
           {!filasAbertas.has(m.codigo) && naFila.length > (isMobile ? FILA_DO_CARTAO_NO_CELULAR : FILA_DO_CARTAO_NO_DESKTOP) && (
-            <Botao variante="secundario" onClick={() => setFilasAbertas((s) => new Set(s).add(m.codigo))} data-testid={`fila-maquina-ver-todas-${m.codigo}`} style={{ ...botaoNeutro, width: "100%", fontSize: 13 }}>
+            <Botao variante="secundario" onClick={() => setFilasAbertas((s) => new Set(s).add(m.codigo))} aria-expanded={false} data-testid={`fila-maquina-ver-todas-${m.codigo}`} style={{ ...botaoNeutro, width: "100%", fontSize: 13, marginTop: 6 }}>
               Ver as {naFila.length} da fila <ChevronDown aria-hidden="true" style={{ width: 13, height: 13 }} />
             </Botao>
           )}
           {filasAbertas.has(m.codigo) && naFila.length > (isMobile ? FILA_DO_CARTAO_NO_CELULAR : FILA_DO_CARTAO_NO_DESKTOP) && (
-            <Botao variante="secundario" onClick={() => setFilasAbertas((s) => { const n = new Set(s); n.delete(m.codigo); return n; })} data-testid={`fila-maquina-recolher-${m.codigo}`} style={{ ...botaoNeutro, width: "100%", fontSize: 13 }}>
+            <Botao variante="secundario" onClick={() => setFilasAbertas((s) => { const n = new Set(s); n.delete(m.codigo); return n; })} aria-expanded={true} data-testid={`fila-maquina-recolher-${m.codigo}`} style={{ ...botaoNeutro, width: "100%", fontSize: 13, marginTop: 6 }}>
               Mostrar só as {isMobile ? FILA_DO_CARTAO_NO_CELULAR : FILA_DO_CARTAO_NO_DESKTOP} primeiras <ChevronDown aria-hidden="true" style={{ width: 13, height: 13, transform: "rotate(180deg)" }} />
             </Botao>
           )}
@@ -398,26 +449,29 @@ export function CartaoDaImpressora({ m, maquinaEmFoco, itemEmFoco, agora, hojeMs
       {/* Ida para a Gráfica recortada NESTA impressora — o filtro
           "Impressora" de lá usa a mesma régua deste cartão
           (impressorasDaPeca: imprimindo, reservada ou impressa nela). */}
-      <Link href={linkDaImpressoraNaGrafica(m.codigo)} className="mq-link" data-testid={`link-impressora-na-grafica-${m.codigo}`} title={`Abrir a fila da Gráfica filtrada na ${m.rotulo}`} style={{ display: "inline-flex", alignItems: "center", gap: 5, minHeight: alvoDe(28, toque), fontSize: isMobile ? 12 : FS.small, fontWeight: FW.forte, color: T.second, textDecoration: "none", width: "fit-content" }}>
-        Peças desta impressora na Gráfica <ArrowRight aria-hidden="true" style={{ width: 12, height: 12, color: T.accentText }} />
+      <Link href={linkDaImpressoraNaGrafica(m.codigo)} className="mq-link" data-testid={`link-impressora-na-grafica-${m.codigo}`} title={`Abrir a fila da Gráfica filtrada na ${m.rotulo}`} style={{ display: "inline-flex", alignItems: "center", gap: 5, minHeight: alvoDe(28, toque), marginTop: -4, fontSize: isMobile ? 12 : FS.small, fontWeight: FW.forte, color: T.apoio, textDecoration: "none", width: "fit-content" }}>
+        Peças desta impressora na Gráfica <ArrowRight aria-hidden="true" className="mq-seta" style={{ width: 12, height: 12, color: T.accentText }} />
       </Link>
 
-      {/* Rodapé: o que saiu desta máquina no dia aberto — e o atalho para o diário dela. */}
+      {/* Rodapé: o que saiu desta máquina no dia aberto — e o atalho para o
+          diário dela. Faixa de ponta a ponta, como o rodapé de um painel. */}
       <button
         type="button"
         className="mq-acao"
         onClick={() => escreverURL({ maquina: m.codigo, aba: "diario" })}
         data-testid={`resumo-dia-${m.codigo}`}
         title={`Ver o diário da ${m.rotulo} neste dia`}
-        style={{ marginTop: "auto", minHeight: alvoDe(32, toque), padding: "6px 8px", border: "none", borderTop: `1px solid ${T.low}`, borderRadius: `0 0 ${R.sm}px ${R.sm}px`, background: "transparent", textAlign: "left", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: isMobile ? 12 : FS.small, color: T.second, fontVariantNumeric: "tabular-nums" }}
+        style={{ margin: isMobile ? "0 -14px" : "0 -16px", minHeight: alvoDe(40, toque), padding: isMobile ? "8px 14px" : "8px 16px", border: "none", borderTop: `1px solid ${T.border}`, borderRadius: `0 0 ${R.lg - 1}px ${R.lg - 1}px`, background: T.bg, textAlign: "left", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: isMobile ? 12 : FS.meta, color: T.second, fontVariantNumeric: "tabular-nums" }}
       >
-        <span>
-          <span style={{ ...ROTULO_MICRO, fontSize: isMobile ? 12 : FS.micro }}>{dia && hoje ? rotuloDoDia(dia, hoje) : "Dia"}</span>{" "}
+        <span style={{ minWidth: 0 }}>
+          <span style={{ ...ROTULO_MICRO, fontSize: isMobile ? 12 : FS.meta, color: T.strong }}>{dia && hoje ? rotuloDoDia(dia, hoje) : "Dia"}</span>{" · "}
           {m.unidadesNoDia === 0 && m.registros.length === 0
             ? "nada impresso"
             : `${plural(m.unidadesNoDia, "un. impressa", "un. impressas")} · ${plural(m.pecasNoDia, "peça", "peças")}`}
         </span>
-        <ChevronRight aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0 }} />
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 3, flexShrink: 0, fontWeight: FW.forte, color: T.apoio }}>
+          Diário <ChevronRight aria-hidden="true" className="mq-seta" style={{ width: 13, height: 13 }} />
+        </span>
       </button>
     </article>
   );

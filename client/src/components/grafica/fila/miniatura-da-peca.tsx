@@ -8,6 +8,7 @@ import { useState } from "react";
 import type React from "react";
 import { Factory, ImageOff } from "lucide-react";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
+import { miniatura } from "@/lib/miniatura";
 import { R, T, TOM } from "@/lib/theme";
 import type { PecaDaFila } from "@/components/grafica/tipos";
 
@@ -31,7 +32,10 @@ export function MiniaturaDaPeca({ item, tamanho = 44 }: { item: PecaDaFila; tama
         className="grf-miniatura"
         style={caixa}
       >
-        <img src={url} alt="Arte"
+        {/* Versão reduzida (webp de até 320px): a caixa tem 44px e a fila
+            inteira baixava o ORIGINAL de cada arte (06/10, lentidão). O link
+            continua abrindo a arte em tamanho real. */}
+        <img src={miniatura(url)} alt="Arte"
           loading="lazy" decoding="async"
           style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
           onError={() => setFalhou(true)} />

@@ -37,6 +37,7 @@ import { SugestaoRecebedor } from "@/components/sugestao-recebedor";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { invalidarGraficaEMaquinas } from "@/lib/tempo-real-grafica";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
+import { miniatura } from "@/lib/miniatura";
 import { linhaDaLista } from "@/lib/etiqueta-lista";
 import { parteDoTotal } from "@shared/embalagem";
 import { nomeDaPeca } from "@shared/nome-da-peca";
@@ -269,7 +270,8 @@ function Miniaturas({ fotos, alt, tamanho = 56 }: { fotos: string[]; alt: string
       {fotos.map((url, i) => (
         <a key={url} href={url} target="_blank" rel="noreferrer" aria-label={`${alt} ${i + 1} — abrir`}
           style={{ width: tamanho, height: tamanho, borderRadius: R.sm, overflow: "hidden", border: `1px solid ${COR.borda}`, display: "block" }}>
-          <img src={url} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          {/* Reduzida (webp ≤320px): é uma caixa de 56px; o link abre a foto inteira. */}
+          <img src={miniatura(url)} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "contain", background: T.low }} />
         </a>
       ))}
     </div>
@@ -306,7 +308,7 @@ function Fotos({ lista, onMudar, alt }: { lista: string[]; onMudar: (f: (atual: 
         <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
           {lista.map((url, i) => (
             <div key={url} style={{ position: "relative", width: 72, height: 72, borderRadius: R.md, overflow: "hidden", border: `1px solid ${COR.borda}` }}>
-              <img src={url} alt={`${alt} ${i + 1}`} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <img src={miniatura(url)} alt={`${alt} ${i + 1}`} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "contain", background: T.low }} />
               {/* Alvo de 44px; o X visível é o disco de 24 no canto. */}
               <button type="button" onClick={() => onMudar((f) => f.filter((x) => x !== url))} aria-label={`Remover a foto ${i + 1}`}
                 style={{ position: "absolute", top: 0, right: 0, width: 44, height: 44, padding: 4, border: "none", background: "none", display: "flex", alignItems: "flex-start", justifyContent: "flex-end", cursor: "pointer" }}>

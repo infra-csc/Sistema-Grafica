@@ -174,16 +174,68 @@ export async function obterMiniatura(arquivo: ArquivoComMetadados, chave: string
   const gravada = await lerMiniaturaGravada(arquivo);
   if (gravada) return gravada;
   if (!sharp) return null;
-  try {
-    const [metadata] = await arquivo.getMetadata();
-    const contentType = String(metadata.contentType ?? "");
-    const tamanho = Number(metadata.size ?? 0);
-    if (tipoMiniaturavel(contentType) && tamanho > 0 && tamanho <= TETO_ORIGINAL_BYTES) {
-      const [original] = await arquivo.download();
-      return await gerarMiniatura(chave, original);
+  const pronta = CACHE.get(chave);
+  if (pronta) return gerarMiniatura(chave, Buffer.alloc(0)); // só renova o LRU
+  // O MESMO objeto pedido por várias linhas ao mesmo tempo espera a mesma
+  // geração, em vez de baixar o original N vezes.
+  const andamento = EM_ANDAMENTO.get(chave);
+  if (andamento) return andamento;
+  const promessa = comVaga(async () => {
+    try {
+      const [metadata] = await arquivo.getMetadata();
+      const contentType = String(metadata.contentType ?? "");
+      const tamanho = Number(metadata.size ?? 0);
+      if (tipoMiniaturavel(contentType) && tamanho > 0 && tamanho <= TETO_ORIGINAL_BYTES) {
+        const [original] = await arquivo.download();
+        const mini = await gerarMiniatura(chave, original);
+        // GRAVA o que acabou de gerar (06/10, dono: "app meio lento depois da
+        // última atualização"). As listas passaram a mostrar a arte em toda
+        // linha, e a arte ANTERIOR a 27/08 não tem thumb.webp: cada falta no
+        // LRU (300 itens, por cópia do processo) baixava o original de MBs e
+        // chamava o sharp de novo. Gravar a irmã thumb.webp não toca no
+        // original — é o mesmo arquivo derivado que o upload já grava hoje —
+        // e a próxima vez vira um download de ~20 KB. Falhar aqui não importa:
+        // a miniatura já está em mãos e volta a ser gerada a pedido.
+        if (mini) {
+          arquivo.bucket.file(caminhoDaMiniatura(arquivo.name))
+            .save(mini, { contentType: "image/webp", resumable: false })
+            .catch((e: unknown) => console.error("[miniaturas] não gravou a miniatura gerada a pedido", e));
+        }
+        return mini;
+      }
+    } catch (e) {
+      console.error("[miniaturas] falha ao gerar — servindo original", e);
     }
-  } catch (e) {
-    console.error("[miniaturas] falha ao gerar — servindo original", e);
+    return null;
+  });
+  EM_ANDAMENTO.set(chave, promessa);
+  try {
+    return await promessa;
+  } finally {
+    EM_ANDAMENTO.delete(chave);
   }
-  return null;
+}
+
+// ─── Geração a pedido com VAGAS LIMITADAS (06/10) ────────────────────────────
+// Uma lista com dezenas de artes antigas disparava dezenas de downloads de
+// originais e dezenas de sharp ao mesmo tempo — o processo inteiro ficava
+// lento para todo mundo, não só para quem abriu a lista. Duas gerações por vez
+// mantêm o servidor respondendo; as outras esperam a vez (e quem já foi
+// gerado sai do LRU ou do bucket sem fila nenhuma).
+const VAGAS_DE_GERACAO = 2;
+let geracoesAtivas = 0;
+const esperandoVaga: Array<() => void> = [];
+const EM_ANDAMENTO = new Map<string, Promise<Buffer | null>>();
+
+async function comVaga<T>(tarefa: () => Promise<T>): Promise<T> {
+  if (geracoesAtivas >= VAGAS_DE_GERACAO) {
+    await new Promise<void>((liberar) => esperandoVaga.push(liberar));
+  }
+  geracoesAtivas++;
+  try {
+    return await tarefa();
+  } finally {
+    geracoesAtivas--;
+    esperandoVaga.shift()?.();
+  }
 }

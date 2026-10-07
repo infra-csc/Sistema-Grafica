@@ -1,6 +1,7 @@
 // ─── A linha da peça (tabela) — memoizada ───────────────────────────────────
 // Props primitivas ou estáveis (o objeto `acoes` nasce uma vez na página e lê
 // o estado atual por ref): um clique que não muda a lista não chega aqui.
+import { hrefSeguro } from "@shared/url-segura";
 import { memo, useState, type CSSProperties } from "react";
 import { Eye, Paperclip, Trash2, FileText, RotateCcw, Loader2, MessageSquare } from "lucide-react";
 import { format } from "date-fns";
@@ -155,7 +156,7 @@ export const LinhaDaPeca = memo(function LinhaDaPeca({
             </span>
           )}
           {!isDeleted && item.referenceUrl && (
-            <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" className="pg-anexo" style={{ ...SELO_CALMO, gap: 4, textDecoration: "none" }} data-testid={`link-reference-painel-${item.id}`}>
+            <a href={hrefSeguro(item.referenceUrl)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" className="pg-anexo" style={{ ...SELO_CALMO, gap: 4, textDecoration: "none" }} data-testid={`link-reference-painel-${item.id}`}>
               <Paperclip aria-hidden="true" style={{ width: 11, height: 11 }} />
               Ref. visual
             </a>

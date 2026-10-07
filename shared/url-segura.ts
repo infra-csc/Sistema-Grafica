@@ -33,7 +33,19 @@ export function urlSegura(s: string | null | undefined): boolean {
 /** Para `href`: devolve o próprio texto quando seguro, senão `undefined`
  *  (o link fica inerte em vez de executar algo). */
 export function hrefSeguro(s: string | null | undefined): string | undefined {
-  return typeof s === "string" && urlSegura(s) ? s : undefined;
+  return typeof s === "string" && urlSegura(s) ? paraCaminhoDoApp(s) : undefined;
+}
+
+/**
+ * A URL CRUA do bucket privado (https://storage.googleapis.com/…/.private/X)
+ * vira o caminho do app (/objects/X), que passa pela sessão. Clicar na crua dá
+ * "AccessDenied" — o bucket é privado (dono, 07/10, referência do pedido de
+ * peça). Qualquer outro texto volta igual.
+ */
+export function paraCaminhoDoApp(s: string): string {
+  if (!/^https?:\/\/storage\.googleapis\.com\//i.test(s)) return s;
+  const m = s.match(/\/\.private\/(.+?)(?:\?|$)/);
+  return m ? `/objects/${m[1]}` : s;
 }
 
 /** Campos de link que chegam do cliente e viram href em alguma tela. */

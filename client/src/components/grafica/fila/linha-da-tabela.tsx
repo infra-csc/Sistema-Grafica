@@ -5,6 +5,7 @@
 // É memoizada pela LinhaMemo da lista: tudo o que ela lê vem de `ctx` e está
 // no inventário `depsDaLinha` da página.
 // ─────────────────────────────────────────────────────────────────────────────
+import { hrefSeguro } from "@shared/url-segura";
 import { Fragment } from "react";
 import { Link } from "wouter";
 import { AlertCircle, AlertTriangle, Calendar, Camera, Package, PlusCircle, RotateCcw, Tag, Truck } from "lucide-react";
@@ -345,8 +346,8 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
             </div>
           )}
           {item.referenceUrl && (
-            <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência do solicitante" style={{ display: "inline-flex", alignItems: "center", gap: 3, marginTop: 3, fontSize: 10, fontWeight: 700, color: T.accentText, textDecoration: "none", backgroundColor: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, borderRadius: 6, padding: "1px 5px" }} data-testid={`link-reference-grafica-${item.id}`}>
-              <img loading="lazy" decoding="async" src={miniatura(item.referenceUrl)} style={{ width: 12, height: 12, objectFit: "cover", borderRadius: 999 }} alt="" onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+            <a href={hrefSeguro(item.referenceUrl)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência do solicitante" style={{ display: "inline-flex", alignItems: "center", gap: 3, marginTop: 3, fontSize: 10, fontWeight: 700, color: T.accentText, textDecoration: "none", backgroundColor: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, borderRadius: 6, padding: "1px 5px" }} data-testid={`link-reference-grafica-${item.id}`}>
+              <img loading="lazy" decoding="async" src={miniatura(hrefSeguro(item.referenceUrl))} style={{ width: 12, height: 12, objectFit: "cover", borderRadius: 999 }} alt="" onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
               REF
             </a>
           )}

@@ -3,6 +3,7 @@
 // dentro do evento e pelo detalhe. Uma definição só de cada selo: a mesma
 // solicitação tem a mesma cara em todo lugar.
 // ─────────────────────────────────────────────────────────────────────────────
+import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { Link } from "wouter";
 import {
   ETAPAS_DA_PECA,
@@ -138,8 +139,14 @@ export function ReferenciasDoPedido({ urls, tamanho = 44, onRemover, legenda = f
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-        {urls.map((url, i) => (
-          <div key={`${url}-${i}`} style={{ position: "relative" }}>
+        {urls.map((bruta, i) => {
+          // A referência pode vir gravada como a URL CRUA do bucket
+          // (storage.googleapis.com/…/.private/…), que o navegador não abre
+          // sem sessão — "Access denied" ao clicar e miniatura quebrada (dono,
+          // 07/10). O caminho /objects/… passa pela sessão do app.
+          const url = convertGCSUrlToLocalPath(bruta);
+          return (
+          <div key={`${bruta}-${i}`} style={{ position: "relative" }}>
             <a href={url} target="_blank" rel="noopener noreferrer" title="Referência do solicitante — não é arte final" className="ped-ref"
               aria-label={`Abrir a referência ${i + 1} em outra aba`}
               style={{ display: "block", width: tamanho, height: tamanho, borderRadius: R.md, overflow: "hidden", border: `1px solid ${T.border}`, background: N.n2 }}>
@@ -156,7 +163,8 @@ export function ReferenciasDoPedido({ urls, tamanho = 44, onRemover, legenda = f
               </button>
             )}
           </div>
-        ))}
+          );
+        })}
       </div>
       {legenda && <span style={{ fontSize: FS.small, color: T.apoio }}>Referência do solicitante — não é arte final</span>}
     </div>

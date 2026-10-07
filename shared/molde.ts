@@ -42,9 +42,25 @@ export const TIPOS_DE_PECA: readonly string[] = [
 const normalizar = (s: string | null | undefined): string =>
   String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
 
+// A RESPOSTA POR TEXTO DE TIPO, GUARDADA (perf, 07/10). `ehMolde` está no
+// caminho de TODA regra de saldo (isDelivered, statusParaContagem, casaEtapa…),
+// e a Gráfica chama essas regras dezenas de vezes por peça a cada recorte: com
+// 6 mil peças eram centenas de milhares de normalize("NFD") + regex — ~200 ms
+// de thread principal por carga, medidos no perfil. Os textos de tipo distintos
+// são dezenas, não milhares; o teto só protege de uma entrada patológica.
+const TIPO_EH_MOLDE = new Map<string, boolean>();
+const TETO_DO_CACHE_DE_TIPO = 2000;
+
 /** O texto do tipo é "molde"? Aceita caixa, acento e plural ("MOLDE", "Moldes"). */
-export const ehTipoMolde = (tipo: string | null | undefined): boolean =>
-  /^moldes?$/.test(normalizar(tipo));
+export const ehTipoMolde = (tipo: string | null | undefined): boolean => {
+  const chave = typeof tipo === "string" ? tipo : String(tipo ?? "");
+  const lembrado = TIPO_EH_MOLDE.get(chave);
+  if (lembrado !== undefined) return lembrado;
+  const resposta = /^moldes?$/.test(normalizar(chave));
+  if (TIPO_EH_MOLDE.size >= TETO_DO_CACHE_DE_TIPO) TIPO_EH_MOLDE.clear();
+  TIPO_EH_MOLDE.set(chave, resposta);
+  return resposta;
+};
 
 /** A peça é um molde? — o predicado que todo o resto usa. */
 export const ehMolde = (item: { type?: string | null } | null | undefined): boolean =>

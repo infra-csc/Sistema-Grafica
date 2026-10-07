@@ -30,6 +30,9 @@ import { semAcento } from "@/lib/etiqueta-lista";
 import { useIsMobile, usePonteiroGrosso, alvo as alvoDoPonteiro } from "@/hooks/use-mobile";
 import { T, TOM, FS, FW, FONT, R, SHADOW } from "@/lib/theme";
 import { Botao } from "@/components/ui/botao";
+// A capa e as caixinhas de 64px pintam a MINIATURA (webp ≤320px), não o
+// original de 130–500 KB (perf, 07/10); o zoom continua com a URL cheia.
+import { miniatura } from "@/lib/miniatura";
 
 export type RegistroDeTubo = {
   id: string; numero: number; avulso: boolean; eventId: string; eventName: string;
@@ -172,7 +175,7 @@ export function RegistrosDeTubos({ eventIds = [], busca = "", desde = null, item
                     /* Quadrado, como os cartões da galeria: a foto do galpão
                        vem em pé e deitada, e o quadrado corta as duas igual. */
                     style={{ display: "block", position: "relative", width: "100%", aspectRatio: "1/1", border: "none", padding: 0, backgroundColor: COR.fundo, cursor: "zoom-in" }}>
-                    <img src={capa.url} alt={capa.legenda} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                    <img src={miniatura(capa.url)} alt={capa.legenda} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                     <span className="opacity-0 group-hover:opacity-100" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(28,25,23,0.18)" }}>
                       <ZoomIn aria-hidden="true" style={{ width: 22, height: 22, color: T.surface }} />
                     </span>
@@ -247,7 +250,7 @@ export function RegistrosDeTubos({ eventIds = [], busca = "", desde = null, item
                         {fotos.map((f, n) => (
                           <button key={f.url} type="button" onClick={() => setZoom({ tuboId: t.id, n })} aria-label={`${f.legenda} — ampliar`}
                             style={{ width: 64, height: 64, borderRadius: R.md, overflow: "hidden", border: f.url === t.comprovante ? `2px solid ${COR.verde}` : `1px solid ${COR.borda}`, padding: 0, background: "none", cursor: "zoom-in" }}>
-                            <img src={f.url} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            <img src={miniatura(f.url)} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                           </button>
                         ))}
                       </div>

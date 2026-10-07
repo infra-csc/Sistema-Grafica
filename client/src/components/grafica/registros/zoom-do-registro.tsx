@@ -23,7 +23,7 @@ import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { ChevronLeft, ChevronRight, Download, ExternalLink, ImageOff, Loader2, X } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { T, FS, R, FW, FONT } from "@/lib/theme";
-import { KIND, kindOf, srcOf, fmt, altOf, type Photo } from "./fotos";
+import { KIND, kindOf, srcOf, miniaturaOf, fmt, altOf, type Photo } from "./fotos";
 
 /** Botão sobre o fundo escuro do zoom (as variantes do <Botao> são para fundo claro). */
 const botaoEscuro = (altura: number, so_icone = false): React.CSSProperties => ({
@@ -252,7 +252,7 @@ export function ZoomDoRegistro({
                             }}
                           >
                             <img
-                              src={srcOf(f)} alt="" aria-hidden="true" loading="lazy" decoding="async"
+                              src={miniaturaOf(f)} alt="" aria-hidden="true" loading="lazy" decoding="async"
                               style={{ width: 34, height: 34, borderRadius: R.sm, objectFit: "cover", flexShrink: 0, backgroundColor: "rgba(255,255,255,0.1)" }}
                               onError={e => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }}
                             />

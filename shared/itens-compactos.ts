@@ -132,7 +132,9 @@ function chavesSerializaveis(o: Obj): string[] {
 }
 
 /**
- * Um objeto-modelo com as chaves da forma, na ordem. Decodificar faz
+ * Um objeto-modelo com as chaves da forma, na ordem (hoje só a decodificação
+ * das aprovações usa; a das peças mediu melhor sem ele — ver expandirPecas).
+ * Decodificar faz
  * `{...modelo}` e só PREENCHE as chaves: criar um objeto vazio e ir
  * acrescentando ~75 chaves por peça fazia o V8 trocar a "forma interna" do
  * objeto a cada chave — medido, a decodificação ficava mais lenta que o
@@ -307,12 +309,14 @@ export function expandirPecas(c: PecasCompactas): Obj[] {
   const doKit = c.eventosDoKit ?? {};
   const spPorId = new Map<string, Obj>();
   for (const s of c.patrocinadores ?? []) if (s && typeof s.id === "string") spPorId.set(s.id, s);
-  const entradas = new Map<string, Obj>();
+  // (perf, 07/10) Dois níveis — patrocinador → status → entrada — em vez da
+  // chave em texto com JSON.stringify do status a cada vínculo: milhares de
+  // stringify por carga da Gráfica, para chegar ao mesmo objeto compartilhado.
+  const entradas = new Map<string, Map<unknown, Obj>>();
 
   const formas = c.formas ?? [];
   const posEvento = formas.map((f) => f.indexOf("event"));
   const posSponsors = formas.map((f) => f.indexOf("sponsors"));
-  const modelos = formas.map(modeloDaForma);
 
   const linhas = c.pecas ?? [];
   const saida: Obj[] = new Array(linhas.length);
@@ -320,30 +324,44 @@ export function expandirPecas(c: PecasCompactas): Obj[] {
     const linha = linhas[p];
     const fi = linha[0] as number;
     const forma = formas[fi];
+    // OBJETO VAZIO + CÓPIA CRUA NUM LAÇO SEM DESVIO (perf, 07/10). Medido no
+    // Chromium 153 com a fila de 6 mil peças: copiar o modelo de ~90 chaves
+    // (`{...modelo}`) custava ~240 ms na primeira decodificação da página —
+    // a única que importa, ela roda uma vez por carga —, contra ~60–85 ms
+    // acrescentando as chaves na ordem num objeto vazio (as peças da mesma
+    // forma seguem a mesma trilha de chaves e terminam com a mesma forma
+    // interna). E o teste de evento/patrocinador saiu de DENTRO do laço: as
+    // duas chaves especiais são trocadas depois. Chaves, ordem e valores são
+    // os de antes (itens-compactos.test.ts confere byte a byte).
+    const obj: Obj = {};
+    for (let k = 0; k < forma.length; k++) obj[forma[k]] = linha[k + 1];
     const iEv = posEvento[fi];
+    if (iEv >= 0) {
+      const valor = linha[iEv + 1];
+      if (typeof valor === "string") {
+        obj[forma[iEv]] = Object.prototype.hasOwnProperty.call(doKit, valor) ? doKit[valor] : evPorId.get(valor);
+      }
+    }
     const iSp = posSponsors[fi];
-    const obj: Obj = { ...modelos[fi] };
-    for (let k = 0; k < forma.length; k++) {
-      let valor = linha[k + 1];
-      if (k === iEv && typeof valor === "string") {
-        valor = Object.prototype.hasOwnProperty.call(doKit, valor) ? doKit[valor] : evPorId.get(valor);
-      } else if (k === iSp && Array.isArray(valor)) {
+    if (iSp >= 0) {
+      const valor = linha[iSp + 1];
+      if (Array.isArray(valor)) {
         const lista = new Array(valor.length);
         for (let s = 0; s < valor.length; s++) {
           const ref = valor[s];
           if (!Array.isArray(ref)) { lista[s] = ref; continue; }
           const [id, status] = ref as [string, unknown];
-          const chave = `${id} ${JSON.stringify(status)}`;
-          let entrada = entradas.get(chave);
+          let porStatus = entradas.get(id);
+          if (!porStatus) { porStatus = new Map(); entradas.set(id, porStatus); }
+          let entrada = porStatus.get(status);
           if (!entrada) {
             entrada = { ...spPorId.get(id), approvalStatus: status };
-            entradas.set(chave, entrada);
+            porStatus.set(status, entrada);
           }
           lista[s] = entrada;
         }
-        valor = lista;
+        obj[forma[iSp]] = lista;
       }
-      obj[forma[k]] = valor;
     }
     saida[p] = obj;
   }

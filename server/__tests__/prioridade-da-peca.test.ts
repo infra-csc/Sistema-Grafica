@@ -82,10 +82,14 @@ describe("e na Gráfica também (dono, 27/08)", () => {
   });
 
   it("sobe DENTRO do bloco do evento — o macro segue sendo o caminhão", () => {
-    const sort = GRAFICA.slice(GRAFICA.indexOf("const filteredItems = useMemo"));
-    const evento = sort.indexOf("if (ea !== eb) return ea.localeCompare(eb);");
-    const prio = sort.indexOf("Number(!!b.isPriority) - Number(!!a.isPriority)");
-    const tipo = sort.indexOf("if (a.type !== b.type)");
+    // 07/10 (performance): a ordem mora em fila/ordem-da-fila.ts, com as
+    // chaves calculadas uma vez por peça — os critérios e a ordem deles são os
+    // mesmos (perf9-grafica-carga.test.ts compara com o comparador antigo).
+    expect(GRAFICA).toContain("ordenada: ordenarFilaDaGrafica(items)");
+    const sort = GRAFICA.slice(GRAFICA.indexOf("chaves.sort((a, b) => {"));
+    const evento = sort.indexOf("if (a.evento !== b.evento) return a.posEvento - b.posEvento;");
+    const prio = sort.indexOf("const prio = b.prioritaria - a.prioritaria;");
+    const tipo = sort.indexOf("if (a.tipo !== b.tipo)");
     expect(evento).toBeGreaterThan(-1);
     // depois do evento (não desmonta os blocos por data de saída), antes do tipo
     expect(prio).toBeGreaterThan(evento);

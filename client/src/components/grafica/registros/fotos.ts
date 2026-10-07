@@ -4,6 +4,7 @@ import { FileCheck, Truck } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
+import { miniatura } from "@/lib/miniatura";
 import { TOM } from "@/lib/theme";
 
 export const KIND = {
@@ -69,6 +70,13 @@ export function rotuloDoDia(iso: string, hoje: Date): string {
 // Registros antigos guardaram a URL assinada do GCS, que expira; o app serve
 // os arquivos por /objects/...
 export const srcOf = (p: Photo) => convertGCSUrlToLocalPath(p.photoUrl || "");
+/**
+ * A MINIATURA da foto (webp de até 320px, `?thumb=1` — lib/miniatura) para a
+ * GRADE e as caixinhas (perf, 07/10). Medido em produção: os cartões baixavam
+ * o ORIGINAL, de 130 a 500 KB cada, ~70 por tela, para pintar quadrados de
+ * ~250px. Zoom, "abrir o original" e baixar continuam com `srcOf` (a URL cheia).
+ */
+export const miniaturaOf = (p: Photo) => miniatura(srcOf(p)) ?? "";
 
 export const fmt = (d?: string) => (d ? format(new Date(d), "dd/MM/yy HH:mm", { locale: ptBR }) : "—");
 

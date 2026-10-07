@@ -471,6 +471,11 @@ export function itemCasaFiltros(
   // caía no mês errado). Peça SEM data de saída não pertence a mês nenhum nem
   // aos "próximos 10 dias": os dois filtros a excluem, e não só um deles — era
   // o defeito do filtro de mês, que deixava passar quem não tinha data.
+  // Só quando um dos dois filtros de data está ligado (perf, 07/10): a conta
+  // era feita em TODA chamada — um `new Date` de texto ISO por peça, nas onze
+  // passadas do recorte — para depois ser jogada fora no caso comum (sem data).
+  const precisaDaSaida = f.proximos10 || (excluir !== "mes" && f.mes.length > 0);
+  if (!precisaDaSaida) return true;
   const saida = item.event?.truckDepartureDate;
   const saidaUTC = (() => {
     if (!saida) return null;
@@ -490,6 +495,30 @@ export function itemCasaFiltros(
   }
 
   return true;
+}
+
+/**
+ * QUAIS POOLS DE FACETA SÃO O MESMO POOL (perf, 07/10).
+ *
+ * Cada dropdown conta sobre `itemCasaFiltros(i, f, ctx, { excluir })` — nove
+ * varreduras da fila inteira a cada mudança de recorte ou de dados. Mas excluir
+ * uma dimensão que NÃO está filtrada não muda nada: no estado em que a tela
+ * abre (nenhum filtro), as sete facetas que não revelam dão exatamente o pool
+ * sem exclusão, e Status e Evento dão o mesmo pool "com as entregues". Esta
+ * função diz a qual pool cada faceta equivale, para a tela varrer uma vez por
+ * pool DISTINTO — o resultado de cada faceta é idêntico, peça a peça e na
+ * mesma ordem (conferido em perf9-grafica-carga.test.ts com recortes
+ * sorteados). Lê os mesmos pontos que `itemCasaFiltros` lê de `excluir`:
+ *   · dimensão comum ("grupo", "tipo"…) só pesa quando está filtrada;
+ *   · "status" e "evento" pesam quando filtradas OU quando há entregues
+ *     ocultas (as duas enxergam através da ocultação — ver escondeEntregues).
+ * Quem mudar o uso de `excluir` lá muda aqui junto — o teste acusa a diferença.
+ */
+export type PoolDaFaceta = FacetaGrafica | "nenhuma" | "revela";
+export function poolEquivalente(excluir: FacetaGrafica, f: GraficaFiltros): PoolDaFaceta {
+  if (f[excluir].length > 0) return excluir;
+  if (excluir !== "status" && excluir !== "evento") return "nenhuma";
+  return escondeEntregues(f) ? "revela" : "nenhuma";
 }
 
 /**

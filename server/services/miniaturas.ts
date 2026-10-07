@@ -222,6 +222,19 @@ export async function obterMiniatura(arquivo: ArquivoComMetadados, chave: string
 // lento para todo mundo, não só para quem abriu a lista. Duas gerações por vez
 // mantêm o servidor respondendo; as outras esperam a vez (e quem já foi
 // gerado sai do LRU ou do bucket sem fila nenhuma).
+//
+// POR QUE NÃO 4 (medido em 07/10, 60 fotos de ~280 KB, máquina de 12 núcleos):
+//   vagas  60 miniaturas   compressão de uma resposta (p50 / p95)
+//     2       1,3 s            5 ms / 11 ms
+//     3       1,2 s           13 ms / 32 ms
+//     4       0,8 s           31 ms / 57 ms
+// O sharp roda no MESMO pool de threads do libuv (4 por padrão) que comprime
+// TODA resposta da API (brotli/gzip), resolve DNS e faz o bcrypt do login. Com
+// 4 gerações o pool lota e cada resposta do app espera atrás de um resize — o
+// app inteiro fica 3–6× mais lento durante a rajada, para encurtar em meio
+// segundo uma espera que só acontece UMA vez por foto (a miniatura gerada
+// fica gravada no bucket, ver acima). Subir isto só junto com
+// UV_THREADPOOL_SIZE maior no processo.
 const VAGAS_DE_GERACAO = 2;
 let geracoesAtivas = 0;
 const esperandoVaga: Array<() => void> = [];

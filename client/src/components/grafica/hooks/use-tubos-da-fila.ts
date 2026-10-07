@@ -18,6 +18,15 @@ import { qtyOf } from "@/lib/saldo";
 import type { PainelDeTubos, PecaDaFila, TuboResumo } from "@/components/grafica/tipos";
 import { apiErrorMessage } from "@/components/grafica/fila/regras";
 
+/** O selo "Tubo N · 4 peças" e a lista do title (ver `conteudoDoTubo`). */
+type ConteudoDoTubo = { total: number; lista: string };
+
+// O formatador da hora do fechamento, criado UMA vez (perf, 07/10):
+// `toLocaleTimeString("pt-BR", …)` monta um formatador do Intl a cada chamada
+// — com centenas de tubos, ~60 ms por versão da lista de tubos. Mesmas opções,
+// mesmo texto ("14:32").
+const HORA_DO_FECHAMENTO = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" });
+
 // Constante vazia ESTÁVEL: ver o useQuery de /api/tubos.
 const SEM_TUBOS: TuboResumo[] = [];
 
@@ -38,25 +47,43 @@ export function useTubosDaFila(pecasDoServidor: PecaDaFila[]) {
   // Quando o tubo foi FECHADO (foto tirada) — "fechado 14:32" na peça embalada
   // (dono, 21/09). Só hora: a fila é do dia, e a data já está no cabeçalho.
   const fechamentoDoTubo = useMemo(() => new Map<string | null, string>(
-    todosOsTubos.filter((t) => t.fechadoEm).map((t) => [t.id, new Date(t.fechadoEm as string).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })]),
+    todosOsTubos.filter((t) => t.fechadoEm).map((t) => [t.id, HORA_DO_FECHAMENTO.format(new Date(t.fechadoEm as string))]),
   ), [todosOsTubos]);
   // O QUE ESTÁ EM CADA TUBO (dono, 21/09: "tem que sinalizar quais itens estão
   // no tubo"): o selo diz "Tubo 1 · 4 peças" e o title lista código + a mesma
   // linha da etiqueta ("2x1 Ministério - 16"). Sai da fila que já está na
   // memória — nenhuma consulta nova. Tocar no selo abre o painel naquele tubo.
+  //
+  // SOB DEMANDA (perf, 07/10): montava o texto de TODOS os tubos (centenas,
+  // com a linha da etiqueta de cada peça) a cada versão da fila — só para as
+  // dezenas de linhas desenhadas lerem o seu. Agora cada tubo é montado na
+  // primeira leitura e guardado até a fila ou os tubos mudarem; quem lê
+  // (`get`) recebe o mesmo valor de antes, e o mesmo objeto entre leituras.
   const conteudoDoTubo = useMemo(() => {
-    const porId = new Map(pecasDoServidor.map((i) => [i.id, i]));
-    const m = new Map<string | null, { total: number; lista: string }>();
-    for (const t of todosOsTubos) {
-      const dentro = (t.linhas ?? []).filter((l) => porId.has(l.itemId));
-      if (!dentro.length) continue;
-      m.set(t.id, {
-        total: dentro.length,
-        // A quantidade é a QUE ESTÁ NAQUELE volume; "(7 de 10)" quando dividida.
-        lista: dentro.map((l) => { const x = porId.get(l.itemId)!; return `${x.displayId ?? "—"} · ${linhaDaLista({ ...x, quantity: l.quantidade })} ${parteDoTotal(l.quantidade, qtyOf(x))}`.trim(); }).join("\n"),
-      });
-    }
-    return m;
+    const tuboPorId = new Map(todosOsTubos.map((t) => [t.id, t]));
+    let pecaPorId: Map<string, PecaDaFila> | null = null;
+    const montados = new Map<string, ConteudoDoTubo | undefined>();
+    return {
+      get(tuboId: string | null | undefined): ConteudoDoTubo | undefined {
+        if (tuboId == null) return undefined;
+        if (montados.has(tuboId)) return montados.get(tuboId);
+        const t = tuboPorId.get(tuboId);
+        let conteudo: ConteudoDoTubo | undefined;
+        if (t) {
+          const porId = (pecaPorId ??= new Map(pecasDoServidor.map((i) => [i.id, i])));
+          const dentro = (t.linhas ?? []).filter((l) => porId.has(l.itemId));
+          if (dentro.length) {
+            conteudo = {
+              total: dentro.length,
+              // A quantidade é a QUE ESTÁ NAQUELE volume; "(7 de 10)" quando dividida.
+              lista: dentro.map((l) => { const x = porId.get(l.itemId)!; return `${x.displayId ?? "—"} · ${linhaDaLista({ ...x, quantity: l.quantidade })} ${parteDoTotal(l.quantidade, qtyOf(x))}`.trim(); }).join("\n"),
+            };
+          }
+        }
+        montados.set(tuboId, conteudo);
+        return conteudo;
+      },
+    };
   }, [pecasDoServidor, todosOsTubos]);
   // Os volumes ABERTOS de cada peça, com a quantidade em cada um — o selo da
   // linha ("Tubo 1 (7) · Tubo 2 (3)" / "Embalada (10)") sai daqui.

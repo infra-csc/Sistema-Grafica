@@ -5,7 +5,7 @@ import { Link } from "wouter";
 import { ChevronRight, Clock, Download, ImageOff, Loader2, ZoomIn } from "lucide-react";
 import { alvo } from "@/hooks/use-mobile";
 import { T, FS, R, FW, FONT, TOM, SHADOW } from "@/lib/theme";
-import { KIND, kindOf, srcOf, fmt, altOf, type Photo } from "./fotos";
+import { KIND, kindOf, miniaturaOf, fmt, altOf, type Photo } from "./fotos";
 
 export function CartaoDeFoto({
   p, idx, brokenIds, setBrokenIds, setZoomIdx, baixar, baixando, toque,
@@ -56,7 +56,7 @@ export function CartaoDeFoto({
             Imagem indisponível
           </span>
         ) : (
-          <img src={srcOf(p)} alt={altOf(p)} loading="lazy" decoding="async"
+          <img src={miniaturaOf(p)} alt={altOf(p)} loading="lazy" decoding="async"
             style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
             onError={() => setBrokenIds(prev => {
               const next = new Set(prev);

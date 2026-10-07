@@ -487,7 +487,10 @@ describe("Gráfica — todo dropdown sai do mesmo pool da lista", () => {
     expect(bloco(GRAFICA, "poolDaBusca")).toContain("return items.filter(");
     expect(bloco(GRAFICA, "gFacetPool")).toContain("poolDaBusca.filter");
     expect(bloco(GRAFICA, "statsPool")).toContain("poolDaBusca.filter");
-    expect(bloco(GRAFICA, "filteredItems")).toContain("[...items].sort(");
+    // 07/10 (performance): a ordem mora em fila/ordem-da-fila.ts (chaves
+    // pré-calculadas) — continua ordenando a base INTEIRA, uma vez por versão.
+    expect(bloco(GRAFICA, "filteredItems")).toContain("ordenarFilaDaGrafica(items)");
+    expect(GRAFICA).toContain("const chaves = items.map((peca) => {");
     expect(bloco(GRAFICA, "filteredItems")).toContain("poolDaBusca");
   });
 

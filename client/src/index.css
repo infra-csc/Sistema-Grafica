@@ -1876,3 +1876,21 @@ textarea.erp-pi-campo { min-height: 52px; }
   .erp-pi-campo { font-size: 16px; }
   textarea.erp-pi-campo { min-height: 84px; }
 }
+
+/* ── "AO VIVO" DE MÁQUINAS SEM REPINTAR A PÁGINA — perf-grf-* (perf, 07/10).
+   O pulso do ponto era um box-shadow animado (.maq-vivo), que não anima no
+   compositor: cada quadro repintava a tela inteira (~21 mil elementos) e
+   prendia o thread principal enquanto a aba ficasse aberta. Aqui o halo é um
+   disco atrás do ponto (o ponto, por cima, esconde o miolo — sobra o anel de
+   até 4px, como o box-shadow desenhava) e só anima transform e opacity, que o
+   compositor faz sozinho. 7/15 = o disco do tamanho do ponto (escondido);
+   1 = 4px para fora. Mesmo ritmo e mesma cor; parado sem movimento. */
+.perf-grf-vivo { position: relative; display: inline-block; }
+.perf-grf-vivo-halo { position: absolute; inset: -4px; border-radius: 999px; background: color-mix(in srgb, var(--ok-text) 35%, transparent); opacity: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .perf-grf-vivo-halo { animation: perf-grf-vivo 2.4s ease-in-out infinite; will-change: transform, opacity; }
+}
+@keyframes perf-grf-vivo {
+  0%, 100% { transform: scale(0.4667); opacity: 1; }
+  50% { transform: scale(1); opacity: 0; }
+}

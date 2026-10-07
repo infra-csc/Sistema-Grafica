@@ -14,7 +14,7 @@ export type ComplementoCriado = ReturnType<typeof useComplementoCriado>;
 
 export function useComplementoCriado(fila: FilaDaGrafica) {
   const {
-    items, filteredItems, linhasVisiveis, limiteLinhas, gruposExpandidos, setGruposExpandidos,
+    items, filteredItems, linhasVisiveis, limiteLinhas, primeiraLeva, gruposExpandidos, setGruposExpandidos,
     setOrcamentoLinhas, filtros, setFiltros, setBuscaInput,
   } = fila;
   // ── Aumentar quantidade (o gatilho mora nesta tela) ──
@@ -51,6 +51,10 @@ export function useComplementoCriado(fila: FilaDaGrafica) {
   // está no recorte é que o silêncio vira o pior desfecho — e aí abre o banner.
   useEffect(() => {
     if (!novoComplementoId) return;
+    // Enquanto só a primeira leva do lote está no DOM (perf, 07/10), a linha
+    // pode existir no orçamento e ainda não ter sido desenhada: procurar agora
+    // abriria o bloco do evento à toa. A leva completa re-roda este efeito.
+    if (primeiraLeva) return;
     const noRecorte = filteredItems.find((i) => i.id === novoComplementoId);
     if (!noRecorte) {
       const naLista = items.find((i) => i.id === novoComplementoId);
@@ -81,7 +85,7 @@ export function useComplementoCriado(fila: FilaDaGrafica) {
     // tela precisa anunciar a peça que acabou de nascer.
     (document.querySelector(`[data-testid="text-display-id-${novoComplementoId}"]`) as HTMLElement | null)
       ?.focus({ preventScroll: true });
-  }, [items, filteredItems, novoComplementoId, gruposExpandidos, linhasVisiveis, limiteLinhas]);
+  }, [items, filteredItems, novoComplementoId, gruposExpandidos, linhasVisiveis, limiteLinhas, primeiraLeva]);
 
   // O banner some sozinho assim que a peça entra no recorte — inclusive quando
   // é o operador que afrouxa um filtro por conta própria.

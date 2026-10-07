@@ -59,7 +59,9 @@ describe("uma entrada por tubo, com tudo o que foi junto", () => {
     // A capa é a 1ª foto da embalagem, num quadrado, com o selo do tipo e o
     // nome do volume por cima — a mesma leitura dos cartões de conferência.
     const capa = cartao.querySelector<HTMLImageElement>('[data-testid="ampliar-registro-tubo-t2"] img')!;
-    expect(capa.getAttribute("src")).toBe("/objects/a.jpg");
+    // A capa pinta a MINIATURA (perf, 07/10: o original de 130–500 KB por
+    // cartão); a lupa, abaixo, continua com a foto cheia.
+    expect(capa.getAttribute("src")).toBe("/objects/a.jpg?thumb=1");
     expect(capa.getAttribute("loading")).toBe("lazy");
     expect(cartao.textContent).toContain("Entrega");
     expect(cartao.textContent).toContain("Tubo 2");
@@ -80,6 +82,8 @@ describe("uma entrada por tubo, com tudo o que foi junto", () => {
     expect(c.textContent).toContain("2x1 — Nubank7 un. (7 de 10)");
     expect(c.textContent).toContain("2x1 — Itaú50 un.");
     expect(c.querySelectorAll("img").length, "2 fotos da embalagem + o comprovante").toBe(3);
+    expect(Array.from(c.querySelectorAll("img")).map((i) => i.getAttribute("src")), "as caixinhas de 64px também são miniaturas")
+      .toEqual(["/objects/a.jpg?thumb=1", "/objects/b.jpg?thumb=1", "/objects/comp.jpg?thumb=1"]);
     expect(c.querySelector('button[aria-label="Comprovante da entrega — Tubo 2 — ampliar"]')).toBeTruthy();
     expect(c.textContent).toContain("Embalado por Ana em");
     expect(c.textContent).toContain("entrega registrada por Ana");

@@ -14,7 +14,8 @@ import { rotuloDaMaquina, MAQUINAS_DE_IMPRESSAO } from "@shared/fluxo-peca";
 import { recorteSoDaBusca, recorteSemABusca } from "@/components/grafica/recorte-da-busca";
 import {
   itemCasaFiltros, casaEtapa, itemPercursos, nomeDoMes, ordemPercurso, itemMes, itemImpressoras, SEM_IMPRESSORA,
-  type GraficaFiltros, type FacetaGrafica, type CtxFiltros,
+  poolEquivalente,
+  type GraficaFiltros, type FacetaGrafica, type CtxFiltros, type PoolDaFaceta,
 } from "@/lib/grafica-filtros";
 import type { PecaDaFila } from "@/components/grafica/tipos";
 
@@ -56,13 +57,20 @@ export function useFacetasDaFila({ items, filtros, ctxFiltros, groupOf }: {
     [items, filtros.busca, ctxFiltros],
   );
   const recorteDasPassadas = useMemo(() => recorteSemABusca(filtros), [filtros]);
+  // UM POOL POR RECORTE DISTINTO (perf, 07/10): as nove facetas eram nove
+  // varreduras da fila inteira, mas excluir uma dimensão que não está
+  // filtrada não muda o pool — na abertura da tela (sem filtro) são só DOIS
+  // pools distintos. `poolEquivalente` (lib/grafica-filtros) diz qual é qual;
+  // cada faceta recebe exatamente o array que receberia antes.
   const gFacetPool = useMemo(() => {
-    const cache = new Map<FacetaGrafica, PecaDaFila[]>();
+    const cache = new Map<PoolDaFaceta, PecaDaFila[]>();
     return (excluir: FacetaGrafica): PecaDaFila[] => {
-      const pronto = cache.get(excluir);
+      const chave = poolEquivalente(excluir, recorteDasPassadas);
+      const pronto = cache.get(chave);
       if (pronto) return pronto;
-      const pool = poolDaBusca.filter((i) => itemCasaFiltros(i, recorteDasPassadas, ctxFiltros, { excluir }));
-      cache.set(excluir, pool);
+      const opcoes = chave === "nenhuma" ? {} : { excluir };
+      const pool = poolDaBusca.filter((i) => itemCasaFiltros(i, recorteDasPassadas, ctxFiltros, opcoes));
+      cache.set(chave, pool);
       return pool;
     };
   }, [poolDaBusca, recorteDasPassadas, ctxFiltros]);
@@ -161,10 +169,12 @@ export function useFacetasDaFila({ items, filtros, ctxFiltros, groupOf }: {
     // `casaEtapa` é a régua do clique (lib/grafica-filtros): junta as grafias
     // legadas, manda o molde produzido para Entregues e conta a peça PARCIAL
     // também na etapa em que parte dela espera (impressas a conferir etc.).
+    // Uma passada só pelo pool (eram oito `filter`), mesmas perguntas.
     const pool = gFacetPool('status');
-    const conta = new Map<string, number>(
-      STATUS_DA_FILA.map((s) => [s.value, pool.filter((i) => casaEtapa(i, s.value)).length] as const),
-    );
+    const conta = new Map<string, number>(STATUS_DA_FILA.map((s) => [s.value, 0] as const));
+    for (const i of pool) {
+      for (const s of STATUS_DA_FILA) if (casaEtapa(i, s.value)) conta.set(s.value, conta.get(s.value)! + 1);
+    }
     // O status ESCOLHIDO fica na lista mesmo com zero peças: fora dela, o chip
     // do filtro mostrava a chave crua ("inProduction") em vez de "Em Impressão".
     return STATUS_DA_FILA

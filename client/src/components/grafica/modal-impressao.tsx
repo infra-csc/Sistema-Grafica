@@ -80,12 +80,18 @@ export function mensagemDeErroDaApi(error: unknown): string {
   return raw || "Erro inesperado";
 }
 
+// O formatador criado UMA vez (perf, 07/10): `toLocaleTimeString` monta um
+// Intl.DateTimeFormat novo a cada chamada, e o cartão de Máquinas chama esta
+// função para cada peça da fila — ~300 ms de thread principal na carga da
+// tela, medidos no perfil. Mesmas opções, mesmo texto ("14:32").
+const HORA_HH_MM = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" });
+
 /** "HH:MM" de quando a peça entrou na máquina; null sem data. */
 export function horaDeInicio(desde: string | Date | null | undefined): string | null {
   if (!desde) return null;
   const d = new Date(desde);
   if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  return HORA_HH_MM.format(d);
 }
 
 // ─── As frases (puras — fonte única em shared/progresso-da-impressao.ts) ─────

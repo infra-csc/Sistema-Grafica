@@ -118,7 +118,10 @@ describe("Embalado na tela", () => {
     expect(GRAFICA).toContain('embalados: ["packed"],');
     expect(GRAFICA).toContain('sub: "Aguardam embalagem"');
     expect(GRAFICA).toContain('{ value: "packed",               label: "Embalados" },');
-    expect(GRAFICA).toContain("embalados:  conta(FILTRO_DOS_CARTOES.embalados),");
+    // 07/10 (performance): os sete cartões contam numa passada só, cada um
+    // com a lista dele em FILTRO_DOS_CARTOES.
+    expect(GRAFICA).toContain("const cartoes = Object.entries(FILTRO_DOS_CARTOES)");
+    expect(GRAFICA).toContain("embalados:  n.embalados,");
   });
 
   it("são TRÊS modais focados (21/09) — o comportamento está montado em tubos-tres-modais.test.ts", () => {

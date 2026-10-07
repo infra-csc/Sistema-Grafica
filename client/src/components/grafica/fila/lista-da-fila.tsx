@@ -35,7 +35,7 @@ export function ListaDaFila({ fila, ctx, depsDaLinha, usaCards, colunas, tabelaR
   const {
     isLoading, isError, isFetching, refetch, migracaoPendente, filteredItems, haFiltro, entreguesOcultas,
     descricaoFiltros, nFiltros, patchFiltros, limparFiltros,
-    linhasRenderizadas, linhasVisiveis, cortePorItem, desenharMaisLinhas, etiquetaveisPorEvento, typeToGroup,
+    linhasRenderizadas, linhasVisiveis, cortePorItem, desenharMaisLinhas, etiquetaveisPorEvento, typeToGroup, primeiraLeva,
   } = fila;
   const { idMenuAberto } = ctx;
   return (
@@ -176,7 +176,10 @@ export function ListaDaFila({ fila, ctx, depsDaLinha, usaCards, colunas, tabelaR
       {/* Sem a condição "falta desenhar": o próprio sentinela some quando a
           lista está completa, e precisa continuar montado no último lote
           pedido pelo botão para levar o foco ao texto do fim. */}
-      {!isLoading && !isError && (
+      {/* Nem durante a PRIMEIRA LEVA (perf, 07/10 — ver use-fila-da-grafica):
+          com só as primeiras linhas no DOM o sentinela ficaria perto da área
+          visível e pediria um lote a mais do que a tela mostrava antes. */}
+      {!isLoading && !isError && !primeiraLeva && (
         <SentinelaDaLista
           mostradas={linhasRenderizadas.length}
           total={linhasVisiveis.length}

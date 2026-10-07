@@ -14,11 +14,6 @@ import { rotuloDaMaquina, podeIrParaTubo } from "@shared/fluxo-peca";
 import { eventoBarraImpressas } from "@shared/impressao-dividida";
 import { pecaTravada } from "@shared/trava-da-peca";
 import { isDelivered, isPosConferencia, conferredOf, qtyOf, m2ToProduce, remainingProduce, reusedTotalOf, isComplement } from "@/lib/saldo";
-// Leitura/ordenação do código da peça: fonte única em lib/displayId.ts, o mesmo
-// módulo que Painel Geral, Arte e Vincular usam (e espelho de server/storage.ts).
-// "#0062-C1" tem de ordenar COLADO em "#0062" — com o replace(/\D/g,'')
-// virava 621 e o complemento aparecia centenas de linhas longe da mãe.
-import { compareDisplayId } from "@/lib/displayId";
 // Recorte da fila: fonte única em lib/grafica-filtros.ts. O recorte é UM
 // objeto: contagem, descrição, URL e casamento item↔filtro saem todos dele —
 // uma lista de "há filtro ativo?" mantida à mão esqueceria o próximo filtro.
@@ -29,8 +24,9 @@ import {
   type GraficaFiltros,
 } from "@/lib/grafica-filtros";
 import type { ModeloDoCatalogo, PecaDaFila, RegistroDoHistorico } from "@/components/grafica/tipos";
-import { FILTRO_DOS_CARTOES, LINHAS_POR_LOTE, ROW_CAP } from "@/components/grafica/fila/regras";
+import { FILTRO_DOS_CARTOES, LINHAS_DA_PRIMEIRA_LEVA, LINHAS_POR_LOTE, ROW_CAP } from "@/components/grafica/fila/regras";
 import { useFacetasDaFila } from "./use-facetas-da-fila";
+import { ordenarFilaDaGrafica } from "@/components/grafica/fila/ordem-da-fila";
 
 export type FilaDaGrafica = ReturnType<typeof useFilaDaGrafica>;
 
@@ -233,36 +229,11 @@ export function useFilaDaGrafica() {
   // versão de `items` e o recorte só filtra — `filter` preserva a ordem e o
   // `sort` é estável, então o resultado é idêntico ao de filtrar e depois
   // ordenar. A data de saída é lida uma vez por peça, não por comparação.
+  // A regra da ordem (e o porquê de cada critério) mora em fila/ordem-da-fila.ts.
   const filaOrdenadaRef = useRef<{ base: PecaDaFila[]; ordenada: PecaDaFila[] } | null>(null);
   const filteredItems = useMemo(() => {
     if (filaOrdenadaRef.current?.base !== items) {
-      const saidaMs = new Map<PecaDaFila, number>();
-      for (const i of items) {
-        saidaMs.set(i, i.event?.truckDepartureDate ? new Date(i.event.truckDepartureDate).getTime() : Infinity);
-      }
-      filaOrdenadaRef.current = { base: items, ordenada: [...items].sort((a, b) => {
-        // Urgência primeiro: evento com saída do caminhão mais próxima no topo;
-        // sem data vai para o fim. Nome desempata (e mantém os grupos estáveis).
-        const da = saidaMs.get(a)!;
-        const db = saidaMs.get(b)!;
-        if (da !== db) return da - db;
-        const ea = a.event?.name || ""; const eb = b.event?.name || "";
-        if (ea !== eb) return ea.localeCompare(eb);
-        // PRIORITÁRIA sobe DENTRO do bloco do evento (dono, 27/08): o macro é
-        // do caminhão (a Gráfica trabalha por evento e data de saída), mas
-        // dentro do evento a peça marcada sai na frente.
-        const prio = Number(!!b.isPriority) - Number(!!a.isPriority);
-        if (prio !== 0) return prio;
-        if (a.type !== b.type) return a.type.localeCompare(b.type);
-        // 4º critério: o complemento COLA na peça original. #0062 → #0062-C1 →
-        // #0062-C2 → #0063. O filho herda eventId e type, então os três
-        // critérios anteriores sempre empatam e ele cai logo abaixo da mãe —
-        // sem isso "#0062-C1" ordenaria como 621 e apareceria a centenas de
-        // linhas dela, criando exatamente a duplicidade confusa que o modelo
-        // de complemento existe para evitar. Os cabeçalhos de evento/grupo/tipo
-        // (derivados por comparação com a linha anterior) seguem corretos.
-        return compareDisplayId(a.displayId, b.displayId);
-      }) };
+      filaOrdenadaRef.current = { base: items, ordenada: ordenarFilaDaGrafica(items) };
     }
     // Com busca, só entra quem passou por ela (`poolDaBusca`, uma passada só).
     const naBusca = poolDaBusca === items ? null : new Set(poolDaBusca);
@@ -297,16 +268,24 @@ export function useFilaDaGrafica() {
   // "Liberados" contava a grafia legada e não a filtrava) e o número do cartão
   // não batia com a lista que o clique abria. MOLDE: statusParaContagem manda
   // o produzido para Entregues.
+  // UMA passada pelo pool (perf, 07/10) — eram sete `filter` sobre milhares
+  // de peças a cada recorte; as perguntas (e as contagens) são as mesmas.
   const stats = useMemo(() => {
-    const conta = (vals: readonly string[]) => statsPool.filter((i) => vals.some((v) => casaEtapa(i, v))).length;
+    const cartoes = Object.entries(FILTRO_DOS_CARTOES) as [keyof typeof FILTRO_DOS_CARTOES, string[]][];
+    const n: Record<keyof typeof FILTRO_DOS_CARTOES, number> = {
+      revisao: 0, liberados: 0, emProducao: 0, produzidos: 0, conferidos: 0, embalados: 0, entregues: 0,
+    };
+    for (const i of statsPool) {
+      for (const [cartao, vals] of cartoes) if (vals.some((v) => casaEtapa(i, v))) n[cartao]++;
+    }
     return {
-      revisao:    conta(FILTRO_DOS_CARTOES.revisao),
-      liberados:  conta(FILTRO_DOS_CARTOES.liberados),
-      emProducao: conta(FILTRO_DOS_CARTOES.emProducao),
-      produzidos: conta(FILTRO_DOS_CARTOES.produzidos),
-      conferidos: conta(FILTRO_DOS_CARTOES.conferidos),
-      embalados:  conta(FILTRO_DOS_CARTOES.embalados),
-      entregues:  conta(FILTRO_DOS_CARTOES.entregues),
+      revisao:    n.revisao,
+      liberados:  n.liberados,
+      emProducao: n.emProducao,
+      produzidos: n.produzidos,
+      conferidos: n.conferidos,
+      embalados:  n.embalados,
+      entregues:  n.entregues,
       total:      statsPool.length,
     };
   }, [statsPool]);
@@ -435,9 +414,29 @@ export function useFilaDaGrafica() {
     () => ({ recorte: filtros, n: LINHAS_POR_LOTE }),
   );
   const limiteLinhas = orcamentoLinhas.recorte === filtros ? orcamentoLinhas.n : LINHAS_POR_LOTE;
+  // ── A PRIMEIRA LEVA (perf, 07/10) ──
+  // Medido em produção: a fila chega e a tela fica ~4 s sem a primeira linha,
+  // com o thread principal preso. Parte disso era desenhar o LOTE INTEIRO (60
+  // linhas, cada uma com miniatura, selos e botões) numa tarefa só — a
+  // resposta do React Query renderiza de forma síncrona — quando a tela mostra
+  // 4 a 8 delas (1920×1080: 4; 2560×1440: 7). Agora cada recorte novo (e a
+  // chegada dos dados) desenha primeiro LINHAS_DA_PRIMEIRA_LEVA linhas e o
+  // resto do lote entra logo depois, numa transição (render fatiado, que não
+  // trava o clique nem a rolagem). O que fica na tela é o mesmo de antes: o
+  // lote inteiro, o mesmo "Mostrar mais" e o mesmo orçamento — `limiteLinhas`
+  // continua sendo o orçamento, e é dele que "Mostrar mais" e a rolagem até a
+  // peça recém-criada partem. O sentinela espera a leva completa (ver
+  // ListaDaFila): visto com 12 linhas, ele pediria um lote a mais.
+  const [levaCompletaDe, setLevaCompletaDe] = useState<GraficaFiltros | null>(null);
+  const primeiraLeva = levaCompletaDe !== filtros;
+  useEffect(() => {
+    if (isLoading || !primeiraLeva) return;
+    startTransition(() => setLevaCompletaDe(filtros));
+  }, [isLoading, primeiraLeva, filtros]);
+  const linhasNaTela = primeiraLeva ? Math.min(limiteLinhas, LINHAS_DA_PRIMEIRA_LEVA) : limiteLinhas;
   const linhasRenderizadas = useMemo(
-    () => (linhasVisiveis.length > limiteLinhas ? linhasVisiveis.slice(0, limiteLinhas) : linhasVisiveis),
-    [linhasVisiveis, limiteLinhas],
+    () => (linhasVisiveis.length > linhasNaTela ? linhasVisiveis.slice(0, linhasNaTela) : linhasVisiveis),
+    [linhasVisiveis, linhasNaTela],
   );
   // Números do resumo do recorte ("N peças · M eventos · X m² a produzir…").
   // Eram cinco varreduras de `filteredItems` (duas delas criando um Set) a CADA
@@ -536,7 +535,7 @@ export function useFilaDaGrafica() {
     complementosAbertos, complementosNaLista, complementoChipLabel, comReusoNaLista, entreguesOcultas,
     nFiltros, nFiltrosNaFolha, haFiltro, descricaoFiltros,
     gruposExpandidos, setGruposExpandidos, expandirGrupo, linhasVisiveis, cortePorItem,
-    setOrcamentoLinhas, limiteLinhas, linhasRenderizadas, desenharMaisLinhas, resumoDaLista,
+    setOrcamentoLinhas, limiteLinhas, primeiraLeva, linhasRenderizadas, desenharMaisLinhas, resumoDaLista,
     nTravadas, etiquetaveisPorEvento, tubaveisPorEvento, itemPorId,
   };
 }

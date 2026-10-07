@@ -98,6 +98,12 @@ export const ROW_CAP = 50;
 // desenhado. Contadores, seleção "Todas", exportação e fila do celular seguem
 // lendo o recorte INTEIRO — o lote só decide o que vai para a tela.
 export const LINHAS_POR_LOTE = 60;
+// …e o lote não entra de uma vez quando a lista RECOMEÇA (dados chegando,
+// recorte novo): as primeiras linhas desenham sozinhas — a tela grande mostra
+// 4 a 8 — e o resto do lote vem numa transição logo depois (perf, 07/10; ver
+// use-fila-da-grafica). Doze cobre a primeira tela com folga em qualquer
+// largura, inclusive os cartões do celular.
+export const LINHAS_DA_PRIMEIRA_LEVA = 12;
 
 /**
  * Os status de cada cartão da fila — a MESMA lista conta o número e vira o

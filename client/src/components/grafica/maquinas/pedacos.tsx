@@ -65,7 +65,20 @@ export function Atualizado({ em, buscando, fonte }: { em: number; buscando: bool
     <span data-testid="atualizado-ha" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: fonte, color: T.second, whiteSpace: "nowrap" }}>
       {buscando
         ? <RotateCcw aria-hidden="true" className="animate-spin" style={{ width: 11, height: 11 }} />
-        : <span aria-hidden="true" className="maq-vivo" style={{ width: 7, height: 7, borderRadius: R.pill, background: LIVRE.dot, flexShrink: 0 }} />}
+        : (
+          // O PONTO QUE RESPIRA SEM REPINTAR A TELA (perf, 07/10). O pulso era
+          // um box-shadow animado no próprio ponto — e box-shadow não anima no
+          // compositor: a cada quadro o navegador repintava a página inteira de
+          // Máquinas (~21 mil elementos). Medido: Paint + PrePaint ocupavam o
+          // thread principal ~100% do tempo, para sempre, com a aba aberta.
+          // Agora o halo é um disco ATRÁS do ponto que só muda transform e
+          // opacity (perf-grf-vivo-* no index.css) — mesmo tamanho (até 4px em
+          // volta), mesma cor a 35%, mesmo ritmo de 2,4 s, só com movimento.
+          <span aria-hidden="true" className="perf-grf-vivo" style={{ width: 7, height: 7, flexShrink: 0 }}>
+            <span className="perf-grf-vivo-halo" />
+            <span style={{ position: "absolute", inset: 0, borderRadius: R.pill, background: LIVRE.dot }} />
+          </span>
+        )}
       {buscando ? "Atualizando…" : em ? `Atualizado ${fmtRelative(new Date(em).toISOString(), agora)}` : "Ao vivo"}
     </span>
   );

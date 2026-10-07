@@ -7,6 +7,7 @@ import { Plus, List } from "lucide-react";
 import type { Sponsor } from "@shared/schema";
 import type { RemessaDoKit } from "@shared/kit";
 import { patrocinadoresDaLinha } from "@shared/pedidos-de-peca";
+import { mostraCampoProducaoInterna } from "@shared/producao-interna";
 import {
   Dialog,
   DialogContent,
@@ -150,6 +151,8 @@ export function ModalDeEntradaDePecas({
             onCancel={handleCloseDialog}
             isPending={createBulkItemsMutation.isPending}
             podePriorizar={user?.role === 'admin' || user?.role === 'solicitacao'}
+            // A coluna "Gráfica" (07/10): o mesmo gate do bloco do formulário.
+            podeProducaoInterna={mostraCampoProducaoInterna(user?.role)}
             onConteudoChange={(tem) => { bulkTemConteudoRef.current = tem; }}
           />
           </div>

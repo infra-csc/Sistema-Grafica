@@ -1854,3 +1854,25 @@ a.ds-botao[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; filter: no
 @media (prefers-reduced-motion: no-preference) {
   .book-entra { animation: etq-entra var(--dur-media) var(--ease-saida) backwards; }
 }
+
+/* ── ENTRADA RÁPIDA · "VAI DIRETO PARA A GRÁFICA" — erp-* (dono, 07/10).
+   A linha expandida debaixo da linha marcada (entrada-rapida/linha-da-grafica).
+   A grade rola de lado no celular e no tablet; o bloco fica preso à esquerda
+   (sticky, no componente) e com a largura da janela, para caber inteiro.
+   Instruções e arquivo lado a lado (2:1) no computador, empilhados no celular,
+   onde o campo vai a 16px (abaixo disso o iOS dá zoom ao tocar). */
+.erp-pi-linha { max-width: calc(95vw - 48px); box-sizing: border-box; }
+.erp-pi-campos { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 8px 12px; align-items: start; }
+.erp-pi-campo { font-size: 13px; }
+.erp-pi-campo:focus { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--orange-deep) 16%, transparent); }
+textarea.erp-pi-campo { min-height: 52px; }
+/* A caixinha fica 18×18 (o piso de 44px do toque a esticava numa barra preta
+   de 18×44 — data-alvo-natural no componente); o alvo do dedo é o <label> da
+   célula inteira, que cresce para 44px no toque. */
+.erp-pi-caixinha { width: 18px; height: 18px; }
+@media (pointer: coarse) { .erp-pi-alvo { min-height: 44px !important; min-width: 44px; } }
+@media (max-width: 767px) {
+  .erp-pi-campos { grid-template-columns: minmax(0, 1fr); }
+  .erp-pi-campo { font-size: 16px; }
+  textarea.erp-pi-campo { min-height: 84px; }
+}

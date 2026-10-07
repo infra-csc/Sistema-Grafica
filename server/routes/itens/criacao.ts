@@ -198,12 +198,28 @@ export function registrarCriacao(app: Express): void {
           // remessa do Kit: a Entrada Rápida só cria peça da Arena, e a
           // remessa sem a conferência do POST unitário penduraria a peça numa
           // remessa de outro evento ou de outra pessoa.
-          const parsed = publicInsertItemSchema.omit({ kitRemessaId: true }).parse(item);
-          // Produção interna na Entrada Rápida: mesma régua do POST unitário
-          // (sem arquivo — o lote é de linhas digitadas).
+          // Tipada como InsertItem: o arquivo da produção interna (abaixo) é
+          // campo que o schema público não aceita do corpo — o servidor o põe.
+          const parsed: InsertItem = publicInsertItemSchema.omit({ kitRemessaId: true }).parse(item);
+          // Produção interna na Entrada Rápida (dono, 07/10: a coluna
+          // "Gráfica" da grade): a MESMA régua do POST unitário — papel,
+          // molde, reaproveitamento total, instrução normalizada. A peça nasce
+          // sem patrocinador (a grade não vincula), por isso o `false`.
           const daMarca = recusaDaMarcaNaEscrita(null, parsed, req.userRole, false);
           if ("recusa" in daMarca) throw erroPublico(daMarca.recusa.status, `Linha ${index + 1}: ${daMarca.recusa.corpo.error}`);
           if (daMarca.instrucoes !== undefined) parsed.instrucoesGrafica = daMarca.instrucoes;
+          // O arquivo da linha marcada: o caminho colado na grade. Mesma
+          // leitura do POST unitário (lerArquivoDaProducaoInterna) e só na
+          // peça marcada — na comum o finalFileUrl é da Arte e é ignorado.
+          if (parsed.producaoInterna) {
+            const lido = lerArquivoDaProducaoInterna((item ?? {}) as Record<string, unknown>);
+            if (!lido.ok) throw erroPublico(400, `Linha ${index + 1}: ${lido.erro}`);
+            if (lido.arquivo) {
+              parsed.finalFileUrl = lido.arquivo.url;
+              parsed.finalFileName = lido.arquivo.nome;
+              parsed.finalFileUpdatedAt = new Date();
+            }
+          }
           // Recalcular m² no servidor quando derivável (não confiar no cliente).
           const derivedM2 = deriveCalculatedM2(parsed);
           if (derivedM2 !== undefined) parsed.calculatedM2 = derivedM2;

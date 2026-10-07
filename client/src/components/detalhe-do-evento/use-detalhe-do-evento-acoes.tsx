@@ -237,9 +237,19 @@ export function useAcoesDasPecas({
       // onde as peças foram parar (RASCUNHO, não "a lista") e o passo seguinte.
       // UM toast só: com linhas incompletas saíam dois "Peças salvas" empilhados.
       const sobra = bulkLeftoverRef.current;
+      // Entrada rápida com linhas "Gráfica" (07/10): elas não vão para a
+      // vinculação — o toast não pode prometer o caminho errado para elas.
+      const diretas = Array.isArray(data) ? data.filter((p) => (p as { producaoInterna?: boolean } | null)?.producaoInterna).length : 0;
       toast({
         title: "Peças salvas",
-        description: `${quantidade} ${quantidade === 1 ? 'peça entrou' : 'peças entraram'} em Rascunho — envie para a vinculação quando a lista estiver pronta.`
+        description: `${quantidade} ${quantidade === 1 ? 'peça entrou' : 'peças entraram'} em Rascunho — `
+          // A frase cabe nas 4 linhas do toast: o caso misto diz as duas
+          // contas logo no começo, antes do corte (revisão visual de 07/10).
+          + (diretas === 0
+            ? `envie para a vinculação quando a lista estiver pronta.`
+            : diretas === quantidade
+              ? `no envio da lista, ${quantidade === 1 ? 'vai' : 'vão'} direto para a Gráfica.`
+              : `no envio, ${diretas} ${diretas === 1 ? 'vai' : 'vão'} direto para a Gráfica e ${quantidade - diretas} para a vinculação.`)
           + (sobra > 0 ? ` ${sobra} ${sobra === 1 ? 'linha incompleta continua aberta' : 'linhas incompletas continuam abertas'} para você terminar.` : ''),
         action: sobra === 0
           ? <ToastAction altText="Ver os rascunhos do evento" onClick={irParaRascunhos}>Ver rascunhos</ToastAction>

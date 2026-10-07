@@ -1,6 +1,14 @@
 // Os tipos da ENTRADA RÁPIDA (grade de lançamento de peças em lote).
+import type { CamposDaProducaoInterna } from "@shared/producao-interna";
 
-export interface BulkItemRow {
+/**
+ * Uma linha da grade. Os campos da PRODUÇÃO INTERNA (producaoInterna,
+ * instrucoesGrafica, arquivoGrafica, arquivoGraficaNome) são os MESMOS do
+ * formulário de uma peça (dono, 07/10: "colocar 'Vai direto para a Gráfica'
+ * também na Entrada rápida") — por isso a linha os herda de
+ * CamposDaProducaoInterna, e o envio usa o mesmo corpoDaProducaoInterna.
+ */
+export interface BulkItemRow extends CamposDaProducaoInterna {
   id: string;
   type: string;
   description: string;
@@ -78,6 +86,15 @@ export interface PecaDoLote {
   isReuse: boolean;
   isPriority: boolean;
   standardItemId: string | null;
+  /**
+   * Produção interna (07/10) — o que corpoDaProducaoInterna devolve para a
+   * linha: `producaoInterna: false` na comum; na marcada, a instrução e, se
+   * colado, o caminho do arquivo.
+   */
+  producaoInterna?: boolean;
+  instrucoesGrafica?: string | null;
+  finalFileUrl?: string;
+  finalFileName?: string;
 }
 
 /** Uma repetição achada antes de gravar: dentro do lote ou contra o evento. */

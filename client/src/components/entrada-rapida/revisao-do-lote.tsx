@@ -1,8 +1,10 @@
 // REVISÃO DO LOTE — o que será criado, o que já existe no evento e as repetições.
-import { ArrowRight, RotateCcw } from "lucide-react";
+import { ArrowRight, Factory, RotateCcw } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { T, N, TOM, FONT } from "@/lib/theme";
 import { Botao } from "@/components/ui/botao";
+import { SeloProducaoInterna } from "@/components/selo-producao-interna";
+import { faltamInstrucoes } from "@shared/producao-interna";
 import { isSameItem } from "./regras";
 import type { ConfirmacaoDoLote, ExistingItem, PecaDoLote, StandardItem } from "./tipos";
 
@@ -18,6 +20,13 @@ export function RevisaoDoLote({
   /** Linhas incompletas que NÃO vão no envio e seguem no grid. */
   leftoverCount: number;
 }) {
+  // VAI DIRETO PARA A GRÁFICA (dono, 07/10): quantas linhas do lote foram
+  // marcadas e quantas ainda não dizem à Gráfica o que fazer. A conta é a do
+  // envio da lista (shared/producao-interna): sem arquivo e sem instrução, a
+  // peça fica no rascunho — a revisão avisa ANTES de gravar.
+  const diretas = duplicateConfirm?.valid.filter(p => p.producaoInterna) ?? [];
+  const diretasSemInstrucao = diretas.filter(p => faltamInstrucoes(p.instrucoesGrafica, !!p.finalFileUrl)).length;
+
   // ── RESUMO / CONFIRMAÇÃO DE LOTE ──
   // Era um overlay montado à mão: sem Esc, sem armadilha de foco (o Tab
   // percorria o formulário atrás do escurecido), o foco não voltava ao
@@ -78,6 +87,31 @@ export function RevisaoDoLote({
                   Será criado — {duplicateConfirm.valid.length} {duplicateConfirm.valid.length === 1 ? 'peça' : 'peças'}
                 </span>
               </div>
+              {diretas.length > 0 && (
+                <div
+                  data-testid="revisao-lote-diretas"
+                  style={{
+                    display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 10,
+                    backgroundColor: TOM.ceu.bg, borderLeft: `4px solid ${TOM.ceu.dot}`, borderRadius: 8,
+                    padding: '8px 12px', color: TOM.ceu.text, fontSize: 13, fontFamily: FONT.corpo, lineHeight: 1.4,
+                  }}
+                >
+                  <Factory aria-hidden="true" style={{ width: 16, height: 16, flexShrink: 0, marginTop: 1 }} />
+                  <div style={{ minWidth: 0 }}>
+                    <strong style={{ fontWeight: 700 }}>
+                      {diretas.length === duplicateConfirm.valid.length
+                        ? (diretas.length === 1 ? 'Vai direto para a Gráfica' : `Todas as ${diretas.length} vão direto para a Gráfica`)
+                        : `${diretas.length} de ${duplicateConfirm.valid.length} vão direto para a Gráfica`}
+                    </strong>
+                    {' '}no envio da lista — sem Vinculação, Arte, Aprovação nem Revisão Final.
+                    {diretasSemInstrucao > 0 && (
+                      <span data-testid="revisao-lote-diretas-sem-instrucao" style={{ display: 'block', color: TOM.alerta.text, marginTop: 2 }}>
+                        {diretasSemInstrucao === 1 ? '1 está' : `${diretasSemInstrucao} estão`} sem arquivo e sem instruções: {diretasSemInstrucao === 1 ? 'fica' : 'ficam'} no rascunho até você escrever o que a Gráfica deve fazer.
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
               <div style={{ maxHeight: '220px', overflowY: 'auto', overflowX: 'hidden', border: `1px solid ${T.border}`, borderRadius: '8px' }}>
                 {(() => {
                   const typeToGroup: Record<string, string> = {};
@@ -134,6 +168,10 @@ export function RevisaoDoLote({
                             borderBottom: `1px solid ${T.border}`,
                             padding: '9px 12px',
                             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px',
+                            // A marcada ganha uma 2ª linha com o selo: na 1ª,
+                            // ao lado do tipo, ele espremia tipo e descrição
+                            // em reticências num diálogo de 520px.
+                            flexWrap: 'wrap', rowGap: 5,
                           }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                               {item.isReuse && (
@@ -180,6 +218,16 @@ export function RevisaoDoLote({
                                 {item.quantity}x
                               </span>
                             </div>
+                            {item.producaoInterna && (
+                              <div style={{ flexBasis: '100%', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
+                                <SeloProducaoInterna peca={item} onde="lista" style={{ flexShrink: 0 }} />
+                                {faltamInstrucoes(item.instrucoesGrafica, !!item.finalFileUrl) && (
+                                  <span style={{ fontSize: '12px', color: TOM.alerta.text, fontFamily: FONT.corpo }}>
+                                    sem instruções — fica no rascunho no envio
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -298,18 +346,26 @@ export function RevisaoDoLote({
             backgroundColor: T.surface,
             borderRadius: '0 0 14px 14px',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
+            // No celular o texto ganha a linha dele e os botões descem: lado a
+            // lado, o texto virava uma coluna de 8 linhas e o Confirmar vazava
+            // pela borda (revisão visual de 07/10).
+            flexWrap: 'wrap',
           }}>
             {/* O que o "Confirmar" faz, na hora de decidir: grava em
                 RASCUNHO. Quem nunca usou achava que o lote já seguia para a
                 vinculação — e esquecia o envio. */}
-            <p style={{ margin: 0, fontSize: '13px', color: T.second, fontFamily: FONT.corpo, lineHeight: 1.45 }}>
+            <p style={{ margin: 0, fontSize: '13px', color: T.second, fontFamily: FONT.corpo, lineHeight: 1.45, flex: '1 1 220px', minWidth: 0 }}>
               {duplicateConfirm.valid.length} {duplicateConfirm.valid.length === 1 ? 'peça nova' : 'peças novas'} ·{' '}
               {existingItems.length} existentes no evento
               <span style={{ display: 'block', fontSize: '12px', color: T.apoio }}>
-                Entram em Rascunho — depois, envie para a vinculação.
+                {diretas.length === 0
+                  ? 'Entram em Rascunho — depois, envie para a vinculação.'
+                  : diretas.length === duplicateConfirm.valid.length
+                    ? 'Entram em Rascunho — no envio, vão para a Gráfica.'
+                    : 'Entram em Rascunho — as marcadas vão para a Gráfica no envio.'}
               </span>
             </p>
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginLeft: 'auto' }}>
               <Botao variante="secundario" onClick={() => setDuplicateConfirm(null)}>
                 Voltar e revisar
               </Botao>

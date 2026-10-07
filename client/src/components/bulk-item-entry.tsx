@@ -6,10 +6,12 @@
 // peças já lançadas, a revisão do lote, as regras puras e os tipos moram em
 // components/entrada-rapida/.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { Fragment, useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { alinharTipo } from "@shared/tipo-da-peca";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Copy, Trash2, Loader2, ArrowRight, RotateCcw, AlertTriangle } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { LinhaDaGrafica } from "@/components/entrada-rapida/linha-da-grafica";
 import { calculateM2FromStrings } from "@/lib/calculateM2";
 import { useToast } from "@/hooks/use-toast";
 import { T, N, TOM, FONT } from "@/lib/theme";
@@ -22,6 +24,7 @@ import { ExistingItemsPanel } from "@/components/entrada-rapida/painel-pecas-lan
 import { RevisaoDoLote } from "@/components/entrada-rapida/revisao-do-lote";
 import {
   materials, finishes, FIELDS_PER_ROW, opcoesDeCampo, isRowComplete, createEmptyRow, isSameItem,
+  motivoDaLinhaNaoIrParaGrafica, corpoDaProducaoInternaDaLinha,
 } from "@/components/entrada-rapida/regras";
 import type {
   BulkItemRow, StandardItem, Sponsor, ExistingItem, PecaDoLote, DuplicataDoLote, ConfirmacaoDoLote,
@@ -47,6 +50,11 @@ interface BulkItemEntryProps {
   /** admin|solicitacao: mostra o botão de prioridade por linha (espelho do gate do servidor). */
   podePriorizar?: boolean;
   /**
+   * admin|solicitacao (mostraCampoProducaoInterna): mostra a coluna "Gráfica"
+   * — a caixinha "vai direto para a Gráfica" por linha (dono, 07/10).
+   */
+  podeProducaoInterna?: boolean;
+  /**
    * Avisa o pai se a grade tem algo digitado. É o que deixa o X do modal
    * perguntar "descartar?" SÓ quando há o que perder — antes perguntava
    * sempre, até com a grade vazia.
@@ -57,7 +65,7 @@ interface BulkItemEntryProps {
 /* ── Main Component ─────────────────────────────────────────────────── */
 export function BulkItemEntry({
   eventId, standardItems = [], sponsors = [], existingItems = [],
-  onSubmit, onCancel, isPending, savedTick = 0, podePriorizar = false, onConteudoChange,
+  onSubmit, onCancel, isPending, savedTick = 0, podePriorizar = false, podeProducaoInterna = false, onConteudoChange,
 }: BulkItemEntryProps) {
   const [rows, setRows] = useState<BulkItemRow[]>([createEmptyRow()]);
   const [replicateCounts, setReplicateCounts] = useState<Record<string, number>>({});
@@ -115,6 +123,11 @@ export function BulkItemEntry({
     }));
   }
 
+  /** Os campos da produção interna da linha (a caixinha e o bloco de baixo). */
+  function updateProducaoInterna(id: string, parcial: Partial<Pick<BulkItemRow, "producaoInterna" | "instrucoesGrafica" | "arquivoGrafica" | "arquivoGraficaNome">>) {
+    setRows(prev => prev.map(row => (row.id === id ? { ...row, ...parcial } : row)));
+  }
+
   const addRow = useCallback(() => {
     setRows(prev => [...prev, createEmptyRow()]);
   }, []);
@@ -143,6 +156,13 @@ export function BulkItemEntry({
   /* ── Keyboard navigation ── */
   function focusNextField(rowIndex: number, fieldIndex: number) {
     const nextField = fieldIndex + 1;
+    // Linha marcada "Gráfica": o Enter do último campo desce para as
+    // instruções, logo abaixo — é o próximo campo a preencher dela. De lá
+    // (fieldIndex = FIELDS_PER_ROW), segue para a linha seguinte.
+    if (nextField === FIELDS_PER_ROW && podeProducaoInterna && rows[rowIndex]?.producaoInterna) {
+      const el = tableRef.current?.querySelector<HTMLElement>(`[data-nav-row="${rowIndex}"][data-nav-field="pi"]`);
+      if (el) { el.focus(); return; }
+    }
     if (nextField < FIELDS_PER_ROW) {
       const el = tableRef.current?.querySelector<HTMLElement>(
         `[data-nav-row="${rowIndex}"][data-nav-field="${nextField}"]`
@@ -173,6 +193,20 @@ export function BulkItemEntry({
   }
 
   function handleSubmit() {
+    // Linha marcada "Gráfica" que virou molde ou reaproveitamento total depois
+    // da marca: o servidor recusaria o lote inteiro com "Linha N: …". Melhor
+    // dizer aqui, apontando a linha, antes de abrir a revisão.
+    if (podeProducaoInterna) {
+      const ri = rows.findIndex(r => r.producaoInterna && motivoDaLinhaNaoIrParaGrafica(r));
+      if (ri >= 0) {
+        toast({
+          title: `Linha ${ri + 1}: não pode ir direto para a Gráfica`,
+          description: `${motivoDaLinhaNaoIrParaGrafica(rows[ri])} Desmarque "Gráfica" nessa linha.`,
+          variant: "warning",
+        });
+        return;
+      }
+    }
     const completeRows = rows.filter(isRowComplete);
     // Guarda quais linhas foram enviadas para removê-las quando o pai confirmar
     // o sucesso — assim elas não podem ser salvas duas vezes.
@@ -194,6 +228,10 @@ export function BulkItemEntry({
         isReuse: r.isReuse || false,
         isPriority: r.isPriority || false,
         standardItemId: r.standardItemId || null,
+        // Vai direto para a Gráfica (07/10): o MESMO corpo do formulário de
+        // uma peça. Só quem vê a coluna manda a marca — sem ela, a linha
+        // segue o caminho de sempre.
+        ...(podeProducaoInterna ? corpoDaProducaoInternaDaLinha(r) : {}),
       }));
     if (valid.length === 0) {
       setSubmitAttempted(true);
@@ -251,7 +289,7 @@ export function BulkItemEntry({
 
   // A MESMA régua de "tem conteúdo" do Cancelar e do X do modal (via pai):
   // duas contas diferentes fariam um perguntar e o outro não.
-  const temConteudo = rows.some(r => r.type || r.description || r.material || r.finish || r.visualWidth || r.fileWidth);
+  const temConteudo = rows.some(r => r.type || r.description || r.material || r.finish || r.visualWidth || r.fileWidth || r.instrucoesGrafica.trim() || r.arquivoGrafica.trim());
   const onConteudoChangeRef = useRef(onConteudoChange);
   onConteudoChangeRef.current = onConteudoChange;
   useEffect(() => { onConteudoChangeRef.current?.(temConteudo); }, [temConteudo]);
@@ -311,6 +349,9 @@ export function BulkItemEntry({
     { label: 'Material',   w: '84px',  orange: false },
     { label: 'Acab.',      w: '84px',  orange: false },
     { label: 'Obs',        w: '80px',  orange: false },
+    // GRÁFICA (dono, 07/10): a caixinha "vai direto para a Gráfica" — só para
+    // quem pode marcar (admin|Solicitação), como no formulário de uma peça.
+    ...(podeProducaoInterna ? [{ label: 'Gráfica', w: '62px', orange: false, ceu: true }] : []),
     { label: '',           w: '60px',  orange: false },
   ];
 
@@ -349,7 +390,7 @@ export function BulkItemEntry({
         className="scrollbar-visible"
         style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', minWidth: 0 }}
       >
-        <div style={{ minWidth: '970px', padding: '16px 20px 24px' }}>
+        <div style={{ minWidth: podeProducaoInterna ? '1032px' : '970px', padding: '16px 20px 24px' }}>
 
           {/* ══ SEÇÃO: PEÇAS JÁ LANÇADAS ══ */}
           {existingItems.length > 0 && (
@@ -367,7 +408,7 @@ export function BulkItemEntry({
                     textTransform: 'uppercase', letterSpacing: '0.1em',
                     // O laranja marca as colunas de MEDIDA; em texto de 10px ele
                     // precisa ser o escuro (#c2410c) para ser lido.
-                    color: col.orange ? T.accentText : T.second,
+                    color: col.orange ? T.accentText : 'ceu' in col ? TOM.ceu.text : T.second,
                     whiteSpace: 'nowrap', fontFamily: FONT.display,
                     width: col.w || undefined,
                   }}>
@@ -377,12 +418,20 @@ export function BulkItemEntry({
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, ri) => (
+              {rows.map((row, ri) => {
+                // A linha marcada ganha o azul-céu da produção interna (o mesmo
+                // do bloco do formulário e do selo) e o bloco das instruções
+                // logo abaixo — as duas leem como uma peça só.
+                const marcada = podeProducaoInterna && row.producaoInterna;
+                const fundo = marcada ? TOM.ceu.bg : 'transparent';
+                const motivoGrafica = podeProducaoInterna ? motivoDaLinhaNaoIrParaGrafica(row) : null;
+                return (
+                <Fragment key={row.id}>
                 <tr
-                  key={row.id}
-                  style={{ transition: 'background-color 0.12s' }}
-                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(243,244,243,0.7)')}
-                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  style={{ transition: 'background-color 0.12s', backgroundColor: fundo }}
+                  data-testid={`linha-lote-${ri}`}
+                  onMouseEnter={e => { if (!marcada) e.currentTarget.style.backgroundColor = 'rgba(243,244,243,0.7)'; }}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = fundo)}
                 >
                   {/* 0 · Tipo */}
                   <td style={{ padding: '2px 4px' }}>
@@ -543,6 +592,30 @@ export function BulkItemEntry({
                     />
                   </td>
 
+                  {/* Gráfica — a caixinha "vai direto para a Gráfica" (07/10).
+                      Fora da navegação do Enter (é um clique, não um campo);
+                      o Tab passa por ela. Molde e reaproveitamento total não
+                      marcam: a caixinha fica bloqueada com o motivo no title. */}
+                  {podeProducaoInterna && (
+                    <td style={{ padding: '2px 4px', textAlign: 'center' }}>
+                      <label
+                        title={motivoGrafica && !row.producaoInterna ? motivoGrafica : row.producaoInterna ? "Vai direto para a Gráfica no envio da lista — clique para desmarcar" : "Vai direto para a Gráfica (produção interna, sem patrocinador)"}
+                        className="erp-pi-alvo"
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 30, cursor: motivoGrafica && !row.producaoInterna ? 'not-allowed' : 'pointer' }}
+                      >
+                        <Checkbox
+                          checked={row.producaoInterna}
+                          disabled={!!motivoGrafica && !row.producaoInterna}
+                          onCheckedChange={c => updateProducaoInterna(row.id, { producaoInterna: !!c })}
+                          aria-label={`Vai direto para a Gráfica, linha ${ri + 1}`}
+                          data-testid={`checkbox-grafica-${ri}`}
+                          className="erp-pi-caixinha"
+                          data-alvo-natural=""
+                        />
+                      </label>
+                    </td>
+                  )}
+
                   {/* Ações */}
                   <td style={{ padding: '2px 4px', textAlign: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
@@ -623,7 +696,19 @@ export function BulkItemEntry({
                     </div>
                   </td>
                 </tr>
-              ))}
+                {marcada && (
+                  <LinhaDaGrafica
+                    row={row}
+                    ri={ri}
+                    colSpan={cols.length}
+                    motivo={motivoGrafica}
+                    onChange={parcial => updateProducaoInterna(row.id, parcial)}
+                    onNavegarProximaLinha={() => focusNextField(ri, FIELDS_PER_ROW)}
+                  />
+                )}
+                </Fragment>
+                );
+              })}
             </tbody>
           </table>
 

@@ -3,7 +3,10 @@ import type { FilterOption } from "@/components/filter-select";
 // Mesma normalização da busca dos menus: sem acento, sem caixa, sem espaço
 // sobrando. É ela que reconhece "sanett" e "Sanett" como o mesmo material.
 import { normalizarBusca } from "@/lib/utils";
-import type { BulkItemRow } from "./tipos";
+import {
+  CAMPOS_VAZIOS_DA_PRODUCAO_INTERNA, corpoDaProducaoInterna, faltamInstrucoes, motivoParaNaoMarcar,
+} from "@shared/producao-interna";
+import type { BulkItemRow, PecaDoLote } from "./tipos";
 
 export const materials = ["Adesivo", "Lona", "Madeira", "Sanett", "Tecido", "Tecido Pet"];
 export const finishes = ["Dupla Face", "Ilhós", "Impressão UV", "Impresso", "Recorte", "Refile"];
@@ -60,7 +63,35 @@ export function createEmptyRow(): BulkItemRow {
     visualWidth: "", visualHeight: "", fileWidth: "", fileHeight: "",
     material: "", finish: "", measurement: "", observations: "",
     calculatedM2: 0, sponsorId: "", isReuse: false, isPriority: false, standardItemId: "",
+    ...CAMPOS_VAZIOS_DA_PRODUCAO_INTERNA,
   };
+}
+
+/* ── Produção interna na grade (dono, 07/10) ─────────────────────────── */
+// "Uma coluna com uma caixinha 'Gráfica' em cada linha, mais o campo de
+// instruções, para lançar várias peças internas de uma vez." As regras são as
+// de shared/producao-interna — a grade só as aplica linha a linha.
+
+/**
+ * Por que ESTA linha não pode ser marcada agora (molde, reaproveitamento
+ * total) — null = pode. A linha nasce rascunho e sem patrocinador (a grade não
+ * tem coluna de patrocinador), então só sobram os impedimentos da peça. O
+ * papel já foi conferido por quem mostra a coluna.
+ */
+export function motivoDaLinhaNaoIrParaGrafica(r: Pick<BulkItemRow, "type" | "isReuse">): string | null {
+  return motivoParaNaoMarcar({ status: "draft", type: r.type, isReuse: r.isReuse }, { papel: "solicitacao", marcar: true, temPatrocinador: false })?.frase ?? null;
+}
+
+/**
+ * A linha marcada ainda sem arquivo e sem instrução suficiente: NÃO trava o
+ * rascunho (a regra é do envio da lista), mas a grade e a revisão avisam.
+ */
+export const linhaSemInstrucoes = (r: Pick<BulkItemRow, "producaoInterna" | "instrucoesGrafica" | "arquivoGrafica">): boolean =>
+  r.producaoInterna && faltamInstrucoes(r.instrucoesGrafica, !!r.arquivoGrafica.trim());
+
+/** O pedaço do corpo da peça que a marca leva — o MESMO do formulário de uma peça. */
+export function corpoDaProducaoInternaDaLinha(r: BulkItemRow): Pick<PecaDoLote, "producaoInterna" | "instrucoesGrafica" | "finalFileUrl" | "finalFileName"> {
+  return corpoDaProducaoInterna(r) as Pick<PecaDoLote, "producaoInterna" | "instrucoesGrafica" | "finalFileUrl" | "finalFileName">;
 }
 
 export function isSameItem(

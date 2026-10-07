@@ -381,6 +381,74 @@ describe("a marca na criação e na edição", () => {
   });
 });
 
+// ENTRADA RÁPIDA (dono, 07/10): a coluna "Gráfica" da grade cria peças
+// marcadas pelo POST /api/items/bulk — com a MESMA régua do POST unitário e,
+// agora, com o caminho do arquivo colado na linha.
+describe("criação em lote (Entrada rápida) com a marca", () => {
+  const BULK = "POST /api/items/bulk";
+  const linha = (over: Record<string, unknown> = {}) => ({
+    eventId: "ev-1", type: "Faixa", description: "Faixa da fila", quantity: 1, area: "2", visual: "0.5", calculatedM2: "1",
+    visualWidth: "2", visualHeight: "0.5", fileWidth: "2", fileHeight: "0.5", material: "Lona", finish: "Ilhós", measurement: "2 × 0.5",
+    ...over,
+  });
+  beforeEach(() => {
+    H.storage.createBulkItems = vi.fn(async (xs: any[]) => xs.map((x, i) => ({ ...peca(`b${i + 1}`), ...x, id: `b${i + 1}` })));
+  });
+
+  it("Solicitação: a linha marcada nasce com a marca, a instrução normalizada e o arquivo; a comum, sem nada", async () => {
+    const caminho = String.raw`\\10.100.1.7\TTKGrafica\INTERNO\Faixa_fila.pdf`;
+    const r = await chamar(BULK, { userRole: "solicitacao", body: { items: [
+      linha({ producaoInterna: true, instrucoesGrafica: `  ${INSTR}  `, finalFileUrl: caminho, finalFileName: "Faixa_fila.pdf" }),
+      linha({ description: "Faixa comum", producaoInterna: false }),
+      linha({ description: "Placa interna", producaoInterna: true, instrucoesGrafica: INSTR }),
+    ] } });
+    expect(r.status, JSON.stringify(r.body)).toBe(201);
+    const [marcada, comum, semArquivo] = H.storage.createBulkItems.mock.calls[0][0];
+    expect(marcada).toMatchObject({ producaoInterna: true, instrucoesGrafica: INSTR, finalFileUrl: caminho, finalFileName: "Faixa_fila.pdf" });
+    expect(marcada.finalFileUpdatedAt).toBeInstanceOf(Date);
+    expect(comum.producaoInterna).toBe(false);
+    expect(comum.finalFileUrl).toBeUndefined();
+    expect(semArquivo).toMatchObject({ producaoInterna: true, instrucoesGrafica: INSTR });
+    expect(semArquivo.finalFileUrl).toBeUndefined();
+    // Nasce rascunho: quem leva para a Gráfica é o envio da lista.
+    expect(marcada.status).toBeUndefined();
+    expect(H.trilha.filter((t) => t.includes("DIRETO PARA A GRÁFICA"))).toHaveLength(2);
+  });
+
+  it("sem a marca, o lote é o de sempre — e um finalFileUrl no corpo da peça comum é ignorado", async () => {
+    const r = await chamar(BULK, { userRole: "admin", body: { items: [linha({ finalFileUrl: "/objects/forjado.pdf" }), linha({ description: "Outra" })] } });
+    expect(r.status, JSON.stringify(r.body)).toBe(201);
+    for (const p of H.storage.createBulkItems.mock.calls[0][0]) {
+      expect(p.producaoInterna ?? false).toBe(false);
+      expect(p.finalFileUrl).toBeUndefined();
+    }
+  });
+
+  it("marcada sem instrução nem arquivo: o rascunho aceita (a regra é do envio da lista)", async () => {
+    const r = await chamar(BULK, { userRole: "solicitacao", body: { items: [linha({ producaoInterna: true })] } });
+    expect(r.status, JSON.stringify(r.body)).toBe(201);
+    expect(H.storage.createBulkItems.mock.calls[0][0][0]).toMatchObject({ producaoInterna: true });
+  });
+
+  it("quem não é admin nem Solicitação não marca: 403 apontando a linha, nada criado", async () => {
+    eventos["ev-1"].createdBy = "u1"; // criador do evento pode lançar peças, mas não marcar
+    const r = await chamar(BULK, { userRole: "arte", body: { items: [linha(), linha({ producaoInterna: true, instrucoesGrafica: INSTR })] } });
+    expect(r.status).toBe(403);
+    expect(r.body.error).toMatch(/^Linha 2:/);
+    expect(H.storage.createBulkItems).not.toHaveBeenCalled();
+  });
+
+  it("molde ou reaproveitamento total marcados: 409 com a linha e a frase", async () => {
+    const molde = await chamar(BULK, { userRole: "admin", body: { items: [linha({ type: "Molde", producaoInterna: true, instrucoesGrafica: INSTR })] } });
+    expect(molde.status).toBe(409);
+    expect(molde.body.error).toMatch(/^Linha 1: Molde/);
+    const reuso = await chamar(BULK, { userRole: "admin", body: { items: [linha(), linha({ isReuse: true, producaoInterna: true, instrucoesGrafica: INSTR })] } });
+    expect(reuso.status).toBe(409);
+    expect(reuso.body.error).toMatch(/^Linha 2: .*reaproveitamento/i);
+    expect(H.storage.createBulkItems).not.toHaveBeenCalled();
+  });
+});
+
 describe("patrocinador em peça marcada", () => {
   it("sincronizar patrocinadores: 409 com a frase; limpar (lista vazia) passa", async () => {
     H.mundo.itens.p1 = peca("p1", { status: "requested", producaoInterna: true });

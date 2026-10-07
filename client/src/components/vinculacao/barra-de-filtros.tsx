@@ -3,7 +3,7 @@
 // agrupamento. Sem rótulo maiúsculo em cima de cada filtro: o gatilho fechado
 // ("Todos os eventos") já nomeia o filtro sozinho.
 // ─────────────────────────────────────────────────────────────────────────────
-import type { RefObject } from "react";
+import { startTransition, useEffect, useRef, useState, type RefObject } from "react";
 import { Building2, Calendar, Search, X } from "lucide-react";
 import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
@@ -36,6 +36,37 @@ export function BarraDeFiltros({
   sponsorFilter, setSponsorFilter, sponsorFilterOptions, itemFilter, setItemFilter, itemFilterOptions,
   agrupamento, setAgrupamento, emCartoes, isMobile, dedo,
 }: Props) {
+  // ── A BUSCA DIGITA NO PRÓPRIO CAMPO (07/10) ──────────────────────────────
+  // O texto do campo mora AQUI, e a tela recebe a busca numa transição. Antes
+  // cada tecla gravava o estado da tela inteira com prioridade de digitação:
+  // o filtro em si já era adiado (useDeferredValue), mas a tecla esperava a
+  // tela redesenhar todos os cabeçalhos de grupo com os valores velhos antes
+  // de o caractere aparecer — ~120–290 ms por tecla com 1.300 peças. Agora a
+  // tecla redesenha só esta barra; o resto vem quando der, e a próxima tecla
+  // interrompe a conta da anterior.
+  //
+  // `enviados` guarda o que saiu daqui e ainda não voltou como `buscaDigitada`.
+  // Valor que chega e NÃO está nessa lista veio de fora (Limpar filtros, o
+  // estado vazio) e o campo acompanha; os que estão nela são eco das próprias
+  // teclas — inclusive os intermediários de quem digita rápido, que não podem
+  // sobrescrever o campo com um texto já ultrapassado.
+  const [texto, setTexto] = useState(buscaDigitada);
+  const enviados = useRef<string[]>([]);
+  useEffect(() => {
+    const lista = enviados.current;
+    if (lista.includes(buscaDigitada)) {
+      if (lista[lista.length - 1] === buscaDigitada) enviados.current = [];
+      return;
+    }
+    enviados.current = [];
+    setTexto(buscaDigitada);
+  }, [buscaDigitada]);
+  const buscar = (v: string) => {
+    setTexto(v);
+    enviados.current.push(v);
+    startTransition(() => setSearchQuery(v));
+  };
+
   return (
     <div style={{
       display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10,
@@ -46,8 +77,8 @@ export function BarraDeFiltros({
         <Search aria-hidden="true" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 15, height: 15, color: T.second, pointerEvents: 'none' }} />
         <input
           ref={searchInputRef}
-          value={buscaDigitada}
-          onChange={e => setSearchQuery(e.target.value)}
+          value={texto}
+          onChange={e => buscar(e.target.value)}
           placeholder="Peça, descrição ou evento   /"
           aria-label="Buscar por peça, descrição ou evento"
           data-testid="input-search-events"
@@ -62,10 +93,10 @@ export function BarraDeFiltros({
             font: 'inherit', fontSize: dedo || isMobile ? FS.lead : FS.body, color: T.text,
           }}
         />
-        {buscaDigitada && (
+        {texto && (
           <button
             type="button"
-            onClick={() => { setSearchQuery(''); searchInputRef.current?.focus(); }}
+            onClick={() => { buscar(''); searchInputRef.current?.focus(); }}
             aria-label="Limpar a busca"
             style={{ position: 'absolute', right: dedo ? 0 : 6, top: '50%', transform: 'translateY(-50%)', width: alvo(24, dedo), height: alvo(24, dedo), borderRadius: R.pill, border: 'none', background: 'none', color: T.second, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >

@@ -19,12 +19,50 @@ import { EstadoVazio } from "@/components/ui/estados";
 import { alvo } from "@/hooks/use-mobile";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { TOM, T, N, R, FS, FW, FONT, onColor } from "@/lib/theme";
-import { ITEM_RENDER_CAP, THC } from "./constantes";
+import { MontaQuandoPerto } from "@/components/monta-quando-perto";
+import { ITEM_RENDER_CAP, LINHAS_DE_SAIDA, THC } from "./constantes";
 import { secaoDaPeca } from "./regras";
 import { CaixaDeToque } from "./pecas-de-escolha";
 import type {
   Agrupamento, EventoDaVinculacao, GrupoDaLista, PatrocinadorDaVinculacao, PecaDaVinculacao, UIStatus,
 } from "./tipos";
+
+/**
+ * ALTURA DO CORPO DE UM GRUPO AINDA NÃO MONTADO (07/10) — o espaço que ele
+ * reserva até a rolagem chegar perto (ver MontaQuandoPerto). Sem reservar, a
+ * barra de rolagem encolheria para a altura dos cabeçalhos e pularia a cada
+ * grupo que monta.
+ *
+ * Calibrada contra a tela de verdade (1366 e 390, 6–10 patrocinadores): a
+ * linha editável quebra os chips (marcas + "Todos" + "Sem patrocinador") em
+ * ~3 por linha na tabela e 2 por linha no cartão; a enviada mostra só o que
+ * ficou vinculado, numa linha. Não precisa ser exata — errar algumas dezenas
+ * de px só mexe no tamanho do polegar da barra quando o grupo monta, longe da
+ * área visível.
+ */
+export function alturaEstimadaDoCorpo({ renderizadas, chave, tiposColapsados, nChips, estadoDe, emCartoes, temBotao }: {
+  renderizadas: PecaDaVinculacao[];
+  chave: string;
+  tiposColapsados: Set<string>;
+  nChips: number;
+  estadoDe: (item: PecaDaVinculacao) => UIStatus;
+  emCartoes: boolean;
+  temBotao: boolean;
+}): number {
+  const linhasDeChips = Math.ceil((nChips + 2) / (emCartoes ? 2 : 3));
+  const hEditavel = emCartoes ? 157 + 50 * linhasDeChips : 43 + 31 * (linhasDeChips - 1);
+  const hEnviada = emCartoes ? 198 : 50;
+  const hTipo = emCartoes ? 52 : 36;
+  let altura = (emCartoes ? 24 : 37) + (temBotao ? 38 : 0);
+  let secaoAnterior: string | null = null;
+  for (const item of renderizadas) {
+    const secao = secaoDaPeca(item);
+    if (secao !== secaoAnterior) { altura += hTipo; secaoAnterior = secao; }
+    if (tiposColapsados.has(`${chave}:${secao}`)) continue;
+    altura += estadoDe(item) === 'ENVIADO' ? hEnviada : hEditavel;
+  }
+  return altura;
+}
 
 type Props = {
   gruposDaLista: GrupoDaLista[];
@@ -57,6 +95,10 @@ export function FilaDaVinculacao({
   vincularRestantes, abrirAutoVinculo, handleOpenSponsorDialog, renderLinhaDaPeca, temFiltroAtivo,
   limparFiltros, agrupamento, setAgrupamento, emCartoes, dedo,
 }: Props) {
+  // Linhas já montadas pelos grupos de cima — o orçamento da abertura
+  // (LINHAS_DE_SAIDA). Conta só o que cada grupo desenha (o teto dele).
+  let linhasAntes = 0;
+  const estadoDe = (i: PecaDaVinculacao) => itemUIStates[i.id] || 'PENDENTE';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {gruposDaLista.map(grupo => {
@@ -66,11 +108,8 @@ export function FilaDaVinculacao({
         const pct = total > 0 ? Math.round((vinculadas / total) * 100) : 0;
         const mostrarTodas = showAllRows.has(chave);
         const renderizadas = mostrarTodas ? itens : itens.slice(0, ITEM_RENDER_CAP);
-        const selecionaveis = itens.filter(i => {
-          const s = itemUIStates[i.id] || 'PENDENTE';
-          return s === 'PENDENTE' || s === 'RASCUNHO';
-        });
-        const marcadas = selecionaveis.filter(i => selectedItemIds.has(i.id)).length;
+        const montarJa = linhasAntes < LINHAS_DE_SAIDA;
+        linhasAntes += renderizadas.length;
         // Peças do grupo que ainda não têm ESTE patrocinador — o alvo do
         // "Vincular restantes".
         const faltando = sponsor
@@ -204,7 +243,41 @@ export function FilaDaVinculacao({
               )}
             </header>
 
-            {/* ── A tabela ── */}
+            {/* ── A tabela ──
+                MONTA QUANDO PERTO (07/10). O cabeçalho acima — nome, contagem
+                de vinculadas e as ações do grupo — sai sempre; a tabela dos
+                grupos fora da primeira tela monta quando a rolagem chega
+                perto. Nenhuma peça deixa de existir: a contagem do cabeçalho,
+                a barra de situação e os filtros leem o grupo inteiro. */}
+            <MontaQuandoPerto
+              montarJa={montarJa}
+              testId={`reserva-${chave}`}
+              alturaEstimada={alturaEstimadaDoCorpo({
+                renderizadas, chave, tiposColapsados, nChips: chipsDoEscopo.length, estadoDe, emCartoes,
+                temBotao: itens.length > ITEM_RENDER_CAP,
+              })}
+              reserva={
+                // Linhas de tabela desenhadas no fundo: se a rolagem for mais
+                // rápida que a montagem, o que aparece por um quadro é uma
+                // tabela vazia com o número de peças — não um buraco branco.
+                <div aria-hidden="true" style={{
+                  height: '100%', backgroundColor: T.surface,
+                  backgroundImage: `repeating-linear-gradient(to bottom, transparent 0, transparent ${emCartoes ? 59 : 43}px, ${N.n3} ${emCartoes ? 59 : 43}px, ${N.n3} ${emCartoes ? 60 : 44}px)`,
+                  padding: emCartoes ? '12px 14px' : '12px 20px', fontSize: FS.meta, color: T.apoio,
+                }}>
+                  Preparando {renderizadas.length} {renderizadas.length === 1 ? 'peça' : 'peças'}…
+                </div>
+              }
+            >
+            {() => {
+            // Só servem ao "selecionar todas" do <thead>: calculados aqui
+            // dentro, o grupo ainda reservado não paga por eles.
+            const selecionaveis = itens.filter(i => {
+              const s = itemUIStates[i.id] || 'PENDENTE';
+              return s === 'PENDENTE' || s === 'RASCUNHO';
+            });
+            const marcadas = selecionaveis.filter(i => selectedItemIds.has(i.id)).length;
+            return (
             <div style={{ backgroundColor: T.surface }}>
               <div className="overflow-x-auto scrollbar-visible">
                 <table style={{ width: '100%', borderCollapse: 'collapse', ...(emCartoes ? { display: 'block', padding: 12 } : {}) }}>
@@ -361,6 +434,9 @@ export function FilaDaVinculacao({
                 </button>
               )}
             </div>
+            );
+            }}
+            </MontaQuandoPerto>
           </section>
         );
       })}

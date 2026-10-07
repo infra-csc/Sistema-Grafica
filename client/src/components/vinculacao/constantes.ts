@@ -108,6 +108,15 @@ export const UI_STATUS_SIGNIFICADO: Record<UIStatus, string> = {
 // tabelas grandes rendem só as primeiras 50 linhas + "Mostrar todos".
 export const ITEM_RENDER_CAP = 50;
 
+// QUANTAS LINHAS MONTAM NA ABERTURA (07/10). O teto acima é POR GRUPO — com 30
+// eventos ele deixava passar 1.263 linhas e ~37 mil nós de uma vez, e a tela
+// levava 10–13 s para abrir em produção com os dados já na mão. Agora os
+// grupos montam o corpo, em ordem, até somar este tanto de linhas (o grupo que
+// cruza a conta entra inteiro, até o teto dele); os demais mostram o cabeçalho
+// — nome, contagens e ações — e montam a tabela quando a rolagem chega perto
+// (MontaQuandoPerto). 40 linhas passam de uma tela cheia em qualquer largura.
+export const LINHAS_DE_SAIDA = 40;
+
 // Reutilizado nos sorts de lista: um Collator criado uma vez é bem mais rápido
 // que chamar localeCompare a cada comparação.
 export const COLLATOR_PTBR = new Intl.Collator('pt-BR');

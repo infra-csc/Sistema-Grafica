@@ -27,7 +27,7 @@
 // (nenhum filho chama hook de dado): congelado, o miolo fica exatamente como
 // estava no último render aberto.
 // ─────────────────────────────────────────────────────────────────────────────
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Eye, Truck } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { SeloKit } from "@/components/kit/selo-kit";
@@ -142,6 +142,7 @@ function useLarguraDaJanela() {
 export function ModalDeDecisao(p: ModalDeDecisaoProps) {
   const { open, isMobile, dedo, selectedItem, filaIdx, totalNaFila, temAnterior, temProxima, irParaFila } = p;
   const largura = useLarguraDaJanela();
+  const colunaDaDecisao = useRef<HTMLElement>(null);
   const empilhada = largura < LARGURA_PARA_DUAS_COLUNAS || isMobile;
   /**
    * AS ARTES SÃO O HERÓI (02/10, pedido do dono). A ficha empilhava cinco
@@ -288,12 +289,23 @@ export function ModalDeDecisao(p: ModalDeDecisaoProps) {
             // sobra dos metadados; a coluna da decisão rola sozinha, com
             // Liberar/Devolver/Reaproveitar no topo dela — sempre à vista.
             <div style={{ flex: "1 1 auto", minHeight: 0, display: "flex" }}>
-              <div style={{ flex: "1 1 auto", minWidth: 0, display: "flex", flexDirection: "column" }}>
+              {/* A RODA DO MOUSE em cima das artes rola a coluna da decisão
+                  (dono, 07/10: "não consigo descer a tela nessa parte do
+                  meio — a barra de rolagem só aparece no cantinho direito").
+                  A esquerda não rola (as artes ocupam a altura), então a
+                  roda ali não fazia nada e o campo de observação, lá embaixo
+                  na coluna da direita, parecia inalcançável. */}
+              <div
+                data-testid="coluna-das-artes"
+                onWheel={(e) => { if (!e.ctrlKey && colunaDaDecisao.current) colunaDaDecisao.current.scrollBy({ top: e.deltaY }); }}
+                style={{ flex: "1 1 auto", minWidth: 0, display: "flex", flexDirection: "column" }}
+              >
                 {comparacao}
                 {metadados}
               </div>
               {/* ── 4 · DECISÃO — coluna clara à direita, rolagem própria ── */}
               <aside
+                ref={colunaDaDecisao}
                 data-testid="coluna-da-decisao"
                 aria-label="Decisão"
                 style={{ flex: `0 0 ${larguraDaColuna}px`, minWidth: 0, minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", borderLeft: `1px solid ${T.border}`, backgroundColor: T.bg, padding: "16px 20px 20px", display: "flex", flexDirection: "column", gap: 20 }}

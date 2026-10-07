@@ -41,16 +41,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useRoute, Link } from "wouter";
-import { Printer, ArrowLeft, Tags, SlidersHorizontal, Search, RotateCw, SearchX } from "lucide-react";
+import { useRoute } from "wouter";
+import { Printer, ArrowLeft, Tags, SlidersHorizontal, Search, SearchX } from "lucide-react";
 import { compareDisplayId } from "@/lib/displayId";
 import { ehBookCompleto } from "@shared/fluxo-peca";
 import { ehMolde } from "@shared/molde";
 import { logoDaCapaDoBook } from "@/lib/logo-do-book";
+import { cssDeImpressaoIsolada } from "@/lib/impressao-isolada";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { alvo as alvoPeloPonteiro, useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { FONT, FS, FW, N, R, SHADOW, T, TOM } from "@/lib/theme";
-import { Botao } from "@/components/ui/botao";
+import { Botao, BotaoLink } from "@/components/ui/botao";
 import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
 import { EstadoErro, EstadoVazio, Esqueleto } from "@/components/ui/estados";
 import { Selo } from "@/components/ui/selo";
@@ -212,8 +213,8 @@ export default function EtiquetasEvento() {
     return { ...e, tubos };
   });
 
-  const { data: event, isError: eventoFalhou } = useQuery<EventoDaPeca>({ queryKey: ["/api/events", eventId], enabled: !!eventId });
-  const { data: itens = [], isLoading, isError: itensFalharam, refetch } = useQuery<PecaDoEvento[]>({
+  const { data: event, isError: eventoFalhou, refetch: refetchEvento } = useQuery<EventoDaPeca>({ queryKey: ["/api/events", eventId], enabled: !!eventId });
+  const { data: itens = [], isLoading, isError: itensFalharam, refetch, isFetching: recarregando } = useQuery<PecaDoEvento[]>({
     queryKey: ["/api/items", eventId],
     enabled: !!eventId,
   });
@@ -394,6 +395,38 @@ export default function EtiquetasEvento() {
 
   const { ref: refDaPrevia, escalaPara } = useEscalaParaCaber();
 
+  // A LARGURA ÚTIL (sem o menu lateral) decide o layout. No tablet de 768 com
+  // o menu aberto sobram ~500px: painel de 384 + prévia espremida em 100px.
+  // Abaixo de 900px úteis a tela vira a do celular — "Opções" alterna painel e
+  // prévia —, mas com a faixa de impressão grudada no topo (sem rodapé fixo).
+  const [raiz, setRaiz] = useState<HTMLDivElement | null>(null);
+  const [larguraUtil, setLarguraUtil] = useState(0);
+  useEffect(() => {
+    if (!raiz) return;
+    const medir = () => setLarguraUtil(raiz.clientWidth);
+    medir();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(medir);
+    ro.observe(raiz);
+    return () => ro.disconnect();
+  }, [raiz]);
+  const compacto = isMobile || (larguraUtil > 0 && larguraUtil < 900);
+
+  // A FAIXA DE IMPRESSÃO gruda no topo (desktop); o painel de opções gruda
+  // logo abaixo dela. A altura da faixa muda com o resumo (uma ou duas
+  // linhas, com ou sem aviso) — medida, e não chutada como o "top: 78" antigo.
+  const [faixa, setFaixa] = useState<HTMLDivElement | null>(null);
+  const [alturaDaFaixa, setAlturaDaFaixa] = useState(72);
+  useEffect(() => {
+    if (!faixa) return;
+    const medir = () => setAlturaDaFaixa(Math.round(faixa.getBoundingClientRect().height) || 72);
+    medir();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(medir);
+    ro.observe(faixa);
+    return () => ro.disconnect();
+  }, [faixa]);
+
   // POR QUE NÃO DÁ PARA IMPRIMIR — dito na tela, não só no title do botão.
   const esperandoLogo = buscandoLogo && usarLogo;
   const motivoParado = esperandoLogo
@@ -435,9 +468,18 @@ export default function EtiquetasEvento() {
   }, [imprimirAoRedesenhar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isLoading) {
+    // O esqueleto tem a FORMA da tela (cabeçalho, painel e folha): a chegada
+    // dos dados troca a cor, não o layout.
     return (
-      <div style={{ padding: isMobile ? 12 : 24 }}>
-        <Esqueleto variante="lista" linhas={4} rotulo="Montando as etiquetas" />
+      <div style={{ backgroundColor: T.bg, minHeight: "100%" }}>
+        <div style={{ padding: isMobile ? "12px 12px 10px" : "18px 24px 14px" }}>
+          <CabecalhoDaPagina titulo="Etiquetas do evento" icone={Tags} corDoIcone={T.accentText} semMargem
+            subtitulo={event?.name ? <strong style={{ fontWeight: FW.medio, color: T.strong }}>{event.name}</strong> : "Carregando o evento…"} />
+        </div>
+        <div style={{ display: isMobile ? "block" : "grid", gridTemplateColumns: "minmax(320px, 384px) minmax(0, 1fr)", gap: 24, padding: isMobile ? 12 : "16px 24px", borderTop: `1px solid ${T.border}` }}>
+          <Esqueleto variante="lista" linhas={isMobile ? 3 : 5} rotulo="Montando as etiquetas" />
+          {!isMobile && <div aria-hidden="true" className="animate-pulse" style={{ aspectRatio: "297 / 210", maxWidth: 760, borderRadius: R.lg, backgroundColor: T.surface, border: `1px solid ${T.border}` }} />}
+        </div>
       </div>
     );
   }
@@ -446,19 +488,19 @@ export default function EtiquetasEvento() {
   // para quem está com a impressora esperando.
   if (itensFalharam || eventoFalhou) {
     return (
-      <div style={{ padding: isMobile ? 12 : 24, maxWidth: 560, margin: "0 auto" }}>
-        {/* O role="alert" vem do próprio EstadoErro. O "Tentar de novo" é
-            daqui: o do EstadoErro tem 36px fixos, e no tablet o alvo é 44. */}
+      <div style={{ padding: isMobile ? "24px 12px" : "48px 24px", maxWidth: 560, margin: "0 auto" }}>
+        {/* O EstadoErro do design system, com o "Tentar de novo" dele em 44px
+            (tamanhoDoBotao) e a saída logo abaixo — quem está com a impressora
+            esperando precisa das duas portas à vista. */}
         <div data-testid="etiquetas-erro">
-          <EstadoErro titulo="Não foi possível carregar as peças do evento." compacto />
+        <EstadoErro titulo="Não foi possível carregar as peças do evento."
+          detalhe="Nada foi impresso nem marcado. Confira a conexão e tente de novo."
+          aoTentarDeNovo={() => { void refetch(); if (eventoFalhou) void refetchEvento(); }} carregando={recarregando} tamanhoDoBotao="toque" testIdDoBotao="etiquetas-tentar-de-novo" />
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center", marginTop: 12 }}>
-          <Botao tamanho="toque" icone={RotateCw} className="etq-foco" onClick={() => refetch()}>
-            Tentar de novo
-          </Botao>
-          <Link href={voltarHref} className="etq-foco" style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, padding: "0 12px", borderRadius: R.md, color: T.strong, fontSize: FS.body, fontWeight: FW.medio, textDecoration: "none" }}>
-            <ArrowLeft aria-hidden="true" style={{ width: 14, height: 14 }} /> {veioDaGrafica ? "Voltar à Gráfica" : "Voltar ao evento"}
-          </Link>
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
+          <BotaoLink href={voltarHref} variante="fantasma" tamanho="toque" icone={ArrowLeft} className="etq-foco">
+            {veioDaGrafica ? "Voltar à Gráfica" : "Voltar ao evento"}
+          </BotaoLink>
         </div>
       </div>
     );
@@ -481,15 +523,17 @@ export default function EtiquetasEvento() {
   // ── O BLOCO DE AÇÃO: resumo + "o que sai" + Imprimir. No desktop mora na
   // barra de cima; no celular, no rodapé fixo (o polegar alcança). ──
   const blocoDeAcao = (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: isMobile ? "stretch" : "flex-end", flex: isMobile ? undefined : "1 1 420px", minWidth: 0 }}>
-      <div style={{ flex: "1 1 240px", minWidth: 0, textAlign: isMobile ? "left" : "right" }}>
-        <p data-testid="resumo-da-impressao" aria-live="polite" style={{ margin: 0, fontSize: fonteBase, fontWeight: FW.forte, lineHeight: 1.35, color: T.text }}>
+    <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 10 : 14, flexWrap: "wrap", width: "100%", minWidth: 0 }}>
+      {/* O RESUMO lê-se da esquerda, em linha larga: encostado à direita e
+          espremido ao lado do título ele quebrava em quatro linhas. */}
+      <div style={{ flex: "1 1 300px", minWidth: 0 }}>
+        <p data-testid="resumo-da-impressao" aria-live="polite" style={{ margin: 0, fontSize: isMobile ? FS.read : FS.strong, fontWeight: FW.forte, lineHeight: 1.35, color: motivoParado ? T.second : T.text, letterSpacing: "-0.005em" }}>
           {resumo.texto}
         </p>
         {motivoParado ? (
-          <p data-testid="motivo-parado" role="status" style={dica}>{motivoParado}</p>
+          <p data-testid="motivo-parado" role="status" style={{ ...dica, marginTop: 2, color: esperandoLogo ? T.apoio : TOM.alerta.text, fontWeight: FW.medio }}>{motivoParado}</p>
         ) : resumo.impressoesSeparadas && saiValido === "tudo" ? (
-          <p data-testid="aviso-papeis-diferentes" style={dica}>
+          <p data-testid="aviso-papeis-diferentes" style={{ ...dica, marginTop: 2 }}>
             Lista e etiqueta usam papéis diferentes: escolha “Só listas”, imprima no adesivo, e depois “Só etiquetas” na A4.
           </p>
         ) : null}
@@ -506,7 +550,7 @@ export default function EtiquetasEvento() {
         // peças) — dizer isso evita a dúvida de por que o selo apareceu.
         title={motivoParado ?? 'Abre a impressão (ou "Salvar como PDF") e marca as peças que saíram como impressas hoje.'}
         // No rodapé do celular: largura cheia e 48px (a ação da tela, no polegar).
-        style={isMobile ? { minHeight: 48, flex: "1 1 100%" } : undefined}>
+        style={isMobile ? { minHeight: 48, flex: "1 1 100%" } : { minHeight: 40, padding: "0 18px", fontSize: FS.read }}>
         {esperandoLogo ? "Buscando o logo…" : "Imprimir / PDF"}
       </Botao>
     </div>
@@ -529,21 +573,21 @@ export default function EtiquetasEvento() {
           <div data-testid="recorte-de-tubo" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
             <label style={{ ...rotuloDeCampo, flex: "1 1 150px", minWidth: 0 }}>
               Tubo
-              <select value={recorteValido} onChange={(e) => setRecorteTubo(e.target.value as RecorteDeTubo)} data-testid="select-tubo" className="etq-foco" style={campo}>
+              <select value={recorteValido} onChange={(e) => setRecorteTubo(e.target.value as RecorteDeTubo)} data-testid="select-tubo" className="etq-foco etq-campo" style={campo}>
                 <option value="todos">Todos</option>
                 <option value="tubos">Só as dos tubos</option>
                 {tubosNoPool.map((t) => <option key={t.numero} value={String(t.numero)}>Tubo {t.numero} ({t.pecas} {t.pecas === 1 ? "peça" : "peças"})</option>)}
                 {haForaDeTubo && <option value="sem">Sem tubo</option>}
               </select>
             </label>
-            {/* Secundário com borda escura: é um atalho de impressão (a ação
+            {/* secundarioForte: é um atalho de impressão (a ação
                 principal da tela mora no bloco do Imprimir), mas não se perde
                 entre os botões leves do painel. */}
-            <div style={{ display: "flex", flexDirection: "column", flex: "1 1 180px", minWidth: 0 }}>
+            <div style={{ display: "flex", flexDirection: "column", flex: "1 1 220px", minWidth: 0 }}>
               <Botao tamanho={tamanhoDoBotao} icone={Printer} larguraCheia className="etq-foco" data-testid="imprimir-todos-os-tubos" onClick={imprimirTodosOsTubos} disabled={esperandoLogo}
                 motivo={esperandoLogo ? "Extraindo o logo do book — segundos." : undefined}
                 title={esperandoLogo ? "Extraindo o logo do book — segundos." : "Marca as peças dos tubos, faz uma lista por tubo e abre a impressão."}
-                style={{ border: `1px solid ${T.text}`, color: T.text, whiteSpace: "normal" }}>
+                variante="secundarioForte" style={{ whiteSpace: "normal", textAlign: "center" }}>
                 {esperandoLogo ? "Buscando o logo…" : "Imprimir etiquetas de todos os tubos"}
               </Botao>
             </div>
@@ -556,11 +600,11 @@ export default function EtiquetasEvento() {
                 <span className="sr-only">Buscar peça por descrição, tipo ou código</span>
                 <Search aria-hidden="true" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: T.second }} />
                 <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar peça…" data-testid="busca-peca"
-                  className="etq-foco" style={{ ...campo, width: "100%", paddingLeft: 30 }} />
+                  className="etq-foco etq-campo" style={{ ...campo, width: "100%", paddingLeft: 30 }} />
               </label>
               {tiposNoPool.length > 1 && (
                 <select value={filtroValido ?? ""} onChange={(e) => setFiltroTipo(e.target.value || null)} data-testid="select-filtro-tipo"
-                  aria-label="Mostrar só um tipo de peça" className="etq-foco" style={{ ...campo, flex: "1 1 140px" }}>
+                  aria-label="Mostrar só um tipo de peça" className="etq-foco etq-campo" style={{ ...campo, flex: "1 1 140px" }}>
                   <option value="">Todos os tipos</option>
                   {tiposNoPool.map(([t, n]) => <option key={t} value={t}>{t} ({n})</option>)}
                 </select>
@@ -579,9 +623,9 @@ export default function EtiquetasEvento() {
                   saiu na impressora. Aparece apenas quando há impressa E pendente. */}
               {impressasNoPool > 0 && faltamNoPool > 0 && (
                 // Na tinta laranja: é o atalho que a segunda visita procura.
-                <Botao tamanho={tamanhoDoBotao} data-testid="selecao-so-novas" className="etq-foco"
+                <Botao tamanho={tamanhoDoBotao} tom="laranja" data-testid="selecao-so-novas" className="etq-foco"
                   onClick={() => setDesmarcadas(new Set(pool.filter((p) => p.labelPrintedAt).map((p) => p.id)))}
-                  style={{ border: `1px solid ${TOM.laranja.border}`, backgroundColor: TOM.laranja.bg, color: TOM.laranja.text }}>
+                  style={{ backgroundColor: TOM.laranja.bg }}>
                   Só as {faltamNoPool} que faltam
                 </Botao>
               )}
@@ -589,7 +633,7 @@ export default function EtiquetasEvento() {
             {/* Escolhe-se pela DESCRIÇÃO (é ela que manda na etiqueta); o código
                 fica pequeno. Lista com rolagem própria: 200 peças não empurram
                 o resto do painel para fora da tela. */}
-            <ul data-testid="lista-de-pecas" aria-label="Peças do evento" style={{ listStyle: "none", margin: 0, padding: 0, maxHeight: isMobile ? 300 : 280, overflowY: "auto", border: `1px solid ${T.border}`, borderRadius: R.md }}>
+            <ul data-testid="lista-de-pecas" aria-label="Peças do evento" style={{ listStyle: "none", margin: 0, padding: 0, maxHeight: isMobile ? 340 : 320, overflowY: "auto", overscrollBehavior: "contain", border: `1px solid ${T.border}`, borderRadius: R.md, backgroundColor: T.surface }}>
               {visiveis.length === 0 && (
                 <li data-testid="busca-sem-resultado" style={{ padding: 8 }}>
                   <EstadoVazio compacto icone={SearchX} titulo="Nenhuma peça com esse filtro"
@@ -602,7 +646,7 @@ export default function EtiquetasEvento() {
                 const volumes = partesDe(p).filter((pt) => pt.numero != null || pt.avulso);
                 return (
                   <li key={p.id} style={{ borderTop: i > 0 ? `1px solid ${N.n3}` : "none", contentVisibility: "auto", containIntrinsicSize: "auto 48px" } as React.CSSProperties}>
-                    <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: Math.max(alvo, 44), padding: "5px 10px", cursor: "pointer", backgroundColor: marcada ? TOM.laranja.bg : T.surface }}
+                    <label className="etq-linha" data-marcada={marcada ? "sim" : "nao"} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: Math.max(alvo, 44), padding: "6px 12px", cursor: "pointer", backgroundColor: marcada ? TOM.laranja.bg : T.surface }}
                       title={p.labelPrintedAt ? `Etiqueta impressa em ${dataImpressaoExtenso(p.labelPrintedAt)}` : undefined}>
                       <input type="checkbox" checked={marcada} onChange={() => alternar(p.id)} data-testid={`selecao-peca-${p.id}`} style={caixa} />
                       <span style={{ minWidth: 0, flex: 1 }}>
@@ -611,7 +655,10 @@ export default function EtiquetasEvento() {
                         </span>
                         <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: FS.meta, fontWeight: FW.forte, color: T.apoio }}>
                           <span style={{ fontFamily: FONT.mono }}>{p.displayId}</span>
-                          <span style={{ fontWeight: FW.medio }}>{p.type} · {tiposEscolhidos.has(tipoDe(p)) ? "lista" : "individual"}</span>
+                          {/* COMO ESTA PEÇA SAI, de verdade: com a lista por tubo ligada, a
+                              parte embalada vai para a lista DO TUBO seja qual for o
+                              tipo — dizer "individual" ali mentia sobre a folha. */}
+                          <span style={{ fontWeight: FW.medio }}>{p.type} · {Array.from(new Set(partes.map((pt) => destinoDa(pt)))).map((d) => (d === "tubo" ? "lista do tubo" : d)).join(" + ") || (tiposEscolhidos.has(tipoDe(p)) ? "lista" : "individual")}</span>
                           {volumes.length > 0 && (
                             <span data-testid={`volumes-${p.id}`} style={{ fontWeight: FW.forte, color: T.strong }}>
                               {volumes.map((pt) => (pt.numero != null ? `Tubo ${pt.numero} (${pt.original})` : "embalada")).join(" · ")}
@@ -628,7 +675,7 @@ export default function EtiquetasEvento() {
                     {/* NÚMEROS NA ETIQUETA: um campo por parte (peça × volume), com
                         o número do tubo quando há tubo. Só a impressão muda. */}
                     {marcada && partes.length > 0 && (
-                      <div data-testid={`numeros-${p.id}`} style={{ display: "flex", flexDirection: "column", gap: 4, padding: "0 10px 8px 38px", backgroundColor: TOM.laranja.bg }}>
+                      <div data-testid={`numeros-${p.id}`} style={{ display: "flex", flexDirection: "column", gap: 4, padding: "0 12px 8px 40px", backgroundColor: TOM.laranja.bg }}>
                         {partes.map((pt) => {
                           const sufixo = sufixoDaParte(pt);
                           const brutoQtd = edicoes.quantidades[pt.chave];
@@ -726,13 +773,13 @@ export default function EtiquetasEvento() {
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <label style={{ ...rotuloDeCampo, flex: "2 1 170px", minWidth: 0 }}>
                 Papel da lista
-                <select value={tamanho} onChange={(e) => setPrefs((p) => ({ ...p, tamanho: e.target.value as TamanhoEtiqueta }))} data-testid="select-tamanho-lista" className="etq-foco" style={campo}>
+                <select value={tamanho} onChange={(e) => setPrefs((p) => ({ ...p, tamanho: e.target.value as TamanhoEtiqueta }))} data-testid="select-tamanho-lista" className="etq-foco etq-campo" style={campo}>
                   {ORDEM_DOS_TAMANHOS.map((t) => <option key={t} value={t}>{TAMANHOS[t].rotulo}</option>)}
                 </select>
               </label>
               <label title="Quantas vezes cada lista sai — colam dos dois lados do volume." style={{ ...rotuloDeCampo, flex: "1 1 80px", minWidth: 0 }}>
                 Cópias
-                <select value={copias} onChange={(e) => setPrefs((p) => ({ ...p, copias: limitarCopias(e.target.value) }))} data-testid="select-copias-lista" className="etq-foco" style={campo}>
+                <select value={copias} onChange={(e) => setPrefs((p) => ({ ...p, copias: limitarCopias(e.target.value) }))} data-testid="select-copias-lista" className="etq-foco etq-campo" style={campo}>
                   {Array.from({ length: COPIAS_MAX }, (_, k) => k + 1).map((n) => <option key={n} value={n}>{n}</option>)}
                 </select>
               </label>
@@ -779,11 +826,11 @@ export default function EtiquetasEvento() {
         <label style={rotuloDeCampo}>
           Texto de cima (pequeno)
           <input type="text" value={textoDeCima ?? prefixo} onChange={(e) => setTextoDeCima(e.target.value)} data-testid="input-texto-de-cima"
-            disabled={!!(logo && usarLogo)} className="etq-foco" style={{ ...campo, opacity: logo && usarLogo ? 0.6 : 1 }} />
+            disabled={!!(logo && usarLogo)} className="etq-foco etq-campo" style={{ ...campo, opacity: logo && usarLogo ? 0.6 : 1 }} />
         </label>
         <label style={rotuloDeCampo}>
           Palavra gigante (lê-se de longe)
-          <input type="text" value={destaque ?? padrao.gigante} onChange={(e) => setDestaque(e.target.value)} data-testid="input-destaque" className="etq-foco" style={campo} />
+          <input type="text" value={destaque ?? padrao.gigante} onChange={(e) => setDestaque(e.target.value)} data-testid="input-destaque" className="etq-foco etq-campo" style={campo} />
         </label>
         {cabecalhoEditado && (
           <Botao tamanho={tamanhoDoBotao} className="etq-foco" data-testid="restaurar-cabecalho" onClick={() => { setDestaque(null); setTextoDeCima(null); }} style={{ alignSelf: "flex-start" }}>
@@ -799,7 +846,7 @@ export default function EtiquetasEvento() {
   const zoomLista = escalaPara(larguraDaLista);
 
   return (
-    <div style={{ backgroundColor: T.bg, minHeight: "100%" }}>
+    <div ref={setRaiz} style={{ backgroundColor: T.bg, minHeight: "100%" }}>
       {/* Aqui dentro, o que vai para o PAPEL (fundo da folha, @media print)
           fica em hex literal; o que é só de tela usa token. */}
       <style>{`
@@ -815,6 +862,8 @@ export default function EtiquetasEvento() {
         .etq-foco:focus-visible, .etq-painel input:focus-visible, .etq-painel select:focus-visible { outline: 2px solid ${T.accentText}; outline-offset: 2px; }
         .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
         @media print {
+          /* Só a prévia vai para o papel — a casca do app saía junto (ver lib/impressao-isolada). */
+          ${cssDeImpressaoIsolada(".etq-previa")}
           .etq-acao { display: none !important; }
           .etq-corpo, .etq-previa { display: block !important; padding: 0 !important; margin: 0 !important; overflow: visible !important; }
           @page { size: A4 ${orientacao === "retrato" ? "portrait" : "landscape"}; margin: 8mm; }
@@ -850,34 +899,45 @@ export default function EtiquetasEvento() {
         .etq-moldura-paisagem > .etq-folha { width: 100%; height: 100%; }
       `}</style>
 
-      <div className="etq-acao" data-testid="barra-das-etiquetas" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: isMobile ? "10px 12px" : "12px 18px", borderBottom: `1px solid ${T.border}`, position: "sticky", top: 0, backgroundColor: T.bg, zIndex: 5 }}>
-        <Link href={voltarHref} data-testid="link-voltar-evento" className="etq-foco" style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: alvo, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.border}`, color: T.strong, fontSize: FS.body, fontWeight: FW.medio, textDecoration: "none", backgroundColor: T.surface }}>
-          <ArrowLeft aria-hidden="true" style={{ width: 14, height: 14 }} /> {veioDaGrafica ? "Voltar à Gráfica" : "Voltar ao evento"}
-        </Link>
-        {/* O CabecalhoDaPagina traz margem de baixo de página (20px); dentro da
-            barra grudada ela só engordaria a barra — o -20 a devolve. */}
-        <div style={{ minWidth: 0, flex: "1 1 200px", marginBottom: -20 }}>
-          <CabecalhoDaPagina titulo="Etiquetas do evento" icone={Tags}
+      {/* ── CABEÇALHO: onde estou (o evento) e a saída. Rola com a página; o
+          que precisa ficar à mão — o resumo e o Imprimir — mora na faixa
+          grudada logo abaixo (no celular, no rodapé fixo). ── */}
+      <div className="etq-acao" data-testid="barra-das-etiquetas" style={{ display: "flex", alignItems: "center", gap: isMobile ? 10 : 16, flexWrap: "wrap", padding: isMobile ? "12px 12px 10px" : "18px 24px 14px" }}>
+        <BotaoLink href={voltarHref} data-testid="link-voltar-evento" className="etq-foco" icone={ArrowLeft} tamanho={toque ? "toque" : "md"} variante="secundario"
+          style={{ order: 1 }}>
+          {veioDaGrafica ? "Voltar à Gráfica" : "Voltar ao evento"}
+        </BotaoLink>
+        <div style={{ minWidth: 0, flex: isMobile ? "1 1 100%" : "1 1 260px", order: isMobile ? 4 : 2 }}>
+          <CabecalhoDaPagina titulo="Etiquetas do evento" icone={Tags} corDoIcone={T.accentText} semMargem
             subtitulo={
               <span data-testid="nome-do-evento" style={{ overflowWrap: "anywhere" }}>
-                {nome || "Evento"}{event?.truckDepartureDate ? ` · saída ${dataBR(event.truckDepartureDate)}` : ""}
+                <strong style={{ fontWeight: FW.medio, color: T.strong }}>{nome || "Evento"}</strong>
+                {event?.truckDepartureDate ? ` · saída do caminhão ${dataBR(event.truckDepartureDate)}` : ""}
+                {pool.length > 0 ? ` · ${pool.length} ${pool.length === 1 ? "peça" : "peças"} ${incluirTodas ? "no evento" : pool.length === 1 ? "conferida" : "conferidas"}` : ""}
               </span>
             } />
         </div>
-        {isMobile ? (
+        {compacto && (
           <Botao variante={opcoesAbertas ? "primario" : "secundario"} tamanho="toque" icone={SlidersHorizontal} className="etq-foco" data-testid="abrir-opcoes"
-            aria-expanded={opcoesAbertas} aria-controls="etq-painel-movel" onClick={() => setOpcoesAbertas((v) => !v)}>
+            aria-expanded={opcoesAbertas} aria-controls="etq-painel-movel" onClick={() => setOpcoesAbertas((v) => !v)} style={{ order: isMobile ? 2 : 3, marginLeft: "auto" }}>
             {opcoesAbertas ? "Ver a prévia" : "Opções"}
           </Botao>
-        ) : blocoDeAcao}
+        )}
       </div>
 
-      <div className="etq-corpo" style={{ display: isMobile ? "block" : "grid", gridTemplateColumns: isMobile ? undefined : "minmax(320px, 380px) minmax(0, 1fr)", alignItems: "start", gap: 0 }}>
-        {(!isMobile || opcoesAbertas) && (
-          <aside className="etq-acao etq-painel" id={isMobile ? "etq-painel-movel" : undefined} aria-label="Opções das etiquetas"
-            style={isMobile
-              ? { padding: "12px 12px 120px" }
-              : { padding: "14px 6px 24px 18px", position: "sticky", top: 78, maxHeight: "calc(100vh - 150px)", overflowY: "auto" }}>
+      {!isMobile && (
+        <div ref={setFaixa} className="etq-acao etq-faixa" data-testid="faixa-de-impressao"
+          style={{ position: "sticky", top: 0, zIndex: 5, padding: "12px 24px", backgroundColor: T.surface, borderTop: `1px solid ${T.border}`, borderBottom: `1px solid ${T.border}`, boxShadow: SHADOW.sm }}>
+          {blocoDeAcao}
+        </div>
+      )}
+
+      <div className="etq-corpo" style={{ display: compacto ? "block" : "grid", gridTemplateColumns: compacto ? undefined : "minmax(320px, 384px) minmax(0, 1fr)", alignItems: "start", gap: 0 }}>
+        {(!compacto || opcoesAbertas) && (
+          <aside className="etq-acao etq-painel" id={compacto ? "etq-painel-movel" : undefined} aria-label="Opções das etiquetas"
+            style={compacto
+              ? { padding: isMobile ? "12px 12px 120px" : "16px 24px 32px", maxWidth: isMobile ? undefined : 640 }
+              : { padding: "16px 10px 24px 24px", position: "sticky", top: alturaDaFaixa, maxHeight: `calc(100dvh - ${alturaDaFaixa + 64}px)`, overflowY: "auto", overscrollBehavior: "contain" }}>
             {painel}
           </aside>
         )}
@@ -885,7 +945,7 @@ export default function EtiquetasEvento() {
         {/* ── Folhas: a PRÉVIA. No celular, com as opções abertas, ela sai da
             frente (display none só na tela — o papel continua inteiro). ── */}
         <div ref={refDaPrevia} className="etq-previa" data-testid="previa-das-etiquetas"
-          style={{ padding: isMobile ? "14px 12px 150px" : "18px 18px 48px", minWidth: 0, overflow: "hidden", display: isMobile && opcoesAbertas ? "none" : "block" }}>
+          style={{ padding: isMobile ? "14px 12px 150px" : compacto ? "16px 24px 56px" : "16px 24px 56px 14px", minWidth: 0, overflow: "hidden", display: compacto && opcoesAbertas ? "none" : "block" }}>
           {folhas === 0 && (
             <div className="etq-acao" data-testid="etiquetas-vazio" style={{ maxWidth: 520, margin: "24px auto" }}>
               <EstadoVazio compacto icone={Tags}

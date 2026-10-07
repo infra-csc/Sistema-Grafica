@@ -8,7 +8,7 @@
 // o tamanho da área útil do papel, então o que se vê na tela é o que sai, e a
 // tipografia escala junto com o tamanho escolhido.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { TAMANHOS, fonteDaCidadeMm, linhaDaLista, type LinhaDaEtiqueta, type PecaDaLista, type TamanhoEtiqueta } from "@/lib/etiqueta-lista";
 import { FONT, FS, FW, R, SHADOW, T, TOM } from "@/lib/theme";
 
@@ -174,15 +174,15 @@ export function Segmento<V extends string>(props: {
   rotulo: string; valor: V; opcoes: ReadonlyArray<readonly [V, string]>; aoMudar: (v: V) => void; alvo: number; testid: string; fonte?: number; esticar?: boolean;
 }) {
   return (
-    <div role="group" aria-label={props.rotulo} style={{ display: props.esticar ? "flex" : "inline-flex", gap: 2, padding: 3, borderRadius: R.md, border: `1px solid ${T.border}`, flexShrink: 0, backgroundColor: T.low }}>
+    <div role="group" aria-label={props.rotulo} className="etq-seg-trilho" style={{ display: props.esticar ? "flex" : "inline-flex", width: props.esticar ? "100%" : undefined, boxSizing: "border-box", gap: 2, padding: 3, borderRadius: R.md, border: `1px solid ${T.border}`, flexShrink: 0, backgroundColor: T.low }}>
       {props.opcoes.map(([v, texto]) => {
         const ativo = props.valor === v;
         return (
-          <button key={v} type="button" className="etq-foco ds-botao" aria-pressed={ativo} onClick={() => props.aoMudar(v)} data-testid={`${props.testid}-${v}`}
+          <button key={v} type="button" className="etq-foco ds-botao etq-seg" aria-pressed={ativo} onClick={() => props.aoMudar(v)} data-testid={`${props.testid}-${v}`}
             style={{
               flex: props.esticar ? 1 : undefined, minHeight: props.alvo, padding: "0 12px", borderRadius: R.sm,
               border: ativo ? `1px solid ${T.border}` : "1px solid transparent", boxShadow: ativo ? SHADOW.sm : "none",
-              fontFamily: FONT.corpo, fontSize: props.fonte ?? FS.meta, fontWeight: ativo ? FW.forte : FW.medio, cursor: "pointer",
+              fontFamily: FONT.corpo, fontSize: props.fonte ?? FS.meta, fontWeight: ativo ? FW.forte : FW.medio, cursor: "pointer", whiteSpace: "nowrap",
               backgroundColor: ativo ? T.surface : "transparent", color: ativo ? T.text : T.second,
             }}>
             {texto}
@@ -212,18 +212,29 @@ const PX_POR_MM = 96 / 25.4;
  * Vai num `zoom` só de tela — o papel continua 1:1.
  */
 export function useEscalaParaCaber() {
-  const ref = useRef<HTMLDivElement | null>(null);
+  // REF DE CALLBACK, e não useRef: as duas telas devolvem o esqueleto
+  // primeiro e só montam a prévia quando os dados chegam. Com useRef o efeito
+  // rodava UMA vez, no esqueleto (ref nula), e nunca mais — a escala ficava
+  // em 1 e a A4 de 1050px estourava a coluna da prévia (cortada à direita no
+  // notebook e no celular). Com o elemento em estado, a medida começa quando
+  // a prévia nasce.
+  const [el, ref] = useState<HTMLDivElement | null>(null);
   const [largura, setLargura] = useState(0);
   useEffect(() => {
-    const el = ref.current;
     if (!el) return;
-    const medir = () => setLargura(el.clientWidth);
+    // A largura ÚTIL: clientWidth inclui o padding da prévia, e a folha que
+    // ocupasse o padding seria cortada pelo overflow hidden.
+    const medir = () => {
+      const cs = typeof getComputedStyle === "function" ? getComputedStyle(el) : null;
+      const folga = cs ? (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0) : 0;
+      setLargura(Math.max(0, el.clientWidth - folga));
+    };
     medir();
     if (typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(medir);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [el]);
   // Sem medida ainda (ou jsdom, que mede 0): escala 1 — nunca encolhe às cegas.
   const escalaPara = (larguraDaFolhaPx: number) =>
     largura > 0 ? Math.round(Math.min(1, Math.max(0.2, (largura - 4) / larguraDaFolhaPx)) * 1000) / 1000 : 1;

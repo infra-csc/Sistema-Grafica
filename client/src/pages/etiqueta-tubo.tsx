@@ -39,11 +39,11 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRoute } from "wouter";
-import { ArrowLeft, Printer, RotateCw, Tag } from "lucide-react";
+import { ArrowLeft, Printer, Tag } from "lucide-react";
 import { logoDaCapaDoBook } from "@/lib/logo-do-book";
 import { alvo as alvoPeloPonteiro, useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
-import { FS, FW, R, T, TOM } from "@/lib/theme";
-import { Botao } from "@/components/ui/botao";
+import { FS, FW, R, SHADOW, T, TOM } from "@/lib/theme";
+import { Botao, BotaoLink } from "@/components/ui/botao";
 import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
 import { EstadoErro, Esqueleto } from "@/components/ui/estados";
 import {
@@ -75,7 +75,7 @@ export default function EtiquetaTubo() {
   // Tablet do galpão (dedo, às vezes de luva) em qualquer largura: alvo de 44.
   const grosso = usePonteiroGrosso();
   const toque = isMobile || grosso;
-  const { data, isLoading, isError, refetch } = useQuery<Resposta>({ queryKey: [`/api/tubos/${id}`], enabled: !!id });
+  const { data, isLoading, isError, refetch, isFetching } = useQuery<Resposta>({ queryKey: [`/api/tubos/${id}`], enabled: !!id });
 
   // PREFERÊNCIAS lembradas por navegador (o computador do galpão imprime
   // sempre no mesmo papel): lidas uma vez, gravadas a cada mudança.
@@ -174,6 +174,20 @@ export default function EtiquetaTubo() {
     : "";
 
   const { ref: refDaPrevia, escalaPara } = useEscalaParaCaber();
+  // A LARGURA ÚTIL (sem o menu lateral): abaixo de 760px úteis o painel e a
+  // prévia não cabem lado a lado — empilham, com a etiqueta primeiro.
+  const [raiz, setRaiz] = useState<HTMLDivElement | null>(null);
+  const [larguraUtil, setLarguraUtil] = useState(0);
+  useEffect(() => {
+    if (!raiz) return;
+    const medir = () => setLarguraUtil(raiz.clientWidth);
+    medir();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(medir);
+    ro.observe(raiz);
+    return () => ro.disconnect();
+  }, [raiz]);
+  const empilhado = isMobile || (larguraUtil > 0 && larguraUtil < 760);
   const zoom = escalaPara(mmParaPx(TAMANHOS[tamanho].larguraMm));
 
   const folha = (destino: "tela" | "papel") => paginas.map((pg, i) => {
@@ -216,9 +230,11 @@ export default function EtiquetaTubo() {
   const motivoDoImprimir = !data ? "Aguarde o tubo carregar." : esperandoLogo ? 'Extraindo o logo do book — segundos. Para imprimir sem ele, desligue "Logo do book".' : undefined;
 
   const blocoDeAcao = (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: isMobile ? "stretch" : "flex-end", flex: isMobile ? undefined : "1 1 360px", minWidth: 0 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 10 : 14, flexWrap: "wrap", width: "100%", minWidth: 0 }}>
       {data && (
-        <p data-testid="resumo-da-impressao" aria-live="polite" style={{ margin: 0, flex: "1 1 220px", minWidth: 0, textAlign: isMobile ? "left" : "right", fontSize: fonteBase, fontWeight: FW.forte, lineHeight: 1.35, color: T.text }}>
+        // O resumo lê-se da esquerda, em linha larga — o mesmo lugar e o mesmo
+        // tom da faixa das etiquetas do evento.
+        <p data-testid="resumo-da-impressao" aria-live="polite" style={{ margin: 0, flex: "1 1 260px", minWidth: 0, fontSize: isMobile ? FS.read : FS.strong, fontWeight: FW.forte, lineHeight: 1.35, color: T.text, letterSpacing: "-0.005em" }}>
           {resumo}
         </p>
       )}
@@ -229,7 +245,7 @@ export default function EtiquetaTubo() {
           onClick={() => { if (pronto) window.print(); }} disabled={!pronto} data-testid="imprimir-etiqueta-tubo" className="etq-foco"
           motivo={motivoDoImprimir} alinharMotivo={isMobile ? "start" : "end"}
           title={motivoDoImprimir ?? 'Abre a impressão (ou "Salvar como PDF").'}
-          style={isMobile ? { minHeight: 48 } : undefined}>
+          style={isMobile ? { minHeight: 48 } : { minHeight: 40, padding: "0 18px", fontSize: FS.read }}>
           {esperandoLogo ? "Buscando o logo…" : "Imprimir etiqueta"}
         </Botao>
       </div>
@@ -237,7 +253,7 @@ export default function EtiquetaTubo() {
   );
 
   return (
-    <div style={{ background: T.bg, minHeight: "100%" }}>
+    <div ref={setRaiz} style={{ background: T.bg, minHeight: "100%" }}>
       {/* O `#fff` do @media print fica literal: é o papel, não a tela. */}
       <style>{`
         ${CSS_DA_ETIQUETA_EM_LISTA}
@@ -254,39 +270,44 @@ export default function EtiquetaTubo() {
         }
       `}</style>
 
-      <div className="etq-acao" data-testid="barra-da-etiqueta-do-tubo" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: isMobile ? "10px 12px" : "12px 18px", borderBottom: `1px solid ${T.border}`, backgroundColor: T.bg, position: "sticky", top: 0, zIndex: 5 }}>
-        <Link href="/grafica" className="etq-foco" style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: alvo, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.surface, fontSize: FS.body, fontWeight: FW.medio, color: T.strong, textDecoration: "none" }}>
-          <ArrowLeft aria-hidden="true" style={{ width: 14, height: 14 }} /> Fila da Gráfica
-        </Link>
-        {/* O CabecalhoDaPagina traz margem de baixo de página (20px); dentro da
-            barra grudada ela só engordaria a barra — o -20 a devolve. */}
-        <div style={{ minWidth: 0, flex: "1 1 200px", marginBottom: -20 }}>
-          <CabecalhoDaPagina titulo={titulo} icone={Tag}
-            subtitulo={data ? <span style={{ overflowWrap: "anywhere" }}>{nome || "Evento"} · {data.pecas.length} {data.pecas.length === 1 ? "peça" : "peças"}{saida ? ` · saída ${saida}` : ""}</span> : undefined} />
+      {/* CABEÇALHO (rola com a página) e, embaixo, a FAIXA grudada com o
+          resumo e o Imprimir — a mesma composição das etiquetas do evento. */}
+      <div className="etq-acao" data-testid="barra-da-etiqueta-do-tubo" style={{ display: "flex", alignItems: "center", gap: isMobile ? 10 : 16, flexWrap: "wrap", padding: isMobile ? "12px 12px 10px" : "18px 24px 14px" }}>
+        <BotaoLink href="/grafica" className="etq-foco" icone={ArrowLeft} tamanho={toque ? "toque" : "md"} data-testid="link-voltar-grafica">
+          Fila da Gráfica
+        </BotaoLink>
+        <div style={{ minWidth: 0, flex: isMobile ? "1 1 100%" : "1 1 260px" }}>
+          <CabecalhoDaPagina titulo={titulo} icone={Tag} corDoIcone={T.accentText} semMargem
+            subtitulo={data ? <span style={{ overflowWrap: "anywhere" }}><strong style={{ fontWeight: FW.medio, color: T.strong }}>{nome || "Evento"}</strong> · {data.pecas.length} {data.pecas.length === 1 ? "peça" : "peças"}{saida ? ` · saída do caminhão ${saida}` : ""}</span> : isLoading ? "Carregando o tubo…" : undefined} />
         </div>
-        {!isMobile && blocoDeAcao}
       </div>
+      {!isMobile && data && (
+        <div className="etq-acao etq-faixa" data-testid="faixa-de-impressao"
+          style={{ position: "sticky", top: 0, zIndex: 5, padding: "12px 24px", backgroundColor: T.surface, borderTop: `1px solid ${T.border}`, borderBottom: `1px solid ${T.border}`, boxShadow: SHADOW.sm }}>
+          {blocoDeAcao}
+        </div>
+      )}
 
       {isLoading && (
-        <div style={{ padding: isMobile ? 12 : 18 }}>
+        <div style={{ padding: isMobile ? 12 : "16px 24px", maxWidth: 760 }}>
           <Esqueleto variante="lista" linhas={3} rotulo="Carregando o tubo" />
         </div>
       )}
       {isError && (
-        <div style={{ padding: isMobile ? 12 : 18, maxWidth: 560, margin: "0 auto" }}>
-          {/* O "Tentar de novo" é daqui, e não o do EstadoErro: o dele é de
-              36px fixos, e no tablet do galpão o alvo é 44. */}
-          <EstadoErro titulo="Não foi possível carregar o tubo." compacto />
-          <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
-            <Botao tamanho={toque ? "toque" : "md"} icone={RotateCw} className="etq-foco" onClick={() => refetch()}>Tentar de novo</Botao>
-          </div>
+        <div style={{ padding: isMobile ? "24px 12px" : "48px 24px", maxWidth: 560, margin: "0 auto" }}>
+          {/* O "Tentar de novo" do próprio EstadoErro, em 44px no toque. */}
+          <EstadoErro titulo="Não foi possível carregar o tubo." testId="tubo-erro"
+            detalhe="Nada foi impresso. Confira a conexão e tente de novo — ou volte à fila da Gráfica."
+            aoTentarDeNovo={() => { void refetch(); }} carregando={isFetching} tamanhoDoBotao={toque ? "toque" : "md"} testIdDoBotao="tubo-tentar-de-novo" />
         </div>
       )}
 
       {data && (
-        <div style={{ display: isMobile ? "block" : "grid", gridTemplateColumns: isMobile ? undefined : "minmax(300px, 360px) minmax(0, 1fr)", alignItems: "start" }}>
+        // No celular a ETIQUETA vem primeiro (é o que se confere antes de imprimir)
+        // e as opções descem para baixo dela; no desktop, painel à esquerda.
+        <div style={{ display: empilhado ? "flex" : "grid", flexDirection: empilhado ? "column" : undefined, gridTemplateColumns: empilhado ? undefined : "minmax(300px, 368px) minmax(0, 1fr)", alignItems: empilhado ? "stretch" : "start" }}>
           <aside className="etq-acao etq-painel" aria-label="Opções da etiqueta" data-testid="painel-de-opcoes"
-            style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0, padding: isMobile ? "12px" : "14px 6px 24px 18px" }}>
+            style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0, padding: isMobile ? "4px 12px 150px" : empilhado ? "4px 24px 32px" : "16px 10px 24px 24px", order: empilhado ? 2 : undefined, maxWidth: empilhado && !isMobile ? 640 : undefined }}>
             {avulso && (
               <p data-testid="aviso-embalada-sozinha" style={{ ...dica, padding: "10px 12px", border: `1px solid ${TOM.laranja.border}`, borderRadius: R.lg, backgroundColor: TOM.laranja.bg, color: TOM.laranja.text }}>
                 Esta peça foi embalada sozinha, sem tubo: a etiqueta dela é a individual.{" "}
@@ -297,13 +318,13 @@ export default function EtiquetaTubo() {
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <label style={{ ...rotuloDeCampo, flex: "2 1 170px" }}>
                   Papel
-                  <select value={tamanho} onChange={(e) => setPrefs((p) => ({ ...p, tamanho: e.target.value as TamanhoEtiqueta }))} data-testid="select-tamanho-etiqueta" className="etq-foco" style={campo}>
+                  <select value={tamanho} onChange={(e) => setPrefs((p) => ({ ...p, tamanho: e.target.value as TamanhoEtiqueta }))} data-testid="select-tamanho-etiqueta" className="etq-foco etq-campo" style={campo}>
                     {ORDEM_DOS_TAMANHOS.map((t) => <option key={t} value={t}>{TAMANHOS[t].rotulo}</option>)}
                   </select>
                 </label>
                 <label style={{ ...rotuloDeCampo, flex: "1 1 80px" }} title="Quantas vezes o jogo de etiquetas sai — colam dos dois lados do tubo.">
                   Cópias
-                  <select value={copias} onChange={(e) => setPrefs((p) => ({ ...p, copias: limitarCopias(e.target.value) }))} data-testid="select-copias-etiqueta" className="etq-foco" style={campo}>
+                  <select value={copias} onChange={(e) => setPrefs((p) => ({ ...p, copias: limitarCopias(e.target.value) }))} data-testid="select-copias-etiqueta" className="etq-foco etq-campo" style={campo}>
                     {Array.from({ length: COPIAS_MAX }, (_, k) => k + 1).map((n) => <option key={n} value={n}>{n}</option>)}
                   </select>
                 </label>
@@ -379,11 +400,11 @@ export default function EtiquetaTubo() {
               ajuda={logoNaEtiqueta ? "O logo do book ocupa o lugar do texto de cima." : esperandoLogo ? "Extraindo o logo do book… o Imprimir espera por ele." : undefined}>
               <label style={rotuloDeCampo}>
                 Texto de cima (pequeno)
-                <input type="text" value={textoDeCima ?? prefixo} onChange={(e) => setTextoDeCima(e.target.value)} disabled={!!logoNaEtiqueta} data-testid="input-texto-de-cima" className="etq-foco" style={{ ...campo, opacity: logoNaEtiqueta ? 0.6 : 1 }} />
+                <input type="text" value={textoDeCima ?? prefixo} onChange={(e) => setTextoDeCima(e.target.value)} disabled={!!logoNaEtiqueta} data-testid="input-texto-de-cima" className="etq-foco etq-campo" style={{ ...campo, opacity: logoNaEtiqueta ? 0.6 : 1 }} />
               </label>
               <label style={rotuloDeCampo}>
                 Palavra gigante (lê-se de longe)
-                <input type="text" value={destaque ?? padrao.gigante} onChange={(e) => setDestaque(e.target.value)} data-testid="input-destaque-tubo" className="etq-foco" style={campo} />
+                <input type="text" value={destaque ?? padrao.gigante} onChange={(e) => setDestaque(e.target.value)} data-testid="input-destaque-tubo" className="etq-foco etq-campo" style={campo} />
               </label>
               {(destaque !== null || textoDeCima !== null) && (
                 <Botao tamanho={tamanhoDoBotao} className="etq-foco" data-testid="restaurar-cabecalho" onClick={() => { setDestaque(null); setTextoDeCima(null); }} style={{ alignSelf: "flex-start" }}>
@@ -395,7 +416,7 @@ export default function EtiquetaTubo() {
 
           {/* A PRÉVIA: a etiqueta no tamanho real (mm), com zoom para caber — a
               página nunca ganha rolagem lateral, nem com A4 num celular. */}
-          <div ref={refDaPrevia} className="folha-do-tubo" data-testid="folha-do-tubo" style={{ padding: isMobile ? "8px 12px 150px" : "18px 18px 48px", minWidth: 0, overflow: "hidden" }}>
+          <div ref={refDaPrevia} className="folha-do-tubo" data-testid="folha-do-tubo" style={{ padding: isMobile ? "8px 12px 12px" : empilhado ? "16px 24px 12px" : "16px 24px 56px 14px", minWidth: 0, overflow: "hidden", order: empilhado ? 1 : undefined }}>
             {folha("tela")}
           </div>
         </div>

@@ -16,6 +16,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useId, useRef } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { FONT, FS, FW, T } from "@/lib/theme";
 
 export const COMENTARIO_MINIMO = 5;
 
@@ -29,6 +30,7 @@ export function ComentarioDoBook({
   valor,
   aoMudar,
   patrocinadores,
+  titulo = "rotulo",
 }: {
   /** true = já existe book publicado neste evento (comentário obrigatório) */
   republicacao: boolean;
@@ -36,6 +38,10 @@ export function ComentarioDoBook({
   aoMudar: (v: string) => void;
   /** nomes (únicos) dos patrocinadores das peças do book — viram chips-atalho */
   patrocinadores: string[];
+  /** "rotulo" (pd.): a linha em CAIXA-ALTA do modal da Arte. "secao": título de
+   *  seção, como as demais seções do Gerador de book (que a usa sozinha num
+   *  cartão) — a regra do obrigatório desce para a linha de baixo. */
+  titulo?: "rotulo" | "secao";
 }) {
   const invalido = !comentarioDoBookValido(republicacao, valor);
   // Celular: nada abaixo de 12px e o campo em 16px (o iOS dá zoom abaixo disso).
@@ -68,6 +74,14 @@ export function ComentarioDoBook({
 
   return (
     <div data-testid="comentario-do-book">
+      {titulo === "secao" ? (
+        <div style={{ margin: "0 0 10px" }}>
+          <h2 id={idRotulo} style={{ margin: 0, fontFamily: FONT.display, fontSize: FS.strong, fontWeight: FW.forte, color: T.text }}>O que mudou nesta versão</h2>
+          <p style={{ margin: "2px 0 0", fontSize: FS.meta, lineHeight: 1.45, color: republicacao ? T.accentText : T.second, fontWeight: republicacao ? FW.medio : FW.corpo }}>
+            {republicacao ? "Obrigatório na republicação — é o que sai no e-mail de quem recebe." : "Opcional na primeira publicação — vai no e-mail de quem recebe."}
+          </p>
+        </div>
+      ) : (
       <p id={idRotulo} style={{ margin: "0 0 6px", fontSize: fsc(11), fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#57534e" }}>
         O que mudou nesta versão
         {/* #78716c e não #a8a29e: é texto informativo (diz se o campo é
@@ -76,6 +90,7 @@ export function ComentarioDoBook({
           {republicacao ? "— obrigatório na republicação: é o que sai no e-mail" : "— opcional na primeira publicação"}
         </span>
       </p>
+      )}
       {patrocinadores.length > 0 && (
         <div role="group" aria-label="Começar uma linha por patrocinador" style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
           {patrocinadores.map((nome) => {

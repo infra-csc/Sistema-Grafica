@@ -27,9 +27,15 @@ interface Props {
   onCapaChange: (v: boolean) => void;
   paginas: Set<number>;
   onTogglePagina: (n: number) => void;
+  /** Avisa a tela quando o book atual não abre (ou volta a abrir): sem ele não
+   *  há o que herdar, e a prévia e a geração precisam saber disso. */
+  onErro?: (erro: string | null) => void;
+  /** As miniaturas já desenhadas (nº da página → imagem): a prévia do Gerador
+   *  mostra a capa e as páginas herdadas DE VERDADE, sem renderizar de novo. */
+  onMiniaturas?: (m: Record<number, string>) => void;
 }
 
-export function BookHeranca({ bookUrl, capa, onCapaChange, paginas, onTogglePagina }: Props) {
+export function BookHeranca({ bookUrl, capa, onCapaChange, paginas, onTogglePagina, onErro, onMiniaturas }: Props) {
   const [numPages, setNumPages] = useState(0);
   const [erro, setErro] = useState<string | null>(null);
   const [thumbs, setThumbs] = useState<Record<number, string>>({});
@@ -37,6 +43,12 @@ export function BookHeranca({ bookUrl, capa, onCapaChange, paginas, onTogglePagi
   const queueRef = useRef<number[]>([]);
   const busyRef = useRef(false);
   const genRef = useRef(0);
+  const onErroRef = useRef(onErro);
+  onErroRef.current = onErro;
+  useEffect(() => { onErroRef.current?.(erro); }, [erro]);
+  const onMiniaturasRef = useRef(onMiniaturas);
+  onMiniaturasRef.current = onMiniaturas;
+  useEffect(() => { onMiniaturasRef.current?.(thumbs); }, [thumbs]);
 
   useEffect(() => {
     const gen = ++genRef.current;
@@ -85,7 +97,9 @@ export function BookHeranca({ bookUrl, capa, onCapaChange, paginas, onTogglePagi
     try {
       const page = await doc.getPage(n);
       const vp1 = page.getViewport({ scale: 1 });
-      const vp = page.getViewport({ scale: THUMB_W / vp1.width });
+      // Desenha no DOBRO da largura: nítida em tela densa e na prévia do
+      // Gerador, que mostra a mesma imagem num cartão maior.
+      const vp = page.getViewport({ scale: (THUMB_W * 2) / vp1.width });
       const canvas = document.createElement("canvas");
       canvas.width = Math.ceil(vp.width);
       canvas.height = Math.ceil(vp.height);

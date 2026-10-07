@@ -14,12 +14,16 @@
 // régua. Peça sem arte fica fora e é LISTADA — o exemplar nunca mostra
 // placeholder, e esconder sem dizer seria mentir sobre o conteúdo.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useRoute, Link, useLocation } from "wouter";
-import { ArrowLeft, ArrowDown, ArrowUp, BookOpen, Check, Download, Loader2, RefreshCw } from "lucide-react";
+import { useRoute, useLocation } from "wouter";
+import { ArrowLeft, ArrowDown, ArrowUp, BookOpen, CheckCircle2, Copy, Download, ExternalLink, Eye, ImageOff, Loader2, MessageSquareText, Send } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { FS } from "@/lib/theme";
+import { FONT, FS, FW, N, R, SHADOW, T, TOM, TOM_FORTE } from "@/lib/theme";
+import { Botao, BotaoLink } from "@/components/ui/botao";
+import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
+import { EstadoErro, EstadoVazio, Esqueleto } from "@/components/ui/estados";
+import { useConfirmar } from "@/components/ui/usar-confirmar";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
@@ -44,8 +48,23 @@ export default function BookGerador() {
   const podePublicar = user?.role === "arte" || user?.role === "admin";
 
   const { data: event } = useQuery<any>({ queryKey: ["/api/events", eventId], enabled: !!eventId });
-  const { data: itens = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ["/api/items", eventId], enabled: !!eventId });
+  const { data: itens = [], isLoading, isError, refetch, isFetching } = useQuery<any[]>({ queryKey: ["/api/items", eventId], enabled: !!eventId });
   const isMobile = useIsMobile();
+  const { confirmar, dialogo } = useConfirmar();
+  // A LARGURA ÚTIL da tela (sem o menu lateral) decide o layout: duas colunas
+  // (montagem | prévia) só quando cabem de verdade. Pela largura da janela, o
+  // tablet com o menu aberto caía nas duas colunas e a prévia vazava de lado.
+  const [conteudo, setConteudo] = useState<HTMLDivElement | null>(null);
+  const [larguraUtil, setLarguraUtil] = useState(0);
+  useEffect(() => {
+    if (!conteudo) return;
+    const medir = () => setLarguraUtil(conteudo.clientWidth);
+    medir();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(medir);
+    ro.observe(conteudo);
+    return () => ro.disconnect();
+  }, [conteudo]);
 
   // Ajustes do usuário por grupo — a base deriva dos dados; isto guarda só o
   // que a pessoa mudou (rótulo, exclusão, ordem), então peça nova não some.
@@ -76,7 +95,14 @@ export default function BookGerador() {
     }
     return Array.from(nomes).sort((a, b) => a.localeCompare(b, "pt-BR"));
   }, [itens]);
-  const heranca: HerancaDoBook | null = bookAtualUrl
+  // O BOOK ATUAL QUE NÃO ABRE não tem o que herdar. O aviso da herança diz
+  // "o gerado sai sem herança" — e era mentira: a herança seguia ligada, o
+  // motor tentava abrir o mesmo PDF e a geração inteira caía num erro. Agora a
+  // tela cumpre o que o aviso promete (capa gerada + grades), e a prévia mostra
+  // o que vai sair de fato.
+  const [herancaFalhou, setHerancaFalhou] = useState(false);
+  const [miniaturasHerdadas, setMiniaturasHerdadas] = useState<Record<number, string>>({});
+  const heranca: HerancaDoBook | null = bookAtualUrl && !herancaFalhou
     ? { url: bookAtualUrl, capa: capaHerdada, paginas: Array.from(paginasHerdadas).sort((a, b) => a - b) }
     : null;
   const { grupos, semArte } = useMemo(() => {
@@ -147,7 +173,8 @@ export default function BookGerador() {
         // ignorava as páginas herdadas do book atual, e o toast dizia um
         // número diferente do que a tela tinha prometido um segundo antes.
         description: `${nPaginasFinal} ${nPaginasFinal === 1 ? "página" : "páginas"}. Nada foi publicado` + (falhas.length ? ` — ${falhas.length} ${falhas.length === 1 ? "arte falhou e ficou" : "artes falharam e ficaram"} fora.` : "."),
-        variant: falhas.length ? "destructive" : undefined,
+        // Arte que falhou é AVISO (o PDF saiu, faltando algo), não falha geral.
+        variant: falhas.length ? "warning" : undefined,
       });
     } catch (e: any) {
       toast({ title: "Não foi possível gerar o PDF", description: e?.message ?? String(e), variant: "destructive" });
@@ -165,10 +192,24 @@ export default function BookGerador() {
       toast({
         title: "Falta o comentário do que mudou",
         description: "Este evento já tem book publicado. Escreva o que mudou nesta versão — é o que sai no e-mail de quem recebe.",
-        variant: "destructive",
+        // Nada aconteceu e nada quebrou: aviso, não erro (régua dos toasts).
+        variant: "warning",
       });
       return;
     }
+    // PUBLICAR NÃO SE DESFAZ: o PDF entra no evento (substituindo o atual, se
+    // houver) e a equipe recebe o e-mail na hora. Uma pergunta antes — com a
+    // mesma conta de páginas do botão, para não haver surpresa.
+    const ok = await confirmar({
+      titulo: bookAtualUrl ? "Substituir o book publicado?" : "Publicar o book?",
+      descricao: bookAtualUrl
+        ? `O book novo (${nPaginasFinal} ${nPaginasFinal === 1 ? "página" : "páginas"}) SUBSTITUI o atual do evento, e a equipe recebe o aviso por e-mail com o que mudou.`
+        : `O book (${nPaginasFinal} ${nPaginasFinal === 1 ? "página" : "páginas"}, ${totalPecas} ${totalPecas === 1 ? "arte" : "artes"}) é publicado no evento, e a equipe recebe o aviso por e-mail.`,
+      confirmar: bookAtualUrl ? "Substituir e avisar" : "Publicar e avisar",
+      cancelar: "Revisar mais",
+      icone: Send,
+    });
+    if (!ok) return;
     setPublicando(true);
     setResultado(null);
     try {
@@ -196,7 +237,7 @@ export default function BookGerador() {
         title: aviso?.status === "failed" ? "Book publicado — mas o aviso NÃO saiu" : "Book gerado e publicado",
         description: `${nPaginasFinal} ${nPaginasFinal === 1 ? "página" : "páginas"}, ${totalPecas - falhas.length} ${totalPecas - falhas.length === 1 ? "arte" : "artes"}.` +
           (falhas.length ? ` ${falhas.length} arte${falhas.length !== 1 ? "s" : ""} falharam e ficaram fora.` : "") + fraseAviso,
-        variant: falhas.length || aviso?.status === "failed" ? "destructive" : undefined,
+        variant: aviso?.status === "failed" ? "destructive" : falhas.length ? "warning" : undefined,
       });
     } catch (e: any) {
       toast({ title: "Não foi possível gerar o book", description: e?.message ?? String(e), variant: "destructive" });
@@ -208,9 +249,11 @@ export default function BookGerador() {
 
   if (isLoading) {
     return (
-      <p role="status" style={{ padding: 40, margin: 0, fontSize: 14, color: "#78716c", display: "flex", alignItems: "center", gap: 8 }}>
-        <Loader2 className="animate-spin" aria-hidden="true" style={{ width: 16, height: 16 }} /> Carregando as peças…
-      </p>
+      <div className="book-pagina" style={{ backgroundColor: T.bg, minHeight: "100%", padding: isMobile ? "16px 12px" : "24px" }}>
+        <div style={{ maxWidth: 1320, margin: "0 auto" }}>
+          <Esqueleto variante="cartoes" linhas={isMobile ? 3 : 6} rotulo="Carregando as peças do book" />
+        </div>
+      </div>
     );
   }
 
@@ -219,277 +262,342 @@ export default function BookGerador() {
   // mentiroso, quando o que houve foi a busca não voltar.
   if (isError) {
     return (
-      <div role="alert" style={{ maxWidth: 460, margin: "40px auto", padding: "28px 24px", textAlign: "center", backgroundColor: "#fff", border: "1px solid #e7e5e4", borderRadius: 12 }}>
-        <p style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 700, color: "#1c1917" }}>Não foi possível carregar as peças do evento</p>
-        <p style={{ margin: "0 0 16px", fontSize: 13, color: "#78716c", lineHeight: 1.5 }}>Nada foi gerado nem publicado. Verifique a conexão e tente de novo.</p>
-        <button type="button" onClick={() => { void refetch(); }} data-testid="button-recarregar-book"
-          style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 38, padding: "0 16px", borderRadius: 9, border: "none", backgroundColor: "#1c1917", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-          <RefreshCw aria-hidden="true" style={{ width: 14, height: 14 }} /> Tentar novamente
-        </button>
+      <div className="book-pagina" style={{ backgroundColor: T.bg, minHeight: "100%", padding: isMobile ? "24px 12px" : "48px 24px" }}>
+        <div style={{ maxWidth: 520, margin: "0 auto", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+          <div style={{ width: "100%" }}>
+            <EstadoErro titulo="Não foi possível carregar as peças do evento" testId="book-erro"
+              detalhe="Nada foi gerado nem publicado. Verifique a conexão e tente de novo."
+              aoTentarDeNovo={() => { void refetch(); }} carregando={isFetching} rotuloDoBotao="Tentar novamente"
+              tamanhoDoBotao={isMobile ? "toque" : "md"} testIdDoBotao="button-recarregar-book" />
+          </div>
+          <BotaoLink href={`/eventos/${eventId}`} variante="fantasma" tamanho={isMobile ? "toque" : "md"} icone={ArrowLeft}>Voltar ao evento</BotaoLink>
+        </div>
       </div>
     );
   }
 
-  // Escala da prévia: cada página vira um cartão de ~340 px de largura.
-  const ESC = 340 / BOOK.LARGURA;
+  // Escala da prévia: a página do book (A4 deitada) vira um cartão que divide
+  // a coluna da prévia em quantas couberem com ~270 px (teto de 340) — duas no
+  // notebook, três no monitor largo, uma no celular.
+  const duasColunas = !isMobile && (larguraUtil === 0 || larguraUtil >= 940);
+  const larguraDaPrevia = larguraUtil === 0 ? 640 : duasColunas ? larguraUtil - 400 - 24 : larguraUtil;
+  const colunasDaPrevia = Math.max(1, Math.floor((larguraDaPrevia + 16) / (270 + 16)));
+  const LARG_PREVIA = Math.max(240, Math.min(340, Math.floor((larguraDaPrevia - 16 * (colunasDaPrevia - 1)) / colunasDaPrevia)));
+  const ESC = LARG_PREVIA / BOOK.LARGURA;
   const miolo = mioloDoBook();
+  const herdadas = (heranca?.paginas ?? []).filter((n) => n !== 1);
+  const tamanhoDoControle = isMobile ? "toque" : "md";
+
+  /** A moldura de uma página da prévia + a legenda embaixo ("pág. 3 · Pórtico · 4 artes"). */
+  const paginaDaPrevia = (chave: string, legenda: React.ReactNode, conteudo: React.ReactNode, opcoes: { destaque?: boolean; testid?: string } = {}) => (
+    <figure key={chave} className="book-folha" data-testid={opcoes.testid} style={{ margin: 0, width: LARG_PREVIA, display: "flex", flexDirection: "column", gap: 6 }}>
+      <div style={{ position: "relative", width: LARG_PREVIA, height: BOOK.ALTURA * ESC, borderRadius: R.sm, overflow: "hidden", backgroundColor: T.surface,
+        border: opcoes.destaque ? `2px solid ${T.accentText}` : `1px solid ${T.border}`, boxShadow: SHADOW.sm, boxSizing: "border-box" }}>
+        {conteudo}
+      </div>
+      <figcaption style={{ display: "flex", alignItems: "baseline", gap: 6, minWidth: 0, fontSize: FS.meta, color: T.second, lineHeight: 1.35 }}>
+        {legenda}
+      </figcaption>
+    </figure>
+  );
 
   return (
-    <div style={{ backgroundColor: "#fafaf9", minHeight: "100%", padding: "18px 18px 64px" }}>
-      <div style={{ maxWidth: 1060, margin: "0 auto" }}>
+    <div className="book-pagina" style={{ backgroundColor: T.bg, minHeight: "100%", padding: isMobile ? "12px 12px 48px" : "18px 24px 64px" }}>
+      {dialogo}
+      <div ref={setConteudo} style={{ maxWidth: 1320, margin: "0 auto" }}>
 
-        {/* ── Barra ──
-            O TÍTULO NO PADRÃO DA CASA (Space Grotesk 26/700, sem ícone
-            colorido), como as outras telas desde a 2ª rodada. Era 20/800 com
-            um livro laranja e o nome do evento colado depois de um travessão —
-            num evento de nome longo, o título quebrava no meio do nome. O
-            evento e o tamanho do book descem para a linha de apoio, que é onde
-            se confere "é o evento certo, com quantas páginas?". */}
-        <Link href={`/eventos/${eventId}`} data-testid="link-voltar-evento" style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: isMobile ? 44 : 32, padding: "0 10px 0 6px", marginBottom: 8, borderRadius: 8, color: "#57534e", fontSize: 13, fontWeight: 600, textDecoration: "none" }}>
-          <ArrowLeft aria-hidden="true" style={{ width: 14, height: 14 }} /> Voltar ao evento
-        </Link>
-        <div style={{ display: "flex", alignItems: isMobile ? "stretch" : "flex-end", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 12 : 16, marginBottom: 16 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <h1 style={{ margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontSize: FS.h1, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.1, color: "#1c1917" }}>
-              Gerar book
-            </h1>
-            <p data-testid="book-resumo" style={{ margin: "4px 0 0", fontSize: 13, color: "#746e69", lineHeight: 1.5 }}>
-              {event?.name ?? "Evento"}
+        {/* ── Cabeçalho ──
+            O TÍTULO NO PADRÃO DA CASA (CabecalhoDaPagina). O evento e o tamanho
+            do book ficam na linha de apoio, que é onde se confere "é o evento
+            certo, com quantas páginas?"; as duas ações moram à direita, a
+            principal por último. */}
+        <BotaoLink href={`/eventos/${eventId}`} data-testid="link-voltar-evento" variante="fantasma" tamanho={isMobile ? "toque" : "sm"} icone={ArrowLeft}
+          style={{ marginLeft: isMobile ? -8 : -10, marginBottom: 6 }}>
+          Voltar ao evento
+        </BotaoLink>
+        <CabecalhoDaPagina titulo="Gerar book" icone={BookOpen} corDoIcone={T.accentText} margemInferior={16}
+          subtitulo={
+            <span data-testid="book-resumo">
+              <strong style={{ fontWeight: FW.medio, color: T.strong }}>{event?.name ?? "Evento"}</strong>
               {totalPecas > 0 && ` · ${totalPecas} ${totalPecas === 1 ? "arte" : "artes"} em ${nPaginasFinal} ${nPaginasFinal === 1 ? "página" : "páginas"}`}
+              {bookAtualUrl ? " · já tem book publicado" : ""}
+            </span>
+          }
+          acoes={
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", width: isMobile ? "100%" : undefined }}>
+              <Botao
+                onClick={baixarPdf}
+                disabled={baixando || publicando || totalPecas === 0}
+                carregando={baixando}
+                data-testid="button-baixar-book"
+                icone={Download}
+                tamanho={isMobile ? "toque" : "md"}
+                variante="secundarioForte"
+                title={totalPecas === 0 ? "Nenhum grupo com arte incluído — marque ao menos um grupo" : "Gera o PDF e salva na sua máquina — nada é publicado"}
+                style={{ flex: isMobile ? "1 1 0%" : undefined, minHeight: isMobile ? 44 : 40 }}
+              >
+                {baixando ? "Gerando…" : "Baixar PDF"}
+              </Botao>
+              {/* O progresso NÃO mora no rótulo: "Desenhando páginas… (12/40)"
+                  fazia o botão mudar de largura a cada arte. Ele vive na barra
+                  logo abaixo, com a proporção desenhada. */}
+              <Botao
+                variante="primario"
+                onClick={gerarEPublicar}
+                disabled={!podePublicar || publicando || totalPecas === 0}
+                carregando={publicando}
+                data-testid="button-gerar-book"
+                icone={Send}
+                tamanho={isMobile ? "toque" : "md"}
+                title={!podePublicar ? "Publicar book é da Arte e do admin — os demais podem montar e conferir a prévia." : totalPecas === 0 ? "Nenhum grupo com arte incluído — marque ao menos um grupo" : bookAtualUrl ? "Gera o PDF, SUBSTITUI o book atual do evento e avisa a equipe por e-mail" : "Gera o PDF, publica o book no evento e avisa a equipe por e-mail"}
+                style={{ flex: isMobile ? "1 1 0%" : undefined, minHeight: isMobile ? 44 : 40, padding: "0 18px", fontSize: FS.read }}
+              >
+                {publicando ? "Publicando…" : `Gerar e publicar (${nPaginasFinal} pág.)`}
+              </Botao>
+            </div>
+          } />
+
+        {/* ── Avisos, do mais urgente ao informativo ── */}
+        <div className="book-avisos" style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+          {/* PROGRESSO À VISTA. A geração leva minutos (cada arte é baixada e
+              desenhada). `role="progressbar"` dá o número ao leitor de tela. */}
+          {progresso && (
+            <div data-testid="book-progresso" className="book-entra" style={{ padding: "12px 16px", borderRadius: R.lg, backgroundColor: T.surface, border: `1px solid ${T.border}`, boxShadow: SHADOW.sm }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, marginBottom: 8, fontSize: FS.body }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: FW.medio, color: T.text, minWidth: 0 }}>
+                  <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 14, height: 14, color: T.accentText, flexShrink: 0 }} />
+                  {progresso.etapa}
+                </span>
+                <span style={{ color: T.apoio, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", fontSize: FS.meta, fontWeight: FW.medio }}>{progresso.feito} de {progresso.total}</span>
+              </div>
+              <div
+                role="progressbar"
+                aria-label={baixando ? "Gerando o PDF" : "Gerando e publicando o book"}
+                aria-valuemin={0}
+                aria-valuemax={progresso.total}
+                aria-valuenow={progresso.feito}
+                style={{ height: 6, borderRadius: R.pill, backgroundColor: N.n3, overflow: "hidden" }}
+              >
+                <div className="book-barra" style={{ height: "100%", width: `${progresso.total > 0 ? Math.round((progresso.feito / progresso.total) * 100) : 0}%`, backgroundColor: T.accentText, borderRadius: R.pill }} />
+              </div>
+              <p style={{ margin: "8px 0 0", fontSize: FS.meta, color: T.second }}>
+                {baixando ? "Nada é publicado — o PDF vai para a sua máquina." : "Não feche esta aba: o book só é publicado no fim."}
+              </p>
+            </div>
+          )}
+
+          {/* Progresso anunciado: um botão desabilitado não é relido pelo
+              leitor de tela — a geração parecia travada para quem não vê. */}
+          <span role="status" aria-live="polite" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" }}>
+            {progresso ? `${progresso.etapa} ${progresso.feito} de ${progresso.total}` : ""}
+          </span>
+
+          {resultado && (
+            <div role="status" data-testid="book-publicado" className="book-entra" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "12px 16px", borderRadius: R.lg, backgroundColor: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}` }}>
+              <CheckCircle2 aria-hidden="true" style={{ width: 18, height: 18, color: TOM.sucesso.text, flexShrink: 0 }} />
+              <p style={{ margin: 0, flex: "1 1 260px", minWidth: 0, fontSize: FS.body, lineHeight: 1.5, color: TOM_FORTE.sucesso.text }}>
+                <b style={{ fontWeight: FW.forte }}>Book publicado.</b>
+                {/* O que aconteceu com o aviso, com as palavras do servidor — e
+                    em vermelho escuro quando falhou: aí alguém avisa na mão. */}
+                {resultado.aviso?.status === "sent" && <>{" "}Aviso por e-mail enviado para {(resultado.aviso.para ?? []).join(", ")}.</>}
+                {resultado.aviso?.status === "failed" && <span style={{ color: TOM_FORTE.perigo.text, fontWeight: FW.medio }}>{" "}O aviso por e-mail NÃO saiu ({resultado.aviso.reason ?? "motivo desconhecido"}) — avise a equipe por outro caminho.</span>}
+                {resultado.falhas > 0 && <>{" "}{resultado.falhas} {resultado.falhas === 1 ? "arte falhou e ficou" : "artes falharam e ficaram"} fora.</>}
+              </p>
+              <BotaoLink href={resultado.url} externo target="_blank" rel="noopener noreferrer" tamanho={isMobile ? "toque" : "sm"} icone={ExternalLink} tom="sucesso" data-testid="book-abrir-pdf">
+                Abrir o PDF
+              </BotaoLink>
+            </div>
+          )}
+
+          {/* POR QUE NÃO DÁ PARA PUBLICAR, escrito — o botão cinza explicava só
+              no `title`, e no celular em lugar nenhum. */}
+          {!podePublicar ? (
+            <p data-testid="book-modo-consulta" style={{ display: "flex", alignItems: "flex-start", gap: 10, margin: 0, padding: "10px 14px", borderRadius: R.lg, backgroundColor: T.surface, border: `1px solid ${T.border}`, color: T.strong, fontSize: FS.body, lineHeight: 1.5 }}>
+              <Eye aria-hidden="true" style={{ width: 16, height: 16, marginTop: 2, color: T.apoio, flexShrink: 0 }} />
+              <span><b style={{ fontWeight: FW.forte }}>Modo consulta.</b> Publicar o book é da Arte e do admin — você pode montar a prévia e baixar o PDF para conferir.</span>
             </p>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <button
-            type="button"
-            onClick={baixarPdf}
-            disabled={baixando || publicando || totalPecas === 0}
-            data-testid="button-baixar-book"
-            title={totalPecas === 0 ? "Nenhum grupo com arte incluído — marque ao menos um grupo" : "Gera o PDF e salva na sua máquina — nada é publicado"}
-            style={{
-              display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, height: isMobile ? 44 : 40, padding: "0 16px",
-              borderRadius: 9, border: "1px solid #d6d3d1",
-              backgroundColor: "#ffffff", color: baixando || totalPecas === 0 ? "#78716c" : "#1c1917",
-              opacity: totalPecas === 0 ? 0.7 : 1,
-              flex: isMobile ? "1 1 auto" : undefined,
-              fontSize: 13, fontWeight: 700, cursor: baixando || publicando || totalPecas === 0 ? "not-allowed" : "pointer",
-            }}
-          >
-            {baixando ? <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 14, height: 14 }} /> : <Download aria-hidden="true" style={{ width: 14, height: 14 }} />}
-            {baixando ? "Gerando…" : "Baixar PDF"}
-          </button>
-          <button
-            type="button"
-            onClick={gerarEPublicar}
-            disabled={!podePublicar || publicando || totalPecas === 0}
-            data-testid="button-gerar-book"
-            title={!podePublicar ? "Publicar book é da Arte e do admin — os demais podem montar e conferir a prévia." : totalPecas === 0 ? "Nenhum grupo com arte incluído — marque ao menos um grupo" : bookAtualUrl ? "Gera o PDF, SUBSTITUI o book atual do evento e avisa a equipe por e-mail" : "Gera o PDF, publica o book no evento e avisa a equipe por e-mail"}
-            style={{
-              display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, height: isMobile ? 44 : 40, padding: "0 18px",
-              borderRadius: 9, border: "none",
-              backgroundColor: !podePublicar || publicando || totalPecas === 0 ? "#e7e5e4" : "#1c1917",
-              color: !podePublicar || publicando || totalPecas === 0 ? "#57534e" : "#fff",
-              flex: isMobile ? "1 1 auto" : undefined,
-              fontSize: 14, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif",
-              cursor: !podePublicar || publicando || totalPecas === 0 ? "not-allowed" : "pointer",
-            }}
-          >
-            {/* O progresso saiu do rótulo: "Desenhando páginas… (12/40)" fazia
-                o botão mudar de largura a cada arte e empurrar o vizinho. Ele
-                vive agora na barra logo abaixo, com a proporção desenhada. */}
-            {publicando ? <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 15, height: 15 }} /> : <Check aria-hidden="true" style={{ width: 15, height: 15 }} />}
-            {publicando ? "Publicando…" : `Gerar e publicar (${nPaginasFinal} pág.)`}
-          </button>
-          </div>
+          ) : bookAtualUrl && !comentarioDoBookValido(true, comentario) && totalPecas > 0 ? (
+            <p data-testid="book-falta-comentario" style={{ display: "flex", alignItems: "flex-start", gap: 10, margin: 0, padding: "10px 14px", borderRadius: R.lg, backgroundColor: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, color: TOM_FORTE.laranja.text, fontSize: FS.body, lineHeight: 1.5 }}>
+              <MessageSquareText aria-hidden="true" style={{ width: 16, height: 16, marginTop: 2, flexShrink: 0 }} />
+              <span>Este evento já tem book: para publicar, escreva em <b style={{ fontWeight: FW.forte }}>“O que mudou nesta versão”</b> o que mudou — é o que sai no e-mail.</span>
+            </p>
+          ) : null}
+
+          {semArte.length > 0 && (
+            <p data-testid="book-sem-arte" style={{ display: "flex", alignItems: "flex-start", gap: 10, margin: 0, padding: "10px 14px", borderRadius: R.lg, backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, color: TOM_FORTE.alerta.text, fontSize: FS.body, lineHeight: 1.5 }}>
+              <ImageOff aria-hidden="true" style={{ width: 16, height: 16, marginTop: 2, flexShrink: 0 }} />
+              <span>
+                <b style={{ fontWeight: FW.forte }}>{semArte.length} peça{semArte.length !== 1 ? "s" : ""} sem arte fica{semArte.length !== 1 ? "m" : ""} fora do book:</b>{" "}
+                <span style={{ fontFamily: FONT.mono, fontSize: FS.meta }}>{semArte.slice(0, 8).map((i: any) => i.displayId).join(", ")}{semArte.length > 8 ? ` +${semArte.length - 8}` : ""}</span>.
+                {" "}O exemplar manual nunca mostra moldura vazia.
+              </span>
+            </p>
+          )}
         </div>
 
-        {/* POR QUE NÃO DÁ PARA PUBLICAR, escrito (rodada 4). O botão cinza
-            explicava só no `title` — no celular, em lugar nenhum. E republicar
-            sem o "o que mudou" parecia liberado e respondia com um toast de
-            erro depois do clique. */}
-        {!podePublicar ? (
-          <p data-testid="book-modo-consulta" style={{ margin: "0 0 14px", padding: "10px 14px", borderRadius: 8, backgroundColor: "#f5f5f4", border: "1px solid #e7e5e4", color: "#44403c", fontSize: 13, lineHeight: 1.5 }}>
-            <b style={{ fontWeight: 700 }}>Modo consulta.</b> Publicar o book é da Arte e do admin — você pode montar a prévia e baixar o PDF para conferir.
-          </p>
-        ) : bookAtualUrl && !comentarioDoBookValido(true, comentario) && totalPecas > 0 ? (
-          <p data-testid="book-falta-comentario" style={{ margin: "0 0 14px", fontSize: 13, color: "#57534e", lineHeight: 1.5 }}>
-            Este evento já tem book: para publicar, escreva abaixo o que mudou nesta versão — é o que sai no e-mail.
-          </p>
-        ) : null}
+        {/* Duas colunas só quando cabem (ver duasColunas): no celular e no tablet
+            com o menu aberto, montagem em cima e prévia embaixo. */}
+        <div style={{ display: "grid", gridTemplateColumns: duasColunas ? "400px minmax(0, 1fr)" : "minmax(0, 1fr)", gap: isMobile ? 16 : 24, alignItems: "start" }}>
 
-        {/* PROGRESSO À VISTA. A geração leva minutos (cada arte é baixada e
-            desenhada) e o único sinal era um "12/40" dentro do botão — que
-            muda de tamanho e some de vista ao rolar a prévia. A barra fica no
-            topo, com a etapa por extenso e a proporção. `role="progressbar"`
-            dá o número ao leitor de tela sem depender do anúncio abaixo. */}
-        {progresso && (
-          <div data-testid="book-progresso" style={{ marginBottom: 14, padding: "10px 14px", borderRadius: 10, backgroundColor: "#fff", border: "1px solid #e7e5e4" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 6, fontSize: 13 }}>
-              <span style={{ fontWeight: 600, color: "#1c1917" }}>{progresso.etapa}</span>
-              <span style={{ color: "#57534e", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{progresso.feito} de {progresso.total}</span>
-            </div>
-            <div
-              role="progressbar"
-              aria-label={baixando ? "Gerando o PDF" : "Gerando e publicando o book"}
-              aria-valuemin={0}
-              aria-valuemax={progresso.total}
-              aria-valuenow={progresso.feito}
-              style={{ height: 6, borderRadius: 999, backgroundColor: "#f0efee", overflow: "hidden" }}
-            >
-              <div style={{ height: "100%", width: `${progresso.total > 0 ? Math.round((progresso.feito / progresso.total) * 100) : 0}%`, backgroundColor: "#1c1917", borderRadius: 999, transition: "width 0.2s" }} />
-            </div>
-          </div>
-        )}
+          {/* ── Montagem: grupos, herança e o "o que mudou" ── */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
+            <section className="book-secao" aria-labelledby="book-titulo-grupos" style={{ padding: "14px 14px 12px", borderRadius: R.lg, backgroundColor: T.surface, border: `1px solid ${T.border}` }}>
+              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
+                <h2 id="book-titulo-grupos" style={{ margin: 0, fontFamily: FONT.display, fontSize: FS.strong, fontWeight: FW.forte, color: T.text }}>Grupos</h2>
+                {grupos.length > 0 && <span style={{ fontSize: FS.meta, color: T.second, fontVariantNumeric: "tabular-nums" }}>{incluidos.length} de {grupos.length} no book</span>}
+              </div>
+              <p style={{ margin: "0 0 10px", fontSize: FS.meta, lineHeight: 1.45, color: T.apoio }}>
+                Cada grupo vira uma página, na ordem abaixo. O rótulo sai no rodapé da página.
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {grupos.map((g, idx) => (
+                  // Excluído, o grupo perde a COR de fundo, não a legibilidade: é
+                  // lendo o rótulo que se decide incluí-lo de volta.
+                  <div key={g.key} data-testid={`grupo-book-${g.key}`} className="book-grupo" data-incluido={g.incluido ? "sim" : "nao"}
+                    style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 6px 4px 2px", borderRadius: R.md, backgroundColor: g.incluido ? T.surface : N.n2, border: `1px ${g.incluido ? "solid" : "dashed"} ${g.incluido ? T.border : T.bdark}` }}>
+                    {/* A caixinha ganha uma área de toque de 36px (44 no celular). */}
+                    <label style={{ display: "flex", alignItems: "center", justifyContent: "center", width: isMobile ? 44 : 36, height: isMobile ? 44 : 36, flexShrink: 0, cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={g.incluido}
+                        onChange={() => setExcluidos((prev) => { const n = new Set(prev); if (n.has(g.key)) n.delete(g.key); else n.add(g.key); return n; })}
+                        aria-label={`Incluir o grupo ${g.key}`}
+                        style={{ width: 16, height: 16, accentColor: T.accentText, flexShrink: 0, cursor: "pointer" }}
+                      />
+                    </label>
+                    <input
+                      value={g.rotulo}
+                      onChange={(e) => setRotulos((prev) => ({ ...prev, [g.key]: e.target.value }))}
+                      aria-label={`Rótulo do grupo ${g.key}`}
+                      data-testid={`rotulo-grupo-${g.key}`}
+                      className="book-campo"
+                      style={{ flex: 1, minWidth: 0, height: isMobile ? 44 : 32, borderRadius: R.sm, border: `1px solid ${g.incluido ? T.border : "transparent"}`, padding: "0 8px", fontSize: isMobile ? FS.lead : FS.body, fontWeight: FW.medio, fontFamily: "inherit", color: g.incluido ? T.text : T.apoio, backgroundColor: g.incluido ? T.bg : "transparent", textDecoration: g.incluido ? "none" : "line-through", boxSizing: "border-box" }}
+                    />
+                    <span style={{ fontSize: FS.small, fontWeight: FW.medio, color: g.incluido ? T.second : T.apoio, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", minWidth: 44, textAlign: "right" }}>
+                      {g.incluido ? `${g.itens.length} arte${g.itens.length !== 1 ? "s" : ""}` : "fora"}
+                    </span>
+                    <Botao variante="fantasma" tamanho={isMobile ? "toque" : "sm"} icone={ArrowUp} onClick={() => mover(g.key, -1)} disabled={idx === 0}
+                      aria-label={`Subir o grupo ${g.rotulo.trim() || g.key}`} title="Subir" style={{ width: isMobile ? 44 : 30, padding: 0 }} />
+                    <Botao variante="fantasma" tamanho={isMobile ? "toque" : "sm"} icone={ArrowDown} onClick={() => mover(g.key, 1)} disabled={idx === grupos.length - 1}
+                      aria-label={`Descer o grupo ${g.rotulo.trim() || g.key}`} title="Descer" style={{ width: isMobile ? 44 : 30, padding: 0 }} />
+                  </div>
+                ))}
+              </div>
+              {grupos.length === 0 && (
+                <EstadoVazio compacto icone={BookOpen} testId="book-vazio" titulo="Nenhuma peça com arte neste evento"
+                  descricao="O book nasce das artes enviadas pela Arte. Quando os thumbs subirem, os grupos aparecem aqui."
+                  acao={<BotaoLink href={`/eventos/${eventId}`} icone={ArrowLeft} tamanho={tamanhoDoControle}>Voltar ao evento</BotaoLink>} />
+              )}
+              {grupos.length > 0 && incluidos.length === 0 && (
+                <p data-testid="book-nenhum-grupo" role="status" style={{ margin: "10px 0 0", fontSize: FS.meta, color: TOM.alerta.text, fontWeight: FW.medio }}>
+                  Nenhum grupo marcado — marque ao menos um para gerar o book.
+                </p>
+              )}
+            </section>
 
-        {/* Progresso anunciado: o rótulo do botão muda a cada arte, mas um
-            botão desabilitado não é relido pelo leitor de tela — a geração
-            leva minutos e parecia travada para quem não vê a tela. */}
-        <span role="status" aria-live="polite" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" }}>
-          {progresso ? `${progresso.etapa} ${progresso.feito} de ${progresso.total}` : ""}
-        </span>
-
-        {resultado && (
-          <p role="status" data-testid="book-publicado" style={{ margin: "0 0 14px", padding: "10px 14px", borderRadius: 8, backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d", fontSize: 13.5, fontWeight: 600 }}>
-            Book publicado.{" "}
-            <a href={resultado.url} target="_blank" rel="noopener noreferrer" style={{ color: "#15803d" }}>Abrir o PDF</a>
-            {/* O que aconteceu com o aviso, com as palavras do servidor — e
-                em vermelho escuro quando falhou, porque aí alguém precisa
-                avisar na mão. */}
-            {resultado.aviso?.status === "sent" && <>{" · "}aviso por e-mail enviado para {(resultado.aviso.para ?? []).join(", ")}.</>}
-            {resultado.aviso?.status === "failed" && <span style={{ color: "#991b1b" }}>{" · "}o aviso por e-mail NÃO saiu ({resultado.aviso.reason ?? "motivo desconhecido"}) — avise a equipe por outro caminho.</span>}
-          </p>
-        )}
-
-        {semArte.length > 0 && (
-          <p data-testid="book-sem-arte" style={{ margin: "0 0 14px", padding: "10px 14px", borderRadius: 8, backgroundColor: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", fontSize: 13 }}>
-            {semArte.length} peça{semArte.length !== 1 ? "s" : ""} sem arte fica{semArte.length !== 1 ? "m" : ""} fora do book:{" "}
-            {semArte.slice(0, 8).map((i: any) => i.displayId).join(", ")}{semArte.length > 8 ? ` +${semArte.length - 8}` : ""}.
-            {" "}O exemplar manual nunca mostra moldura vazia.
-          </p>
-        )}
-
-        {bookAtualUrl && (
-          <div style={{ marginBottom: 16, padding: "12px 14px", borderRadius: 10, backgroundColor: "#fff", border: "1px solid #e7e5e4" }}>
-            <p style={{ margin: "0 0 8px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: "#78716c" }}>
-              Herdar do book atual
-            </p>
-            <BookHeranca
-              bookUrl={bookAtualUrl}
-              capa={capaHerdada}
-              onCapaChange={setCapaHerdada}
-              paginas={paginasHerdadas}
-              onTogglePagina={(n) => setPaginasHerdadas((prev) => { const s2 = new Set(prev); if (s2.has(n)) s2.delete(n); else s2.add(n); return s2; })}
-            />
-          </div>
-        )}
-
-        {podePublicar && (
-          <div style={{ marginBottom: 16, padding: "12px 14px", borderRadius: 10, backgroundColor: "#fff", border: "1px solid #e7e5e4" }}>
-            <ComentarioDoBook
-              republicacao={!!bookAtualUrl}
-              valor={comentario}
-              aoMudar={setComentario}
-              patrocinadores={patrocinadoresDoBook}
-            />
-          </div>
-        )}
-
-        {/* Uma coluna no celular: `minmax(280px, 380px) 1fr` num viewport de
-            375px empurrava a prévia para fora da tela, com rolagem lateral. */}
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "minmax(0, 1fr)" : "minmax(280px, 380px) 1fr", gap: 16, alignItems: "start" }}>
-
-          {/* ── Montagem: grupos com rótulo, ordem e inclusão ── */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <p style={{ margin: 0, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: "#78716c" }}>
-              Grupos · ordem e rótulo
-            </p>
-            {grupos.map((g, idx) => (
-              // Excluído, o grupo perde a COR de fundo, não a legibilidade: a
-              // opacidade de 55% derrubava o rótulo e a contagem abaixo de AA —
-              // e é lendo o rótulo que se decide incluí-lo de volta.
-              <div key={g.key} data-testid={`grupo-book-${g.key}`} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px 6px 4px", borderRadius: 10, backgroundColor: g.incluido ? "#fff" : "#f5f5f4", border: `1px ${g.incluido ? "solid" : "dashed"} ${g.incluido ? "#e7e5e4" : "#d6d3d1"}` }}>
-                {/* A caixinha de 16px ganha uma área de toque de 36px (44 no
-                    celular) — era o menor alvo da tela e o que mais se usa. */}
-                <label style={{ display: "flex", alignItems: "center", justifyContent: "center", width: isMobile ? 44 : 36, height: isMobile ? 44 : 36, flexShrink: 0, cursor: "pointer" }}>
-                  <input
-                    type="checkbox"
-                    checked={g.incluido}
-                    onChange={() => setExcluidos((prev) => { const n = new Set(prev); if (n.has(g.key)) n.delete(g.key); else n.add(g.key); return n; })}
-                    aria-label={`Incluir o grupo ${g.key}`}
-                    style={{ width: 16, height: 16, accentColor: "#c2410c", flexShrink: 0, cursor: "pointer" }}
-                  />
-                </label>
-                <input
-                  value={g.rotulo}
-                  onChange={(e) => setRotulos((prev) => ({ ...prev, [g.key]: e.target.value }))}
-                  aria-label={`Rótulo do grupo ${g.key}`}
-                  data-testid={`rotulo-grupo-${g.key}`}
-                  style={{ flex: 1, minWidth: 0, height: isMobile ? 40 : 32, borderRadius: 7, border: "1px solid #e7e5e4", padding: "0 8px", fontSize: 13, fontWeight: 600, color: g.incluido ? "#1c1917" : "#57534e", backgroundColor: g.incluido ? "#fafaf9" : "#ffffff", textDecoration: g.incluido ? "none" : "line-through" }}
+            {bookAtualUrl && (
+              <section className="book-secao" aria-labelledby="book-titulo-heranca" style={{ padding: "14px", borderRadius: R.lg, backgroundColor: T.surface, border: `1px solid ${T.border}`, minWidth: 0 }}>
+                <h2 id="book-titulo-heranca" style={{ margin: "0 0 6px", fontFamily: FONT.display, fontSize: FS.strong, fontWeight: FW.forte, color: T.text }}>Herdar do book atual</h2>
+                <BookHeranca
+                  bookUrl={bookAtualUrl}
+                  capa={capaHerdada}
+                  onCapaChange={setCapaHerdada}
+                  paginas={paginasHerdadas}
+                  onTogglePagina={(n) => setPaginasHerdadas((prev) => { const s2 = new Set(prev); if (s2.has(n)) s2.delete(n); else s2.add(n); return s2; })}
+                  onErro={(e) => setHerancaFalhou(!!e)}
+                  onMiniaturas={setMiniaturasHerdadas}
                 />
-                <span style={{ fontSize: 11.5, color: "#746e69", whiteSpace: "nowrap" }}>{g.incluido ? `${g.itens.length} arte${g.itens.length !== 1 ? "s" : ""}` : "fora"}</span>
-                <button type="button" onClick={() => mover(g.key, -1)} disabled={idx === 0} aria-label={`Subir o grupo ${g.rotulo.trim() || g.key}`} style={{ width: isMobile ? 40 : 28, height: isMobile ? 40 : 28, borderRadius: 6, border: "1px solid #e7e5e4", background: "#fff", cursor: idx === 0 ? "not-allowed" : "pointer", color: idx === 0 ? "#d6d3d1" : "#44403c", display: "flex", alignItems: "center", justifyContent: "center" }}><ArrowUp style={{ width: 13, height: 13 }} /></button>
-                <button type="button" onClick={() => mover(g.key, 1)} disabled={idx === grupos.length - 1} aria-label={`Descer o grupo ${g.rotulo.trim() || g.key}`} style={{ width: isMobile ? 40 : 28, height: isMobile ? 40 : 28, borderRadius: 6, border: "1px solid #e7e5e4", background: "#fff", cursor: idx === grupos.length - 1 ? "not-allowed" : "pointer", color: idx === grupos.length - 1 ? "#d6d3d1" : "#44403c", display: "flex", alignItems: "center", justifyContent: "center" }}><ArrowDown style={{ width: 13, height: 13 }} /></button>
-              </div>
-            ))}
-            {/* Vazio com a régua da casa (ícone, título, frase) e a saída: era
-                uma frase solta onde a lista de grupos deveria estar, fácil de
-                confundir com legenda. */}
-            {grupos.length === 0 && (
-              <div data-testid="book-vazio" style={{ padding: "28px 20px", textAlign: "center", borderRadius: 12, backgroundColor: "#fff", border: "1px solid #e7e5e4" }}>
-                <BookOpen aria-hidden="true" style={{ width: 28, height: 28, color: "#746e69", margin: "0 auto 10px" }} />
-                <p style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: "#1c1917" }}>Nenhuma peça com arte neste evento</p>
-                <p style={{ margin: "0 0 14px", fontSize: 13, color: "#57534e", lineHeight: 1.5 }}>O book nasce das artes enviadas pela Arte. Quando os thumbs subirem, os grupos aparecem aqui.</p>
-                <Link href={`/eventos/${eventId}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 40, padding: "0 16px", borderRadius: 9, border: "1px solid #e7e5e4", color: "#1c1917", fontSize: 13, fontWeight: 700, textDecoration: "none", backgroundColor: "#fff" }}>
-                  <ArrowLeft aria-hidden="true" style={{ width: 14, height: 14 }} /> Voltar ao evento
-                </Link>
-              </div>
+              </section>
+            )}
+
+            {podePublicar && (
+              <section className="book-secao" style={{ padding: "14px", borderRadius: R.lg, backgroundColor: T.surface, border: `1px solid ${T.border}` }}>
+                <ComentarioDoBook
+                  republicacao={!!bookAtualUrl}
+                  valor={comentario}
+                  aoMudar={setComentario}
+                  patrocinadores={patrocinadoresDoBook}
+                  titulo="secao"
+                />
+              </section>
             )}
           </div>
 
           {/* ── Prévia: as MESMAS células do PDF, em miniatura ── */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignContent: "flex-start" }} data-testid="previa-book">
-            {/* capa — herdada (logo de verdade) ou gerada (nome no fundo claro) */}
-            <div style={{ width: BOOK.LARGURA * ESC, height: BOOK.ALTURA * ESC, borderRadius: 6, border: heranca?.capa ? "2px solid #c2410c" : "1px solid #e7e5e4", backgroundColor: BOOK.CAPA_FUNDO, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, overflow: "hidden" }}>
-              <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, fontSize: 15, color: BOOK.CAPA_TEXTO, textAlign: "center", padding: "0 12px" }}>{event?.name ?? ""}</span>
-              {heranca?.capa && <span style={{ fontSize: 10, fontWeight: 700, color: "#c2410c" }}>capa herdada do book atual</span>}
+          <section aria-labelledby="book-titulo-previa" style={{ minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 10 }}>
+              <h2 id="book-titulo-previa" style={{ margin: 0, fontFamily: FONT.display, fontSize: FS.strong, fontWeight: FW.forte, color: T.text }}>
+                Prévia <span style={{ fontFamily: FONT.corpo, fontSize: FS.body, fontWeight: FW.medio, color: T.second }}>· {nPaginasFinal} {nPaginasFinal === 1 ? "página" : "páginas"}</span>
+              </h2>
+              {heranca && (heranca.capa || herdadas.length > 0) && (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: FS.meta, color: T.apoio }}>
+                  <span aria-hidden="true" style={{ width: 12, height: 9, borderRadius: 2, border: `2px solid ${T.accentText}` }} /> copiada do book atual
+                </span>
+              )}
             </div>
-            {(heranca?.paginas ?? []).filter((n) => n !== 1).map((n) => (
-              <div key={`h-${n}`} style={{ width: BOOK.LARGURA * ESC, height: BOOK.ALTURA * ESC, borderRadius: 6, border: "2px solid #c2410c", backgroundColor: "#faf9f8", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 }} data-testid={`previa-herdada-${n}`}>
-                <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, fontSize: 14, color: "#1c1917" }}>pág. {n}</span>
-                <span style={{ fontSize: 10, fontWeight: 700, color: "#c2410c" }}>copiada do book atual</span>
-              </div>
-            ))}
-            {paginas.map((p, pi) => {
-              const celulas = celulasDaPagina(p.itens.length);
-              return (
-                <div key={pi} style={{ position: "relative", width: BOOK.LARGURA * ESC, height: BOOK.ALTURA * ESC, borderRadius: 6, border: "1px solid #e7e5e4", backgroundColor: "#fff", overflow: "hidden" }}>
-                  {p.itens.map((it, i) => {
-                    const c = celulas[i];
-                    return (
-                      <img
-                        key={it.id}
-                        src={convertGCSUrlToLocalPath(it.approvalThumbUrl)}
-                        alt={it.displayId}
-                        loading="lazy"
-                        style={{
-                          position: "absolute",
-                          left: c.x * ESC, top: c.y * ESC, width: c.w * ESC, height: c.h * ESC,
-                          objectFit: "contain",
-                        }}
-                      />
-                    );
-                  })}
-                  {/* rodapé da prévia, nas mesmas coordenadas da spec */}
-                  {/* Assinatura da prévia em #78716c (a regra da casa proíbe
-                      #a8a29e como texto); a barra é traço, pode ficar clara. */}
-                  <span style={{ position: "absolute", left: BOOK.ASSINATURA_X * ESC, bottom: (BOOK.RODAPE_BASELINE_DO_FUNDO - 4) * ESC, fontSize: 6, color: "#78716c", whiteSpace: "nowrap" }}>{event?.name ?? ""}</span>
-                  <span aria-hidden="true" style={{ position: "absolute", left: BOOK.BARRA_X * ESC, bottom: (BOOK.RODAPE_BASELINE_DO_FUNDO - 6) * ESC, fontSize: 9, color: "#a8a29e" }}>╱</span>
-                  <span style={{ position: "absolute", left: BOOK.RODAPE_ROTULO_X * ESC, bottom: (BOOK.RODAPE_BASELINE_DO_FUNDO - 4) * ESC, fontSize: 7.5, fontWeight: 600, color: "#1c1917", whiteSpace: "nowrap" }}>{p.rotulo}</span>
-                  {/* a linha do miolo, sutil, para ver a régua na prévia */}
-                  <span aria-hidden="true" style={{ position: "absolute", left: miolo.x * ESC, top: miolo.y * ESC, width: miolo.w * ESC, height: miolo.h * ESC, border: "1px dashed rgba(0,0,0,0.05)", pointerEvents: "none" }} />
-                </div>
-              );
-            })}
-          </div>
+            <div data-testid="previa-book" style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, ${LARG_PREVIA}px)`, gap: isMobile ? 16 : "18px 16px", justifyContent: colunasDaPrevia === 1 ? "center" : "start" }}>
+              {/* capa — herdada (logo de verdade) ou gerada (nome no fundo claro) */}
+              {paginaDaPrevia("capa",
+                <><b style={{ fontWeight: FW.forte, color: T.strong }}>Capa</b><span>{heranca?.capa ? "· herdada do book atual" : "· gerada com o nome do evento"}</span></>,
+                heranca?.capa && miniaturasHerdadas[1]
+                  ? <img src={miniaturasHerdadas[1]} alt="Capa do book atual" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+                  : (
+                    <div style={{ position: "absolute", inset: 0, backgroundColor: BOOK.CAPA_FUNDO, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 14px", textAlign: "center" }}>
+                      <span style={{ fontFamily: FONT.display, fontWeight: FW.rotulo, fontSize: Math.round((15 * LARG_PREVIA) / 288), lineHeight: 1.15, color: BOOK.CAPA_TEXTO }}>
+                        {heranca?.capa ? "Capa do book atual" : event?.name ?? ""}
+                      </span>
+                    </div>
+                  ),
+                { destaque: !!heranca?.capa, testid: "previa-capa" })}
+              {herdadas.map((n, k) => paginaDaPrevia(`h-${n}`,
+                <><b style={{ fontWeight: FW.forte, color: T.strong }}>pág. {k + 2}</b><span>· pág. {n} do book atual</span></>,
+                miniaturasHerdadas[n]
+                  ? <img src={miniaturasHerdadas[n]} alt={`Página ${n} do book atual`} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+                  : (
+                    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, backgroundColor: T.bg }}>
+                      <Copy aria-hidden="true" style={{ width: 18, height: 18, color: T.accentText }} />
+                      <span style={{ fontFamily: FONT.display, fontWeight: FW.rotulo, fontSize: FS.body, color: T.text }}>pág. {n}</span>
+                      <span style={{ fontSize: FS.micro, fontWeight: FW.forte, color: T.accentText }}>copiada do original</span>
+                    </div>
+                  ),
+                { destaque: true, testid: `previa-herdada-${n}` }))}
+              {paginas.map((p, pi) => {
+                const celulas = celulasDaPagina(p.itens.length);
+                return paginaDaPrevia(`p-${pi}`,
+                  <><b style={{ fontWeight: FW.forte, color: T.strong, whiteSpace: "nowrap" }}>pág. {pi + 2 + herdadas.length}</b><span style={{ overflowWrap: "anywhere" }}>· {p.rotulo} · {p.itens.length} {p.itens.length === 1 ? "arte" : "artes"}</span></>,
+                  <>
+                    {p.itens.map((it, i) => {
+                      const c = celulas[i];
+                      return (
+                        <img
+                          key={it.id}
+                          src={convertGCSUrlToLocalPath(it.approvalThumbUrl)}
+                          alt={it.displayId}
+                          loading="lazy"
+                          style={{
+                            position: "absolute",
+                            left: c.x * ESC, top: c.y * ESC, width: c.w * ESC, height: c.h * ESC,
+                            objectFit: "contain",
+                          }}
+                        />
+                      );
+                    })}
+                    {/* rodapé da prévia, nas mesmas coordenadas da spec. A
+                        assinatura tem a largura do espaço até a barra: em fonte
+                        de tela ela passava por cima do rótulo ("…(eWindBanner").
+                        Só a PRÉVIA — o PDF mede o texto no pdf-lib. */}
+                    <span style={{ position: "absolute", left: BOOK.ASSINATURA_X * ESC, bottom: (BOOK.RODAPE_BASELINE_DO_FUNDO - 4) * ESC, maxWidth: (BOOK.BARRA_X - BOOK.ASSINATURA_X - 6) * ESC, overflow: "hidden", fontSize: 6, color: T.second, whiteSpace: "nowrap" }}>{event?.name ?? ""}</span>
+                    <span aria-hidden="true" style={{ position: "absolute", left: BOOK.BARRA_X * ESC, bottom: (BOOK.RODAPE_BASELINE_DO_FUNDO - 6) * ESC, fontSize: 9, color: T.muted }}>╱</span>
+                    <span style={{ position: "absolute", left: BOOK.RODAPE_ROTULO_X * ESC, bottom: (BOOK.RODAPE_BASELINE_DO_FUNDO - 4) * ESC, maxWidth: (BOOK.LARGURA - BOOK.RODAPE_ROTULO_X - BOOK.ASSINATURA_X) * ESC, overflow: "hidden", fontSize: 7.5, fontWeight: FW.medio, color: T.text, whiteSpace: "nowrap" }}>{p.rotulo}</span>
+                    {/* a linha do miolo, sutil, para ver a régua na prévia */}
+                    <span aria-hidden="true" style={{ position: "absolute", left: miolo.x * ESC, top: miolo.y * ESC, width: miolo.w * ESC, height: miolo.h * ESC, border: `1px dashed ${N.n3}`, pointerEvents: "none" }} />
+                  </>);
+              })}
+            </div>
+            {paginas.length === 0 && grupos.length > 0 && (
+              <p style={{ margin: "12px 0 0", fontSize: FS.meta, color: T.second }}>Sem grupos marcados, o book seria só a capa — marque ao menos um grupo.</p>
+            )}
+          </section>
         </div>
       </div>
     </div>

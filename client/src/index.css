@@ -1820,3 +1820,37 @@ a.ds-botao[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; filter: no
 .adm-copiar:hover { background-color: var(--realce) !important; color: var(--n10) !important; }
 .adm-pagina { transition: background-color var(--dur-rapida) ease, border-color var(--dur-rapida) ease; }
 @media (hover: hover) { .adm-pagina:hover:not(:disabled):not([aria-current="page"]) { background-color: var(--n2) !important; border-color: var(--n5) !important; } }
+
+/* ── ETIQUETAS (evento e tubo) — etq-*. Só TELA: nada aqui vai para o papel
+   (o @media print das páginas esconde .etq-acao e desenha a folha à parte). */
+@media screen {
+  .etq-campo { transition: border-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease; }
+  .etq-campo:hover:not(:disabled):not(:focus) { border-color: var(--n6) !important; }
+  .etq-campo:focus { outline: none; border-color: var(--orange-deep) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--orange-deep) 16%, transparent); }
+  .etq-campo:disabled { cursor: not-allowed; background-color: var(--n2) !important; }
+  .etq-linha { transition: background-color var(--dur-rapida) ease; }
+  .etq-linha[data-marcada="nao"]:hover { background-color: var(--n2) !important; }
+  .etq-linha[data-marcada="sim"]:hover { background-color: color-mix(in srgb, var(--orange-deep) 9%, #ffffff) !important; }
+  .etq-seg { transition: background-color var(--dur-rapida) ease, color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease; }
+  .etq-seg[aria-pressed="false"]:hover { color: var(--n10) !important; background-color: color-mix(in srgb, var(--n0) 60%, transparent) !important; }
+  .etq-seg:focus-visible { outline-offset: -2px; }
+  .etq-faixa { transition: box-shadow var(--dur-media) ease; }
+}
+@media screen and (prefers-reduced-motion: no-preference) {
+  /* A prévia acompanha a escolha: cada folha entra sem solavanco. */
+  .etq-previa .etq-bloco, .etq-previa .etq-lista, .folha-do-tubo > div { animation: etq-entra var(--dur-media) var(--ease-saida) backwards; }
+}
+@keyframes etq-entra { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* ── GERAR BOOK — book-*. O rótulo do grupo é campo de verdade: hover e foco
+   no laranja da casa; a página da prévia acende de leve sob o ponteiro. */
+.book-campo { transition: border-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease, background-color var(--dur-rapida) ease; }
+.book-campo:hover:not(:focus) { border-color: var(--n6) !important; }
+.book-campo:focus { outline: none; border-color: var(--orange-deep) !important; background-color: var(--n0) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--orange-deep) 16%, transparent); }
+.book-grupo { transition: background-color var(--dur-rapida) ease, border-color var(--dur-rapida) ease; }
+.book-folha > div { transition: box-shadow var(--dur-media) ease, transform var(--dur-media) var(--ease-saida); }
+@media (hover: hover) { .book-folha:hover > div { box-shadow: var(--sh-md); } }
+.book-barra { transition: width var(--dur-media) ease; }
+@media (prefers-reduced-motion: no-preference) {
+  .book-entra { animation: etq-entra var(--dur-media) var(--ease-saida) backwards; }
+}

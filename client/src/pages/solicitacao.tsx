@@ -38,6 +38,7 @@ import { ListaEmCartoes } from "@/components/revisao/lista-em-cartoes";
 import { TabelaDaRevisao } from "@/components/revisao/tabela-da-revisao";
 import { useRelogioDoMinuto } from "@/components/revisao/use-relogio-do-minuto";
 import { ModalDeDecisao } from "@/components/revisao/modal-de-decisao";
+import { PrioridadeNaImpressao } from "@/components/prioridade-na-impressao";
 import { ConfirmarLiberacao } from "@/components/revisao/confirmar-liberacao";
 import { ConfirmarDevolucao } from "@/components/revisao/confirmar-devolucao";
 import { ConfirmarLoteLiberar } from "@/components/revisao/confirmar-lote-liberar";
@@ -746,6 +747,9 @@ export default function Solicitacao() {
         aoSalvarObservacao={(itemId) => updateObservationsMutation.mutate({ itemId, observations: cardObservations })}
         historicoCarregando={historicoCarregando}
         itemAuditLogs={itemAuditLogs}
+        prioridade={selectedItem ? (
+          <PrioridadeNaImpressao item={selectedItem} eventoFinalizado={!!seloSelecionado} tamanho={dedo || isMobile ? "toque" : "sm"} style={{ alignSelf: "flex-start" }} />
+        ) : null}
       />
 
       <ConfirmarLiberacao

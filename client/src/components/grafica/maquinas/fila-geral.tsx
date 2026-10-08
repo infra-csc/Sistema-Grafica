@@ -8,7 +8,7 @@ import { nomeDaPeca } from "@shared/nome-da-peca";
 import { IMP } from "./constantes";
 import { ToqueContext } from "./contexto";
 import { ControleDeReserva } from "./controle-de-reserva";
-import { SeloDePrazo, TituloDaPeca } from "./pedacos";
+import { SeloDePrazo, SeloPrioritaria, TituloDaPeca } from "./pedacos";
 import { apoioDaPeca, prazoDaPeca, seloDaPecaNaMaquina, textoDoDirecionamento } from "./regras";
 import type { OcupacaoDasImpressoras, OcupanteDaImpressora, PecaNaFila } from "./tipos";
 
@@ -42,6 +42,7 @@ export const LinhaDaFilaGeral = memo(function LinhaDaFilaGeral({ p, marcada, pod
         </label>
       )}
       <div data-testid={`fila-dados-${p.id}`} style={{ flex: isMobile ? "1 1 0%" : "1 1 220px", minWidth: 0, color: T.text, display: "flex", flexDirection: "column", gap: 2, minHeight: isMobile ? 44 : undefined, justifyContent: "center" }}>
+        {p.prioritaria && <SeloPrioritaria id={p.id} fonte={fonte} />}
         <TituloDaPeca id={p.id} codigo={p.displayId} tipo={p.tipo} descricao={p.descricao} isMobile={isMobile} testId={`nome-fila-geral-${p.id}`} />
         <span style={{ fontSize: fonte, color: T.second, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>
           {[p.evento, `${p.aImprimir} un.`, p.m2 != null ? `${p.m2.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} m²` : null].filter(Boolean).join(" · ")}

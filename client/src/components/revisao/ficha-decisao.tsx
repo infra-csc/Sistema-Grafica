@@ -2,6 +2,7 @@
 // Reaproveitar lado a lado, a trava, para onde a peça vai, os avisos e as
 // observações do item. Só props, sem hook: mora dentro do FreezeWhileClosing
 // do modal e não pode redesenhar enquanto ele sai.
+import type React from "react";
 import { Check, Lock, Recycle, RotateCcw, Undo2, Unlock } from "lucide-react";
 import { Botao } from "@/components/ui/botao";
 import { RespostaDoEstoqueNaFicha } from "@/components/consulta-de-estoque/na-revisao";
@@ -41,6 +42,12 @@ export interface FichaDecisaoProps {
   setCardObservations: (v: string) => void;
   salvandoObservacao: boolean;
   aoSalvarObservacao: (itemId: string) => void;
+  /**
+   * PRIORIDADE NA IMPRESSÃO (dono, 08/10): o controle pronto, montado pela
+   * página (components/prioridade-na-impressao.tsx). Chega como nó para a
+   * ficha seguir só de props dentro do FreezeWhileClosing.
+   */
+  prioridade?: React.ReactNode;
 }
 
 /** O que os botões de decisão precisam — a ficha passa o mesmo a eles e ao rodapé. */
@@ -253,6 +260,7 @@ export function FichaDecisao(p: FichaDecisaoProps & { botoesNoRodape?: boolean; 
         )}
         </div>
       )}
+      {p.prioridade}
       {seloSelecionado && (
         <p
           role="status"

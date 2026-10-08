@@ -3,7 +3,7 @@
 // (o nome da peça, selos, esqueleto, seletor de impressora, fecho de lista).
 // ─────────────────────────────────────────────────────────────────────────────
 import { useContext, useEffect, useState } from "react";
-import { Eye, RotateCcw } from "lucide-react";
+import { AlertTriangle as IconePrioritaria, Eye, RotateCcw } from "lucide-react";
 import { alvo as alvoDe } from "@/hooks/use-mobile";
 import { Botao } from "@/components/ui/botao";
 import { Selo } from "@/components/ui/selo";
@@ -11,6 +11,7 @@ import { fmtRelative } from "@/components/prazos/tokens";
 import { T, TOM, FS, FW, R } from "@/lib/theme";
 import { MAQUINAS_DE_IMPRESSAO, rotuloDaMaquina } from "@shared/fluxo-peca";
 import { partesDoNomeDaPeca, nomeDaPeca } from "@shared/nome-da-peca";
+import { TITULO_DO_SELO_EM_MAQUINAS } from "@shared/prioridade-na-impressao";
 import { AMBAR, LIVRE, MONO, VERMELHO } from "./constantes";
 import { FichaContext, ToqueContext } from "./contexto";
 import { textoDoPrazo } from "./regras";
@@ -186,5 +187,17 @@ export function FechoDaLista({ visiveis, total, um, varios, lote, onMais, testId
         </Botao>
       )}
     </div>
+  );
+}
+
+/**
+ * PRIORITÁRIA (dono, 08/10) — o mesmo selo da fila da Gráfica, no tom de
+ * perigo. A peça vem antes das outras na fila (ver ordenarFila).
+ */
+export function SeloPrioritaria({ id, fonte }: { id: string; fonte: number }) {
+  return (
+    <Selo forma="retangulo" tom="perigo" icone={IconePrioritaria} title={TITULO_DO_SELO_EM_MAQUINAS} data-testid={`selo-prioritaria-maquinas-${id}`} style={{ fontSize: fonte, padding: "1px 7px", alignSelf: "flex-start" }}>
+      Prioritária
+    </Selo>
   );
 }

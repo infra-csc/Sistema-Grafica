@@ -34,15 +34,22 @@ import { CO, qtyChip } from "./aparencia";
 import { complementOpen, complementUntouched, fmtDataHora, parentDisplayIdOf, podeDevolverParaRevisao } from "./regras";
 import { ProgressoImpressao } from "./progresso-impressao";
 import { DeadlineChip, SeloFilaDaImpressora } from "./selos";
+import { CabecalhoDasPrioritariasNoCartao, EventoDaPrioritaria } from "./grupo-das-prioritarias";
+import type { PosicaoNasPrioritarias } from "./grupo-das-prioritarias";
+import { CHAVE_DAS_PRIORITARIAS } from "./ordem-da-fila";
+import { ControleDePrioridadeNaFila } from "./prioridade-na-fila";
+import { TITULO_DO_SELO_NA_GRAFICA } from "@shared/prioridade-na-impressao";
 import { AcoesDoCartao } from "./acoes-do-cartao";
 
-export function CartaoDaPeca({ ctx, item, index, showEvHeader, corte }: {
+export function CartaoDaPeca({ ctx, item, index, showEvHeader, corte, prioritarias = null }: {
   ctx: ContextoDaLinha;
   item: PecaDaFila;
   index: number;
   /** Primeira peça do evento: o cartão abre com o cabeçalho escuro dele. */
   showEvHeader: boolean;
   corte: CorteDoEvento | undefined;
+  /** No grupo "Prioritárias" do topo (08/10): abre o grupo? quantas há? */
+  prioritarias?: PosicaoNasPrioritarias;
 }) {
   const {
     isAdmin, canProduce, podeConferir, soVisualizaKit, canConfer, podeEmbalar, podeMexerQtd, tetoReaproveitar, podeMexerNaTrava,
@@ -96,6 +103,7 @@ export function CartaoDaPeca({ ctx, item, index, showEvHeader, corte }: {
 
   return (
     <Fragment>
+      {prioritarias?.abre && <CabecalhoDasPrioritariasNoCartao total={prioritarias.total} primeiro={index === 0} />}
       {showEvHeader && (
         <div style={{ padding: '8px 10px 8px', marginTop: index > 0 ? 8 : 0, background: T.text, borderRadius: '8px 8px 0 0', display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -265,6 +273,7 @@ export function CartaoDaPeca({ ctx, item, index, showEvHeader, corte }: {
 
         {/* Content */}
         <div style={{ flex: 1, padding: '11px 12px', display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+          {prioritarias && <EventoDaPrioritaria item={item} fonte={FS.meta} />}
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
             {/* #047857 (5,48:1) e não #059669 (3,77:1): 13px/700
                 precisa passar AA. Ver lib/status.ts P.emerald. */}
@@ -286,7 +295,22 @@ export function CartaoDaPeca({ ctx, item, index, showEvHeader, corte }: {
             {/* Paridade com a tabela: o progresso da impressão
                 ocupa a linha inteira do cartão (flexBasis 100%). */}
             {isInProd(item) && <span style={{ flexBasis: '100%' }}><ProgressoImpressao item={item} fonte={12} onIniciarResto={podeProduzirPeca && !selo ? () => openProductionModal(item, true) : undefined} /></span>}
-            {(pecaTravada(item) || podeMexerNaTrava(item)) && <span style={{ flexBasis: '100%' }}>{travaDaLinha(item, 12, 44)}</span>}
+            {/* Travar e Pedir prioridade (as duas ações da Solicitação nesta
+                fila) dividem a MESMA linha no cartão; travada, a faixa vinho
+                ocupa a dela e o pedido desce para a seguinte. */}
+            {pecaTravada(item) ? (
+              <>
+                <span style={{ flexBasis: '100%' }}>{travaDaLinha(item, 12, 44)}</span>
+                <ControleDePrioridadeNaFila item={item} selo={selo} fonte={12} alvo={44} linhaPropria />
+              </>
+            ) : podeMexerNaTrava(item) ? (
+              <span style={{ flexBasis: '100%', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+                {travaDaLinha(item, 12, 44)}
+                <ControleDePrioridadeNaFila item={item} selo={selo} fonte={12} alvo={44} />
+              </span>
+            ) : (
+              <ControleDePrioridadeNaFila item={item} selo={selo} fonte={12} alvo={44} linhaPropria />
+            )}
             {(isInProd(item) || item.maquinaPrevista) && <SeloFilaDaImpressora item={item} fonte={12} />}
             {item.isReuse && <Selo forma="retangulo" tom="esmeralda" style={{ fontSize: FS.meta, padding: '1px 6px' }}>Reaprov.</Selo>}
             {/* Selo do complemento: sólido enquanto o lote está em
@@ -370,7 +394,7 @@ export function CartaoDaPeca({ ctx, item, index, showEvHeader, corte }: {
               <span style={{ fontSize: 12, fontWeight: 600, color: T.second, marginLeft: 3 }}>un.</span>
             </span>
             {item.isPriority && (
-              <span data-testid={`chip-prioritaria-${item.id}`} style={qtyChip(TOM.perigo.text, TOM.perigo.bg)} title="Peça prioritária — marcada pela Solicitação para sair na frente">
+              <span data-testid={`chip-prioritaria-${item.id}`} style={qtyChip(TOM.perigo.text, TOM.perigo.bg)} title={TITULO_DO_SELO_NA_GRAFICA}>
                 Prioritária
               </span>
             )}
@@ -452,7 +476,7 @@ export function CartaoDaPeca({ ctx, item, index, showEvHeader, corte }: {
           data-testid={`button-mostrar-todas-${corte.chave}`}
           style={{ marginTop: 2, background: N.n2, borderStyle: 'dashed', fontSize: FS.body }}
         >
-          Mostrar todas as {corte.total} peças (+{corte.ocultas})
+          {corte.chave === CHAVE_DAS_PRIORITARIAS ? `Mostrar todas as ${corte.total} prioritárias (+${corte.ocultas})` : `Mostrar todas as ${corte.total} peças (+${corte.ocultas})`}
         </Botao>
       )}
     </Fragment>

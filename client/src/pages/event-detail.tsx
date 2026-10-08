@@ -4,6 +4,7 @@
 // mora em components/detalhe-do-evento/ (tipos, regras puras, hooks de dados e
 // de ações, cabeçalho, agenda, rascunhos, lista e cada modal).
 // ─────────────────────────────────────────────────────────────────────────────
+import { PrioridadeNaImpressao, mostraPrioridadeNaImpressao } from "@/components/prioridade-na-impressao";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useRoute, Link, useLocation } from "wouter";
 import { ArrowLeft, Package, Plus, Upload, Copy, Search, Loader2, Info } from "lucide-react";
@@ -608,6 +609,9 @@ export default function EventDetail() {
         auditLogs={auditLogs}
         open={!!selectedItemForDetails}
         onOpenChange={(open) => !open && setSelectedItemForDetails(null)}
+        topActions={mostraPrioridadeNaImpressao(selectedItemForDetails, user, eventoFinalizado) ? (
+          <PrioridadeNaImpressao item={selectedItemForDetails} eventoFinalizado={eventoFinalizado} />
+        ) : undefined}
         customActions={temBlocoDeComplemento(selectedItemForDetails, false, false) ? (
           <ComplementoDaFicha
             item={selectedItemForDetails}

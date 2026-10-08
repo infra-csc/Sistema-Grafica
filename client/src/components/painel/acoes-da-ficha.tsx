@@ -9,6 +9,7 @@ import { motivoEventoFinalizado, todayBusinessMs } from "@/lib/status";
 import { proximaTelaDoStatus } from "@/lib/painel-rotas";
 import { moldeConcluido } from "@shared/molde";
 import { FS, FW, R, T } from "@/lib/theme";
+import { PrioridadeNaImpressao } from "@/components/prioridade-na-impressao";
 import type { PecaDoPainel } from "./tipos";
 
 export function AcoesDaFicha({ selectedItem, role, onCopiarLink }: {
@@ -57,6 +58,9 @@ export function AcoesDaFicha({ selectedItem, role, onCopiarLink }: {
           </BotaoLink>
         );
       })()}
+      {/* PRIORIDADE NA IMPRESSÃO (dono, 08/10): da Revisão Final até a
+          impressão terminar, para a Solicitação e o admin. */}
+      <PrioridadeNaImpressao item={selectedItem} eventoFinalizado={!!motivoEventoFinalizado(selectedItem.event ?? null, todayBusinessMs())} />
       {selectedItem.eventId && (
         <BotaoLink href={`/eventos/${selectedItem.eventId}`} variante="secundario" icone={Link2} data-testid="link-abrir-evento-ficha">
           Abrir evento

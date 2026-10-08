@@ -62,6 +62,10 @@ const ORDEM_ORIGINAL = [
   // case o mesmo caminho: a ordem não muda o dono de nenhuma outra rota.
   "POST /api/items/:id/direto-para-grafica",
   "POST /api/items/direto-para-grafica",
+  // 08/10: prioridade na impressão (registrarPrioridadeNaImpressao, logo
+  // depois da produção interna). POST de caminho próprio: não muda o dono de
+  // nenhuma outra rota.
+  "POST /api/items/:id/prioridade-na-impressao",
   "PATCH /api/items/:id/cancel",
   "PATCH /api/items/:id/uncancel",
   "PATCH /api/items/bulk-cancel",

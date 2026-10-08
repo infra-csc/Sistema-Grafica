@@ -1894,3 +1894,14 @@ textarea.erp-pi-campo { min-height: 52px; }
   0%, 100% { transform: scale(0.4667); opacity: 1; }
   50% { transform: scale(1); opacity: 0; }
 }
+
+/* ── PRIORIDADE NA IMPRESSÃO — prio-* (dono, 08/10). O estado "pedida" do
+   botão (components/prioridade-na-impressao.tsx): o selo "Prioridade pedida"
+   e o "Retirar prioridade" lado a lado, descendo de linha quando a caixa
+   aperta (celular, coluna estreita) — nunca cortados. */
+.prio-pedida { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; max-width: 100%; }
+/* O mesmo pedido em ícone na lista do Detalhe do Evento (base e tamanho de
+   .evd-acao): o hover e o estado aceso no tom de perigo do selo "Prioritária". */
+.prio-acao:hover:not(:disabled) { color: var(--perigo-text); background-color: var(--perigo-bg); }
+.prio-acao-ativa { color: var(--perigo-text); background-color: var(--perigo-bg); box-shadow: inset 0 0 0 1px var(--perigo-border); }
+.prio-acao-ativa:hover:not(:disabled) { color: var(--perigo-text); background-color: var(--perigo-border); }

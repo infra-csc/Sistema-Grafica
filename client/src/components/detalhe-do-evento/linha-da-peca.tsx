@@ -12,6 +12,7 @@ import { SeloKit } from "@/components/kit/selo-kit";
 import { SeloProducaoInterna } from "@/components/selo-producao-interna";
 import { podeEnviarDiretoParaGrafica } from "@shared/producao-interna";
 import { SeloPrazoMolde } from "@/components/prazo-do-molde";
+import { PrioridadeNaImpressaoIcone } from "@/components/prioridade-na-impressao";
 import { Botao } from "@/components/ui/botao";
 import { Selo } from "@/components/ui/selo";
 import type { useToast } from "@/hooks/use-toast";
@@ -268,6 +269,8 @@ export function CartaoDaPeca({
               <Factory aria-hidden="true" style={{ width: 16, height: 16 }} />
             </button>
           )}
+          {/* Prioridade na impressão (08/10): da Revisão Final até a impressão terminar. */}
+          <PrioridadeNaImpressaoIcone item={item} eventoFinalizado={eventoFinalizado} noCartao />
           {canDeleteAny && canDeleteItem(item.status) && (
             <button onClick={() => handleDeleteItem(item)}
               aria-label={`Excluir a peça ${item.displayId ?? ''}`} title="Excluir peça"
@@ -454,6 +457,8 @@ export function LinhaDaPeca({
               <Factory aria-hidden="true" className="h-4 w-4" />
             </button>
           )}
+          {/* Prioridade na impressão (08/10): da Revisão Final até a impressão terminar. */}
+          <PrioridadeNaImpressaoIcone item={item} eventoFinalizado={eventoFinalizado} />
           {/* Toggle reaproveitamento — enquanto não estiver em produção/entregue. */}
           {!isEditBlocked(item.status) && (
             <button

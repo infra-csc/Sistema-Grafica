@@ -82,12 +82,20 @@ export interface GraficaFiltros {
    * (é o estado natural da tela), por isso vive fora de CAMPOS.
    */
   entregues: boolean;
+  /**
+   * MOSTRAR as peças de evento finalizado (encerrado ou realizado). Padrão
+   * `false` desde 08/10 (dono: "tirar os itens de eventos que foram
+   * realizados da Gráfica… atrapalha"). Como `entregues`, é o estado
+   * natural da tela e não um filtro: fica fora de CAMPOS. ?realizados=1.
+   */
+  realizados: boolean;
 }
 
 export const FILTROS_VAZIOS: GraficaFiltros = {
   busca: "", status: [], evento: [], grupo: [], percurso: [], tipo: [],
   material: [], acabamento: [], mes: [], impressora: [], proximos10: false,
   complementos: false, reaproveitamento: false, travadas: false, entregues: false,
+  realizados: false,
 };
 
 const MESES = [
@@ -181,6 +189,7 @@ export function filtrosDaURL(search: string): GraficaFiltros {
     reaproveitamento: p.get("reuso") === "1",
     travadas: p.get("travadas") === "1",
     entregues: p.get("entregues") === "1",
+    realizados: p.get("realizados") === "1",
   };
 }
 
@@ -199,6 +208,8 @@ export function filtrosParaQuery(searchAtual: string, f: GraficaFiltros): string
   // `entregues` só aparece na URL quando LIGADO: o padrão da tela é ocultar, e
   // um "?entregues=0" em todo link seria ruído sem informação.
   por("entregues", f.entregues ? "1" : "");
+  // `realizados` (08/10), pelo mesmo motivo: só quando ligado.
+  por("realizados", f.realizados ? "1" : "");
   return p.toString();
 }
 

@@ -363,13 +363,16 @@ describe("7 · a reserva de impressora — só um controle, nunca uma etapa", ()
     expect(RESERVA_SRC).toContain('return { ok: true, set: { status: "inProduction", printMachine: principal, impressaoPorMaquina, ...reserva }, movimento, parte, origem };');
   });
 
-  it("o retrato traz a fila: reservadas por impressora e a fila geral, na ordem do caminhão", () => {
+  it("o retrato traz a fila: reservadas por impressora e a fila geral, na ordem do caminhão — com as prioritárias na frente (08/10)", () => {
     expect(ROTA).toContain("i.status in ('ready_for_production', 'pronto_para_producao', 'approved', 'liberado')");
     expect(ROTA).toContain("or (i.status in ('inProduction', 'em_producao') and i.impressao_por_maquina is not null)");
     expect(ROTA).toContain("order by e.truck_departure_date asc nulls last, i.display_id asc");
     expect(ROTA).toContain("naFila: fila.filter((p) => (p.reserva[m.codigo] ?? 0) > 0)");
     expect(ROTA).toContain(".map((p) => ({ ...p, maquinaPrevista: m.codigo, reservadas: p.reserva[m.codigo], pausadaEm: p.pausas[m.codigo] ?? null }))");
-    expect(ROTA).toContain("const filaGeral = fila.filter((p) => p.semImpressora > 0);");
+    // 08/10 (dono: "essa prioridade tem que ser o primeiro na tela Máquinas"):
+    // a fila geral põe as prioritárias na frente; a da impressora, depois das pausadas.
+    expect(ROTA).toContain("const filaGeral = fila.filter((p) => p.semImpressora > 0).sort(primeiroAsPrioritarias);");
+    expect(ROTA).toContain(": b.pausadaEm ? 1 : 0) || primeiroAsPrioritarias(a, b)),");
     expect(ROTA).toContain("res.json({ dia, hoje, maquinas: maquinasComFila, semMaquina, filaGeral });");
   });
 

@@ -11,7 +11,7 @@
 import { Fragment, useRef } from "react";
 import { useBordasDeRolagem, VeusDeRolagem } from "@/components/grafica/degrade-de-rolagem";
 import type React from "react";
-import { Filter, ChevronDown, Search, Truck, Lock, X } from "lucide-react";
+import { Filter, ChevronDown, Search, Truck, Lock, X, CalendarCheck } from "lucide-react";
 import { FilterSelect, ShortcutPill } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { Botao } from "@/components/ui/botao";
@@ -36,7 +36,7 @@ export function BarraDeFiltros({ fila, isMobile, usaCards, ponteiroGrosso, showA
     filtros, patchFiltros, buscaInput, setBuscaInput, filteredItems, nTravadas, comReusoNaLista,
     statusFilterOptions, impressoraFilterOptions, groupFilterOptions, percursoFilterOptions, mesFilterOptions,
     typeFilterOptions, materialFilterOptions, finishFilterOptions, eventFilterOptions,
-    haFiltro, nFiltros, nFiltrosNaFolha, descricaoFiltros, limparFiltros,
+    haFiltro, nFiltros, nFiltrosNaFolha, descricaoFiltros, limparFiltros, realizadosOcultos, finalizadasNoRecorte,
   } = fila;
   // O gatilho usa a pele PADRÃO do FilterSelect. O override antigo
   // (fundo #e8e8e7, sem borda, cor fixa) vinha DEPOIS do estilo calculado
@@ -147,6 +147,22 @@ export function BarraDeFiltros({ fila, isMobile, usaCards, ponteiroGrosso, showA
       title="Só as peças travadas pela Solicitação — com o motivo e quem travou"
     />
   ) : null;
+  // "Mostrar eventos realizados (N)" (dono, 08/10): as peças de evento
+  // encerrado ou realizado saem da fila por padrão; este atalho as traz de
+  // volta (com o selo) para conferir ou dar baixa. Some quando não há nenhuma.
+  const nRealizados = filtros.realizados ? finalizadasNoRecorte.total : realizadosOcultos;
+  const pillRealizados = (nRealizados > 0 || filtros.realizados) ? (
+    <ShortcutPill
+      label={`Mostrar eventos realizados (${nRealizados})`}
+      icon={CalendarCheck}
+      active={filtros.realizados}
+      onClick={() => patchFiltros({ realizados: !filtros.realizados })}
+      testId="button-realizados-filter"
+      title={filtros.realizados
+        ? "As peças de evento encerrado ou já realizado estão à vista, com o selo — clique para escondê-las de novo"
+        : "Peças de evento encerrado ou já realizado ficam fora da fila (não vão mais para a impressora). Clique para vê-las — para conferir ou dar baixa na entrega"}
+    />
+  ) : null;
   const pillProximos = (
     <ShortcutPill
       label="Próximos 10 dias"
@@ -197,6 +213,7 @@ export function BarraDeFiltros({ fila, isMobile, usaCards, ponteiroGrosso, showA
         {campoBusca}
         {pillProximos}
         {pillTravadas}
+        {pillRealizados}
         <button
           type="button"
           onClick={() => setShowAdvancedFilters(v => !v)}
@@ -291,6 +308,7 @@ export function BarraDeFiltros({ fila, isMobile, usaCards, ponteiroGrosso, showA
               (abrir, ligar, ver). Aqui fica a um. */}
           <span style={{ flex: "0 0 auto", display: "inline-flex" }}>{pillProximos}</span>
           {pillTravadas && <span style={{ flex: "0 0 auto", display: "inline-flex" }}>{pillTravadas}</span>}
+          {pillRealizados && <span style={{ flex: "0 0 auto", display: "inline-flex" }}>{pillRealizados}</span>}
           {botaoLimpar && <span style={{ flex: "0 0 auto", display: "inline-flex" }}>{botaoLimpar}</span>}
         </div>
         <VeusDeRolagem bordas={bordasDosAtalhos} recuo={-12} testId="atalhos-degrade" />

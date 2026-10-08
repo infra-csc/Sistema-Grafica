@@ -170,7 +170,7 @@ describe("2. facetas: um pool por recorte DISTINTO, com o mesmo resultado de ant
 });
 
 describe("3. a ordem da fila com chaves pré-calculadas é a ordem de antes", () => {
-  it("peça a peça igual ao comparador antigo (saída, nome do evento, prioritária, tipo, código)", async () => {
+  it("peça a peça igual ao comparador antigo (saída, nome do evento, prioritária, tipo, código) — com as prioritárias na frente de tudo (08/10)", async () => {
     const { ordenarFilaDaGrafica } = await import("@/components/grafica/fila/ordem-da-fila");
     const { compareDisplayId } = await import("@/lib/displayId");
     type P = ReturnType<typeof fila>[number];
@@ -178,7 +178,12 @@ describe("3. a ordem da fila com chaves pré-calculadas é a ordem de antes", ()
     const antiga = (items: P[]) => {
       const saidaMs = new Map<P, number>();
       for (const i of items) saidaMs.set(i, i.event?.truckDepartureDate ? new Date(i.event.truckDepartureDate).getTime() : Infinity);
+      // 08/10 (dono, "na Gráfica também"): a prioritária deixou de subir só
+      // no bloco do evento e passou a vir PRIMEIRO de toda a fila — o único
+      // critério novo, posto antes do comparador de sempre.
       return [...items].sort((a, b) => {
+        const primeiro = Number(!!b.isPriority) - Number(!!a.isPriority);
+        if (primeiro !== 0) return primeiro;
         const da = saidaMs.get(a)!; const db = saidaMs.get(b)!;
         if (da !== db) return da - db;
         const ea = a.event?.name || ""; const eb = b.event?.name || "";

@@ -274,6 +274,10 @@ export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMo
                 // Nunca mais que um terço da tela: em 640px de altura os 240
                 // fixos empurravam a foto e o Confirmar para fora da dobra.
                 height: isMobile ? "min(240px, 34dvh)" : 200,
+                // O piso de alvo de toque, declarado: o `min()` acima não é
+                // lido pelas medições de tela (grafica-celular.test.ts), e a
+                // peça que abre primeiro mudou com as prioritárias no topo (08/10).
+                minHeight: 44,
                 // O corpo do modal é um flex column com rolagem: sem
                 // flexShrink 0 este bloco era espremido até uma linha fina
                 // quando o conteúdo passava da altura máxima.

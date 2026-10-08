@@ -77,6 +77,8 @@ export type PecaNaFila = PecaNaMaquina & {
   imprimindoEm?: string[];
   /** Foi TIRADA desta impressora para dar lugar a outra: fica no topo da fila dela. */
   pausadaEm?: string | null;
+  /** Prioridade na impressão pedida pela Solicitação (08/10); servidor antigo não manda. */
+  prioritaria?: boolean;
 };
 
 export type Maquina = {

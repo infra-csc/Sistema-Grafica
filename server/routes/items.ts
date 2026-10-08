@@ -21,6 +21,7 @@ import { registrarAprovacao } from "./itens/aprovacao";
 import { registrarArte } from "./itens/arte";
 import { registrarRevisao } from "./itens/revisao";
 import { registrarProducaoInterna } from "./itens/producao-interna";
+import { registrarPrioridadeNaImpressao } from "./itens/prioridade-na-impressao";
 import { registrarCancelamento } from "./itens/cancelamento";
 import { registrarRotasDeImpressao, registrarRotaAposentadaDeProducao } from "./itens/impressao";
 import { registrarReaproveitamento } from "./itens/reaproveitamento";
@@ -73,6 +74,7 @@ export function registerItemRoutes(app: Express): void {
   registrarArte(app); // arquivo final e troca de thumb
   registrarRevisao(app); // Revisão Final: liberar e devolver (inclusive em lote)
   registrarProducaoInterna(app); // produção interna: direto para a Gráfica, por peça e em lote (02/10)
+  registrarPrioridadeNaImpressao(app); // a Solicitação pede/retira prioridade na impressão (08/10)
   registrarCancelamento(app); // cancelar, descancelar e cancelar em lote
   registrarRotasDeImpressao(app); // approve (410), start-printing, start-production
   registrarReaproveitamento(app); // mark-reuse, correct-reuse

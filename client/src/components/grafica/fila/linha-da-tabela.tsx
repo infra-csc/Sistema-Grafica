@@ -35,8 +35,13 @@ import { ProgressoImpressao } from "./progresso-impressao";
 import { DeadlineChip, SeloFilaDaImpressora, m2DaLinha } from "./selos";
 import { AcoesDaLinha } from "./acoes-da-linha";
 import { MiniaturaDaPeca } from "./miniatura-da-peca";
+import { CabecalhoDasPrioritariasNaTabela, EventoDaPrioritaria } from "./grupo-das-prioritarias";
+import type { PosicaoNasPrioritarias } from "./grupo-das-prioritarias";
+import { CHAVE_DAS_PRIORITARIAS } from "./ordem-da-fila";
+import { TITULO_DO_SELO_NA_GRAFICA } from "@shared/prioridade-na-impressao";
+import { ControleDePrioridadeNaFila } from "./prioridade-na-fila";
 
-export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, corte }: {
+export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, corte, prioritarias = null }: {
   ctx: ContextoDaLinha;
   item: PecaDaFila;
   /** A linha de cima: os cabeçalhos de grupo, evento e tipo nascem da comparação com ela. */
@@ -44,6 +49,8 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
   showEvHeader: boolean;
   showTypeHeader: boolean;
   corte: CorteDoEvento | undefined;
+  /** No grupo "Prioritárias" do topo (08/10): abre o grupo? quantas há? */
+  prioritarias?: PosicaoNasPrioritarias;
 }) {
   const {
     canProduce, canConfer, podeEmbalar, soVisualizaKit, podeMexerQtd,
@@ -87,7 +94,7 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
       {(() => {
         const groupName = typeToGroup[item.type] || '';
         const prevGroupName = prev ? (typeToGroup[prev.type] || '') : '';
-        const showGroupHeader = !showEvHeader && groupName !== '' && groupName !== prevGroupName;
+        const showGroupHeader = !prioritarias && !showEvHeader && groupName !== '' && groupName !== prevGroupName;
         // Grupo em NEUTRO: era azul (#dbeafe/#1d4ed8) — a única
         // faixa azul da tela, sem significado nenhum de status.
         return showGroupHeader ? (
@@ -98,6 +105,7 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
           </tr>
         ) : null;
       })()}
+      {prioritarias?.abre && <CabecalhoDasPrioritariasNaTabela nColunas={nColunas} total={prioritarias.total} />}
       {showEvHeader && (
         <tr style={{ backgroundColor: ESCURO.fundo }}>
           <td colSpan={nColunas} className="ds-sobre-escuro" style={{ padding: "11px 16px", background: ESCURO.gradiente }}>
@@ -243,6 +251,8 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
           <div data-testid={`celula-peca-${item.id}`} style={{ display: "flex", alignItems: "flex-start", gap: 10, maxWidth: compacto ? 230 : 320, minWidth: 160 }}>
             <MiniaturaDaPeca item={item} />
             <div style={{ minWidth: 0, flex: 1 }}>
+          {/* No grupo das prioritárias não há o cabeçalho do evento: o evento vem na peça. */}
+          {prioritarias && <EventoDaPrioritaria item={item} />}
           {/* SELO DO COMPLEMENTO — o sinal mais forte da tela, no
               topo da pilha de badges. Sólido (não outline) porque
               significa TRABALHO NOVO na fila: o número que está na
@@ -297,15 +307,15 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
             </Selo>
           )}
           {/* PRIORITÁRIA (dono, 27/08: "na Gráfica também") — o
-              mesmo selo da Arte e da lista do evento; aqui ela
-              também sobe para o topo do bloco do seu evento. */}
+              mesmo selo da Arte e da lista do evento. Desde 08/10 ela
+              vem no grupo "Prioritárias", no topo da fila inteira. */}
           {item.isPriority && (
             <Selo
               forma="retangulo"
               tom="perigo"
               icone={AlertTriangle}
               data-testid={`selo-prioritaria-${item.id}`}
-              title="Peça prioritária — marcada pela Solicitação para sair na frente"
+              title={TITULO_DO_SELO_NA_GRAFICA}
               style={{ padding: "2px 8px", marginBottom: 5, marginRight: 5 }}
             >
               Prioritária
@@ -522,6 +532,7 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
               coluna Status não alargar. */}
           {isInProd(item) && <ProgressoImpressao item={item} fonte={10.5} duasLinhas onIniciarResto={canProduce && !seloDoItem(item) ? () => openProductionModal(item, true) : undefined} />}
           {travaDaLinha(item, 10.5, 28)}
+          <ControleDePrioridadeNaFila item={item} selo={selo} fonte={10.5} alvo={28} />
           {(isInProd(item) ? !!fraseDaFila(item, { emImpressao: true }) : !!item.maquinaPrevista) && <div style={{ marginTop: 4 }}><SeloFilaDaImpressora item={item} fonte={10.5} /></div>}
         </td>
         <AcoesDaLinha ctx={ctx} item={item} selo={selo} emRevisao={emRevisao} isSelected={isSelected} bulkEligible={bulkEligible} ehComplemento={ehComplemento} podeEmbalarPeca={podeEmbalarPeca} />
@@ -585,7 +596,9 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
               data-testid={`button-mostrar-todas-${corte.chave}`}
               style={{ border: `1px dashed ${T.border}`, color: T.text }}
             >
-              Mostrar todas as {corte.total} peças deste evento (+{corte.ocultas})
+              {corte.chave === CHAVE_DAS_PRIORITARIAS
+                ? `Mostrar todas as ${corte.total} prioritárias (+${corte.ocultas})`
+                : `Mostrar todas as ${corte.total} peças deste evento (+${corte.ocultas})`}
             </Botao>
           </td>
         </tr>

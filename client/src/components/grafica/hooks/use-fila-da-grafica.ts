@@ -26,7 +26,7 @@ import {
 import type { ModeloDoCatalogo, PecaDaFila, RegistroDoHistorico } from "@/components/grafica/tipos";
 import { FILTRO_DOS_CARTOES, LINHAS_DA_PRIMEIRA_LEVA, LINHAS_POR_LOTE, ROW_CAP } from "@/components/grafica/fila/regras";
 import { useFacetasDaFila } from "./use-facetas-da-fila";
-import { ordenarFilaDaGrafica } from "@/components/grafica/fila/ordem-da-fila";
+import { ordenarFilaDaGrafica, CHAVE_DAS_PRIORITARIAS } from "@/components/grafica/fila/ordem-da-fila";
 
 export type FilaDaGrafica = ReturnType<typeof useFilaDaGrafica>;
 
@@ -69,10 +69,22 @@ export function useFilaDaGrafica() {
     refetchOnWindowFocus: true,
     refetchInterval: 300_000, // 5min (auditoria 27/08): o WebSocket cobre o tempo real; isto é só a rede de segurança de socket morto
   });
-  // ── Evento FINALIZADO CONTINUA NA FILA ────────────────────────────────────
-  // Regra do dono (17/08): "os eventos finalizados devem aparecer ainda na
-  // Revisão e Gráfica". Esta tela filtrava as peças de evento encerrado à mão
-  // ou já realizado; não filtra mais.
+  // ── Evento FINALIZADO: ESCONDIDO POR PADRÃO, A UM CLIQUE (dono, 08/10) ─────
+  // DECISÃO NOVA (08/10): "tirar os itens de eventos que foram realizados da
+  // Gráfica… tem que tirar a visualização dele, porque atrapalha, e eles não
+  // vão produzir mais — o evento já passou". A peça de evento encerrado OU
+  // realizado (o mesmo `seloPecaEventoFinalizado`; reaberto depois da data
+  // volta a contar como vivo) SAI da fila, dos cartões de etapa, das facetas e
+  // dos totais — `items` abaixo já nasce sem ela. NÃO some de vez: o
+  // controle "Mostrar eventos realizados (N)" da barra de filtros
+  // (`filtros.realizados`, ?realizados=1 na URL) a traz de volta com o selo,
+  // porque conferir e dar baixa na entrega continuam sendo desta tela (o
+  // parágrafo abaixo segue valendo para quando ela está à vista). Nenhum dado
+  // muda. A Revisão Final NÃO mudou.
+  //
+  // HISTÓRICO — a regra que esta substituiu (17/08): "os eventos finalizados
+  // devem aparecer ainda na Revisão e Gráfica". A tela tinha deixado de
+  // filtrar as peças de evento encerrado à mão ou já realizado.
   //
   // POR QUE AQUI VOLTA E EM ARTE/ATENDIMENTO/VINCULAR CONTINUA ESCONDIDO — é a
   // pergunta óbvia de quem olhar as cinco filas. A guarda do servidor
@@ -94,16 +106,20 @@ export function useFilaDaGrafica() {
   // `item.event` vem CRU do storage (nunca passa por enrichEvent): traz
   // `status` ("closed") e `startDate` — as duas colunas que o predicado lê.
   const hojeBusinessMs = todayBusinessMs();
-  const items = pecasDoServidor;
   // Um selo por peça, calculado uma vez. `null` = evento em jogo, linha normal.
   const selosPorItem = useMemo(() => {
     const m = new Map<string, SeloPecaEventoFinalizado>();
-    for (const i of items) {
+    for (const i of pecasDoServidor) {
       const s = seloPecaEventoFinalizado(i.event, hojeBusinessMs);
       if (s) m.set(i.id, s);
     }
     return m;
-  }, [items, hojeBusinessMs]);
+  }, [pecasDoServidor, hojeBusinessMs]);
+  // A BASE DA TELA: sem as de evento finalizado, salvo quando pedidas (08/10).
+  const items = useMemo(
+    () => (filtros.realizados || selosPorItem.size === 0 ? pecasDoServidor : pecasDoServidor.filter((i) => !selosPorItem.has(i.id))),
+    [pecasDoServidor, selosPorItem, filtros.realizados],
+  );
   const seloDoItem = (item: PecaDaFila): SeloPecaEventoFinalizado | null => selosPorItem.get(item.id) ?? null;
   // INFORMAR IMPRESSAS no evento realizado (decisão IMPRESSAS_EM_EVENTO_REALIZADO):
   // a peça que já estava na impressora segue podendo dizer o que saiu — o selo
@@ -249,7 +265,8 @@ export function useFilaDaGrafica() {
     poolDaBusca.filter((item) => itemCasaFiltros(item, recorteDasPassadas, ctxFiltros, { ignorarStatus: true })),
     [poolDaBusca, recorteDasPassadas, ctxFiltros]);
   // A REGRA DOS NÚMEROS DESTA TELA, uma só: TODO contador conta o que a tela
-  // MOSTRA. Com as peças de evento finalizado de volta à fila, elas entram nos
+  // MOSTRA. Com as peças de evento finalizado À VISTA (desde 08/10 só pelo
+  // "Mostrar eventos realizados"; escondidas, não contam em nada), elas entram nos
   // seis cards, no "N peças" do recorte e no rodapé de m² — pelo mesmo motivo
   // que o Painel Geral adotou ao revelar as dele: número que não bate com a
   // lista logo abaixo é o defeito mais caro de todos, porque não dá para
@@ -302,6 +319,16 @@ export function useFilaDaGrafica() {
     }
     return { encerrado, realizado, total: encerrado + realizado };
   }, [statsPool, selosPorItem]);
+
+  // "Mostrar eventos realizados (N)" (08/10): N é O QUE O CLIQUE TRAZ — as
+  // peças de evento finalizado que casam com o recorte atual (busca e
+  // entregues ocultas inclusive), a mesma conta honesta do "entregues ocultas".
+  const realizadosOcultos = useMemo(() => {
+    if (filtros.realizados || selosPorItem.size === 0) return 0;
+    let n = 0;
+    for (const i of pecasDoServidor) if (selosPorItem.has(i.id) && itemCasaFiltros(i, filtros, ctxFiltros)) n++;
+    return n;
+  }, [pecasDoServidor, selosPorItem, filtros, ctxFiltros]);
 
   // ── Complementos no recorte atual (alimenta o chip do cabeçalho) ──
   // Em ABERTO = ainda não entregues: é o trabalho que apareceu depois e ainda
@@ -360,7 +387,7 @@ export function useFilaDaGrafica() {
   const nFiltrosNaFolha = nFiltros - (filtros.evento.length > 0 ? 1 : 0);
   const haFiltro = temFiltroAtivo(filtros);
   const limparFiltros = () => {
-    setFiltros({ ...FILTROS_VAZIOS, entregues: filtros.entregues });
+    setFiltros({ ...FILTROS_VAZIOS, entregues: filtros.entregues, realizados: filtros.realizados });
     setBuscaInput("");
   };
   // Rótulos bonitos para o empty state: status e evento são chaves/ids na URL.
@@ -383,7 +410,9 @@ export function useFilaDaGrafica() {
   const { linhasVisiveis, cortePorItem } = useMemo(() => {
     const porEvento = new Map<string, PecaDaFila[]>();
     for (const i of filteredItems) {
-      const chave = String(i.eventId ?? i.event?.name ?? "sem-evento");
+      // As PRIORITÁRIAS (08/10) são um bloco próprio no topo, à frente dos
+      // eventos: agrupá-las pelo evento as levaria de volta para o bloco dele.
+      const chave = i.isPriority ? CHAVE_DAS_PRIORITARIAS : String(i.eventId ?? i.event?.name ?? "sem-evento");
       const arr = porEvento.get(chave);
       if (arr) arr.push(i); else porEvento.set(chave, [i]);
     }
@@ -474,10 +503,12 @@ export function useFilaDaGrafica() {
     if (isLoading) return;
     const alvoId = new URLSearchParams(window.location.search).get("item");
     if (!alvoId) return;
-    const alvo = items.find((i) => i.id === alvoId);
+    // Na base INTEIRA: a peça do aviso pode ser de evento finalizado (08/10 —
+    // fora da fila por padrão); aí o deep link a traz junto com as realizadas.
+    const alvo = pecasDoServidor.find((i) => i.id === alvoId);
     const busca = alvo?.displayId ?? alvoId;
     setBuscaInput(busca);
-    patchFiltros({ busca });
+    patchFiltros(alvo && selosPorItem.has(alvo.id) ? { busca, realizados: true } : { busca });
     // Remove só o `item=`: o recorte do operador (que agora vive na URL) tem de
     // sobreviver ao deep link. Antes o replaceState apagava a query inteira.
     const p = new URLSearchParams(window.location.search);
@@ -485,9 +516,11 @@ export function useFilaDaGrafica() {
     const qs = p.toString();
     window.history.replaceState({}, "", qs ? `?${qs}` : window.location.pathname);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, isLoading]);
+  }, [pecasDoServidor, isLoading]);
 
-  const nTravadas = useMemo(() => pecasDoServidor.filter((i) => pecaTravada(i) && !isDelivered(i)).length, [pecasDoServidor]);
+  // Da base da tela (sem as de evento finalizado, salvo quando à vista): o
+  // número do atalho é o que o clique traz.
+  const nTravadas = useMemo(() => items.filter((i) => pecaTravada(i) && !isDelivered(i)).length, [items]);
 
   /**
    * ETIQUETAS NO CAMINHO DE QUEM CONFERE (pedido do dono, 25/08): depois de
@@ -532,7 +565,7 @@ export function useFilaDaGrafica() {
     typeToGroup, groupOf, ctxFiltros,
     ...facetas,
     filteredItems, statsPool, stats, finalizadasNoRecorte,
-    complementosAbertos, complementosNaLista, complementoChipLabel, comReusoNaLista, entreguesOcultas,
+    complementosAbertos, complementosNaLista, complementoChipLabel, comReusoNaLista, entreguesOcultas, realizadosOcultos,
     nFiltros, nFiltrosNaFolha, haFiltro, descricaoFiltros,
     gruposExpandidos, setGruposExpandidos, expandirGrupo, linhasVisiveis, cortePorItem,
     setOrcamentoLinhas, limiteLinhas, primeiraLeva, linhasRenderizadas, desenharMaisLinhas, resumoDaLista,

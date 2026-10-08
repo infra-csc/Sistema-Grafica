@@ -18,7 +18,7 @@ import { eventoBarraImpressas } from "@shared/impressao-dividida";
 import { numerosDaImpressao, linkDaPecaNaGrafica, linkDaImpressoraNaGrafica } from "@shared/progresso-da-impressao";
 import { AMBAR, GROTESK, IMP, LIVRE, MONO, ROTULO_MICRO, TITULO, VERMELHO } from "./constantes";
 import { ToqueContext } from "./contexto";
-import { Pilula, SeletorDeReserva, SeloDePrazo, TituloDaPeca } from "./pedacos";
+import { Pilula, SeletorDeReserva, SeloDePrazo, SeloPrioritaria, TituloDaPeca } from "./pedacos";
 import {
   apoioDaPeca, haQuanto, motivoBloqueio, motivoImpressoraOcupada, ordenarFila, pecaParaOModal, perguntaDaTroca, plural, prazoDaPeca, rotuloDoDia, seloDaPecaNaMaquina,
 } from "./regras";
@@ -69,6 +69,7 @@ export function PecaNaFilaDoCartao({ p, ordem, podeAgir, hojeMs, isMobile, proxi
       </div>
       {/* O prazo abre a linha de apoio (antes ocupava uma linha sozinho). */}
       <div style={{ display: "flex", alignItems: "baseline", gap: "4px 8px", flexWrap: "wrap", paddingLeft: ordem != null ? 28 : 0 }}>
+        {p.prioritaria && <SeloPrioritaria id={p.id} fonte={isMobile ? 12 : FS.small} />}
         <SeloDePrazo p={prazo} fonte={isMobile ? 12 : FS.small} />
         <span style={{ flex: "1 1 120px", minWidth: 0, fontSize: isMobile ? 12 : FS.small, color: T.second, lineHeight: 1.45, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>
         {[p.pausadaEm ? "Pausada — volta primeiro" : null, p.evento, reservadas < p.aImprimir ? `${reservadas} de ${p.aImprimir} un.` : `${p.aImprimir} un.`, p.impressas > 0 ? `${p.impressas} de ${p.aImprimir} já impressas` : null, p.m2 != null ? `${p.m2.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} m²` : null].filter(Boolean).join(" · ")}

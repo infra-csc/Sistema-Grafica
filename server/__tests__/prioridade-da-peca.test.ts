@@ -81,18 +81,22 @@ describe("e na Gráfica também (dono, 27/08)", () => {
     expect(GRAFICA).toContain("chip-prioritaria-${item.id}");
   });
 
-  it("sobe DENTRO do bloco do evento — o macro segue sendo o caminhão", () => {
+  // 08/10 (dono: "na Gráfica também"): a REGRA MUDOU. A prioritária deixou de
+  // subir só para o topo do bloco do evento e passou a vir PRIMEIRO de toda a
+  // fila, num grupo "Prioritárias" acima dos eventos (grupo-das-prioritarias.tsx).
+  it("vem PRIMEIRO de toda a fila, antes do caminhão e do evento (08/10)", () => {
     // 07/10 (performance): a ordem mora em fila/ordem-da-fila.ts, com as
     // chaves calculadas uma vez por peça — os critérios e a ordem deles são os
     // mesmos (perf9-grafica-carga.test.ts compara com o comparador antigo).
     expect(GRAFICA).toContain("ordenada: ordenarFilaDaGrafica(items)");
     const sort = GRAFICA.slice(GRAFICA.indexOf("chaves.sort((a, b) => {"));
+    const saida = sort.indexOf("if (a.saida !== b.saida) return a.saida - b.saida;");
     const evento = sort.indexOf("if (a.evento !== b.evento) return a.posEvento - b.posEvento;");
     const prio = sort.indexOf("const prio = b.prioritaria - a.prioritaria;");
-    const tipo = sort.indexOf("if (a.tipo !== b.tipo)");
+    expect(prio).toBeGreaterThan(-1);
     expect(evento).toBeGreaterThan(-1);
-    // depois do evento (não desmonta os blocos por data de saída), antes do tipo
-    expect(prio).toBeGreaterThan(evento);
-    expect(prio).toBeLessThan(tipo);
+    // antes da saída do caminhão e do evento: é o primeiro critério
+    expect(prio).toBeLessThan(saida);
+    expect(prio).toBeLessThan(evento);
   });
 });

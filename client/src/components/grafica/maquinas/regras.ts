@@ -5,6 +5,8 @@
 // de evento finalizado são os de items.ts; aqui só a leitura do retrato (datas,
 // frases, ordem da fila, o que bloqueia o gesto na tela).
 // ─────────────────────────────────────────────────────────────────────────────
+import { primeiroAsPrioritarias } from "@shared/prioridade-na-impressao";
+import { isEventoFinalizado } from "@shared/prazo-dates";
 import { MAQUINAS_DE_IMPRESSAO, rotuloDaMaquina } from "@shared/fluxo-peca";
 import { pecaTravada, fraseDaTrava, seloDaTrava } from "@shared/trava-da-peca";
 import { perguntaDaTroca } from "@shared/progresso-da-impressao";
@@ -27,6 +29,16 @@ export function seloDaPecaNaMaquina(p: { eventoInfo: EventoInfo | null; travadaE
   }
   return seloPecaEventoFinalizado(p.eventoInfo, hojeMs);
 }
+/**
+ * A peça é de EVENTO FINALIZADO (encerrado ou realizado; reaberto depois da
+ * data volta a valer)? Desde 08/10 (dono: "tirar os itens de eventos que foram
+ * realizados da Gráfica… eles não vão produzir mais") ela sai da FILA GERAL —
+ * a espera por impressora. A que já está NUMA impressora (imprimindo ou
+ * reservada na fila dela) continua no cartão: trabalho em andamento não some.
+ */
+// O predicado puro (não o selo): o SELO da tela sai só de seloDaPecaNaMaquina.
+export const deEventoFinalizado = (p: { eventoInfo: EventoInfo | null }, hojeMs: number): boolean =>
+  isEventoFinalizado(p.eventoInfo, hojeMs);
 export const motivoBloqueio = (selo: SeloDeBloqueio, acao: string, p?: { travadaMotivo?: string | null; travadaPor?: string | null; travadaEm?: string | null }): string =>
   selo.motivo === "travada" ? `Não dá para ${acao}: ${p ? fraseDaTrava(p) : selo.label}` : motivoAcaoBloqueada(selo.motivo, acao);
 
@@ -192,13 +204,20 @@ export function textoDoPrazo(p: { data: string; diff: number }): string {
   return `Prazo ${p.data}${sufixo ? ` · ${sufixo}` : ""}`;
 }
 
-/** Ordem da fila: saída do caminhão mais próxima primeiro, depois o código. */
+/**
+ * Ordem da fila: as PAUSADAS primeiro (voltam para o topo da fila da
+ * impressora); depois as PRIORITÁRIAS (dono, 08/10: "essa prioridade tem que
+ * ser o primeiro na tela Máquinas" — na fila geral, à frente de qualquer
+ * evento; na da impressora, à frente das que esperam, nunca da pausada nem da
+ * que imprime, que nem está nesta lista); depois a saída do caminhão mais
+ * próxima e o código.
+ */
 export function ordenarFila<P extends PecaNaFila>(pecas: P[]): P[] {
   const ms = (p: PecaNaFila) => (p.saidaCaminhao ? new Date(p.saidaCaminhao).getTime() : Infinity);
   // PAUSADAS PRIMEIRO (a mais recente em cima): a peça tirada da impressora
   // por prioridade volta para o topo da fila dela.
   const pausa = (a: PecaNaFila, b: PecaNaFila) => (a.pausadaEm && b.pausadaEm ? (a.pausadaEm < b.pausadaEm ? 1 : -1) : a.pausadaEm ? -1 : b.pausadaEm ? 1 : 0);
-  return [...pecas].sort((a, b) => pausa(a, b) || ms(a) - ms(b) || String(a.displayId ?? "").localeCompare(String(b.displayId ?? ""), "pt-BR", { numeric: true }));
+  return [...pecas].sort((a, b) => pausa(a, b) || primeiroAsPrioritarias(a, b) || ms(a) - ms(b) || String(a.displayId ?? "").localeCompare(String(b.displayId ?? ""), "pt-BR", { numeric: true }));
 }
 
 /** "SANETT · 1,90 × 0,90 · Nubank" — material, medida e patrocinador, em letra pequena. */

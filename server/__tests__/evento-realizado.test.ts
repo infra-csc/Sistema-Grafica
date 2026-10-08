@@ -27,6 +27,9 @@
 // as ações que a guarda do servidor permite (conferir, entregar, excluir) moram
 // nelas, e esconder tornava impossível executá-las. Lá o sinal é um selo na
 // linha, não um aviso de ausência; ver evento-finalizado-telas.test.ts.
+// 08/10 (dono): a GRÁFICA volta a esconder essas peças por padrão, com o
+// atalho "Mostrar eventos realizados (N)" para trazê-las de volta com o selo
+// (grafica-eventos-realizados-ocultos.test.ts). A Revisão Final segue mostrando.
 import { describe, it, expect } from "vitest";
 import {
   motivoEventoFinalizado,

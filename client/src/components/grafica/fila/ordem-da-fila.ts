@@ -1,13 +1,18 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // A ORDEM DA FILA DA GRÁFICA — quem vem primeiro na lista.
 //
-// Os critérios, nesta ordem (a regra é a de sempre; só mudou de lugar):
+// Os critérios, nesta ordem:
+//   0. a PRIORITÁRIA vem PRIMEIRO DE TODA A FILA, à frente de qualquer evento
+//      (dono, 08/10: "na Gráfica também" — junto do botão "Pedir prioridade na
+//      impressão"). Até 08/10 ela só subia para o topo do bloco do SEU evento
+//      (dono, 27/08). As prioritárias formam um grupo próprio no topo
+//      ("Prioritárias", lista-da-fila.tsx), e entre elas valem os critérios
+//      abaixo — o mesmo vale para o resto da fila;
 //   1. a SAÍDA DO CAMINHÃO mais próxima no topo (sem data vai para o fim) — a
 //      Gráfica trabalha por evento e pelo caminhão marcado;
 //   2. o NOME DO EVENTO desempata (e mantém os blocos de evento contíguos);
-//   3. a PRIORITÁRIA sobe dentro do bloco do evento (dono, 27/08);
-//   4. o TIPO agrupa dentro do evento;
-//   5. o CÓDIGO da peça, com `compareDisplayId`: o complemento COLA na mãe
+//   3. o TIPO agrupa dentro do evento;
+//   4. o CÓDIGO da peça, com `compareDisplayId`: o complemento COLA na mãe
 //      (#0062 → #0062-C1 → #0062-C2 → #0063). O filho herda evento e tipo, então
 //      os critérios de cima empatam e ele cai logo abaixo dela — sem isto
 //      "#0062-C1" ordenaria como 621, a centenas de linhas da mãe.
@@ -44,6 +49,9 @@ function posicoes(textos: Iterable<string>): Map<string, number> {
   return pos;
 }
 
+/** A chave do grupo das prioritárias no topo da fila (o corte por bloco e os cabeçalhos a leem). */
+export const CHAVE_DAS_PRIORITARIAS = "__prioritarias__";
+
 /** A fila na ordem de trabalho (cópia; `items` não é alterado). Estável. */
 export function ordenarFilaDaGrafica<T extends PecaOrdenavel>(items: readonly T[]): T[] {
   const nomeDoEvento = (i: T) => i.event?.name || "";
@@ -63,10 +71,10 @@ export function ordenarFilaDaGrafica<T extends PecaOrdenavel>(items: readonly T[
     };
   });
   chaves.sort((a, b) => {
-    if (a.saida !== b.saida) return a.saida - b.saida;
-    if (a.evento !== b.evento) return a.posEvento - b.posEvento;
     const prio = b.prioritaria - a.prioritaria;
     if (prio !== 0) return prio;
+    if (a.saida !== b.saida) return a.saida - b.saida;
+    if (a.evento !== b.evento) return a.posEvento - b.posEvento;
     if (a.tipo !== b.tipo) return a.posTipo - b.posTipo;
     return compareDisplayId(a.peca.displayId, b.peca.displayId);
   });

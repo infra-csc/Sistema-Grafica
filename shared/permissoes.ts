@@ -144,6 +144,9 @@ export const REGUA_DE_PAPEIS: RegraDeRota[] = [
   // Gráfica; a Gráfica vê o motivo mas NÃO destrava.
   { metodo: "POST", rota: "/api/items/:id/travar", papeis: ["admin", "solicitacao"] },
   { metodo: "POST", rota: "/api/items/:id/destravar", papeis: ["admin", "solicitacao"] },
+  // Prioridade na impressão (dono, 08/10): a Solicitação pede que a peça saia
+  // na frente na Gráfica — da Revisão Final até a impressão terminar.
+  { metodo: "POST", rota: "/api/items/:id/prioridade-na-impressao", papeis: ["admin", "solicitacao"] },
   { metodo: "PATCH", rota: "/api/items/:id/start-production", papeis: ["admin", "grafica"] },
   // MOLDE (22/09): o fluxo curto morre no Produzido — a Gráfica marca e,
   // enquanto ninguém mexeu, desfaz. Os mesmos papéis de quem imprime.

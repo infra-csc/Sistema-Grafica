@@ -54,7 +54,7 @@ import {
 } from "@/components/grafica/maquinas/constantes";
 import { FichaContext, ToqueContext } from "@/components/grafica/maquinas/contexto";
 import {
-  AVISO_SERVIDOR_ANTIGO, ehServidorNaVersaoAnterior, intervaloDoPeriodo, mensagemDoErro, ordenarFila, pecaParaOModal, periodoBR, plural, rolarAte,
+  AVISO_SERVIDOR_ANTIGO, ehServidorNaVersaoAnterior, intervaloDoPeriodo, mensagemDoErro, deEventoFinalizado, ordenarFila, pecaParaOModal, periodoBR, plural, rolarAte,
 } from "@/components/grafica/maquinas/regras";
 import type { Aba, Linha, OcupacaoDasImpressoras, OcupanteDaImpressora, PecaNaFila, PecaNaMaquina, Periodo, Relatorio, Retrato } from "@/components/grafica/maquinas/tipos";
 import { Atualizado, Esqueleto, FechoDaLista, SeletorDeReserva } from "@/components/grafica/maquinas/pedacos";
@@ -201,7 +201,10 @@ export default function GraficaMaquinas() {
   const reservar = (itemIds: string[], maquina: string | null, quantidade?: number | null, deMaquina?: string | null) => { if (itemIds.length) reserva.mutate({ itemIds, maquina, quantidade, deMaquina }); };
   // Seleção em lote da fila geral: só ids; some ao mudar o recorte do retrato.
   const [selecionadas, setSelecionadas] = useState<Set<string>>(() => new Set());
-  const filaGeral = useMemo(() => ordenarFila(data?.filaGeral ?? []), [data?.filaGeral]);
+  // Sem as de evento finalizado (08/10 — ver deEventoFinalizado em regras.ts).
+  const hojeDia = Math.floor(hojeMs / 86_400_000);
+  const filaGeral = useMemo(() => ordenarFila((data?.filaGeral ?? []).filter((p) => !deEventoFinalizado(p, hojeMs))), [data?.filaGeral, hojeDia]); // eslint-disable-line react-hooks/exhaustive-deps
+  const finalizadasForaDaFila = useMemo(() => (data?.filaGeral ?? []).filter((p) => deEventoFinalizado(p, hojeMs)).length, [data?.filaGeral, hojeDia]); // eslint-disable-line react-hooks/exhaustive-deps
   const idsDaFila = useMemo(() => new Set(filaGeral.map((p) => p.id)), [filaGeral]);
   const selecionadasVivas = useMemo(() => Array.from(selecionadas).filter((id) => idsDaFila.has(id)), [selecionadas, idsDaFila]);
   // Estáveis (useCallback + ref): a linha da fila é memoizada, e uma função
@@ -306,10 +309,11 @@ export default function GraficaMaquinas() {
   const liberadasNaTela = useMemo(() => {
     const ids = new Set<string>();
     const lib = (x: { id: string; status: string }) => { if (x.status !== "inProduction" && x.status !== "em_producao") ids.add(x.id); };
-    for (const x of data?.filaGeral ?? []) lib(x);
-    for (const m of data?.maquinas ?? []) for (const x of m.naFila ?? []) lib(x);
+    // Sem as de evento finalizado: a Gráfica também as tira dos "Liberados" (08/10).
+    for (const x of data?.filaGeral ?? []) if (!deEventoFinalizado(x, hojeMs)) lib(x);
+    for (const m of data?.maquinas ?? []) for (const x of m.naFila ?? []) if (!deEventoFinalizado(x, hojeMs)) lib(x);
     return ids.size;
-  }, [data]);
+  }, [data, hojeDia]); // eslint-disable-line react-hooks/exhaustive-deps
   const totalReservadas = maquinas.reduce((s, m) => s + (m.naFila?.length ?? 0), 0);
   const irParaAba = (nova: Aba) => escreverURL({ aba: nova === "agora" ? null : nova });
   // Contagem de cada aba: peças em impressão, lançamentos do dia, unidades do período.
@@ -604,6 +608,11 @@ export default function GraficaMaquinas() {
                   {`${plural(liberadasNaTela, "peça liberada", "peças liberadas")} ao todo — é o "Liberados" da Gráfica. `}
                   Uma peça com parte reservada e parte sem impressora aparece aqui e num cartão; a que já imprime só uma parte continua na fila com o resto.
                 </p>
+                {finalizadasForaDaFila > 0 && (
+                  <p data-testid="finalizadas-fora-da-fila" style={{ margin: 0, fontSize: isMobile ? 12 : FS.meta, color: T.second, lineHeight: 1.5 }}>
+                    {`${plural(finalizadasForaDaFila, "peça", "peças")} de evento já realizado ou encerrado ${finalizadasForaDaFila === 1 ? "fica" : "ficam"} fora desta fila — não vão mais para a impressora. Na Gráfica, “Mostrar eventos realizados” as mostra.`}
+                  </p>
+                )}
                 </div>
                 <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, overflow: "hidden" }}>
                   {filaGeral.length === 0 ? (

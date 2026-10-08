@@ -7,6 +7,7 @@
 // linha-da-tabela.tsx; aqui só se decide a ordem, os cabeçalhos e o corte.
 // ─────────────────────────────────────────────────────────────────────────────
 import type React from "react";
+import { useMemo } from "react";
 import { Package } from "lucide-react";
 import { Botao } from "@/components/ui/botao";
 import { EstadoVazio, EstadoErro } from "@/components/ui/estados";
@@ -20,6 +21,7 @@ import type { ContextoDaLinha } from "./contexto-da-linha";
 import { LINHAS_POR_LOTE } from "./regras";
 import { CartaoDaPeca } from "./cartao-da-peca";
 import { LinhaDaTabela } from "./linha-da-tabela";
+import { cabecalhosDaPosicao } from "./grupo-das-prioritarias";
 
 export function ListaDaFila({ fila, ctx, depsDaLinha, usaCards, colunas, tabelaRolagemRef }: {
   fila: FilaDaGrafica;
@@ -38,6 +40,8 @@ export function ListaDaFila({ fila, ctx, depsDaLinha, usaCards, colunas, tabelaR
     linhasRenderizadas, linhasVisiveis, cortePorItem, desenharMaisLinhas, etiquetaveisPorEvento, typeToGroup, primeiraLeva,
   } = fila;
   const { idMenuAberto } = ctx;
+  // PRIORITÁRIAS NO TOPO (dono, 08/10): o grupo próprio diz quantas há no recorte.
+  const nPrioritarias = useMemo(() => filteredItems.reduce((n, i) => n + (i.isPriority ? 1 : 0), 0), [filteredItems]);
   return (
     <>
       {isLoading ? (
@@ -116,10 +120,10 @@ export function ListaDaFila({ fila, ctx, depsDaLinha, usaCards, colunas, tabelaR
           {linhasRenderizadas.map((item, index) => {
             const prev = index > 0 ? linhasRenderizadas[index - 1] : null;
             const corte = cortePorItem.get(item.id);
-            const showEvHeader = !prev || prev.event?.name !== item.event?.name;
+            const { showEvHeader, prioritarias } = cabecalhosDaPosicao(item, prev, nPrioritarias);
             return (
-              <LinhaMemo key={item.id} deps={depsDaLinha(item, [index > 0, showEvHeader, corte?.chave, corte?.total, corte?.ocultas, etiquetaveisPorEvento.get(String(item.eventId)) ?? 0])} render={() => (
-                <CartaoDaPeca ctx={ctx} item={item} index={index} showEvHeader={showEvHeader} corte={corte} />
+              <LinhaMemo key={item.id} deps={depsDaLinha(item, [index > 0, showEvHeader, prioritarias?.total, prioritarias?.abre, corte?.chave, corte?.total, corte?.ocultas, etiquetaveisPorEvento.get(String(item.eventId)) ?? 0])} render={() => (
+                <CartaoDaPeca ctx={ctx} item={item} index={index} showEvHeader={showEvHeader} corte={corte} prioritarias={prioritarias} />
               )} />
             );
           })}
@@ -158,11 +162,10 @@ export function ListaDaFila({ fila, ctx, depsDaLinha, usaCards, colunas, tabelaR
             {linhasRenderizadas.map((item, index) => {
               const prev = index > 0 ? linhasRenderizadas[index - 1] : null;
               const corte = cortePorItem.get(item.id);
-              const showEvHeader = !prev || prev.event?.name !== item.event?.name;
-              const showTypeHeader = !prev || prev.event?.name !== item.event?.name || prev.type !== item.type;
+              const { showEvHeader, showTypeHeader, prioritarias } = cabecalhosDaPosicao(item, prev, nPrioritarias);
               return (
-                <LinhaMemo key={item.id} deps={depsDaLinha(item, [showEvHeader, showTypeHeader, typeToGroup[item.type] || '', prev ? (typeToGroup[prev.type] || '') : '', corte?.chave, corte?.total, corte?.ocultas, etiquetaveisPorEvento.get(String(item.eventId)) ?? 0])} render={() => (
-                  <LinhaDaTabela ctx={ctx} item={item} prev={prev} showEvHeader={showEvHeader} showTypeHeader={showTypeHeader} corte={corte} />
+                <LinhaMemo key={item.id} deps={depsDaLinha(item, [showEvHeader, showTypeHeader, prioritarias?.total, prioritarias?.abre, typeToGroup[item.type] || '', prev ? (typeToGroup[prev.type] || '') : '', corte?.chave, corte?.total, corte?.ocultas, etiquetaveisPorEvento.get(String(item.eventId)) ?? 0])} render={() => (
+                  <LinhaDaTabela ctx={ctx} item={item} prev={prev} showEvHeader={showEvHeader} showTypeHeader={showTypeHeader} corte={corte} prioritarias={prioritarias} />
                 )} />
               );
             })}

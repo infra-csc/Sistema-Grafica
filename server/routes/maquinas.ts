@@ -21,6 +21,7 @@
 // gravado em UTC, e converter no Node dependeria do fuso do processo — um
 // lançamento às 22h caía no dia seguinte.
 // ─────────────────────────────────────────────────────────────────────────────
+import { primeiroAsPrioritarias } from "@shared/prioridade-na-impressao";
 import type { Express, Request, Response } from "express";
 import { sql } from "drizzle-orm";
 import { db } from "../db";
@@ -91,6 +92,8 @@ type LinhaDaPeca = {
   evento_inicio: string | null; evento_reaberto: string | null;
   calculated_m2?: number | string | null; maquina_prevista?: string | null; reserva_por_maquina?: unknown;
   deadline_producao_grafica?: number | string | null; saida_caminhao?: string | null;
+  /** Só na fila: a prioridade na impressão pedida pela Solicitação (08/10). */
+  is_priority?: boolean | null;
 };
 
 /** O erro de `falha()` na troca/pausa: status HTTP e, às vezes, o código da trava. */
@@ -550,7 +553,7 @@ export function registerMaquinasRoutes(app: Express): void {
                coalesce(i.reuse_qty, 0) as reuso, i.is_reuse,
                i.calculated_m2, i.maquina_prevista, i.reserva_por_maquina, i.print_machine, i.impressao_por_maquina,
                i.kit_remessa_id, i.criado_por_id,
-               i.approval_thumb_url,
+               i.approval_thumb_url, i.is_priority,
                i.travada_em, i.travada_por, i.travada_motivo,
                to_char(coalesce(i.production_started_at, i.status_changed_at), 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as desde,
                e.id as evento_id, e.name as evento, e.status as evento_status,
@@ -711,6 +714,9 @@ export function registerMaquinasRoutes(app: Express): void {
         m2: l.calculated_m2 == null ? null : Number(l.calculated_m2),
         saidaCaminhao: l.saida_caminhao ?? null,
         prazoProducaoGrafica: l.deadline_producao_grafica == null ? -1 : Number(l.deadline_producao_grafica),
+        // PRIORIDADE NA IMPRESSÃO (dono, 08/10: "essa prioridade tem que ser o
+        // primeiro na tela Máquinas"): a marca isPriority da peça.
+        prioritaria: l.is_priority === true,
       });
       const fila = naFila.map(pecaDaFila);
       // No cartão: as peças com unidades reservadas PARA esta impressora, com
@@ -718,13 +724,17 @@ export function registerMaquinasRoutes(app: Express): void {
       const maquinasComFila = maquinas.map((m) => ({
         ...m,
         // PAUSADAS PRIMEIRO: a peça tirada da impressora para dar lugar a outra
-        // volta para o TOPO da fila dela (a mais recente em cima); depois, a
-        // ordem de sempre (saída do caminhão).
+        // volta para o TOPO da fila dela (a mais recente em cima); depois as
+        // PRIORITÁRIAS (08/10 — nunca à frente da pausada nem da que imprime,
+        // que nem está nesta lista); depois, a ordem de sempre (saída do
+        // caminhão). A ordem é de LEITURA: nada de posição gravada.
         naFila: fila.filter((p) => (p.reserva[m.codigo] ?? 0) > 0)
           .map((p) => ({ ...p, maquinaPrevista: m.codigo, reservadas: p.reserva[m.codigo], pausadaEm: p.pausas[m.codigo] ?? null }))
-          .sort((a, b) => (a.pausadaEm && b.pausadaEm ? (a.pausadaEm < b.pausadaEm ? 1 : -1) : a.pausadaEm ? -1 : b.pausadaEm ? 1 : 0)),
+          .sort((a, b) => (a.pausadaEm && b.pausadaEm ? (a.pausadaEm < b.pausadaEm ? 1 : -1) : a.pausadaEm ? -1 : b.pausadaEm ? 1 : 0) || primeiroAsPrioritarias(a, b)),
       }));
-      const filaGeral = fila.filter((p) => p.semImpressora > 0);
+      // Fila geral: as PRIORITÁRIAS primeiro, à frente de qualquer evento (08/10);
+      // entre elas e no resto, a ordem da consulta (saída do caminhão).
+      const filaGeral = fila.filter((p) => p.semImpressora > 0).sort(primeiroAsPrioritarias);
 
       res.json({ dia, hoje, maquinas: maquinasComFila, semMaquina, filaGeral });
     } catch (error) {

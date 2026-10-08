@@ -9,6 +9,7 @@
 // junta as partes: os gates por papel, a densidade da tabela pela largura, o
 // inventário do que cada linha memoizada lê (`depsDaLinha`) e os modais.
 // ─────────────────────────────────────────────────────────────────────────────
+import { PrioridadeNaImpressao, mostraPrioridadeNaImpressao } from "@/components/prioridade-na-impressao";
 import { useState, useMemo, useLayoutEffect, useRef } from "react";
 import type React from "react";
 import { apiRequest } from "@/lib/queryClient";
@@ -422,6 +423,9 @@ export default function Grafica() {
         auditLogs={auditLogs}
         open={!!viewDetailsItem}
         onOpenChange={(open) => !open && setViewDetailsItem(null)}
+        topActions={mostraPrioridadeNaImpressao(viewDetailsItem, user, !!seloPecaEventoFinalizado(viewDetailsItem?.event, hojeBusinessMs)) ? (
+          <PrioridadeNaImpressao item={viewDetailsItem} eventoFinalizado={!!seloPecaEventoFinalizado(viewDetailsItem?.event, hojeBusinessMs)} />
+        ) : undefined}
         customActions={temBlocoDeComplemento(viewDetailsItem, podeMexerQtd)
           ? (
             <ComplementoDaFicha

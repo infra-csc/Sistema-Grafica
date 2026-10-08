@@ -341,7 +341,9 @@ function destinoDaNotificacao(n: Notification, role?: string | null): string | n
   //
   // "Item liberado para produção" é o mesmo caso: é o aviso que COLOCA trabalho
   // na fila da Gráfica (items.ts, targetRoles grafica).
-  if (role === "grafica" && n.itemId && (tipo.startsWith("complement") || tipo === "arteApproved")) {
+  // PRIORIDADE NA IMPRESSÃO (08/10): o pedido da Solicitação é para a Gráfica
+  // imprimir antes — leva à fila dela, na peça.
+  if (role === "grafica" && n.itemId && (tipo.startsWith("complement") || tipo === "arteApproved" || tipo === "itemPriority")) {
     return `/grafica?item=${n.itemId}`;
   }
   // SOLICITAÇÃO AO ESTOQUE (21/09). A Gráfica vai para a caixa dela, onde

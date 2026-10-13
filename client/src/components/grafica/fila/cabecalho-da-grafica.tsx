@@ -147,7 +147,7 @@ export function AtalhosDaGrafica({ fila, isMobile, ponteiroGrosso, isExporting, 
 }) {
   const { filtros, filteredItems } = fila;
   const tamanhoDoTopo = isMobile || ponteiroGrosso ? "toque" : "md";
-  const exportDesabilitado = isExporting || filteredItems.length === 0;
+  const exportDesabilitado = isExporting;
   // Máquinas é um <Link> (navegação), não um <button>: veste a MESMA pele do
   // Botao secundário pela classe .ds-botao, que dá hover e foco sem handlers.
   const linkSecundario: React.CSSProperties = {
@@ -175,22 +175,18 @@ export function AtalhosDaGrafica({ fila, isMobile, ponteiroGrosso, isExporting, 
       <Printer aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0 }} />
       {!isMobile && "Máquinas"}
     </Link>
-    {/* Exportar Excel — só um download; no celular vira só o ícone
-        (o rótulo vai no aria-label). O motivo do desabilitado fica
-        VISÍVEL no desktop; no celular o botão de 44px não tem onde
-        pôr a frase e ela vai no aria-label. */}
+    {/* Exportar Excel abre o recorte: lista atual ou eventos para fechamento.
+        Continua disponível com a fila vazia; no celular o rótulo vai no aria-label. */}
     <Botao
       tamanho={tamanhoDoTopo}
       icone={FileSpreadsheet}
       carregando={isExporting}
       disabled={exportDesabilitado}
-      // Carregando ou com erro, "Nada para exportar" seria uma afirmação falsa.
-      motivo={!isMobile && !isExporting && !fila.isLoading && !fila.isError && filteredItems.length === 0 ? "Nada para exportar" : undefined}
       alinharMotivo="end"
       onClick={handleExportXlsx}
       data-testid="button-export-xlsx"
-      aria-label={isMobile ? (filteredItems.length ? `Exportar ${filteredItems.length} ${filteredItems.length === 1 ? "peça" : "peças"} em Excel` : "Nada para exportar") : undefined}
-      title={filteredItems.length ? `Exportar ${filteredItems.length} ${filteredItems.length === 1 ? "peça" : "peças"} em Excel` : "Nada para exportar"}
+      aria-label={isMobile ? "Exportar Excel: lista atual ou eventos, inclusive realizados" : undefined}
+      title="Exportar lista atual ou selecionar eventos, inclusive realizados"
       style={isMobile ? { width: 44, padding: 0, flex: "0 0 44px" } : undefined}
     >
       {!isMobile && (isExporting ? "Gerando…" : "Exportar Excel")}

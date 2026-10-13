@@ -125,6 +125,24 @@ describe.each([1710, 390])("Gráfica em %ipx — eventos realizados", (largura) 
     expect(tid("button-realizados-filter")!.getAttribute("aria-pressed") ?? tid("button-realizados-filter")!.textContent).toBeTruthy();
   });
 
+  it("o Excel traz todos os eventos, inclusive os realizados escondidos da fila", async () => {
+    await montarGrafica(largura, FILA());
+    await esperar(() => naTela("p1") && !!tid("button-export-xlsx"), "a fila e o Excel aparecem");
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    fetchMock.mockImplementation(async (url: any) => String(url) === "/api/items/export-xlsx"
+      ? new Response(new Blob(["x"]), { status: 200 })
+      : new Response("[]", { status: 200, headers: { "content-type": "application/json" } }));
+    (URL as any).createObjectURL = () => "blob:x";
+    (URL as any).revokeObjectURL = () => {};
+    await act(async () => { fireEvent.click(tid("button-export-xlsx")!); });
+    await esperar(() => document.body.textContent!.includes("Todos os eventos (5)"), "o modal conta as 5 peças");
+    const baixar = Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.includes("Baixar Excel"))!;
+    await act(async () => { fireEvent.click(baixar); });
+    await esperar(() => fetchMock.mock.calls.some(([u]) => u === "/api/items/export-xlsx"), "o Excel foi pedido");
+    const [, init] = fetchMock.mock.calls.find(([u]) => u === "/api/items/export-xlsx")!;
+    expect(JSON.parse(init.body).itemIds.sort()).toEqual(["p1", "p2", "p3", "p4", "p5"]);
+  });
+
   it("sem nenhuma de evento finalizado, o controle some", async () => {
     await montarGrafica(largura, [peca("p1", VIVO), peca("p5", REABERTO)]);
     await esperar(() => naTela("p1"), "a peça viva aparece");

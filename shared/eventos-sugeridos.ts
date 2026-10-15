@@ -517,6 +517,20 @@ export function patrocinadoresSugeridos(lista: PatrocinadorDoUmmense[], indice: 
   return saida;
 }
 
+/**
+ * LIE, ICMS RJ e LPIE = MINISTÉRIO (dono, 15/10: "LIE é Ministério no card",
+ * "ICMS RJ também", "LPIE também"). O evento incentivado leva o Ministério como patrocinador,
+ * mas o Ummense só marca a etiqueta no cartão — não cria o cartão do
+ * patrocinador. Aqui ele entra na lista com a cota MINISTERIO, se ainda não
+ * estiver.
+ */
+export const ETIQUETAS_DO_MINISTERIO = ["LIE", "ICMS RJ", "LPIE"] as const;
+export function comMinisterioDaLei(e: Pick<EventoDoUmmense, "tags" | "patrocinadores">): PatrocinadorDoUmmense[] {
+  const temLie = e.tags.some((t) => (ETIQUETAS_DO_MINISTERIO as readonly string[]).includes(normalizar(t).toUpperCase()));
+  const jaTem = e.patrocinadores.some((p) => normalizar(p.nome).startsWith("ministerio"));
+  return temLie && !jaTem ? [...e.patrocinadores, { nome: "Ministério", cota: "MINISTERIO" }] : e.patrocinadores;
+}
+
 // ── A resposta da rota ──────────────────────────────────────────────────────
 
 /**
@@ -548,7 +562,7 @@ export function montarEventosSugeridos(
       estacao: e.estacao,
       dataNaoConfirmada: e.dataNaoConfirmada,
       tags: e.tags,
-      patrocinadores: patrocinadoresSugeridos(e.patrocinadores, indice),
+      patrocinadores: patrocinadoresSugeridos(comMinisterioDaLei(e), indice),
       podeJaExistir: s.tipo === "talvez"
         ? { id: s.evento.id, nome: s.evento.nome, data: s.evento.data, arquivado: !!s.evento.arquivado, motivo: s.motivo }
         : null,

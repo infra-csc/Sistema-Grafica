@@ -335,3 +335,19 @@ describe("montarEventosSugeridos", () => {
     expect(montarEventosSugeridos(null, APP, [], "2026-10-17")).toMatchObject({ fotoDe: null, sugestoes: [] });
   });
 });
+
+describe("LIE, ICMS RJ e LPIE = Ministério (dono, 15/10)", () => {
+  it("evento com a etiqueta LIE ganha o Ministério com a cota MINISTERIO", async () => {
+    const { comMinisterioDaLei } = await import("@shared/eventos-sugeridos");
+    const lista = comMinisterioDaLei({ tags: ["MANAUS", "CORRIDA", "LIE"], patrocinadores: [{ nome: "Honda", cota: "GOLD" }] });
+    expect(lista).toEqual([{ nome: "Honda", cota: "GOLD" }, { nome: "Ministério", cota: "MINISTERIO" }]);
+  });
+  it("ICMS RJ e LPIE também; ORGANIZAÇÃO não; com o Ministério já na lista não duplica", async () => {
+    const { comMinisterioDaLei } = await import("@shared/eventos-sugeridos");
+    expect(comMinisterioDaLei({ tags: ["RIO DE JANEIRO", "ICMS RJ"], patrocinadores: [] })).toEqual([{ nome: "Ministério", cota: "MINISTERIO" }]);
+    expect(comMinisterioDaLei({ tags: ["LPIE"], patrocinadores: [] })).toEqual([{ nome: "Ministério", cota: "MINISTERIO" }]);
+    expect(comMinisterioDaLei({ tags: ["ORGANIZAÇÃO", "BASE"], patrocinadores: [] })).toEqual([]);
+    const ja = [{ nome: "MINISTÉRIO", cota: null }];
+    expect(comMinisterioDaLei({ tags: ["LIE"], patrocinadores: ja })).toBe(ja);
+  });
+});

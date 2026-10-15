@@ -233,12 +233,13 @@ describe("POST /api/items/:id/direto-para-grafica — as recusas", () => {
     expect(r.body.code).toBe("EVENT_FINALIZED");
   });
 
-  it("Kit: a Solicitação da Arena não envia peça do Kit; o dono do Kit envia a dele", async () => {
+  it("Kit: a Solicitação da Arena envia peça do Kit também (dono, 15/10); outro usuário do Kit não", async () => {
     H.mundo.itens.p1 = peca("p1", { kitRemessaId: "k1", criadoPorId: "u1" });
     const arena = await chamar(DIRETO, { params: { id: "p1" }, userRole: "solicitacao", body: { instrucoes: INSTR } });
-    expect(arena.status).toBe(403);
-    const dono = await chamar(DIRETO, { params: { id: "p1" }, userRole: "solicitacao", userKit: true, body: { instrucoes: INSTR } });
-    expect(dono.status, JSON.stringify(dono.body)).toBe(200);
+    expect(arena.status, JSON.stringify(arena.body)).toBe(200);
+    H.mundo.itens.p2 = peca("p2", { kitRemessaId: "k1", criadoPorId: "outro" });
+    const outroKit = await chamar(DIRETO, { params: { id: "p2" }, userRole: "solicitacao", userKit: true, body: { instrucoes: INSTR } });
+    expect(outroKit.status).toBe(403);
   });
 });
 

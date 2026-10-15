@@ -37,15 +37,15 @@ export function useContagensDoEvento(rawItems: PecaDoEvento[], event: EventoDoDe
 
   // QUAIS RASCUNHOS O BOTÃO "ENVIAR" LEVA DE VERDADE. O servidor (POST
   // /api/events/:id/items/submit) recorta por quem envia: admin leva tudo; o
-  // usuário do Kit, só as peças do Kit que ele criou; a Solicitação da Arena,
-  // só as que não são do Kit. A tela contava TODOS os rascunhos — prometia
+  // usuário do Kit, só as peças do Kit que ele criou; a Solicitação da Arena
+  // leva tudo, Kit inclusive (dono, 15/10). A tela contava TODOS os rascunhos — prometia
   // "12 peças serão enviadas" e mandava 8, e um rascunho só do Kit deixava o
   // botão ativo para devolver "Nenhum item em rascunho". Isto é espelho de
   // APRESENTAÇÃO (contagem e lista da confirmação); quem decide é o servidor.
   const rascunhosQueEuEnvio = useMemo(() => {
     if (user?.role === 'admin') return draftItems;
     if (user?.kit) return draftItems.filter((i) => !!i.kitRemessaId && i.criadoPorId === user.id);
-    return draftItems.filter((i) => !i.kitRemessaId);
+    return draftItems;
   }, [draftItems, user]);
 
   // Chips de status do cabeçalho: contagem por status presente + m² total.

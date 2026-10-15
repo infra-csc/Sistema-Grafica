@@ -79,9 +79,7 @@ export function CardDeRascunhos({
     : !podeEnviar
       ? "Quem envia é a Solicitação ou um administrador — avise um deles quando a lista estiver pronta."
       : nEnvio === 0
-        ? (user?.kit
-            ? "Estes rascunhos não são peças do Kit criadas por você — quem os criou é que envia."
-            : "Estes rascunhos são do Kit — quem os criou é que envia.")
+        ? "Estes rascunhos não são peças do Kit criadas por você — quem os criou é que envia."
         : null;
   const alvo = isMobile ? 44 : 32;
   // PRODUÇÃO INTERNA (02/10): o envio divide como o servidor divide — a

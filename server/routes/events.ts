@@ -1306,12 +1306,13 @@ export function registerEventRoutes(app: Express): void {
 
       // Buscar todos os itens em rascunho deste evento (draft = novo, requested = legado)
       const allItems = await storage.getItemsByEvent(eventId);
-      // KIT (14/09): cada um envia a sua lista — o usuário do Kit só as peças
-      // do Kit dele; a Solicitação da Arena só as da Arena; o admin, tudo.
+      // KIT (14/09): o usuário do Kit envia só as peças do Kit dele. A
+      // Solicitação da Arena passou a enviar o Kit também (dono, 15/10:
+      // "Solicitação poder subir Kit também") — leva tudo, como o admin.
       const doKit = (req as any).userKit === true;
       const draftItems = allItems.filter(item =>
         (item.status === 'draft' || item.status === 'requested') &&
-        (isAdmin || (doKit ? (!!item.kitRemessaId && item.criadoPorId === userId) : !item.kitRemessaId)));
+        (isAdmin || (doKit ? (!!item.kitRemessaId && item.criadoPorId === userId) : true)));
 
       if (draftItems.length === 0) {
         return res.status(400).json({ error: "Nenhum item em rascunho para enviar" });

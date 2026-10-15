@@ -400,14 +400,12 @@ describe("eventos", () => {
     expect((daArena.body as any).itemCount).toBe(3);
   });
 
-  it("enviar para a vinculação separa as listas: Kit as dele, Arena as da Arena, admin tudo", async () => {
+  it("enviar para a vinculação: o Kit leva só as dele; a Solicitação da Arena leva o Kit também (dono, 15/10)", async () => {
     const enviar = (quem: Record<string, unknown>) => chamar("POST /api/events/:id/items/submit", { sessao: quem, params: { id: "ev-1" } });
     await enviar(KIT);
     expect(Object.fromEntries(Object.values(mundo.itens).map((i: any) => [i.id, i.status]))).toEqual({ minha: "awaiting_linking", alheia: "draft", arena: "draft" });
     await enviar(ARENA);
     expect(mundo.itens.arena.status).toBe("awaiting_linking");
-    expect(mundo.itens.alheia.status).toBe("draft");
-    await enviar(sessao("admin"));
     expect(mundo.itens.alheia.status).toBe("awaiting_linking");
   });
 });

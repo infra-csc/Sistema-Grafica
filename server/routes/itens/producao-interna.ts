@@ -48,7 +48,9 @@ function foraDaListaDeQuemPede(req: Request, peca: Item): string | null {
   if (req.userKit === true) {
     return peca.kitRemessaId && peca.criadoPorId === req.userId ? null : "É peça de outra lista — o usuário do Kit envia só as peças do Kit que criou.";
   }
-  return peca.kitRemessaId ? "É peça do Kit — quem a envia é quem a criou (ou um admin)." : null;
+  // A Solicitação da Arena envia o Kit também (dono, 15/10: "Solicitação
+  // poder subir Kit também") — a mesma régua do envio da lista (events.ts).
+  return null;
 }
 
 /**

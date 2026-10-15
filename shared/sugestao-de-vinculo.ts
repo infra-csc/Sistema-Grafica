@@ -7,38 +7,50 @@
 // resto chega como SUGESTÃO pré-marcada na tela de Vincular, com um clique
 // para aplicar.
 //
-// AS TRÊS REGRAS, e o que a análise do banco (6.925 peças vinculadas) mostrou
-// para cada uma:
+// AS DUAS REGRAS:
 //
 //   1. NOME NA DESCRIÇÃO — a descrição cita, como palavra inteira e sem
 //      acento, o nome de UM patrocinador do evento: ele é o patrocinador certo
 //      em 1.319 de 1.323 casos (99,7%). É a única regra que pode vincular
 //      sozinha — e só quando nada mais na peça pede outro patrocinador (ver
 //      `automatica` abaixo). Citou dois ou mais: vira sugestão de todos.
-//   2. ESTRUTURA — pórtico, palco, arena, faixa de chegada… levam quase todos
-//      os patrocinadores do evento (média 5,2 de 5,6). Aprendido: o tipo com
-//      ≥ 10 peças cuja cobertura média (patrocinadores da peça ÷ do evento) é
-//      ≥ 0,8.
-//   3. COTA — MASTER vai em display, placa km, ícone fone; MINISTÉRIO em
-//      quadro de fotos… Aprendido: cota × tipo com taxa de vínculo ≥ 0,8 em
-//      ≥ 3 eventos. As regras MANUAIS de cota (event_quota_rules e as globais
-//      com tipos preenchidos) entram aqui também.
+//   2. COTA, POR PEÇA (dono, 15/10: "as sugestões têm que ser pela peça de
+//      cota, não grupo"; "pegar o NOME da peça e fazer a análise de cota por
+//      peça") — para cada peça, os patrocinadores do evento cuja COTA vai
+//      naquela peça. A chave é o NOME DA PEÇA (items.description) normalizado
+//      por chaveDoNome: sem os patrocinadores do evento, sem numeração, sem
+//      medida, sem "dir/esq" ("Lateral dir Pórtico Largada" e "Lateral esq
+//      Pórtico Largada" → "lateral portico largada"). Sem histórico suficiente
+//      do nome, cai no TIPO exato da peça — nunca no grupo/prefixo ("Pórtico"
+//      não vale por "Pórtico Larg/Cheg"). Cota × chave com taxa de vínculo
+//      ≥ 0,8 em ≥ 3 eventos. As regras MANUAIS de "Configurar cotas"
+//      (event_quota_rules e as globais com tipos preenchidos) entram aqui
+//      também, com o casamento de sempre daquela tela.
+//
+// A antiga regra "estrutura" (a peça levar o elenco inteiro do evento) SAIU
+// por decisão do dono: quem decide quem vai numa peça é a cota de cada um.
 //
 // O motor é PURO (sem banco): o servidor carrega o histórico e o elenco do
 // evento e chama daqui; o backtest (fora do repositório) também.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type RegraDaSugestao = "nome-na-descricao" | "estrutura" | "cota";
+export type RegraDaSugestao = "nome-na-descricao" | "cota";
 
 export interface Sugestao {
   sponsorId: string;
   regra: RegraDaSugestao;
   /** 0–1: a taxa de acerto que a regra teve no histórico. */
   confianca: number;
-  /** Frase curta para a tela (vai no title do chip). */
+  /** Frase curta para a tela (vai no title do chip), já com patrocinador e cota. */
   motivo: string;
   /** Vincula sozinho, sem ninguém clicar. Só a regra 1 com UM nome casado e nada mais pedindo outro. */
   automatica: boolean;
+  /** A cota que levou a sugestão (regra "cota") — a faixa da tela agrupa por ela. */
+  cota?: string | null;
+  /** A cota veio do histórico do patrocinador, não do evento. */
+  cotaDoHistorico?: boolean;
+  /** De onde veio o padrão da cota: o NOME da peça, ou (sem histórico do nome) o TIPO. */
+  base?: "nome" | "tipo" | "regra-manual";
 }
 
 /** Um patrocinador do elenco do evento. `cota` é a do vínculo evento↔patrocinador. */
@@ -61,17 +73,6 @@ export interface RegraManualDeCota {
   origem: "evento" | "geral";
 }
 
-export interface PadraoDeEstrutura {
-  /** Peças vinculadas deste tipo no histórico (em eventos com elenco suficiente). */
-  pecas: number;
-  /** Média de (patrocinadores da peça ÷ patrocinadores do evento). */
-  cobertura: number;
-  /** Como o tipo aparece escrito nas peças (para a frase). */
-  rotulo: string;
-  /** Passou nos limiares: é peça de estrutura. */
-  padrao: boolean;
-}
-
 export interface PadraoDeCota {
   /** Eventos em que a cota existia e havia peça do tipo. */
   eventos: number;
@@ -79,30 +80,28 @@ export interface PadraoDeCota {
   comVinculo: number;
   /** Média, por evento, da fração das peças do tipo que levaram a cota. */
   taxa: number;
+  /** Como o tipo aparece escrito nas peças (para a frase). */
   rotulo: string;
+  /** Passou nos limiares. */
   padrao: boolean;
 }
 
 /**
- * O que o histórico ensinou. Só entram chaves com dado SUFICIENTE (as que
- * passaram e as que não passaram nos limiares): é a mais específica delas que
- * decide — ver `decisivo`.
+ * O que o histórico ensinou, só com dado suficiente (≥ 3 eventos): cota × NOME
+ * da peça (o principal) e cota × TIPO exato (quando o nome não tem histórico).
  */
 export interface PadroesDeVinculo {
-  estrutura: Record<string, PadraoDeEstrutura>;
+  /** Chave `${COTA}|${chaveDoNome}`. */
+  cotaPorNome: Record<string, PadraoDeCota>;
   /** Chave `${COTA}|${chaveDoTipo}`. */
   cotaPorTipo: Record<string, PadraoDeCota>;
 }
 
-export const PADROES_VAZIOS: PadroesDeVinculo = { estrutura: {}, cotaPorTipo: {} };
+export const PADROES_VAZIOS: PadroesDeVinculo = { cotaPorNome: {}, cotaPorTipo: {} };
 
 export const LIMIARES_DE_VINCULO = {
   /** Nome com menos letras não casa (sem acento e sem espaço). */
   nomeMinimo: 3,
-  estruturaMinPecas: 10,
-  estruturaCobertura: 0.8,
-  /** Evento com menos patrocinadores não ensina estrutura: com 1 ou 2, toda peça "leva todos". */
-  estruturaMinPatrocinadoresNoEvento: 3,
   cotaMinEventos: 3,
   cotaTaxa: 0.8,
   /** Num evento, a cota "foi" no tipo quando levou pelo menos esta fração das peças. */
@@ -145,17 +144,78 @@ export function chaveDoTipo(tipo: string | null | undefined): string {
   return normalizarTexto(tipo).split(" ").filter((p) => p && !PALAVRAS_VAZIAS.has(p)).map(singular).join(" ");
 }
 
-/** Os prefixos por palavra, do mais longo ao mais curto: "portico chegada" → ["portico chegada", "portico"]. */
-export function prefixosDaChave(chave: string): string[] {
-  const p = chave.split(" ").filter(Boolean);
-  const saida: string[] = [];
-  for (let n = p.length; n >= 1; n--) saida.push(p.slice(0, n).join(" "));
-  return saida;
-}
+/** Lados e posições que não mudam a peça: "Lateral dir" e "Lateral esq" são a mesma lateral. */
+const LADOS = new Set(["dir", "esq", "direita", "esquerda", "direito", "esquerdo", "lado"]);
+const DIMENSAO = /^\d+(?:[.,]\d+)?x\d+(?:[.,]\d+)?$/;
+const MEDIDA = /^\d+(?:[.,]\d+)?(?:m|cm|mm|mt|mts|metro|metros)$/;
 
 /**
- * O tipo da REGRA casa com o tipo da PEÇA pelo prefixo — o mesmo critério do
- * `matchesGroup` da vinculação por cota: "Palco" casa "Palco Lateral".
+ * A CHAVE DO NOME DA PEÇA (dono, 15/10: "pegar o NOME da peça e fazer a
+ * análise de cota por peça"). O nome (items.description) sem o que muda de
+ * evento para evento sem mudar a peça:
+ *
+ *   · os patrocinadores do evento ("2x1 BB Seguros" → "2x1", "Testeira BB
+ *     Seguros" → "testeira");
+ *   · números soltos e a numeração colada ("Quadro fotos 1".."6" → "quadro
+ *     foto"; "Aplique1"/"Aplique2" → "aplique");
+ *   · medidas ("9x6", "4,0 x 3,0", "3m") — mas a dimensão que é o PRÓPRIO
+ *     nome fica: "2x1" sozinho continua "2x1";
+ *   · "dir/esq", "lado A/B", letras soltas, artigos e preposições; plural vira
+ *     singular, como na chave do tipo.
+ *
+ * Devolve também o nome LEGÍVEL (as palavras originais que ficaram, com acento
+ * e caixa) — é ele que a tela mostra no motivo. Nome vazio → chave "".
+ */
+export function lerNomeDaPeca(
+  descricao: string | null | undefined,
+  nomesDosPatrocinadores: readonly string[] = [],
+): { chave: string; legivel: string } {
+  const originais = String(descricao ?? "").split(/[^A-Za-z0-9\u00C0-\u024F]+/).filter(Boolean);
+  const tokens = originais.map((o) => ({ orig: o, norm: normalizarTexto(o) })).filter((t) => t.norm);
+  const fora = new Array<boolean>(tokens.length).fill(false);
+  // Patrocinadores do evento, inclusive nome de várias palavras e nome curto.
+  for (const nome of nomesDosPatrocinadores) {
+    const partes = normalizarTexto(nome).split(" ").filter(Boolean);
+    if (partes.length === 0) continue;
+    for (let i = 0; i + partes.length <= tokens.length; i++) {
+      if (partes.every((pt, k) => tokens[i + k].norm === pt)) for (let k = 0; k < partes.length; k++) fora[i + k] = true;
+    }
+  }
+  const ficam: Array<{ orig: string; norm: string; vazia: boolean }> = [];
+  const dimensoes: Array<{ orig: string; norm: string }> = [];
+  tokens.forEach((t, i) => {
+    if (fora[i]) return;
+    let { orig, norm } = t;
+    if (/^\d+$/.test(norm) || MEDIDA.test(norm) || /^\d+[a-z]{1,2}$/.test(norm)) return; // número, medida, ordinal
+    if (DIMENSAO.test(norm)) { dimensoes.push({ orig, norm }); return; }
+    const colado = /^([a-z]{2,})\d+$/.exec(norm); // "aplique1" → "aplique"
+    if (colado) { norm = colado[1]; orig = orig.replace(/\d+$/, ""); }
+    if (norm.length === 1 || LADOS.has(norm)) return;
+    ficam.push({ orig, norm, vazia: PALAVRAS_VAZIAS.has(norm) });
+  });
+  const cheias = ficam.filter((t) => !t.vazia);
+  if (cheias.length === 0) {
+    // Só sobrou a dimensão: ela É o nome da peça ("2x1").
+    return dimensoes.length > 0 ? { chave: dimensoes[0].norm, legivel: dimensoes[0].orig } : { chave: "", legivel: "" };
+  }
+  // O legível guarda as preposições do MEIO ("Quadro de Fotos"), não as das pontas.
+  let ini = 0, fim = ficam.length - 1;
+  while (ficam[ini].vazia) ini++;
+  while (ficam[fim].vazia) fim--;
+  return {
+    chave: cheias.map((t) => singular(t.norm)).join(" "),
+    legivel: ficam.slice(ini, fim + 1).map((t) => t.orig).join(" "),
+  };
+}
+
+/** Só a chave de lerNomeDaPeca. */
+export const chaveDoNome = (descricao: string | null | undefined, nomesDosPatrocinadores: readonly string[] = []): string =>
+  lerNomeDaPeca(descricao, nomesDosPatrocinadores).chave;
+
+/**
+ * O tipo da REGRA MANUAL casa com o tipo da PEÇA pelo prefixo — o mesmo
+ * critério do `matchesGroup` de "Configurar cotas" e da vinculação por cota:
+ * "Palco" casa "Palco Lateral". (O APRENDIDO não usa isto: é tipo exato.)
  */
 export function tipoCasa(chaveDaPeca: string, chaveDaRegra: string): boolean {
   if (!chaveDaRegra) return false;
@@ -181,20 +241,11 @@ export function nomeNaDescricao(descricao: string | null | undefined, nome: stri
   return ` ${d} `.includes(` ${n} `);
 }
 
-/** A entrada mais específica com dado suficiente — é ela que decide (passando ou não). */
-function decisivo<T>(chaves: string[], tabela: Record<string, T>): T | undefined {
-  for (const c of chaves) {
-    const e = tabela[c];
-    if (e) return e;
-  }
-  return undefined;
-}
-
 const pct = (n: number) => Math.round(n * 1000) / 1000;
 
 // ── O motor ─────────────────────────────────────────────────────────────────
 
-const PRIORIDADE: Record<RegraDaSugestao, number> = { "nome-na-descricao": 3, cota: 2, estrutura: 1 };
+const PRIORIDADE: Record<RegraDaSugestao, number> = { "nome-na-descricao": 2, cota: 1 };
 
 /**
  * As sugestões para UMA peça. Uma por patrocinador (a regra mais forte vence),
@@ -211,7 +262,7 @@ export function sugerirVinculos(
 ): Sugestao[] {
   if (patrocinadores.length === 0) return [];
   const chave = chaveDoTipo(peca.tipo);
-  const prefixos = chave ? prefixosDaChave(chave) : [];
+  const chaveNome = chaveDoNome(peca.descricao, patrocinadores.map((p) => p.nome));
   const porPatrocinador = new Map<string, Sugestao>();
   const propor = (s: Omit<Sugestao, "automatica">) => {
     const atual = porPatrocinador.get(s.sponsorId);
@@ -235,45 +286,45 @@ export function sugerirVinculos(
     }
   }
 
-  // 2. Estrutura: leva o elenco do evento.
-  const estrutura = decisivo(prefixos, padroes.estrutura);
-  const ehEstrutura = !!estrutura?.padrao;
-  if (estrutura && ehEstrutura) {
+  // 2. Cota, POR PEÇA: a cota de cada patrocinador vai NESTA peça? Primeiro
+  // pelo NOME da peça; sem histórico do nome para aquela cota, pelo TIPO exato.
+  if (chave || chaveNome) {
     for (const p of patrocinadores) {
-      propor({ sponsorId: p.id, regra: "estrutura", confianca: pct(estrutura.cobertura), motivo: "Peça de estrutura: leva os patrocinadores do evento" });
+      const cota = normalizarCota(p.cota);
+      if (!cota) continue;
+      const fator = p.cotaDoHistorico ? CONFIANCA.cotaDoHistorico : 1;
+      // "Itaú · MASTER" — e quando a cota não está no evento, de onde veio.
+      const quem = `${p.nome} · ${cota}${p.cotaDoHistorico ? " (cota pelo histórico dele; não está no evento)" : ""}`;
+      const extra = { cota, cotaDoHistorico: !!p.cotaDoHistorico };
+      for (const r of regrasManuais) {
+        if (!chave) break;
+        if (normalizarCota(r.cota) !== cota) continue;
+        const tipo = r.tipos.find((t) => tipoCasa(chave, chaveDoTipo(t)));
+        if (!tipo) continue;
+        propor({
+          sponsorId: p.id, regra: "cota", confianca: pct(CONFIANCA.regraManual * fator), ...extra, base: "regra-manual",
+          motivo: `${quem} — Configurar cotas${r.origem === "evento" ? " do evento" : ""}: ${cota} vai em ${tipo}`,
+        });
+        break;
+      }
+      // O NOME decide quando tem dado (passando ou não no limiar); sem dado
+      // do nome para esta cota, decide o TIPO exato. Nunca o grupo.
+      const peloNome = chaveNome ? padroes.cotaPorNome[`${cota}|${chaveNome}`] : undefined;
+      const peloTipo = !peloNome && chave ? padroes.cotaPorTipo[`${cota}|${chave}`] : undefined;
+      const aprendido = peloNome ?? peloTipo;
+      if (aprendido?.padrao) {
+        propor({
+          sponsorId: p.id, regra: "cota", confianca: pct(aprendido.taxa * fator), ...extra, base: peloNome ? "nome" : "tipo",
+          motivo: `${quem} — ${cota} vai em ${aprendido.rotulo} (${aprendido.comVinculo} de ${aprendido.eventos} eventos)${peloNome ? "" : ", pelo tipo da peça"}`,
+        });
+      }
     }
   }
 
-  // 3. Cota: as regras manuais e o que o histórico ensinou.
-  for (const p of patrocinadores) {
-    const cota = normalizarCota(p.cota);
-    if (!cota) continue;
-    const fator = p.cotaDoHistorico ? CONFIANCA.cotaDoHistorico : 1;
-    const sufixo = p.cotaDoHistorico ? " — cota pelo histórico do patrocinador" : "";
-    for (const r of regrasManuais) {
-      if (normalizarCota(r.cota) !== cota) continue;
-      const tipo = r.tipos.find((t) => tipoCasa(chave, chaveDoTipo(t)));
-      if (!tipo) continue;
-      propor({
-        sponsorId: p.id, regra: "cota", confianca: pct(CONFIANCA.regraManual * fator),
-        motivo: `Regra de cota ${r.origem === "evento" ? "do evento" : "geral"}: ${cota} leva ${tipo}${sufixo}`,
-      });
-      break;
-    }
-    const aprendido = decisivo(prefixos.map((x) => `${cota}|${x}`), padroes.cotaPorTipo);
-    if (aprendido?.padrao) {
-      propor({
-        sponsorId: p.id, regra: "cota", confianca: pct(aprendido.taxa * fator),
-        motivo: `${cota} costuma ir em ${aprendido.rotulo} (${aprendido.comVinculo} de ${aprendido.eventos} eventos)${sufixo}`,
-      });
-    }
-  }
-
-  // AUTOMÁTICA: um nome só, a peça não é de estrutura e nenhuma outra regra
-  // pede outro patrocinador. Vincular sozinho um patrocinador numa peça que
-  // leva vários a deixaria "pronta" pela metade — e o "Enviar prontas" a
-  // mandaria assim para a Arte.
-  if (casados.length === 1 && !ehEstrutura && porPatrocinador.size === 1) {
+  // AUTOMÁTICA: um nome só e nenhuma cota pedindo outro patrocinador.
+  // Vincular sozinho um patrocinador numa peça que leva vários a deixaria
+  // "pronta" pela metade — e o "Enviar prontas" a mandaria assim para a Arte.
+  if (casados.length === 1 && porPatrocinador.size === 1) {
     const s = porPatrocinador.get(casados[0].id);
     if (s && s.regra === "nome-na-descricao") s.automatica = true;
   }
@@ -289,6 +340,8 @@ export function sugerirVinculos(
 export interface PecaDoHistorico {
   eventId: string;
   tipo: string;
+  /** O nome da peça (items.description) — a chave principal da cota por peça. */
+  descricao?: string | null;
   patrocinadores: string[];
 }
 
@@ -297,12 +350,8 @@ export interface ElencoDoHistorico {
   eventId: string;
   sponsorId: string;
   cota: string | null;
-}
-
-/** "Pórtico de Chegada" com a chave "portico chegada" e prefixo de 1 palavra → "Pórtico". */
-function rotuloDoPrefixo(tipoOriginal: string, palavras: number): string {
-  const tokens = String(tipoOriginal).split(/[^A-Za-z0-9À-ɏ]+/).filter((t) => t && !PALAVRAS_VAZIAS.has(normalizarTexto(t)));
-  return tokens.slice(0, palavras).join(" ");
+  /** Nome do patrocinador — sai do nome da peça antes de virar chave. */
+  nome?: string | null;
 }
 
 function maisFrequente(contagem: Map<string, number> | undefined, padrao: string): string {
@@ -313,15 +362,11 @@ function maisFrequente(contagem: Map<string, number> | undefined, padrao: string
 }
 
 /**
- * Aprende as duas tabelas do histórico.
- *
- * ESTRUTURA, por chave de tipo (e cada prefixo dela): peças vinculadas em
- * eventos com ≥ 3 patrocinadores; cobertura = |patrocinadores da peça ∩ do
- * evento| ÷ |do evento|. Entra com ≥ 10 peças; é padrão com média ≥ 0,8.
- *
- * COTA × TIPO: para cada evento, cota (preenchida no evento) e tipo presente,
- * a fração das peças do tipo que levaram patrocinador daquela cota. Entra com
- * ≥ 3 eventos; é padrão com média ≥ 0,8.
+ * Aprende COTA × PEÇA, em duas tabelas com a mesma conta: pelo NOME da peça
+ * (chaveDoNome, sem os patrocinadores do evento) e pelo TIPO exato. Para cada
+ * evento, cada cota preenchida NO EVENTO e cada chave presente, a fração das
+ * peças daquela chave que levaram patrocinador daquela cota. Entra com ≥ 3
+ * eventos; é padrão com média ≥ 0,8. Sem prefixo, sem grupo.
  */
 export function aprenderPadroes(
   pecas: PecaDoHistorico[],
@@ -329,103 +374,74 @@ export function aprenderPadroes(
   limiares: Partial<LimiaresDeVinculo> = {},
 ): PadroesDeVinculo {
   const L = { ...LIMIARES_DE_VINCULO, ...limiares };
-  const elencoDoEvento = new Map<string, Set<string>>();
-  const cotaNoEvento = new Map<string, string>(); // `${evento}|${patrocinador}` → COTA
+  const quemTemCota = new Map<string, Map<string, string[]>>(); // evento → COTA → patrocinadores
   for (const e of elencos) {
-    if (!elencoDoEvento.has(e.eventId)) elencoDoEvento.set(e.eventId, new Set());
-    elencoDoEvento.get(e.eventId)!.add(e.sponsorId);
     const c = normalizarCota(e.cota);
-    if (c) cotaNoEvento.set(`${e.eventId}|${e.sponsorId}`, c);
+    if (!c) continue;
+    if (!quemTemCota.has(e.eventId)) quemTemCota.set(e.eventId, new Map());
+    const m = quemTemCota.get(e.eventId)!;
+    if (!m.has(c)) m.set(c, []);
+    m.get(c)!.push(e.sponsorId);
   }
 
-  // Rótulos: como cada prefixo aparece escrito.
-  const rotulos = new Map<string, Map<string, number>>();
-  const anotarRotulo = (prefixo: string, tipo: string, palavras: number) => {
-    const r = rotuloDoPrefixo(tipo, palavras);
-    if (!r) return;
-    if (!rotulos.has(prefixo)) rotulos.set(prefixo, new Map());
-    const m = rotulos.get(prefixo)!;
-    m.set(r, (m.get(r) ?? 0) + 1);
-  };
-
-  const pecasDoEvento = new Map<string, Array<{ prefixos: string[]; patrocinadores: Set<string> }>>();
-  const somaEstrutura = new Map<string, { soma: number; n: number }>();
-  for (const p of pecas) {
-    const chave = chaveDoTipo(p.tipo);
-    if (!chave || p.patrocinadores.length === 0) continue;
-    const prefixos = prefixosDaChave(chave);
-    const total = prefixos.length;
-    prefixos.forEach((pre, i) => anotarRotulo(pre, p.tipo, total - i));
-    const dela = new Set(p.patrocinadores);
-    if (!pecasDoEvento.has(p.eventId)) pecasDoEvento.set(p.eventId, []);
-    pecasDoEvento.get(p.eventId)!.push({ prefixos, patrocinadores: dela });
-
-    const elenco = elencoDoEvento.get(p.eventId);
-    if (!elenco || elenco.size < L.estruturaMinPatrocinadoresNoEvento) continue;
-    let dentro = 0;
-    dela.forEach((s) => { if (elenco.has(s)) dentro++; });
-    const cobertura = Math.min(1, dentro / elenco.size);
-    for (const pre of prefixos) {
-      const a = somaEstrutura.get(pre) ?? { soma: 0, n: 0 };
-      a.soma += cobertura; a.n++;
-      somaEstrutura.set(pre, a);
-    }
+  const nomesDoEvento = new Map<string, string[]>();
+  for (const e of elencos) {
+    if (!e.nome) continue;
+    if (!nomesDoEvento.has(e.eventId)) nomesDoEvento.set(e.eventId, []);
+    nomesDoEvento.get(e.eventId)!.push(e.nome);
   }
 
-  const estrutura: Record<string, PadraoDeEstrutura> = {};
-  somaEstrutura.forEach((a, pre) => {
-    if (a.n < L.estruturaMinPecas) return;
-    const cobertura = a.soma / a.n;
-    estrutura[pre] = { pecas: a.n, cobertura: pct(cobertura), rotulo: maisFrequente(rotulos.get(pre), pre), padrao: cobertura >= L.estruturaCobertura };
-  });
-
-  // Cota × tipo, evento a evento.
-  const porCotaTipo = new Map<string, { taxas: number[]; foi: number }>();
-  pecasDoEvento.forEach((lista, eventId) => {
-    const elenco = elencoDoEvento.get(eventId);
-    if (!elenco) return;
-    // As cotas deste evento e quem tem cada uma.
-    const quemTem = new Map<string, string[]>();
-    elenco.forEach((s) => {
-      const c = cotaNoEvento.get(`${eventId}|${s}`);
-      if (!c) return;
-      if (!quemTem.has(c)) quemTem.set(c, []);
-      quemTem.get(c)!.push(s);
-    });
-    if (quemTem.size === 0) return;
-    // Peças por prefixo de tipo.
-    const porPrefixo = new Map<string, Array<Set<string>>>();
-    for (const p of lista) for (const pre of p.prefixos) {
-      if (!porPrefixo.has(pre)) porPrefixo.set(pre, []);
-      porPrefixo.get(pre)!.push(p.patrocinadores);
+  /** Uma tabela (por nome ou por tipo): chave de cada peça → rótulo legível. */
+  const tabela = (chaveDe: (p: PecaDoHistorico) => { chave: string; legivel: string }): Record<string, PadraoDeCota> => {
+    const rotulos = new Map<string, Map<string, number>>();
+    const porEvento = new Map<string, Map<string, Array<Set<string>>>>();
+    for (const p of pecas) {
+      if (p.patrocinadores.length === 0) continue;
+      const { chave, legivel } = chaveDe(p);
+      if (!chave) continue;
+      if (!rotulos.has(chave)) rotulos.set(chave, new Map());
+      const r = rotulos.get(chave)!;
+      r.set(legivel, (r.get(legivel) ?? 0) + 1);
+      if (!porEvento.has(p.eventId)) porEvento.set(p.eventId, new Map());
+      const m = porEvento.get(p.eventId)!;
+      if (!m.has(chave)) m.set(chave, []);
+      m.get(chave)!.push(new Set(p.patrocinadores));
     }
-    quemTem.forEach((donos, cota) => {
-      porPrefixo.forEach((conjuntos, pre) => {
-        let com = 0, total = 0;
-        for (const s of donos) for (const c of conjuntos) { total++; if (c.has(s)) com++; }
-        if (total === 0) return;
-        const taxa = com / total;
-        const k = `${cota}|${pre}`;
-        const a = porCotaTipo.get(k) ?? { taxas: [], foi: 0 };
-        a.taxas.push(taxa);
-        if (taxa >= L.cotaFoiNoEvento) a.foi++;
-        porCotaTipo.set(k, a);
+    const porCota = new Map<string, { taxas: number[]; foi: number }>();
+    porEvento.forEach((chaves, eventId) => {
+      const cotas = quemTemCota.get(eventId);
+      if (!cotas) return;
+      cotas.forEach((donos, cota) => {
+        chaves.forEach((conjuntos, chave) => {
+          let com = 0, total = 0;
+          for (const s of donos) for (const c of conjuntos) { total++; if (c.has(s)) com++; }
+          if (total === 0) return;
+          const taxa = com / total;
+          const k = `${cota}|${chave}`;
+          const a = porCota.get(k) ?? { taxas: [], foi: 0 };
+          a.taxas.push(taxa);
+          if (taxa >= L.cotaFoiNoEvento) a.foi++;
+          porCota.set(k, a);
+        });
       });
     });
-  });
+    const saida: Record<string, PadraoDeCota> = {};
+    porCota.forEach((a, k) => {
+      if (a.taxas.length < L.cotaMinEventos) return;
+      const taxa = a.taxas.reduce((x, y) => x + y, 0) / a.taxas.length;
+      const chave = k.slice(k.indexOf("|") + 1);
+      saida[k] = {
+        eventos: a.taxas.length, comVinculo: a.foi, taxa: pct(taxa),
+        rotulo: maisFrequente(rotulos.get(chave), chave), padrao: taxa >= L.cotaTaxa,
+      };
+    });
+    return saida;
+  };
 
-  const cotaPorTipo: Record<string, PadraoDeCota> = {};
-  porCotaTipo.forEach((a, k) => {
-    if (a.taxas.length < L.cotaMinEventos) return;
-    const taxa = a.taxas.reduce((x, y) => x + y, 0) / a.taxas.length;
-    const pre = k.slice(k.indexOf("|") + 1);
-    cotaPorTipo[k] = {
-      eventos: a.taxas.length, comVinculo: a.foi, taxa: pct(taxa),
-      rotulo: maisFrequente(rotulos.get(pre), pre), padrao: taxa >= L.cotaTaxa,
-    };
-  });
-
-  return { estrutura, cotaPorTipo };
+  return {
+    cotaPorNome: tabela((p) => lerNomeDaPeca(p.descricao, nomesDoEvento.get(p.eventId) ?? [])),
+    cotaPorTipo: tabela((p) => ({ chave: chaveDoTipo(p.tipo), legivel: String(p.tipo).trim() })),
+  };
 }
 
 // ── Cota sugerida ───────────────────────────────────────────────────────────

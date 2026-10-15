@@ -488,7 +488,7 @@ function LinhaDaPecaSemMemo(props: PropsDaLinha) {
               escolhendo à mão: fica só o Descartar. */}
           {faixaDaSugestao && sugeridosAFazer.length > 0 && (() => {
             const nomeDe = new Map(eventSponsors.map((sp) => [sp.id, sp.name]));
-            const grupos = gruposDaSugestao(sugeridosAFazer, nomeDe, eventSponsors.length);
+            const grupos = gruposDaSugestao(sugeridosAFazer, nomeDe);
             return (
               <div
                 role="group"
@@ -499,11 +499,13 @@ function LinhaDaPecaSemMemo(props: PropsDaLinha) {
                 <Selo tom="info" icone={Sparkles} title="Sugestão do histórico — ainda NÃO está vinculado" data-testid={`selo-sugerido-${item.id}`}>
                   Sugerido
                 </Selo>
-                <span className="sug-faixa-texto" title={sugeridosAFazer.map((s) => `${nomeDe.get(s.sponsorId) ?? ''}: ${s.motivo}`).join('\n')}>
+                <span className="sug-faixa-texto" title={sugeridosAFazer.map((s) => (s.regra === 'cota' ? s.motivo : `${nomeDe.get(s.sponsorId) ?? ''}: ${s.motivo}`)).join('\n')}>
+                  {/* POR COTA, em linha: "MASTER: Itaú (14 de 15 eventos) · GOLD: Nike e Gatorade (…)". */}
                   {grupos.map((g, i) => (
-                    <span key={g.motivo} style={{ display: 'block' }} data-testid={i === 0 ? `sugestao-texto-${item.id}` : undefined}>
+                    <span key={g.quem} data-testid={i === 0 ? `sugestao-texto-${item.id}` : undefined}>
+                      {i > 0 && <span aria-hidden="true" style={{ color: T.apoio }}>{' · '}</span>}
                       <strong style={{ fontWeight: FW.forte, color: T.strong }}>{g.quem}</strong>
-                      {' — '}{g.motivo}
+                      {g.motivo.includes('eventos') ? ` (${g.motivo})` : ` — ${g.motivo}`}
                     </span>
                   ))}
                 </span>

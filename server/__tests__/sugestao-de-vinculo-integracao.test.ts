@@ -3,8 +3,9 @@
 // (dono, 15/10: "deixar automático; com base no histórico, via cota, ver
 // padrões").
 //
-// O cenário: quatro eventos passados ensinam o padrão (pórtico leva o elenco;
-// MASTER vai no display; o Itaú é MASTER em todos) e um evento futuro tem a
+// O cenário: quatro eventos passados ensinam o padrão POR PEÇA (MASTER e GOLD
+// vão no Pórtico Chegada; MASTER vai no display; o Itaú é MASTER e a Nike é
+// GOLD em todos) e um evento futuro tem a
 // lista em rascunho. O envio da lista é onde a peça ENTRA na vinculação — e é
 // ali que o automático age, só onde acerta ~100%. O resto vira sugestão, que
 // a tela lê e aplica; o servidor recalcula, não confia na lista do cliente.
@@ -71,12 +72,15 @@ describe.skipIf(!PGLITE_DISPONIVEL)("integração: sugestão de vínculo e vínc
 
     // ── O evento em jogo: Itaú SEM cota neste evento (vem do histórico) ──
     await semearEvento(banco, EV, "MARATONA FUTURA 2099", 40);
+    // Nike com cota GOLD NESTE evento; os outros sem cota (o Itaú a traz do histórico).
     for (const sid of [SP.itau, SP.nike, SP.gat, SP.uni, SP.zeta]) {
-      await banco.consultar(`INSERT INTO event_sponsors (event_id, sponsor_id) VALUES ($1, $2)`, [EV, sid]);
+      await banco.consultar(`INSERT INTO event_sponsors (event_id, sponsor_id, quota) VALUES ($1, $2, $3)`, [EV, sid, sid === SP.nike ? "GOLD" : null]);
     }
     await peca("p-rolo-itau", EV, "Rolo", "Rolo Itaú 2x1", "draft");
     await peca("p-portico", EV, "Pórtico Chegada", "Pórtico chegada Itaú", "draft");
     await peca("p-display", EV, "Display", "Display principal", "draft");
+    // "Pórtico" sozinho NÃO vale por "Pórtico Chegada" (tipo exato, sem grupo).
+    await peca("p-portico-solto", EV, "Pórtico", "Pórtico lateral", "draft");
     await peca("p-itauna", EV, "Rolo", "Rolo Itaúna", "draft");
     await peca("p-molde", EV, "Molde", "Molde Itaú", "draft");
     await peca("p-interna", EV, "Rolo", "Rolo Itaú interno", "draft", { producao_interna: true, instrucoes_grafica: "Imprimir igual ao anterior" });
@@ -111,8 +115,8 @@ describe.skipIf(!PGLITE_DISPONIVEL)("integração: sugestão de vínculo e vínc
     expect(await vinculosDe("p-rolo-itau")).toEqual([SP.itau]);
     // o status NÃO muda além do envio (vincular à mão também não muda)
     expect(await statusDe("p-rolo-itau")).toBe("awaiting_linking");
-    // estrutura, cota, ambíguo, palavra parcial: sugestão, não vínculo
-    for (const id of ["p-portico", "p-display", "p-dois", "p-itauna"]) expect(await vinculosDe(id), id).toEqual([]);
+    // cota, ambíguo, palavra parcial: sugestão, não vínculo
+    for (const id of ["p-portico", "p-display", "p-dois", "p-itauna", "p-portico-solto"]) expect(await vinculosDe(id), id).toEqual([]);
     // as guardas: molde, produção interna, "sem patrocinador", arquivado, já vinculada
     expect(await vinculosDe("p-molde")).toEqual([]);
     expect(await vinculosDe("p-interna")).toEqual([]);
@@ -131,14 +135,24 @@ describe.skipIf(!PGLITE_DISPONIVEL)("integração: sugestão de vínculo e vínc
     expect(r.status, JSON.stringify(r.corpo)).toBe(200);
     const { porPeca, automaticos } = r.corpo;
 
-    // pórtico: o elenco ATIVO inteiro (Zeta está arquivado)
-    expect(porPeca["p-portico"].map((s) => s.sponsorId).sort()).toEqual([SP.gat, SP.itau, SP.nike, SP.uni].sort());
+    // pórtico: COTA POR PEÇA — só quem tem a cota que vai no Pórtico Chegada (MASTER e GOLD);
+    // Gatorade e Unimed não têm cota, Zeta está arquivado
+    expect(porPeca["p-portico"].map((s) => s.sponsorId).sort()).toEqual([SP.itau, SP.nike].sort());
+    // a descrição cita o Itaú, mas a cota pede também a Nike: nada automático
     expect(porPeca["p-portico"].every((s) => !s.automatica)).toBe(true);
-    expect(porPeca["p-portico"].find((s) => s.sponsorId === SP.gat)!.motivo).toBe("Peça de estrutura: leva os patrocinadores do evento");
+    expect(porPeca["p-portico"].find((s) => s.sponsorId === SP.nike)!.motivo).toBe("Nike · GOLD — GOLD vai em Pórtico de chegada (4 de 4 eventos)");
+    // pelo NOME da peça: "Pórtico chegada Itaú" sem o patrocinador = "Pórtico de chegada" do histórico
+    expect(porPeca["p-portico"].find((s) => s.sponsorId === SP.nike)!).toEqual(expect.objectContaining({ base: "nome" }));
+    expect(porPeca["p-portico"].find((s) => s.sponsorId === SP.itau)!.motivo).toBe("O nome está na descrição");
+    // tipo exato: "Pórtico" sozinho não herda nada
+    expect(porPeca["p-portico-solto"]).toBeUndefined();
     // display: MASTER pela cota do HISTÓRICO do Itaú
     expect(porPeca["p-display"]).toEqual([expect.objectContaining({
       sponsorId: SP.itau, regra: "cota",
-      motivo: "MASTER costuma ir em Display (4 de 4 eventos) — cota pelo histórico do patrocinador",
+      cota: "MASTER", cotaDoHistorico: true,
+      // "Display principal" não tem histórico pelo NOME: cai no TIPO exato e diz isso
+      base: "tipo",
+      motivo: "Itaú · MASTER (cota pelo histórico dele; não está no evento) — MASTER vai em Display (4 de 4 eventos), pelo tipo da peça",
     })]);
     // ambíguo: os dois
     expect(porPeca["p-dois"].map((s) => s.sponsorId).sort()).toEqual([SP.itau, SP.nike].sort());
@@ -164,8 +178,8 @@ describe.skipIf(!PGLITE_DISPONIVEL)("integração: sugestão de vínculo e vínc
     );
     expect(r.status, JSON.stringify(r.corpo)).toBe(200);
     expect(r.corpo.aplicadas.map((a) => a.itemId).sort()).toEqual(["p-display", "p-portico"]);
-    expect(r.corpo.vinculos).toBe(5);
-    expect(await vinculosDe("p-portico")).toEqual([SP.gat, SP.itau, SP.nike, SP.uni].sort());
+    expect(r.corpo.vinculos).toBe(3);
+    expect(await vinculosDe("p-portico")).toEqual([SP.itau, SP.nike].sort());
     expect(await vinculosDe("p-display")).toEqual([SP.itau]);
     expect(await vinculosDe("p-ja-tem")).toEqual([SP.gat]);
     expect(await vinculosDe("p-fechado")).toEqual([]);
@@ -174,7 +188,9 @@ describe.skipIf(!PGLITE_DISPONIVEL)("integração: sugestão de vínculo e vínc
     // mesmo tratamento de status da vinculação manual: não muda
     expect(await statusDe("p-portico")).toBe("awaiting_linking");
     const trilha = await banco.consultar<{ details: string }>(`SELECT details FROM audit_logs WHERE entity_id = 'p-display' AND action = 'added'`);
-    expect(trilha[0].details).toMatch(/^Sugestão de vínculo aplicada na peça #\d+: "Itaú" \(MASTER costuma ir em Display/);
+    expect(trilha[0].details).toMatch(/^Sugestão de vínculo aplicada na peça #\d+: /);
+    // o motivo da cota já traz o patrocinador e a cota ("Itaú · MASTER …")
+    expect(trilha[0].details).toContain("Itaú · MASTER (cota pelo histórico dele; não está no evento) — MASTER vai em Display (4 de 4 eventos)");
   });
 
   it("aplicar no evento já realizado responde 409 e não grava", async () => {
@@ -204,7 +220,8 @@ describe.skipIf(!PGLITE_DISPONIVEL)("integração: sugestão de vínculo e vínc
     const r = await app.chamar<Record<string, { cota: string; seguidos: number; eventos: number }>>(USUARIOS.solicitacao, "GET", "/api/cotas-sugeridas");
     expect(r.status).toBe(200);
     expect(r.corpo[SP.itau]).toEqual({ cota: "MASTER", seguidos: 4, eventos: 4 });
-    expect(r.corpo[SP.nike]).toEqual({ cota: "GOLD", seguidos: 4, eventos: 4 });
+    // a Nike tem GOLD também no evento em jogo (o mais recente)
+    expect(r.corpo[SP.nike]).toEqual({ cota: "GOLD", seguidos: 5, eventos: 5 });
     expect(r.corpo[SP.gat]).toBeUndefined();
     const exceto = await app.chamar<Record<string, { seguidos: number }>>(USUARIOS.solicitacao, "GET", "/api/cotas-sugeridas?exceto=ev-hist-4");
     expect(exceto.corpo[SP.itau].seguidos).toBe(3);

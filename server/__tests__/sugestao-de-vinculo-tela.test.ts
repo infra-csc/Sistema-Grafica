@@ -48,12 +48,14 @@ const ITENS = [
   peca("p-rolo", 1003, "Rolo", "Rolo Itaú 2x1", ["s-itau"]),
   peca("p-livre", 1004, "Testeira", "Testeira lateral"),
 ];
-const estrutura = (sponsorId: string) => ({ sponsorId, regra: "estrutura", confianca: 0.93, motivo: "Peça de estrutura: leva os patrocinadores do evento", automatica: false });
+// COTA POR PEÇA: cada patrocinador sugerido pela cota dele naquele tipo de peça.
+const daCota = (sponsorId: string, nome: string, cota: string, taxa: string) =>
+  ({ sponsorId, regra: "cota", confianca: 0.93, cota, motivo: `${nome} · ${cota} — ${cota} vai em Pórtico Larg/Cheg (${taxa} eventos)`, automatica: false });
 const SUGESTOES = {
   e1: {
     porPeca: {
-      "p-portico": SPONSORS.map((s) => estrutura(s.id)),
-      "p-display": [{ sponsorId: "s-itau", regra: "cota", confianca: 0.91, motivo: "MASTER costuma ir em Display (12 de 14 eventos)", automatica: false }],
+      "p-portico": [daCota("s-itau", "Itaú", "MASTER", "14 de 15"), daCota("s-nike", "Nike", "GOLD", "9 de 10"), daCota("s-gat", "Gatorade", "GOLD", "9 de 10")],
+      "p-display": [{ sponsorId: "s-itau", regra: "cota", confianca: 0.91, cota: "MASTER", cotaDoHistorico: true, motivo: "Itaú · MASTER (cota pelo histórico dele; não está no evento) — MASTER vai em Display (12 de 14 eventos)", automatica: false }],
     },
     automaticos: { "p-rolo": [{ sponsorId: "s-itau", motivo: "O nome está na descrição" }] },
   },
@@ -124,10 +126,12 @@ describe("Vincular: sugestão × gravado", () => {
     expect(chip.getAttribute("data-sugerido")).toBe("sugerido");
     expect(chip.getAttribute("aria-checked")).toBe("false");
     expect(chip.style.border).toContain("dashed");
-    expect(chip.getAttribute("title")).toContain("Peça de estrutura");
+    expect(chip.getAttribute("title")).toContain("Nike · GOLD — GOLD vai em Pórtico Larg/Cheg (9 de 10 eventos)");
     const faixa = el('[data-testid="sugestao-p-portico"]')!;
     expect(faixa.textContent).toContain("Sugerido");
-    expect(faixa.textContent).toContain("Todos os 3 — peça de estrutura: leva os patrocinadores do evento");
+    // agrupada por COTA
+    expect(faixa.textContent).toContain("MASTER: Itaú (14 de 15 eventos) · GOLD: Nike e Gatorade (9 de 10 eventos)");
+    expect(faixa.textContent).not.toContain("estrutura");
     expect(el('[data-testid="btn-aceitar-sugestao-p-portico"]')).toBeTruthy();
     // sem sugestão, sem faixa e sem chip tracejado
     expect(el('[data-testid="sugestao-p-livre"]')).toBeNull();
@@ -252,18 +256,29 @@ describe("Formulário do evento: cota sugerida", () => {
 });
 
 describe("a frase da faixa de sugestão", () => {
-  it("agrupa pelo motivo, junta os nomes ambíguos e diz 'Todos' quando é o elenco inteiro", async () => {
+  it("agrupa por COTA, junta os nomes ambíguos e marca a cota que veio do histórico", async () => {
     const { gruposDaSugestao } = await import("@/components/vinculacao/regras");
     const nomes = new Map(SPONSORS.map((s) => [s.id, s.name]));
-    const s = (sponsorId: string, regra: string, motivo: string) => ({ sponsorId, regra, motivo, confianca: 0.5, automatica: false }) as any;
+    const s = (sponsorId: string, regra: string, motivo: string, extra: Record<string, unknown> = {}) => ({ sponsorId, regra, motivo, confianca: 0.5, automatica: false, ...extra }) as any;
     expect(gruposDaSugestao([
       s("s-itau", "nome-na-descricao", "O nome está na descrição, junto com Nike"),
       s("s-nike", "nome-na-descricao", "O nome está na descrição, junto com Itaú"),
-    ], nomes, 3)).toEqual([{ quem: "Itaú e Nike", motivo: "os dois nomes estão na descrição; confira se vão os dois" }]);
-    expect(gruposDaSugestao(SPONSORS.map((x) => s(x.id, "estrutura", "Peça de estrutura: leva os patrocinadores do evento")), nomes, 3))
-      .toEqual([{ quem: "Todos os 3", motivo: "peça de estrutura: leva os patrocinadores do evento" }]);
-    expect(gruposDaSugestao([s("s-itau", "cota", "MASTER costuma ir em Display (12 de 14 eventos) — cota pelo histórico do patrocinador")], nomes, 3))
-      .toEqual([{ quem: "Itaú", motivo: "MASTER costuma ir em Display (12 de 14 eventos); cota pelo histórico" }]);
+    ], nomes)).toEqual([{ quem: "Itaú e Nike", motivo: "os dois nomes estão na descrição; confira se vão os dois" }]);
+    // a ordem é a das cotas (MASTER, GOLD, …), não a de chegada
+    expect(gruposDaSugestao([
+      s("s-gat", "cota", "Gatorade · GOLD — GOLD vai em Palco (5 de 6 eventos)", { cota: "GOLD" }),
+      s("s-itau", "cota", "Itaú · MASTER (cota pelo histórico dele; não está no evento) — MASTER vai em Palco (8 de 8 eventos)", { cota: "MASTER", cotaDoHistorico: true }),
+      s("s-nike", "cota", "Nike · GOLD — GOLD vai em Palco (5 de 6 eventos)", { cota: "GOLD" }),
+    ], nomes)).toEqual([
+      { quem: "MASTER: Itaú (cota do histórico)", motivo: "8 de 8 eventos" },
+      { quem: "GOLD: Gatorade e Nike", motivo: "5 de 6 eventos" },
+    ]);
+    // sem histórico do NOME, o motivo diz que veio do TIPO
+    expect(gruposDaSugestao([s("s-itau", "cota", "Itaú · MASTER — MASTER vai em Display (5 de 5 eventos), pelo tipo da peça", { cota: "MASTER" })], nomes))
+      .toEqual([{ quem: "MASTER: Itaú", motivo: "5 de 5 eventos, pelo tipo da peça" }]);
+    // regra de "Configurar cotas"
+    expect(gruposDaSugestao([s("s-nike", "cota", "Nike · GOLD — Configurar cotas do evento: GOLD vai em Palco", { cota: "GOLD" })], nomes))
+      .toEqual([{ quem: "GOLD: Nike", motivo: "regra de Configurar cotas" }]);
   });
 
   it("o cabeçalho da tela conta as pendentes com sugestão", async () => {

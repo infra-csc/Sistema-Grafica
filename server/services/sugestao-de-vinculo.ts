@@ -50,25 +50,27 @@ export interface HistoricoDeVinculos {
 /** Lê o histórico do banco: peças vinculadas que contam e todos os elencos com a data do evento. */
 export async function lerHistoricoDeVinculos(): Promise<HistoricoDeVinculos> {
   const [linhas, elencoRows] = await Promise.all([
-    db.select({ itemId: items.id, eventId: items.eventId, tipo: items.type, sponsorId: itemSponsors.sponsorId, status: items.status })
+    db.select({ itemId: items.id, eventId: items.eventId, tipo: items.type, descricao: items.description, sponsorId: itemSponsors.sponsorId, status: items.status })
       .from(itemSponsors)
       .innerJoin(items, eq(items.id, itemSponsors.itemId))
       .where(and(isNull(items.deletedAt), eq(items.producaoInterna, false), eq(items.skipApproval, false))),
-    db.select({ eventId: eventSponsors.eventId, sponsorId: eventSponsors.sponsorId, cota: eventSponsors.quota, inicio: events.startDate, criado: eventSponsors.createdAt })
+    // O NOME do patrocinador vem junto: o nome da peça é lido SEM os patrocinadores do evento ("2x1 BB Seguros" → "2x1").
+    db.select({ eventId: eventSponsors.eventId, sponsorId: eventSponsors.sponsorId, cota: eventSponsors.quota, inicio: events.startDate, criado: eventSponsors.createdAt, nome: sponsors.name })
       .from(eventSponsors)
-      .innerJoin(events, eq(events.id, eventSponsors.eventId)),
+      .innerJoin(events, eq(events.id, eventSponsors.eventId))
+      .innerJoin(sponsors, eq(sponsors.id, eventSponsors.sponsorId)),
   ]);
   const fora = new Set<string>(FORA_DO_HISTORICO);
   const porPeca = new Map<string, PecaDoHistorico>();
   for (const l of linhas) {
     if (fora.has(l.status) || ehTipoMolde(l.tipo)) continue;
-    const p = porPeca.get(l.itemId) ?? { eventId: l.eventId, tipo: l.tipo, patrocinadores: [] };
+    const p = porPeca.get(l.itemId) ?? { eventId: l.eventId, tipo: l.tipo, descricao: l.descricao, patrocinadores: [] };
     if (!p.patrocinadores.includes(l.sponsorId)) p.patrocinadores.push(l.sponsorId);
     porPeca.set(l.itemId, p);
   }
   return {
     pecas: Array.from(porPeca.values()),
-    elencos: elencoRows.map((e) => ({ eventId: e.eventId, sponsorId: e.sponsorId, cota: e.cota })),
+    elencos: elencoRows.map((e) => ({ eventId: e.eventId, sponsorId: e.sponsorId, cota: e.cota, nome: e.nome })),
     cotasNoTempo: elencoRows.map((e) => ({
       eventId: e.eventId, sponsorId: e.sponsorId, cota: e.cota,
       quando: new Date(e.inicio ?? e.criado ?? 0).getTime(),
@@ -311,7 +313,7 @@ export async function aplicarSugestoes(
     aplicadas.push({ itemId: peca.id, displayId: peca.displayId, sponsorIds });
     trilha.push({
       action: "added", entityType: "item", entityId: peca.id,
-      details: `Sugestão de vínculo aplicada na peça ${peca.displayId}: ${sugestoes.map((s) => `"${nomes.get(s.sponsorId) ?? s.sponsorId}" (${s.motivo})`).join("; ")}`,
+      details: `Sugestão de vínculo aplicada na peça ${peca.displayId}: ${sugestoes.map((s) => (s.regra === "cota" ? s.motivo : `"${nomes.get(s.sponsorId) ?? s.sponsorId}" (${s.motivo})`)).join("; ")}`,
     });
   });
   if (pares.length === 0) return { aplicadas: [], vinculos: 0 };

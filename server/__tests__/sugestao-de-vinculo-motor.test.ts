@@ -1,13 +1,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // SUGESTÃO DE VÍNCULO — O MOTOR E O APRENDIZADO (dono, 15/10).
 //
-// O motor é puro (@shared/sugestao-de-vinculo): estes testes prendem as três
-// regras, o que vira AUTOMÁTICO (só o nome único, sem nada mais na peça), o
-// aprendizado com dados sintéticos e a cota sugerida.
+// O motor é puro (@shared/sugestao-de-vinculo): estes testes prendem as duas
+// regras (nome na descrição e COTA POR PEÇA), o que vira AUTOMÁTICO (só o nome
+// único, sem cota pedindo outro), o aprendizado pelo TIPO EXATO da peça (sem
+// cair no grupo) e a cota sugerida. A antiga regra "estrutura" saiu (dono:
+// "as sugestões têm que ser pela peça de cota, não grupo").
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import * as Motor from "@shared/sugestao-de-vinculo";
 import {
-  aprenderPadroes, chaveDoTipo, nomeNaDescricao, normalizarCota, prefixosDaChave, sugerirCotas,
+  aprenderPadroes, lerNomeDaPeca, chaveDoNome, chaveDoTipo, nomeNaDescricao, normalizarCota, sugerirCotas,
   sugerirVinculos, textoDaCotaSugerida, LIMIARES_DE_VINCULO, PADROES_VAZIOS,
   type PadroesDeVinculo, type PatrocinadorDoEvento, type PecaDoHistorico, type ElencoDoHistorico,
 } from "@shared/sugestao-de-vinculo";
@@ -41,32 +44,34 @@ describe("a chave do tipo", () => {
     expect(chaveDoTipo("Quadros 4x3")).toBe(chaveDoTipo("quadro 4x3"));
     expect(chaveDoTipo("Faixa de Chegada")).toBe("faixa chegada");
     expect(chaveDoTipo("Pórtico (larg/cheg)")).toBe("portico larg cheg");
+    expect(chaveDoTipo("Pórtico Larg/Cheg")).toBe(chaveDoTipo("pórticos larg / cheg"));
     expect(chaveDoTipo("2x1 padrão")).toBe("2x1 padrao");
-  });
-  it("prefixos do mais longo ao mais curto", () => {
-    expect(prefixosDaChave("portico chegada largada")).toEqual(["portico chegada largada", "portico chegada", "portico"]);
   });
   it("cota normalizada", () => {
     expect(normalizarCota("Ministério")).toBe("MINISTERIO");
     expect(normalizarCota("  ")).toBeNull();
   });
+  it("a regra 'estrutura' e o casamento por prefixo do aprendido saíram do motor", () => {
+    expect("prefixosDaChave" in Motor).toBe(false);
+    expect(Object.keys(PADROES_VAZIOS)).toEqual(["cotaPorNome", "cotaPorTipo"]);
+    expect(Object.keys(LIMIARES_DE_VINCULO).some((k) => k.startsWith("estrutura"))).toBe(false);
+  });
 });
 
 describe("as regras do motor", () => {
+  // Sem histórico de NOME aqui: tudo cai no TIPO exato (e o motivo diz isso).
   const padroes: PadroesDeVinculo = {
-    estrutura: {
-      portico: { pecas: 40, cobertura: 0.93, rotulo: "Pórtico", padrao: true },
-      testeira: { pecas: 30, cobertura: 0.3, rotulo: "Testeira", padrao: false },
-      "testeira portico": { pecas: 12, cobertura: 0.9, rotulo: "Testeira Pórtico", padrao: true },
-    },
+    cotaPorNome: {},
     cotaPorTipo: {
       "MASTER|display": { eventos: 14, comVinculo: 12, taxa: 0.91, rotulo: "Display", padrao: true },
+      "MASTER|portico larg cheg": { eventos: 15, comVinculo: 14, taxa: 0.95, rotulo: "Pórtico Larg/Cheg", padrao: true },
+      "GOLD|portico larg cheg": { eventos: 10, comVinculo: 9, taxa: 0.88, rotulo: "Pórtico Larg/Cheg", padrao: true },
       "MASTER|rolo": { eventos: 14, comVinculo: 1, taxa: 0.2, rotulo: "Rolo", padrao: false },
     },
   };
-  const elenco: PatrocinadorDoEvento[] = [{ ...ITAU, cota: "MASTER" }, NIKE, GAT, BB];
+  const elenco: PatrocinadorDoEvento[] = [{ ...ITAU, cota: "MASTER" }, { ...NIKE, cota: "GOLD" }, { ...GAT, cota: "GOLD" }, BB];
 
-  it("UM nome na descrição de peça comum: automática", () => {
+  it("UM nome na descrição de peça sem cota pedindo outro: automática", () => {
     const s = sugerirVinculos({ tipo: "Rolo", descricao: "Rolo Nike 2x1" }, elenco, padroes);
     expect(s).toEqual([expect.objectContaining({ sponsorId: "nike", regra: "nome-na-descricao", automatica: true, motivo: "O nome está na descrição" })]);
   });
@@ -78,23 +83,20 @@ describe("as regras do motor", () => {
     expect(s[0].motivo).toMatch(/junto com/);
   });
 
-  it("estrutura leva o elenco; o nome NÃO vira automático numa peça de estrutura", () => {
-    const s = sugerirVinculos({ tipo: "Pórtico Chegada", descricao: "Pórtico chegada Nike" }, elenco, padroes);
-    expect(s.map((x) => x.sponsorId).sort()).toEqual(["bb", "gat", "itau", "nike"]);
-    expect(s.every((x) => !x.automatica)).toBe(true);
-    const gat = s.find((x) => x.sponsorId === "gat")!;
-    expect(gat.regra).toBe("estrutura");
-    expect(gat.motivo).toBe("Peça de estrutura: leva os patrocinadores do evento");
+  it("COTA POR PEÇA: no pórtico vão as cotas que vão no pórtico — não o elenco inteiro", () => {
+    const s = sugerirVinculos({ tipo: "Pórtico Larg/Cheg", descricao: "Pórtico de chegada" }, elenco, padroes);
+    expect(s.map((x) => x.sponsorId).sort()).toEqual(["gat", "itau", "nike"]); // BB não tem cota: fica de fora
+    expect(s.every((x) => x.regra === "cota" && !x.automatica)).toBe(true);
+    const itau = s.find((x) => x.sponsorId === "itau")!;
+    expect(itau.motivo).toBe("Itaú · MASTER — MASTER vai em Pórtico Larg/Cheg (14 de 15 eventos), pelo tipo da peça");
+    expect(itau.cota).toBe("MASTER");
+    expect(s.find((x) => x.sponsorId === "nike")!.motivo).toBe("Nike · GOLD — GOLD vai em Pórtico Larg/Cheg (9 de 10 eventos), pelo tipo da peça");
   });
 
-  it("a chave mais específica com dado decide: 'testeira portico' é estrutura, 'testeira' não", () => {
-    expect(sugerirVinculos({ tipo: "Testeira Pórtico Largada", descricao: "" }, elenco, padroes)).toHaveLength(4);
-    expect(sugerirVinculos({ tipo: "Testeira", descricao: "" }, elenco, padroes)).toHaveLength(0);
-  });
-
-  it("cota aprendida: MASTER em Display, com a frase do histórico", () => {
-    const s = sugerirVinculos({ tipo: "Display 1x2", descricao: "Display entrada" }, elenco, padroes);
-    expect(s).toEqual([expect.objectContaining({ sponsorId: "itau", regra: "cota", confianca: 0.91, automatica: false, motivo: "MASTER costuma ir em Display (12 de 14 eventos)" })]);
+  it("tipo EXATO: 'Pórtico' não vale por 'Pórtico Larg/Cheg', nem 'Display 1x2' por 'Display'", () => {
+    expect(sugerirVinculos({ tipo: "Pórtico", descricao: "" }, elenco, padroes)).toEqual([]);
+    expect(sugerirVinculos({ tipo: "Display 1x2", descricao: "" }, elenco, padroes)).toEqual([]);
+    expect(sugerirVinculos({ tipo: "Displays", descricao: "" }, elenco, padroes).map((x) => x.sponsorId)).toEqual(["itau"]);
   });
 
   it("cota abaixo do limiar não sugere (MASTER em Rolo)", () => {
@@ -110,20 +112,20 @@ describe("as regras do motor", () => {
   it("cota vinda do histórico vale com confiança menor e diz de onde veio", () => {
     const s = sugerirVinculos({ tipo: "Display", descricao: "" }, [{ ...ITAU, cota: "MASTER", cotaDoHistorico: true }], padroes);
     expect(s[0].confianca).toBeCloseTo(0.91 * 0.9, 3);
-    expect(s[0].motivo).toMatch(/cota pelo histórico/);
+    expect(s[0].cotaDoHistorico).toBe(true);
+    expect(s[0].motivo).toBe("Itaú · MASTER (cota pelo histórico dele; não está no evento) — MASTER vai em Display (12 de 14 eventos), pelo tipo da peça");
   });
 
-  it("regra MANUAL de cota entra como 'cota', pelo prefixo do tipo", () => {
+  it("regra MANUAL de cota (Configurar cotas) continua valendo, com o casamento daquela tela", () => {
     const s = sugerirVinculos(
       { tipo: "Palco Lateral", descricao: "" },
       [{ ...NIKE, cota: "Gold" }],
       PADROES_VAZIOS,
       [{ cota: "GOLD", tipos: ["Palco"], origem: "evento" }],
     );
-    expect(s).toEqual([expect.objectContaining({ sponsorId: "nike", regra: "cota", motivo: "Regra de cota do evento: GOLD leva Palco" })]);
-    // "Palcos" não casa com "Palco Lateral"? Casa: plural vira singular.
+    expect(s).toEqual([expect.objectContaining({ sponsorId: "nike", regra: "cota", cota: "GOLD", motivo: "Nike · GOLD — Configurar cotas do evento: GOLD vai em Palco" })]);
     expect(sugerirVinculos({ tipo: "Palco Lateral", descricao: "" }, [{ ...NIKE, cota: "GOLD" }], PADROES_VAZIOS,
-      [{ cota: "GOLD", tipos: ["Palcos"], origem: "geral" }])[0].motivo).toBe("Regra de cota geral: GOLD leva Palcos");
+      [{ cota: "GOLD", tipos: ["Palcos"], origem: "geral" }])[0].motivo).toBe("Nike · GOLD — Configurar cotas: GOLD vai em Palcos");
   });
 
   it("sem elenco, nada", () => {
@@ -131,8 +133,8 @@ describe("as regras do motor", () => {
   });
 });
 
-describe("o aprendizado (dados sintéticos)", () => {
-  // 4 eventos, 4 patrocinadores cada; A é MASTER em todos.
+describe("o aprendizado cota × tipo da peça (dados sintéticos)", () => {
+  // 4 eventos, 4 patrocinadores cada; A é MASTER e B é GOLD em todos.
   const eventos = ["e1", "e2", "e3", "e4"];
   const elencos: ElencoDoHistorico[] = eventos.flatMap((e) => [
     { eventId: e, sponsorId: "A", cota: "MASTER" },
@@ -141,10 +143,11 @@ describe("o aprendizado (dados sintéticos)", () => {
     { eventId: e, sponsorId: "D", cota: null },
   ]);
   const pecas: PecaDoHistorico[] = eventos.flatMap((e) => [
-    // 3 pórticos por evento com o elenco quase todo → 12 peças, cobertura 0,94
-    { eventId: e, tipo: "Pórtico Chegada", patrocinadores: ["A", "B", "C", "D"] },
-    { eventId: e, tipo: "Pórtico de Chegada", patrocinadores: ["A", "B", "C", "D"] },
-    { eventId: e, tipo: "Pórticos Chegada", patrocinadores: ["A", "B", "C"] },
+    // pórtico larg/cheg: MASTER e GOLD sempre (com grafias diferentes)
+    { eventId: e, tipo: "Pórtico Larg/Cheg", patrocinadores: ["A", "B", "C"] },
+    { eventId: e, tipo: "Pórticos larg / cheg", patrocinadores: ["A", "B", "D"] },
+    // "Pórtico" sozinho: só o C — não herda nada do Larg/Cheg
+    { eventId: e, tipo: "Pórtico", patrocinadores: ["C"] },
     // display só do MASTER
     { eventId: e, tipo: "Display", patrocinadores: ["A"] },
     { eventId: e, tipo: "display", patrocinadores: ["A"] },
@@ -153,40 +156,95 @@ describe("o aprendizado (dados sintéticos)", () => {
   ]);
   const p = aprenderPadroes(pecas, elencos);
 
-  it("estrutura: tipo com ≥ 10 peças e cobertura ≥ 0,8", () => {
-    expect(p.estrutura["portico chegada"]).toEqual(expect.objectContaining({ pecas: 12, padrao: true }));
-    expect(p.estrutura["portico chegada"].cobertura).toBeCloseTo((8 * 1 + 4 * 0.75) / 12, 3);
-    expect(p.estrutura["portico chegada"].rotulo).toBe("Pórtico Chegada");
-    // o prefixo de uma palavra também aprende, com o rótulo de uma palavra
-    expect(p.estrutura["portico"].rotulo).toBe("Pórtico");
-    // rolo: 16 peças, cobertura 0,25 — entra (dado suficiente) mas não é padrão
-    expect(p.estrutura["rolo"]).toEqual(expect.objectContaining({ pecas: 16, padrao: false }));
-    // display: só 8 peças — nem entra
-    expect(p.estrutura["display"]).toBeUndefined();
+  it("aprende pelo tipo exato, juntando as grafias", () => {
+    expect(p.cotaPorTipo["MASTER|portico larg cheg"]).toEqual(expect.objectContaining({ eventos: 4, comVinculo: 4, taxa: 1, padrao: true }));
+    expect(p.cotaPorTipo["GOLD|portico larg cheg"]).toEqual(expect.objectContaining({ taxa: 1, padrao: true }));
+    expect(p.cotaPorTipo["MASTER|portico larg cheg"].rotulo).toBe("Pórtico Larg/Cheg");
+    expect(p.cotaPorTipo["MASTER|display"]).toEqual(expect.objectContaining({ eventos: 4, comVinculo: 4, taxa: 1, padrao: true, rotulo: "Display" }));
   });
 
-  it("cota × tipo: taxa ≥ 0,8 em ≥ 3 eventos", () => {
-    expect(p.cotaPorTipo["MASTER|display"]).toEqual(expect.objectContaining({ eventos: 4, comVinculo: 4, taxa: 1, padrao: true, rotulo: "Display" }));
+  it("sem cair no grupo: 'Pórtico' tem a sua própria conta (e MASTER não vai nele)", () => {
+    expect(p.cotaPorTipo["MASTER|portico"]).toEqual(expect.objectContaining({ taxa: 0, padrao: false }));
     expect(p.cotaPorTipo["MASTER|rolo"]).toEqual(expect.objectContaining({ eventos: 4, padrao: false }));
     expect(p.cotaPorTipo["GOLD|display"]).toEqual(expect.objectContaining({ taxa: 0, padrao: false }));
     // patrocinador sem cota no evento não ensina cota
-    expect(Object.keys(p.cotaPorTipo).some((k) => k.startsWith("null"))).toBe(false);
+    expect(Object.keys(p.cotaPorTipo).every((k) => /^(MASTER|GOLD)\|/.test(k))).toBe(true);
   });
 
-  it("menos de 3 eventos não ensina cota; evento com < 3 patrocinadores não ensina estrutura", () => {
+  it("menos de 3 eventos não ensina", () => {
     const pouco = aprenderPadroes(pecas.filter((x) => x.eventId !== "e3" && x.eventId !== "e4"), elencos);
     expect(pouco.cotaPorTipo["MASTER|display"]).toBeUndefined();
-    const doisPatrocinadores = aprenderPadroes(
-      Array.from({ length: 12 }, () => ({ eventId: "x", tipo: "Rolo", patrocinadores: ["A"] })),
-      [{ eventId: "x", sponsorId: "A", cota: null }, { eventId: "x", sponsorId: "B", cota: null }],
-    );
-    expect(doisPatrocinadores.estrutura["rolo"]).toBeUndefined();
   });
 
-  it("o motor com o aprendido: pórtico novo leva o elenco; display leva o MASTER", () => {
-    const elenco: PatrocinadorDoEvento[] = [{ id: "A", nome: "Alfa", cota: "MASTER" }, { id: "B", nome: "Beta" }, { id: "C", nome: "Gama" }];
-    expect(sugerirVinculos({ tipo: "Pórtico Chegada 2", descricao: "" }, elenco, p).map((s) => s.sponsorId).sort()).toEqual(["A", "B", "C"]);
+  it("o motor com o aprendido: o pórtico larg/cheg leva MASTER e GOLD; o 'Pórtico' não leva ninguém", () => {
+    const elenco: PatrocinadorDoEvento[] = [{ id: "A", nome: "Alfa", cota: "MASTER" }, { id: "B", nome: "Beta", cota: "GOLD" }, { id: "C", nome: "Gama" }];
+    expect(sugerirVinculos({ tipo: "Pórtico larg/cheg", descricao: "" }, elenco, p).map((s) => s.sponsorId).sort()).toEqual(["A", "B"]);
+    expect(sugerirVinculos({ tipo: "Pórtico", descricao: "" }, elenco, p)).toEqual([]);
     expect(sugerirVinculos({ tipo: "Display", descricao: "" }, elenco, p).map((s) => s.sponsorId)).toEqual(["A"]);
+  });
+});
+
+describe("o NOME da peça (dono: 'pegar o NOME da peça e fazer a análise de cota por peça')", () => {
+  const SP = ["BB Seguros", "Itaú"];
+  it("tira patrocinador, numeração, medida, lado e preposição; dimensão sozinha é o nome", () => {
+    expect(chaveDoNome("2x1 BB Seguros", SP)).toBe("2x1");
+    expect(chaveDoNome("Testeira BB Seguros", SP)).toBe("testeira");
+    expect(chaveDoNome("Quadro fotos 1", SP)).toBe(chaveDoNome("Quadro de Fotos 6", SP));
+    expect(chaveDoNome("Quadro de Fotos 6", SP)).toBe("quadro foto");
+    expect(chaveDoNome("Painel 9x6", SP)).toBe("painel");
+    expect(chaveDoNome("Placa 4,0 x 3,0 Itaú", SP)).toBe("placa");
+    expect(chaveDoNome("Lateral dir Pórtico Largada", SP)).toBe("lateral portico largada");
+    expect(chaveDoNome("Lateral esq Pórtico Largada", SP)).toBe("lateral portico largada");
+    expect(chaveDoNome("Testeira Pórtico Chegada", SP)).toBe("testeira portico chegada");
+    expect(chaveDoNome("Aplique1", SP)).toBe("aplique");
+    expect(chaveDoNome("Aplique2", SP)).toBe("aplique");
+    expect(chaveDoNome("Lado A - Backdrop", SP)).toBe("backdrop");
+    expect(chaveDoNome("", SP)).toBe("");
+  });
+  it("o legível guarda acento, caixa e a preposição do meio", () => {
+    expect(lerNomeDaPeca("Quadro de Fotos 6", SP).legivel).toBe("Quadro de Fotos");
+    expect(lerNomeDaPeca("Lateral dir Pórtico Largada", SP).legivel).toBe("Lateral Pórtico Largada");
+  });
+
+  it("aprende por nome (sem o patrocinador no nome) e o motor usa o nome antes do tipo", () => {
+    const eventos = ["e1", "e2", "e3"];
+    const elencos: ElencoDoHistorico[] = eventos.flatMap((e) => [
+      { eventId: e, sponsorId: "A", cota: "MASTER", nome: "Itaú" },
+      { eventId: e, sponsorId: "B", cota: "GOLD", nome: "BB Seguros" },
+    ]);
+    const pecas: PecaDoHistorico[] = eventos.flatMap((e, i) => [
+      // mesmo TIPO "Testeira", nomes diferentes: a do pórtico leva MASTER e GOLD…
+      { eventId: e, tipo: "Testeira", descricao: `Testeira Pórtico Chegada ${i + 1}`, patrocinadores: ["A", "B"] },
+      // …a "Testeira BB Seguros" leva só o GOLD
+      { eventId: e, tipo: "Testeira", descricao: "Testeira BB Seguros", patrocinadores: ["B"] },
+    ]);
+    const p = aprenderPadroes(pecas, elencos);
+    expect(p.cotaPorNome["MASTER|testeira portico chegada"]).toEqual(expect.objectContaining({ eventos: 3, comVinculo: 3, taxa: 1, padrao: true, rotulo: "Testeira Pórtico Chegada" }));
+    expect(p.cotaPorNome["MASTER|testeira"]).toEqual(expect.objectContaining({ taxa: 0, padrao: false }));
+    expect(p.cotaPorNome["GOLD|testeira"]).toEqual(expect.objectContaining({ taxa: 1, padrao: true }));
+    // pelo TIPO, as duas se misturam (MASTER em metade): não passa
+    expect(p.cotaPorTipo["MASTER|testeira"]).toEqual(expect.objectContaining({ taxa: 0.5, padrao: false }));
+
+    const elenco: PatrocinadorDoEvento[] = [{ id: "A", nome: "Itaú", cota: "MASTER" }, { id: "B", nome: "BB Seguros", cota: "GOLD" }];
+    const portico = sugerirVinculos({ tipo: "Testeira", descricao: "Testeira Pórtico Chegada 4" }, elenco, p);
+    expect(portico.map((s) => s.sponsorId).sort()).toEqual(["A", "B"]);
+    const itau = portico.find((s) => s.sponsorId === "A")!;
+    expect(itau.base).toBe("nome");
+    expect(itau.motivo).toBe("Itaú · MASTER — MASTER vai em Testeira Pórtico Chegada (3 de 3 eventos)");
+    // o nome com histórico DECIDE, mesmo dizendo "não": a testeira do patrocinador não leva o MASTER
+    const doBB = sugerirVinculos({ tipo: "Testeira", descricao: "Testeira BB Seguros" }, elenco, p);
+    expect(doBB.map((s) => s.sponsorId)).toEqual(["B"]);
+  });
+
+  it("sem histórico do NOME, cai no TIPO exato e diz 'pelo tipo da peça' — nunca no grupo", () => {
+    const padroes: PadroesDeVinculo = {
+      cotaPorNome: {},
+      cotaPorTipo: { "MASTER|display": { eventos: 5, comVinculo: 5, taxa: 1, rotulo: "Display", padrao: true } },
+    };
+    const elenco: PatrocinadorDoEvento[] = [{ id: "A", nome: "Itaú", cota: "MASTER" }];
+    const s = sugerirVinculos({ tipo: "Display", descricao: "Display novo da arena" }, elenco, padroes);
+    expect(s[0]).toEqual(expect.objectContaining({ base: "tipo", motivo: "Itaú · MASTER — MASTER vai em Display (5 de 5 eventos), pelo tipo da peça" }));
+    expect(sugerirVinculos({ tipo: "Display Lateral", descricao: "Display novo" }, elenco, padroes)).toEqual([]);
   });
 });
 

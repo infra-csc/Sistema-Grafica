@@ -127,43 +127,66 @@ export function achatarSugestoes(cru: unknown): {
   return { porPeca, automaticos };
 }
 
-const SUFIXO_DO_HISTORICO = " — cota pelo histórico do patrocinador";
-const AMBIGUO = "__nomes-na-descricao";
-
 const listaDeNomes = (nomes: string[]): string => {
   if (nomes.length <= 1) return nomes[0] ?? "";
   if (nomes.length <= 3) return `${nomes.slice(0, -1).join(", ")} e ${nomes[nomes.length - 1]}`;
   return `${nomes.slice(0, 2).join(", ")} e mais ${nomes.length - 2}`;
 };
 
-/** "MASTER costuma…" fica; "Peça de estrutura…" vira "peça de estrutura…" depois do travessão. */
-const continuaFrase = (m: string) => (/^[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{2,}\b/.test(m) ? m : m.charAt(0).toLowerCase() + m.slice(1));
+/** A ordem das cotas na faixa: a de sempre do cadastro; as outras, por nome. */
+const ORDEM_DAS_COTAS = ["MASTER", "GOLD", "SILVER", "APOIO", "MIDIA", "MINISTERIO"];
 
 /**
- * A FRASE DA FAIXA DE SUGESTÃO: os patrocinadores agrupados pelo MOTIVO —
- * "Todos os 6 — peça de estrutura…", "Itaú — MASTER costuma ir em Display
- * (12 de 14 eventos)". Dois nomes na descrição viram um grupo só ("os dois
- * nomes estão na descrição; confira se vão os dois"), em vez de cada um dizer
- * "junto com o outro".
+ * A FRASE DA FAIXA DE SUGESTÃO, AGRUPADA POR COTA (dono, 15/10: "as sugestões
+ * têm que ser pela peça de cota, não grupo"):
+ *
+ *   MASTER: Itaú (14 de 15 eventos) · GOLD: Nike e Gatorade (9 de 10 eventos)
+ *
+ * O tipo da peça não se repete (está na própria linha); o detalhe é quantos
+ * eventos sustentam a cota naquele tipo, ou a regra de "Configurar cotas".
+ *
+ * O patrocinador cuja cota veio do histórico (não está no evento) leva a
+ * marca "(cota do histórico)" ao lado do nome. Os nomes na descrição vêm
+ * antes, num grupo próprio; dois nomes juntos pedem conferência.
  */
 export function gruposDaSugestao(
   sugestoes: SugestaoDaPeca[],
   nomeDe: Map<string, string>,
-  tamanhoDoElenco: number,
 ): Array<{ quem: string; motivo: string }> {
-  const grupos = new Map<string, string[]>();
+  const nomesNaDescricao: string[] = [];
+  let ambiguo = false;
+  const porCota = new Map<string, { cota: string; detalhe: string; nomes: string[] }>();
   for (const s of sugestoes) {
-    const ambiguo = s.regra === "nome-na-descricao" && !s.automatica && s.motivo !== "O nome está na descrição";
-    const chave = ambiguo ? AMBIGUO : s.motivo.replace(SUFIXO_DO_HISTORICO, "; cota pelo histórico");
     const nome = nomeDe.get(s.sponsorId);
     if (!nome) continue;
-    if (!grupos.has(chave)) grupos.set(chave, []);
-    grupos.get(chave)!.push(nome);
+    if (s.regra === "nome-na-descricao") {
+      nomesNaDescricao.push(nome);
+      if (s.motivo !== "O nome está na descrição") ambiguo = true;
+      continue;
+    }
+    const cota = s.cota ?? "COTA";
+    // "Itaú · MASTER — MASTER vai em Display (12 de 14 eventos)" → "vai em Display (12 de 14 eventos)"
+    const depois = s.motivo.includes(" — ") ? s.motivo.slice(s.motivo.indexOf(" — ") + 3) : s.motivo;
+    const semCota = depois.startsWith(`${cota} `) ? depois.slice(cota.length + 1) : depois;
+    // "(12 de 13 eventos)" — e ", pelo tipo da peça" quando o nome não tinha histórico.
+    const eventos = /\((\d+ de \d+ eventos)\)(, pelo tipo da peça)?$/.exec(semCota);
+    const detalhe = eventos ? `${eventos[1]}${eventos[2] ?? ""}` : semCota.startsWith("Configurar cotas") ? "regra de Configurar cotas" : semCota;
+    const chave = `${cota}|${detalhe}`;
+    if (!porCota.has(chave)) porCota.set(chave, { cota, detalhe, nomes: [] });
+    porCota.get(chave)!.nomes.push(s.cotaDoHistorico ? `${nome} (cota do histórico)` : nome);
   }
-  return Array.from(grupos.entries()).map(([chave, nomes]) => ({
-    quem: nomes.length === tamanhoDoElenco && nomes.length > 2 ? `Todos os ${nomes.length}` : listaDeNomes(nomes),
-    motivo: chave === AMBIGUO
-      ? (nomes.length === 2 ? "os dois nomes estão na descrição; confira se vão os dois" : "os nomes estão na descrição; confira quais vão")
-      : continuaFrase(chave),
-  }));
+  const grupos: Array<{ quem: string; motivo: string }> = [];
+  if (nomesNaDescricao.length > 0) {
+    grupos.push({
+      quem: listaDeNomes(nomesNaDescricao),
+      motivo: !ambiguo
+        ? "o nome está na descrição"
+        : nomesNaDescricao.length === 2 ? "os dois nomes estão na descrição; confira se vão os dois" : "os nomes estão na descrição; confira quais vão",
+    });
+  }
+  const posicao = (c: string) => { const i = ORDEM_DAS_COTAS.indexOf(c); return i < 0 ? ORDEM_DAS_COTAS.length : i; };
+  Array.from(porCota.values())
+    .sort((a, b) => posicao(a.cota) - posicao(b.cota) || a.cota.localeCompare(b.cota))
+    .forEach((g) => grupos.push({ quem: `${g.cota}: ${listaDeNomes(g.nomes)}`, motivo: g.detalhe }));
+  return grupos;
 }

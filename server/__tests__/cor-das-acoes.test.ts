@@ -88,3 +88,52 @@ describe("a Gráfica usa os tokens", () => {
     expect(ler("client/src/components/grafica/modais/modal-da-peca.tsx")).toContain("...tintaDaAcao(ACAO.embalar)");
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COERÊNCIA NO APP INTEIRO (dono aprovou, 15/10): a mesma ação, a mesma cor.
+describe("a mesma ação tem a mesma cor em todas as telas", () => {
+  it("Reaproveitar é esmeralda também na Revisão Final (o verde ficou com o Entregar)", () => {
+    expect(ler("client/src/components/revisao/estilos.ts")).toContain('color: TOM.esmeralda.text, border: `1px solid ${TOM.esmeralda.border}`');
+    expect(ler("client/src/components/revisao/barra-do-lote.tsx")).toContain("backgroundColor: TOM.esmeralda.bg, color: TOM.esmeralda.text");
+    expect(ler("client/src/components/revisao/dialogo-reaproveitamento.tsx")).toContain('tom="esmeralda"');
+    expect(ler("client/src/components/revisao/confirmar-lote-reaproveitar.tsx")).toContain('tom="esmeralda"');
+  });
+
+  it("Devolver para a Arte é o primário (devolver não apaga) — nunca o perigo", () => {
+    const ev = ler("client/src/components/detalhe-do-evento/devolver-evento-para-arte-dialog.tsx");
+    expect(ev).toContain('<Botao variante="primario" tamanho={isMobile ? "toque" : "md"} icone={RotateCcw} onClick={devolver}');
+    expect(ev).not.toContain('variante="perigo"');
+  });
+
+  it("Travar tem a forma do Destravar: perigo secundário (contorno vermelho)", () => {
+    const trava = ler("client/src/components/grafica/fila/trava-da-peca.tsx");
+    expect(trava).toContain('<Botao variante="perigoSecundario" tamanho="sm" icone={Lock}');
+    expect(trava).toContain('<Botao variante="perigoSecundario" tamanho="sm" icone={Unlock}');
+    const ficha = ler("client/src/components/revisao/ficha-decisao.tsx");
+    expect(ficha.match(/variante="perigoSecundario"\s+tamanho=(?:"[^"]+"|\{[^}]+\})\s+icone=\{Lock\}/g)?.length).toBe(2);
+  });
+
+  it("Aprovar (Atendimento) é verde do gatilho à confirmação e ao lote", () => {
+    expect(ler("client/src/components/atendimento/confirmacoes.tsx").match(/variante="primario"\s+tom="sucesso"/g)?.length).toBe(2);
+    expect(ler("client/src/components/atendimento/painel-de-lote.tsx")).toMatch(/variante="primario"\s+tom="sucesso"/);
+    expect(ler("client/src/components/atendimento/decisao-da-revisao.tsx")).toContain('data-testid="button-approve-item"');
+  });
+
+  it("lixeira das listas: cinza em repouso, vermelho só no hover/foco", () => {
+    expect(ler("client/src/pages/estoque.tsx")).toContain('className="est-acao-perigo cor-acao-lixeira"');
+    expect(ler("client/src/components/eventos/acoes-do-evento.tsx")).toContain('className="evl-acao evl-acao-perigo" style={{ ...btnBase, backgroundColor: T.surface, color: T.apoio }}');
+    expect(ler("client/src/components/revisao/linha-da-peca.tsx")).toContain('className="cor-acao-lixeira"');
+    expect(ler("client/src/index.css")).toContain(".cor-acao-lixeira:hover:not(:disabled)");
+  });
+
+  it("perigo secundário oficial (Cotas, Pedidos, Kit) e o Criar preto dos Pedidos", () => {
+    expect(ler("client/src/pages/configurar-cotas.tsx").match(/variante="perigoSecundario"/g)?.length).toBe(2);
+    expect(ler("client/src/components/pedidos/formulario-do-pedido.tsx")).toContain('<Botao variante="perigoSecundario" tamanho={tamanhoPequeno} icone={Trash2} onClick={onRemover}');
+    expect(ler("client/src/components/kit/painel-do-kit.tsx")).toContain('<Botao variante="perigoSecundario" tamanho="sm" icone={Trash2} data-testid={`button-excluir-remessa-${r.id}`}');
+    expect(ler("client/src/components/pedidos/cartao-do-pedido.tsx")).toContain('criar:      { fundo: T.dark, cor: T.surface, borda: T.dark, classe: "ds-botao" }');
+  });
+
+  it("Análises > Eventos: o contador de embaladas é o azul do Embalado", () => {
+    expect(ler("client/src/pages/analises/abas/eventos.tsx")).toContain('pecas={e.porEtapa.get("packed") ?? []} tom="info"');
+  });
+});

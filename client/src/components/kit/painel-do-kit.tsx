@@ -355,11 +355,11 @@ export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, podeCriar
                   </Botao>
                 </span>
               ) : (
-                /* Secundário com texto vermelho: este clique só ABRE a pergunta;
+                /* Perigo SECUNDÁRIO (contorno): este clique só ABRE a pergunta;
                    o perigo cheio fica para o "Excluir" que de fato apaga. */
-                <Botao variante="secundario" tamanho="sm" icone={Trash2} data-testid={`button-excluir-remessa-${r.id}`} onClick={() => setConfirmandoExclusao(r.id)}
+                <Botao variante="perigoSecundario" tamanho="sm" icone={Trash2} data-testid={`button-excluir-remessa-${r.id}`} onClick={() => setConfirmandoExclusao(r.id)}
                   title="Excluir a remessa e as peças dela — só enquanto nenhuma peça foi enviada"
-                  style={{ marginLeft: onAdicionarPeca ? 0 : "auto", minHeight: alvo(32, dedo), padding: "0 10px", borderColor: TOM.perigo.border, color: TOM.perigo.text }}>
+                  style={{ marginLeft: onAdicionarPeca ? 0 : "auto", minHeight: alvo(32, dedo), padding: "0 10px" }}>
                   Excluir remessa
                 </Botao>
               ))}

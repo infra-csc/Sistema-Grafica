@@ -61,12 +61,12 @@ export type AcaoDoCartao = {
   testId: string;
 };
 
-// O primário da peça é âmbar-escuro (a cor da Solicitação no app: o ícone do
-// cabeçalho, a faixa de abertas), não o preto do primário geral — na fila, o
-// "Criar peça" precisa ser achado de relance entre dezenas de botões brancos.
+// O primário da peça ("Criar peça", "Aceitar ajuste") é o PRETO do primário
+// geral (15/10) — o mesmo "Criar" do resto do app. Era âmbar-escuro, a cor da
+// Solicitação; entre dezenas de botões brancos o preto se acha igual.
 // "perigo" usa a classe de hover do perigoSecundario do design system.
 const TONS: Record<AcaoDoCartao["tom"], { fundo: string; cor: string; borda: string; classe: string }> = {
-  criar:      { fundo: TOM.alerta.text, cor: T.surface, borda: TOM.alerta.text, classe: "ds-botao" },
+  criar:      { fundo: T.dark, cor: T.surface, borda: T.dark, classe: "ds-botao" },
   secundario: { fundo: T.surface, cor: T.text, borda: T.bdark, classe: "ds-botao ds-botao-fantasma" },
   perigo:     { fundo: T.surface, cor: TOM.perigo.text, borda: TOM.perigo.border, classe: "ds-botao ds-botao-perigo-secundario" },
 };

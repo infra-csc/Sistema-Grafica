@@ -126,8 +126,8 @@ export function BarraDoLote({
             : `Devolver ${selecaoLote.vivas.length}`}
         </Botao>
         {/* REAPROVEITAR em lote — só com 2+ selecionadas: com uma, o ícone da
-            linha faz o mesmo e ainda oferece o parcial. Verde é a identidade
-            do reaproveitamento na tela. #15803d/#f0fdf4 = 5,0:1 */}
+            linha faz o mesmo e ainda oferece o parcial. Esmeralda é a identidade
+            do reaproveitamento (Gráfica e Revisão, 15/10). #047857/#ecfdf5 = 5,2:1 */}
         {selecaoLote.ids.length >= 2 && (
           <Botao
             variante="secundario"
@@ -139,8 +139,8 @@ export function BarraDoLote({
               ? "Toda a seleção é de evento finalizado — reaproveitar está bloqueado nessas peças."
               : "Marcar como reaproveitamento total e enviar à Gráfica como produzidas"}
             data-testid="button-bulk-reuse-hero"
-            // O verde é a identidade do reaproveitamento na tela.
-            style={{ ...noCelular, ...(selecaoLote.vivas.length === 0 ? DESLIGADO_LEGIVEL : { border: `1px solid ${TOM.sucesso.border}`, backgroundColor: TOM.sucesso.bg, color: TOM.sucesso.text }) }}
+            // O esmeralda é a identidade do reaproveitamento (a mesma da Gráfica).
+            style={{ ...noCelular, ...(selecaoLote.vivas.length === 0 ? DESLIGADO_LEGIVEL : { border: `1px solid ${TOM.esmeralda.border}`, backgroundColor: TOM.esmeralda.bg, color: TOM.esmeralda.text }) }}
           >
             {reaproveitando
               ? "Reaproveitando…"

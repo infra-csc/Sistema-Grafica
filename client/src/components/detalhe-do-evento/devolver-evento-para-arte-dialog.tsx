@@ -121,7 +121,7 @@ export function DevolverEventoParaArteDialog({ open, onFechar, eventId, nomeDoEv
       >
         <DialogTitle className="sr-only">Devolver peças para a Arte</DialogTitle>
         <DialogDescription className="sr-only">Escolha as peças, escreva o motivo e devolva para a Arte refazer.</DialogDescription>
-        <ModalHeader icon={RotateCcw} tint={TOM.perigo.text} title="Devolver peças para a Arte" subtitle={nomeDoEvento} onClose={fechar} compacto={isMobile} />
+        <ModalHeader icon={RotateCcw} tint={TOM.alerta.text} title="Devolver peças para a Arte" subtitle={nomeDoEvento} onClose={fechar} compacto={isMobile} />
 
         <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", padding: isMobile ? 16 : "20px 24px", display: "flex", flexDirection: "column", gap: 18 }}>
           {semNada ? (
@@ -217,8 +217,11 @@ export function DevolverEventoParaArteDialog({ open, onFechar, eventId, nomeDoEv
         </div>
 
         <ModalFooter style={{ flexDirection: "row", gap: 10, flexWrap: "wrap", justifyContent: "flex-end", paddingBottom: "calc(12px + env(safe-area-inset-bottom))" }}>
+          {/* PRIMÁRIO, não perigo (15/10): devolver não apaga nada — é o mesmo
+              "Devolver para a Arte" da Revisão Final e o "Devolver ao solicitante"
+              da Arte, os dois na tinta principal. Perigo é só o destrutivo. */}
           <Botao id="button-fechar-devolver-evento" tamanho={isMobile ? "toque" : "md"} onClick={fechar} disabled={enviando} style={isMobile ? { flex: "1 1 0%" } : undefined}>{semNada ? "Fechar" : "Cancelar"}</Botao>
-          {!semNada && <Botao variante="perigo" tamanho={isMobile ? "toque" : "md"} icone={RotateCcw} onClick={devolver} disabled={!pode} carregando={enviando}
+          {!semNada && <Botao variante="primario" tamanho={isMobile ? "toque" : "md"} icone={RotateCcw} onClick={devolver} disabled={!pode} carregando={enviando}
             data-testid="button-confirmar-devolver-evento" style={isMobile ? { flex: "2 1 0%" } : undefined}>
             Devolver {marcadas.length} peça{marcadas.length !== 1 ? "s" : ""} para a Arte
           </Botao>}

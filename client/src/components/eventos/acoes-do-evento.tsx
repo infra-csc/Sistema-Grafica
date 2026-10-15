@@ -119,7 +119,9 @@ export function EventCardActions({
       {canDelete && (
         <button onClick={(e) => onDelete(event.id, e)} data-testid={`button-delete-event-${event.id}`}
           title="Excluir evento" aria-label={`Excluir evento ${event.name}`}
-          className="evl-acao evl-acao-perigo" style={{ ...btnBase, backgroundColor: TOM.perigo.bg, color: TOM.perigo.text, borderColor: TOM.perigo.border }}>
+          // Cinza em repouso, vermelho no hover (15/10): a lixeira de todas as
+          // listas do app (Usuários, Patrocinadores, Modelos, Detalhe do Evento).
+          className="evl-acao evl-acao-perigo" style={{ ...btnBase, backgroundColor: T.surface, color: T.apoio }}>
           <Trash2 style={{ width: '13px', height: '13px' }} />
         </button>
       )}

@@ -221,7 +221,7 @@ export default function AbaEventos({ ctx }: { ctx: ContextoDaAnalise }) {
               valor: (e) => naGraficaSemEmbalar(e).length,
               render: (e) => <BotaoDeContagem ctx={ctx} pecas={naGraficaSemEmbalar(e)} titulo={`${e.nome} — na Gráfica`} /> },
             { id: "embaladas", rotulo: "Embaladas", titulo: "Em volume, esperando a entrega", alinhar: "direita", ocultarNoCelular: true, valor: (e) => e.porEtapa.get("packed")?.length ?? 0,
-              render: (e) => <BotaoDeContagem ctx={ctx} pecas={e.porEtapa.get("packed") ?? []} tom="sucesso" titulo={`${e.nome} — embaladas`} /> },
+              render: (e) => <BotaoDeContagem ctx={ctx} pecas={e.porEtapa.get("packed") ?? []} tom="info" titulo={`${e.nome} — embaladas`} /> },
             { id: "atrasadas", rotulo: "Atrasadas", alinhar: "direita", valor: (e) => e.atrasadas.length,
               render: (e) => <BotaoDeContagem ctx={ctx} pecas={e.atrasadas} tom="perigo" forte titulo={`${e.nome} — atrasadas na etapa`} /> },
           ]}

@@ -35,7 +35,7 @@ export function ConfirmarLoteReaproveitar({
           variant="confirm"
           compacto={celular}
           icon={Recycle}
-          tint={TOM.sucesso.text}
+          tint={TOM.esmeralda.text}
           title={`Reaproveitar ${selecaoLote.vivas.length} ${selecaoLote.vivas.length === 1 ? "peça" : "peças"}`}
           onClose={() => onOpenChange(false)}
         />
@@ -69,6 +69,7 @@ export function ConfirmarLoteReaproveitar({
               }}
               disabled={reaproveitando || selecaoLote.vivas.length === 0}
               data-testid="button-bulk-reuse-confirm"
+              tom="esmeralda"
             >
               {reaproveitando
                 ? "Reaproveitando…"

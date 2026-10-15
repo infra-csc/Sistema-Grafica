@@ -304,13 +304,13 @@ export function PainelDeLote({
                         >
                           Reprovar
                         </Botao>
-                        {/* TINTA, não verde: nesta tela verde é o ESTADO
-                            'aprovado', o que a peça vira depois. Pintar de verde
-                            o botão que ainda vai decidir usa a cor do resultado
-                            para o pedido. O motivo de estar travado fica à
-                            vista (sem papel de decisão / nada selecionado). */}
+                        {/* VERDE (15/10): o mesmo Aprovar da linha e da
+                            confirmação — aprovar tem uma cor só. O motivo de
+                            estar travado fica à vista (sem papel de decisão /
+                            nada selecionado). */}
                         <Botao
                           variante="primario"
+                          tom="sucesso"
                           tamanho={tamBotao}
                           larguraCheia={cards}
                           icone={CheckCircle}

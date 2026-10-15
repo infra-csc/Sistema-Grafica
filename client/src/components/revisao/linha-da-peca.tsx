@@ -258,7 +258,9 @@ export const LinhaDaPeca = memo(function LinhaDaPeca({
               data-testid={`button-delete-${item.id}`}
               title="Excluir peça"
               aria-label={`Excluir a peça ${item.displayId}`}
-              style={{ width: alvo(32, dedo), padding: 0, flexShrink: 0, color: TOM.perigo.text }}
+              // Cinza em repouso, vermelho no hover/foco (15/10): a lixeira das listas.
+              className="cor-acao-lixeira"
+              style={{ width: alvo(32, dedo), padding: 0, flexShrink: 0, color: T.second }}
             />
           )}
         </div>

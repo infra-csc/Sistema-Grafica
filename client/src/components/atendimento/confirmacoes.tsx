@@ -120,11 +120,12 @@ export function ConfirmarAprovacao({ confirmApproveIndividual, setConfirmApprove
           <Botao variante="fantasma" tamanho={tam} larguraCheia={celular} onClick={() => setConfirmApproveIndividual(null)}>
             Cancelar
           </Botao>
-          {/* TINTA, não verde: verde é o ESTADO 'aprovado' nesta tela — o
-              que a peça vira DEPOIS da decisão. O CTA diz o resultado e
-              para quem (rodada 4). */}
+          {/* VERDE (15/10): o mesmo verde do Aprovar da linha e do estado
+              'aprovado' — aprovar tem uma cor só, do gatilho à confirmação.
+              O CTA diz o resultado e para quem (rodada 4). */}
           <Botao
             variante="primario"
+            tom="sucesso"
             tamanho={tam}
             larguraCheia={celular}
             icone={CheckCircle}
@@ -195,10 +196,10 @@ export function ConfirmarLote({
           <Botao variante="fantasma" tamanho={tam} larguraCheia={celular} onClick={() => setConfirmApproveBatch(false)}>
             Cancelar
           </Botao>
-          {/* TINTA, não verde: verde é o ESTADO 'aprovado' nesta tela — o
-              que a peça vira DEPOIS da decisão. */}
+          {/* VERDE (15/10): o mesmo Aprovar da linha e do lote. */}
           <Botao
             variante="primario"
+            tom="sucesso"
             tamanho={tam}
             larguraCheia={celular}
             icone={CheckCircle}

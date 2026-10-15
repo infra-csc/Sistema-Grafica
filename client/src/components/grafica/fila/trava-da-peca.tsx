@@ -33,8 +33,8 @@ export function TravaDaPeca({ item, podeMexer, fonte, alvo, onTravar, onDestrava
   if (!travada) {
     if (isDelivered(item)) return null;
     return (
-      <Botao tamanho="sm" icone={Lock} onClick={(e) => { e.stopPropagation(); onTravar(); }} data-testid={`button-travar-${item.id}`} title="Travar a peça: a Gráfica não consegue fazê-la andar até alguém da Solicitação destravar"
-        style={{ minHeight: alvo, marginTop: 4, color: TOM.perigo.text, fontSize: Math.max(fonte, FS.meta) }}>
+      <Botao variante="perigoSecundario" tamanho="sm" icone={Lock} onClick={(e) => { e.stopPropagation(); onTravar(); }} data-testid={`button-travar-${item.id}`} title="Travar a peça: a Gráfica não consegue fazê-la andar até alguém da Solicitação destravar"
+        style={{ minHeight: alvo, marginTop: 4, fontSize: Math.max(fonte, FS.meta) }}>
         Travar
       </Botao>
     );
@@ -60,8 +60,8 @@ export function TravaDaPeca({ item, podeMexer, fonte, alvo, onTravar, onDestrava
         })()}
       </span>
       {podeMexer && (
-        <Botao tamanho="sm" icone={Unlock} carregando={destravando} onClick={(e) => { e.stopPropagation(); onDestravar(); }} data-testid={`button-destravar-${item.id}`}
-          style={{ minHeight: alvo, color: TOM.perigo.text, borderColor: TOM.perigo.border, fontSize: Math.max(fonte, FS.meta) }}>
+        <Botao variante="perigoSecundario" tamanho="sm" icone={Unlock} carregando={destravando} onClick={(e) => { e.stopPropagation(); onDestravar(); }} data-testid={`button-destravar-${item.id}`}
+          style={{ minHeight: alvo, fontSize: Math.max(fonte, FS.meta) }}>
           {destravando ? "Destravando…" : "Destravar"}
         </Botao>
       )}

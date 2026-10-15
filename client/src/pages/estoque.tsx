@@ -1135,9 +1135,11 @@ export default function Estoque() {
                     </Botao>}
                     {podeExcluir && <Botao variante="fantasma" data-testid={`button-delete-asset-${asset.id}`}
                       title="Excluir" aria-label={`Excluir ${asset.name}`}
-                      className="est-acao-perigo"
+                      // Cinza em repouso, vermelho no hover/foco (15/10) — a lixeira
+                      // das outras listas do app (Usuários, Patrocinadores, Modelos).
+                      className="est-acao-perigo cor-acao-lixeira"
                       onClick={e => { e.stopPropagation(); setDeleting(asset); }}
-                      style={{ ...botaoAcao, color: TOM.perigo.text }}>
+                      style={botaoAcao}>
                       <Trash2 size={tamanhoDoIcone} aria-hidden="true" />
                     </Botao>}
                   </div>

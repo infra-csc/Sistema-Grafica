@@ -57,7 +57,7 @@ export function DialogoReaproveitamento({
                 variant="confirm"
                 compacto={isMobile}
                 icon={Recycle}
-                tint={TOM.sucesso.text}
+                tint={TOM.esmeralda.text}
                 title="Reaproveitamento"
                 subtitle={`${dialogItem.displayId} · ${dialogItem.type} · ${qty} un.`}
                 onClose={aoFechar}
@@ -84,6 +84,7 @@ export function DialogoReaproveitamento({
                   {/* Opção: reaproveitar tudo — a ação principal deste modal. */}
                   <Botao
                     variante="primario"
+                    tom="esmeralda"
                     tamanho={dedo || isMobile ? "toque" : "md"}
                     larguraCheia
                     icone={Recycle}

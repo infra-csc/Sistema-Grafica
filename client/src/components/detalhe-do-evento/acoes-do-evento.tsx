@@ -185,7 +185,7 @@ export function AcoesDoEvento({
                       onSelect={depoisDoMenu(() => setDevolverParaArteOpen(true))}
                       className={itemDoMenu}
                     >
-                      <RotateCcw aria-hidden="true" style={{ color: TOM.perigo.text }} />
+                      <RotateCcw aria-hidden="true" style={{ color: TOM.alerta.text }} />
                       Devolver peças para a Arte…
                     </DropdownMenuItem>
                   )}

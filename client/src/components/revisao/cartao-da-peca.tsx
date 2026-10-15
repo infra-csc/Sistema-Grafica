@@ -175,7 +175,7 @@ export const CartaoDaPeca = memo(function CartaoDaPeca({
         </Botao>
         {admin && (
           <Botao
-            variante="perigoSecundario"
+            variante="secundario"
             tamanho="toque"
             icone={Trash2}
             tamanhoDoIcone={16}
@@ -183,7 +183,10 @@ export const CartaoDaPeca = memo(function CartaoDaPeca({
             data-testid={`button-delete-${item.id}`}
             title="Excluir peça"
             aria-label={`Excluir a peça ${item.displayId}`}
-            style={{ flex: "0 0 44px", width: 44, padding: 0 }}
+            // Cinza em repouso (15/10): a lixeira das listas — o vermelho fica
+            // para o toque/hover e para a confirmação, que é quem apaga.
+            className="cor-acao-lixeira"
+            style={{ flex: "0 0 44px", width: 44, padding: 0, color: T.apoio }}
           />
         )}
       </div>

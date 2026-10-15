@@ -309,6 +309,7 @@ export function BotaoAprovarTodos({
   return (
     <Botao
       variante="secundario"
+      tom="sucesso"
       tamanho={tamBotao}
       icone={CheckCircle}
       larguraCheia={larguraCheia}
@@ -317,6 +318,8 @@ export function BotaoAprovarTodos({
       disabled={!canDecide || pecaRecemAberta}
       title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : `Aprova ${selectedItem.displayId} para TODOS os patrocinadores de uma vez`}
       data-testid="button-approve-item"
+      // O verde do Aprovar da linha (15/10): a mesma ação, para todos.
+      style={{ backgroundColor: TOM.sucesso.bg }}
     >
       Aprovar para todos
     </Botao>

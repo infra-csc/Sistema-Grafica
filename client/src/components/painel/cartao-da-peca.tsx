@@ -149,6 +149,7 @@ export const CartaoDaPeca = memo(function CartaoDaPeca({
           <button
             onClick={(e) => { e.stopPropagation(); acoes.excluir(item.id); }}
             data-testid={`button-delete-${item.id}`}
+            className="cor-acao-lixeira"
             title="Excluir peça" aria-label="Excluir peça"
             style={{
               background: T.surface, border: `1px solid ${T.border}`, cursor: "pointer",

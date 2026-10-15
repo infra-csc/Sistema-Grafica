@@ -1921,3 +1921,11 @@ textarea.erp-pi-campo { min-height: 52px; }
   border-color: var(--cor-acao-ativo) !important;
   filter: none;
 }
+/* A LIXEIRA DAS LISTAS (15/10): cinza em repouso, vermelho só no hover e no
+   foco — o que Usuários, Patrocinadores e Modelos já faziam. Para a lista que
+   ainda não tem classe própria de perigo com cor (Estoque). */
+.cor-acao-lixeira:hover:not(:disabled),
+.cor-acao-lixeira:focus-visible {
+  color: var(--perigo-text) !important;
+  background-color: var(--perigo-bg) !important;
+}

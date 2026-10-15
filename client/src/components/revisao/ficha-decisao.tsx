@@ -145,7 +145,7 @@ function BotaoReaproveitar({ isMobile, selectedItem, seloSelecionado, aoReaprove
             // Devolver: os três empilham em largura cheia, alinhados.
             width: emColuna && selectedItem?.isReuse ? "100%" : undefined }
           : { flex: "1 1 0%", minWidth: 0 }),
-        // Marcada, o verde do reaproveitamento (#15803d sobre #dcfce7 = 4,6:1).
+        // Disponível, o esmeralda do reaproveitamento (o mesmo da Gráfica).
         // O desenho único do reaproveitar (linha, cartão e ficha): o estado
         // pela cor e pelo ícone; "reaproveitada" é o aviso verde logo abaixo.
         ...estiloDoReaproveitar(seloSelecionado ? "indisponivel" : selectedItem?.isReuse ? "reaproveitada" : "disponivel"),
@@ -182,13 +182,13 @@ export function FichaDecisao(p: FichaDecisaoProps & { botoesNoRodape?: boolean; 
           <BotaoReaproveitar {...p} naFileira={false} />
           {pecaDaFicha && !fichaTravada && podeTravar && !seloSelecionado && (
             <Botao
-              variante="secundario"
+              variante="perigoSecundario"
               tamanho="toque"
               icone={Lock}
               onClick={() => aoTravar(pecaDaFicha)}
               data-testid="button-travar-revisao"
               title="Travar a peça: mesmo liberada, a Gráfica não consegue fazê-la andar até alguém da Solicitação destravar"
-              style={{ flex: "1 1 0%", minWidth: 0, color: TOM.perigo.text }}
+              style={{ flex: "1 1 0%", minWidth: 0 }}
             >
               Travar
             </Botao>
@@ -247,13 +247,13 @@ export function FichaDecisao(p: FichaDecisaoProps & { botoesNoRodape?: boolean; 
         </p>
         {pecaDaFicha && !fichaTravada && podeTravar && !botoesNoRodape && (
           <Botao
-            variante="secundario"
+            variante="perigoSecundario"
             tamanho={dedo || isMobile ? "toque" : "sm"}
             icone={Lock}
             onClick={() => aoTravar(pecaDaFicha)}
             data-testid="button-travar-revisao"
             title="Travar a peça: mesmo liberada, a Gráfica não consegue fazê-la andar até alguém da Solicitação destravar"
-            style={{ flexShrink: 0, color: TOM.perigo.text }}
+            style={{ flexShrink: 0 }}
           >
             Travar
           </Botao>

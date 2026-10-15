@@ -207,9 +207,9 @@ function BlocoDaPeca({ peca, numero, total, eventos, eventosCarregando, opcoesDe
             </Botao>
           )}
           {total > 1 && (
-            /* Secundário com texto vermelho, não o perigo cheio: tira só um
+            /* Perigo SECUNDÁRIO (contorno), não o perigo cheio: tira só um
                bloco do rascunho, que ainda nem foi enviado. */
-            <Botao variante="secundario" tamanho={tamanhoPequeno} icone={Trash2} onClick={onRemover} data-testid={`button-remover-peca-${numero}`} aria-label={`Remover a peça ${numero}`} style={{ padding: "0 10px", fontSize: FS.meta, color: TOM.perigo.text, borderColor: TOM.perigo.border }}>
+            <Botao variante="perigoSecundario" tamanho={tamanhoPequeno} icone={Trash2} onClick={onRemover} data-testid={`button-remover-peca-${numero}`} aria-label={`Remover a peça ${numero}`} style={{ padding: "0 10px", fontSize: FS.meta }}>
               Remover
             </Botao>
           )}

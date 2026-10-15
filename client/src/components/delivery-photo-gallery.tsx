@@ -11,6 +11,7 @@ import { ptBR } from "date-fns/locale";
 import { apiRequest, queryClient, getCurrentUserName } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { EstadoVazio, Esqueleto } from "@/components/ui/estados";
+import { useConfirmar } from "@/components/ui/usar-confirmar";
 import type { DeliveryPhoto } from "@shared/schema";
 
 interface DeliveryPhotoGalleryProps {
@@ -23,6 +24,7 @@ export function DeliveryPhotoGallery({ itemId }: DeliveryPhotoGalleryProps) {
   const uploadedBy = getCurrentUserName();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const { toast } = useToast();
+  const { confirmar, dialogo } = useConfirmar();
 
   const { data: photos = [], isLoading } = useQuery<DeliveryPhoto[]>({
     queryKey: ["/api/items", itemId, "photos"],
@@ -77,6 +79,30 @@ export function DeliveryPhotoGallery({ itemId }: DeliveryPhotoGalleryProps) {
       });
     },
   });
+
+  // EXCLUIR PERGUNTA ANTES (15/10): o botão apagava na hora, sem volta — o
+  // único "Excluir" do app sem confirmação. A pergunta mostra QUAL foto (a
+  // miniatura, quem enviou e quando); Esc, clicar fora ou "Manter" não apagam.
+  const excluirFoto = async (photo: DeliveryPhoto) => {
+    const ok = await confirmar({
+      titulo: "Excluir esta foto de entrega?",
+      descricao: (
+        <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <img src={photo.photoUrl} alt="" data-testid="confirmacao-miniatura-foto"
+            style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8, border: "1px solid var(--n4)", flexShrink: 0 }} />
+          <span>
+            Enviada por <strong>{photo.uploadedBy}</strong> em {format(new Date(photo.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}.
+            {" "}A foto sai do registro da entrega e não dá para recuperar.
+          </span>
+        </span>
+      ),
+      confirmar: "Excluir foto",
+      cancelar: "Manter",
+      perigo: true,
+      icone: Trash2,
+    });
+    if (ok) deleteMutation.mutate(photo.id);
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -212,7 +238,7 @@ export function DeliveryPhotoGallery({ itemId }: DeliveryPhotoGalleryProps) {
                   <Button
                     size="icon"
                     variant="destructive"
-                    onClick={() => deleteMutation.mutate(photo.id)}
+                    onClick={() => excluirFoto(photo)}
                     aria-label="Excluir foto"
                     disabled={deleteMutation.isPending}
                     data-testid={`button-delete-photo-${photo.id}`}
@@ -231,6 +257,7 @@ export function DeliveryPhotoGallery({ itemId }: DeliveryPhotoGalleryProps) {
           </div>
         )}
       </CardContent>
+      {dialogo}
     </Card>
   );
 }

@@ -381,7 +381,7 @@ export default function ConfigurarCotas() {
                   {dirty.size === 1 ? "1 cota com alterações não salvas" : `${dirty.size} cotas com alterações não salvas`}
                 </Selo>
                 <Botao
-                  variante="secundario"
+                  variante="perigoSecundario"
                   tamanho={toque ? "toque" : "md"}
                   icone={RotateCcw}
                   onClick={descartarAlteracoes}
@@ -700,7 +700,7 @@ export default function ConfigurarCotas() {
             {dirty.size === 1 ? "1 cota com alterações não salvas" : `${dirty.size} cotas com alterações não salvas`}: {pendentes.map(rotuloDaCota).join(", ")}
           </Selo>
           <div style={{ display: "flex", gap: 8 }}>
-            <Botao variante="secundario" tamanho="toque" icone={RotateCcw} onClick={descartarAlteracoes} disabled={saveMutation.isPending} data-testid="discard-all-button" style={{ flex: "1 1 0" }}>
+            <Botao variante="perigoSecundario" tamanho="toque" icone={RotateCcw} onClick={descartarAlteracoes} disabled={saveMutation.isPending} data-testid="discard-all-button" style={{ flex: "1 1 0" }}>
               Descartar
             </Botao>
             <Botao variante="primario" tamanho="toque" icone={Save} onClick={saveAll} carregando={saveMutation.isPending} data-testid="save-all-button" style={{ flex: "1 1 0" }}>

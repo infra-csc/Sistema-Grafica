@@ -66,7 +66,8 @@ export function corpoDaConfirmacao(celular: boolean): CSSProperties {
  * (eram três: caixa cinza, ícone verde solto, verde com caixa). O FORMATO é
  * sempre o mesmo botão contornado em papel branco; o ESTADO vem da cor, do
  * ícone e do `title`:
- *   · disponível     — verde (a identidade do reaproveitamento), ♻;
+ *   · disponível     — esmeralda (a identidade da AÇÃO reaproveitar, a mesma
+ *                      da Gráfica; o verde ficou com o Entregar — 15/10), ♻;
  *   · reaproveitada  — neutro, ícone de desfazer: a ação agora é desfazer, e
  *                      o FATO "reaproveitada" é dito por um selo na peça;
  *   · indisponível   — cinza de ícone desligado (evento finalizado), sem
@@ -74,7 +75,7 @@ export function corpoDaConfirmacao(celular: boolean): CSSProperties {
  */
 export type EstadoDoReaproveitar = "disponivel" | "reaproveitada" | "indisponivel";
 export function estiloDoReaproveitar(estado: EstadoDoReaproveitar): CSSProperties {
-  if (estado === "disponivel") return { backgroundColor: T.surface, color: TOM.sucesso.text, border: `1px solid ${TOM.sucesso.border}`, opacity: 1 };
+  if (estado === "disponivel") return { backgroundColor: T.surface, color: TOM.esmeralda.text, border: `1px solid ${TOM.esmeralda.border}`, opacity: 1 };
   if (estado === "reaproveitada") return { backgroundColor: T.surface, color: T.strong, border: `1px solid ${T.bdark}`, opacity: 1 };
   return { backgroundColor: T.surface, color: T.muted, border: `1px solid ${T.border}`, opacity: 1, cursor: "not-allowed" };
 }

@@ -179,12 +179,15 @@ export function ListaDaDecisao({
         </div>
       )}
 
-      {/* ── ADICIONAR PATROCINADOR — SÓ ADMIN ──
+      {/* ── ADICIONAR PATROCINADOR — ADMIN E ATENDIMENTO ──
           A arte pode carregar uma marca que ninguém vinculou (caso #2801,
-          Crystal): sem a linha, não há o que aprovar. O admin corrige daqui,
-          sem ir à tela de Vincular. O servidor cria a linha pendente junto
-          com o vínculo. */}
-      {user?.role === "admin" && (() => {
+          Crystal): sem a linha, não há o que aprovar. Corrige-se daqui, sem
+          ir à tela de Vincular. O servidor cria a linha pendente junto com o
+          vínculo. Era só do admin; o dono liberou para o Atendimento (15/10),
+          que é quem está com a peça na frente — as rotas usadas
+          (POST /api/events/:id/sponsors e /api/items/:id/sponsors) já
+          aceitavam o papel. */}
+      {(user?.role === "admin" || user?.role === "atendimento") && (() => {
         const jaNaRodada = new Set(dialogSponsors.map((s) => s.id));
         const idsDoEvento = new Set(vinculosDoEvento.map((v) => v.sponsorId));
         // DO EVENTO primeiro; o resto do catálogo entra pela busca (147
@@ -221,9 +224,6 @@ export function ListaDaDecisao({
               </Botao>
               <span style={{ fontSize: letra(FS.small, toque), color: T.second }}>
                 {doEvento.length > 0 ? `${doEvento.length} do evento, ou busca no catálogo` : 'busca no catálogo'}
-              </span>
-              <span title="Só administradores veem esta ação" style={{ marginLeft: 'auto', fontSize: letra(FS.micro, toque), fontWeight: FW.rotulo, letterSpacing: '0.06em', textTransform: 'uppercase', color: T.second, padding: '2px 7px', borderRadius: R.pill, border: `1px solid ${T.border}`, backgroundColor: T.surface }}>
-                Só admin
               </span>
             </div>
             {addPatrocinadorAberto && (

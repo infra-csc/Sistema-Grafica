@@ -54,16 +54,18 @@ describe("3 · e a TELA oferece o clique no estado incoerente", () => {
     expect(DIALOGO.slice(i, i + 160)).not.toContain("awaiting_sponsor_approval");
   });
 });
-describe("5 · o admin adiciona o patrocinador que faltava, do próprio modal", () => {
+describe("5 · admin e Atendimento adicionam o patrocinador que faltava, do próprio modal", () => {
   // Caso #2801 (25/08): a arte carregava a Crystal e não havia linha para
-  // aprovar — a marca não estava vinculada à peça. Só admin.
+  // aprovar — a marca não estava vinculada à peça. Era só admin; o dono
+  // liberou para o Atendimento em 15/10.
   const ATEND = fonteDaTela("atendimento");
 
-  it("o bloco é só de admin, oferece os do evento E busca no catálogo inteiro", () => {
+  it("o bloco é de admin e Atendimento, oferece os do evento E busca no catálogo inteiro", () => {
     // Revisto no mesmo dia: só-do-evento fazia o bloco SUMIR quando o evento
     // estava completo — e a marca da arte podia ser justamente a que falta
     // no evento (caso Crystal). Um de fora entra no evento junto.
-    expect(ATEND).toContain('{user?.role === "admin" && (() => {');
+    expect(ATEND).toContain('{(user?.role === "admin" || user?.role === "atendimento") && (() => {');
+    expect(ATEND).not.toContain("Só administradores veem esta ação");
     expect(ATEND).toContain('data-testid="input-busca-patrocinador"');
     expect(ATEND).toContain("!jaNaRodada.has(s.id) && !idsDoEvento.has(s.id)");
     expect(ATEND).toContain("fora do evento");

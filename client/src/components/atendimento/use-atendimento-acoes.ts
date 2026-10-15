@@ -293,7 +293,7 @@ export function useAtendimentoAcoes({
   // DESVINCULAR da peça (pedido do dono, 25/08): tira o patrocinador e a
   // aprovação PENDENTE dele deixa de contar — se ele era o único que faltava,
   // o servidor fecha a rodada e a peça segue. Aprovação já dada fica no
-  // histórico (para desfazê-la existe o Revogar). Só admin, como o Adicionar.
+  // histórico (para desfazê-la existe o Revogar). Só admin (o Adicionar, desde 15/10, também é do Atendimento).
   const desvincularSponsorMutation = useMutation({
     mutationFn: async ({ itemId, sponsorId }: { itemId: string; sponsorId: string }): Promise<RespostaDoDesvinculo> => {
       const response = await apiRequest("DELETE", `/api/items/${itemId}/sponsors/${sponsorId}`);

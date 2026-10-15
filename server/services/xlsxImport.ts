@@ -239,7 +239,9 @@ import { alinharTipo } from "@shared/tipo-da-peca";
     // antigos. "Larg. Visual (m)" normaliza para "larg. visual (m)".
     const isVisW  = (v: string) => /^(larg|largura)\.? ?(visual|vis\.?)/.test(v) || v.startsWith("area") || v === "largura" || v === "larg" || v === "compr";
     const isVisH  = (v: string) => /^(alt|altura)\.? ?(visual|vis\.?)/.test(v) || v === "visual" || v === "visu" || v === "altura" || v === "alt";
-    const isFileW = (v: string) => /^(larg|largura)\.? ?(arq|arquivo)/.test(v) || v.startsWith("medida do arquivo");
+    // "medidadoarquivo" (tudo junto) é o mesmo cabeçalho: o GIRL POWER SP 2
+    // (dono, 15/10) veio assim e o arquivo caía no visual. Compara sem espaços.
+    const isFileW = (v: string) => /^(larg|largura)\.? ?(arq|arquivo)/.test(v) || v.replace(/ /g, "").startsWith("medidadoarquivo");
     const isFileH = (v: string) => /^(alt|altura)\.? ?(arq|arquivo)/.test(v);
     const isFileSizeCol = (v: string) => (v === "medida" || v.startsWith("medida") || v === "medida arquivo" || v === "dimensao" || v === "dimensoes") && !isFileW(v);
     const isSponsorsCol = (v: string) => v === "patrocinadores" || v === "patrocinador";
@@ -413,6 +415,15 @@ import { alinharTipo } from "@shared/tipo-da-peca";
         if (fileSizeVal && (!pick("fileW") || !pick("fileH"))) {
           const parts = fileSizeVal.replace(/,/g, ".").replace(/\s/g, "").split(/[xX×]/);
           if (parts.length >= 2) { fileW = parseFloat(parts[0]) || fileW; fileH = parseFloat(parts[1]) || fileH; }
+          else {
+            // "Medida" MESCLADA sobre duas colunas: a largura na coluna dela e a
+            // altura na de ao lado, de cabeçalho vazio. Um número aqui e outro
+            // ao lado = o par largura × altura do arquivo (antes caía no visual).
+            const prox = String.fromCharCode(col.fileSize.charCodeAt(0) + 1);
+            const w = parseNum(fileSizeVal);
+            const h = parseNum((row[prox] || "").trim());
+            if (w && h && !(candidate[headerRow]?.[prox] || "").trim()) { fileW = w; fileH = h; }
+          }
         }
 
         let groupType: string;

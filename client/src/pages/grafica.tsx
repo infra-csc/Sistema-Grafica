@@ -62,6 +62,7 @@ import { ModalDaPeca } from "@/components/grafica/modais/modal-da-peca";
 import { ModalTravar, useTravaDaPeca } from "@/components/grafica/modais/modal-travar";
 import { ModalDevolver, useDevolverParaRevisao } from "@/components/grafica/modais/modal-devolver";
 import { ExportarExcelGrafica, type RecorteDoExcel } from "@/components/grafica/modais/exportar-excel";
+import { ReabrirEntregueParaRevisao, podeReabrirEntregue } from "@/components/grafica/modais/reabrir-entregue";
 
 export default function Grafica() {
   const { user } = useAuth();
@@ -432,8 +433,16 @@ export default function Grafica() {
         auditLogs={auditLogs}
         open={!!viewDetailsItem}
         onOpenChange={(open) => !open && setViewDetailsItem(null)}
-        topActions={mostraPrioridadeNaImpressao(viewDetailsItem, user, !!seloPecaEventoFinalizado(viewDetailsItem?.event, hojeBusinessMs)) ? (
-          <PrioridadeNaImpressao item={viewDetailsItem} eventoFinalizado={!!seloPecaEventoFinalizado(viewDetailsItem?.event, hojeBusinessMs)} />
+        topActions={(mostraPrioridadeNaImpressao(viewDetailsItem, user, !!seloPecaEventoFinalizado(viewDetailsItem?.event, hojeBusinessMs)) || podeReabrirEntregue(viewDetailsItem, user?.role)) ? (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 12 }}>
+            {mostraPrioridadeNaImpressao(viewDetailsItem, user, !!seloPecaEventoFinalizado(viewDetailsItem?.event, hojeBusinessMs)) && (
+              <PrioridadeNaImpressao item={viewDetailsItem} eventoFinalizado={!!seloPecaEventoFinalizado(viewDetailsItem?.event, hojeBusinessMs)} />
+            )}
+            {/* Só o ADM, só a entregue (dono, 13/10) — também em evento realizado. */}
+            {viewDetailsItem && podeReabrirEntregue(viewDetailsItem, user?.role) && (
+              <ReabrirEntregueParaRevisao item={viewDetailsItem} onReaberta={() => setViewDetailsItem(null)} />
+            )}
+          </div>
         ) : undefined}
         customActions={temBlocoDeComplemento(viewDetailsItem, podeMexerQtd)
           ? (

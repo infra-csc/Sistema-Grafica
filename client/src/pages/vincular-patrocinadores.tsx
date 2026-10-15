@@ -74,6 +74,8 @@ function TelaDaVinculacao({ emCartoes, isMobile }: { emCartoes: boolean; isMobil
     descartarRascunho: a.descartarRascunho,
     salvarLinha: a.salvarLinha,
     openSendModalForItem: a.openSendModalForItem,
+    aceitarSugestao: a.aceitarSugestao,
+    descartarSugestao: a.descartarSugestao,
   };
 
   /**
@@ -87,6 +89,8 @@ function TelaDaVinculacao({ emCartoes, isMobile }: { emCartoes: boolean; isMobil
     // outras só travam.
     const salvandoEsta = saveLinkingMutation.isPending
       && (saveLinkingMutation.variables ?? []).some((p: SavePayload) => p.itemId === item.id);
+    const aplicando = a.aplicarSugestoesMutation.isPending;
+    const aceitandoEsta = aplicando && (a.aplicarSugestoesMutation.variables?.itemIds ?? []).includes(item.id);
     return (
       <LinhaDaPeca
         key={item.id}
@@ -106,10 +110,21 @@ function TelaDaVinculacao({ emCartoes, isMobile }: { emCartoes: boolean; isMobil
         enviando={sendToArteMutation.isPending}
         emCartoes={emCartoes}
         dedo={dedo}
+        sugestoes={v.sugestoesDaPeca(item)}
+        automaticos={v.automaticosPorPeca[item.id]}
+        aceitandoEsta={aceitandoEsta}
+        aplicandoSugestoes={aplicando}
         acoes={acoesDaLinha}
       />
     );
   };
+
+  // SUGESTÕES (15/10): quantas das pendentes à vista já têm sugestão — o
+  // cabeçalho conta, o botão de cada evento aplica.
+  const comSugestaoAVista = v.pecasComSugestao(v.fullyFilteredItems).length;
+  const fraseDasSugestoes = comSugestaoAVista > 0
+    ? ` ${comSugestaoAVista} ${comSugestaoAVista === 1 ? 'tem sugestão' : 'têm sugestão'} do histórico — use "Aplicar sugestões" no evento.`
+    : '';
 
   // Carregamento e vazio no mesmo estilo inline do resto da tela, e o vazio
   // diz por quê e o que fazer — quem cai aqui não pode ficar sem saída.
@@ -225,7 +240,7 @@ function TelaDaVinculacao({ emCartoes, isMobile }: { emCartoes: boolean; isMobil
         // Com filtro que zerou a lista, a frase do contexto dizia "Tudo enviado
         // à Arte" — falso: só não há nada À VISTA. O estado vazio logo abaixo
         // explica o filtro; o cabeçalho não pode contradizê-lo.
-        fraseDeResolucao={v.temFiltroAtivo && v.totalDoContexto === 0 ? 'Nenhuma peça com os filtros atuais.' : v.fraseDeResolucao}
+        fraseDeResolucao={v.temFiltroAtivo && v.totalDoContexto === 0 ? 'Nenhuma peça com os filtros atuais.' : v.fraseDeResolucao + fraseDasSugestoes}
         contextStatusCounts={v.contextStatusCounts}
         eventFilter={v.eventFilter}
         abrirAutoVinculo={a.abrirAutoVinculo}
@@ -282,6 +297,9 @@ function TelaDaVinculacao({ emCartoes, isMobile }: { emCartoes: boolean; isMobil
         toggleTypeGroup={a.toggleTypeGroup}
         vincularRestantes={a.vincularRestantes}
         abrirAutoVinculo={a.abrirAutoVinculo}
+        pecasComSugestao={v.pecasComSugestao}
+        aplicarSugestoes={a.aplicarSugestoes}
+        aplicandoSugestoes={a.aplicarSugestoesMutation.isPending}
         handleOpenSponsorDialog={a.handleOpenSponsorDialog}
         renderLinhaDaPeca={renderLinhaDaPeca}
         temFiltroAtivo={v.temFiltroAtivo}

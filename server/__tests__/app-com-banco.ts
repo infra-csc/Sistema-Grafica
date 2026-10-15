@@ -59,6 +59,7 @@ export async function montarApp(): Promise<AppDeTeste> {
   const { registerItemRoutes } = await import("../routes/items");
   const { registerEventRoutes } = await import("../routes/events");
   const { registerSponsorRoutes } = await import("../routes/sponsors");
+  const { registerSugestoesDeVinculoRoutes } = await import("../routes/sugestoes-de-vinculo");
   const { registerTubosRoutes } = await import("../routes/tubos");
   const { registerMaquinasRoutes } = await import("../routes/maquinas");
   const { registerEstoqueReservasRoutes } = await import("../routes/estoque-reservas");
@@ -94,6 +95,8 @@ export async function montarApp(): Promise<AppDeTeste> {
       const ids: string[] = [];
       const alvo = req.path.match(/^\/api\/items\/([^/]+)(?:\/|$)/);
       if (alvo && !["bulk", "export-xlsx"].includes(alvo[1])) ids.push(alvo[1]);
+      // Os lotes com `itemIds` no corpo, como em server/routes.ts.
+      if (Array.isArray(req.body?.itemIds)) ids.push(...req.body.itemIds.filter((x: unknown): x is string => typeof x === "string"));
       if (ids.length === 0) return next();
       const doKit = await db.select({ id: itemsTable.id }).from(itemsTable)
         .where(and(inArray(itemsTable.id, ids), isNotNull(itemsTable.kitRemessaId))).limit(1);
@@ -125,6 +128,7 @@ export async function montarApp(): Promise<AppDeTeste> {
 
   // A mesma ordem de server/routes.ts (a ordem decide qual rota casa).
   registerSponsorRoutes(app);
+  registerSugestoesDeVinculoRoutes(app);
   registerEventRoutes(app);
   registerItemRoutes(app);
   registerMaquinasRoutes(app);

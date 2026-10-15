@@ -27,6 +27,7 @@ import { ehMolde } from "@shared/molde";
 import { ERRO_PATROCINADOR_NA_PRODUCAO_INTERNA, CODIGO_COM_PATROCINADOR } from "@shared/producao-interna";
 import { responderFalha } from "../erros";
 import { vemDeOrigemValida } from "@shared/maquina-de-estados";
+import { invalidarPadroesDeVinculo } from "../services/sugestao-de-vinculo";
 
 /** Molde não tem patrocinador (revisão 22/09): não passa por Vincular nem por aprovação. */
 const ERRO_PATROCINADOR_EM_MOLDE = "Molde não recebe patrocinador — ele não passa por Vincular Patrocinadores nem por aprovação";
@@ -462,6 +463,8 @@ export function registerSponsorRoutes(app: Express): void {
       // direto — a guarda só precisa saber a que evento a escrita pertence.
       if (await barraEventoFinalizado({ eventId: req.params.id }, res)) return;
       const linked = await storage.autoLinkByQuota(req.params.id);
+      // Vínculo em massa: os padrões aprendidos (sugestão de vínculo) relêem o histórico.
+      if (linked > 0) invalidarPadroesDeVinculo();
       // Era a única escrita da tela de vinculação invisível no histórico e
       // sem broadcast — outros clientes ficavam com /api/items stale.
       const event = await storage.getEvent(req.params.id);

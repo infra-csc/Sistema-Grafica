@@ -87,6 +87,8 @@ export const REGUA_DE_PAPEIS: RegraDeRota[] = [
   // "Excluir" virou arquivar: quem arquiva (admin) é quem restaura.
   { metodo: "POST", rota: "/api/events/:id/restaurar", papeis: ["admin"] },
   { metodo: "POST", rota: "/api/events/:id/return-inventory", papeis: ["admin"] },
+  // Sugestões de vínculo (dono, 15/10): os mesmos papéis que vinculam à mão.
+  { metodo: "POST", rota: "/api/events/:id/sugestoes-de-vinculo/aplicar", papeis: ["admin", "arte", "atendimento", "solicitacao"] },
   { metodo: "POST", rota: "/api/events/:id/sponsors", papeis: ["admin", "arte", "atendimento", "solicitacao"] },
   { metodo: "POST", rota: "/api/gestao/digest/enviar", papeis: ["admin"] },
   { metodo: "POST", rota: "/api/inventory", papeis: ["admin"] },

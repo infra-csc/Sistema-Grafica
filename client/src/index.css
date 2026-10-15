@@ -1929,3 +1929,72 @@ textarea.erp-pi-campo { min-height: 52px; }
   color: var(--perigo-text) !important;
   background-color: var(--perigo-bg) !important;
 }
+
+/* ── SUGESTÃO DE VÍNCULO (15/10) — prefixo sug- ──────────────────────────────
+   A faixa abaixo dos chips diz que é SUGESTÃO (nada gravado), por quê, e dá
+   as duas saídas. Fundo azul-claro com borda tracejada: o mesmo idioma do chip
+   sugerido (tracejado) — o que está gravado é sempre contínuo. */
+.sug-faixa {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  padding: 5px 6px 5px 6px;
+  border-radius: 10px;
+  background-color: var(--info-bg);
+  border: 1px dashed var(--info-border);
+  max-width: 100%;
+}
+.sug-faixa-texto {
+  flex: 1 1 160px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--n8);
+}
+.sug-faixa-acoes {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+/* O chip sugerido no hover mostra como fica MARCADO: contorno contínuo na cor
+   da marca. Mais específico que o hover genérico de .vinc-chip (que acinzenta). */
+.vinc-chip.sug-chip:hover:not(:disabled):not([aria-checked="true"]):not([aria-pressed="true"]) {
+  border-style: solid !important;
+  border-color: var(--sug-cor) !important;
+  color: var(--sug-cor) !important;
+}
+/* A cota sugerida, na lista de patrocinadores do formulário do evento. */
+.sug-cota {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--info-text);
+}
+.sug-cota-usar {
+  margin-left: 4px;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--info-border);
+  background-color: var(--n0);
+  color: var(--info-text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.sug-cota-usar:hover { background-color: var(--info-bg); }
+.sug-cota-usar:focus-visible { outline: 2px solid var(--info-text); outline-offset: 2px; }
+/* A linha do vínculo AUTOMÁTICO (gravado): sem fundo nem tracejado — é vínculo de verdade. */
+.sug-auto {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}

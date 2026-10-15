@@ -9,6 +9,7 @@
 import type { QueryKey } from "@tanstack/react-query";
 import type { Event, EventSponsor, Item, Sponsor, StandardItem } from "@shared/schema";
 import type { RemessaDoKit } from "@shared/kit";
+import type { Sugestao } from "@shared/sugestao-de-vinculo";
 
 /** Como o JSON entrega: `Date` vira string ISO. */
 export type ComoJson<T> = {
@@ -133,3 +134,21 @@ export type Agrupamento = "evento" | "patrocinador";
 
 /** As quatro contagens por situação. */
 export type ContagemPorEstado = Record<UIStatus, number>;
+
+/** Uma sugestão de vínculo (@shared/sugestao-de-vinculo), como a tela recebe. */
+export type SugestaoDaPeca = Sugestao;
+
+/** Vínculo JÁ gravado pelo vínculo automático (selo "Automático"). */
+export type VinculoAutomatico = { sponsorId: string; motivo: string };
+
+/** GET /api/sugestoes-de-vinculo?eventId=… — por evento. */
+export type SugestoesDosEventos = Record<string, {
+  porPeca: Record<string, SugestaoDaPeca[]>;
+  automaticos: Record<string, VinculoAutomatico[]>;
+}>;
+
+/** POST /api/events/:id/sugestoes-de-vinculo/aplicar. */
+export type RespostaDoAplicarSugestoes = {
+  aplicadas: { itemId: string; displayId: string; sponsorIds: string[] }[];
+  vinculos: number;
+};

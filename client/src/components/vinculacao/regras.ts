@@ -4,7 +4,7 @@
 import { grupoDoKit } from "@shared/kit";
 import { compareDisplayId } from "@/lib/displayId";
 import { COLLATOR_PTBR, DOWNSTREAM_STATUSES, LINKING_STATUSES } from "./constantes";
-import type { ItemChanges, PecaDaVinculacao, UIStatus } from "./tipos";
+import type { ItemChanges, PecaDaVinculacao, SugestaoDaPeca, SugestoesDosEventos, UIStatus, VinculoAutomatico } from "./tipos";
 
 /** A seção da linha: a remessa do Kit ("KIT · entrega 14/09") ou o tipo. */
 export const secaoDaPeca = (p: PecaDaVinculacao): string => grupoDoKit(p) ?? (p.type || '');
@@ -96,4 +96,74 @@ export function mensagemDoErro(e: unknown): string | undefined {
     return typeof m === "string" ? m : undefined;
   }
   return undefined;
+}
+
+/**
+ * AS SUGESTÕES QUE A LINHA MOSTRA (15/10): só em peça SEM patrocinador salvo,
+ * fora do "sem patrocinador" e que a pessoa não descartou. Com vínculo salvo,
+ * alguém já decidiu — a sugestão não se mete.
+ */
+export const sugestoesAtivas = (
+  sugestoes: SugestaoDaPeca[] | undefined,
+  salvos: string[] | undefined,
+  semPatrocinador: boolean,
+  descartada: boolean,
+): SugestaoDaPeca[] | undefined =>
+  !sugestoes || sugestoes.length === 0 || descartada || semPatrocinador || (salvos?.length ?? 0) > 0 ? undefined : sugestoes;
+
+/** A resposta de /api/sugestoes-de-vinculo achatada por peça — tolera corpo fora do formato (vira vazio). */
+export function achatarSugestoes(cru: unknown): {
+  porPeca: Record<string, SugestaoDaPeca[]>;
+  automaticos: Record<string, VinculoAutomatico[]>;
+} {
+  const porPeca: Record<string, SugestaoDaPeca[]> = {};
+  const automaticos: Record<string, VinculoAutomatico[]> = {};
+  if (!cru || typeof cru !== "object" || Array.isArray(cru)) return { porPeca, automaticos };
+  for (const ev of Object.values(cru as SugestoesDosEventos)) {
+    if (!ev || typeof ev !== "object") continue;
+    if (ev.porPeca && typeof ev.porPeca === "object") Object.assign(porPeca, ev.porPeca);
+    if (ev.automaticos && typeof ev.automaticos === "object") Object.assign(automaticos, ev.automaticos);
+  }
+  return { porPeca, automaticos };
+}
+
+const SUFIXO_DO_HISTORICO = " — cota pelo histórico do patrocinador";
+const AMBIGUO = "__nomes-na-descricao";
+
+const listaDeNomes = (nomes: string[]): string => {
+  if (nomes.length <= 1) return nomes[0] ?? "";
+  if (nomes.length <= 3) return `${nomes.slice(0, -1).join(", ")} e ${nomes[nomes.length - 1]}`;
+  return `${nomes.slice(0, 2).join(", ")} e mais ${nomes.length - 2}`;
+};
+
+/** "MASTER costuma…" fica; "Peça de estrutura…" vira "peça de estrutura…" depois do travessão. */
+const continuaFrase = (m: string) => (/^[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{2,}\b/.test(m) ? m : m.charAt(0).toLowerCase() + m.slice(1));
+
+/**
+ * A FRASE DA FAIXA DE SUGESTÃO: os patrocinadores agrupados pelo MOTIVO —
+ * "Todos os 6 — peça de estrutura…", "Itaú — MASTER costuma ir em Display
+ * (12 de 14 eventos)". Dois nomes na descrição viram um grupo só ("os dois
+ * nomes estão na descrição; confira se vão os dois"), em vez de cada um dizer
+ * "junto com o outro".
+ */
+export function gruposDaSugestao(
+  sugestoes: SugestaoDaPeca[],
+  nomeDe: Map<string, string>,
+  tamanhoDoElenco: number,
+): Array<{ quem: string; motivo: string }> {
+  const grupos = new Map<string, string[]>();
+  for (const s of sugestoes) {
+    const ambiguo = s.regra === "nome-na-descricao" && !s.automatica && s.motivo !== "O nome está na descrição";
+    const chave = ambiguo ? AMBIGUO : s.motivo.replace(SUFIXO_DO_HISTORICO, "; cota pelo histórico");
+    const nome = nomeDe.get(s.sponsorId);
+    if (!nome) continue;
+    if (!grupos.has(chave)) grupos.set(chave, []);
+    grupos.get(chave)!.push(nome);
+  }
+  return Array.from(grupos.entries()).map(([chave, nomes]) => ({
+    quem: nomes.length === tamanhoDoElenco && nomes.length > 2 ? `Todos os ${nomes.length}` : listaDeNomes(nomes),
+    motivo: chave === AMBIGUO
+      ? (nomes.length === 2 ? "os dois nomes estão na descrição; confira se vão os dois" : "os nomes estão na descrição; confira quais vão")
+      : continuaFrase(chave),
+  }));
 }

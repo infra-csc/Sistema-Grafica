@@ -42,6 +42,7 @@ import { prioridadePelaSaida } from "@shared/prioridade-do-evento";
 import { responderErro } from "../erros";
 import { aplicarPrioridadeAutomatica } from "../services/prioridadeAutomatica";
 import { barraSeArquivado } from "../services/arquivamento";
+import { vincularAutomaticamente } from "../services/sugestao-de-vinculo";
 
 // Normaliza startDate/truckDepartureDate (string "YYYY-MM-DD[THH:MM...]" ou Date
 // vindo do storage) para a data-calendário "YYYY-MM-DD", sem envolver timezone
@@ -1377,6 +1378,18 @@ export function registerEventRoutes(app: Express): void {
         });
       }
 
+      // VÍNCULO AUTOMÁTICO (dono, 15/10): é AQUI que a peça entra na fase de
+      // vinculação — por peça, Entrada Rápida, planilha, Kit e clone nascem
+      // em rascunho e chegam por este envio. Só a regra que acerta ~100%
+      // (o nome de UM patrocinador do evento na descrição, e nada mais na peça
+      // pedindo outro) vincula sozinha; o resto vira sugestão na tela de
+      // Vincular. Peça que já tem patrocinador não é tocada, e o status não
+      // muda (vincular à mão também não muda). Falha aqui não desfaz o envio.
+      const automatico = await vincularAutomaticamente(
+        req as any,
+        successfulUpdates.filter((i) => i.status === "awaiting_linking"),
+      );
+
       // All updates successful - create audit log with actual count.
       // MOLDE (revisão 22/09): o molde NÃO foi para a Vinculação — foi direto
       // para a Arte (Aguardando envio). A trilha e o aviso dizem o destino de
@@ -1388,6 +1401,7 @@ export function registerEventRoutes(app: Express): void {
       if (internas.length > 0) frases.push(`${internas.length} ${internas.length === 1 ? 'peça' : 'peças'} de produção interna: Status alterado de Rascunho → Pronto para Produção (direto para a Gráfica, sem passar pela Arte): ${internas.map((i) => i.displayId).join(', ')}`);
       if (ficaramNoRascunho.length > 0) frases.push(`${ficaramNoRascunho.length} ${ficaramNoRascunho.length === 1 ? 'marcada para a Gráfica ficou' : 'marcadas para a Gráfica ficaram'} no rascunho: ${ficaramNoRascunho.map((f) => `${f.displayId} (${f.motivo})`).join('; ')}`);
       if (comuns > 0) frases.push(`${comuns} ${comuns === 1 ? 'item' : 'itens'}: Status alterado de Rascunho → Aguardando Vinculação (${comuns === 1 ? 'enviado' : 'enviados'} para vinculação)`);
+      if (automatico.vinculos > 0) frases.push(`${automatico.pecas.length} ${automatico.pecas.length === 1 ? 'peça ganhou' : 'peças ganharam'} patrocinador automaticamente (o nome dele está na descrição)`);
       if (moldes > 0) frases.push(`${moldes} ${moldes === 1 ? 'molde' : 'moldes'}: Status alterado de Rascunho → Aguardando Envio (molde vai direto para a Arte, sem vinculação)`);
       if (failedCount > 0) frases.push(`${failedCount} não ${failedCount === 1 ? 'foi' : 'foram'} (mudaram de status durante o envio): ${falharam.map((i) => i.displayId).join(', ')}`);
       if (frases.length > 0) {
@@ -1463,6 +1477,8 @@ export function registerEventRoutes(app: Express): void {
         // marcadas que ficaram no rascunho, com o motivo.
         diretoParaGrafica: internas.map((i) => i.displayId),
         ficaramNoRascunho,
+        // Vínculo automático (15/10): quantas peças já chegaram com patrocinador.
+        vinculadasAutomaticamente: automatico.pecas.length,
       });
     } catch (error: any) {
       responderErro(res, error, "enviar rascunhos");

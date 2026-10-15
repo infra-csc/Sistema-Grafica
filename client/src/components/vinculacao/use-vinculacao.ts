@@ -14,11 +14,11 @@ import { ehMolde } from "@shared/molde";
 import { useAuth } from "@/contexts/auth-context";
 import { TOM, T } from "@/lib/theme";
 import { isEventoFinalizado, todayBusinessMs } from "@/lib/status";
-import { CHAVE_DA_VINCULACAO, VAZIO, VINCULACAO_VISIBLE_STATUSES } from "./constantes";
-import { getItemUIStatus, ordenarParaLeitura } from "./regras";
+import { CHAVE_DA_VINCULACAO, LINKING_STATUSES, VAZIO, VINCULACAO_VISIBLE_STATUSES } from "./constantes";
+import { achatarSugestoes, getItemUIStatus, ordenarParaLeitura, sugestoesAtivas } from "./regras";
 import type {
   Agrupamento, ComoJson, ContagemPorEstado, EventoDaVinculacao, GrupoDaLista, ItemChanges,
-  OpcaoDeFiltro, PatrocinadorDaVinculacao, PecaDaVinculacao, PecaPadrao, UIStatus,
+  OpcaoDeFiltro, PatrocinadorDaVinculacao, PecaDaVinculacao, PecaPadrao, SugestoesDosEventos, UIStatus,
 } from "./tipos";
 
 export function useVinculacao() {
@@ -539,6 +539,50 @@ export function useVinculacao() {
     return sponsors.filter(sponsor => sponsorIds.includes(sponsor.id));
   };
 
+  // ── SUGESTÕES DE VÍNCULO (dono, 15/10) ───────────────────────────────────
+  //
+  // UMA requisição para os eventos que têm peça na fase de vinculação — não
+  // uma por grupo: a fila tem até 30 eventos à vista. A chave leva uma
+  // ASSINATURA das peças da fase e do elenco de cada evento: entrou peça nova
+  // (envio da lista) ou mudou quem patrocina, a sugestão é refeita; salvar um
+  // vínculo não muda a assinatura (a linha com vínculo salvo já esconde a
+  // sugestão sozinha — ver sugestoesAtivas).
+  const eventosComPecaNaFase = useMemo(() => {
+    const s = new Set<string>();
+    for (const i of visibleItems) if (LINKING_STATUSES.includes(i.status)) s.add(i.eventId);
+    return Array.from(s).sort();
+  }, [visibleItems]);
+  const assinaturaDasSugestoes = useMemo(() => {
+    let h = 0;
+    const somar = (t: string) => { for (let k = 0; k < t.length; k++) h = (Math.imul(h, 31) + t.charCodeAt(k)) | 0; };
+    for (const i of visibleItems) if (LINKING_STATUSES.includes(i.status)) somar(i.id);
+    for (const id of eventosComPecaNaFase) somar(`${id}:${(eventSponsorMap[id] ?? []).join(",")}`);
+    return (h >>> 0).toString(36);
+  }, [visibleItems, eventosComPecaNaFase, eventSponsorMap]);
+  const { data: sugestoesCruas } = useQuery<SugestoesDosEventos>({
+    queryKey: ["/api/sugestoes-de-vinculo", `?eventId=${eventosComPecaNaFase.join(",")}&v=${assinaturaDasSugestoes}`],
+    enabled: eventosComPecaNaFase.length > 0,
+    staleTime: 60_000,
+  });
+  const { porPeca: sugestoesPorPeca, automaticos: automaticosPorPeca } = useMemo(
+    () => achatarSugestoes(sugestoesCruas),
+    [sugestoesCruas],
+  );
+  // DESCARTAR é só na tela (não grava): a sugestão daquela peça some até recarregar.
+  const [sugestoesDescartadas, setSugestoesDescartadas] = useState<Set<string>>(new Set());
+
+  /** A sugestão que a linha mostra agora (mesma regra da linha, para contar no cabeçalho). */
+  const sugestoesDaPeca = (item: PecaDaVinculacao) => {
+    // A Solicitação da Arena só VISUALIZA peça do Kit: sugestão que ela não
+    // pode aplicar não aparece (e não entra no "Aplicar sugestões").
+    if (item.kitRemessaId && user?.role === "solicitacao" && !user?.kit) return undefined;
+    const semPatrocinador = pendingChanges[item.id]?.skipApproval ?? (item.skipApproval || false);
+    return sugestoesAtivas(sugestoesPorPeca[item.id], originalSponsorsMap[item.id], semPatrocinador, sugestoesDescartadas.has(item.id));
+  };
+  /** As peças de uma lista que o "Aplicar sugestões" alcança: pendentes, sem rascunho, com sugestão. */
+  const pecasComSugestao = (lista: PecaDaVinculacao[]) =>
+    lista.filter((i) => (itemUIStates[i.id] || 'PENDENTE') === 'PENDENTE' && !!sugestoesDaPeca(i));
+
   // Progresso do grupo: sempre pelos dados SALVOS no banco (originalSponsorsMap),
   // não pelo rascunho local — rascunho é o selo "Rascunho", não progresso.
   const getItemStatus = (item: PecaDaVinculacao) => {
@@ -612,6 +656,9 @@ export function useVinculacao() {
     visibleItems, itemUIStates, fullyFilteredItems, eventFilterOptions, sponsorFilterOptions,
     itemFilterOptions, contagemPorEstado, totalDoContexto, fraseDeResolucao, contextStatusCounts,
     gruposDaLista, getEventSponsors, getItemEditability,
+    // sugestões de vínculo
+    sugestoesPorPeca, automaticosPorPeca, sugestoesDescartadas, setSugestoesDescartadas,
+    sugestoesDaPeca, pecasComSugestao,
   };
 }
 

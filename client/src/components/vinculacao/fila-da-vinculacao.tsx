@@ -12,7 +12,7 @@
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Building2, Calendar, ChevronDown, Plus, Search, Truck, Zap } from "lucide-react";
+import { Building2, Calendar, ChevronDown, Plus, Search, Sparkles, Truck, Zap } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Botao } from "@/components/ui/botao";
 import { EstadoVazio } from "@/components/ui/estados";
@@ -79,6 +79,10 @@ type Props = {
   toggleTypeGroup: (typeItems: PecaDaVinculacao[]) => void;
   vincularRestantes: (sponsorId: string, alvos: PecaDaVinculacao[]) => void;
   abrirAutoVinculo: (eventId: string) => void;
+  /** As peças da lista que o "Aplicar sugestões" alcança (pendentes, com sugestão à vista). */
+  pecasComSugestao: (lista: PecaDaVinculacao[]) => PecaDaVinculacao[];
+  aplicarSugestoes: (eventId: string, alvos: PecaDaVinculacao[]) => void;
+  aplicandoSugestoes: boolean;
   handleOpenSponsorDialog: (event: EventoDaVinculacao) => void;
   renderLinhaDaPeca: (item: PecaDaVinculacao, chips: PatrocinadorDaVinculacao[], eventSponsors: PatrocinadorDaVinculacao[]) => ReactNode;
   temFiltroAtivo: boolean;
@@ -92,7 +96,8 @@ type Props = {
 export function FilaDaVinculacao({
   gruposDaLista, getEventSponsors, getItemEditability, itemUIStates, itemSponsorsMap, selectedItemIds,
   showAllRows, setShowAllRows, tiposColapsados, setTiposColapsados, toggleAllItemsInEvent, toggleTypeGroup,
-  vincularRestantes, abrirAutoVinculo, handleOpenSponsorDialog, renderLinhaDaPeca, temFiltroAtivo,
+  vincularRestantes, abrirAutoVinculo, pecasComSugestao, aplicarSugestoes, aplicandoSugestoes,
+  handleOpenSponsorDialog, renderLinhaDaPeca, temFiltroAtivo,
   limparFiltros, agrupamento, setAgrupamento, emCartoes, dedo,
 }: Props) {
   // Linhas já montadas pelos grupos de cima — o orçamento da abertura
@@ -116,6 +121,9 @@ export function FilaDaVinculacao({
           ? itens.filter(i => getItemEditability(i) && !(itemSponsorsMap[i.id] ?? []).includes(sponsor.id))
           : [];
         const corDoPatrocinador = sponsor ? (sponsor.color || TOM.info.dot) : T.accentText;
+        // Só no agrupamento por evento: agrupado por patrocinador a linha
+        // mostra uma marca só, e aplicar gravaria as outras sem serem vistas.
+        const comSugestao = sponsor ? [] : pecasComSugestao(itens);
 
         return (
           <section key={chave} data-testid={`grupo-${chave}`} style={{ border: `1px solid ${T.border}`, borderRadius: R.lg, overflow: 'hidden' }}>
@@ -208,6 +216,27 @@ export function FilaDaVinculacao({
                 // tamanho natural, o "5 patrocinadores" vazava pela borda do
                 // grupo e saía cortado.
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', flexShrink: 0, ...(emCartoes ? { width: '100%' } : {}) }}>
+                {/* APLICAR SUGESTÕES (15/10): grava, de uma vez, o que o
+                    histórico sugere nas peças PENDENTES deste evento que
+                    estão à vista (filtros valem; descartadas ficam de fora).
+                    O servidor recalcula — a tela só diz quais peças. Mesmo
+                    azul do selo "Sugerido" das linhas. */}
+                {comSugestao.length > 0 && (
+                  <Botao
+                    variante="secundario"
+                    tom="info"
+                    tamanho={dedo ? "toque" : "md"}
+                    icone={Sparkles}
+                    onClick={() => aplicarSugestoes(event.id, comSugestao)}
+                    disabled={aplicandoSugestoes}
+                    carregando={aplicandoSugestoes}
+                    data-testid={`button-aplicar-sugestoes-${event.id}`}
+                    title={`Vincular os patrocinadores sugeridos (chips tracejados) às ${comSugestao.length} ${comSugestao.length === 1 ? 'peça pendente' : 'peças pendentes'} deste evento — grava agora`}
+                    style={emCartoes ? { flex: '1 1 100%' } : undefined}
+                  >
+                    {`Aplicar sugestões (${comSugestao.length})`}
+                  </Botao>
+                )}
                 {/* AUTO-VINCULAR NO PRÓPRIO EVENTO. O do topo exige filtrar
                     exatamente um evento antes; aqui o evento já está
                     escolhido pelo grupo. Mesmo diálogo, mesma pré-visualização

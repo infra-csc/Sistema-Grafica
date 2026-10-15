@@ -16,16 +16,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { memo } from "react";
 import type { CSSProperties } from "react";
-import { AlertTriangle, CheckCircle2, EyeOff, Info, Lock, Paperclip, Recycle, Save, Send } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, EyeOff, Info, Lock, Paperclip, Recycle, Save, Send, Sparkles, Zap } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Botao } from "@/components/ui/botao";
 import { Selo } from "@/components/ui/selo";
 import { alvo } from "@/hooks/use-mobile";
 import { TOM, T, N, R, FS, FW, FONT, darkenToContrast } from "@/lib/theme";
 import { UI_STATUS_LABEL, UI_STATUS_SIGNIFICADO } from "./constantes";
-import { hexToRgba, safeRefUrl } from "./regras";
+import { gruposDaSugestao, hexToRgba, safeRefUrl } from "./regras";
 import { CaixaDeToque } from "./pecas-de-escolha";
-import type { ItemChanges, PatrocinadorDaVinculacao, PecaDaVinculacao, UIStatus } from "./tipos";
+import type { ItemChanges, PatrocinadorDaVinculacao, PecaDaVinculacao, SugestaoDaPeca, UIStatus, VinculoAutomatico } from "./tipos";
 
 /**
  * As ações da linha. Ficam FORA da comparação do memo (ver `mesmaLinha`): a
@@ -43,6 +43,8 @@ export type AcoesDaLinha = {
   descartarRascunho: (item: PecaDaVinculacao) => void;
   salvarLinha: (item: PecaDaVinculacao) => void;
   openSendModalForItem: (item: PecaDaVinculacao) => void;
+  aceitarSugestao: (item: PecaDaVinculacao) => void;
+  descartarSugestao: (item: PecaDaVinculacao) => void;
 };
 
 export type PropsDaLinha = {
@@ -65,6 +67,18 @@ export type PropsDaLinha = {
   enviando: boolean;
   emCartoes: boolean;
   dedo: boolean;
+  /**
+   * SUGESTÃO DE VÍNCULO (15/10): o que o histórico sugere para esta peça — já
+   * recortado por sugestoesAtivas (some com vínculo salvo, "sem patrocinador"
+   * ou descarte). Não é vínculo: só desenha o chip tracejado e a faixa.
+   */
+  sugestoes: SugestaoDaPeca[] | undefined;
+  /** Vínculos SALVOS que o sistema fez sozinho (selo "Automático"). */
+  automaticos: VinculoAutomatico[] | undefined;
+  /** Esta linha está aplicando a sugestão agora. */
+  aceitandoEsta: boolean;
+  /** Alguma aplicação de sugestão em curso: as outras linhas só travam o "Aceitar". */
+  aplicandoSugestoes: boolean;
   acoes: AcoesDaLinha;
 };
 
@@ -72,12 +86,22 @@ function LinhaDaPecaSemMemo(props: PropsDaLinha) {
   const {
     item, chips, eventSponsors, vinculosDaPeca, rascunho, falha, estado, selecionada, editavel,
     podeAcrescentar, salvandoEsta, salvando, enviando, emCartoes, dedo, acoes,
+    sugestoes, automaticos, aceitandoEsta, aplicandoSugestoes,
   } = props;
   const {
     setSelectedItemForDetails, setPreviewRefUrl, toggleItemSelection, toggleItemSkipApproval,
     aplicarVinculo, descartarRascunho, salvarLinha, openSendModalForItem,
+    aceitarSugestao, descartarSugestao,
   } = acoes;
   const vinculados = vinculosDaPeca || [];
+  // Por patrocinador: o que é sugestão (chip tracejado) e o que foi gravado sozinho.
+  const sugestaoDe = sugestoes && estado !== 'ENVIADO' ? new Map(sugestoes.map((s) => [s.sponsorId, s])) : null;
+  const automaticoDe = automaticos && automaticos.length > 0 ? new Map(automaticos.map((a) => [a.sponsorId, a])) : null;
+  // A FAIXA da sugestão só no escopo do evento inteiro: agrupado por
+  // patrocinador, a linha mostra um chip só, e "Aceitar" gravaria os outros
+  // patrocinadores sugeridos sem ninguém os ver.
+  const faixaDaSugestao = !!sugestoes && editavel && estado !== 'ENVIADO' && chips.length === eventSponsors.length;
+  const sugeridosAFazer = sugestoes ? sugestoes.filter((s) => !vinculados.includes(s.sponsorId)) : [];
   const semPatrocinador = rascunho?.skipApproval ?? (item.skipApproval || false);
   // Peça JÁ ENVIADA é selecionável — não para reescrever o vínculo (isso
   // continua travado), mas para ACRESCENTAR um patrocinador que apareceu
@@ -237,6 +261,7 @@ function LinhaDaPecaSemMemo(props: PropsDaLinha) {
         ) : eventSponsors.length === 0 ? (
           <span style={{ fontSize: FS.meta, color: T.apoio, fontStyle: 'italic' }}>Sem patrocinadores no evento</span>
         ) : (
+          <>
           <div style={emCartoes && estado !== 'ENVIADO'
             ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(116px, 1fr))', gap: 6 }
             : { display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
@@ -317,14 +342,61 @@ function LinhaDaPecaSemMemo(props: PropsDaLinha) {
               // necessário — a marca continua reconhecível, que é o que faz
               // a tabela legível de longe.
               const corDoTexto = darkenToContrast(marca, T.surface, 4.5);
+              // SUGERIDO ≠ MARCADO (15/10). O chip sugerido não está
+              // vinculado: contorno TRACEJADO na cor da marca, fundo quase
+              // branco e a bolinha VAZADA — o marcado de verdade tem contorno
+              // contínuo e bolinha cheia. O motivo vai no title.
+              const sugestao = !marcado ? sugestaoDe?.get(sp.id) : undefined;
+              const automatico = marcado ? automaticoDe?.get(sp.id) : undefined;
+              if (sugestao) {
+                return (
+                  <button
+                    key={sp.id}
+                    type="button"
+                    role="checkbox"
+                    aria-checked={false}
+                    aria-label={`Vincular ${sp.name} a ${item.displayId} — sugerido: ${sugestao.motivo}`}
+                    title={`Sugerido — ${sugestao.motivo}. Ainda não está vinculado: clique para marcar.`}
+                    disabled={!editavel}
+                    onClick={() => { if (editavel) aplicarVinculo(item, [...vinculados, sp.id], false); }}
+                    onKeyDown={e => {
+                      if (e.key !== 'Enter' && e.key !== ' ') return;
+                      e.preventDefault();
+                      if (editavel) aplicarVinculo(item, [...vinculados, sp.id], false);
+                    }}
+                    data-testid={`checkbox-sponsor-${item.id}-${sp.id}`}
+                    data-sugerido={sugestao.automatica ? 'automatico' : 'sugerido'}
+                    className="vinc-chip sug-chip"
+                    style={{
+                      // A cor da marca para o hover (index.css, .sug-chip).
+                      ['--sug-cor' as string]: corDoTexto,
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      height: alvo(26, dedo), padding: '0 10px', borderRadius: 999,
+                      backgroundColor: hexToRgba(marca, 0.04),
+                      color: corDoTexto,
+                      border: `1px dashed ${corDoTexto}`,
+                      cursor: editavel ? 'pointer' : 'not-allowed',
+                      font: 'inherit', fontSize: FS.meta, fontWeight: FW.medio,
+                      whiteSpace: 'nowrap', transition: 'background 0.12s, border-color 0.12s',
+                      ...chipNoCartao,
+                    }}
+                  >
+                    <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: 'transparent', boxShadow: `inset 0 0 0 1.5px ${marca}`, flexShrink: 0 }} />
+                    {sp.name}
+                  </button>
+                );
+              }
               return (
                 <button
                   key={sp.id}
                   type="button"
                   role="checkbox"
                   aria-checked={marcado}
-                  aria-label={`${marcado ? 'Desvincular' : 'Vincular'} ${sp.name} ${marcado ? 'de' : 'a'} ${item.displayId}`}
-                  title={marcado ? `Clique para desvincular ${sp.name}` : `Clique para vincular ${sp.name}`}
+                  aria-label={`${marcado ? 'Desvincular' : 'Vincular'} ${sp.name} ${marcado ? 'de' : 'a'} ${item.displayId}${automatico ? ' (vinculado automaticamente)' : ''}`}
+                  title={automatico
+                    ? `Vinculado automaticamente — ${automatico.motivo.toLowerCase()}. Clique para desvincular ${sp.name}`
+                    : marcado ? `Clique para desvincular ${sp.name}` : `Clique para vincular ${sp.name}`}
+                  data-automatico={automatico ? '' : undefined}
                   disabled={!editavel}
                   onClick={() => {
                     if (!editavel) return;
@@ -352,6 +424,7 @@ function LinhaDaPecaSemMemo(props: PropsDaLinha) {
                 >
                   <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: marcado ? marca : T.bdark, flexShrink: 0 }} />
                   {sp.name}
+                  {automatico && <Zap aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0, marginLeft: -2 }} />}
                 </button>
               );
             })}
@@ -385,6 +458,86 @@ function LinhaDaPecaSemMemo(props: PropsDaLinha) {
               </button>
             )}
           </div>
+          {/* "AUTOMÁTICO" (15/10): o vínculo salvo que o sistema fez sozinho
+              (o nome do patrocinador está na descrição). É vínculo de verdade
+              — chip contínuo, com o raio —, e esta linha embaixo diz quem o
+              fez. FORA da grade de chips: no cartão do celular, um selo na
+              grade parecia mais um chip para clicar. */}
+          {automaticoDe && estado !== 'ENVIADO' && (() => {
+            const nomeDe = new Map(eventSponsors.map((sp) => [sp.id, sp.name]));
+            const nomes = Array.from(automaticoDe.keys()).map((id) => nomeDe.get(id)).filter(Boolean) as string[];
+            const motivo = Array.from(automaticoDe.values())[0].motivo;
+            return (
+              <div
+                className="sug-auto"
+                data-testid={`selo-automatico-${item.id}`}
+                title={`Vinculado automaticamente ao entrar na vinculação — ${motivo.toLowerCase()}. Confira e desmarque se não for.`}
+              >
+                <Selo tom="sucesso" icone={Zap}>Automático</Selo>
+                <span className="sug-faixa-texto">
+                  <strong style={{ fontWeight: FW.forte, color: T.strong }}>{nomes.join(', ')}</strong>
+                  {' — vinculado sozinho: '}{motivo.charAt(0).toLowerCase() + motivo.slice(1)}
+                </span>
+              </div>
+            );
+          })()}
+          {/* A FAIXA DA SUGESTÃO (15/10): o selo diz que é sugestão — nada
+              disto está gravado —, a frase diz por quê e quem falta, e as
+              duas saídas: Aceitar (grava a sugestão desta peça) e Descartar
+              (só some da tela). Com rascunho aberto a pessoa já está
+              escolhendo à mão: fica só o Descartar. */}
+          {faixaDaSugestao && sugeridosAFazer.length > 0 && (() => {
+            const nomeDe = new Map(eventSponsors.map((sp) => [sp.id, sp.name]));
+            const grupos = gruposDaSugestao(sugeridosAFazer, nomeDe, eventSponsors.length);
+            return (
+              <div
+                role="group"
+                aria-label={`Sugestão de patrocinadores para ${item.displayId}`}
+                data-testid={`sugestao-${item.id}`}
+                className="sug-faixa"
+              >
+                <Selo tom="info" icone={Sparkles} title="Sugestão do histórico — ainda NÃO está vinculado" data-testid={`selo-sugerido-${item.id}`}>
+                  Sugerido
+                </Selo>
+                <span className="sug-faixa-texto" title={sugeridosAFazer.map((s) => `${nomeDe.get(s.sponsorId) ?? ''}: ${s.motivo}`).join('\n')}>
+                  {grupos.map((g, i) => (
+                    <span key={g.motivo} style={{ display: 'block' }} data-testid={i === 0 ? `sugestao-texto-${item.id}` : undefined}>
+                      <strong style={{ fontWeight: FW.forte, color: T.strong }}>{g.quem}</strong>
+                      {' — '}{g.motivo}
+                    </span>
+                  ))}
+                </span>
+                <span className="sug-faixa-acoes">
+                  {estado === 'PENDENTE' && (
+                    <Botao
+                      variante="secundario"
+                      tamanho={tamanhoNaLinha}
+                      icone={Check}
+                      onClick={() => aceitarSugestao(item)}
+                      disabled={aplicandoSugestoes}
+                      carregando={aceitandoEsta}
+                      title="Vincular os patrocinadores sugeridos a esta peça (grava agora)"
+                      data-testid={`btn-aceitar-sugestao-${item.id}`}
+                    >
+                      {aceitandoEsta ? 'Aceitando…' : 'Aceitar'}
+                    </Botao>
+                  )}
+                  <Botao
+                    variante="fantasma"
+                    tamanho={tamanhoNaLinha}
+                    onClick={() => descartarSugestao(item)}
+                    title="Esconder esta sugestão (não grava nada)"
+                    data-testid={`btn-descartar-sugestao-${item.id}`}
+                  >
+                    {/* Com rascunho, a linha já tem um "Descartar" (o do
+                        rascunho): o desta faixa diz o que descarta. */}
+                    {estado === 'RASCUNHO' ? 'Descartar sugestão' : 'Descartar'}
+                  </Botao>
+                </span>
+              </div>
+            );
+          })()}
+          </>
         )}
       </td>
 
@@ -480,6 +633,7 @@ const mesmaLista = (a: PatrocinadorDaVinculacao[], b: PatrocinadorDaVinculacao[]
 const CAMPOS_COMPARADOS = [
   "item", "vinculosDaPeca", "rascunho", "originais", "falha", "estado", "selecionada", "editavel",
   "podeAcrescentar", "salvandoEsta", "salvando", "enviando", "emCartoes", "dedo",
+  "sugestoes", "automaticos", "aceitandoEsta", "aplicandoSugestoes",
 ] as const;
 
 function mesmaLinha(antes: PropsDaLinha, depois: PropsDaLinha): boolean {

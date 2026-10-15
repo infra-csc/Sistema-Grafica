@@ -594,7 +594,8 @@ function arquivosDeRota(dir = path.join(RAIZ, "server/routes")): string[] {
       : e.name.endsWith(".ts") ? [path.relative(RAIZ, path.join(dir, e.name)).split(path.sep).join("/")] : []);
 }
 /** A rede: as rotas da peça (itens/ inteiro), de patrocinador e de evento. */
-const NA_REDE = (rel: string) => rel.startsWith("server/routes/itens/") || ["server/routes/items.ts", "server/routes/sponsors.ts", "server/routes/events.ts"].includes(rel);
+// sugestoes-de-vinculo.ts (15/10): o "Aplicar sugestões" grava vínculo de peça — entra na rede.
+const NA_REDE = (rel: string) => rel.startsWith("server/routes/itens/") || ["server/routes/items.ts", "server/routes/sponsors.ts", "server/routes/events.ts", "server/routes/sugestoes-de-vinculo.ts"].includes(rel);
 /**
  * Fora do recorte desta rede — ela nasceu para items/sponsors/events. Alguns
  * destes arquivos têm a guarda nas rotas que andam (molde, máquinas), outros

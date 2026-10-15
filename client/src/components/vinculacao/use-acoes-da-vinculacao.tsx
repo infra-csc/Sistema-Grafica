@@ -21,7 +21,7 @@ import { useAutoVinculo } from "./use-auto-vinculo";
 import { useAcrescentar } from "./use-acrescentar";
 import type {
   EventoDaVinculacao, FalhaDaPeca, FotoDoSalvamento, ItemChanges, PecaDaVinculacao, ResultadoDoLote,
-  ResultadoDoSalvamento, SavePayload,
+  RespostaDoAplicarSugestoes, ResultadoDoSalvamento, SavePayload,
 } from "./tipos";
 
 export function useAcoesDaVinculacao(v: Vinculacao) {
@@ -29,7 +29,7 @@ export function useAcoesDaVinculacao(v: Vinculacao) {
     items, sponsors, fullyFilteredItems, itemUIStates,
     itemSponsorsMap, setItemSponsorsMap, originalSponsorsMap, setOriginalSponsorsMap,
     pendingChanges, setPendingChanges, selectedItemIds, setSelectedItemIds,
-    getEventSponsors,
+    getEventSponsors, setSugestoesDescartadas,
   } = v;
   const { toast } = useToast();
 
@@ -524,6 +524,75 @@ export function useAcoesDaVinculacao(v: Vinculacao) {
     });
   };
 
+  // ── SUGESTÕES DE VÍNCULO (dono, 15/10) ───────────────────────────────────
+  //
+  // APLICAR grava direto no servidor (como o auto-vínculo por cota), que
+  // RECALCULA a sugestão — a tela só diz QUAIS peças. A resposta traz o que
+  // ficou em cada peça, e os mapas da tela passam a ser isso (sem refetch).
+  const aplicarSugestoesMutation = useMutation({
+    mutationFn: async ({ eventId, itemIds }: { eventId: string; itemIds: string[] }): Promise<RespostaDoAplicarSugestoes> => {
+      const res = await apiRequest("POST", `/api/events/${eventId}/sugestoes-de-vinculo/aplicar`, { itemIds });
+      return res.json();
+    },
+    onSuccess: (r) => {
+      const aplicadas = Array.isArray(r?.aplicadas) ? r.aplicadas : [];
+      if (aplicadas.length > 0) {
+        const novos: Record<string, string[]> = {};
+        aplicadas.forEach((a) => { novos[a.itemId] = a.sponsorIds; });
+        setItemSponsorsMap(prev => ({ ...prev, ...novos }));
+        setOriginalSponsorsMap(prev => ({ ...prev, ...novos }));
+        setPendingChanges(prev => {
+          const next = { ...prev };
+          aplicadas.forEach((a) => { delete next[a.itemId]; });
+          return next;
+        });
+        registrarFalhas(aplicadas.map((a) => a.itemId), []);
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
+      const n = aplicadas.length;
+      toast({
+        title: n === 0 ? "Nada a aplicar" : `Sugestões aplicadas em ${n} ${n === 1 ? 'peça' : 'peças'}`,
+        description: n === 0
+          ? "As peças já tinham patrocinador ou a sugestão mudou. A lista foi atualizada."
+          : `${r.vinculos} ${r.vinculos === 1 ? 'vínculo gravado' : 'vínculos gravados'}. ${n === 1 ? 'A peça ficou Pronta' : 'As peças ficaram Prontas'} — confira e envie para a Arte.`,
+        variant: n === 0 ? "warning" : "success",
+      });
+      if (n === 0) queryClient.invalidateQueries({ queryKey: ["/api/sugestoes-de-vinculo"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Não foi possível aplicar as sugestões", description: error.message, variant: "destructive" });
+    },
+  });
+
+  /** "Aplicar sugestões (N)" do cabeçalho do evento. */
+  const aplicarSugestoes = (eventId: string, alvos: PecaDaVinculacao[]) => {
+    if (alvos.length === 0) return;
+    aplicarSugestoesMutation.mutate({ eventId, itemIds: alvos.map((i) => i.id) });
+  };
+
+  /** "Aceitar" da linha: a mesma gravação, só desta peça. */
+  const aceitarSugestao = (item: PecaDaVinculacao) => {
+    aplicarSugestoesMutation.mutate({ eventId: item.eventId, itemIds: [item.id] });
+  };
+
+  /** "Descartar" da linha: só na tela, com desfazer no aviso. */
+  const descartarSugestao = (item: PecaDaVinculacao) => {
+    setSugestoesDescartadas(prev => new Set(prev).add(item.id));
+    toast({
+      title: "Sugestão descartada",
+      description: `${item.displayId ?? "A peça"} segue sem patrocinador — vincule à mão quando quiser.`,
+      variant: "success",
+      action: (
+        <ToastAction
+          altText={`Desfazer o descarte da sugestão de ${item.displayId ?? "peça"}`}
+          onClick={() => setSugestoesDescartadas(prev => { const n = new Set(prev); n.delete(item.id); return n; })}
+        >
+          Desfazer
+        </ToastAction>
+      ),
+    });
+  };
+
   /** O "Salvar" da linha: grava o rascunho desta peça. */
   const salvarLinha = (item: PecaDaVinculacao) => {
     const ch = pendingChanges[item.id];
@@ -561,6 +630,8 @@ export function useAcoesDaVinculacao(v: Vinculacao) {
     // linha
     toggleItemSkipApproval, aplicarVinculo, descartarRascunho, salvarLinha,
     toggleItemSelection, setPreviewRefUrl, falhaPorPeca,
+    // sugestões de vínculo
+    aplicarSugestoes, aceitarSugestao, descartarSugestao, aplicarSugestoesMutation,
     // lote e grupos
     toggleAllItemsInEvent, toggleTypeGroup, vincularRestantes, handleOpenBulkApplyDialog,
     salvarRascunhosVisiveis, salvarSelecionadas,

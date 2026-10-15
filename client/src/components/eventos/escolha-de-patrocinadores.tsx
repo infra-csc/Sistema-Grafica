@@ -1,6 +1,9 @@
 // Os patrocinadores do evento, com a cota de cada um — a lista do formulário.
+import { useState } from "react";
 import { Link } from "wouter";
-import { Building2, Search, ChevronDown } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Building2, Search, ChevronDown, Sparkles } from "lucide-react";
+import { textoDaCotaSugerida, type CotaSugerida } from "@shared/sugestao-de-vinculo";
 import type { Sponsor } from "@shared/schema";
 import { T, FS, R, N, TOM, FONT, FW } from "@/lib/theme";
 import { EstadoVazio, EstadoErro } from "@/components/ui/estados";
@@ -21,6 +24,36 @@ export function EscolhaDePatrocinadores({ form, sponsors, sponsorsQueryLoading, 
   } = form;
   // De onde vêm os vínculos que o "Tentar de novo" relê (editar ou duplicar).
   const origemDosVinculos = editingEvent || duplicateSource;
+
+  // COTA SUGERIDA (dono, 15/10): a cota mais recente de cada patrocinador em
+  // OUTROS eventos. Ao MARCAR um patrocinador sem cota, ela já vem escolhida
+  // (e a linha diz de onde veio); no vínculo que JÁ existe sem cota, a
+  // sugestão aparece com um "Usar" — não grava sozinha.
+  const { data: cotasCruas } = useQuery<Record<string, CotaSugerida>>({
+    queryKey: editingEvent ? ["/api/cotas-sugeridas", `?exceto=${editingEvent.id}`] : ["/api/cotas-sugeridas"],
+    staleTime: 5 * 60_000,
+  });
+  const cotasSugeridas: Record<string, CotaSugerida> = cotasCruas && typeof cotasCruas === 'object' && !Array.isArray(cotasCruas) ? cotasCruas : {};
+  const sugestaoValida = (id: string) => {
+    const c = cotasSugeridas[id];
+    return c && QUOTA_OPTIONS.some((q) => q.value === c.cota) ? c : undefined;
+  };
+  // Quem teve a cota PREENCHIDA pela sugestão nesta abertura do formulário.
+  const [preenchidas, setPreenchidas] = useState<Set<string>>(() => new Set());
+  const marcarPatrocinador = (id: string) => {
+    setSelectedSponsorIds(prev => (prev.includes(id) ? prev : [...prev, id]));
+    const sug = sugestaoValida(id);
+    if (sug && !sponsorQuotaMap[id]) {
+      setSponsorQuotaMap(prev => (prev[id] ? prev : { ...prev, [id]: sug.cota }));
+      setPreenchidas(prev => new Set(prev).add(id));
+    }
+  };
+  const usarSugestao = (id: string) => {
+    const sug = sugestaoValida(id);
+    if (!sug) return;
+    setSponsorQuotaMap(prev => ({ ...prev, [id]: sug.cota }));
+    setPreenchidas(prev => new Set(prev).add(id));
+  };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
       <label htmlFor="busca-patrocinador-do-evento" style={{ ...ROTULO_DO_CAMPO, display: 'flex', alignItems: 'center', gap: '6px', minHeight: 20 }}>
@@ -145,7 +178,7 @@ export function EscolhaDePatrocinadores({ form, sponsors, sponsorsQueryLoading, 
                             setSelectedSponsorIds(prev => prev.filter(id => id !== sponsor.id));
                             setSponsorQuotaMap(prev => { const n = { ...prev }; delete n[sponsor.id]; return n; });
                           } else {
-                            setSelectedSponsorIds(prev => [...prev, sponsor.id]);
+                            marcarPatrocinador(sponsor.id);
                           }
                         }}
                       >
@@ -158,6 +191,32 @@ export function EscolhaDePatrocinadores({ form, sponsors, sponsorsQueryLoading, 
                           {sponsor.company && (
                             <span style={{ fontSize: FS.small, color: T.second, display: 'block', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sponsor.company}</span>
                           )}
+                          {/* COTA SUGERIDA: preenchida agora pela sugestão (a
+                              frase diz de onde veio), ou vínculo sem cota com
+                              a sugestão ao lado e o "Usar". */}
+                          {isSelected && (() => {
+                            const sug = sugestaoValida(sponsor.id);
+                            if (!sug) return null;
+                            const veioDaSugestao = currentQuota === sug.cota && preenchidas.has(sponsor.id);
+                            if (!veioDaSugestao && currentQuota) return null;
+                            return (
+                              <span className="sug-cota" data-testid={`cota-sugerida-${sponsor.id}`}>
+                                <Sparkles aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0 }} />
+                                <span>{textoDaCotaSugerida(sug, (QUOTA_OPTIONS.find((q) => q.value === sug.cota)?.label ?? sug.cota).toUpperCase())}</span>
+                                {!currentQuota && (
+                                  <button
+                                    type="button"
+                                    className="sug-cota-usar"
+                                    onClick={(e) => { e.stopPropagation(); usarSugestao(sponsor.id); }}
+                                    aria-label={`Usar a cota sugerida ${sug.cota} para ${sponsor.name}`}
+                                    data-testid={`usar-cota-sugerida-${sponsor.id}`}
+                                  >
+                                    Usar
+                                  </button>
+                                )}
+                              </span>
+                            );
+                          })()}
                         </div>
 
                         {isSelected && (
@@ -186,6 +245,8 @@ export function EscolhaDePatrocinadores({ form, sponsors, sponsorsQueryLoading, 
                               value={currentQuota || '_none_'}
                               onChange={e => {
                                 const val = e.target.value === '_none_' ? '' : e.target.value;
+                                // Escolheu à mão: a frase "Sugerida" deixa de valer.
+                                setPreenchidas(prev => { if (!prev.has(sponsor.id)) return prev; const n = new Set(prev); n.delete(sponsor.id); return n; });
                                 setSponsorQuotaMap(prev => {
                                   const n = { ...prev };
                                   if (val) n[sponsor.id] = val; else delete n[sponsor.id];
@@ -246,7 +307,7 @@ export function EscolhaDePatrocinadores({ form, sponsors, sponsorsQueryLoading, 
                           checked={isSelected}
                           onChange={(e) => {
                             if (e.target.checked) {
-                              setSelectedSponsorIds(prev => [...prev, sponsor.id]);
+                              marcarPatrocinador(sponsor.id);
                             } else {
                               setSelectedSponsorIds(prev => prev.filter(id => id !== sponsor.id));
                               setSponsorQuotaMap(prev => { const n = { ...prev }; delete n[sponsor.id]; return n; });

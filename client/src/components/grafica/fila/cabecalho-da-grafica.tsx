@@ -8,7 +8,8 @@ import { Link } from "wouter";
 import { Camera, FileSpreadsheet, ListChecks, Package, Printer, RotateCcw } from "lucide-react";
 import { Botao } from "@/components/ui/botao";
 import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
-import { FONT, FS, FW, R, T } from "@/lib/theme";
+import { ACAO, FONT, FS, FW, R, T, TOM, tintaDaAcao } from "@/lib/theme";
+import { corTintada } from "./aparencia";
 import { alvo as alvoDeToque } from "@/hooks/use-mobile";
 import { prefetchRota } from "@/lib/prefetch-de-rota";
 import { rotuloDaMaquina } from "@shared/fluxo-peca";
@@ -65,7 +66,9 @@ export function CabecalhoDaGrafica({ fila, lote, podeConferir, isMobile, ponteir
           // único lugar de ação.
           <div style={{ display: "flex", alignItems: "flex-start", gap: 8, flexWrap: "wrap", width: isMobile ? "100%" : undefined }}>
             {/* CONFERIR EM FILA — o caminho do celular, e por isso a
-                primária dele: uma foto POR peça. A entrega é do volume. */}
+                primária dele: uma foto POR peça. A entrega é do volume.
+                Ciano da etapa Conferir — o mesmo da linha, do cartão, do modal
+                e do lote (era o preto genérico; coerência, 15/10). */}
             {isMobile && podeConferir && conferableInFilter.length > 0 && (
               <Botao
                 variante="primario"
@@ -73,6 +76,7 @@ export function CabecalhoDaGrafica({ fila, lote, podeConferir, isMobile, ponteir
                 icone={Camera}
                 larguraCheia
                 onClick={() => setGalpao("confer")}
+                tom="ciano"
                 data-testid="button-fila-conferir"
                 aria-label={`Conferir em fila, uma peça por vez com foto — ${conferableInFilter.length} peças`}
               >
@@ -86,7 +90,9 @@ export function CabecalhoDaGrafica({ fila, lote, podeConferir, isMobile, ponteir
                 <strong style={{ color: T.strong }}>Fila:</strong> uma foto por peça · <strong style={{ color: T.strong }}>Lote:</strong> uma foto só
               </p>
             )}
-            {/* Conferência em lote — só para quem pode conferir (gate do servidor). */}
+            {/* Conferência em lote — só para quem pode conferir (gate do servidor).
+                Ciano CLARO, par do amarelo claro do "Embalar em lote" ao lado:
+                a porta do modo na cor da etapa (coerência, 15/10). */}
             {podeConferir && conferableInFilter.length > 0 && (
               <Botao
                 tamanho={tamanhoDoTopo}
@@ -94,14 +100,16 @@ export function CabecalhoDaGrafica({ fila, lote, podeConferir, isMobile, ponteir
                 onClick={() => { setBulkConferMode(true); setBulkSelectedIds(new Set()); }}
                 data-testid="button-bulk-confer"
                 title="Selecionar várias peças e conferir com uma foto só"
-                style={{ flex: isMobile ? "1 1 0%" : undefined }}
+                style={{ ...corTintada(TOM.ciano), flex: isMobile ? "1 1 0%" : undefined }}
               >
                 Conferir em lote
                 {/* No celular a contagem já está na fila logo acima. */}
-                {!isMobile && <span style={{ color: T.second, fontVariantNumeric: "tabular-nums" }}>{conferableInFilter.length}</span>}
+                {!isMobile && <span style={{ color: TOM.ciano.text, fontWeight: FW.medio, fontVariantNumeric: "tabular-nums" }}>{conferableInFilter.length}</span>}
               </Botao>
             )}
-            {/* Embalar em lote (dono, 21/09) — várias conferidas num tubo. */}
+            {/* Embalar em lote (dono, 21/09) — várias conferidas num tubo.
+                Amarelo CLARO do Embalar (dono, 15/10): é a porta do modo, não
+                a ação final — o sólido fica para o "Escolher o tubo" da barra. */}
             {podeConferir && packableInFilter.length > 0 && (
               <Botao
                 tamanho={tamanhoDoTopo}
@@ -109,10 +117,10 @@ export function CabecalhoDaGrafica({ fila, lote, podeConferir, isMobile, ponteir
                 onClick={() => { setBulkPackMode(true); setBulkSelectedIds(new Set()); }}
                 data-testid="button-bulk-pack"
                 title="Marcar várias peças conferidas e pôr todas num tubo"
-                style={{ flex: isMobile ? "1 1 0%" : undefined }}
+                style={{ ...tintaDaAcao(ACAO.embalar), flex: isMobile ? "1 1 0%" : undefined }}
               >
                 Embalar em lote
-                {!isMobile && <span style={{ color: T.second, fontVariantNumeric: "tabular-nums" }}>{packableInFilter.length}</span>}
+                {!isMobile && <span style={{ color: ACAO.embalar.claro.text, fontWeight: FW.medio, fontVariantNumeric: "tabular-nums" }}>{packableInFilter.length}</span>}
               </Botao>
             )}
             {!isMobile && !atalhosNasAbas && <AtalhosDaGrafica fila={fila} isMobile={false} ponteiroGrosso={ponteiroGrosso} isExporting={isExporting} handleExportXlsx={handleExportXlsx} />}

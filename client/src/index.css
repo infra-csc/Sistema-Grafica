@@ -1905,3 +1905,19 @@ textarea.erp-pi-campo { min-height: 52px; }
 .prio-acao:hover:not(:disabled) { color: var(--perigo-text); background-color: var(--perigo-bg); }
 .prio-acao-ativa { color: var(--perigo-text); background-color: var(--perigo-bg); box-shadow: inset 0 0 0 1px var(--perigo-border); }
 .prio-acao-ativa:hover:not(:disabled) { color: var(--perigo-text); background-color: var(--perigo-border); }
+
+/* ── COR DA AÇÃO — cor-acao-* (dono, 15/10). Embalar amarelo, Entregar verde
+   (tokens ACAO em lib/theme.ts). O hover genérico do .ds-botao é um
+   brightness(0.94): no amarelo ele puxava para mostarda. Aqui o hover e o
+   ativo são os degraus do próprio token, que chegam por variável inline
+   (pinturaDaAcao) — nenhum hex mora neste arquivo. Desabilitado não acende. */
+.ds-botao.cor-acao:hover:not(:disabled):not([aria-disabled="true"]) {
+  background-color: var(--cor-acao-hover) !important;
+  border-color: var(--cor-acao-hover) !important;
+  filter: none;
+}
+.ds-botao.cor-acao:active:not(:disabled):not([aria-disabled="true"]) {
+  background-color: var(--cor-acao-ativo) !important;
+  border-color: var(--cor-acao-ativo) !important;
+  filter: none;
+}

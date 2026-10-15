@@ -16,6 +16,7 @@
 // sempre para o valor que a tela REALMENTE usa — contado no código, não
 // escolhido no gosto.
 // ─────────────────────────────────────────────────────────────────────────────
+import type React from "react";
 import { P } from "./status";
 
 /**
@@ -353,6 +354,65 @@ export const TOM_FORTE: Record<NomeDeTom, { bg: string; border: string; text: st
   turquesa:  { bg: "#ccfbf1", border: "#5eead4", text: "#115e59", dot: TOM.turquesa.dot },
   ciano:     { bg: "#cffafe", border: "#67e8f9", text: "#155e75", dot: TOM.ciano.dot },
 };
+
+/**
+ * A COR DAS AÇÕES EMBALAR E ENTREGAR — decisão do dono (15/10), no app inteiro.
+ *
+ * Antes as duas eram o azul do Embalado (#1d4ed8) e se confundiam entre si e
+ * com o resto: "Embalar em amarelo e Entregar em verde". Valem para o BOTÃO
+ * da ação (linha, cartão do celular, modal, lote) e para a área tingida dela
+ * (a peça marcada no modal de embalar, a opção "já embalar"). NÃO valem para a
+ * ETAPA: o selo/cartão "Embalado" continua azul e "Entregue" continua verde
+ * (lib/status) — aqui é o verbo, lá é o estado.
+ *
+ * EMBALAR é amarelo DE VERDADE (yellow-400), não âmbar/laranja — esses já
+ * dizem "Em impressão" e "complemento". Amarelo não carrega texto branco
+ * (1,5:1): o texto é ESCURO (#422006, 9,5:1; 7,6:1 no hover). O `traco` é o
+ * amarelo que aguenta ser marca sobre branco (anel do rádio, caixa marcada:
+ * 4,9:1) — o #eab308 da borda daria 1,9:1.
+ *
+ * ENTREGAR é o verde do sucesso (P.green.text) com branco (5,0:1; 7,1:1 no
+ * hover). A versão clara é o próprio TOM.sucesso.
+ *
+ * `hover`/`ativo` chegam ao CSS por variável (classe .cor-acao no index.css):
+ * o brilho genérico do .ds-botao deixava o amarelo com cara de mostarda.
+ * Contrastes travados em server/__tests__/cor-das-acoes.test.ts.
+ */
+export const ACAO = {
+  embalar: {
+    bg: "#facc15", border: "#eab308", text: "#422006",
+    hover: "#eab308", ativo: "#ca8a04",
+    traco: "#a16207",
+    claro: { bg: "#fef9c3", border: "#fde047", text: "#713f12" },
+  },
+  entregar: {
+    bg: P.green.text, border: P.green.text, text: "#ffffff",
+    hover: "#166534", ativo: "#14532d",
+    traco: P.green.text,
+    claro: { bg: P.green.bg, border: P.green.border, text: P.green.text },
+  },
+} as const;
+export type PinturaDeAcao = (typeof ACAO)[keyof typeof ACAO];
+
+/** A classe dos estados (hover/ativo) da ação pintada — ver .cor-acao no index.css. */
+export const CLASSE_DA_ACAO = "cor-acao";
+
+/**
+ * O estilo do botão SÓLIDO da ação, por cima do <Botao> (ou de um <button>
+ * com .ds-botao): fundo, borda, texto e as variáveis do hover/ativo. Use com
+ * `className={CLASSE_DA_ACAO}`.
+ */
+export function pinturaDaAcao(a: PinturaDeAcao): React.CSSProperties {
+  return {
+    backgroundColor: a.bg, border: `1px solid ${a.border}`, color: a.text,
+    ["--cor-acao-hover" as string]: a.hover, ["--cor-acao-ativo" as string]: a.ativo,
+  } as React.CSSProperties;
+}
+
+/** A área TINGIDA da ação (fundo claro, borda, texto escuro AA). */
+export function tintaDaAcao(a: PinturaDeAcao): React.CSSProperties {
+  return { backgroundColor: a.claro.bg, border: `1px solid ${a.claro.border}`, color: a.claro.text };
+}
 
 /**
  * SUPERFÍCIE ESCURA — o cabeçalho escuro de modal, a barra flutuante de ações

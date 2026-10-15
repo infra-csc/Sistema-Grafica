@@ -35,12 +35,15 @@ export const CO = {
 
 /**
  * A AÇÃO NA COR DA ETAPA, por cima do <Botao>. O botão da linha diz a etapa
- * pela cor (Conferir ciano, Embalar/Entregar azul, complemento laranja) — é a
- * regra do dono que a fila inteira segue. O Botao dá forma, foco, hover e
- * spinner; estes dois só trocam a tinta. Os tons são AA com branco (sólido)
- * ou sobre o próprio bg (tintado).
+ * pela cor (Conferir ciano, complemento laranja; Embalar amarelo e Entregar
+ * verde — dono, 15/10, tokens ACAO de lib/theme) — é a regra do dono que a
+ * fila inteira segue. O Botao dá forma, foco, hover e spinner; estes dois só
+ * trocam a tinta. Os tons são AA com branco (sólido) ou sobre o próprio bg
+ * (tintado). `texto` é branco por padrão; fundo CLARO pede o texto escuro dele
+ * — o Embalar usa pinturaDaAcao(ACAO.embalar), que já traz o texto escuro e o
+ * hover do token.
  */
-export const corDaAcao = (cor: string): React.CSSProperties => ({ backgroundColor: cor, border: `1px solid ${cor}`, color: T.surface });
+export const corDaAcao = (cor: string, texto: string = T.surface): React.CSSProperties => ({ backgroundColor: cor, border: `1px solid ${cor}`, color: texto });
 export const corTintada = (tom: { bg: string; border: string; text: string }): React.CSSProperties => ({ backgroundColor: tom.bg, border: `1px solid ${tom.border}`, color: tom.text });
 
 /**

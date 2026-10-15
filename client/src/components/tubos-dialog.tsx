@@ -44,7 +44,7 @@ import { nomeDaPeca } from "@shared/nome-da-peca";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile, usePonteiroGrosso, alvo as alvoDoPonteiro } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
-import { T, N, TOM, FS, FW, FONT, R } from "@/lib/theme";
+import { ACAO, CLASSE_DA_ACAO, T, N, TOM, FS, FW, FONT, R, pinturaDaAcao, type PinturaDeAcao } from "@/lib/theme";
 import { Botao } from "@/components/ui/botao";
 import { Selo } from "@/components/ui/selo";
 import { EstadoErro, Esqueleto } from "@/components/ui/estados";
@@ -108,7 +108,9 @@ const COR = {
   laranja: T.accentText, verde: TOM.sucesso.text, verdeBg: TOM.sucesso.bg, verdeBorda: TOM.sucesso.border,
   ambar: TOM.alerta.text, ambarBg: TOM.alerta.bg, ambarBorda: TOM.alerta.border,
   vermelho: TOM.perigo.text,
-  // Azul do Embalado (P.blue de lib/status): embalar usa a cor da etapa.
+  // Azul do Embalado (P.blue de lib/status): o ESTADO (selo "Pronto para
+  // entregar", fotos do tubo, avisos). As AÇÕES Embalar e Entregar têm cor
+  // própria (dono, 15/10): ACAO.embalar (amarelo) e ACAO.entregar (verde).
   azul: TOM.info.text, azulBg: TOM.info.bg, azulBorda: TOM.info.border,
 };
 
@@ -170,8 +172,8 @@ function useSoVisualizaKit() {
 
 /** A casca dos três: superfície do modal-shell, cabeçalho, corpo que rola e
  *  rodapé fixo. No celular acompanha o teclado (o rodapé não some atrás dele). */
-function Casca({ aberto, onClose, icone, tint, titulo, subtitulo, largura, rodape, children, testId, focoInicial }: {
-  aberto: boolean; onClose: () => void; icone: LucideIcon; tint: string; titulo: string; subtitulo: string;
+function Casca({ aberto, onClose, icone, tint, corDoIcone, titulo, subtitulo, largura, rodape, children, testId, focoInicial }: {
+  aberto: boolean; onClose: () => void; icone: LucideIcon; tint: string; corDoIcone?: string; titulo: string; subtitulo: string;
   largura: number; rodape?: React.ReactNode; children: React.ReactNode; testId: string;
   /** Onde o foco cai ao abrir (desktop). Sem ele, o Radix foca o primeiro focável. */
   focoInicial?: React.RefObject<HTMLElement | null>;
@@ -185,7 +187,7 @@ function Casca({ aberto, onClose, icone, tint, titulo, subtitulo, largura, rodap
         onOpenAutoFocus={(e) => { if (!isMobile && focoInicial?.current) { e.preventDefault(); focoInicial.current.focus(); } }}>
         <DialogTitle className="sr-only">{titulo}</DialogTitle>
         <DialogDescription className="sr-only">{subtitulo}</DialogDescription>
-        <ModalHeader icon={icone} tint={tint} title={titulo} subtitle={subtitulo} onClose={onClose} />
+        <ModalHeader icon={icone} tint={tint} corDoIcone={corDoIcone} title={titulo} subtitle={subtitulo} onClose={onClose} />
         <div style={{ padding: pad, overflowY: "auto", flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", gap: 18 }}>
           {children}
         </div>
@@ -215,18 +217,21 @@ function BotaoCancelar({ onClick, texto = "Cancelar" }: { onClick: () => void; t
     </Botao>
   );
 }
-/** A ação do modal, na cor da ETAPA (azul embalar, verde entregar) — a mesma
- *  do cabeçalho. Enquanto não dá, fica cinza e LEGÍVEL (sem a opacidade de
+/** A ação do modal, na cor da AÇÃO (amarelo embalar, verde entregar — dono,
+ *  15/10, `acao`) ou numa cor de etapa com texto branco (`cor`) — a mesma do
+ *  cabeçalho. Enquanto não dá, fica cinza e LEGÍVEL (sem a opacidade de
  *  desabilitado do Botao): o rótulo é o motivo ("Tire a foto", "Informe quem
  *  recebeu") e precisa ser lido. */
-function BotaoPrimario({ onClick, disabled, cor, children, testId }: { onClick: () => void; disabled: boolean; cor: string; children: React.ReactNode; testId: string }) {
+function BotaoPrimario({ onClick, disabled, cor, acao, children, testId }: { onClick: () => void; disabled: boolean; cor?: string; acao?: PinturaDeAcao; children: React.ReactNode; testId: string }) {
   const { grosso } = useMedidas();
+  const tinta = acao ? pinturaDaAcao(acao) : { backgroundColor: cor, border: `1px solid ${cor}`, color: T.surface };
   return (
     <Botao variante="primario" tamanho={grosso ? "toque" : "md"} onClick={onClick} disabled={disabled} data-testid={testId}
+      className={acao && !disabled ? CLASSE_DA_ACAO : undefined}
       style={{
         flex: 2, minHeight: grosso ? 48 : 40, whiteSpace: "normal",
-        backgroundColor: disabled ? COR.borda : cor, border: `1px solid ${disabled ? COR.borda : cor}`,
-        color: disabled ? COR.sec : T.surface, fontWeight: FW.rotulo, opacity: 1,
+        ...(disabled ? { backgroundColor: COR.borda, border: `1px solid ${COR.borda}`, color: COR.sec } : tinta),
+        fontWeight: FW.rotulo, opacity: 1,
       }}>
       {children}
     </Botao>
@@ -462,9 +467,9 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, emLote = false
     const ativo = escolhido === valor;
     return (
       <button key={valor} type="button" role="radio" aria-checked={ativo} onClick={() => setTubo(valor)} data-testid={testId}
-        style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: grosso ? 52 : 44, padding: "8px 12px", borderRadius: R.md, textAlign: "left", cursor: "pointer", border: `2px solid ${ativo ? COR.azul : COR.borda}`, background: ativo ? COR.azulBg : T.surface }}>
-        <span aria-hidden="true" style={{ width: 18, height: 18, borderRadius: "50%", flexShrink: 0, border: `2px solid ${ativo ? COR.azul : T.muted}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          {ativo && <span style={{ width: 8, height: 8, borderRadius: "50%", background: COR.azul }} />}
+        style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: grosso ? 52 : 44, padding: "8px 12px", borderRadius: R.md, textAlign: "left", cursor: "pointer", border: `2px solid ${ativo ? ACAO.embalar.traco : COR.borda}`, background: ativo ? ACAO.embalar.claro.bg : T.surface }}>
+        <span aria-hidden="true" style={{ width: 18, height: 18, borderRadius: "50%", flexShrink: 0, border: `2px solid ${ativo ? ACAO.embalar.traco : T.muted}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {ativo && <span style={{ width: 8, height: 8, borderRadius: "50%", background: ACAO.embalar.traco }} />}
         </span>
         <span style={{ minWidth: 0, display: "flex", flexDirection: "column" }}>
           <span style={{ fontSize: FS.read, fontWeight: FW.rotulo, color: COR.texto }}>{principal}</span>
@@ -475,12 +480,12 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, emLote = false
   };
 
   return (
-    <Casca aberto={!!evento} onClose={onClose} icone={Package} tint={COR.azul} largura={520} testId="modal-embalar"
+    <Casca aberto={!!evento} onClose={onClose} icone={Package} tint={ACAO.embalar.bg} corDoIcone={ACAO.embalar.text} largura={520} testId="modal-embalar"
       titulo={titulo} subtitulo="Tire a foto — a peça fica Embalada até ser entregue"
       rodape={data ? (
         <Rodape testId="rodape-embalar">
           <BotaoCancelar onClick={onClose} />
-          <BotaoPrimario onClick={confirmar} disabled={embalar.isPending || !pronto} cor={COR.azul} testId="confirmar-embalar">{rotulo}</BotaoPrimario>
+          <BotaoPrimario onClick={confirmar} disabled={embalar.isPending || !pronto} acao={ACAO.embalar} testId="confirmar-embalar">{rotulo}</BotaoPrimario>
         </Rodape>
       ) : undefined}>
       {isLoading && <Carregando />}
@@ -501,10 +506,10 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, emLote = false
             <div style={{ border: `1px solid ${COR.borda}`, borderRadius: R.md, overflow: "hidden" }}>
               {(comCaixas ? candidatas : pecas).map((p) => (
                 comCaixas ? (
-                  <label key={p.id} data-testid={`embalar-peca-${p.id}`} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", minHeight: 44, padding: "6px 12px", borderTop: `1px solid ${N.n2}`, cursor: "pointer", background: fora.has(p.id) ? T.surface : COR.azulBg }}>
+                  <label key={p.id} data-testid={`embalar-peca-${p.id}`} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", minHeight: 44, padding: "6px 12px", borderTop: `1px solid ${N.n2}`, cursor: "pointer", background: fora.has(p.id) ? T.surface : ACAO.embalar.claro.bg }}>
                     <input type="checkbox" checked={!fora.has(p.id)}
                       onChange={() => setFora((s) => { const n = new Set(s); if (n.has(p.id)) n.delete(p.id); else n.add(p.id); return n; })}
-                      style={{ width: 18, height: 18, accentColor: COR.azul, flexShrink: 0 }} />
+                      style={{ width: 18, height: 18, accentColor: ACAO.embalar.traco, flexShrink: 0 }} />
                     <LinhaDaPeca p={p} semQuantidade />
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
                       <input aria-label={`Quantas unidades de ${p.displayId ?? "peça"} embalar`} type="number" inputMode="numeric" pattern="[0-9]*" min={1} max={disponivel(p)} {...campoQuantas(p)}
@@ -512,7 +517,7 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, emLote = false
                         style={{ width: 64, height: grosso ? 44 : 36, boxSizing: "border-box", textAlign: "center", borderRadius: R.md, border: `1px solid ${COR.borda}`, background: T.surface, color: COR.texto, fontSize: isMobile ? FS.lead : FS.read, fontWeight: FW.forte }} />
                       {quantasDe(p) !== disponivel(p) && (
                         <Botao variante="secundario" tamanho={grosso ? "toque" : "sm"} onClick={() => setQuantas((q) => ({ ...q, [p.id]: String(disponivel(p)) }))} data-testid={`quantas-tudo-${p.id}`}
-                          style={{ color: COR.azul }}>
+                          style={{ color: ACAO.embalar.claro.text }}>
                           Tudo ({disponivel(p)})
                         </Botao>
                       )}
@@ -530,7 +535,7 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, emLote = false
                         style={{ width: 64, height: grosso ? 44 : 36, boxSizing: "border-box", textAlign: "center", borderRadius: R.md, border: `1px solid ${COR.borda}`, background: T.surface, color: COR.texto, fontSize: isMobile ? FS.lead : FS.read, fontWeight: FW.forte }} />
                       {quantasDe(p) !== disponivel(p) && (
                         <Botao variante="secundario" tamanho={grosso ? "toque" : "sm"} onClick={() => setQuantas((q) => ({ ...q, [p.id]: String(disponivel(p)) }))} data-testid={`quantas-tudo-${p.id}`}
-                          style={{ color: COR.azul }}>
+                          style={{ color: ACAO.embalar.claro.text }}>
                           Tudo ({disponivel(p)})
                         </Botao>
                       )}
@@ -665,13 +670,13 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
   const campo: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: grosso ? 44 : 40, borderRadius: R.md, border: `1px solid ${COR.borda}`, padding: "0 12px", fontSize: isMobile ? FS.lead : FS.read, background: T.surface, color: COR.texto };
 
   return (
-    <Casca aberto={aberto} onClose={onClose} icone={Truck} tint={COR.verde} largura={520} testId="modal-entregar-tubo" focoInicial={campoRef}
+    <Casca aberto={aberto} onClose={onClose} icone={Truck} tint={ACAO.entregar.bg} largura={520} testId="modal-entregar-tubo" focoInicial={campoRef}
       titulo={avulso ? `Entregar ${oQue} — ${t?.pecas[0] ? linhaDaLista(t.pecas[0], { mostrarQuantidade: false }) : ""}` : `Entregar Tubo ${n}${evento ? ` · ${evento.name}` : ""}`}
       subtitulo={avulso ? "Confira a peça e registre quem recebeu" : "O tubo sai inteiro: confira o que tem dentro e registre quem recebeu"}
       rodape={podeFormulario ? (
         <Rodape testId={`rodape-entregar-tubo-${n}`}>
           <BotaoCancelar onClick={onClose} />
-          <BotaoPrimario onClick={confirmar} disabled={entregar.isPending || !pronto} cor={COR.verde} testId={`confirmar-entrega-tubo-${n}`}>{rotulo}</BotaoPrimario>
+          <BotaoPrimario onClick={confirmar} disabled={entregar.isPending || !pronto} acao={ACAO.entregar} testId={`confirmar-entrega-tubo-${n}`}>{rotulo}</BotaoPrimario>
         </Rodape>
       ) : data ? (
         <Rodape testId="rodape-entregar-fechar"><BotaoCancelar onClick={onClose} texto="Fechar" /></Rodape>
@@ -843,13 +848,13 @@ export function EntregarEmLoteDialog({ volumes, sugestaoRecebedor = "", onClose,
     : `Entregar ${plural(lista.length, "volume", "volumes")} a ${recebidoPor.trim()}`;
 
   return (
-    <Casca aberto={aberto} onClose={onClose} icone={Truck} tint={COR.verde} largura={560} testId="modal-entregar-em-lote" focoInicial={campoRef}
+    <Casca aberto={aberto} onClose={onClose} icone={Truck} tint={ACAO.entregar.bg} largura={560} testId="modal-entregar-em-lote" focoInicial={campoRef}
       titulo={`Entregar em lote · ${plural(lista.length, "volume", "volumes")}`}
       subtitulo={`${unidades} un.${eventos.length === 1 ? ` · ${eventos[0]}` : ` · ${eventos.length} eventos`} — confira e registre quem recebeu`}
       rodape={(
         <Rodape testId="rodape-entregar-em-lote">
           <BotaoCancelar onClick={onClose} />
-          <BotaoPrimario onClick={confirmar} disabled={entregar.isPending || !pronto} cor={COR.verde} testId="confirmar-entrega-em-lote">{rotulo}</BotaoPrimario>
+          <BotaoPrimario onClick={confirmar} disabled={entregar.isPending || !pronto} acao={ACAO.entregar} testId="confirmar-entrega-em-lote">{rotulo}</BotaoPrimario>
         </Rodape>
       )}>
       <section data-testid="lista-entrega-em-lote" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -1011,6 +1016,7 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", padding: "10px 12px", borderTop: `1px solid ${COR.borda}` }}>
           {!entregue && !vazio && !soVe && (
             <Botao variante={t.prontoParaEntregar ? "primario" : "secundario"} tamanho={tamanhoDaAcao} icone={Truck}
+              className={t.prontoParaEntregar ? CLASSE_DA_ACAO : undefined} style={t.prontoParaEntregar ? pinturaDaAcao(ACAO.entregar) : undefined}
               onClick={() => onEntregar(t.id)} data-testid={`entregar-tubo-${t.numero}`}
               aria-describedby={motivoSemEntrega ? `motivo-entrega-tubo-${t.numero}` : undefined}>
               Entregar
@@ -1082,7 +1088,7 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
           {paraEmbalar.length > 0 && (
             <Botao variante="primario" tamanho="toque" larguraCheia icone={Package}
               onClick={() => onEmbalar(paraEmbalar.map((p) => p.id))} data-testid="painel-embalar-conferidas"
-              style={{ minHeight: grosso ? 48 : 44 }}>
+              className={CLASSE_DA_ACAO} style={{ ...pinturaDaAcao(ACAO.embalar), minHeight: grosso ? 48 : 44 }}>
               Embalar peças conferidas ({paraEmbalar.length})
             </Botao>
           )}
@@ -1112,6 +1118,7 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
                     {!soVe && (
                       <>
                         <Botao variante={t.prontoParaEntregar ? "primario" : "secundario"} tamanho={tamanhoDaAcao} icone={Truck}
+                          className={t.prontoParaEntregar ? CLASSE_DA_ACAO : undefined} style={t.prontoParaEntregar ? pinturaDaAcao(ACAO.entregar) : undefined}
                           onClick={() => onEntregar(t.id)} data-testid={`entregar-sozinha-${peca.id}`}>
                           Entregar
                         </Botao>
@@ -1218,7 +1225,8 @@ export function TuboDialog({ evento, tuboId, onClose, onEntregar, onAbrirPeca }:
       ) : (
         <div data-testid="rodape-do-tubo" style={{ flexShrink: 0, display: "flex", flexWrap: "wrap", gap: 8, paddingTop: 10, paddingLeft: isMobile ? 16 : 20, paddingRight: isMobile ? 16 : 20, paddingBottom: "calc(10px + env(safe-area-inset-bottom))", borderTop: `1px solid ${COR.borda}`, background: T.surface }}>
           {!entregue && !soVe && t.pecas.length > 0 && (
-            <Botao variante="primario" tamanho={tamanhoDoRodape} icone={Truck} onClick={() => onEntregar(t.id)} data-testid="tubo-entregar" style={noRodape}>
+            <Botao variante="primario" tamanho={tamanhoDoRodape} icone={Truck} onClick={() => onEntregar(t.id)} data-testid="tubo-entregar"
+              className={CLASSE_DA_ACAO} style={{ ...pinturaDaAcao(ACAO.entregar), ...noRodape }}>
               {avulso ? "Entregar" : "Entregar tubo"}
             </Botao>
           )}

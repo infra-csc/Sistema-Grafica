@@ -10,7 +10,7 @@ import { SeloKit } from "@/components/kit/selo-kit";
 import { SeloProducaoInterna, InstrucoesParaAGrafica } from "@/components/selo-producao-interna";
 import { AvisoDoEstoqueNaPeca } from "@/components/consulta-de-estoque/aviso-na-grafica";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
-import { FONT, FS, FW, N, R, SHADOW, T, TOM } from "@/lib/theme";
+import { ACAO, FONT, FS, FW, N, R, SHADOW, T, TOM, tintaDaAcao } from "@/lib/theme";
 import { statusDeExibicao } from "@shared/molde";
 import { semImpressora } from "@shared/reserva-de-impressora";
 import { ocupacaoDasImpressoras, estaEmImpressao } from "@shared/progresso-da-impressao";
@@ -366,11 +366,12 @@ export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMo
 
               {/* CONFERIR E EMBALAR (decisão CONFERIR_E_EMBALAR): quando esta
                   conferência zera o que falta, embala já em volume avulso com
-                  a mesma foto. Desmarcado, a peça ganha o Embalar na fila. */}
+                  a mesma foto. Desmarcado, a peça ganha o Embalar na fila.
+                  Tingida no amarelo claro do Embalar (dono, 15/10). */}
               {embalarJunto && (
-                <label data-testid="opcao-ja-embalar" style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, padding: "0 12px", background: TOM.info.bg, border: `1px solid ${TOM.info.border}`, borderRadius: 8, fontSize: 14, fontWeight: 600, color: TOM.info.text, cursor: "pointer" }}>
+                <label data-testid="opcao-ja-embalar" style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, padding: "0 12px", ...tintaDaAcao(ACAO.embalar), borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
                   <input type="checkbox" checked={jaEmbalar} onChange={e => setJaEmbalar(e.target.checked)} data-testid="checkbox-ja-embalar"
-                    style={{ width: 22, height: 44, margin: 0, accentColor: TOM.info.text, flexShrink: 0, cursor: "pointer" }} />
+                    style={{ width: 22, height: 44, margin: 0, accentColor: ACAO.embalar.traco, flexShrink: 0, cursor: "pointer" }} />
                   Já embalar (volume avulso) com esta foto
                 </label>
               )}

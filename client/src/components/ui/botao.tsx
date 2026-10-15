@@ -35,10 +35,12 @@
 //                flutuante de lote). `claro` é o branco cheio (a principal
 //                ali); `claroFantasma` é o translúcido (a de apoio).
 //
-// O `tom` é a cor da ETAPA (Conferir ciano, Entregar azul…) sem sobrescrever
+// O `tom` é a cor da ETAPA (Conferir ciano…) sem sobrescrever
 // por `style`: no primário vira o FUNDO (o `text` do TOM — todos passam AA
 // sob texto branco, o pior é 5,0:1), no secundário e no fantasma vira o texto.
 // Nas variantes de perigo e nas claras ele é ignorado: ali a cor É o recado.
+// Embalar (amarelo, texto escuro) e Entregar (verde) NÃO são `tom`: têm token
+// próprio — ACAO + pinturaDaAcao em lib/theme (dono, 15/10).
 //
 // POR QUE ESTE COMPONENTE EXISTE. O app tinha ~200 pares de
 // onMouseEnter/onMouseLeave trocando `style.backgroundColor` na mão, cada um

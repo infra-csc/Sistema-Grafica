@@ -31,7 +31,7 @@ import { ObjectUploader } from "@/components/ObjectUploader";
 import { SugestaoRecebedor } from "@/components/sugestao-recebedor";
 import { remainingConfer } from "@/lib/saldo";
 import { useAcompanharAreaVisivel } from "@/components/grafica/area-visivel";
-import { T, N, TOM, FS, FW, FONT, R } from "@/lib/theme";
+import { ACAO, T, N, TOM, FS, FW, FONT, R } from "@/lib/theme";
 import { Botao } from "@/components/ui/botao";
 import type { PecaDaFila } from "@/components/grafica/tipos";
 // Só LEITURA do saldo, para dizer quantas unidades a entrega leva: a rota
@@ -57,7 +57,8 @@ const dataCurta = (iso?: string | null) =>
 
 export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedor = "" }: Props) {
   const isConfer = mode === "confer";
-  const tinta = isConfer ? TOM.ciano.text : TOM.sucesso.text;
+  // Ciano da etapa Conferir; o verde da ação Entregar (ACAO.entregar, dono 15/10).
+  const tinta = isConfer ? TOM.ciano.text : ACAO.entregar.bg;
 
   const [idx, setIdx] = useState(0);
   const [foto, setFoto] = useState<string | null>(null);

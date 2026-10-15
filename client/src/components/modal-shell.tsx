@@ -154,6 +154,11 @@ interface ModalHeaderProps {
   variant?: "work" | "confirm";
   /** Cor do ladrilho do ícone. Só vale no variante `work`. */
   tint?: string;
+  /**
+   * Cor do ícone SOBRE o ladrilho (pd. branco). Ladrilho claro pede ícone
+   * escuro — o amarelo do Embalar (ACAO.embalar) com ícone branco dá 1,5:1.
+   */
+  corDoIcone?: string;
   onClose?: () => void;
   /** Conteúdo extra à direita (contadores, ações). */
   trailing?: React.ReactNode;
@@ -181,6 +186,7 @@ export function ModalHeader({
   // O roxo da paleta (violet 700). É o ladrilho do ícone, e cada modal passa o
   // seu — este é só o padrão de quem não escolhe.
   tint = TOM.roxo.text,
+  corDoIcone,
   onClose,
   trailing,
   selo,
@@ -229,7 +235,7 @@ export function ModalHeader({
             boxShadow: dark ? `0 0 0 1px ${ESCURO.borda} inset` : "none",
           }}
         >
-          <Icon aria-hidden="true" style={{ width: dark ? 18 : 16, height: dark ? 18 : 16, color: dark ? "#fff" : tint }} />
+          <Icon aria-hidden="true" style={{ width: dark ? 18 : 16, height: dark ? 18 : 16, color: dark ? (corDoIcone ?? "#fff") : tint }} />
         </div>
       )}
 

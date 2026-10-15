@@ -66,11 +66,11 @@ describe("o gate de embalar", () => {
 });
 
 describe("a peça conferida na fila", () => {
-  it("tabela: Embalar é a ÚNICA ação da conferida (azul do Embalado) — sem Entregar, nem no ⋯", () => {
+  it("tabela: Embalar é a ÚNICA ação da conferida (amarelo do Embalar) — sem Entregar, nem no ⋯", () => {
     expect(TABELA).toContain("data-testid={`button-embalar-${item.id}`}");
     expect(TABELA).toContain("{!bulkOn && podeEmbalarPeca && (");
-    // Azul do Embalado (TOM.info.text = #1d4ed8, 6,3:1 com branco) pela tinta da ação.
-    expect(TABELA).toMatch(/data-testid=\{`button-embalar-\$\{item\.id\}`\}[\s\S]{0,120}style=\{corDaAcao\(TOM\.info\.text\)\}/);
+    // Amarelo do Embalar (dono, 15/10): o token ACAO.embalar, com o texto escuro e o hover dele.
+    expect(TABELA).toMatch(/data-testid=\{`button-embalar-\$\{item\.id\}`\}[\s\S]{0,160}className=\{CLASSE_DA_ACAO\}\s*style=\{pinturaDaAcao\(ACAO\.embalar\)\}/);
     // a entrega por peça saiu da tela (quem entrega é o volume): nem principal, nem no "⋯"
     expect(TABELA).not.toContain("canDeliver(item)");
     expect(TABELA).not.toContain("button-deliver-");
@@ -80,7 +80,7 @@ describe("a peça conferida na fila", () => {
     expect(CARTOES).toContain("data-testid={`button-embalar-card-${item.id}`}");
     expect(CARTOES).toContain("onClick={e => { e.stopPropagation(); abrirEmbalar([item]); }}");
     // Principal da etapa: linha inteira, 48px (revisão de celular 24/09 — ver flexPrincipal).
-    expect(CARTOES).toContain("style={{ ...corDaAcao(TOM.info.text), ...flexPrincipal(\"embalar\"), minHeight: 48, padding: '0 12px' }}");
+    expect(CARTOES).toContain("style={{ ...pinturaDaAcao(ACAO.embalar), ...flexPrincipal(\"embalar\"), minHeight: 48, padding: '0 12px' }}");
     // a entrega por peça saiu do cartão também — a embalada sai pelo "Entregar tubo"
     expect(CARTOES).not.toContain("button-entregar-card-");
     expect(CARTOES).toContain("data-testid={`button-entregar-tubo-card-${item.id}`}");

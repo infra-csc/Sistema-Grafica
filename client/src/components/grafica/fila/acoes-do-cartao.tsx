@@ -16,7 +16,7 @@ import { Check, CheckCircle, Package, Play, PlusCircle, Recycle, RotateCcw, Tras
 import { Botao } from "@/components/ui/botao";
 import { motivoAcaoBloqueada } from "@/lib/status";
 import type { SeloPecaEventoFinalizado } from "@/lib/status";
-import { FS, FW, T, TOM } from "@/lib/theme";
+import { ACAO, CLASSE_DA_ACAO, FS, FW, T, TOM, pinturaDaAcao } from "@/lib/theme";
 import { ehMolde } from "@shared/molde";
 import { isDelivered, isProduced, isInProd, qtyOf, reusedTotalOf, remainingProduce, remainingReuse } from "@/lib/saldo";
 import { AcoesDoMolde } from "@/components/grafica/acoes-do-molde";
@@ -288,8 +288,8 @@ export function AcoesDoCartao({ ctx, item, selo, gates }: {
             </Botao>
           )}
           {/* EMBALAR (dono, 21/09): a principal da peça CONFERIDA — abre
-              o painel de tubos já com a peça marcada. Azul do Embalado
-              (#1d4ed8, 6,3:1 com branco). É a ÚNICA ação da conferida:
+              o painel de tubos já com a peça marcada. Amarelo do Embalar
+              (dono, 15/10: ACAO.embalar, texto escuro). É a ÚNICA ação da conferida:
               o Entregar abaixo só existe para a entrega PARCIAL da
               peça ainda em acabamento. */}
           {podeEmbalarPeca && (
@@ -300,14 +300,15 @@ export function AcoesDoCartao({ ctx, item, selo, gates }: {
               onClick={e => { e.stopPropagation(); abrirEmbalar([item]); }}
               data-testid={`button-embalar-card-${item.id}`}
               {...bloqueioDaTrava(item)}
-              style={{ ...corDaAcao(TOM.info.text), ...flexPrincipal("embalar"), minHeight: 48, padding: '0 12px' }}
+              className={CLASSE_DA_ACAO}
+              style={{ ...pinturaDaAcao(ACAO.embalar), ...flexPrincipal("embalar"), minHeight: 48, padding: '0 12px' }}
             >
               {rotuloEmbalar(item)}
             </Botao>
           )}
           {/* Embalada: entregar o TUBO inteiro — o painel abre já no
               formulário daquele tubo (quem recebeu). É a PRINCIPAL da
-              embalada (sólida, azul do Embalado, primeira no DOM e na
+              embalada (sólida, verde do Entregar (ACAO.entregar), primeira no DOM e na
               tela — Tab e dedo chegam nela antes do "Tirar"). */}
           {entregaTubo && (
             <Botao
@@ -317,7 +318,8 @@ export function AcoesDoCartao({ ctx, item, selo, gates }: {
               onClick={e => { e.stopPropagation(); setTubosDoEvento({ id: String(item.eventId), name: item.event?.name ?? "Evento", entregarTubo: item.tuboId }); }}
               data-testid={`button-entregar-tubo-card-${item.id}`}
               {...bloqueioDaTrava(item)}
-              style={{ ...corDaAcao(TOM.info.text), ...flexPrincipal("entregar"), minHeight: 48, padding: '0 12px' }}
+              className={CLASSE_DA_ACAO}
+              style={{ ...pinturaDaAcao(ACAO.entregar), ...flexPrincipal("entregar"), minHeight: 48, padding: '0 12px' }}
             >
               {ehAvulsa(item) ? "Entregar" : "Entregar tubo"}
             </Botao>

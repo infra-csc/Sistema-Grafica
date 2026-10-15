@@ -368,7 +368,8 @@ describe("GRÁFICA a 390px", () => {
     const entregarTubo = $('[data-testid="button-entregar-tubo-card-g1"]')!;
     const tirar = $('[data-testid="button-tirar-do-tubo-card-g1"]')!;
     expect(entregarTubo.compareDocumentPosition(tirar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(entregarTubo.style.backgroundColor).toBe("rgb(29, 78, 216)");
+    // Verde do Entregar (dono, 15/10 — ACAO.entregar = #15803d), não mais o azul do Embalado.
+    expect(entregarTubo.style.backgroundColor).toBe("rgb(21, 128, 61)");
     expect(px(entregarTubo.style.minHeight)).toBe(48);
     expect(px(tirar.style.minHeight)).toBe(48);
     // A embalada NÃO tem "Entregar" individual (dono, 21/09): só sai com o tubo.

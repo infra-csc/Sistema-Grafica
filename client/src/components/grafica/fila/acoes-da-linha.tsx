@@ -9,7 +9,7 @@ import { Botao } from "@/components/ui/botao";
 import { Selo } from "@/components/ui/selo";
 import { P, motivoAcaoBloqueada } from "@/lib/status";
 import type { SeloPecaEventoFinalizado } from "@/lib/status";
-import { FS, FW, N, R, SHADOW, T, TOM } from "@/lib/theme";
+import { ACAO, CLASSE_DA_ACAO, FS, FW, N, R, SHADOW, T, TOM, pinturaDaAcao } from "@/lib/theme";
 import { alvo as alvoDeToque } from "@/hooks/use-mobile";
 import { ehMolde } from "@shared/molde";
 import { pecaTravada } from "@shared/trava-da-peca";
@@ -445,7 +445,8 @@ export function AcoesDaLinha({ ctx, item, selo, emRevisao, isSelected, bulkEligi
         )}
         {/* EMBALAR (dono, 21/09): a principal da peça CONFERIDA — abre
             o painel de tubos do evento já com a peça marcada, focado em
-            escolher o tubo. Azul do Embalado (#1d4ed8, 6,3:1 com branco). */}
+            escolher o tubo. Amarelo do Embalar (dono, 15/10: ACAO.embalar,
+            texto escuro 9,5:1 — branco no amarelo não passa). */}
         {!bulkOn && podeEmbalarPeca && (
           <Botao
             variante="primario"
@@ -455,7 +456,8 @@ export function AcoesDaLinha({ ctx, item, selo, emRevisao, isSelected, bulkEligi
             title="Pôr no tubo — escolhe o tubo no painel do evento"
             data-testid={`button-embalar-${item.id}`}
             {...bloqueioDaTrava(item)}
-            style={corDaAcao(TOM.info.text)}
+            className={CLASSE_DA_ACAO}
+            style={pinturaDaAcao(ACAO.embalar)}
           >
             {rotuloEmbalar(item)}
           </Botao>
@@ -473,7 +475,8 @@ export function AcoesDaLinha({ ctx, item, selo, emRevisao, isSelected, bulkEligi
             data-testid={`button-entregar-tubo-${item.id}`}
             title="Entregar o tubo inteiro — a peça embalada só sai com o tubo"
             {...bloqueioDaTrava(item)}
-            style={corDaAcao(TOM.info.text)}
+            className={CLASSE_DA_ACAO}
+            style={pinturaDaAcao(ACAO.entregar)}
           >
             {ehAvulsa(item) ? "Entregar" : "Entregar tubo"}
           </Botao>

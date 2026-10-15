@@ -203,9 +203,12 @@ export function BulkActionDialog({
                 Cancelar
               </Botao>
               {/* O rótulo diz o RESULTADO do toque ("Conferir 5 peças"), não
-                  um "Confirmar" genérico — é a última leitura antes de gravar. */}
+                  um "Confirmar" genérico — é a última leitura antes de gravar.
+                  Ciano da etapa Conferir, como a linha, o cartão, o modal e
+                  a barra do lote (era o preto genérico — coerência, 15/10). */}
               <Botao
                 variante="primario"
+                tom="ciano"
                 tamanho="toque"
                 icone={HeaderIcon}
                 carregando={isSubmitting}

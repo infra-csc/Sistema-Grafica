@@ -36,7 +36,7 @@ import { intervaloDePolling } from "@/hooks/use-websocket";
 import { Abas } from "@/components/ui/abas";
 import { Botao } from "@/components/ui/botao";
 import { EstadoVazio, EstadoErro, Esqueleto } from "@/components/ui/estados";
-import { T, TOM, FS, FW, FONT, R, SHADOW } from "@/lib/theme";
+import { ACAO, CLASSE_DA_ACAO, T, TOM, FS, FW, FONT, R, SHADOW, pinturaDaAcao } from "@/lib/theme";
 
 type PecaDoTubo = { id: string; displayId: string | null; type: string; description: string | null; quantity: number; quantidadeNoTubo?: number };
 export type TuboDaAba = {
@@ -269,7 +269,7 @@ export function AbaTubos({ sugestaoRecebedor, onEntregou, onAbrirPeca }: {
           return (
             <article key={t.id} data-testid={`cartao-tubo-${t.id}`} aria-label={`${nome} · ${t.evento.name}`}
               style={{ display: "flex", flexDirection: "column", minWidth: 0, border: `1px solid ${COR.borda}`, borderRadius: R.lg, background: T.surface, overflow: "hidden" }}>
-              <header style={{ padding: "10px 12px", background: marcados.has(t.id) ? TOM.sucesso.bg : COR.fundo, borderBottom: `1px solid ${COR.borda}`, display: "flex", flexDirection: "column", gap: 2 }}>
+              <header style={{ padding: "10px 12px", background: marcados.has(t.id) ? ACAO.entregar.claro.bg : COR.fundo, borderBottom: `1px solid ${COR.borda}`, display: "flex", flexDirection: "column", gap: 2 }}>
                 <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                     {podeEntrar(t) && (
@@ -278,7 +278,7 @@ export function AbaTubos({ sugestaoRecebedor, onEntregou, onAbrirPeca }: {
                           aria-label={`Marcar ${nome} para entregar em lote`}
                           // A caixa desenha pelo lado menor (22px); a altura inteira do alvo
                           // é a área de toque — 44px no celular, como todo controle da aba.
-                          style={{ width: 22, height: alvo, margin: 0, fontSize: isMobile ? FS.lead : FS.body, accentColor: COR.verde, cursor: "pointer" }} />
+                          style={{ width: 22, height: alvo, margin: 0, fontSize: isMobile ? FS.lead : FS.body, accentColor: ACAO.entregar.traco, cursor: "pointer" }} />
                       </label>
                     )}
                     <strong style={{ fontFamily: FONT.display, fontSize: FS.lead, color: COR.texto }}>{nome}</strong>
@@ -330,7 +330,8 @@ export function AbaTubos({ sugestaoRecebedor, onEntregou, onAbrirPeca }: {
 
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", padding: "10px 12px", borderTop: `1px solid ${COR.borda}` }}>
                 {t.podeAgir && (
-                  <Botao variante="primario" tamanho={tamanhoDoBotao} icone={Truck} onClick={() => setModal({ evento: t.evento, entregarTubo: t.id })} data-testid={`aba-entregar-${t.id}`}>
+                  <Botao variante="primario" tamanho={tamanhoDoBotao} icone={Truck} onClick={() => setModal({ evento: t.evento, entregarTubo: t.id })} data-testid={`aba-entregar-${t.id}`}
+                    className={CLASSE_DA_ACAO} style={pinturaDaAcao(ACAO.entregar)}>
                     {t.avulso ? "Entregar" : "Entregar tubo"}
                   </Botao>
                 )}
@@ -363,7 +364,8 @@ export function AbaTubos({ sugestaoRecebedor, onEntregou, onAbrirPeca }: {
           </span>
           <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <Botao variante="fantasma" tamanho={tamanhoDoBotao} onClick={() => { setMarcados(new Set()); setRecusas({}); }} data-testid="limpar-lote">Limpar</Botao>
-            <Botao variante="primario" tamanho={tamanhoDoBotao} icone={Truck} onClick={() => setLoteAberto(true)} data-testid="abrir-entregar-em-lote">
+            <Botao variante="primario" tamanho={tamanhoDoBotao} icone={Truck} onClick={() => setLoteAberto(true)} data-testid="abrir-entregar-em-lote"
+              className={CLASSE_DA_ACAO} style={pinturaDaAcao(ACAO.entregar)}>
               Entregar {noLote.length} em lote
             </Botao>
           </span>

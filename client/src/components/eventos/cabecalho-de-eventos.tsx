@@ -8,7 +8,7 @@ import { EventosArquivados } from "./eventos-arquivados";
 import type { FiltrosDeEventos } from "./use-filtros-de-eventos";
 import type { EventosFiltrados } from "./use-eventos-filtrados";
 
-export function CabecalhoDeEventos({ filtros, focoCounts, canCreate, canDelete, isMobile, carregado = true, semEventos = false, onNovoEvento }: {
+export function CabecalhoDeEventos({ filtros, focoCounts, canCreate, canDelete, isMobile, carregado = true, semEventos = false, onNovoEvento, botaoDeSugestoes }: {
   filtros: FiltrosDeEventos;
   focoCounts: EventosFiltrados["focoCounts"];
   canCreate: boolean;
@@ -19,6 +19,11 @@ export function CabecalhoDeEventos({ filtros, focoCounts, canCreate, canDelete, 
   /** Nenhum evento existe: os atalhos não têm o que recortar e saem de cena. */
   semEventos?: boolean;
   onNovoEvento: () => void;
+  /**
+   * "Sugestões do Ummense (N)" (15/10): ao lado do Novo Evento no desktop; no
+   * celular, uma linha própria abaixo do título (três botões não cabem em 390).
+   */
+  botaoDeSugestoes?: React.ReactNode;
 }) {
   const { foco, setFoco, selectedPriorities, setSelectedPriorities } = filtros;
 
@@ -90,6 +95,7 @@ export function CabecalhoDeEventos({ filtros, focoCounts, canCreate, canDelete, 
   const acoes = canCreate || canDelete ? (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
       {canDelete && <EventosArquivados />}
+      {!isMobile && botaoDeSugestoes}
       {canCreate && (
         <Botao
           variante="primario"
@@ -116,6 +122,7 @@ export function CabecalhoDeEventos({ filtros, focoCounts, canCreate, canDelete, 
         </div>
         {acoes}
       </div>
+      {isMobile && botaoDeSugestoes}
       {isMobile && atalhos}
     </div>
   );

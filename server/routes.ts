@@ -14,6 +14,7 @@ import { sessionMiddleware } from "./session";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerSponsorRoutes } from "./routes/sponsors";
 import { registerSugestoesDeVinculoRoutes } from "./routes/sugestoes-de-vinculo";
+import { registerEventosSugeridosRoutes } from "./routes/eventos-sugeridos";
 import { registerEventRoutes } from "./routes/events";
 import { registerItemRoutes } from "./routes/items";
 import { registerStandardItemRoutes } from "./routes/standard-items";
@@ -161,6 +162,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerAuthRoutes(app);
   registerSponsorRoutes(app);
   registerSugestoesDeVinculoRoutes(app);
+  registerEventosSugeridosRoutes(app);
   registerEventRoutes(app);
   registerItemRoutes(app);
   registerStandardItemRoutes(app);

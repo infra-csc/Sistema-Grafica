@@ -606,6 +606,8 @@ const FORA_DO_RECORTE: Record<string, string> = {
   "server/routes/auth.ts": "sessão e usuários", "server/routes/busca.ts": "leitura",
   "server/routes/consultas-de-estoque.ts": "consulta de estoque", "server/routes/estoque-reservas.ts": "reserva de estoque",
   "server/routes/eventoFinalizado.ts": "a própria guarda", "server/routes/inferir-executivos.ts": "cadastro de patrocinador",
+  // 15/10: GET das sugestões do Ummense — só leitura (criar é POST /api/events).
+  "server/routes/eventos-sugeridos.ts": "leitura (sugestões do Ummense)",
   // PR #9 (24/09): três GETs por token para o Checklist de Arena — só leitura.
   "server/routes/integracao-checklist.ts": "leitura (integração Checklist de Arena)",
   "server/routes/inventory.ts": "estoque", "server/routes/kit.ts": "remessas do Kit", "server/routes/maquinas.ts": "impressoras",

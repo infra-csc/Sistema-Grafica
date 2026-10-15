@@ -12,6 +12,7 @@ import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileC
 import { CamposDeData, CampoPrazoDoMolde } from "./campos-de-data";
 import { SecaoDePrazos } from "./secao-de-prazos";
 import { EscolhaDePatrocinadores } from "./escolha-de-patrocinadores";
+import { PatrocinadoresDoUmmense } from "./patrocinadores-do-ummense";
 import { DialogoDeDescarte } from "./dialogo-de-descarte";
 import { readEventStats } from "./regras";
 import type { FormularioDoEventoAberto } from "./use-formulario-do-evento";
@@ -28,7 +29,7 @@ export function ModalDoEvento({ form, isMobile, dedo, sponsors, sponsorsQueryLoa
   const {
     open, setOpen, formData, setFormData, requestCloseDialog, soPatrocinadoresNoModal, modalMode,
     editingEvent, duplicateSource, handleSubmit, copyItems, setCopyItems, hasOrderIssue,
-    submitPending, createEventMutation, updateEventMutation,
+    submitPending, createEventMutation, updateEventMutation, sugestaoDoUmmense,
   } = form;
   return (
     <>
@@ -84,7 +85,9 @@ export function ModalDoEvento({ form, isMobile, dedo, sponsors, sponsorsQueryLoa
                 ? 'Atualize as informações do evento.'
                 : modalMode === 'duplicate'
                   ? `Cópia de "${duplicateSource?.name}" — prazos, patrocinadores e cotas já vieram junto.`
-                  : 'Preencha os detalhes do evento.'
+                  : sugestaoDoUmmense
+                    ? 'Do Ummense: nome, data e patrocinadores já vieram. Confira e preencha a saída do caminhão.'
+                    : 'Preencha os detalhes do evento.'
             }
             onClose={requestCloseDialog}
           />
@@ -188,6 +191,9 @@ export function ModalDoEvento({ form, isMobile, dedo, sponsors, sponsorsQueryLoa
               <SecaoDePrazos form={form} isMobile={isMobile} dedo={dedo} />
 
               </>)}
+
+              {/* Sugestão do Ummense: o que veio de lá e os patrocinadores sem cadastro. */}
+              {modalMode === 'create' && <PatrocinadoresDoUmmense form={form} isMobile={isMobile} />}
 
               {/* Patrocinadores */}
               <EscolhaDePatrocinadores

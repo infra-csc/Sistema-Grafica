@@ -45,6 +45,9 @@ import { BarraDeOrdem } from "@/components/eventos/barra-de-ordem";
 import { ListaDeEventos } from "@/components/eventos/lista-de-eventos";
 import { DialogoDeArquivar } from "@/components/eventos/dialogo-de-arquivar";
 import { DialogoDePrioridade } from "@/components/eventos/dialogo-de-prioridade";
+import { useEventosSugeridos } from "@/components/eventos/use-eventos-sugeridos";
+import { BotaoDeSugestoes, PainelDeSugestoes } from "@/components/eventos/sugestoes-do-ummense";
+import { podeVerEventosSugeridos } from "@shared/permissoes";
 
 export default function Eventos() {
   const { user } = useAuth();
@@ -87,6 +90,10 @@ export default function Eventos() {
   const dados = useEventosDados();
   const { events, isLoading, isError, refetch, sponsors, sponsorById, pedidosPorEvento } = dados;
   const form = useFormularioDoEvento({ sponsors, sponsorById, soPatrocinadores });
+  // SUGESTÕES DO UMMENSE (15/10): quem cria evento vê o que o Ummense tem e o app não.
+  const veSugestoes = podeVerEventosSugeridos(role, user?.cultura);
+  const sugestoes = useEventosSugeridos({ habilitado: veSugestoes, userId: user?.id });
+  const [painelDeSugestoes, setPainelDeSugestoes] = useState(false);
   const acoes = useAcoesDoEvento(events, filtros);
   const recorte = useEventosFiltrados(events, sponsorById, pedidosPorEvento, filtros);
   const carregado = !isLoading && !isError;
@@ -108,7 +115,20 @@ export default function Eventos() {
           carregado={carregado}
           semEventos={semEventos}
           onNovoEvento={form.abrirNovoEvento}
+          botaoDeSugestoes={veSugestoes
+            ? <BotaoDeSugestoes sug={sugestoes} onAbrir={() => setPainelDeSugestoes(true)} isMobile={isMobile} />
+            : undefined}
         />
+
+        {veSugestoes && (
+          <PainelDeSugestoes
+            aberto={painelDeSugestoes}
+            onFechar={() => setPainelDeSugestoes(false)}
+            sug={sugestoes}
+            isMobile={isMobile}
+            onCriar={(s) => { setPainelDeSugestoes(false); form.abrirComSugestao(s); }}
+          />
+        )}
 
         {(user?.role === 'solicitacao' || user?.role === 'admin') && (
           <FaixaDePedidos linhasAbertas={dados.linhasAbertas} foco={filtros.foco} setFoco={filtros.setFoco} dedo={dedo} celular={isMobile} />

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import type { EventSponsor, Sponsor } from "@shared/schema";
+import type { EventoSugerido } from "@shared/eventos-sugeridos";
 import { diaDoPrazoMolde } from "@shared/prazo-molde";
 import { runInBatches } from "@/lib/utils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -49,6 +50,10 @@ export function useFormularioDoEvento({ sponsors, sponsorById, soPatrocinadores 
   // patrocinadores e cotas de um evento existente.
   const [duplicateSource, setDuplicateSource] = useState<EventoDaLista | null>(null);
   const [copyItems, setCopyItems] = useState(false);
+  // SUGESTÃO DO UMMENSE (15/10): o modo "criar" pré-preenchido com um evento
+  // da foto do Ummense — nome, data e os patrocinadores já cadastrados com a
+  // cota de lá. Os que não existem no cadastro ficam num bloco à parte.
+  const [sugestaoDoUmmense, setSugestaoDoUmmense] = useState<EventoSugerido | null>(null);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
   const [openStartDate, setOpenStartDate] = useState(false);
   const [openTruckDate, setOpenTruckDate] = useState(false);
@@ -110,8 +115,39 @@ export function useFormularioDoEvento({ sponsors, sponsorById, soPatrocinadores 
   const abrirNovoEvento = () => {
     setEditingEvent(null);
     setDuplicateSource(null);
+    setSugestaoDoUmmense(null);
     const empty = resetForm();
     setBaselineSig(formSignature(empty, [], {}));
+    setSponsorsError(false);
+    setSponsorsLoading(false);
+    setPrazosExpanded(false);
+    setOpen(true);
+  };
+
+  /**
+   * "Criar evento" de uma sugestão do Ummense: a QUARTA porta de entrada — e,
+   * como as outras, inicializa tudo (fechar não limpa; ver handleCloseDialog).
+   * O que o Ummense não dá (saída do caminhão, prioridade, prazos) fica como
+   * num evento novo. Patrocinador arquivado no app não é pré-marcado.
+   * Nasce SUJO, como a duplicação: fechar sem salvar descarta trabalho pronto.
+   */
+  const abrirComSugestao = (sugestao: EventoSugerido) => {
+    setEditingEvent(null);
+    setDuplicateSource(null);
+    const empty = resetForm();
+    const next: FormularioDoEvento = { ...empty, name: sugestao.nome, startDate: sugestao.data };
+    setFormData(next);
+    const ids: string[] = [];
+    const cotas: Record<string, string> = {};
+    for (const p of sugestao.patrocinadores) {
+      if (!p.sponsorId || p.arquivado || !sponsorById.has(p.sponsorId) || ids.includes(p.sponsorId)) continue;
+      ids.push(p.sponsorId);
+      if (p.cotaNoApp) cotas[p.sponsorId] = p.cotaNoApp;
+    }
+    setSelectedSponsorIds(ids);
+    setSponsorQuotaMap(cotas);
+    setSugestaoDoUmmense(sugestao);
+    setBaselineSig("");
     setSponsorsError(false);
     setSponsorsLoading(false);
     setPrazosExpanded(false);
@@ -217,6 +253,8 @@ export function useFormularioDoEvento({ sponsors, sponsorById, soPatrocinadores 
     },
     onSuccess: ({ event, failedSponsors, clonedItems, deixadasDeFora, cloneFailed }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      // O evento novo some das Sugestões do Ummense (o casamento passa a achá-lo).
+      queryClient.invalidateQueries({ queryKey: ["/api/eventos-sugeridos"] });
       handleCloseDialog();
       const parts: string[] = [];
       // "em Rascunho": as cópias só andam depois do envio, feito no evento.
@@ -436,6 +474,7 @@ export function useFormularioDoEvento({ sponsors, sponsorById, soPatrocinadores 
     setSelectedSponsorIds([]);
     setSponsorQuotaMap({});
     setDuplicateSource(null);
+    setSugestaoDoUmmense(null);
     setEditingEvent(event);
     const next: FormularioDoEvento = {
       name: event.name || "",
@@ -471,6 +510,7 @@ export function useFormularioDoEvento({ sponsors, sponsorById, soPatrocinadores 
     setSelectedSponsorIds([]);
     setSponsorQuotaMap({});
     setEditingEvent(null);
+    setSugestaoDoUmmense(null);
     setDuplicateSource(event);
     const next: FormularioDoEvento = {
       name: `${event.name} (cópia)`,
@@ -556,6 +596,7 @@ export function useFormularioDoEvento({ sponsors, sponsorById, soPatrocinadores 
     selectedSponsorIds, setSelectedSponsorIds, sponsorQuotaMap, setSponsorQuotaMap,
     sponsorsLoading, sponsorsError, sponsorSearch, setSponsorSearch,
     editingEvent, duplicateSource, copyItems, setCopyItems,
+    sugestaoDoUmmense, abrirComSugestao,
     confirmDiscardOpen, setConfirmDiscardOpen,
     openStartDate, setOpenStartDate, openTruckDate, setOpenTruckDate, openPrazoKey, setOpenPrazoKey,
     ordemFixadaNoTopo, modalMode, soPatrocinadoresNoModal,

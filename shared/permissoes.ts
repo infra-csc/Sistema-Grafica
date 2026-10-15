@@ -37,6 +37,16 @@ export type Papel = "admin" | "solicitacao" | "arte" | "grafica" | "atendimento"
 export const podeGerirEvento = (papel: string | null | undefined, cultura?: boolean | null): boolean =>
   papel === "admin" || papel === "solicitacao" || (papel === "atendimento" && cultura === true);
 
+/**
+ * Quem VÊ as sugestões de evento do Ummense (GET /api/eventos-sugeridos e o
+ * botão "Sugestões do Ummense" em Eventos) — dono, 15/10: "admin e
+ * Solicitação, os mesmos que criam evento hoje". É leitura (GET), por isso
+ * não entra na régua abaixo, que é só de escrita: a sugestão só serve para
+ * criar, então quem vê é exatamente quem cria — inclusive o Atendimento com a
+ * marca Cultura, que também cria.
+ */
+export const podeVerEventosSugeridos = podeGerirEvento;
+
 export interface RegraDeRota {
   metodo: "POST" | "PATCH" | "PUT" | "DELETE";
   rota: string;

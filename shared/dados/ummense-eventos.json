@@ -1,0 +1,2567 @@
+{
+  "fotoDe": "2026-10-15",
+  "origem": "Ummense — Calendário 2026 + Atribuir Entregas",
+  "eventos": [
+    {
+      "id": "night-run-etapa-1-belem-2026-10-17",
+      "nome": "Night Run - Etapa 1 - Belém",
+      "data": "2026-10-17",
+      "estacao": null,
+      "cidade": "Belém",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "BELÉM",
+        "CORRIDA",
+        "LIE",
+        "NIGHT RUN 2",
+        "ALÇANDO VOOS"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Santander",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "Zurich",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Getnet",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "Shopping Bosque Grão-Pará",
+          "cota": "APOIO"
+        }
+      ]
+    },
+    {
+      "id": "night-run-etapa-1-salvador-2026-10-17",
+      "nome": "Night Run - Etapa 1 - Salvador",
+      "data": "2026-10-17",
+      "estacao": null,
+      "cidade": "Salvador",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "SALVADOR",
+        "CORRIDA",
+        "LIE",
+        "NIGHT RUN 3",
+        "EDUCARE"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Santander",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "SulAmérica",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "Esfera",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Zurich",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "TNT",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "Webmotors",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "O2 PRIME",
+          "cota": "O2 PRIME"
+        }
+      ]
+    },
+    {
+      "id": "treinao-running-land-plie-2026-10-17",
+      "nome": "Treinão Running Land - Plié",
+      "data": "2026-10-17",
+      "estacao": null,
+      "cidade": "Rio de Janeiro",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "RIO DE JANEIRO",
+        "TREINÃO",
+        "ORGANIZAÇÃO",
+        "RUNNING LAND"
+      ],
+      "patrocinadores": []
+    },
+    {
+      "id": "bota-para-correr-rio-de-janeiro-2026-10-18",
+      "nome": "Bota Para Correr - Rio de Janeiro",
+      "data": "2026-10-18",
+      "estacao": null,
+      "cidade": "Rio de Janeiro",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "RIO DE JANEIRO",
+        "CORRIDA",
+        "LIE",
+        "BOTA PRA CORRER",
+        "CAMINHANDO JUNTOS"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Parmalat Fit",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "BB SEGUROS",
+          "cota": "GOLD"
+        },
+        {
+          "nome": "DPSP Drogaria Pacheco",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "REHIDRAT",
+          "cota": "APOIO"
+        }
+      ]
+    },
+    {
+      "id": "circuito-banco-do-brasil-brasilia-2026-10-18",
+      "nome": "Circuito Banco do Brasil - Brasília",
+      "data": "2026-10-18",
+      "estacao": null,
+      "cidade": "Brasília",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "BRASÍLIA",
+        "CORRIDA",
+        "ORGANIZAÇÃO"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Total Pass",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "LIVELO",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "PREVI",
+          "cota": "SILVER"
+        }
+      ]
+    },
+    {
+      "id": "girl-power-sao-paulo-2026-10-18",
+      "nome": "Girl Power São Paulo",
+      "data": "2026-10-18",
+      "estacao": null,
+      "cidade": "São Paulo",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "SÃO PAULO",
+        "CORRIDA",
+        "LIE",
+        "CONEXÃO ESPORTIVA & CULTURAL",
+        "GIRL POWER RUN"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Decathlon",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "BB SEGUROS",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "AON",
+          "cota": "GOLD"
+        },
+        {
+          "nome": "Fleury (A+ Medicina Diagnóstica)",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "WHIRLPOOL/ BRASTEMP",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Rede América",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "AJINOMOTO",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Colgate",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Bayer",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "TNT",
+          "cota": "APOIO"
+        }
+      ]
+    },
+    {
+      "id": "netshoes-recife-2026-10-18",
+      "nome": "Netshoes - Recife",
+      "data": "2026-10-18",
+      "estacao": null,
+      "cidade": "Recife",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "RECIFE",
+        "CORRIDA",
+        "ORGANIZAÇÃO"
+      ],
+      "patrocinadores": []
+    },
+    {
+      "id": "smart-fit-sao-paulo-2026-10-18",
+      "nome": "Smart Fit - São Paulo",
+      "data": "2026-10-18",
+      "estacao": null,
+      "cidade": "São Paulo",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "SÃO PAULO",
+        "CORRIDA",
+        "ORGANIZAÇÃO"
+      ],
+      "patrocinadores": []
+    },
+    {
+      "id": "circuitinho-sao-paulo-2026-10-24",
+      "nome": "Circuitinho - São Paulo",
+      "data": "2026-10-24",
+      "estacao": null,
+      "cidade": "São Paulo",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "SÃO PAULO",
+        "ESPORTES",
+        "LIE",
+        "ISERBEM",
+        "CIRCUITINHO DAS ESTAÇÕES"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Panco",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "CAIXA",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Polenguinho",
+          "cota": "APOIO"
+        }
+      ]
+    },
+    {
+      "id": "night-run-etapa-1-aracaju-2026-10-24",
+      "nome": "Night Run - Etapa 1 - Aracajú",
+      "data": "2026-10-24",
+      "estacao": null,
+      "cidade": "Aracaju",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "ARACAJÚ",
+        "CORRIDA",
+        "LIE",
+        "NIGHT RUN 4",
+        "EDUCARE"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Santander",
+          "cota": "MASTER"
+        }
+      ]
+    },
+    {
+      "id": "night-run-etapa-1-sao-luis-2026-10-24",
+      "nome": "Night Run - Etapa 1 - São Luis",
+      "data": "2026-10-24",
+      "estacao": null,
+      "cidade": "São Luís",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "SÃO LUIS",
+        "CORRIDA",
+        "LIE",
+        "EDUCARE",
+        "NIGHT RUN 4"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Santander",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "Zurich",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "PETROVIA",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Getnet",
+          "cota": "APOIO"
+        }
+      ]
+    },
+    {
+      "id": "treinao-running-land-tecnobank-2026-10-24",
+      "nome": "Treinão Running Land - Tecnobank",
+      "data": "2026-10-24",
+      "estacao": null,
+      "cidade": "São Paulo",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "SÃO PAULO",
+        "TREINÃO",
+        "RUNNING LAND",
+        "ORGANIZAÇÃO"
+      ],
+      "patrocinadores": []
+    },
+    {
+      "id": "makai-beach-tenis-joao-pessoa-2026-10-29",
+      "nome": "Makai - Beach Tenis - João Pessoa",
+      "data": "2026-10-29",
+      "estacao": null,
+      "cidade": "João Pessoa",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "BEACH TENIS",
+        "LIE",
+        "MAKAI BEACH TENNIS EXPERIENCE II",
+        "SEMPRE AMIGOS",
+        "JOÃO PESSOA"
+      ],
+      "patrocinadores": []
+    },
+    {
+      "id": "viva-esporte-vila-velha-2026-10-29",
+      "nome": "Viva Esporte - Vila Velha",
+      "data": "2026-10-29",
+      "estacao": null,
+      "cidade": "Vila Velha",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "VILA VELHA",
+        "RECREAÇÃO",
+        "LIE",
+        "VIVA ESPORTE III",
+        "ISERBEM",
+        "GRATUITO"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "VALE",
+          "cota": "MASTER"
+        }
+      ]
+    },
+    {
+      "id": "circuito-banco-do-brasil-maceio-2026-10-31",
+      "nome": "Circuito Banco do Brasil - Maceió",
+      "data": "2026-10-31",
+      "estacao": null,
+      "cidade": "Maceió",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "CORRIDA",
+        "ORGANIZAÇÃO",
+        "MACEIÓ"
+      ],
+      "patrocinadores": []
+    },
+    {
+      "id": "night-run-etapa-1-curitiba-2026-10-31",
+      "nome": "Night Run - Etapa 1 - Curitiba",
+      "data": "2026-10-31",
+      "estacao": null,
+      "cidade": "Curitiba",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "CURITIBA",
+        "CORRIDA",
+        "LIE",
+        "ISERBEM",
+        "NIGHT RUN 5"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Santander",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "SulAmérica",
+          "cota": "GOLD"
+        },
+        {
+          "nome": "ESFERA",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Zurich",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Powerade",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Decathlon",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "GRASP",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "O2 PRIME",
+          "cota": "O2 PRIME"
+        }
+      ]
+    },
+    {
+      "id": "night-run-etapa-1-vitoria-2026-10-31",
+      "nome": "Night Run - Etapa 1 - Vitória",
+      "data": "2026-10-31",
+      "estacao": null,
+      "cidade": "Vitória",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "VITÓRIA",
+        "CORRIDA",
+        "LIE",
+        "NIGHT RUN 1",
+        "ALÇANDO VOOS"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Santander",
+          "cota": "MASTER"
+        }
+      ]
+    },
+    {
+      "id": "blue-run-santos-2026-11-01",
+      "nome": "Blue Run - Santos",
+      "data": "2026-11-01",
+      "estacao": null,
+      "cidade": "Santos",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "SANTOS",
+        "CORRIDA",
+        "LIE",
+        "BLUE RUN",
+        "CAMINHANDO JUNTOS"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Movecta",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "Porto Saúde",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "Shopping Praiamar",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "TNT",
+          "cota": "APOIO"
+        }
+      ]
+    },
+    {
+      "id": "new-balance-brasilia-2026-11-01",
+      "nome": "New Balance - Brasília",
+      "data": "2026-11-01",
+      "estacao": null,
+      "cidade": "Brasília",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "BRASÍLIA",
+        "CORRIDA",
+        "ORGANIZAÇÃO"
+      ],
+      "patrocinadores": []
+    },
+    {
+      "id": "running-hour-sao-paulo-2026-11-01",
+      "nome": "Running Hour - São Paulo",
+      "data": "2026-11-01",
+      "estacao": null,
+      "cidade": "São Paulo",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "SÃO PAULO",
+        "CORRIDA",
+        "ORGANIZAÇÃO"
+      ],
+      "patrocinadores": []
+    },
+    {
+      "id": "viva-esporte-serra-2026-11-05",
+      "nome": "Viva Esporte - Serra",
+      "data": "2026-11-05",
+      "estacao": null,
+      "cidade": "Serra",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "RECREAÇÃO",
+        "LIE",
+        "VIVA ESPORTE III",
+        "ISERBEM",
+        "SERRA",
+        "GRATUITO"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "VALE",
+          "cota": "MASTER"
+        }
+      ]
+    },
+    {
+      "id": "night-run-etapa-1-fortaleza-2026-11-07",
+      "nome": "Night Run - Etapa 1 - Fortaleza",
+      "data": "2026-11-07",
+      "estacao": null,
+      "cidade": "Fortaleza",
+      "dataNaoConfirmada": true,
+      "tags": [
+        "FORTALEZA",
+        "CORRIDA",
+        "LIE",
+        "DATA NÃO CONFIRMADA",
+        "NIGHT RUN 5",
+        "ISERBEM"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Santander",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "Esfera",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Decatlhon",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "Webmotors",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "O2 PRIME",
+          "cota": "O2 PRIME"
+        }
+      ]
+    },
+    {
+      "id": "night-run-etapa-1-foz-do-iguacu-2026-11-07",
+      "nome": "Night Run - Etapa 1 - Foz do Iguaçu",
+      "data": "2026-11-07",
+      "estacao": null,
+      "cidade": "Foz do Iguaçu",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "FOZ DO IGUAÇU",
+        "CORRIDA",
+        "LIE",
+        "NIGHT RUN 2",
+        "ALÇANDO VOOS"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Santander",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "Zurich",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Esfera",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "CATUAI PALLADIUM SHOPPING CENTER",
+          "cota": "APOIO"
+        }
+      ]
+    },
+    {
+      "id": "treinao-running-land-pwc-2026-11-07",
+      "nome": "Treinão Running Land - PWC",
+      "data": "2026-11-07",
+      "estacao": null,
+      "cidade": "São Paulo",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "SÃO PAULO",
+        "TREINÃO",
+        "ORGANIZAÇÃO",
+        "RUNNING LAND"
+      ],
+      "patrocinadores": []
+    },
+    {
+      "id": "blue-run-ribeirao-preto-2026-11-08",
+      "nome": "Blue Run - Ribeirão Preto",
+      "data": "2026-11-08",
+      "estacao": null,
+      "cidade": "Ribeirão Preto",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "RIBEIRÃO PRETO",
+        "CORRIDA",
+        "LIE",
+        "NOVOS TALENTOS",
+        "BLUE RUN"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Porto Saúde",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "Shopping Iguatemi Ribeirão",
+          "cota": "SILVER"
+        }
+      ]
+    },
+    {
+      "id": "circuito-s-run-rio-branco-2026-11-08",
+      "nome": "Circuito S Run - Rio Branco",
+      "data": "2026-11-08",
+      "estacao": null,
+      "cidade": "Rio Branco",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "RIO BRANCO",
+        "CORRIDA",
+        "LIE",
+        "SRUN",
+        "DHARMA"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Esfera",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "B. Hyundai",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "Tools",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "Asset",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "GETNET",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "Bosque Open Mall",
+          "cota": "APOIO"
+        }
+      ]
+    },
+    {
+      "id": "desafio-energia-petrobras-passeio-bike-rio-de-janeiro-2026-11-08",
+      "nome": "Desafio Energia Petrobrás - Passeio Bike - Rio de Janeiro",
+      "data": "2026-11-08",
+      "estacao": null,
+      "cidade": "Rio de Janeiro",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "RIO DE JANEIRO",
+        "BIKE",
+        "LIE",
+        "CIRCUITO NACIONAL DE CICLÍSMO 2",
+        "FUTUROS EM MOVIMENTO",
+        "DESAFIO ENERGIA - PASSEIO CICLÍSTICO 2"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Petrobrás",
+          "cota": "MASTER"
+        }
+      ]
+    },
+    {
+      "id": "eco-run-campo-largo-2026-11-08",
+      "nome": "Eco Run - Campo Largo",
+      "data": "2026-11-08",
+      "estacao": null,
+      "cidade": "Campo Largo",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "CAMPO LARGO",
+        "CORRIDA",
+        "LIE",
+        "CONEXÃO ESPORTIVA & CULTURAL",
+        "ECO RUN 2"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "CATERPILLAR",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "City Center Outlet Premium",
+          "cota": "APOIO"
+        }
+      ]
+    },
+    {
+      "id": "eco-run-special-edition-rio-de-janeiro-2026-11-08",
+      "nome": "Eco Run Special Edition - Rio de Janeiro",
+      "data": "2026-11-08",
+      "estacao": null,
+      "cidade": "Rio de Janeiro",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "RIO DE JANEIRO",
+        "CORRIDA",
+        "LIE",
+        "CONEXÃO ESPORTIVA & CULTURAL",
+        "ECO RUN 5"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "TOTALENERGIES",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "Banco do Brasil",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "MAMBA WATER",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "REHIDRAT",
+          "cota": "APOIO"
+        }
+      ]
+    },
+    {
+      "id": "girl-power-brasilia-2026-11-08",
+      "nome": "Girl Power - Brasília",
+      "data": "2026-11-08",
+      "estacao": null,
+      "cidade": "Brasília",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "BRASÍLIA",
+        "CORRIDA",
+        "LIE",
+        "GIRL POWER RUN 14",
+        "RBR"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Decathlon",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "Banco do Brasil",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Rede América",
+          "cota": "SILVER"
+        }
+      ]
+    },
+    {
+      "id": "viva-esporte-baixo-guandu-2026-11-12",
+      "nome": "Viva Esporte - Baixo Guandu",
+      "data": "2026-11-12",
+      "estacao": null,
+      "cidade": "Baixo Guandu",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "BAIXO GUANDU",
+        "RECREAÇÃO",
+        "LIE",
+        "VIVA ESPORTE III",
+        "ISERBEM",
+        "GRATUITO"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "VALE",
+          "cota": "MASTER"
+        }
+      ]
+    },
+    {
+      "id": "night-run-etapa-1-belo-horizonte-2026-11-14",
+      "nome": "Night Run - Etapa 1 - Belo Horizonte",
+      "data": "2026-11-14",
+      "estacao": null,
+      "cidade": "Belo Horizonte",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "BELO HORIZONTE",
+        "CORRIDA",
+        "LIE",
+        "NIGHT RUN 2",
+        "ALÇANDO VOOS"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Santander",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "SulAmérica",
+          "cota": "GOLD"
+        },
+        {
+          "nome": "Heineken 0.0",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Esfera",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Zurich",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Unisys",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Powerade",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Decathlon",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "EHRMANN",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "O2 PRIME",
+          "cota": "O2 PRIME"
+        }
+      ]
+    },
+    {
+      "id": "night-run-etapa-1-porto-alegre-2026-11-14",
+      "nome": "Night Run - Etapa 1 - Porto Alegre",
+      "data": "2026-11-14",
+      "estacao": null,
+      "cidade": "Porto Alegre",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "PORTO ALEGRE",
+        "CORRIDA",
+        "LIE",
+        "NIGHT RUN 1",
+        "ALÇANDO VOOS"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Santander",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "Heineken 0.0",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Zurich",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Esfera",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Powerade",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Colgate",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "WebMotors",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "Decathlon",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "O2 Prime",
+          "cota": "O2 PRIME"
+        }
+      ]
+    },
+    {
+      "id": "agro-power-run-indaiatuba-2026-11-15",
+      "nome": "Agro Power Run - Indaiatuba",
+      "data": "2026-11-15",
+      "estacao": null,
+      "cidade": "Indaiatuba",
+      "dataNaoConfirmada": true,
+      "tags": [
+        "CORRIDA",
+        "DATA NÃO CONFIRMADA",
+        "INDAIATUBA",
+        "AGRO POWER RUN",
+        "LPIE",
+        "ALÇANDO VOOS",
+        "GRATUITO"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Rumo + Instituto",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "Banco do Brasil",
+          "cota": "SILVER"
+        }
+      ]
+    },
+    {
+      "id": "circuito-das-estacoes-campinas-2026-11-15",
+      "nome": "Circuito das Estações - Campinas",
+      "data": "2026-11-15",
+      "estacao": "VERÃO",
+      "cidade": "Campinas",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "CAMPINAS",
+        "CORRIDA",
+        "LIE",
+        "DHARMA",
+        "CIRCUITO BRASILEIRO DAS ESTAÇÕES 2"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Getnet",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "SAVEGNAGO",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Powerade",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "WHITE MARTINS",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "IBM",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Crystal",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "Decathlon",
+          "cota": "APOIO"
+        }
+      ]
+    },
+    {
+      "id": "circuito-das-estacoes-manaus-2026-11-15",
+      "nome": "Circuito das Estações - Manaus",
+      "data": "2026-11-15",
+      "estacao": "VERÃO",
+      "cidade": "Manaus",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "MANAUS",
+        "CORRIDA",
+        "LIE",
+        "CAMINHANDO JUNTOS",
+        "CIRCUITO ESTAÇÕES"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "BANCO DA AMAZÔNIA",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "Honda",
+          "cota": "GOLD"
+        },
+        {
+          "nome": "Shopping Ponta Negra",
+          "cota": "APOIO"
+        }
+      ]
+    },
+    {
+      "id": "meia-de-sampa-2026-11-15",
+      "nome": "Meia de Sampa",
+      "data": "2026-11-15",
+      "estacao": null,
+      "cidade": "São Paulo",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "SÃO PAULO",
+        "MEIAS E MARATONAS",
+        "LIE",
+        "CONEXÃO ESPORTIVA & CULTURAL",
+        "CIRCUITO DE MEIAS E MARATONAS"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Lupo Sport",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "HDI SEGUROS",
+          "cota": "GOLD"
+        },
+        {
+          "nome": "COMERC ENERGIA",
+          "cota": "GOLD"
+        },
+        {
+          "nome": "Drogaria São Paulo",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "BAIN & COMPANY",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "POTTENCIAL",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Powerade",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "MAURTEN",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "ALGAR",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Santander Select",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Parmalat Fit",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Aramis",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "Zanaflex",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "Tecnobank",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "O2 PRIME",
+          "cota": "O2 PRIME"
+        }
+      ]
+    },
+    {
+      "id": "running-hour-rio-de-janeiro-2026-11-15",
+      "nome": "Running Hour - Rio de Janeiro",
+      "data": "2026-11-15",
+      "estacao": null,
+      "cidade": "Rio de Janeiro",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "RIO DE JANEIRO",
+        "CORRIDA",
+        "ORGANIZAÇÃO"
+      ],
+      "patrocinadores": []
+    },
+    {
+      "id": "makai-beach-tenis-sao-paulo-2026-11-19",
+      "nome": "Makai - Beach Tenis - São Paulo",
+      "data": "2026-11-19",
+      "estacao": null,
+      "cidade": "São Paulo",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "SÃO PAULO",
+        "BEACH TENIS",
+        "LIE",
+        "MAKAI BEACH TENNIS EXPERIENCE II",
+        "SEMPRE AMIGOS"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Yelum Seguros",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "EMS/CONDRES",
+          "cota": "GOLD"
+        }
+      ]
+    },
+    {
+      "id": "viva-esporte-joao-neiva-2026-11-19",
+      "nome": "Viva Esporte - João Neiva",
+      "data": "2026-11-19",
+      "estacao": null,
+      "cidade": "João Neiva",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "JOÃO NEIVA",
+        "RECREAÇÃO",
+        "LIE",
+        "ISERBEM",
+        "VIVA ESPORTE III",
+        "GRATUITO"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "VALE",
+          "cota": "MASTER"
+        }
+      ]
+    },
+    {
+      "id": "night-run-etapa-1-maceio-2026-11-21",
+      "nome": "Night Run - Etapa 1 - Maceió",
+      "data": "2026-11-21",
+      "estacao": null,
+      "cidade": "Maceió",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "MACEIÓ",
+        "CORRIDA",
+        "LIE",
+        "ISERBEM",
+        "NIGHT RUN 6"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Santander",
+          "cota": "MASTER"
+        }
+      ]
+    },
+    {
+      "id": "night-run-etapa-2-rio-de-janeiro-2026-11-21",
+      "nome": "Night Run - Etapa 2 - Rio de Janeiro",
+      "data": "2026-11-21",
+      "estacao": null,
+      "cidade": "Rio de Janeiro",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "RIO DE JANEIRO",
+        "CORRIDA",
+        "ICMS RJ",
+        "NIGHT RUN ANO 3",
+        "VETOR RJ"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Santander",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "SulAmérica",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "Heineken 0.0",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "ESFERA",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Zurich",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "DPSP Drogaria Pacheco",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "TNT",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "DAIICHI",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "B.Hyndai",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "LEOGRAF",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "O2 PRIME",
+          "cota": "O2 PRIME"
+        }
+      ]
+    },
+    {
+      "id": "blue-run-campinas-2026-11-22",
+      "nome": "Blue Run - Campinas",
+      "data": "2026-11-22",
+      "estacao": null,
+      "cidade": "Campinas",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "CAMPINAS",
+        "CORRIDA",
+        "LIE",
+        "BLUE RUN",
+        "CAMINHANDO JUNTOS"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Porto Saúde",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "Decathlon",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "REHIDRAT",
+          "cota": "APOIO"
+        }
+      ]
+    },
+    {
+      "id": "eco-run-navegantes-2026-11-22",
+      "nome": "Eco Run - Navegantes",
+      "data": "2026-11-22",
+      "estacao": null,
+      "cidade": "Navegantes",
+      "dataNaoConfirmada": true,
+      "tags": [
+        "NAVEGANTES",
+        "CORRIDA",
+        "LIE",
+        "FUTUROS EM MOVIMENTO",
+        "ECO RUN 1",
+        "DATA NÃO CONFIRMADA"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Portonave",
+          "cota": "GOLD"
+        }
+      ]
+    },
+    {
+      "id": "viva-esporte-vitoria-2026-11-26",
+      "nome": "Viva Esporte - Vitória",
+      "data": "2026-11-26",
+      "estacao": null,
+      "cidade": "Vitória",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "VITÓRIA",
+        "RECREAÇÃO",
+        "LIE",
+        "ISERBEM",
+        "VIVA ESPORTE III",
+        "GRATUITO"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "VALE",
+          "cota": "MASTER"
+        }
+      ]
+    },
+    {
+      "id": "night-run-etapa-2-sao-paulo-2026-11-28",
+      "nome": "Night Run - Etapa 2 - São Paulo",
+      "data": "2026-11-28",
+      "estacao": null,
+      "cidade": "São Paulo",
+      "dataNaoConfirmada": true,
+      "tags": [
+        "SÃO PAULO",
+        "CORRIDA",
+        "BASE",
+        "DATA NÃO CONFIRMADA"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Santander",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "SulAmérica",
+          "cota": "GOLD"
+        },
+        {
+          "nome": "MATRIX ENERGIA",
+          "cota": "GOLD"
+        },
+        {
+          "nome": "Heineken 0.0",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Esfera",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Zurich",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Drogaria São Paulo",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Esfera Eneria",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Panco",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Unival",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Construjá | FERJÁ",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Powerade",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Ajinomoto",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "SMC",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Fini",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "DAIICHI",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Colgate",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "TIROLEZ",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Decathlon",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "LEOGRAF",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "Grupo IGO",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "LENOVO",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "O2 PRIME",
+          "cota": "O2 PRIME"
+        }
+      ]
+    },
+    {
+      "id": "bravus-speed-etapa-2-2026-11-29",
+      "nome": "Bravus Speed - Etapa 2",
+      "data": "2026-11-29",
+      "estacao": null,
+      "cidade": "São Paulo",
+      "dataNaoConfirmada": true,
+      "tags": [
+        "SÃO PAULO",
+        "SPEED 2",
+        "DATA NÃO CONFIRMADA",
+        "LIE",
+        "CONEXÃO ESPORTIVA & CULTURAL",
+        "BRAVUS RACE"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "JEEP",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "Banco do Brasil",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "TNT",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "CRYSTAL",
+          "cota": "APOIO"
+        }
+      ]
+    },
+    {
+      "id": "circuito-banco-do-brasil-belem-2026-11-29",
+      "nome": "Circuito Banco do Brasil - Belém",
+      "data": "2026-11-29",
+      "estacao": null,
+      "cidade": "Belém",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "CORRIDA",
+        "ORGANIZAÇÃO",
+        "BELÉM"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Shopping Bosque Grão-Pará",
+          "cota": "APOIO"
+        }
+      ]
+    },
+    {
+      "id": "circuito-das-estacoes-belo-horizonte-2026-11-29",
+      "nome": "Circuito das Estações - Belo Horizonte",
+      "data": "2026-11-29",
+      "estacao": "VERÃO",
+      "cidade": "Belo Horizonte",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "BELO HORIZONTE",
+        "CORRIDA",
+        "LIE",
+        "RBR",
+        "CIRCUITO DAS ESTAÇÕES BRASIL 3"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "VALE",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "Banco do Brasil",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Drogaria Pacheco",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Powerade",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Crystal",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "Decathlon",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "EHRMANN",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "O2 PRIME",
+          "cota": "O2 PRIME"
+        }
+      ]
+    },
+    {
+      "id": "circuito-das-estacoes-curitiba-2026-11-29",
+      "nome": "Circuito das Estações - Curitiba",
+      "data": "2026-11-29",
+      "estacao": "VERÃO",
+      "cidade": "Curitiba",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "CURITIBA",
+        "CORRIDA",
+        "LIE",
+        "AÇÃO CONCRETA",
+        "CIRCUITO 4 ESTAÇÕES 1"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "SulAmérica/Paraná Clinicas",
+          "cota": "GOLD"
+        },
+        {
+          "nome": "DHL",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Powerade",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Crystal",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "Decathlon",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "O2 PRIME",
+          "cota": "O2 PRIME"
+        }
+      ]
+    },
+    {
+      "id": "circuito-das-estacoes-fortaleza-2026-11-29",
+      "nome": "Circuito das Estações - Fortaleza",
+      "data": "2026-11-29",
+      "estacao": "VERÃO",
+      "cidade": "Fortaleza",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "FORTALEZA",
+        "CORRIDA",
+        "LIE",
+        "AÇÃO CONCRETA",
+        "CIRCUITO 4 ESTAÇÕES 2"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Tokio Marine",
+          "cota": "GOLD"
+        },
+        {
+          "nome": "Banco do Nordeste",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Mota Machado",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Odontoprev + Odontosytem",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Colgate",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Decathon",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "O2 PRIME",
+          "cota": "O2 PRIME"
+        }
+      ]
+    },
+    {
+      "id": "desafio-energia-petrobras-travessia-rio-de-janeiro-2026-11-29",
+      "nome": "Desafio Energia Petrobrás - Travessia - Rio de Janeiro",
+      "data": "2026-11-29",
+      "estacao": null,
+      "cidade": "Rio de Janeiro",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "RIO DE JANEIRO",
+        "NATAÇÃO",
+        "LIE",
+        "CIRCUITO NACIONAL DE TRAVESSIAS ACQUA",
+        "FUTUROS EM MOVIMENTO"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Petrobrás",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "Decathlon",
+          "cota": "GOLD"
+        },
+        {
+          "nome": "SPEEDO",
+          "cota": "APOIO"
+        }
+      ]
+    },
+    {
+      "id": "eco-run-special-edition-sao-paulo-2026-11-29",
+      "nome": "Eco Run Special Edition - São Paulo",
+      "data": "2026-11-29",
+      "estacao": null,
+      "cidade": "São Paulo",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "SÃO PAULO",
+        "CORRIDA",
+        "LIE",
+        "CONEXÃO ESPORTIVA & CULTURAL",
+        "ECO RUN 5"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "TOTALENERGIES",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "Decathlon",
+          "cota": "GOLD"
+        },
+        {
+          "nome": "PWC",
+          "cota": "GOLD"
+        },
+        {
+          "nome": "LEAP",
+          "cota": "GOLD"
+        },
+        {
+          "nome": "Banco do Brasil",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Powerade",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Água Crystal",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "AXA SEGUROS",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "ATLAS SCHINDLER",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "ESTAPAR",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Mais Polimeros",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Brasilata",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Merz Pharma",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Simpar",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "SOTREQ",
+          "cota": "APOIO"
+        }
+      ]
+    },
+    {
+      "id": "fuga-das-ilhas-2026-11-29",
+      "nome": "Fuga das Ilhas",
+      "data": "2026-11-29",
+      "estacao": null,
+      "cidade": "Barra do Sahy",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "BARRA DO SAHY",
+        "NATAÇÃO",
+        "LIE",
+        "CONEXÃO ESPORTIVA & CULTURAL",
+        "CIRCUITO ACQUA"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "SABESP",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "SPEEDO",
+          "cota": "APOIO"
+        }
+      ]
+    },
+    {
+      "id": "longevidade-bradesco-manaus-2026-11-29",
+      "nome": "Longevidade Bradesco - Manaus",
+      "data": "2026-11-29",
+      "estacao": null,
+      "cidade": "Manaus",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "MANAUS",
+        "CORRIDA",
+        "LIE",
+        "CORRIDA DO BEM 15",
+        "EDUCARE"
+      ],
+      "patrocinadores": []
+    },
+    {
+      "id": "viva-esporte-fundao-2026-12-03",
+      "nome": "Viva Esporte - Fundão",
+      "data": "2026-12-03",
+      "estacao": null,
+      "cidade": "Fundão",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "FUNDÃO",
+        "RECREAÇÃO",
+        "VIVA ESPORTE III",
+        "BASE"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "VALE",
+          "cota": "MASTER"
+        }
+      ]
+    },
+    {
+      "id": "circuito-das-estacoes-brasilia-2026-12-06",
+      "nome": "Circuito das Estações - Brasília",
+      "data": "2026-12-06",
+      "estacao": "VERÃO",
+      "cidade": "Brasília",
+      "dataNaoConfirmada": true,
+      "tags": [
+        "BRASÍLIA",
+        "CORRIDA",
+        "BASE",
+        "DATA NÃO CONFIRMADA"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "CAIXA",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "IBM",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "PETACORP",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "Decathlon",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "O2 PRIME",
+          "cota": "O2 PRIME"
+        }
+      ]
+    },
+    {
+      "id": "circuito-das-estacoes-porto-alegre-2026-12-06",
+      "nome": "Circuito das Estações - Porto Alegre",
+      "data": "2026-12-06",
+      "estacao": "VERÃO",
+      "cidade": "Porto Alegre",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "PORTO ALEGRE",
+        "CORRIDA",
+        "LIE",
+        "IESGE",
+        "CIRCUITO DAS ESTAÇÕES"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Banco do Brasil",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Powerade",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "WHITE MARTINS",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Parmalat Fit",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "CRYSTAL",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "Decathlon",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "O2 Prime",
+          "cota": "O2 PRIME"
+        }
+      ]
+    },
+    {
+      "id": "circuito-das-estacoes-recife-2026-12-06",
+      "nome": "Circuito das Estações - Recife",
+      "data": "2026-12-06",
+      "estacao": "VERÃO",
+      "cidade": "Recife",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "RECIFE",
+        "CORRIDA",
+        "LIE",
+        "AÇÃO CONCRETA",
+        "CIRCUITO 4 ESTAÇÕES 4"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Nubank",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "Honda",
+          "cota": "GOLD"
+        },
+        {
+          "nome": "Tokio Marine",
+          "cota": "GOLD"
+        },
+        {
+          "nome": "AFYA",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "WHITE MARTINS",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Decathlon",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "O2 PRIME",
+          "cota": "O2 PRIME"
+        }
+      ]
+    },
+    {
+      "id": "circuito-das-estacoes-rio-de-janeiro-2026-12-06",
+      "nome": "Circuito das Estações - Rio de Janeiro",
+      "data": "2026-12-06",
+      "estacao": "VERÃO",
+      "cidade": "Rio de Janeiro",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "RIO DE JANEIRO",
+        "CORRIDA",
+        "ICMS RJ",
+        "TÁTICA RJ",
+        "CIRCUITO DAS 4 ESTAÇÕES ANO 4"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Equinor",
+          "cota": "GOLD"
+        },
+        {
+          "nome": "SulAmérica",
+          "cota": "GOLD"
+        },
+        {
+          "nome": "VIBRA ENERGIA",
+          "cota": "GOLD"
+        },
+        {
+          "nome": "TAG",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Heineken 0.0",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Drogaria Pacheco",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "BRAVA",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "VALE",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "BMA",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Halliburton",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "CLARO",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "HERTZ/HELIODERM",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Rede América",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "TNT",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "DAIICHI",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Banco BNY",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "IBM",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Zona Sul Supermercados",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Fitch Ratings",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "O2 PRIME",
+          "cota": "O2 PRIME"
+        }
+      ]
+    },
+    {
+      "id": "desafio-energia-petrobras-travessia-santos-2026-12-06",
+      "nome": "Desafio Energia Petrobrás - Travessia - Santos",
+      "data": "2026-12-06",
+      "estacao": null,
+      "cidade": "Santos",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "SANTOS",
+        "NATAÇÃO",
+        "LIE",
+        "CIRCUITO NACIONAL DE TRAVESSIAS ACQUA",
+        "FUTUROS EM MOVIMENTO"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Petrobrás",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "SPEEDO",
+          "cota": "APOIO"
+        }
+      ]
+    },
+    {
+      "id": "eco-run-salvador-2026-12-06",
+      "nome": "Eco Run - Salvador",
+      "data": "2026-12-06",
+      "estacao": null,
+      "cidade": "Salvador",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "SALVADOR",
+        "CORRIDA",
+        "LIE",
+        "ECO RUN 1",
+        "FUTUROS EM MOVIMENTO"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Bradesco Apresenta",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "Bradesco",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "Decathlon",
+          "cota": "APOIO"
+        }
+      ]
+    },
+    {
+      "id": "viva-esporte-cariacica-2026-12-10",
+      "nome": "Viva Esporte - Cariacica",
+      "data": "2026-12-10",
+      "estacao": null,
+      "cidade": "Cariacica",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "CARIACICA",
+        "RECREAÇÃO",
+        "BASE"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "VALE",
+          "cota": "MASTER"
+        }
+      ]
+    },
+    {
+      "id": "night-run-neoenergia-pirassununga-2026-12-12",
+      "nome": "Night Run Neoenergia - Pirassununga",
+      "data": "2026-12-12",
+      "estacao": null,
+      "cidade": "Pirassununga",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "PIRASSUNUNGA",
+        "LPIE",
+        "CORRIDA"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "NeoEnergia",
+          "cota": "MASTER"
+        }
+      ]
+    },
+    {
+      "id": "35-trofeu-brasil-de-triathlon-etapa-4-2026-12-13",
+      "nome": "35° Troféu Brasil de Triathlon - Etapa 4",
+      "data": "2026-12-13",
+      "estacao": null,
+      "cidade": "Santos",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "SANTOS",
+        "TRIATHLON",
+        "TROFÉU BRASIL",
+        "LIE",
+        "SEMPRE AMIGOS"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "JEEP",
+          "cota": "GOLD"
+        },
+        {
+          "nome": "MAURTEN",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "REHIDRAT",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "TYR / Doozy Sports",
+          "cota": "EXPO"
+        }
+      ]
+    },
+    {
+      "id": "circuito-das-estacoes-belem-2026-12-13",
+      "nome": "Circuito das Estações - Belém",
+      "data": "2026-12-13",
+      "estacao": "VERÃO",
+      "cidade": "Belém",
+      "dataNaoConfirmada": true,
+      "tags": [
+        "BELÉM",
+        "CORRIDA",
+        "LIE",
+        "DATA NÃO CONFIRMADA",
+        "AÇÃO CONCRETA",
+        "CIRCUITO 4 ESTAÇÕES 3"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "BANCO DA AMAZÔNIA",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "VALE",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "Shopping Bosque Grão-Pará",
+          "cota": "APOIO"
+        }
+      ]
+    },
+    {
+      "id": "circuito-das-estacoes-ribeirao-preto-2026-12-13",
+      "nome": "Circuito das Estações - Ribeirão Preto",
+      "data": "2026-12-13",
+      "estacao": "VERÃO",
+      "cidade": "Ribeirão Preto",
+      "dataNaoConfirmada": true,
+      "tags": [
+        "RIBEIRÃO PRETO",
+        "CORRIDA",
+        "LIE",
+        "DATA NÃO CONFIRMADA",
+        "IESGE",
+        "CIRCUITO DAS ESTAÇÕES 4"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Banco do Brasil",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Shopping Iguatemi Ribeirão Preto",
+          "cota": "APOIO"
+        }
+      ]
+    },
+    {
+      "id": "circuito-das-estacoes-verao-salvador-2026-12-13",
+      "nome": "Circuito das Estações Verão - Salvador",
+      "data": "2026-12-13",
+      "estacao": "VERÃO",
+      "cidade": "Salvador",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "SALVADOR",
+        "CORRIDA",
+        "LIE",
+        "EDUCARE",
+        "CIRCUITO DAS ESTAÇÕES 6"
+      ],
+      "patrocinadores": []
+    },
+    {
+      "id": "circuito-s-run-novo-hamburgo-2026-12-13",
+      "nome": "Circuito S Run - Novo Hamburgo",
+      "data": "2026-12-13",
+      "estacao": null,
+      "cidade": "Novo Hamburgo",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "NOVO HAMBURGO",
+        "CORRIDA",
+        "LIE",
+        "DHARMA",
+        "SRUN"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "ESFERA",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "B. HYNDAI",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "Tools",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "ASSET",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "GETNET",
+          "cota": "APOIO"
+        }
+      ]
+    },
+    {
+      "id": "treinao-running-land-rumo-2026-12-13",
+      "nome": "Treinão Running Land - Rumo",
+      "data": "2026-12-13",
+      "estacao": null,
+      "cidade": "São Paulo",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "SÃO PAULO",
+        "TREINÃO",
+        "RUNNING LAND",
+        "ORGANIZAÇÃO"
+      ],
+      "patrocinadores": []
+    },
+    {
+      "id": "ilumina-running-energisa-campo-grande-2026-12-19",
+      "nome": "Ilumina Running Energisa - Campo Grande",
+      "data": "2026-12-19",
+      "estacao": null,
+      "cidade": "Campo Grande",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "CAMPO GRANDE",
+        "CORRIDA",
+        "LIE",
+        "RBR",
+        "ILUMINA RUN ENERGISA"
+      ],
+      "patrocinadores": []
+    },
+    {
+      "id": "ilumina-running-energisa-cuiaba-2026-12-19",
+      "nome": "Ilumina Running Energisa - Cuiabá",
+      "data": "2026-12-19",
+      "estacao": null,
+      "cidade": "Cuiabá",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "CUIABÁ",
+        "CORRIDA",
+        "LIE",
+        "RBR",
+        "ILUMINA RUN ENERGISA"
+      ],
+      "patrocinadores": []
+    },
+    {
+      "id": "circuito-das-estacoes-florianopolis-2026-12-20",
+      "nome": "Circuito das Estações - Florianópolis",
+      "data": "2026-12-20",
+      "estacao": "VERÃO",
+      "cidade": "Florianópolis",
+      "dataNaoConfirmada": true,
+      "tags": [
+        "FLORIANÓPOLIS",
+        "CORRIDA",
+        "LIE",
+        "DATA NÃO CONFIRMADA",
+        "DHARMA",
+        "CIRCUITO BRASILEIRO DAS ESTAÇÕES 3"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Banco do Brasil",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Powerade",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Parmalat Fit",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Crystal",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "Decathlon",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "O2 Prime",
+          "cota": "O2 PRIME"
+        }
+      ]
+    },
+    {
+      "id": "circuito-das-estacoes-sao-jose-dos-campos-2026-12-20",
+      "nome": "Circuito das Estações - São José dos Campos",
+      "data": "2026-12-20",
+      "estacao": "VERÃO",
+      "cidade": "São José dos Campos",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "CORRIDA",
+        "LIE",
+        "SÃO JOSÉ DOS CAMPOS",
+        "CIRCUITO DAS ESTAÇÕES 3",
+        "IESGE"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Shopping Centervalle",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "REHIDRAT",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "O2 Prime",
+          "cota": "O2 PRIME"
+        }
+      ]
+    },
+    {
+      "id": "circuito-das-estacoes-sao-paulo-2026-12-20",
+      "nome": "Circuito das Estações - São Paulo",
+      "data": "2026-12-20",
+      "estacao": "VERÃO",
+      "cidade": "São Paulo",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "SÃO PAULO",
+        "CORRIDA",
+        "BASE"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Esfera Energia",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Daycoval",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "Powerade",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "Honda",
+          "cota": "GOLD"
+        },
+        {
+          "nome": "Rumo + Instituto",
+          "cota": "GOLD"
+        },
+        {
+          "nome": "SulAmérica",
+          "cota": "GOLD"
+        },
+        {
+          "nome": "VEDACIT",
+          "cota": "GOLD"
+        },
+        {
+          "nome": "Heineken 0.0",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Sherwin Williams",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "DPSP Drogaria São Paulo",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "BMC",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "BMA",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "SEARA",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "GWM",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "DAIICHI",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "Fairfax Seguros",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "VITAFOR",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "VIA APPIA",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "MDS Group",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "CRYSTAL",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "Engetami",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "COFEMA ATACADISTA",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "Gringo APP",
+          "cota": "APOIO"
+        },
+        {
+          "nome": "O2 PRIME",
+          "cota": "O2 PRIME"
+        }
+      ]
+    },
+    {
+      "id": "circuito-das-estacoes-vitoria-2026-12-20",
+      "nome": "Circuito das Estações - Vitória",
+      "data": "2026-12-20",
+      "estacao": "VERÃO",
+      "cidade": "Vitória",
+      "dataNaoConfirmada": true,
+      "tags": [
+        "VITÓRIA",
+        "CORRIDA",
+        "LIE",
+        "DATA NÃO CONFIRMADA",
+        "DHARMA",
+        "CIRCUITO BRASILEIRO DAS ESTAÇÕES"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "VALE",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "Banco do Brasil",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "DHL",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "SHOPPING VITÓRIA",
+          "cota": "APOIO"
+        }
+      ]
+    },
+    {
+      "id": "desafio-energia-petrobras-travessia-buzios-2026-12-20",
+      "nome": "Desafio Energia Petrobrás - Travessia - Búzios",
+      "data": "2026-12-20",
+      "estacao": null,
+      "cidade": "Búzios",
+      "dataNaoConfirmada": true,
+      "tags": [
+        "NATAÇÃO",
+        "LIE",
+        "FUTUROS EM MOVIMENTO",
+        "CIRCUITO NACIONAL DE TRAVESSIAS ACQUA",
+        "BÚZIOS",
+        "DATA NÃO CONFIRMADA"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Petrobrás",
+          "cota": "MASTER"
+        },
+        {
+          "nome": "SPEEDO",
+          "cota": "APOIO"
+        }
+      ]
+    },
+    {
+      "id": "corrida-de-vera-cruz-2026-12-31",
+      "nome": "Corrida de Vera Cruz",
+      "data": "2026-12-31",
+      "estacao": null,
+      "cidade": "Rio de Janeiro",
+      "dataNaoConfirmada": false,
+      "tags": [
+        "RIO DE JANEIRO",
+        "CORRIDA",
+        "ICMS RJ",
+        "TÁTICA RJ"
+      ],
+      "patrocinadores": [
+        {
+          "nome": "Porto Saúde",
+          "cota": "SILVER"
+        },
+        {
+          "nome": "O2 PRIME",
+          "cota": "O2 PRIME"
+        }
+      ]
+    }
+  ]
+}

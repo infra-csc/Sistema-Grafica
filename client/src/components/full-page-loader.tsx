@@ -1,5 +1,4 @@
-import { Compass } from "lucide-react";
-import { T, FS, FW, FONT, R, N, ESCURO } from "@/lib/theme";
+import { T, FS, FW, FONT, R, N } from "@/lib/theme";
 
 /**
  * O loader de página inteira (antes vivia dentro do App.tsx).
@@ -13,7 +12,7 @@ import { T, FS, FW, FONT, R, N, ESCURO } from "@/lib/theme";
  * centraliza dentro da largura que a própria div tem.
  *
  * O desenho (02/10): o mesmo selo da barra lateral e da tela de entrada
- * (bússola laranja no quadrado escuro), o nome, e uma faixa fina que ANDA —
+ * (desde 16/10, o "N" da NORTE na cor da Produção), o nome, e uma faixa fina que ANDA —
  * o "piscar" do texto inteiro (animate-pulse) parecia falha de tela, não
  * trabalho em curso. Com movimento reduzido a faixa fica parada (index.css,
  * .csc-faixa) e o texto continua dizendo o que acontece.
@@ -28,13 +27,8 @@ export function FullPageLoader() {
       style={{ backgroundColor: T.bg }}
     >
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-        <span aria-hidden="true" style={{
-          width: 44, height: 44, borderRadius: R.lg,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          backgroundColor: ESCURO.fundo,
-        }}>
-          <Compass style={{ width: 22, height: 22, color: ESCURO.foco, strokeWidth: 2.2 }} />
-        </span>
+        {/* Identidade do app (16/10): o "N" da NORTE na cor da Produção. */}
+        <img src="/marca-app.svg" alt="" aria-hidden="true" style={{ height: 44, width: "auto", display: "block" }} />
         <span aria-hidden="true" style={{ fontFamily: FONT.display, fontSize: FS.title, fontWeight: FW.rotulo, letterSpacing: "-0.04em", color: T.text, lineHeight: 1 }}>
           NORTE
         </span>

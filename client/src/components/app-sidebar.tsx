@@ -1,7 +1,7 @@
 import {
   Calendar, CalendarRange, Palette, Printer, Layers, LayoutDashboard,
   Activity, BarChart3, Users, Building2, UserCheck, ClipboardCheck,
-  Link2, LogOut, ScrollText, Archive, ScanSearch, Compass, Settings2, Camera, Wand2,
+  Link2, LogOut, ScrollText, Archive, ScanSearch, Settings2, Camera, Wand2,
   Timer, GitBranch, Bell, Inbox, Cog, PackageSearch, X,
 } from "lucide-react";
 import { useEffect, useId, useState } from "react";
@@ -533,16 +533,12 @@ export function AppSidebar() {
       {/* ── Header ── */}
       {/* O cabeçalho da marca fecha com hairline em vez de flutuar sobre a
           lista, e devolve ~14px de altura útil para os 18 itens. A marca é a
-          MESMA da tela de entrada: bússola laranja num quadrado escuro. */}
+          MESMA da tela de entrada: o "N" da NORTE na cor do app. */}
       <SidebarHeader style={{ height: 64, flexShrink: 0, padding: recolhida ? 0 : "0 12px 0 16px", borderBottom: `1px solid ${N.n3}`, justifyContent: "center", alignItems: recolhida ? "center" : "stretch" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span aria-hidden="true" style={{
-            width: 30, height: 30, borderRadius: R.md, flexShrink: 0,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            backgroundColor: T.text,
-          }}>
-            <Compass style={{ width: 16, height: 16, color: "#fb923c", strokeWidth: 2.2 }} />
-          </span>
+          {/* Identidade do app (16/10): o "N" da NORTE na cor da Produção —
+              cada app da NORTE se reconhece pela cor do seu N. */}
+          <img src="/marca-app.svg" alt="" aria-hidden="true" style={{ height: 30, width: "auto", flexShrink: 0, display: "block" }} />
           {!recolhida && (
             <div style={{ display: "flex", flexDirection: "column", gap: 0, flex: 1, minWidth: 0 }}>
               <span style={{

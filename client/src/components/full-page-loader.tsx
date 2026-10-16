@@ -27,8 +27,8 @@ export function FullPageLoader() {
       style={{ backgroundColor: T.bg }}
     >
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-        {/* Identidade do app (16/10): o "N" da NORTE na cor da Produção. */}
-        <img src="/marca-app.svg" alt="" aria-hidden="true" style={{ height: 44, width: "auto", display: "block" }} />
+        {/* Identidade do app (16/10): o selo da NORTE (quadrado branco com o N da Produção). */}
+        <img src="/selo-app.svg" alt="" aria-hidden="true" width={44} height={44} style={{ width: 44, height: 44, display: "block" }} />
         <span aria-hidden="true" style={{ fontFamily: FONT.display, fontSize: FS.title, fontWeight: FW.rotulo, letterSpacing: "-0.04em", color: T.text, lineHeight: 1 }}>
           NORTE
         </span>

@@ -213,7 +213,8 @@ describe("NÃO entra na Gestão de Prazos", () => {
     const arquivos = [
       "server/services/prazo-domain.ts", "server/services/deadlineAlerts.ts", "server/services/gestaoDigest.ts",
       "server/services/revisaoDigest.ts", "server/services/prazoSnapshots.ts", "server/routes/prazos.ts",
-      "client/src/lib/painel-prazo.ts", "client/src/pages/gestao-prazos.tsx", "client/src/pages/dashboard-analises.tsx",
+      "client/src/lib/painel-prazo.ts", "client/src/pages/gestao-prazos.tsx", "shared/painel-operacional.ts",
+      "server/services/painel-operacional.ts",
       "shared/prazo-dates.ts", "shared/prazos-contract.ts",
       ...readdirSync(path.resolve(RAIZ, "client/src/components/prazos")).map((f) => `client/src/components/prazos/${f}`),
       ...readdirSync(path.resolve(RAIZ, "client/src/lib")).filter((f) => f.startsWith("analises-")).map((f) => `client/src/lib/${f}`),

@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 //
 // ─────────────────────────────────────────────────────────────────────────────
-// PERFORMANCE DO HISTÓRICO E DAS ANÁLISES — medida, não palpite (PERF-4, 17/09).
+// PERFORMANCE DO HISTÓRICO — medida, não palpite (PERF-4, 17/09).
 //
-// As duas telas trabalham sobre o acervo INTEIRO (5.128 peças em produção, 68+
+// O Histórico trabalha sobre o acervo INTEIRO (5.128 peças em produção, 68+
 // eventos) e, no Histórico, ainda sobre milhares de registros de auditoria
 // caminhados em segundo plano. Este arquivo monta as páginas de verdade com
 // dados sintéticos no formato das rotas e mede o que se repete o dia inteiro:
@@ -16,22 +16,12 @@
 //     do "Atualizado há X";
 //   · o custo de digitar uma busca.
 //
-//   ANÁLISES
-//   · quantas vezes os agregados (desempenho × 2, capacidade, ofensores) são
-//     recalculados no tique de 1 min, na revalidação sem mudança e ao trocar a
-//     dimensão da tabela;
-//   · quantas vezes o gráfico (recharts, o pedaço mais caro do render) é
-//     redesenhado nessas mesmas situações;
-//   · quantos downloads de /api/items a própria tela dispara ao voltar para a
-//     aba depois de alguns minutos, com o WebSocket vivo.
+//   (A parte das ANÁLISES media a aba de desempenho da Análises de status, que
+//   saiu em 16/10 — a Análises virou o Painel operacional da gráfica, com os
+//   números calculados no servidor.)
 //
 // Os tempos são impressos (console.log) para comparação antes/depois; as
 // asserções ficam só nas CONTAGENS, que não oscilam com a máquina.
-//
-// Como o recharts foi medido: `ResizeObserver` esboçado (o jsdom não tem) e o
-// `BarChart` embrulhado num contador — o ResponsiveContainer não chega a
-// desenhar barras com largura 0, mas o componente do gráfico É renderizado, e
-// é o render dele (com filhos, eixos e células) que se conta.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import * as React from "react";
@@ -41,7 +31,7 @@ import { QueryClientProvider, focusManager } from "@tanstack/react-query";
 const h = React.createElement;
 
 const cont = vi.hoisted(() => ({
-  linhas: 0, timeline: 0, desempenho: 0, capacidade: 0, ofensores: 0, grafico: 0,
+  linhas: 0, timeline: 0,
   fetchItems: 0,
 }));
 
@@ -58,27 +48,6 @@ vi.mock("@/lib/timeline", async (original) => {
   const m: any = await original();
   return { ...m, buildTimeline: (...a: any[]) => { cont.timeline++; return m.buildTimeline(...a); } };
 });
-vi.mock("@/lib/analises-desempenho", async (original) => {
-  const m: any = await original();
-  return {
-    ...m,
-    computeDesempenho: (...a: any[]) => { cont.desempenho++; return m.computeDesempenho(...a); },
-    computeOfensores: (...a: any[]) => { cont.ofensores++; return m.computeOfensores(...a); },
-  };
-});
-vi.mock("@/lib/analises-capacidade", async (original) => {
-  const m: any = await original();
-  return { ...m, computeCapacidade: (...a: any[]) => { cont.capacidade++; return m.computeCapacidade(...a); } };
-});
-vi.mock("recharts", async (original) => {
-  const m: any = await original();
-  const R = await import("react");
-  return {
-    ...m,
-    BarChart: (p: any) => { cont.grafico++; return R.createElement(m.BarChart, p); },
-  };
-});
-
 // ── Dados sintéticos no formato das rotas ───────────────────────────────────
 let seed = 7;
 const rnd = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
@@ -174,10 +143,6 @@ async function medir(tela: string, nome: string, acao: () => void | Promise<void
     paredeMs: Math.round(performance.now() - t0 - espera),
     linhasRenderizadas: cont.linhas,
     timeline: cont.timeline,
-    desempenho: cont.desempenho,
-    capacidade: cont.capacidade,
-    ofensores: cont.ofensores,
-    grafico: cont.grafico,
     fetchItems: cont.fetchItems,
   };
   console.log(`[perf-${tela}] ${JSON.stringify(r)}`);
@@ -190,7 +155,7 @@ function digitar(el: HTMLInputElement, valor: string) {
   el.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-// Os tiques de relógio das telas (30s no Histórico, 1 min nas Análises) são
+// Os tiques de relógio das telas (30s no Histórico) são
 // capturados em vez de esperados: a medida chama o callback na hora certa.
 const intervalos = new Map<number, Array<() => void>>();
 const realSetInterval = globalThis.setInterval;
@@ -234,7 +199,6 @@ beforeAll(() => {
       if (cursor) { await new Promise((r) => setTimeout(r, 40)); return json(paginaDoCursor(cursor)); }
       return json({ logs: [], nextCursor: null });
     }
-    if (u.startsWith("/api/analises/tempo-por-etapa")) return json(null);
     return json([]);
   });
 });
@@ -339,87 +303,6 @@ describe("Histórico com 5.000 peças, 68 eventos e 4.500 registros caminhados",
     // 24h), não a página inteira.
     expect(comHoraRelativa).toBeLessThan(25);
     expect(r6.linhasRenderizadas).toBeLessThanOrEqual(comHoraRelativa);
-    cleanup();
-  }, 180_000);
-});
-
-describe("Análises com 5.000 peças e 68 eventos", () => {
-  it("mede abertura, tique de 1 min, revalidação, dimensão e volta à aba", async () => {
-    const DashboardAnalises = (await import("@/pages/dashboard-analises")).default;
-    window.history.replaceState(null, "", "/analises");
-    intervalos.clear();
-    const { queryClient } = await import("@/lib/queryClient");
-    queryClient.clear();
-
-    const { t0 } = await montar(DashboardAnalises);
-    for (let i = 0; i < 40; i++) {
-      await tick(25);
-      if (document.querySelector('[data-testid="kpi-prazo"]')) break;
-    }
-    await tick(80);
-    const abertura = {
-      nome: "abertura",
-      paredeMs: Math.round(performance.now() - t0),
-      commits: commits.length,
-      renderMs: Math.round(commits.reduce((a, b) => a + b, 0)),
-      elementosDom: document.querySelectorAll("*").length,
-      desempenho: cont.desempenho, capacidade: cont.capacidade, ofensores: cont.ofensores,
-      grafico: cont.grafico,
-    };
-    console.log(`[perf-analises] ${JSON.stringify(abertura)}`);
-    const kpi = () => document.querySelector('[data-testid="kpi-prazo"]')?.textContent ?? "";
-    const kpiInicial = kpi();
-    expect(kpiInicial).toMatch(/%|—/);
-
-    const r1 = await medir("analises", "tique de 1 min", () => {
-      for (const fn of intervalos.get(60_000) ?? []) fn();
-    });
-    expect(kpi()).toBe(kpiInicial);
-
-    const r2 = await medir("analises", "revalidação sem mudanças", async () => {
-      await queryClient.invalidateQueries({ queryKey: ["/api/events"] });
-      await queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-    }, 200);
-    expect(kpi()).toBe(kpiInicial);
-
-    const r3 = await medir("analises", "trocar dimensão da tabela", () => {
-      (document.querySelector('[data-testid="dim-tipo"]') as HTMLElement).click();
-    });
-    const r4 = await medir("analises", "trocar a ordem da tabela", () => {
-      (document.querySelector('[data-testid="ordem-volume"]') as HTMLElement).click();
-    });
-
-    // Volta à aba 3 minutos depois, com o WebSocket vivo (nenhuma mudança).
-    const nowReal = Date.now;
-    const r5 = await medir("analises", "voltar à aba após 3 min", async () => {
-      vi.spyOn(Date, "now").mockImplementation(() => nowReal() + 3 * 60_000);
-      focusManager.setFocused(false);
-      focusManager.setFocused(true);
-    }, 250);
-    vi.mocked(Date.now).mockRestore();
-    focusManager.setFocused(undefined as any);
-
-    console.log(`[perf-analises] RESUMO ${JSON.stringify({ abertura, r1, r2, r3, r4, r5 })}`);
-
-    // ── Metas (DEPOIS da PERF-4) ──────────────────────────────────────────
-    // O tique de 1 min só troca o "Atualizado há X": no mesmo dia, nenhum
-    // agregado é recalculado e o gráfico não é redesenhado.
-    expect(r1.desempenho).toBe(0);
-    expect(r1.capacidade).toBe(0);
-    expect(r1.ofensores).toBe(0);
-    expect(r1.grafico).toBe(0);
-    // Revalidação sem mudança: nada recalculado, nada redesenhado.
-    expect(r2.capacidade).toBe(0);
-    expect(r2.grafico).toBe(0);
-    // A tabela de ofensores não arrasta o gráfico junto.
-    expect(r3.grafico).toBe(0);
-    expect(r4.grafico).toBe(0);
-    expect(r3.desempenho).toBe(0);
-    expect(r4.ofensores).toBe(0);
-    // Voltar à aba com o dado de 3 min REVALIDA o acervo: o staleTime voltou
-    // a 60s (revisão adversarial 17/09 — os 5 min não foram decididos). A
-    // revalidação é por delta (KBs), e é uma só.
-    expect(r5.fetchItems).toBe(1);
     cleanup();
   }, 180_000);
 });

@@ -86,7 +86,7 @@ describe("a etapa Embalado no fluxo da peça", () => {
 
   it("todo lugar que traduz status conhece 'packed'", () => {
     expect(ler("server/routes/shared.ts")).toContain('packed: "Embalado",');
-    expect(ler("server/services/tempo-etapas.ts")).toContain('packed: "Embalado",');
+    expect(ler("shared/painel-operacional.ts")).toContain('{ etapa: "packed", rotulo: "Embalado" }');
     expect(ler("server/services/xlsxExport.ts")).toContain('packed: "Embalado"');
     expect(fonteDasRotasDeItens()).toContain('"Embalado": "packed",');
     expect(ler("client/src/lib/painel-rotas.ts")).toContain("packed:                  TELAS.grafica,");

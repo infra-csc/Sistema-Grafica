@@ -98,11 +98,10 @@ describe("as demais correções (trechos que sustentam a regra)", () => {
     expect(app).toContain("<Suspense fallback={<FullPageLoader />}><ProtectedRoute component={ChangePassword} /></Suspense>");
   });
 
-  it("Análises: o acervo volta ao staleTime de 60s (freshness) — os 5 min não foram decididos", () => {
-    const da = ler("client/src/pages/dashboard-analises.tsx");
-    expect(da).not.toContain("freshnessAcervo");
-    expect(da).toContain('useQuery<AnaliseItem[]>({ queryKey: ["/api/items"], ...freshness })');
-    expect(da).toContain("ao voltar para a aba e, por segurança, a cada 5 minutos.");
+  it("Análises: o painel revalida com staleTime de 60s, no foco e a cada 5 minutos", () => {
+    const da = ler("client/src/pages/analises/index.tsx");
+    expect(da).toContain("const FRESCOR = { staleTime: 60_000, refetchOnMount: true, refetchOnWindowFocus: true, refetchInterval: 300_000 } as const;");
+    expect(da).toContain("useQuery<PainelOperacional>({ queryKey: [CHAVE_DA_BUSCA], ...FRESCOR, retry: 1 })");
   });
 
   it("script de índices: segue depois de um comando que falha e sai com código ≠ 0", () => {

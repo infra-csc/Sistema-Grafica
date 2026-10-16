@@ -140,9 +140,9 @@ describe("os nomes novos — com a trilha antiga ainda legível", () => {
     expect(SHARED).toContain('produced: "Impresso / Acabamento",');
     expect(STATUS).toContain('inProduction:          meta("Em Impressão"');
     expect(STATUS).toContain('produced:              meta("Impresso / Acabamento",        "Impresso"');
-    // Excel, tempo por etapa e a KPI da Gráfica dizem o mesmo nome.
+    // Excel, o painel operacional da Análises e a KPI da Gráfica dizem o mesmo nome.
     expect(ler("server/services/xlsxExport.ts")).toContain('produced: "Impresso / Acabamento"');
-    expect(ler("server/services/tempo-etapas.ts")).toContain('produced: "Impresso / Acabamento",');
+    expect(ler("shared/painel-operacional.ts")).toContain('{ etapa: "produced", rotulo: "Impresso / Acabamento" }');
     expect(GRAFICA).toContain('{ label: "Impresso",     value: stats.produzidos');
   });
 

@@ -68,7 +68,7 @@ export function translateStatus(status: string): string {
     // NA MÁQUINA) e "Produzido" → "Em Acabamento / Conferência" (saiu da
     // máquina e ainda precisa de acabamento e conferência). As chaves não
     // mudaram — só o que se lê. A trilha antiga segue com os nomes velhos, e
-    // quem a interpreta reconhece os dois (ver tempo-etapas e a ficha).
+    // quem a interpreta reconhece os dois (ver a ficha).
     inProduction: "Em Impressão",
     produced: "Impresso / Acabamento",
     conferred: "Conferido",

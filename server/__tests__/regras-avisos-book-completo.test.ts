@@ -35,14 +35,13 @@ vi.mock("../services/xlsxExport", () => ({ handleExportItemsXlsx: vi.fn(), handl
 
 import { capturarRotas } from "./rotas-de-mentira";
 import { registerItemRoutes } from "../routes/items";
-import { registerAnaliseRoutes } from "../routes/analises";
+import { montarPainelOperacional } from "@shared/painel-operacional";
 import { registerPrazoRoutes } from "../routes/prazos";
 import { registerBuscaRoutes } from "../routes/busca";
 import { montarResumo } from "../services/revisaoDigest";
 
 const { chamar } = capturarRotas((app) => {
   registerItemRoutes(app);
-  registerAnaliseRoutes(app);
   registerPrazoRoutes(app);
   registerBuscaRoutes(app);
 });
@@ -86,25 +85,17 @@ describe("as portas fechadas do servidor", () => {
     expect(b.removidas).toContain("book");
   });
 
-  it("Análises (tempo por etapa) não contam o book", async () => {
-    // A rota guarda a resposta 60 s por recorte: o relógio anda entre as chamadas.
-    vi.useFakeTimers({ toFake: ["Date"] });
-    let t = Date.parse("2026-09-10T12:00:00Z");
-    const tempo = async (lista: Linha[]) => {
-      vi.setSystemTime((t += 3_600_000));
-      H.base.getAllItems = vi.fn(async () => lista);
-      const r = await chamar("GET /api/analises/tempo-por-etapa", { sessao: admin, query: { periodo: "tudo" } });
-      expect(r.status).toBe(200);
-      return JSON.stringify(r.body);
-    };
-    try {
-      const semBook = await tempo([comum({ status: "delivered" })]);
-      expect(await tempo([comum({ status: "delivered" }), book({ status: "delivered" })])).toBe(semBook);
-      // e a porta é sensível: uma peça COMUM a mais muda a resposta
-      expect(await tempo([comum({ status: "delivered" }), peca("outra", { status: "delivered" })])).not.toBe(semBook);
-    } finally {
-      vi.useRealTimers();
-    }
+  it("Análises (painel operacional) não conta o book", () => {
+    const kpis = { atrasados: 0, saidas7d: 0, pecasAtrasadas: 0, emDia: 0, invalidCount: 0, semPecas: 0 };
+    const painel = (lista: Linha[]) => montarPainelOperacional({
+      pecas: lista.map((p) => ({ ...p, quantity: 2, fileWidth: "1", fileHeight: "1", producedAt: new Date() })) as never,
+      prazos: [], kpis, hoje: new Date().toISOString().slice(0, 10), geradoEm: new Date().toISOString(),
+      nomeDoEvento: new Map([["ev-1", "COPA NORTE"]]), remessasConhecidas: new Set(),
+    });
+    const semBook = JSON.stringify(painel([comum({ status: "produced" })]).prodRealizado);
+    expect(JSON.stringify(painel([comum({ status: "produced" }), book({ status: "produced" })]).prodRealizado)).toBe(semBook);
+    // e a porta é sensível: uma peça COMUM a mais muda a resposta
+    expect(JSON.stringify(painel([comum({ status: "produced" }), peca("outra", { status: "produced" })]).prodRealizado)).not.toBe(semBook);
   });
 
   it("Gestão de Prazos não conta o book", async () => {

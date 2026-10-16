@@ -133,7 +133,4 @@ describe("a mesma ação tem a mesma cor em todas as telas", () => {
     expect(ler("client/src/components/pedidos/cartao-do-pedido.tsx")).toContain('criar:      { fundo: T.dark, cor: T.surface, borda: T.dark, classe: "ds-botao" }');
   });
 
-  it("Análises > Eventos: o contador de embaladas é o azul do Embalado", () => {
-    expect(ler("client/src/pages/analises/abas/eventos.tsx")).toContain('pecas={e.porEtapa.get("packed") ?? []} tom="info"');
-  });
 });

@@ -415,12 +415,6 @@ props de `testId` existem. As linhas são aproximadas (as telas estão mudando).
 - `linkComoBotao` em `<Link className="ds-botao">` (~976, ~996) → `<BotaoLink>`.
 - Pílula âmbar (~1543) → `tom="alerta"`; vazio "tudo em dia" (~1025) → `tom="sucesso"`.
 
-**Análises (`pages/dashboard-analises.tsx`)**
-- `<a href>` dentro do `sub` do CartaoKpi (~205–235) → `href` (navegação) ou
-  `acaoSecundaria`.
-- `<div style={{flexShrink:0}}>` em volta do Segmentado (~1453) → `style`.
-- Primário laranja com filtro (~975) → `tom="laranja"`.
-
 **Triagem (`pages/triagem-retorno.tsx`)**
 - `botaoModo` nativo com `<Scissors>` (~1008–1016) → `<Segmentado tamanho="toque">`
   com `itens[].icone`.

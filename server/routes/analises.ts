@@ -1,261 +1,50 @@
-// Agregados da tela de Análises que o CLIENTE não tem como calcular.
+// A rota da tela de Análises — SÓ ADMIN (é a tela do gestor).
 //
-// São dois, ambos SÓ ADMIN (a Análises é tela do admin — antes daqui qualquer
-// logado chamava o tempo por etapa):
-//   · "Tempo por etapa" (abaixo). Ele existe aqui, e não no front, por um
-// motivo de custo — a permanência sai da diferença entre carimbos consecutivos
-// de `audit_logs`, e a tela não pode baixar a trilha para descobrir isso. Os
-// outros blocos da Análises continuam calculados no cliente sobre
-// /api/items — eles cabem no que a tela já tem em mãos.
+// Desde 16/10 a Análises é o Painel operacional da gráfica (dono: "subir isso
+// no Análises, no nosso layout, exatamente esses dados" e "pode tirar o que já
+// tem no Análises hoje"). As rotas da Análises de status (tempo por etapa e
+// operação) saíram junto com as abas que as liam.
 //
-// Esta camada é I/O + montagem. A REGRA (ler a frase da trilha, fechar as
-// passagens, mediana, planejado) mora em `../services/tempo-etapas.ts`, testada
-// em `server/__tests__/analises-tempo-etapas.test.ts`.
-//   · "Operação" (GET /api/analises/operacao): aprovação, máquinas, tubos,
-// pessoas, estoque e arte — o contrato em shared/analises-operacao-contract.ts;
-// regra e SQL em `../services/analises-operacao.ts`.
-import { ehBookCompleto } from "@shared/fluxo-peca";
+// Esta camada é I/O + memo. A REGRA mora em @shared/painel-operacional (pura,
+// testada em server/__tests__/painel-operacional.test.ts); a leitura do banco,
+// em ../services/painel-operacional.ts.
 import type { Express } from "express";
-import { storage } from "../storage";
-import type { ItemTransitionLog } from "../storage";
-import { TRANSITION_LOGS_MAX } from "../storage";
-import { requireAdmin, SYSTEM_ACTOR } from "./shared";
+import { requireAdmin } from "./shared";
 import { db } from "../db";
-import type { OperacaoDaAnalise } from "@shared/analises-operacao-contract";
-import { carregarOperacao, lerJanela } from "../services/analises-operacao";
-import { OUT_OF_FUNNEL } from "../services/prazo-domain";
-import { eventDayMs } from "@shared/prazo-dates";
-import type { TempoPorEtapa } from "@shared/tempo-etapas-contract";
-import {
-  agregarTempoPorEtapa,
-  dentroDaJanela,
-  janelaDeCiclo,
-  planejadoPorEtapa,
-  type LogPeca,
-  type PecaMedida,
-} from "../services/tempo-etapas";
+import type { PainelOperacional } from "@shared/painel-operacional";
+import { carregarPainelOperacional } from "../services/painel-operacional";
 
 /**
- * Memo curto do resultado, por recorte.
- *
- * PORQUÊ existe: a varredura da trilha é a parte cara da rota, e a tela a
- * dispara de novo a cada troca de filtro e a cada volta para a aba (a Análises
- * revalida no foco). 60s é curto o bastante para o bloco não contradizer os
- * KPIs ao lado — que leem /api/items com a mesma política de frescor — e longo
- * o bastante para absorver a rajada de quem está mexendo nos filtros.
+ * Memo curto do painel. A tela revalida no foco e a cada 5 minutos, e dois
+ * gestores abrindo juntos não precisam de duas varreduras: 60s é curto o
+ * bastante para o número não envelhecer e longo o bastante para absorver a
+ * rajada de quem troca de aba. Uma entrada só — a rota não tem parâmetros.
  */
 const TTL_MS = 60_000;
-/**
- * Teto de recortes guardados por memo. O TTL sozinho não basta: dentro de
- * 60s alguém pode variar a querystring à vontade (de/ate são livres na
- * Operação) e cada variação seria uma entrada.
- */
-const MAXIMO_DE_RECORTES = 50;
-
-function criarMemo<T>() {
-  const memo = new Map<string, { em: number; payload: T }>();
-  return {
-    ler(chave: string, agora: number): T | null {
-      const hit = memo.get(chave);
-      if (!hit || agora - hit.em > TTL_MS) return null;
-      return hit.payload;
-    },
-    guardar(chave: string, agora: number, payload: T): void {
-      // O mapa não pode crescer sem fim: o recorte entra por querystring, e
-      // querystring é do usuário. Expira o que venceu antes de inserir.
-      const vencidas: string[] = [];
-      memo.forEach((v, k) => { if (agora - v.em > TTL_MS) vencidas.push(k); });
-      for (const k of vencidas) memo.delete(k);
-      // Cheio mesmo assim: sai o mais antigo (o Map itera na ordem de inserção).
-      while (memo.size >= MAXIMO_DE_RECORTES) memo.delete(memo.keys().next().value as string);
-      memo.set(chave, { em: agora, payload });
-    },
-    limpar(): void { memo.clear(); },
-  };
-}
-
-const memoTempo = criarMemo<TempoPorEtapa>();
-const memoOperacao = criarMemo<OperacaoDaAnalise>();
-
-/**
- * Uma linha de trilha pode valer para VÁRIAS peças: as rotas em lote gravam
- * `entity_id` como lista ("id1,id2,id3") — é a mesma convenção que o filtro por
- * entidade do getAuditLogs já trata com LIKE. Sem desmembrar aqui, toda
- * devolução em lote e todo cancelamento em massa sumiriam da medição.
- */
-export function idsDoLog(entityId: string): string[] {
-  return entityId.includes(",")
-    ? entityId.split(",").map((s) => s.trim()).filter(Boolean)
-    : [entityId];
-}
-
-export function agruparPorPeca(
-  logs: ItemTransitionLog[],
-  idsValidos: Set<string>,
-): Map<string, LogPeca[]> {
-  const porPeca = new Map<string, LogPeca[]>();
-  for (const log of logs) {
-    const ts = log.createdAt instanceof Date ? log.createdAt.getTime() : new Date(log.createdAt).getTime();
-    if (!Number.isFinite(ts)) continue;
-    for (const id of idsDoLog(log.entityId)) {
-      if (!idsValidos.has(id)) continue;
-      const linha: LogPeca = { ts, action: log.action, details: log.details };
-      const atual = porPeca.get(id);
-      if (atual) atual.push(linha);
-      else porPeca.set(id, [linha]);
-    }
-  }
-  // A trilha chega do mais novo para o mais antigo (ver getItemTransitionLogs);
-  // a medição caminha para a frente no tempo.
-  porPeca.forEach((linhas) => linhas.sort((a, b) => a.ts - b.ts));
-  return porPeca;
-}
-
-const msDe = (v: Date | string | null | undefined): number | null => {
-  if (v == null) return null;
-  const t = v instanceof Date ? v.getTime() : new Date(v).getTime();
-  return Number.isFinite(t) ? t : null;
-};
+let memo: { em: number; payload: PainelOperacional } | null = null;
 
 export function registerAnaliseRoutes(app: Express): void {
   /**
-   * GET /api/analises/tempo-por-etapa
-   *
-   * Recorte IDÊNTICO ao dos KPIs da tela (mesmos nomes de parâmetro que a URL
-   * da Análises já carrega): `periodo` por ciclo de evento já ocorrido,
-   * `evento` e `patrocinador`. Se o recorte daqui divergisse do de lá, o
-   * rodapé do bloco declararia uma cobertura sobre outra população.
+   * GET /api/analises/painel-operacional — o Painel operacional da gráfica
+   * (contrato em shared/painel-operacional.ts). Sem parâmetros: os filtros da
+   * tela (evento, medida, dia da projeção, processos) recortam no cliente,
+   * com as funções de derivação do mesmo módulo.
    */
-  app.get("/api/analises/tempo-por-etapa", requireAdmin, async (req, res) => {
-    try {
-      const periodo = typeof req.query.periodo === "string" ? req.query.periodo : "all";
-      const evento = typeof req.query.evento === "string" ? req.query.evento : "all";
-      const patrocinador =
-        typeof req.query.patrocinador === "string" ? req.query.patrocinador : "all";
-
-      const agora = Date.now();
-      const chave = `${periodo}|${evento}|${patrocinador}`;
-      const cache = memoTempo.ler(chave, agora);
-      if (cache) return res.json(cache);
-
-      const janela = janelaDeCiclo(periodo, agora);
-
-      const [eventos, itens] = await Promise.all([
-        storage.getAllEvents(),
-        storage.getAllItems().then((l) => l.filter((i) => !ehBookCompleto(i))), // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça (ver shared/fluxo-peca).
-      ]);
-
-      // eventId → dia-calendário da saída do caminhão (a âncora do recorte).
-      const diaDoEvento = new Map<string, number | null>();
-      for (const ev of eventos) diaDoEvento.set(ev.id, eventDayMs(ev.truckDepartureDate));
-
-      // Vínculo peça↔patrocinador só é carregado quando há filtro — é a
-      // tabela inteira, e sem filtro ela não muda nenhuma resposta.
-      let patrocinadasPor: Set<string> | null = null;
-      if (patrocinador !== "all") {
-        const vinculos = await storage.getAllItemSponsors();
-        patrocinadasPor = new Set(
-          vinculos.filter((v) => v.sponsorId === patrocinador).map((v) => v.itemId),
-        );
-      }
-
-      const noRecorte = itens.filter((i) => {
-        // Cancelada/excluída/arquivada fica fora de todo denominador da tela.
-        if (OUT_OF_FUNNEL.has(i.status)) return false;
-        if (evento !== "all" && i.eventId !== evento) return false;
-        if (janela && !dentroDaJanela(diaDoEvento.get(i.eventId) ?? null, janela)) return false;
-        if (patrocinadasPor && !patrocinadasPor.has(i.id)) return false;
-        return true;
-      });
-
-      // Piso da varredura: nenhuma transição de uma peça é anterior à criação
-      // dela, então a peça mais antiga do recorte é o começo útil da trilha.
-      let desdePiso: number | null = null;
-      for (const i of noRecorte) {
-        const c = msDe(i.createdAt);
-        if (c != null && (desdePiso == null || c < desdePiso)) desdePiso = c;
-      }
-
-      const logs = noRecorte.length
-        ? await storage.getItemTransitionLogs(desdePiso, TRANSITION_LOGS_MAX)
-        : [];
-      const truncado = logs.length >= TRANSITION_LOGS_MAX;
-
-      const idsValidos = new Set(noRecorte.map((i) => i.id));
-      const porPeca = agruparPorPeca(logs, idsValidos);
-
-      const pecas: PecaMedida[] = noRecorte.map((i) => ({
-        id: i.id,
-        eventId: i.eventId,
-        status: i.status,
-        criadaEmMs: msDe(i.createdAt),
-        logs: porPeca.get(i.id) ?? [],
-      }));
-
-      const planejadoPorEvento = new Map<string, (number | null)[]>();
-      for (const ev of eventos) {
-        if (!ev.truckDepartureDate) continue;
-        planejadoPorEvento.set(ev.id, planejadoPorEtapa(ev));
-      }
-
-      // A data declarada é a do registro mais antigo REALMENTE lido — se o teto
-      // cortou o passado, o piso honesto é o corte, não o pedido.
-      let desdeMs: number | null = null;
-      for (const l of logs) {
-        const t = msDe(l.createdAt);
-        if (t != null && (desdeMs == null || t < desdeMs)) desdeMs = t;
-      }
-
-      const payload = agregarTempoPorEtapa({
-        pecas,
-        planejadoPorEvento,
-        desdeMs,
-        logsLidos: logs.length,
-        truncado,
-      });
-
-      memoTempo.guardar(chave, agora, payload);
-      res.json(payload);
-    } catch (error) {
-      console.error("[analises] tempo por etapa falhou:", error);
-      res.status(500).json({ error: "Não foi possível calcular o tempo por etapa agora. Tente de novo em instantes." });
-    }
-  });
-
-  /**
-   * GET /api/analises/operacao — os agregados das abas Aprovação, Gráfica,
-   * Pessoas, Estoque e Arte (contrato em shared/analises-operacao-contract.ts).
-   *
-   * ?de=&ate= (ISO ou AAAA-MM-DD; sem `de`, os últimos 30 dias), ?evento=,
-   * ?patrocinador=. Entrada torta → 400 com a frase; a regra da janela mora
-   * em lerJanela, junto da conta.
-   */
-  app.get("/api/analises/operacao", requireAdmin, async (req, res) => {
+  app.get("/api/analises/painel-operacional", requireAdmin, async (_req, res) => {
     try {
       const agora = Date.now();
-      const lida = lerJanela(req.query as Record<string, unknown>, agora);
-      if (!lida.ok) return res.status(400).json({ error: lida.erro });
-      const { janela } = lida;
-
-      // A chave é o que o usuário PEDIU, não a janela resolvida: sem `de`/`ate`
-      // a janela anda com o relógio e nenhuma chamada repetiria a chave.
-      const q = req.query as Record<string, unknown>;
-      const chave = [q.de ?? "", q.ate ?? "", janela.evento ?? "", janela.patrocinador ?? ""].map(String).join("|");
-      const cache = memoOperacao.ler(chave, agora);
-      if (cache) return res.json(cache);
-
-      const payload = await carregarOperacao(db, janela, agora, { ignorarNomes: new Set([SYSTEM_ACTOR]) });
-      memoOperacao.guardar(chave, agora, payload);
+      if (memo && agora - memo.em <= TTL_MS) return res.json(memo.payload);
+      const payload = await carregarPainelOperacional(db, agora);
+      memo = { em: agora, payload };
       res.json(payload);
     } catch (error) {
-      console.error("[analises] operação falhou:", error);
-      res.status(500).json({ error: "Não foi possível montar a Análises agora. Tente de novo em instantes." });
+      console.error("[analises] painel operacional falhou:", error);
+      res.status(500).json({ error: "Não foi possível montar o painel operacional agora. Tente de novo em instantes." });
     }
   });
 }
 
 /** Só para o teste — o memo é global e vazaria de um caso para o outro. */
 export function limparMemoAnalises(): void {
-  memoTempo.limpar();
-  memoOperacao.limpar();
+  memo = null;
 }

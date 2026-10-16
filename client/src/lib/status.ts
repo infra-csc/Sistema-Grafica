@@ -2,7 +2,7 @@
 // FONTE ÚNICA DE VERDADE para status (rótulo + cores + ícone).
 //
 // Antes existiam 4+ mapas divergentes (status-badge.tsx, painel-geral
-// STATUS_CONFIG, dashboard-analises, grafica, item-details/timeline): o mesmo
+// STATUS_CONFIG, grafica, item-details/timeline): o mesmo
 // status aparecia com nome diferente ("Prod." vs "Produção") e cor diferente
 // ("Produzido" roxo numa tela, rosa noutra). Isto centraliza tudo aqui.
 //

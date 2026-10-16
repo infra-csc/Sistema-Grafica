@@ -63,8 +63,10 @@ const ROTULO: React.CSSProperties = {
 function MarcaNorte({ escura = false }: { escura?: boolean }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-      {/* Identidade do app (16/10): o "N" da NORTE na cor da Produção. */}
-      <img src="/marca-app.svg" alt="" aria-hidden="true" style={{ height: 40, width: "auto", flexShrink: 0, display: "block" }} />
+      {/* Identidade do app (16/10): o "N" da NORTE na cor da Produção. Sobre
+          o fundo escuro o N marrom perde contraste, então ali vai o ícone do
+          app (quadrado na cor da Produção com o N branco). */}
+      <img src={escura ? "/icone-app.svg" : "/marca-app.svg"} alt="" aria-hidden="true" style={{ height: 40, width: "auto", flexShrink: 0, display: "block" }} />
       <span style={{ display: "flex", flexDirection: "column" }}>
         <span style={{
           fontFamily: FONT.display, fontSize: 17, fontWeight: FW.rotulo,

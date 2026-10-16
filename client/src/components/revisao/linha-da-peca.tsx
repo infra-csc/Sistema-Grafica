@@ -20,6 +20,7 @@ import { T, TOM, N, FS, R, FONT, MOTION } from "@/lib/theme";
 import { TI, medidaDaPeca } from "./regras";
 import { estiloDoReaproveitar } from "./estilos";
 import { FalhaNaLinha, SeloTravaNaLinha } from "./selos-da-linha";
+import { SeloOrigemDoReaproveitamento } from "@/components/reaproveitamento/selo-da-origem";
 import type { PecaDaRevisao } from "./tipos";
 
 export interface LinhaDaPecaProps {
@@ -142,6 +143,7 @@ export const LinhaDaPeca = memo(function LinhaDaPeca({
               Reaproveitada
             </Selo>
           )}
+          <SeloOrigemDoReaproveitamento peca={item} style={{ flexShrink: 0 }} />
           <SeloDoEstoqueNaLinha linha={estoque} />
           {/* EVENTO FINALIZADO — sem este selo, a linha mostra "Revisar" e
               dois botões apagados sem dizer por quê. */}

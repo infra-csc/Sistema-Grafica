@@ -11,9 +11,10 @@ import { useToast } from "@/hooks/use-toast";
 import { invalidarGraficaEMaquinas } from "@/lib/tempo-real-grafica";
 import type { PecaDaFila } from "@/components/grafica/tipos";
 import { apiErrorMessage } from "@/components/grafica/fila/regras";
+import { corpoDaOrigem, type ValorDaOrigem } from "@/components/reaproveitamento/escolha-da-origem";
 
 /** A peça que mark-reuse e correct-reuse devolvem — só o que o toast lê. */
-type PecaAtualizada = Pick<PecaDaFila, "quantity" | "reuseQty">;
+type PecaAtualizada = Pick<PecaDaFila, "quantity" | "reuseQty"> & { status?: string; origemReaproveitamento?: string | null };
 
 export type EdicaoNaLinha = ReturnType<typeof useEdicaoNaLinha>;
 
@@ -37,18 +38,25 @@ export function useEdicaoNaLinha(compacto: boolean) {
     // quantity/reuseQty como undefined e o toast sempre dizia "peça inteira".
     // qty = SOMA (fluxo normal); reuseTotal = valor ABSOLUTO (via pós-
     // Produzido, ajusta nas duas direções — espelho do mark-reuse).
-    mutationFn: async ({ itemId, qty, reuseTotal }: { itemId: string; qty?: number; reuseTotal?: number }) =>
-      await (await apiRequest("POST", `/api/items/${itemId}/mark-reuse`, reuseTotal != null ? { reuseTotal } : { qty })).json(),
+    // DE ONDE VEM (16/10): a escolha do diálogo vai junto (estoque | em trânsito + observação).
+    mutationFn: async ({ itemId, qty, reuseTotal, origem }: { itemId: string; qty?: number; reuseTotal?: number; origem?: ValorDaOrigem }) =>
+      await (await apiRequest("POST", `/api/items/${itemId}/mark-reuse`, {
+        ...(reuseTotal != null ? { reuseTotal } : { qty }),
+        ...(origem ? corpoDaOrigem(origem) : {}),
+      })).json(),
     onSuccess: (updated: PecaAtualizada) => {
       invalidarGraficaEMaquinas();
       setReuseConfirmItemId(null);
       setMenuAcoesId(null);
       const falta = (updated?.quantity ?? 0) - (updated?.reuseQty ?? 0);
+      const emTransito = updated?.origemReaproveitamento === "em_transito";
       toast({
         title: "Reaproveitamento registrado",
         description: falta > 0
-          ? `${updated.reuseQty} un. ${updated.reuseQty === 1 ? "reaproveitada" : "reaproveitadas"}. ${falta === 1 ? "Falta" : "Faltam"} ${falta} un. para produzir.`
-          : "Peça inteira reaproveitada. Segue para conferência.",
+          ? `${updated.reuseQty} un. ${updated.reuseQty === 1 ? "reaproveitada" : "reaproveitadas"}${emTransito ? " (em trânsito)" : ""}. ${falta === 1 ? "Falta" : "Faltam"} ${falta} un. para produzir.`
+          : emTransito
+            ? "Peça inteira em trânsito: não passa por conferir, embalar nem entregar — saiu da fila."
+            : "Peça inteira reaproveitada. Segue para conferência.",
       });
     },
     onError: (error: Error) => {
@@ -111,7 +119,8 @@ export function useEdicaoNaLinha(compacto: boolean) {
   // tela, sem listener e atrás da célula sticky da linha de baixo.
   // Só na tabela compacta: na cheia e nos cartões essas edições são inline e
   // continuam com o próprio Cancelar, como sempre.
-  const idMenuAberto = compacto ? (menuAcoesId ?? reuseConfirmItemId ?? correctReuseItemId ?? cancelComplementId) : null;
+  // O Reaproveitar virou diálogo (16/10): ele não segura o menu aberto.
+  const idMenuAberto = compacto ? (menuAcoesId ?? correctReuseItemId ?? cancelComplementId) : null;
   const fecharMenuAcoes = () => {
     setMenuAcoesId(null);
     setReuseConfirmItemId(null);
@@ -122,6 +131,8 @@ export function useEdicaoNaLinha(compacto: boolean) {
     if (!idMenuAberto) return;
     const fora = (e: PointerEvent) => {
       const alvo = e.target as Element | null;
+      // O diálogo do Reaproveitar mora num portal fora do menu: tocar nele não fecha nada.
+      if (alvo?.closest?.("[data-reap-dialogo]")) return;
       if (!alvo?.closest?.(`[data-menu-acoes="${idMenuAberto}"]`)) fecharMenuAcoes();
     };
     const esc = (e: KeyboardEvent) => {

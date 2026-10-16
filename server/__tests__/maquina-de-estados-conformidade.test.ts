@@ -188,6 +188,9 @@ type Cenario = {
 const MOTIVO = "O motivo tem mais de dez caracteres";
 const FOTO = "/objects/uploads/foto.jpg";
 const umPatrocinador = () => { patrocinadores = ["sp1"]; };
+/** A origem "em trânsito" com a etapa (16/10) e a rota que a troca depois. */
+const EM_TRANSITO = { origemReaproveitamento: "em_transito", obsReaproveitamento: "Night Run Salvador, etapa 17/10" };
+const ORIGEM = "PATCH /api/items/:id/origem-reaproveitamento";
 
 const CENARIOS: Cenario[] = [
   { acao: "enviar-para-aprovacao", papel: "arte", rota: "PATCH /api/items/:id/submit-for-approval", body: { approvalThumbUrl: "/objects/uploads/novo.png" }, preparar: umPatrocinador },
@@ -237,6 +240,32 @@ const CENARIOS: Cenario[] = [
     peca: { reuseQty: 3, quantityProduced: 7 },
   })),
   { acao: "corrigir-para-reaproveitamento-total", papel: "admin", rota: "POST /api/items/:id/correct-reuse", body: { correctedReuseQty: 10 }, peca: { reuseQty: 3, quantityProduced: 7 } },
+  // REAPROVEITAMENTO EM TRÂNSITO (16/10): a peça inteira vem no caminhão de
+  // outra etapa — o gesto que a faria "Produzida" a fecha como Entregue.
+  { acao: "liberar-com-reaproveitamento-total-em-transito", papel: "solicitacao", rota: "PATCH /api/items/:id/creator-review",
+    body: { reuseQty: 10, ...EM_TRANSITO }, tambem: ["liberar-o-que-ja-foi-liberado"] },
+  { acao: "reaproveitar-tudo-em-transito", papel: "grafica", rota: "POST /api/items/:id/mark-reuse", body: { ...EM_TRANSITO } },
+  { acao: "ajustar-para-reaproveitamento-total-em-transito", papel: "solicitacao", rota: "POST /api/items/:id/mark-reuse",
+    body: { reuseTotal: 10, ...EM_TRANSITO }, peca: { quantityProduced: 10 },
+    tambem: ["reaproveitar-parte", "reaproveitar-o-que-falta", "reaproveitar-tudo-em-transito"] },
+  { acao: "corrigir-para-reaproveitamento-total-em-transito", papel: "admin", rota: "POST /api/items/:id/correct-reuse", body: { correctedReuseQty: 10 },
+    peca: { reuseQty: 3, quantityProduced: 7, origemReaproveitamento: "em_transito", obsReaproveitamento: EM_TRANSITO.obsReaproveitamento } },
+  // A ORIGEM marcada ou trocada depois: estoque não mexe na etapa; em trânsito
+  // refaz o fim do fluxo pela conta física (e desmarcar devolve ao galpão).
+  ...(["solicitacao", "grafica"] as const).map((papel): Cenario => ({
+    acao: "definir-origem-do-reaproveitamento", papel, rota: ORIGEM,
+    body: { origemReaproveitamento: "estoque", obsReaproveitamento: "Galpão, prateleira 3" }, peca: { reuseQty: 3, quantityProduced: 7 },
+  })),
+  { acao: "fechar-pela-origem-em-transito", papel: "grafica", rota: ORIGEM, body: { ...EM_TRANSITO },
+    peca: { reuseQty: 10, isReuse: true }, tambem: ["definir-origem-do-reaproveitamento"] },
+  { acao: "concluir-conferencia-pela-origem-em-transito", papel: "grafica", rota: ORIGEM, body: { ...EM_TRANSITO },
+    peca: { quantityProduced: 6, reuseQty: 4, conferredQty: 6 }, tambem: ["definir-origem-do-reaproveitamento", "fechar-pela-origem-em-transito"] },
+  { acao: "concluir-embalagem-pela-origem-em-transito", papel: "grafica", rota: ORIGEM, body: { ...EM_TRANSITO },
+    peca: { quantityProduced: 6, reuseQty: 4, conferredQty: 6, embaladaQty: 6 },
+    tambem: ["definir-origem-do-reaproveitamento", "fechar-pela-origem-em-transito", "concluir-conferencia-pela-origem-em-transito"] },
+  { acao: "devolver-ao-galpao-pela-origem", papel: "grafica", rota: ORIGEM, body: { origemReaproveitamento: "estoque" },
+    peca: { reuseQty: 10, isReuse: true, origemReaproveitamento: "em_transito", obsReaproveitamento: EM_TRANSITO.obsReaproveitamento },
+    tambem: ["definir-origem-do-reaproveitamento"] },
   { acao: "conferir-tudo", papel: "grafica", rota: "POST /api/items/:id/confer", body: { conferencePhotoUrl: FOTO }, peca: { quantityProduced: 10 } },
   { acao: "conferir-tudo-ja-embalado", papel: "grafica", rota: "POST /api/items/:id/confer", body: { conferencePhotoUrl: FOTO }, peca: { quantityProduced: 10, embaladaQty: 10 } },
   { acao: "conferir-parte", papel: "grafica", rota: "POST /api/items/:id/confer", body: { conferencePhotoUrl: FOTO, qty: 3 }, peca: { quantityProduced: 10 } },

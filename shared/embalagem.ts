@@ -31,14 +31,25 @@ export type PecaDaEmbalagem = {
   embaladaQty?: number | null;
   deliveredQty?: number | null;
   status?: string | null;
+  /** De onde vem o reaproveitamento — "em_transito" tira as reaproveitadas da conta física. */
+  origemReaproveitamento?: string | null;
 };
 
 import { EM_REVISAO, podeIrParaTubo } from "./fluxo-peca";
+import { quantidadeFisicaDe, emTransitoDe } from "./origem-do-reaproveitamento";
 import { pecaTravada, fraseDaTrava, type PecaTravavel } from "./trava-da-peca";
 
 const n = (v: unknown) => { const x = Math.trunc(Number(v)); return Number.isFinite(x) && x > 0 ? x : 0; };
 
 export const quantidadeDe = (p: PecaDaEmbalagem) => n(p.quantity);
+/**
+ * A QUANTIDADE FÍSICA — o que passa pelo galpão. As unidades reaproveitadas
+ * EM TRÂNSITO (dono, 16/10: já estão no caminhão, vindas de outra etapa) não
+ * são conferidas, embaladas nem entregues: saem da conta aqui, e toda régua
+ * de "está tudo conferido / embalado / entregue" compara com ESTA quantidade.
+ * Sem trânsito, é a própria quantidade. Ver shared/origem-do-reaproveitamento.ts.
+ */
+export const quantidadeFisica = (p: PecaDaEmbalagem) => quantidadeFisicaDe(p);
 export const embaladaDe = (p: PecaDaEmbalagem) => n(p.embaladaQty);
 export const entregueDe = (p: PecaDaEmbalagem) => n(p.deliveredQty);
 
@@ -93,24 +104,26 @@ export function problemaNoVolume(p: { status?: string | null; deletedAt?: unknow
  * quantidade inteira, para não travar o que já estava em andamento.
  */
 export const conferidasParaEmbalar = (p: PecaDaEmbalagem) =>
-  p.isReuse && n(p.reuseQty) === 0 ? quantidadeDe(p) : Math.min(n(p.conferredQty), quantidadeDe(p));
+  p.isReuse && n(p.reuseQty) === 0 ? quantidadeFisica(p) : Math.min(n(p.conferredQty), quantidadeFisica(p));
 
 /** Quanto ainda dá para embalar AGORA: conferidas − max(embaladas, entregues); 0 se o status não deixa. */
 export const aEmbalar = (p: PecaDaEmbalagem) =>
   statusEmbalavel(p.status) ? Math.max(0, conferidasParaEmbalar(p) - jaSaiuDaConta(p)) : 0;
 
 /** Tudo embalado (é o que faz a peça virar `packed`) — a entrega antiga conta como embalada. */
-export const todaEmbalada = (p: PecaDaEmbalagem) => quantidadeDe(p) > 0 && jaSaiuDaConta(p) >= quantidadeDe(p);
+export const todaEmbalada = (p: PecaDaEmbalagem) => quantidadeFisica(p) > 0 && jaSaiuDaConta(p) >= quantidadeFisica(p);
 
 /** O que quebra a conta protegida — vazio quando está tudo certo. */
 export function violacoesDaConta(p: PecaDaEmbalagem): string[] {
   const erros: string[] = [];
   const q = quantidadeDe(p), conf = conferidasParaEmbalar(p), emb = embaladaDe(p), ent = entregueDe(p);
   const feitas = p.isReuse && n(p.reuseQty) === 0 ? q : n(p.quantityProduced) + n(p.reuseQty);
+  // Em trânsito não chega ao galpão: o que existe para conferir é o resto.
+  const noGalpao = feitas - emTransitoDe(p);
   // `emb = 0` com entregues é a entrega parcial ANTIGA (sem volume): não é erro.
   if (ent > emb && emb > 0) erros.push(`entregues (${ent}) > embaladas (${emb})`);
   if (emb > conf) erros.push(`embaladas (${emb}) > conferidas (${conf})`);
-  if (n(p.conferredQty) > feitas) erros.push(`conferidas (${n(p.conferredQty)}) > produzidas + reuso (${feitas})`);
+  if (n(p.conferredQty) > noGalpao) erros.push(`conferidas (${n(p.conferredQty)}) > produzidas + reuso (${noGalpao})`);
   if (feitas > q) erros.push(`produzidas + reuso (${feitas}) > quantidade (${q})`);
   return erros;
 }
@@ -130,11 +143,11 @@ export function planejarEmbalar(p: PecaDaEmbalagem, pedida?: number | null):
   if (!statusEmbalavel(p.status)) return { ok: false, motivo: motivoDoStatus(p.status) };
   const disponivel = aEmbalar(p);
   if (disponivel <= 0) {
-    if (todaEmbalada(p)) return { ok: false, motivo: `já está toda embalada (${jaSaiuDaConta(p)} de ${quantidadeDe(p)})` };
+    if (todaEmbalada(p)) return { ok: false, motivo: `já está toda embalada (${jaSaiuDaConta(p)} de ${quantidadeFisica(p)})` };
     return {
       ok: false,
       motivo: jaSaiuDaConta(p) > 0
-        ? `não há unidade conferida sem embalar (${jaSaiuDaConta(p)} de ${quantidadeDe(p)} já embaladas ou entregues)`
+        ? `não há unidade conferida sem embalar (${jaSaiuDaConta(p)} de ${quantidadeFisica(p)} já embaladas ou entregues)`
         : "ainda não tem unidade conferida para embalar",
     };
   }
@@ -144,7 +157,7 @@ export function planejarEmbalar(p: PecaDaEmbalagem, pedida?: number | null):
   // A partir do que JÁ SAIU (embaladas ou entregues antigas): 7 entregues pelo
   // modelo antigo + 3 embaladas agora = 10 → `packed`, e entregues ≤ embaladas.
   const total = jaSaiuDaConta(p) + quer;
-  return { ok: true, quantidade: quer, embaladaQty: total, viraEmbalada: total >= quantidadeDe(p) };
+  return { ok: true, quantidade: quer, embaladaQty: total, viraEmbalada: total >= quantidadeFisica(p) };
 }
 
 // ── Tirar do volume / desfazer a embalagem ──────────────────────────────────
@@ -158,8 +171,9 @@ export function planejarRetirada(p: PecaDaEmbalagem, quantidadeDaLinha: number):
 
 /** O volume entrega AS QUANTIDADES que estão nele; `delivered` só quando tudo saiu. */
 export function planejarEntrega(p: PecaDaEmbalagem, quantidadeDaLinha: number): { deliveredQty: number; viraEntregue: boolean } {
-  const total = Math.min(quantidadeDe(p), entregueDe(p) + n(quantidadeDaLinha));
-  return { deliveredQty: total, viraEntregue: total >= quantidadeDe(p) };
+  // Em trânsito não sai em volume: a peça está entregue quando o FÍSICO saiu.
+  const total = Math.min(quantidadeFisica(p), entregueDe(p) + n(quantidadeDaLinha));
+  return { deliveredQty: total, viraEntregue: total >= quantidadeFisica(p) };
 }
 
 // ── O atalho `items.tubo_id` ────────────────────────────────────────────────
@@ -192,7 +206,8 @@ export function seloDosVolumes(linhas: LinhaDoVolume[]): string {
  * embaladas" — é "7 de 10 entregues" (revisão de 22/09).
  */
 export function progressoDaEmbalagem(p: PecaDaEmbalagem): string {
-  const emb = embaladaDe(p), ent = entregueDe(p), q = quantidadeDe(p);
+  // Em trânsito não se embala: o "de N" é o físico.
+  const emb = embaladaDe(p), ent = entregueDe(p), q = quantidadeFisica(p);
   if (emb > 0 && emb < q) return `${emb} de ${q} embaladas`;
   if (emb === 0 && ent > 0 && ent < q) return `${ent} de ${q} entregues`;
   return "";
@@ -245,7 +260,10 @@ export function tetoDaConferencia(p: PecaDaEmbalagem, parcial: boolean = CONFERI
   const impressas = IMPRESSAO_FECHADA.has(String(p.status))
     ? Math.max(n(p.quantityProduced), q - reuso)
     : parcial ? n(p.quantityProduced) : 0;
-  return Math.min(q, impressas + reuso);
+  // EM TRÂNSITO (16/10): as reaproveitadas que vêm no caminhão não existem no
+  // galpão — não há o que conferir delas. O teto é o FÍSICO.
+  const reusoNoGalpao = Math.max(0, reuso - emTransitoDe(p));
+  return Math.min(quantidadeFisica(p), impressas + reusoNoGalpao);
 }
 
 /** Quanto ainda dá para conferir AGORA (0 quando o status não deixa). */
@@ -262,7 +280,8 @@ export function planejarConferencia(p: PecaDaEmbalagem, pedida?: unknown, parcia
   | { ok: true; quantidade: number; conferredQty: number; completa: boolean; novoStatus: "conferred" | "packed" | null }
   | { ok: false; http: number; motivo: string } {
   const disponivel = aConferir(p, parcial);
-  const q = quantidadeDe(p), ja = n(p.conferredQty);
+  // A peça fecha a conferência com o FÍSICO conferido (em trânsito não confere).
+  const q = quantidadeFisica(p), ja = n(p.conferredQty);
   if (disponivel <= 0) {
     if (!statusConferivel(p.status)) return { ok: false, http: 409, motivo: `Esta peça não pode ser conferida agora (${motivoDoStatus(p.status)}).` };
     if (ja >= q && q > 0) return { ok: false, http: 409, motivo: `Nada a conferir: a peça já está toda conferida (${ja} de ${q}).` };

@@ -29,6 +29,8 @@ import { useFichaDados } from "@/components/ficha-da-peca/use-ficha-dados";
 import { useFichaAcoes } from "@/components/ficha-da-peca/use-ficha-acoes";
 import { montarPercurso } from "@/components/ficha-da-peca/regras-do-percurso";
 import { resolverFaixa } from "@/components/ficha-da-peca/regras-da-faixa";
+import { OrigemDoReaproveitamentoNaFicha, podeMarcarOrigem, usePapelDaSessao } from "@/components/reaproveitamento/selo-da-origem";
+import { DialogoOrigemDoReaproveitamento } from "@/components/reaproveitamento/dialogo-origem";
 import type { CampoEditavel, ItemDaFicha, RegistroDaFicha } from "@/components/ficha-da-peca/tipos";
 
 export type { ItemDaFicha, RegistroDaFicha } from "@/components/ficha-da-peca/tipos";
@@ -70,6 +72,10 @@ export function ItemDetailsDialog<TPeca extends ItemDaFicha>({
   // O percurso abre com os 4 mais recentes. Uma peça que foi e voltou três
   // vezes tem trinta registros, e a ficha inteira virava a trilha dela.
   const [percursoAberto, setPercursoAberto] = useState(false);
+  // ORIGEM DO REAPROVEITAMENTO (16/10): correção do próprio dado, como o
+  // "Editar" da especificação — quem pode é quem marca reaproveitamento.
+  const [origemAberta, setOrigemAberta] = useState(false);
+  const papel = usePapelDaSessao();
 
   const { fetchedApprovals, approvalsOverride, setApprovalsOverride, refetchApprovals, flowPhotos } = useFichaDados(item, open);
   const acoes = useFichaAcoes({ item, onOpenChange, refetchApprovals });
@@ -81,6 +87,7 @@ export function ItemDetailsDialog<TPeca extends ItemDaFicha>({
     setEditMode(false);
     setEditedItem(item);
     setPercursoAberto(false);
+    setOrigemAberta(false);
   }, [open, item?.id]);
 
   if (!item) return null;
@@ -210,6 +217,14 @@ export function ItemDetailsDialog<TPeca extends ItemDaFicha>({
                 handleSave={handleSave}
               />
 
+              {/* De onde vem o reaproveitamento: Estoque / Em trânsito e a
+                  etapa de origem, com o botão discreto para marcar ou trocar. */}
+              <OrigemDoReaproveitamentoNaFicha
+                peca={item}
+                podeEditar={podeMarcarOrigem(papel, item)}
+                onEditar={() => setOrigemAberta(true)}
+              />
+
               {linhasPatrocinador.length > 0 && (
                 <SecaoPatrocinadores
                   linhasPatrocinador={linhasPatrocinador}
@@ -286,6 +301,8 @@ export function ItemDetailsDialog<TPeca extends ItemDaFicha>({
           </div>
         </footer>
       </DialogContent>
+
+      <DialogoOrigemDoReaproveitamento peca={origemAberta ? item : null} aoFechar={() => setOrigemAberta(false)} isMobile={isMobile} />
 
       <DialogoTransferirEvento
         item={item}

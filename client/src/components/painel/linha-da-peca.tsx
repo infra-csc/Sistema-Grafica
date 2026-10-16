@@ -17,6 +17,7 @@ import { R, T, TOM, FONT } from "@/lib/theme";
 import { MiniaturaDaPeca } from "./miniatura-da-peca";
 import { SELO_CALMO } from "./estilos";
 import { LIMITE_PARADA, diasNoEstado, tomDaIdade, idadePorExtenso } from "./regras";
+import { SeloOrigemDoReaproveitamento } from "@/components/reaproveitamento/selo-da-origem";
 import type { AcoesDaLista, PecaDoPainel } from "./tipos";
 
 // As ações da linha: quadrado de 36px (a régua de ponteiro da casa), fantasma
@@ -155,6 +156,7 @@ export const LinhaDaPeca = memo(function LinhaDaPeca({
               Reaproveitada
             </span>
           )}
+          {!isDeleted && <SeloOrigemDoReaproveitamento peca={item} />}
           {!isDeleted && item.referenceUrl && (
             <a href={hrefSeguro(item.referenceUrl)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" className="pg-anexo" style={{ ...SELO_CALMO, gap: 4, textDecoration: "none" }} data-testid={`link-reference-painel-${item.id}`}>
               <Paperclip aria-hidden="true" style={{ width: 11, height: 11 }} />

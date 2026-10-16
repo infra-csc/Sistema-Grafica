@@ -26,6 +26,12 @@ E os dois desvios que existem de verdade:
 * **Molde** (`type = "Molde"`): não passa por Vinculação, não tem aprovação nem
   arquivo final, e não vai para a impressora. Envio → Revisão Final → Liberado →
   Produzido, e acabou.
+* **Reaproveitamento em trânsito** (`origemReaproveitamento = "em_transito"`,
+  16/10 — caminhão conjugado que segue de uma etapa para outra): as unidades em
+  trânsito não passam por conferir, embalar nem entregar. A peça 100% em
+  trânsito fecha como **Entregue** no gesto que a faria "Produzida" (liberação,
+  Reaproveitar, correção), com a trilha "não passa pela Gráfica"; a parcial só
+  leva ao galpão as impressas. Ver `shared/origem-do-reaproveitamento.ts`.
 
 ---
 
@@ -189,6 +195,7 @@ patrocinador, o reaproveitamento) e a peça não muda de status.
 | liberar-para-producao | `awaiting_final_review` | `ready_for_production` | solicitacao, admin | evento aberto (nem encerrado nem já realizado); arquivo final enviado (molde dispensa); peça travada: dizer se destrava ou mantém a trava |
 | liberar-com-reaproveitamento-total | `awaiting_final_review` | `produced` | solicitacao, admin | evento aberto (nem encerrado nem já realizado); reaproveitamento da quantidade inteira — não imprime nada |
 | liberar-o-que-ja-foi-liberado | `ready_for_production`, `approved`, `pronto_para_producao`, `liberado`, `inProduction`, `em_producao`, `produced`, `produzido`, `conferred`, `packed`, `delivered`, `entregue` | fica onde está | solicitacao, admin | evento aberto (nem encerrado nem já realizado); clique repetido: responde a peça como está |
+| liberar-com-reaproveitamento-total-em-transito | `awaiting_final_review` | `delivered` | solicitacao, admin | evento aberto (nem encerrado nem já realizado); reaproveitamento da quantidade inteira, em trânsito (com a observação) |
 
 ### PATCH /api/items/:id/return-to-arte · PATCH /api/items/bulk-return-to-arte
 
@@ -249,6 +256,8 @@ patrocinador, o reaproveitamento) e a peça não muda de status.
 | reaproveitar-o-que-falta | `ready_for_production`, `pronto_para_producao`, `approved`, `inProduction`, `em_producao` | `produced` | grafica, admin, solicitacao | evento aberto (nem encerrado nem já realizado); peça não travada pela Solicitação; reaproveitadas + impressas cobrem a quantidade |
 | reaproveitar-parte | `ready_for_production`, `pronto_para_producao`, `approved`, `inProduction`, `em_producao` | fica onde está | grafica, admin, solicitacao | evento aberto (nem encerrado nem já realizado); peça não travada pela Solicitação; ainda sobra o que imprimir |
 | ajustar-reaproveitamento-da-produzida | `produced`, `produzido` | `produced` | admin, solicitacao | evento aberto (nem encerrado nem já realizado); peça não travada pela Solicitação; nada conferido nem entregue — converte impressas em reaproveitadas e vice-versa |
+| reaproveitar-tudo-em-transito | `ready_for_production`, `pronto_para_producao`, `approved`, `inProduction`, `em_producao` | `delivered` | grafica, admin, solicitacao | evento aberto (nem encerrado nem já realizado); peça não travada pela Solicitação; nada impresso: a quantidade inteira vem em trânsito |
+| ajustar-para-reaproveitamento-total-em-transito | `produced`, `produzido` | `delivered` | admin, solicitacao | evento aberto (nem encerrado nem já realizado); peça não travada pela Solicitação; nada conferido nem entregue; a quantidade inteira passa a vir em trânsito |
 
 ### POST /api/items/:id/correct-reuse
 
@@ -257,6 +266,18 @@ patrocinador, o reaproveitamento) e a peça não muda de status.
 | corrigir-reaproveitamento-para-a-fila | `produced`, `produzido` | `ready_for_production` | grafica, solicitacao, admin | evento aberto (nem encerrado nem já realizado); nada conferido, entregue ou embalado; sobra o que imprimir |
 | corrigir-reaproveitamento-para-a-fila | qualquer status, menos `awaiting_final_review`, `awaiting_review`, `in_review`, `produced`, `produzido` | `ready_for_production` | admin | evento aberto (nem encerrado nem já realizado); o admin corrige em qualquer etapa antes da conferência; sobra o que imprimir |
 | corrigir-para-reaproveitamento-total | qualquer status, menos `awaiting_final_review`, `awaiting_review`, `in_review` | `produced` | admin | evento aberto (nem encerrado nem já realizado); peça não travada pela Solicitação; nada conferido, entregue ou embalado; só o admin alcança o total (Gráfica e Solicitação corrigem até quantidade − 1) |
+| corrigir-para-reaproveitamento-total-em-transito | qualquer status, menos `awaiting_final_review`, `awaiting_review`, `in_review` | `delivered` | admin | evento aberto (nem encerrado nem já realizado); peça não travada pela Solicitação; nada conferido, entregue ou embalado; a origem gravada é "em trânsito" |
+
+### PATCH /api/items/:id/origem-reaproveitamento
+
+| Ação | De | Para | Quem | Condições |
+| --- | --- | --- | --- | --- |
+| definir-origem-do-reaproveitamento | qualquer status, menos `canceled`, `cancelled`, `deleted`, `archived` | fica onde está | admin, solicitacao | a peça tem unidade reaproveitada; "em trânsito" pede a observação; a conta física não muda de etapa |
+| definir-origem-do-reaproveitamento | `ready_for_production`, `pronto_para_producao`, `approved`, `liberado`, `inProduction`, `em_producao`, `produced`, `produzido`, `conferred`, `conferido`, `packed`, `embalado`, `delivered`, `entregue` | fica onde está | grafica | a peça tem unidade reaproveitada; "em trânsito" pede a observação; a conta física não muda de etapa |
+| fechar-pela-origem-em-transito | `produced`, `produzido`, `conferred`, `conferido`, `packed`, `embalado` | `delivered` | admin, solicitacao, grafica | peça não travada pela Solicitação; em trânsito cobre tudo o que faltava entregar |
+| concluir-conferencia-pela-origem-em-transito | `produced`, `produzido` | `conferred` | admin, solicitacao, grafica | peça não travada pela Solicitação; o que é físico já está todo conferido |
+| concluir-embalagem-pela-origem-em-transito | `produced`, `produzido`, `conferred`, `conferido` | `packed` | admin, solicitacao, grafica | peça não travada pela Solicitação; o que é físico já está todo embalado |
+| devolver-ao-galpao-pela-origem | `conferred`, `conferido`, `packed`, `embalado`, `delivered`, `entregue` | `produced` | admin, solicitacao, grafica | deixou de ser "em trânsito": as reaproveitadas passam a ser conferidas, embaladas e entregues |
 
 ### POST /api/items/:id/confer
 

@@ -107,6 +107,8 @@ export function useFormularioDaPeca() {
       skipApproval: item.skipApproval || false,
       isPriority: item.isPriority || false,
       isReuse: item.isReuse || false,
+      origemReaproveitamento: item.origemReaproveitamento || "",
+      obsReaproveitamento: item.obsReaproveitamento || "",
       referenceUrl: item.referenceUrl || "",
       standardItemId: item.standardItemId || "",
       // Produção interna (02/10): a marca e a instrução que a peça já tem.

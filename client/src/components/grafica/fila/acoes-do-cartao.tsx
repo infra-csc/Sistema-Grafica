@@ -24,6 +24,7 @@ import type { PecaDaFila } from "@/components/grafica/tipos";
 import type { ContextoDaLinha } from "./contexto-da-linha";
 import { CO, corDaAcao, corTintada } from "./aparencia";
 import { rotuloAcaoImpressao, rotuloDoConferir, tituloAcaoImpressao } from "./regras";
+import { DialogoReaproveitar } from "@/components/reaproveitamento/dialogo-reaproveitar";
 import { TirarDaImpressoraBloqueada, bloqueioDaTrava } from "./trava-da-peca";
 
 /** Os gates da peça que o cartão já calculou (os mesmos da coluna de Ações da tabela). */
@@ -68,7 +69,8 @@ export function AcoesDoCartao({ ctx, item, selo, gates }: {
     podeEmbalarPeca && "embalar",
     entregaTubo && "entregar",
   ].filter(Boolean) as string[];
-  const temSecundaria = (podeReaproveitarPeca && reuseConfirmItemId !== item.id)
+  // O Reaproveitar abre um diálogo (16/10): o botão fica na linha enquanto ele está aberto.
+  const temSecundaria = podeReaproveitarPeca
     || (podeCorrigirReaprov && correctReuseItemId !== item.id)
     || podeDevolverPeca || podeCancelarCompl
     || (podeConferir && !soVisualizaKit(item) && temVolumeAberto(item));
@@ -144,46 +146,7 @@ export function AcoesDoCartao({ ctx, item, selo, gates }: {
               campo numérico ao lado de outros botões é onde o
               dedo erra. */}
           {podeReaproveitarPeca && (
-            reuseConfirmItemId === item.id ? (
-              <div style={{ order: 1, flex: '1 1 100%', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }} onClick={e => e.stopPropagation()}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: TOM.esmeralda.text, whiteSpace: 'nowrap' }}>
-                  {isProduced(item) ? 'Reaprov. total:' : 'Reaproveitar:'}
-                </span>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  min={isProduced(item) ? 0 : 1}
-                  max={isProduced(item) ? qtyOf(item) : tetoReaproveitar(item)}
-                  value={reuseQty}
-                  onChange={e => setReuseQty(Math.max(isProduced(item) ? 0 : 1, Math.min(isProduced(item) ? qtyOf(item) : tetoReaproveitar(item), parseInt(e.target.value) || 0)))}
-                  aria-label={isProduced(item) ? `Total reaproveitado de ${item.displayId}` : `Quantas unidades de ${item.displayId} reaproveitar`}
-                  data-testid={`input-reuse-qty-card-${item.id}`}
-                  // 16px: abaixo disso o iOS dá zoom na página ao focar o campo.
-                  style={{ width: 72, minHeight: 44, padding: '0 6px', borderRadius: 8, border: `1px solid ${T.border}`, fontSize: 16, fontWeight: 700, color: T.text, textAlign: 'center' }}
-                />
-                <span style={{ fontSize: 13, color: T.second, whiteSpace: 'nowrap' }}>de {isProduced(item) ? qtyOf(item) : tetoReaproveitar(item)}</span>
-                <Botao
-                  variante="primario"
-                  tamanho="toque"
-                  carregando={markReuseMutation.isPending}
-                  onClick={() => markReuseMutation.mutate(isProduced(item)
-                    ? { itemId: item.id, reuseTotal: reuseQty }
-                    : { itemId: item.id, qty: reuseQty })}
-                  data-testid={`button-reuse-confirm-card-${item.id}`}
-                  style={{ ...corDaAcao(TOM.esmeralda.text), flex: '1 1 auto' }}
-                >
-                  Confirmar
-                </Botao>
-                <Botao
-                  tamanho="toque"
-                  icone={X}
-                  onClick={() => setReuseConfirmItemId(null)}
-                  aria-label="Cancelar reaproveitamento"
-                  style={{ width: 44, padding: 0, flexShrink: 0 }}
-                />
-              </div>
-            ) : (
+            <>
               <Botao
                 tamanho="toque"
                 icone={Recycle}
@@ -199,7 +162,26 @@ export function AcoesDoCartao({ ctx, item, selo, gates }: {
               >
                 {isProduced(item) ? 'Ajustar reaprov.' : 'Reaproveitar'}
               </Botao>
-            )
+              {/* O diálogo do Reaproveitar (16/10): quantas e DE ONDE VÊM. */}
+              {reuseConfirmItemId === item.id && (
+                <DialogoReaproveitar
+                  peca={item}
+                  aberto
+                  ajuste={isProduced(item)}
+                  minimo={isProduced(item) ? 0 : 1}
+                  maximo={isProduced(item) ? qtyOf(item) : tetoReaproveitar(item)}
+                  quantidade={reuseQty}
+                  setQuantidade={setReuseQty}
+                  carregando={markReuseMutation.isPending}
+                  aoConfirmar={(origem) => markReuseMutation.mutate(isProduced(item)
+                    ? { itemId: item.id, reuseTotal: reuseQty, origem }
+                    : { itemId: item.id, qty: reuseQty, origem })}
+                  aoFechar={() => setReuseConfirmItemId(null)}
+                  sufixoDoTestid="card-"
+                  isMobile
+                />
+              )}
+            </>
           )}
           {/* CORRIGIR REAPROVEITAMENTO — idem, espelho da tabela. */}
           {podeCorrigirReaprov && (

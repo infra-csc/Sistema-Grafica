@@ -5,7 +5,9 @@
 //
 // É um Dialog do Radix (e não um overlay montado à mão): Esc, armadilha de
 // foco, foco devolvido ao fechar e página travada por baixo.
+import { useEffect, useState } from "react";
 import { Recycle } from "lucide-react";
+import { EscolhaDaOrigem, ORIGEM_VAZIA, valorDaPeca, faltaObservacao, type ValorDaOrigem } from "@/components/reaproveitamento/escolha-da-origem";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Botao } from "@/components/ui/botao";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
@@ -32,9 +34,16 @@ export function DialogoReaproveitamento({
   ocupado: boolean;
   salvandoParte: boolean;
   aoFechar: () => void;
-  aoReaproveitarTudo: (item: PecaDaRevisao) => void;
-  aoReaproveitarParte: (item: PecaDaRevisao) => void;
+  aoReaproveitarTudo: (item: PecaDaRevisao, origem: ValorDaOrigem) => void;
+  aoReaproveitarParte: (item: PecaDaRevisao, origem: ValorDaOrigem) => void;
 }) {
+  // DE ONDE VEM (16/10): estoque ou em trânsito, e a etapa. Cada abertura
+  // parte da origem que a peça já tem (marcada no formulário, por exemplo).
+  const [origem, setOrigem] = useState<ValorDaOrigem>(ORIGEM_VAZIA);
+  useEffect(() => {
+    if (itemId) setOrigem(valorDaPeca(pendingItems.find((i) => i.id === itemId)));
+  }, [itemId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const falta = faltaObservacao(origem);
   return (
     <Dialog open={!!itemId} onOpenChange={o => { if (!o) aoFechar(); }}>
       <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(420)}>
@@ -81,6 +90,11 @@ export function DialogoReaproveitamento({
                     só o admin, atrás de "Já conferi no estoque — aplicar agora". */}
                 <AplicarAgoraNoModal admin={admin}>
 
+                  {/* De onde vem — vale para "tudo" e para o parcial. */}
+                  <div style={{ marginBottom: 14 }}>
+                    <EscolhaDaOrigem valor={origem} onChange={setOrigem} idBase="revisao-reaproveitar" isMobile={isMobile} desabilitado={ocupado} />
+                  </div>
+
                   {/* Opção: reaproveitar tudo — a ação principal deste modal. */}
                   <Botao
                     variante="primario"
@@ -88,13 +102,15 @@ export function DialogoReaproveitamento({
                     tamanho={dedo || isMobile ? "toque" : "md"}
                     larguraCheia
                     icone={Recycle}
-                    onClick={() => aoReaproveitarTudo(dialogItem)}
-                    disabled={ocupado}
+                    onClick={() => { if (!falta) aoReaproveitarTudo(dialogItem, origem); }}
+                    disabled={ocupado || falta}
                     // Quebra em vez de vazar: num aparelho de 360 o rótulo inteiro não
                     // cabe numa linha, e o Botao é nowrap por padrão.
                     style={{ marginBottom: 10, height: "auto", minHeight: 44, whiteSpace: "normal", lineHeight: 1.25, paddingTop: 8, paddingBottom: 8, textAlign: "center" }}
                   >
-                    Reaproveitar tudo ({qty} un.) — pula produção
+                    {origem.origem === "em_transito"
+                      ? `Reaproveitar tudo (${qty} un.) — em trânsito, não passa pela Gráfica`
+                      : `Reaproveitar tudo (${qty} un.) — pula produção`}
                   </Botao>
 
                   {/* Opção: reaproveitar parcialmente (só aparece se qty > 1) */}
@@ -135,10 +151,10 @@ export function DialogoReaproveitamento({
                         larguraCheia
                         carregando={salvandoParte}
                         onClick={() => {
-                          if (!arquivoFinalOk(dialogItem)) return;
-                          aoReaproveitarParte(dialogItem);
+                          if (!arquivoFinalOk(dialogItem) || falta) return;
+                          aoReaproveitarParte(dialogItem, origem);
                         }}
-                        disabled={ocupado || !arquivoFinalOk(dialogItem)}
+                        disabled={ocupado || !arquivoFinalOk(dialogItem) || falta}
                       >
                         {salvandoParte ? "Salvando…" : `Confirmar ${partialReuseQty} un. reaproveitadas`}
                       </Botao>

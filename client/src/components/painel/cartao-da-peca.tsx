@@ -12,6 +12,7 @@ import { FS, R, T, TOM, FONT } from "@/lib/theme";
 import { MiniaturaDaPeca } from "./miniatura-da-peca";
 import { diasNoEstado, idadePorExtenso, tomDaIdade } from "./regras";
 import { SELO_CALMO } from "./estilos";
+import { SeloOrigemDoReaproveitamento } from "@/components/reaproveitamento/selo-da-origem";
 import type { LinhaProps } from "./linha-da-peca";
 
 export const CartaoDaPeca = memo(function CartaoDaPeca({
@@ -59,6 +60,7 @@ export const CartaoDaPeca = memo(function CartaoDaPeca({
               Reaproveitada
             </span>
           )}
+          {!isDeleted && <SeloOrigemDoReaproveitamento peca={item} style={{ flexShrink: 0 }} />}
         </div>
         {/* Row 2: description — allow up to 2 lines on mobile */}
         {item.description && (

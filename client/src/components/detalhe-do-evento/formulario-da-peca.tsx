@@ -16,6 +16,8 @@ import type { ItemFormData, ModeloDePeca } from "./tipos";
 import { formatarM2 } from "./regras";
 import { CampoProducaoInterna } from "@/components/campo-producao-interna";
 import { mostraCampoProducaoInterna } from "@shared/producao-interna";
+import { EscolhaDaOrigem } from "@/components/reaproveitamento/escolha-da-origem";
+import { ehOrigemDoReaproveitamento, OBS_EM_TRANSITO_MIN } from "@shared/origem-do-reaproveitamento";
 import { ehMolde } from "@shared/molde";
 
 // Tipografia e controles do formulário de peça — a MESMA cara nos dois fluxos.
@@ -318,6 +320,18 @@ export function ItemForm({
               onCheckedChange={(checked) => setFormData({ ...formData, isReuse: !!checked })}
               data-testid="checkbox-is-reuse"
               style={{ width: "20px", height: "20px", accentColor: T.surface, pointerEvents: "none", flexShrink: 0 }}
+            />
+          </div>
+        )}
+        {/* DE ONDE VEM (16/10): com o reaproveitamento ligado, Estoque ou
+            Em trânsito (caminhão conjugado) e a etapa de origem. */}
+        {isEdit && formData.isReuse && (
+          <div data-testid="form-origem-reaproveitamento" style={{ marginTop: -6, padding: isMobile ? "12px 14px" : "14px 18px", border: `1px solid ${T.border}`, borderRadius: 12, background: T.surface }}>
+            <EscolhaDaOrigem
+              valor={{ origem: ehOrigemDoReaproveitamento(formData.origemReaproveitamento) ? formData.origemReaproveitamento : null, obs: formData.obsReaproveitamento ?? "" }}
+              onChange={(v) => setFormData({ ...formData, origemReaproveitamento: v.origem ?? "", obsReaproveitamento: v.obs })}
+              idBase="form-peca"
+              isMobile={isMobile}
             />
           </div>
         )}
@@ -627,6 +641,8 @@ export function ItemForm({
           tamanho="toque"
           larguraCheia={isMobile}
           carregando={isPending}
+          // "Em trânsito" sem a etapa de origem não salva (o servidor recusa igual).
+          disabled={isPending || (isEdit && formData.isReuse && formData.origemReaproveitamento === "em_transito" && (formData.obsReaproveitamento ?? "").trim().length < OBS_EM_TRANSITO_MIN)}
           icone={isEdit ? Check : Plus}
           data-testid={isEdit ? "button-save-edit" : "button-submit-item"}
           style={isMobile ? undefined : { minWidth: 168, padding: "0 20px" }}

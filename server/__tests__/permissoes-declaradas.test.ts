@@ -47,7 +47,8 @@ describe("tabela ↔ código, sem sobras de nenhum lado", () => {
   // 121 desde 06/10: sai o POST /api/prazos/cobrancas (dono: "tudo de cobrança pode tirar").
   // 122 desde 08/10: entra o POST /api/items/:id/prioridade-na-impressao.
   // 123 desde 15/10: entra o POST /api/events/:id/sugestoes-de-vinculo/aplicar.
-  it("são as 123 — o número que o diagnóstico mediu; mudou, atualize os dois", () => {
+  // 124 desde 16/10: entra o PATCH /api/items/:id/origem-reaproveitamento.
+  it("são as 124 — o número que o diagnóstico mediu; mudou, atualize os dois", () => {
     // 96 = as 78 do diagnóstico + o descancelar do admin (01/09)
     //    + iniciar impressão da Gráfica (14/09)
     //    + reservar e liberar peça do estoque (14/09)
@@ -70,8 +71,8 @@ describe("tabela ↔ código, sem sobras de nenhum lado", () => {
     //    − o registro de cobrança da Gestão de Prazos (06/10).
     //    + pedir/retirar prioridade na impressão (08/10).
     //    + aplicar as sugestões de vínculo (15/10).
-    expect(REGUA_DE_PAPEIS.length).toBe(123);
-    expect(doCodigo.length).toBe(123);
+    expect(REGUA_DE_PAPEIS.length).toBe(124);
+    expect(doCodigo.length).toBe(124);
   });
 });
 

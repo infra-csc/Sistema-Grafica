@@ -818,7 +818,7 @@ export default function Solicitacao() {
         selecaoLote={selecaoLote}
         avisoLoteFinalizadas={avisoLoteFinalizadas}
         reaproveitando={bulkReuseMutation.isPending}
-        aoReaproveitar={() => bulkReuseMutation.mutate(selecaoLote.vivas)}
+        aoReaproveitar={(origem) => bulkReuseMutation.mutate({ ids: selecaoLote.vivas, origem })}
       />
 
       <DialogoReaproveitamento
@@ -832,14 +832,14 @@ export default function Solicitacao() {
         ocupado={toggleReuseMutation.isPending || partialReuseMutation.isPending}
         salvandoParte={partialReuseMutation.isPending}
         aoFechar={() => setReuseDialogItemId(null)}
-        aoReaproveitarTudo={(dialogItem) => {
+        aoReaproveitarTudo={(dialogItem, origem) => {
           avancarSeDaFicha(dialogItem.id);
-          toggleReuseMutation.mutate({ itemId: dialogItem.id, isReuse: true });
+          toggleReuseMutation.mutate({ itemId: dialogItem.id, isReuse: true, origem });
           setReuseDialogItemId(null);
         }}
-        aoReaproveitarParte={(dialogItem) => {
+        aoReaproveitarParte={(dialogItem, origem) => {
           avancarSeDaFicha(dialogItem.id);
-          partialReuseMutation.mutate({ itemId: dialogItem.id, reuseQty: partialReuseQty });
+          partialReuseMutation.mutate({ itemId: dialogItem.id, reuseQty: partialReuseQty, origem });
         }}
       />
 

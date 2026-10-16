@@ -23,6 +23,7 @@ import type { ContextoDaLinha } from "./contexto-da-linha";
 import { corDaAcao, corTintada } from "./aparencia";
 import { complementUntouched, podeDevolverParaRevisao, rotuloAcaoImpressao, rotuloDoConferir, tituloAcaoImpressao } from "./regras";
 import { TirarDaImpressoraBloqueada, bloqueioDaTrava } from "./trava-da-peca";
+import { DialogoReaproveitar } from "@/components/reaproveitamento/dialogo-reaproveitar";
 
 export function AcoesDaLinha({ ctx, item, selo, emRevisao, isSelected, bulkEligible, ehComplemento, podeEmbalarPeca }: {
   ctx: ContextoDaLinha;
@@ -104,7 +105,7 @@ export function AcoesDaLinha({ ctx, item, selo, emRevisao, isSelected, bulkEligi
             || (!emRevisao && !soVisualizaKit(item) && (isProduced(item) || isAdmin) && reusedTotalOf(item) > 0 && conferredOf(item) === 0 && deliveredOf(item) === 0)
             || (canProduce && podeDevolverParaRevisao(item)));
           if (!compacto || !temSecundaria) return null;
-          const aberto = menuAcoesId === item.id || reuseConfirmItemId === item.id || correctReuseItemId === item.id || cancelComplementId === item.id;
+          const aberto = menuAcoesId === item.id || correctReuseItemId === item.id || cancelComplementId === item.id;
           return (
             <button
               type="button"
@@ -136,7 +137,7 @@ export function AcoesDaLinha({ ctx, item, selo, emRevisao, isSelected, bulkEligi
           aria-label={compacto ? `Mais ações de ${item.displayId}` : undefined}
           style={!compacto
             ? { display: "contents" }
-            : (menuAcoesId === item.id || reuseConfirmItemId === item.id || correctReuseItemId === item.id || cancelComplementId === item.id)
+            : (menuAcoesId === item.id || correctReuseItemId === item.id || cancelComplementId === item.id)
               ? { position: "absolute", right: 16, ...(menuParaCima ? { bottom: "calc(100% - 6px)" } : { top: "calc(100% - 6px)" }), zIndex: 5, minWidth: 220, display: "flex", flexDirection: "column", alignItems: "stretch", gap: 6, padding: 8, background: T.surface, border: `1px solid ${T.border}`, borderRadius: R.md, boxShadow: SHADOW.lg, textAlign: "left" }
               : { display: "none" }}
         >
@@ -201,53 +202,13 @@ export function AcoesDaLinha({ ctx, item, selo, emRevisao, isSelected, bulkEligi
             reaproveitamento é decidir o que entra na fila de
             produção, ou seja, faz o trabalho andar. */}
         {!bulkOn && !emRevisao && !pecaTravada(item) && !soVisualizaKit(item) && !isDelivered(item) && !isPosConferencia(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0) && (
-          reuseConfirmItemId === item.id ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }} onClick={e => e.stopPropagation()}>
-              {/* Rótulo, como no "Corrigir": sem ele o campo
-                  aberto era um número solto com "OK" — nada
-                  dizia que ali se marcava reaproveitamento. */}
-              <span style={{ fontSize: FS.meta, fontWeight: FW.forte, color: TOM.esmeralda.text, whiteSpace: "nowrap" }}>{isProduced(item) ? "Reaprov. total:" : "Reaproveitar:"}</span>
-              <input
-                type="number"
-                min={isProduced(item) ? 0 : 1}
-                max={isProduced(item) ? qtyOf(item) : tetoReaproveitar(item)}
-                value={reuseQty}
-                onChange={e => setReuseQty(Math.max(isProduced(item) ? 0 : 1, Math.min(isProduced(item) ? qtyOf(item) : tetoReaproveitar(item), parseInt(e.target.value) || 0)))}
-                title={isProduced(item)
-                  ? `Total reaproveitado desta peça (0 a ${qtyOf(item)}) — o resto conta como produzido`
-                  : `Quantas unidades reaproveitar (até ${tetoReaproveitar(item)})`}
-                data-testid={`input-reuse-qty-${item.id}`}
-                style={{ width: 56, height: alvoDeToque(32, ponteiroGrosso), padding: "0 6px", borderRadius: R.sm, border: `1px solid ${T.border}`, fontSize: FS.body, fontWeight: FW.forte, color: T.text, textAlign: "center" }}
-              />
-              <span style={{ fontSize: FS.small, color: T.second, whiteSpace: "nowrap" }}>de {isProduced(item) ? qtyOf(item) : tetoReaproveitar(item)}</span>
-              <Botao
-                variante="primario"
-                tamanho={tamLinha}
-                carregando={markReuseMutation.isPending}
-                onClick={() => markReuseMutation.mutate(isProduced(item)
-                  ? { itemId: item.id, reuseTotal: reuseQty }
-                  : { itemId: item.id, qty: reuseQty })}
-                title="Confirmar reaproveitamento"
-                data-testid={`button-reuse-confirm-${item.id}`}
-                style={corDaAcao(TOM.esmeralda.text)}
-              >
-                OK
-              </Botao>
-              <Botao
-                tamanho={tamLinha}
-                icone={X}
-                onClick={() => setReuseConfirmItemId(null)}
-                title="Cancelar"
-                aria-label="Cancelar reaproveitamento"
-                style={{ width: alvoDeToque(32, ponteiroGrosso), padding: 0 }}
-              />
-            </div>
-          ) : (
+          <>
             <Botao
               variante="fantasma"
               tamanho={tamLinha}
               icone={Recycle}
-              onClick={e => { e.stopPropagation(); if (selo) return; setReuseConfirmItemId(item.id); setReuseQty(isProduced(item) ? reusedTotalOf(item) : tetoReaproveitar(item)); }}
+              // O diálogo (16/10) fecha o menu "⋯": ele não fica aberto por trás.
+              onClick={e => { e.stopPropagation(); if (selo) return; setMenuAcoesId(null); setReuseConfirmItemId(item.id); setReuseQty(isProduced(item) ? reusedTotalOf(item) : tetoReaproveitar(item)); }}
               disabled={!!selo}
               aria-label={`Reaproveitar ${item.displayId}`}
               title={selo
@@ -263,7 +224,27 @@ export function AcoesDaLinha({ ctx, item, selo, emRevisao, isSelected, bulkEligi
             >
               {compacto && (isProduced(item) ? "Ajustar reaproveitamento" : "Reaproveitar")}
             </Botao>
-          )
+            {/* O diálogo do Reaproveitar (16/10): quantas e DE ONDE VÊM —
+                Estoque ou Em trânsito, com a observação. Era a edição em
+                linha; a escolha da origem não cabia na coluna fixa. */}
+            {reuseConfirmItemId === item.id && (
+              <DialogoReaproveitar
+                peca={item}
+                aberto
+                ajuste={isProduced(item)}
+                minimo={isProduced(item) ? 0 : 1}
+                maximo={isProduced(item) ? qtyOf(item) : tetoReaproveitar(item)}
+                quantidade={reuseQty}
+                setQuantidade={setReuseQty}
+                carregando={markReuseMutation.isPending}
+                aoConfirmar={(origem) => markReuseMutation.mutate(isProduced(item)
+                  ? { itemId: item.id, reuseTotal: reuseQty, origem }
+                  : { itemId: item.id, qty: reuseQty, origem })}
+                aoFechar={() => setReuseConfirmItemId(null)}
+                toque={ponteiroGrosso}
+              />
+            )}
+          </>
         )}
 
         {/* Corrigir reaproveitamento — para quando a marcação foi

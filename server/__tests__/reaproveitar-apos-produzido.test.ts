@@ -36,10 +36,11 @@ describe("a tela da Gráfica espelha o servidor", () => {
     // abre pré-preenchido com o total reaproveitado de hoje — quem ajusta
     // parte do que está lá, não de um chute
     expect(GRAFICA).toContain("setReuseQty(isProduced(item) ? reusedTotalOf(item) : tetoReaproveitar(item));");
-    expect(GRAFICA).toContain("min={isProduced(item) ? 0 : 1}");
-    expect(GRAFICA).toContain("max={isProduced(item) ? qtyOf(item) : tetoReaproveitar(item)}");
-    // e manda o TOTAL, não a soma
-    expect(GRAFICA).toContain("? { itemId: item.id, reuseTotal: reuseQty }");
+    // (16/10: o campo mora no diálogo do Reaproveitar, junto do "De onde vem?")
+    expect(GRAFICA).toContain("minimo={isProduced(item) ? 0 : 1}");
+    expect(GRAFICA).toContain("maximo={isProduced(item) ? qtyOf(item) : tetoReaproveitar(item)}");
+    // e manda o TOTAL, não a soma (com a origem escolhida)
+    expect(GRAFICA).toContain("? { itemId: item.id, reuseTotal: reuseQty, origem }");
     // o title conta a semântica das duas direções para quem clica
     expect(GRAFICA).toContain("converte entre produzidas e reaproveitadas, nas duas direções");
   });

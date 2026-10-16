@@ -75,6 +75,10 @@ export interface ItemFormData extends CamposDaProducaoInterna {
   skipApproval: boolean;
   isPriority: boolean;
   isReuse: boolean;
+  /** De onde vem o reaproveitamento (16/10): "estoque" | "em_transito" | "" (sem origem). */
+  origemReaproveitamento: string;
+  /** A etapa/evento de origem — obrigatória para "em trânsito". */
+  obsReaproveitamento: string;
   referenceUrl: string;
   standardItemId: string;
   kitRemessaId: string;

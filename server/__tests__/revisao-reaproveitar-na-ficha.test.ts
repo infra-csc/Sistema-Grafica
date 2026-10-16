@@ -84,7 +84,8 @@ describe("o botão da ficha", () => {
 describe("decidir pela ficha avança a fila, como Liberar e Devolver", () => {
   /** O corpo do callback de uma prop do DialogoReaproveitamento, na página. */
   const callback = (prop: string) => {
-    const i = PAGINA.indexOf(`${prop}={(dialogItem) => {`);
+    // (16/10: o callback recebe também a origem escolhida no diálogo)
+    const i = PAGINA.indexOf(`${prop}={(dialogItem, origem) => {`);
     expect(i).toBeGreaterThan(-1);
     return PAGINA.slice(i, PAGINA.indexOf("}}", i));
   };
@@ -99,13 +100,13 @@ describe("decidir pela ficha avança a fila, como Liberar e Devolver", () => {
     const corpo = callback("aoReaproveitarTudo");
     // Avança ANTES de mandar: depois, a peça já saiu da lista filtrada.
     expect(corpo.indexOf("avancarSeDaFicha(dialogItem.id);")).toBeGreaterThan(-1);
-    expect(corpo.indexOf("avancarSeDaFicha(dialogItem.id);")).toBeLessThan(corpo.indexOf("toggleReuseMutation.mutate({ itemId: dialogItem.id, isReuse: true });"));
+    expect(corpo.indexOf("avancarSeDaFicha(dialogItem.id);")).toBeLessThan(corpo.indexOf("toggleReuseMutation.mutate({ itemId: dialogItem.id, isReuse: true, origem });"));
   });
 
   it("reaproveitar parte", () => {
     const corpo = callback("aoReaproveitarParte");
     expect(corpo.indexOf("avancarSeDaFicha(dialogItem.id);")).toBeGreaterThan(-1);
-    expect(corpo.indexOf("avancarSeDaFicha(dialogItem.id);")).toBeLessThan(corpo.indexOf("partialReuseMutation.mutate({ itemId: dialogItem.id, reuseQty: partialReuseQty });"));
+    expect(corpo.indexOf("avancarSeDaFicha(dialogItem.id);")).toBeLessThan(corpo.indexOf("partialReuseMutation.mutate({ itemId: dialogItem.id, reuseQty: partialReuseQty, origem });"));
   });
 
   it("e só quando o diálogo foi aberto de dentro da ficha daquela peça", () => {
@@ -126,7 +127,8 @@ describe("Reaproveitar em LOTE na barra de seleção", () => {
 
   it("dispara o MESMO par de chamadas do total individual, peça a peça", () => {
     expect(REV).toContain("const bulkReuseMutation = useMutation({");
-    expect(REV).toContain("await apiRequest(\"PATCH\", `/api/items/${id}`, { isReuse: true, reuseQty: qtd });");
+    // (16/10: a origem escolhida no diálogo do lote vai junto da marcação)
+    expect(REV).toContain("await apiRequest(\"PATCH\", `/api/items/${id}`, { isReuse: true, reuseQty: qtd, ...(origem?.origem ? corpoDaOrigem(origem) : {}) });");
     expect(REV).toContain("await apiRequest(\"PATCH\", `/api/items/${id}/creator-review`, {});");
     // marcou-sem-liberar é MEIO caminho, não falha igual: continua selecionada
     // para o "Liberar" da barra fechar — com o motivo do servidor na linha
@@ -139,7 +141,7 @@ describe("Reaproveitar em LOTE na barra de seleção", () => {
     expect(CONFIRMACAO).toContain("<FreezeWhileClosing open={open}>");
     expect(PAGINA).toContain("open={bulkReuseConfirmOpen}");
     // lote misto: só as vivas vão; o aviso das finalizadas aparece no diálogo
-    expect(PAGINA).toContain("bulkReuseMutation.mutate(selecaoLote.vivas)");
+    expect(PAGINA).toContain("bulkReuseMutation.mutate({ ids: selecaoLote.vivas, origem })");
     expect(CONFIRMACAO).toContain('data-testid="aviso-bulk-reuse-finalizadas"');
     // e o atalho "/" se cala com o diálogo aberto, como nos outros
     expect(PAGINA).toContain("|| bulkReuseConfirmOpen");

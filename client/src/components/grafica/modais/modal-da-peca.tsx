@@ -23,6 +23,10 @@ import type { ModalDaPecaEstado } from "@/components/grafica/hooks/use-modal-da-
 import { CO, corDaAcao } from "@/components/grafica/fila/aparencia";
 import { fmtDataHora, parentDisplayIdOf } from "@/components/grafica/fila/regras";
 import { PhotoPicker } from "./seletor-de-fotos";
+import { SeloOrigemDoReaproveitamento } from "@/components/reaproveitamento/selo-da-origem";
+import { OrigemDoReaproveitamentoNaFicha } from "@/components/reaproveitamento/selo-da-origem";
+import { emTransitoDe, origemDe } from "@shared/origem-do-reaproveitamento";
+import { quantidadeFisica } from "@shared/embalagem";
 import { MiniaturaDaPeca } from "@/components/grafica/fila/miniatura-da-peca";
 
 export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMobile, padModal, fsMin }: {
@@ -109,6 +113,7 @@ export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMo
               <SeloKit peca={selectedItem} style={{ flexShrink: 0 }} />
               <SeloProducaoInterna peca={selectedItem} style={{ flexShrink: 0 }} />
               <AvisoDoEstoqueNaPeca peca={selectedItem} style={{ flexShrink: 0 }} />
+              <SeloOrigemDoReaproveitamento peca={selectedItem} onde="grafica" style={{ flexShrink: 0 }} />
               {/* Produzir/conferir/entregar um complemento é registrar
                   um LOTE SEPARADO: o modal precisa dizer isso, senão
                   o operador acha que está lançando na peça original. */}
@@ -177,6 +182,11 @@ export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMo
             {modalType === "conference" && conferredOf(selectedItem) > 0 && (
               <div style={{ fontSize: fsMin(FS.small), color: TOM.ciano.text, marginTop: 2 }}>{conferredOf(selectedItem)} já conferida{conferredOf(selectedItem) !== 1 ? 's' : ''}</div>
             )}
+            {/* EM TRÂNSITO (16/10): essas unidades vêm no caminhão de outra
+                etapa — não entram no "A Conferir" e o modal diz por quê. */}
+            {modalType === "conference" && emTransitoDe(selectedItem) > 0 && (
+              <div data-testid="text-em-transito-na-conferencia" style={{ fontSize: fsMin(FS.small), color: TOM.ciano.text, marginTop: 2 }}>{emTransitoDe(selectedItem)} em trânsito — não conferem</div>
+            )}
             {modalType === "production" && (
               <div data-testid="text-ja-produzidas" style={{ fontSize: fsMin(FS.small), color: T.apoio, marginTop: 2 }}>
                 {producedOf(selectedItem)} já impressa{producedOf(selectedItem) !== 1 ? 's' : ''} de {qtyOf(selectedItem)}
@@ -204,6 +214,10 @@ export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMo
       {/* Produção interna (02/10): as instruções em destaque, ANTES da
           observação — sem arquivo, são elas que dizem o que imprimir. */}
       <InstrucoesParaAGrafica peca={selectedItem} />
+
+      {/* De onde vem o reaproveitamento (16/10), com a observação por
+          extenso: "Buscar no estoque" ou "Em trânsito · vem de …". */}
+      {origemDe(selectedItem) && <OrigemDoReaproveitamentoNaFicha peca={selectedItem} onde="grafica" podeEditar={false} onEditar={() => {}} />}
 
       {/* Observações */}
       {selectedItem.observations && (
@@ -328,7 +342,8 @@ export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMo
 
           {selectedItem && modalType === "conference" && (() => {
             const faltam = remainingConfer(selectedItem);
-            const aindaNaImpressora = Math.max(0, qtyOf(selectedItem) - conferredOf(selectedItem) - faltam);
+            // Em trânsito (16/10) não está na impressora: a conta é a física.
+            const aindaNaImpressora = Math.max(0, quantidadeFisica(selectedItem) - conferredOf(selectedItem) - faltam);
             const embalarJunto = oferecerEmbalarJunto(selectedItem, conferQty);
             const ocupado = conferMutation.isPending || conferindoEEmbalando;
             const bloqueado = ocupado || !photos.length || fotosSubindo > 0;
@@ -352,7 +367,7 @@ export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMo
               {faltam > 1 && (
                 <div>
                   <label htmlFor="input-qtd-conferir" style={{ display: "block", fontSize: fsMin(FS.small), fontWeight: FW.forte, color: T.apoio, marginBottom: 8 }}>
-                    Quantidade a conferir agora <span style={{ color: T.second, fontWeight: FW.corpo }}>· já conferido {conferredOf(selectedItem)}/{qtyOf(selectedItem)}, disponíveis {faltam}</span>
+                    Quantidade a conferir agora <span style={{ color: T.second, fontWeight: FW.corpo }}>· já conferido {conferredOf(selectedItem)}/{quantidadeFisica(selectedItem)}, disponíveis {faltam}</span>
                   </label>
                   <input id="input-qtd-conferir" type="number" inputMode="numeric" pattern="[0-9]*" min={1} max={faltam} value={conferQty}
                     onChange={e => setConferQty(Math.max(1, Math.min(faltam, parseInt(e.target.value) || 1)))}

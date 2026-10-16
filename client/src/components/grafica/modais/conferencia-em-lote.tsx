@@ -19,6 +19,7 @@ import { SentinelaDaLista } from "@/components/grafica/lista-incremental";
 import type { PecaDaFila } from "@/components/grafica/tipos";
 import { CO } from "@/components/grafica/fila/aparencia";
 import { LINHAS_POR_LOTE, parentDisplayIdOf } from "@/components/grafica/fila/regras";
+import { SeloOrigemDoReaproveitamento } from "@/components/reaproveitamento/selo-da-origem";
 import { PhotoPicker } from "./seletor-de-fotos";
 
 export function BulkActionDialog({
@@ -150,6 +151,7 @@ export function BulkActionDialog({
                     <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", rowGap: 2 }}>
                       <span style={{ fontFamily: FONT.mono, fontSize: fs(11), fontWeight: 700, color: tint, flexShrink: 0 }}>{item.displayId}</span>
                       <SeloKit peca={item} style={{ flexShrink: 0 }} />
+                      <SeloOrigemDoReaproveitamento peca={item} onde="grafica" style={{ flexShrink: 0 }} />
                       <AvisoDoEstoqueNaPeca peca={item} style={{ flexShrink: 0 }} />
                       {/* O complemento tem a MESMA arte, o mesmo tipo e quase a
                           mesma descrição da peça original: numa conferência em

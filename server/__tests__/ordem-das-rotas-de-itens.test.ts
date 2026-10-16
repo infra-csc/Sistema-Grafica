@@ -74,6 +74,9 @@ const ORDEM_ORIGINAL = [
   "PATCH /api/items/:id/start-production",
   "POST /api/items/:id/mark-reuse",
   "POST /api/items/:id/correct-reuse",
+  // 16/10: a origem do reaproveitamento (registrarOrigemDoReaproveitamento,
+  // logo depois do reaproveitamento). PATCH de caminho próprio.
+  "PATCH /api/items/:id/origem-reaproveitamento",
   "POST /api/items/:id/confer",
   "PATCH /api/items/:id/deliver",
   "POST /api/events/:eventId/book",

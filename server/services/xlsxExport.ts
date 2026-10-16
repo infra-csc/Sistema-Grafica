@@ -9,6 +9,7 @@ import { resumosDeTuboPorIds, type MapaDeResumos, type VolumeDaPeca } from "./tu
 import type { Item } from "@shared/schema";
 import { camposDoErro } from "../erros";
 import { seloDosVolumes } from "@shared/embalagem";
+import { origemDe, ROTULO_DA_ORIGEM } from "@shared/origem-do-reaproveitamento";
 import { STATUS_MOLDE_PRODUZIDO, statusDeExibicao } from "@shared/molde";
 import {
   duracaoCurta, oQueAconteceuNoRegistro, ROTULO_DO_TIPO, nomeDoArquivoDoRelatorio,
@@ -53,6 +54,12 @@ const BASE_COLS = [
   { header: "Alt. Arq. (m)",   key: "fileHeight",   width: 14 },
   { header: "M² Calc.",        key: "calculatedM2", width: 11 },
   { header: "Reaprov.",        key: "isReuse",      width: 10 },
+  // De onde vem o reaproveitamento (16/10): "Estoque" ou "Em trânsito" e a
+  // observação ("Night Run Salvador, etapa 17/10"). Os nomes NÃO começam com
+  // "reaprov"/"obs": a importação da própria exportação reconhece colunas
+  // pelo começo do cabeçalho e não pode confundi-las com as de lá.
+  { header: "Origem reaprov.", key: "origemReaprov", width: 14 },
+  { header: "Etapa de origem", key: "obsReaprov",   width: 30 },
   { header: "Patrocinadores",  key: "sponsors",     width: 30 },
   { header: "Observações",     key: "observations", width: 35 },
 ];
@@ -245,6 +252,8 @@ async function writeWorkbook(
         calculatedM2: item.calculatedM2 != null ? parseFloat(item.calculatedM2) : 0,
         // Reuso parcial precisa aparecer como quantidade, não como Sim/Não.
         isReuse:      item.isReuse ? "Sim" : (item.reuseQty > 0 ? `${item.reuseQty} un.` : "Não"),
+        origemReaprov: (() => { const o = origemDe(item); return o ? ROTULO_DA_ORIGEM[o] : ""; })(),
+        obsReaprov:   origemDe(item) ? (item.obsReaproveitamento ?? "") : "",
         sponsors:     item.sponsorNames?.join(", ") ?? "",
         observations: item.observations ?? "",
       });

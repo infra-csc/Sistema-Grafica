@@ -18,6 +18,7 @@ import { T, TOM, N, FS, R, FONT } from "@/lib/theme";
 import { FalhaNaLinha, SeloTravaNaLinha } from "./selos-da-linha";
 import { medidaDaPeca } from "./regras";
 import type { PecaDaRevisao } from "./tipos";
+import { SeloOrigemDoReaproveitamento } from "@/components/reaproveitamento/selo-da-origem";
 import { estiloDoReaproveitar } from "./estilos";
 
 /** O Selo comum escreve em 11px; no cartão (a lista do celular) o piso é 12. */
@@ -97,6 +98,7 @@ export const CartaoDaPeca = memo(function CartaoDaPeca({
               Reaproveitada
             </Selo>
           )}
+          <SeloOrigemDoReaproveitamento peca={item} style={LETRA_DO_SELO} />
         </div>
         <div style={{minWidth:0}}>
           <span style={{fontSize:FS.strong,fontWeight:700,color:T.text,overflowWrap:"anywhere"}}>{item.type}</span>

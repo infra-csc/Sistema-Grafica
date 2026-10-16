@@ -2427,3 +2427,40 @@ textarea.erp-pi-campo { min-height: 52px; }
 @media (pointer: coarse) {
   .pop-numero { min-height: 44px; min-width: 44px; }
 }
+
+/* ── Origem do reaproveitamento (16/10): "De onde vem?" — Estoque / Em
+   trânsito — e o bloco da ficha. As cores de cada opção vêm dos tokens TOM
+   (inline); aqui ficam a forma, o foco e o comportamento no celular. ── */
+.reap-escolha { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.reap-escolha:disabled { opacity: 0.7; }
+.reap-legenda { padding: 0; margin: 0 0 2px; font-size: 12px; font-weight: 700; color: var(--n8); }
+.reap-opcional { font-weight: 500; color: var(--n7); }
+.reap-opcoes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.reap-opcao {
+  display: flex; align-items: center; gap: 10px; min-width: 0;
+  padding: 8px 12px; border: 1px solid var(--n5); border-radius: 10px;
+  background: var(--n0); cursor: pointer; font-family: inherit;
+  transition: border-color var(--dur-rapida) ease, background-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease;
+}
+.reap-opcao:hover:not([aria-checked="true"]) { border-color: var(--n6) !important; background: var(--n1) !important; }
+.reap-opcao:focus-visible { outline: 2px solid var(--orange-deep); outline-offset: 2px; }
+.reap-opcao-icone { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0; }
+.reap-rotulo-obs { display: block; margin-top: 4px; font-size: 12px; font-weight: 700; color: var(--n8); }
+.reap-campo {
+  width: 100%; box-sizing: border-box; padding: 0 12px; border: 1px solid var(--n5); border-radius: 10px;
+  background: var(--n0); color: var(--n10); font-family: inherit;
+}
+.reap-ajuda { margin: 2px 0 0; font-size: 12px; line-height: 1.45; }
+.reap-erro {
+  margin: 0; padding: 8px 12px; border-radius: 8px; font-size: 13px; line-height: 1.45; font-weight: 600;
+  color: var(--perigo-text); background: var(--perigo-bg); border: 1px solid var(--perigo-border);
+}
+.reap-rodape { flex-shrink: 0; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.reap-ficha {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  padding: 10px 12px; border: 1px solid var(--n4); border-radius: 10px; background: var(--n1);
+}
+@media (max-width: 480px) {
+  .reap-opcoes { grid-template-columns: minmax(0, 1fr); }
+  .reap-ficha > button { width: 100%; justify-content: center; min-height: 44px; }
+}

@@ -43,6 +43,13 @@
       "when": 1790969782544,
       "tag": "0005_producao-interna",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792171728671,
+      "tag": "0006_origem-do-reaproveitamento",
+      "breakpoints": true
     }
   ]
 }

@@ -379,3 +379,7 @@ ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS arquivado_por text;
 -- instruções para a Gráfica. Aditivo: o acervo fica false / NULL.
 ALTER TABLE "items" ADD COLUMN IF NOT EXISTS "producao_interna" boolean DEFAULT false NOT NULL;
 ALTER TABLE "items" ADD COLUMN IF NOT EXISTS "instrucoes_grafica" text;
+-- De onde vem o reaproveitamento (dono, 16/10; migração 0006): "estoque" ou
+-- "em_transito" e a observação livre. Aditivo: o acervo fica NULL.
+ALTER TABLE "items" ADD COLUMN IF NOT EXISTS "origem_reaproveitamento" text;
+ALTER TABLE "items" ADD COLUMN IF NOT EXISTS "obs_reaproveitamento" text;

@@ -39,6 +39,7 @@ import type { PosicaoNasPrioritarias } from "./grupo-das-prioritarias";
 import { CHAVE_DAS_PRIORITARIAS } from "./ordem-da-fila";
 import { ControleDePrioridadeNaFila } from "./prioridade-na-fila";
 import { TITULO_DO_SELO_NA_GRAFICA } from "@shared/prioridade-na-impressao";
+import { SeloOrigemDoReaproveitamento } from "@/components/reaproveitamento/selo-da-origem";
 import { AcoesDoCartao } from "./acoes-do-cartao";
 
 export function CartaoDaPeca({ ctx, item, index, showEvHeader, corte, prioritarias = null }: {
@@ -313,6 +314,8 @@ export function CartaoDaPeca({ ctx, item, index, showEvHeader, corte, prioritari
             )}
             {(isInProd(item) || item.maquinaPrevista) && <SeloFilaDaImpressora item={item} fonte={12} />}
             {item.isReuse && <Selo forma="retangulo" tom="esmeralda" style={{ fontSize: FS.meta, padding: '1px 6px' }}>Reaprov.</Selo>}
+            {/* De onde vem (16/10): Buscar no estoque / Em trânsito. */}
+            <SeloOrigemDoReaproveitamento peca={item} onde="grafica" style={{ fontSize: FS.meta }} />
             {/* Selo do complemento: sólido enquanto o lote está em
                 aberto (trabalho novo), outline depois de entregue —
                 a identidade fica, o alarme não. */}

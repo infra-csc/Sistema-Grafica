@@ -7,7 +7,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { splitDisplayId } from "@/lib/displayId";
 import { rotuloDaMaquina, EM_REVISAO } from "@shared/fluxo-peca";
-import { aEmbalar, statusEmbalavel, CONFERIR_E_EMBALAR } from "@shared/embalagem";
+import { aEmbalar, statusEmbalavel, quantidadeFisica, CONFERIR_E_EMBALAR } from "@shared/embalagem";
 import { podeTravar } from "@shared/trava-da-peca";
 import { tetoDeProducao } from "@/lib/grafica-producao";
 import { progressoDaImpressao, rotuloCurtoDaAcao } from "@/components/grafica/modal-impressao";
@@ -50,8 +50,11 @@ export const complementUntouched = (item: PecaDaFila) =>
  * QUANTO ("Conferir 6"). Antes só contava a parte já conferida: a peça com 6
  * de 12 impressas oferecia "Conferir" e o modal abria com 6.
  */
+// EM TRÂNSITO (16/10): a régua é a quantidade FÍSICA — as unidades que vêm no
+// caminhão de outra etapa não são conferidas nem embaladas, então "Conferir"
+// sem número vale para tudo o que é físico.
 export const rotuloDoConferir = (item: PecaDaFila) =>
-  remainingConfer(item) < qtyOf(item) ? `Conferir ${remainingConfer(item)}` : "Conferir";
+  remainingConfer(item) < quantidadeFisica(item) ? `Conferir ${remainingConfer(item)}` : "Conferir";
 
 export const rotuloAcaoImpressao = (item: PecaDaFila) => rotuloCurtoDaAcao(producedOf(item), tetoDeProducao(item));
 export const tituloAcaoImpressao = (item: PecaDaFila) =>
@@ -180,9 +183,9 @@ export function gatesDaGrafica(user: UsuarioDaGrafica) {
   const oferecerEmbalarJunto = (item: PecaDaFila, qtd: number) =>
     CONFERIR_E_EMBALAR && !!item?.eventId && !soVisualizaKit(item) && qtd > 0
     && qtd >= remainingConfer(item)
-    && (statusEmbalavel(item.status) || conferredOf(item) + qtd >= qtyOf(item));
+    && (statusEmbalavel(item.status) || conferredOf(item) + qtd >= quantidadeFisica(item));
   // "Embalar" quando é tudo; "Embalar 3" quando é só o que falta (ou a parte conferida).
-  const rotuloEmbalar = (item: PecaDaFila) => (aEmbalar(item) < qtyOf(item) ? `Embalar ${aEmbalar(item)}` : "Embalar");
+  const rotuloEmbalar = (item: PecaDaFila) => (aEmbalar(item) < quantidadeFisica(item) ? `Embalar ${aEmbalar(item)}` : "Embalar");
   // MEXER NA QUANTIDADE (criar complemento e cancelar complemento) é outro
   // papel: admin | solicitacao, espelho de `podeMudarQuantidade` no servidor.
   // `canProduce` (grafica|admin) NÃO participa deste gate em ponto nenhum — a

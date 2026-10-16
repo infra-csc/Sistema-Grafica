@@ -94,6 +94,10 @@ export interface ItemDaFicha extends PecaComProducao, PecaTravavel, PecaDividive
   /** Produção interna (02/10): direto para a Gráfica, sem Arte — e o que ela deve fazer. */
   producaoInterna?: boolean | null;
   instrucoesGrafica?: string | null;
+  /** De onde vem o reaproveitamento (16/10): "estoque" | "em_transito", e a etapa. */
+  isReuse?: boolean | null;
+  origemReaproveitamento?: string | null;
+  obsReaproveitamento?: string | null;
   motivoCancelamento?: string | null;
   referenceUrl?: string | null;
   referenceUrls?: (string | null)[] | null;

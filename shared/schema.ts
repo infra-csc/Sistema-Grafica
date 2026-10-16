@@ -3,6 +3,7 @@ import { pgTable, pgSequence, text, varchar, timestamp, integer, decimal, boolea
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { ORIGENS_DO_REAPROVEITAMENTO, OBS_DO_REAPROVEITAMENTO_MAX } from "./origem-do-reaproveitamento";
 
 // A SEQUÊNCIA DOS NÚMEROS DE PEÇA (#0001, #0002…). O storage a cria e usa via
 // SQL cru (generateNextDisplayId), mas ela TEM de estar declarada aqui pelo
@@ -419,6 +420,16 @@ export const items = pgTable("items", {
   // obrigatória (mín. 10 caracteres) no envio sem arquivo final, e aparece em
   // destaque na fila da Gráfica. NULL = peça comum, ou marcada sem instrução.
   instrucoesGrafica: text("instrucoes_grafica"),
+  // DE ONDE VEM O REAPROVEITAMENTO (dono, 16/10: caminhões "conjugados" que
+  // seguem de uma etapa para outra sem voltar a SP). "estoque" = a peça sai do
+  // galpão (a Gráfica busca); "em_transito" = já está no caminhão, vinda de
+  // outro evento — essas unidades não passam por conferir/embalar/entregar.
+  // NULL = sem origem marcada (todo o acervo): segue como sempre. As regras:
+  // shared/origem-do-reaproveitamento.ts.
+  origemReaproveitamento: text("origem_reaproveitamento"),
+  // A observação livre: "vem do Night Run Salvador, etapa 17/10". Obrigatória
+  // para "em trânsito" (a rota recusa sem ela); NULL sem origem.
+  obsReaproveitamento: text("obs_reaproveitamento"),
   // ONDE A PEÇA ESTAVA quando foi cancelada (dono, 01/09: "descancelar item e
   // ele voltar no fluxo onde estava"). Preenchida pelo cancelamento
   // (individual e em lote); o descancelar do admin restaura para cá e limpa.
@@ -1198,6 +1209,11 @@ export const insertItemSchema = createInsertSchema(items).omit({
   area: z.string().or(z.number()),
   visual: z.string().or(z.number()),
   calculatedM2: z.string().or(z.number()),
+  // A origem do reaproveitamento é uma das duas (ou nenhuma); a observação tem
+  // teto. "Em trânsito pede a observação" é regra da ROTA (lerOrigemDoCorpo),
+  // porque depende das duas colunas juntas.
+  origemReaproveitamento: z.enum(ORIGENS_DO_REAPROVEITAMENTO).nullable().optional(),
+  obsReaproveitamento: z.string().max(OBS_DO_REAPROVEITAMENTO_MAX).nullable().optional(),
 });
 
 // Schema de criação PÚBLICO (o que POST /api/items e /api/items/bulk aceitam do
@@ -1233,6 +1249,11 @@ export const publicInsertItemSchema = insertItemSchema.omit({
   embaladaQty: true,
   printMachine: true,
   tuboId: true,
+  // A origem do reaproveitamento muda pelas rotas que marcam reaproveitamento
+  // (e pela dedicada, PATCH /api/items/:id/origem-reaproveitamento): a peça
+  // nasce sem reaproveitamento contado, então nasce sem origem.
+  origemReaproveitamento: true,
+  obsReaproveitamento: true,
   // A trava da Solicitação só nasce por POST /api/items/:id/travar.
   travadaEm: true,
   travadaPor: true,

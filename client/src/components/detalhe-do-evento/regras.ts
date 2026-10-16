@@ -124,6 +124,9 @@ export const EMPTY_ITEM_FORM: ItemFormData = {
   // Só admin|solicitacao mudam (gate no PATCH dispara na MUDANÇA de valor).
   isPriority: false,
   isReuse: false,
+  // De onde vem o reaproveitamento (16/10): "" = sem origem marcada.
+  origemReaproveitamento: "",
+  obsReaproveitamento: "",
   referenceUrl: "",
   // O modelo de que a peça nasce (id), ou "" quando o tipo foi digitado.
   standardItemId: "",

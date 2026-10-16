@@ -39,6 +39,7 @@ import { CabecalhoDasPrioritariasNaTabela, EventoDaPrioritaria } from "./grupo-d
 import type { PosicaoNasPrioritarias } from "./grupo-das-prioritarias";
 import { CHAVE_DAS_PRIORITARIAS } from "./ordem-da-fila";
 import { TITULO_DO_SELO_NA_GRAFICA } from "@shared/prioridade-na-impressao";
+import { SeloOrigemDoReaproveitamento } from "@/components/reaproveitamento/selo-da-origem";
 import { ControleDePrioridadeNaFila } from "./prioridade-na-fila";
 
 export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, corte, prioritarias = null }: {
@@ -337,6 +338,10 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
               {item.isReuse ? "Reaproveitamento" : `Reaproveitamento ${reusedOf(item)}/${qtyOf(item)}`}
             </Selo>
           )}
+          {/* DE ONDE VEM (16/10): "Buscar no estoque" (a Gráfica separa no
+              galpão) ou "Em trânsito" (já no caminhão — não passa por
+              conferir/embalar/entregar). A observação vai no title. */}
+          <SeloOrigemDoReaproveitamento peca={item} onde="grafica" style={{ marginBottom: 5, marginLeft: 5 }} />
           {item.description ? (
             <div style={{ fontSize: 13, color: item.isReuse ? TOM.esmeralda.text : T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: item.isReuse ? 600 : 400 }}>{item.description}</div>
           ) : (

@@ -1,6 +1,8 @@
 // A confirmação de REAPROVEITAR EM LOTE — só o reaproveitamento TOTAL. O
 // parcial fica no ícone da linha, onde a quantidade é decidida peça a peça.
+import { useEffect, useState } from "react";
 import { Recycle } from "lucide-react";
+import { EscolhaDaOrigem, ORIGEM_VAZIA, faltaObservacao, type ValorDaOrigem } from "@/components/reaproveitamento/escolha-da-origem";
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 import { Botao } from "@/components/ui/botao";
@@ -22,9 +24,13 @@ export function ConfirmarLoteReaproveitar({
   selecaoLote: Fila["selecaoLote"];
   avisoLoteFinalizadas: Fila["avisoLoteFinalizadas"];
   reaproveitando: boolean;
-  aoReaproveitar: () => void;
+  aoReaproveitar: (origem: ValorDaOrigem) => void;
 }) {
   const celular = useIsMobile();
+  // DE ONDE VEM (16/10): uma origem para o lote (o mesmo caminhão conjugado).
+  const [origem, setOrigem] = useState<ValorDaOrigem>(ORIGEM_VAZIA);
+  useEffect(() => { if (open) setOrigem(ORIGEM_VAZIA); }, [open]);
+  const falta = faltaObservacao(origem);
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(470)}>
@@ -53,6 +59,9 @@ export function ConfirmarLoteReaproveitar({
               )}
             </div>
           </AlertDialogDescription>
+          <div style={{ marginTop: 14 }}>
+            <EscolhaDaOrigem valor={origem} onChange={setOrigem} idBase="lote-reaproveitar" isMobile={celular} desabilitado={reaproveitando} />
+          </div>
         </div>
         <div style={rodapeDaConfirmacao(celular)}>
           <AlertDialogPrimitive.Cancel asChild>
@@ -65,9 +74,9 @@ export function ConfirmarLoteReaproveitar({
               icone={Recycle}
               onClick={(e) => {
                 e.preventDefault(); // a mutation controla o fechamento (mantém aberto em erro)
-                aoReaproveitar();
+                if (!falta) aoReaproveitar(origem);
               }}
-              disabled={reaproveitando || selecaoLote.vivas.length === 0}
+              disabled={reaproveitando || selecaoLote.vivas.length === 0 || falta}
               data-testid="button-bulk-reuse-confirm"
               tom="esmeralda"
             >

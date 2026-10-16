@@ -545,6 +545,7 @@ const SEM_GUARDA_POR_DESENHO: Record<string, string> = {
   // FECHA A CONTA do que fisicamente já existe.
   "POST /api/items/:id/confer": "exige a peça em Produzido: registra contagem, não produz nada",
   "PATCH /api/items/:id/deliver": "teto é o já conferido; a papelada da entrega chega depois do evento",
+  "PATCH /api/items/:id/origem-reaproveitamento": "diz DE ONDE vem o que JÁ é reaproveitamento (estoque ou em trânsito, 16/10) — não produz nada; em trânsito só tira da conta do galpão unidades que nunca passaram por ele, e o caminhão conjugado se acerta justamente perto do evento",
   "POST /api/items/labels-printed": "carimbo de que a etiqueta SAIU na impressora (labelPrintedAt + trilha) — registra um fato físico, não muda status nem produz nada; mesma família do confer/deliver, onde o papel anda mesmo com o evento travado",
   // Não mudam estado de peça.
   "POST /api/admin/notificacoes/destinatarios": "administra a lista de destinatários dos avisos por e-mail; configuração do sistema, sem alvo de evento nenhum",

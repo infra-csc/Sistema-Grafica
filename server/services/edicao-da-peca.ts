@@ -51,6 +51,10 @@ export const updateItemSchema = insertItemSchema
     // instruções. Quem pode e quando: a rota (shared/producao-interna.ts).
     producaoInterna: true,
     instrucoesGrafica: true,
+    // De onde vem o reaproveitamento (16/10): o formulário grava junto da
+    // marcação. Quem pode e quando: a rota (edicao.ts).
+    origemReaproveitamento: true,
+    obsReaproveitamento: true,
   })
   .partial();
 
@@ -244,6 +248,9 @@ export function planejarEdicao(
       }
       updatePayload.reuseQty = 0;
       updatePayload.isReuse = false;
+      // Sem reaproveitamento não há de onde ele venha.
+      updatePayload.origemReaproveitamento = null;
+      updatePayload.obsReaproveitamento = null;
     }
   }
 

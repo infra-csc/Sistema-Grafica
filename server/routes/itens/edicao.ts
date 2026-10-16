@@ -8,6 +8,8 @@ import { responderErro } from "../../erros";
 import { urlDeThumbValida, ERRO_THUMB_FORA_DO_STORAGE } from "../thumb-url";
 import { barraEventoFinalizado } from "../eventoFinalizado";
 import { recusaDaMarcaNaEscrita } from "@shared/producao-interna";
+import { lerOrigemDoCorpo, colunasDaOrigem, origemDe, fraseDaTrilhaDaOrigem, FIM_DO_FLUXO } from "@shared/origem-do-reaproveitamento";
+import { avisarBuscarNoEstoque } from "../../services/aviso-buscar-no-estoque";
 import {
   updateItemSchema, normalizarReferencias, planejarEdicao, descreverEdicao, avisarDepoisDaEdicao,
 } from "../../services/edicao-da-peca";
@@ -46,7 +48,10 @@ export function registrarEdicao(app: Express): void {
 
       // Allow-list explícita: barra `status` e campos de fluxo (ver
       // updateItemSchema). Transições de status só pelas rotas dedicadas.
-      const validatedData = updateItemSchema.parse(req.body);
+      // A origem do reaproveitamento é lida à parte (lerOrigemDoCorpo, logo
+      // abaixo): o formulário manda "" para "sem origem", que o enum recusaria.
+      const { origemReaproveitamento: _origem, obsReaproveitamento: _obs, ...corpoSemOrigem } = (req.body ?? {}) as Record<string, unknown>;
+      const validatedData = updateItemSchema.parse(corpoSemOrigem);
 
       // O arquivo final tem rotas próprias com gate de status (submit/update-
       // final-file). Pelo PATCH genérico, arte/atendimento não trocam o
@@ -90,6 +95,29 @@ export function registrarEdicao(app: Express): void {
             : "Marcar reaproveitamento é do admin e da Solicitação.",
         });
       }
+      // DE ONDE VEM O REAPROVEITAMENTO (16/10): o formulário manda junto da
+      // marcação. A mesma régua das outras portas (lerOrigemDoCorpo: "em
+      // trânsito" pede a observação); quem muda é quem marca reaproveitamento.
+      // Este PATCH nunca muda status: na peça que já está no fim do fluxo,
+      // entrar ou sair de "em trânsito" refaz a etapa — isso é da rota
+      // dedicada (o botão "Origem do reaproveitamento").
+      const leituraDaOrigem = lerOrigemDoCorpo(req.body);
+      if (!leituraDaOrigem.ok) return res.status(400).json({ error: leituraDaOrigem.motivo });
+      if (leituraDaOrigem.veio) {
+        const nova = colunasDaOrigem(leituraDaOrigem.origem, leituraDaOrigem.obs);
+        const mudaOrigem = (currentItem.origemReaproveitamento ?? null) !== nova.origemReaproveitamento
+          || (currentItem.obsReaproveitamento ?? null) !== nova.obsReaproveitamento;
+        if (mudaOrigem) {
+          if (!PAPEIS_DO_CAMINHO_DA_PECA.includes(role)) {
+            return res.status(403).json({ error: "Marcar de onde vem o reaproveitamento é do admin e da Solicitação." });
+          }
+          const envolveTransito = origemDe(currentItem) === "em_transito" || nova.origemReaproveitamento === "em_transito";
+          if (envolveTransito && FIM_DO_FLUXO.has(currentItem.status)) {
+            return res.status(409).json({ error: "A peça já saiu da produção — troque a origem pelo botão \"Origem do reaproveitamento\" na ficha, que confere o que já foi conferido e entregue." });
+          }
+          Object.assign(validatedData, nova);
+        }
+      }
       // ANDA: este PATCH mexe em quantidade, material, dimensões e m² — o
       // contrato da peça. Num evento que já acabou, mudar o contrato só
       // reescreve o que foi fechado.
@@ -128,13 +156,25 @@ export function registrarEdicao(app: Express): void {
       const plano = planejarEdicao(currentItem, validatedData, req.body, mudaReuso);
       if ("recusa" in plano) return res.status(plano.recusa.status).json(plano.recusa.corpo);
       const { updatePayload, mudouQtd, promoveuParaProduzido } = plano;
+      // Origem sem reaproveitamento nenhum não grava (a peça não tem o que buscar).
+      const reusoFinal = updatePayload.reuseQty ?? currentItem.reuseQty ?? 0;
+      const reusoLegado = (updatePayload.isReuse ?? currentItem.isReuse) && reusoFinal === 0;
+      if (reusoFinal === 0 && !reusoLegado && updatePayload.origemReaproveitamento) {
+        updatePayload.origemReaproveitamento = null;
+        updatePayload.obsReaproveitamento = null;
+      }
 
       const item = await storage.updateItem(req.params.id, updatePayload);
       if (!item) {
         return res.status(404).json({ error: "Peça não encontrada" });
       }
 
-      const auditDetails = descreverEdicao(currentItem, item, validatedData, { mudaReuso, mudouQtd, promoveuParaProduzido });
+      const mudouAOrigem = (item.origemReaproveitamento ?? null) !== (currentItem.origemReaproveitamento ?? null)
+        || (item.obsReaproveitamento ?? null) !== (currentItem.obsReaproveitamento ?? null);
+      const auditDetails = descreverEdicao(currentItem, item, validatedData, { mudaReuso, mudouQtd, promoveuParaProduzido })
+        + (mudouAOrigem && (item.origemReaproveitamento || currentItem.origemReaproveitamento)
+          ? ` · ${fraseDaTrilhaDaOrigem(origemDe(item), item.obsReaproveitamento)}`
+          : "");
 
       await createAuditLog(
         req,
@@ -150,6 +190,7 @@ export function registrarEdicao(app: Express): void {
       broadcast({ type: "item_updated", item });
 
       await avisarDepoisDaEdicao(currentItem, item, validatedData, mudouQtd);
+      await avisarBuscarNoEstoque(currentItem, item, role);
 
       res.json(item);
     } catch (error) {

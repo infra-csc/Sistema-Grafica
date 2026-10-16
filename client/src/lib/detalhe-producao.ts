@@ -23,6 +23,7 @@ import { rotuloDaMaquina } from "@shared/fluxo-peca";
 import { moldeConcluido } from "@shared/molde";
 import { progressoDaEmbalagem, seloDosVolumes, type PecaDaEmbalagem } from "@shared/embalagem";
 import { numerosDaImpressao, fraseDaFila } from "@shared/progresso-da-impressao";
+import { quantidadeFisicaDe, todaEmTransito } from "@shared/origem-do-reaproveitamento";
 import { PRODUCTION_STATUSES, getStatusMeta } from "@/lib/status";
 
 /** O mínimo da peça que a frase lê. Tudo opcional: peça antiga não tem metade. */
@@ -53,6 +54,8 @@ export type PecaComProducao = {
   tuboEntregueEm?: string | Date | null;
   tuboRecebidoPor?: string | null;
   receivedBy?: string | null;
+  /** De onde vem o reaproveitamento (16/10): "em_transito" não passa pela Gráfica. */
+  origemReaproveitamento?: string | null;
 };
 
 const inteiro = (v: unknown): number => {
@@ -132,7 +135,8 @@ export function detalheDaProducao(item: PecaComProducao | null | undefined): str
   if (parcial && !ENTREGUE.has(status) && status !== "packed") return [parcial, volumesDaPeca(item)].filter(Boolean).join(" · ");
 
   if (IMPRESSA.has(status)) {
-    const total = inteiro(item.quantity);
+    // Em trânsito (16/10) não confere: o total é o físico.
+    const total = quantidadeFisicaDe(item);
     const conferidas = inteiro(item.conferredQty);
     if (conferidas > 0 && conferidas < total) return `${conferidas} de ${total} conferidas`;
     return "Aguardando conferência";
@@ -150,6 +154,8 @@ export function detalheDaProducao(item: PecaComProducao | null | undefined): str
   }
 
   if (ENTREGUE.has(status)) {
+    // Veio inteira no caminhão de outra etapa: nunca passou pela Gráfica.
+    if (todaEmTransito(item)) return "Em trânsito — não passou pela Gráfica";
     const quem = (item.tuboRecebidoPor || item.receivedBy || "").trim();
     const tubo = inteiro(item.tuboNumero) > 0 ? `Tubo ${inteiro(item.tuboNumero)}` : null;
     if (quem) return tubo ? `Recebida por ${quem} · ${tubo}` : `Recebida por ${quem}`;
@@ -178,7 +184,10 @@ const CANONICO: Record<string, string> = {
 };
 
 /** Os passos da produção desta peça, ou `null` se ela ainda não chegou lá. */
-export function subTrilhaDaProducao(item: { status?: string | null; tuboId?: string | null } | null | undefined): PassoDaProducao[] | null {
+export function subTrilhaDaProducao(item: {
+  status?: string | null; tuboId?: string | null;
+  quantity?: number | string | null; reuseQty?: number | string | null; isReuse?: boolean | null; origemReaproveitamento?: string | null;
+} | null | undefined): PassoDaProducao[] | null {
   const bruto = item?.status ?? "";
   const status = CANONICO[bruto] ?? bruto;
   const ordem: string[] = ["ready_for_production", ...PRODUCTION_STATUSES];
@@ -191,7 +200,10 @@ export function subTrilhaDaProducao(item: { status?: string | null; tuboId?: str
     // Entregue SEM tubo (peça grande vai direto): Embalado não é pendência nem
     // etapa cumprida — não se aplica.
     const semTubo = key === "packed" && i < atual && !item?.tuboId;
-    const estado: EstadoDoPasso = semTubo ? "nao_se_aplica" : i < atual ? "feita" : i === atual ? "atual" : "pendente";
+    // Veio INTEIRA em trânsito (16/10): da liberação foi direto a Entregue —
+    // impressão, conferência e embalagem não se aplicam.
+    const pulouAGrafica = !!item && todaEmTransito(item) && i > 0 && i < atual;
+    const estado: EstadoDoPasso = semTubo || pulouAGrafica ? "nao_se_aplica" : i < atual ? "feita" : i === atual ? "atual" : "pendente";
     return { key, label, cor: meta.dot, estado };
   });
 }

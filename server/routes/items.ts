@@ -25,6 +25,7 @@ import { registrarPrioridadeNaImpressao } from "./itens/prioridade-na-impressao"
 import { registrarCancelamento } from "./itens/cancelamento";
 import { registrarRotasDeImpressao, registrarRotaAposentadaDeProducao } from "./itens/impressao";
 import { registrarReaproveitamento } from "./itens/reaproveitamento";
+import { registrarOrigemDoReaproveitamento } from "./itens/origem-do-reaproveitamento";
 import { registrarConferencia } from "./itens/conferencia";
 import { registrarBook } from "./itens/book";
 import { registrarAvisos } from "./itens/avisos";
@@ -78,6 +79,7 @@ export function registerItemRoutes(app: Express): void {
   registrarCancelamento(app); // cancelar, descancelar e cancelar em lote
   registrarRotasDeImpressao(app); // approve (410), start-printing, start-production
   registrarReaproveitamento(app); // mark-reuse, correct-reuse
+  registrarOrigemDoReaproveitamento(app); // PATCH origem-reaproveitamento: estoque ou em trânsito (16/10)
   registrarConferencia(app); // confer, deliver (aposentada)
   registrarBook(app); // POST /api/events/:eventId/book e /book/notify
   registrarAvisos(app); // digests e a tela de Notificações do admin

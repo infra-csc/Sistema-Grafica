@@ -130,6 +130,8 @@ export const REGUA_DE_PAPEIS: RegraDeRota[] = [
   { metodo: "POST", rota: "/api/items/:id/direto-para-grafica", papeis: ["admin", "solicitacao"] },
   { metodo: "POST", rota: "/api/items/direto-para-grafica", papeis: ["admin", "solicitacao"] },
   { metodo: "POST", rota: "/api/items/:id/mark-reuse", papeis: ["admin", "grafica", "solicitacao"] },
+  // De onde vem o reaproveitamento (dono, 16/10): os mesmos que marcam reaproveitamento.
+  { metodo: "PATCH", rota: "/api/items/:id/origem-reaproveitamento", papeis: ["admin", "grafica", "solicitacao"] },
   { metodo: "POST", rota: "/api/items/:id/restore", papeis: ["admin"] },
   { metodo: "PATCH", rota: "/api/items/:id/return-to-arte", papeis: ["admin", "solicitacao"] },
   { metodo: "POST", rota: "/api/items/:id/return-to-creation", papeis: ["admin", "arte", "atendimento", "solicitacao"] },

@@ -55,6 +55,11 @@ export type AcaoDaPeca =
   | "iniciar-impressao" | "concluir-impressao" | "informar-impressas-parcial" | "esvaziar-impressoras"
   | "reaproveitar-o-que-falta" | "reaproveitar-parte" | "ajustar-reaproveitamento-da-produzida"
   | "corrigir-reaproveitamento-para-a-fila" | "corrigir-para-reaproveitamento-total"
+  | "liberar-com-reaproveitamento-total-em-transito" | "reaproveitar-tudo-em-transito"
+  | "ajustar-para-reaproveitamento-total-em-transito" | "corrigir-para-reaproveitamento-total-em-transito"
+  | "definir-origem-do-reaproveitamento" | "fechar-pela-origem-em-transito"
+  | "concluir-conferencia-pela-origem-em-transito" | "concluir-embalagem-pela-origem-em-transito"
+  | "devolver-ao-galpao-pela-origem"
   | "conferir-tudo" | "conferir-tudo-ja-embalado" | "conferir-parte"
   | "marcar-molde-produzido" | "marcar-molde-ja-produzido" | "desfazer-molde-produzido" | "desfazer-molde-ja-liberado"
   | "embalar" | "tirar-do-tubo" | "entregar-volume"
@@ -108,6 +113,14 @@ const EM_APROVACAO: readonly StatusDaPeca[] = ["awaiting_sponsor_approval"];
 const POS_APROVACAO_SEM_FINALIZACAO = POS_APROVACAO.filter((s) => s !== "sponsor_approved");
 const QUEM_DECIDE_NA_REVISAO: readonly Papel[] = ARTE_DECIDE_NA_REVISAO ? ["solicitacao", "admin", "arte"] : ["solicitacao", "admin"];
 const CONFERIVEL: Origem = { todosMenos: [...Array.from(EM_REVISAO), ...FORA_DA_CONFERENCIA] };
+/** Fora do funil: a origem do reaproveitamento não muda mais. */
+const FORA_DO_FUNIL_DA_ORIGEM: readonly StatusDaPeca[] = ["canceled", "cancelled", "deleted", "archived"];
+/** O que a Gráfica enxerga e mexe: de liberada até entregue. */
+const NA_GRAFICA: readonly StatusDaPeca[] = [
+  ...LIBERADA, ...EM_IMPRESSAO, ...PRODUZIDA, "conferred", "conferido", "packed", "embalado", "delivered", "entregue",
+];
+/** Fim do fluxo ainda aberto: a origem "em trânsito" pode fechar a peça. */
+const FECHAVEL_PELA_ORIGEM: readonly StatusDaPeca[] = [...PRODUZIDA, "conferred", "conferido", "packed", "embalado"];
 
 const EVENTO_ABERTO = "evento aberto (nem encerrado nem já realizado)";
 const NAO_TRAVADA = "peça não travada pela Solicitação";
@@ -156,6 +169,7 @@ const ROTA = {
   complemento: "POST /api/items/:id/complement",
   diretoParaGrafica: "POST /api/items/:id/direto-para-grafica",
   diretoParaGraficaLote: "POST /api/items/direto-para-grafica",
+  origemDoReaproveitamento: "PATCH /api/items/:id/origem-reaproveitamento",
 } as const;
 
 export const TRANSICOES: readonly Transicao[] = [
@@ -275,6 +289,42 @@ export const TRANSICOES: readonly Transicao[] = [
     condicoes: [EVENTO_ABERTO, "o admin corrige em qualquer etapa antes da conferência", "sobra o que imprimir"], rotas: [ROTA.corrigirReuso] },
   { acao: "corrigir-para-reaproveitamento-total", de: { todosMenos: Array.from(EM_REVISAO) }, para: "produced", papeis: ["admin"],
     condicoes: [EVENTO_ABERTO, NAO_TRAVADA, "nada conferido, entregue ou embalado", "só o admin alcança o total (Gráfica e Solicitação corrigem até quantidade − 1)"], rotas: [ROTA.corrigirReuso] },
+
+  // ── Reaproveitamento EM TRÂNSITO (dono, 16/10) ───────────────────────────
+  // A peça que vem no caminhão de outra etapa "já fica teoricamente
+  // finalizada": as unidades em trânsito não passam por conferir, embalar nem
+  // entregar (shared/origem-do-reaproveitamento.ts). Quando TODA a peça está
+  // em trânsito, o gesto que a faria "Produzida" a fecha como ENTREGUE — o
+  // terminal "resolvida para o evento" — com a trilha dizendo que ela não
+  // passou pela Gráfica. Uma linha por gesto, como o resto da tabela.
+  { acao: "liberar-com-reaproveitamento-total-em-transito", de: ["awaiting_final_review"], para: "delivered", papeis: QUEM_DECIDE_NA_REVISAO,
+    condicoes: [EVENTO_ABERTO, "reaproveitamento da quantidade inteira, em trânsito (com a observação)"], rotas: [ROTA.liberar] },
+  { acao: "reaproveitar-tudo-em-transito", de: REAPROVEITAVEL, para: "delivered", papeis: ["grafica", "admin", "solicitacao"],
+    condicoes: [EVENTO_ABERTO, NAO_TRAVADA, "nada impresso: a quantidade inteira vem em trânsito"], rotas: [ROTA.reaproveitar] },
+  { acao: "ajustar-para-reaproveitamento-total-em-transito", de: PRODUZIDA, para: "delivered", papeis: ["admin", "solicitacao"],
+    condicoes: [EVENTO_ABERTO, NAO_TRAVADA, "nada conferido nem entregue", "a quantidade inteira passa a vir em trânsito"], rotas: [ROTA.reaproveitar] },
+  { acao: "corrigir-para-reaproveitamento-total-em-transito", de: { todosMenos: Array.from(EM_REVISAO) }, para: "delivered", papeis: ["admin"],
+    condicoes: [EVENTO_ABERTO, NAO_TRAVADA, "nada conferido, entregue ou embalado", "a origem gravada é \"em trânsito\""], rotas: [ROTA.corrigirReuso] },
+
+  // ── A origem do reaproveitamento, marcada ou trocada depois ──────────────
+  // Estoque ↔ em trânsito muda a CONTA FÍSICA da peça: no fim do fluxo, a
+  // etapa é refeita pela mesma régua da conferência/embalagem/entrega. Marcar
+  // "em trânsito" pode fechar a peça; desmarcar a devolve ao galpão (as
+  // reaproveitadas passam a precisar de conferência). Recusa quando o galpão
+  // já conferiu mais do que sobraria.
+  { acao: "definir-origem-do-reaproveitamento", de: { todosMenos: FORA_DO_FUNIL_DA_ORIGEM }, para: FICA_ONDE_ESTA, papeis: ["admin", "solicitacao"],
+    condicoes: ["a peça tem unidade reaproveitada", "\"em trânsito\" pede a observação", "a conta física não muda de etapa"], rotas: [ROTA.origemDoReaproveitamento] },
+  { acao: "definir-origem-do-reaproveitamento", de: NA_GRAFICA, para: FICA_ONDE_ESTA, papeis: ["grafica"],
+    condicoes: ["a peça tem unidade reaproveitada", "\"em trânsito\" pede a observação", "a conta física não muda de etapa"], rotas: [ROTA.origemDoReaproveitamento] },
+  { acao: "fechar-pela-origem-em-transito", de: FECHAVEL_PELA_ORIGEM, para: "delivered", papeis: ["admin", "solicitacao", "grafica"],
+    condicoes: [NAO_TRAVADA, "em trânsito cobre tudo o que faltava entregar"], rotas: [ROTA.origemDoReaproveitamento] },
+  { acao: "concluir-conferencia-pela-origem-em-transito", de: PRODUZIDA, para: "conferred", papeis: ["admin", "solicitacao", "grafica"],
+    condicoes: [NAO_TRAVADA, "o que é físico já está todo conferido"], rotas: [ROTA.origemDoReaproveitamento] },
+  { acao: "concluir-embalagem-pela-origem-em-transito", de: [...PRODUZIDA, "conferred", "conferido"], para: "packed", papeis: ["admin", "solicitacao", "grafica"],
+    condicoes: [NAO_TRAVADA, "o que é físico já está todo embalado"], rotas: [ROTA.origemDoReaproveitamento] },
+  { acao: "devolver-ao-galpao-pela-origem", de: ["conferred", "conferido", "packed", "embalado", "delivered", "entregue"], para: "produced",
+    papeis: ["admin", "solicitacao", "grafica"],
+    condicoes: ["deixou de ser \"em trânsito\": as reaproveitadas passam a ser conferidas, embaladas e entregues"], rotas: [ROTA.origemDoReaproveitamento] },
 
   // ── Conferência, embalagem e entrega ─────────────────────────────────────
   { acao: "conferir-tudo", de: CONFERIVEL, para: "conferred", papeis: ["grafica", "solicitacao", "admin"],

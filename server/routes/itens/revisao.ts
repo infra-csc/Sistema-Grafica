@@ -26,6 +26,8 @@ import { motivoEventoFechado, barraEventoFinalizado, contadorDeBloqueio } from "
 import { lerMotivoDevolucao, type DestinoDevolucao, lerDestinoDevolucao } from "./comum";
 import { responderFalha, camposDoErro } from "../../erros";
 import { vemDeOrigemValida } from "@shared/maquina-de-estados";
+import { lerOrigemDoCorpo, colunasDaOrigem, origemDe, fraseDaTrilhaDaOrigem, fraseDoFechamentoEmTransito } from "@shared/origem-do-reaproveitamento";
+import { avisarBuscarNoEstoque } from "../../services/aviso-buscar-no-estoque";
 import { situacaoParaVoltarAArte } from "@shared/devolver-evento-para-arte";
 // Mexe em decisão de patrocinador (nova aprovação): o quadro de Versões é refeito.
 import { invalidarCacheDeVersoes } from "../versoes";
@@ -128,6 +130,9 @@ export function registrarRevisao(app: Express): void {
       if (req.userRole !== "solicitacao" && req.userRole !== "admin" && !(ARTE_DECIDE_NA_REVISAO && req.userRole === "arte")) {
         return res.status(403).json({ error: "Só a Solicitação libera peça na Revisão Final." });
       }
+      // DE ONDE VEM o reaproveitamento (16/10): opcional, junto da liberação.
+      const leituraDaOrigem = lerOrigemDoCorpo(req.body);
+      if (!leituraDaOrigem.ok) return res.status(400).json({ error: leituraDaOrigem.motivo });
       
       // Validate current status
       const currentItem = await storage.getItem(req.params.id);
@@ -216,18 +221,35 @@ export function registrarRevisao(app: Express): void {
         });
       }
 
+      // A origem que vale depois de liberar: a do corpo, ou a que a peça já
+      // tinha (marcada no formulário). Sem reaproveitamento nenhum, não há origem.
+      const temReuso = isFullReuse || isPartialReuse || (currentItem.reuseQty ?? 0) > 0;
+      const origemNova = !temReuso
+        ? null
+        : leituraDaOrigem.veio
+          ? colunasDaOrigem(leituraDaOrigem.origem, leituraDaOrigem.obs)
+          : colunasDaOrigem(origemDe(currentItem), currentItem.obsReaproveitamento ?? null);
+      // EM TRÂNSITO (16/10): reaproveitamento TOTAL que vem no caminhão de
+      // outra etapa não passa pela Gráfica — fecha como Entregue na liberação.
+      const fechaEmTransito = isFullReuse && origemNova?.origemReaproveitamento === "em_transito";
+
       // Peças de reaproveitamento total não passam pela produção: já entram como produzidas.
       // Reaproveitamento parcial vai para ready_for_production (as demais unidades precisam produzir).
-      const nextStatus = isFullReuse ? "produced" : "ready_for_production";
+      const nextStatus = fechaEmTransito ? "delivered" : isFullReuse ? "produced" : "ready_for_production";
 
       // Pre-fetch event for notification message (read outside tx — no lock needed)
       const event = await storage.getEvent(currentItem.eventId);
 
-      const auditDetails = isFullReuse
+      const auditDetails = (fechaEmTransito
+        ? `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("delivered")} (${fraseDoFechamentoEmTransito(origemNova?.obsReaproveitamento)})`
+        : isFullReuse
         ? `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("produced")} (reaproveitamento — não precisa produzir)`
         : isPartialReuse
           ? `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("ready_for_production")} (reaproveitamento parcial: ${rawReuseQty} un. de ${currentItem.quantity}, ${currentItem.quantity - rawReuseQty!} a produzir)`
-          : `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("ready_for_production")} (liberado para produção)`;
+          : `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("ready_for_production")} (liberado para produção)`)
+        + (origemNova && (origemNova.origemReaproveitamento !== (currentItem.origemReaproveitamento ?? null) || origemNova.obsReaproveitamento !== (currentItem.obsReaproveitamento ?? null))
+          ? ` · ${fraseDaTrilhaDaOrigem(origemNova.origemReaproveitamento, origemNova.obsReaproveitamento)}`
+          : "");
 
       // Atomic: item update + audit log + notification.
       const { item, notification } = await db.transaction(async (tx) => {
@@ -240,6 +262,8 @@ export function registrarRevisao(app: Express): void {
             updatedAt: new Date(),
             ...(isPartialReuse ? { reuseQty: rawReuseQty!, isReuse: false } : {}),
             ...(isFullReuse ? { reuseQty: currentItem.quantity, isReuse: true } : {}),
+            ...(origemNova ?? {}),
+            ...(fechaEmTransito ? { deliveredAt: new Date() } : {}),
             ...(destravar ? colunasDoDestravar() : {}),
           })
           .where(eq(itemsTable.id, req.params.id))
@@ -292,6 +316,8 @@ export function registrarRevisao(app: Express): void {
 
       broadcast({ type: "item_updated", item });
       broadcast({ type: "notification_created", notification });
+      // Chegou à Gráfica com unidades do ESTOQUE: os meninos já vão buscar.
+      await avisarBuscarNoEstoque(null, item, req.userRole);
       
       res.json(item);
     } catch (error) {

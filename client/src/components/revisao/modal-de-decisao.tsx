@@ -42,6 +42,7 @@ import { FichaMetadados } from "./ficha-metadados";
 import { BotoesDoRodape, FichaDecisao } from "./ficha-decisao";
 import type { FichaDecisaoProps } from "./ficha-decisao";
 import { FichaHistorico } from "./ficha-historico";
+import { SeloOrigemDoReaproveitamento } from "@/components/reaproveitamento/selo-da-origem";
 import type { RegistroDoHistorico } from "./tipos";
 
 type PropsDaMetadados = Parameters<typeof FichaMetadados>[0];
@@ -218,6 +219,7 @@ export function ModalDeDecisao(p: ModalDeDecisaoProps) {
               {selectedItem?.isReuse && !isMobile && (
                 <Selo tom="sucesso" tamanho="sm" style={{ flexShrink: 0 }}>Reaproveitamento</Selo>
               )}
+              {!isMobile && <SeloOrigemDoReaproveitamento peca={selectedItem} style={{ flexShrink: 0 }} />}
               {!isMobile && nav}
             </div>
           }

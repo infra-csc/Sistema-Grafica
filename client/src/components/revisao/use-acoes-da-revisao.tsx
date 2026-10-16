@@ -20,6 +20,7 @@ import { ehBookCompleto } from "@shared/fluxo-peca";
 import { ehMolde } from "@shared/molde";
 import { CODIGO_PECA_TRAVADA } from "@shared/trava-da-peca";
 import { buscarPecaAtual, destinoAoLiberar, emLotes, reaproveitamentoTotal } from "./regras";
+import { corpoDaOrigem, type ValorDaOrigem } from "@/components/reaproveitamento/escolha-da-origem";
 import type { PecaDaRevisao, RespostaDaDevolucao, RespostaDoAviso, RespostaDoLoteDeDevolucao } from "./tipos";
 
 type Setter<T> = Dispatch<SetStateAction<T>>;
@@ -352,12 +353,14 @@ export function useAcoesDaRevisao({
     // individual (PATCH isReuse + creator-review), peça a peça, de 5 em 5 —
     // rota de lote não existe. O PARCIAL continua só no ícone da linha:
     // quantidade reaproveitada é decisão de UMA peça.
-    mutationFn: async (itemIds: string[]) => {
+    // DE ONDE VEM (16/10): a mesma origem para o lote inteiro (as peças do
+    // mesmo caminhão conjugado) — opcional, como na peça avulsa.
+    mutationFn: async ({ ids: itemIds, origem }: { ids: string[]; origem?: ValorDaOrigem }) => {
       const semLiberar: Record<string, string> = {};
       const falhas = await emLotes(itemIds, async (id) => {
         // Reaproveitamento TOTAL: o servidor exige a quantidade junto com a marcação.
         const qtd = items.find((i) => i.id === id)?.quantity;
-        await apiRequest("PATCH", `/api/items/${id}`, { isReuse: true, reuseQty: qtd });
+        await apiRequest("PATCH", `/api/items/${id}`, { isReuse: true, reuseQty: qtd, ...(origem?.origem ? corpoDaOrigem(origem) : {}) });
         // Marcou mas não liberou é MEIO caminho, não falha igual: a marcação
         // existe, e o "Liberar" da barra resolve o resto — com o motivo.
         try { await apiRequest("PATCH", `/api/items/${id}/creator-review`, {}); }
@@ -365,7 +368,7 @@ export function useAcoesDaRevisao({
       });
       return { total: itemIds.length, falhas, semLiberar };
     },
-    onSuccess: ({ total, falhas, semLiberar }, enviados) => {
+    onSuccess: ({ total, falhas, semLiberar }, { ids: enviados, origem }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
@@ -381,7 +384,13 @@ export function useAcoesDaRevisao({
       const nFalhas = Object.keys(falhas).length, nSem = Object.keys(semLiberar).length;
       const ok = total - nFalhas - nSem;
       if (nFalhas === 0 && nSem === 0) {
-        toast({ title: "Reaproveitamento confirmado", description: `${ok} peça(s) enviada(s) à Gráfica como produzida(s).`, variant: "success" });
+        toast({
+          title: "Reaproveitamento confirmado",
+          description: origem?.origem === "em_transito"
+            ? `${ok} peça(s) em trânsito: não passam pela Gráfica — já contam como entregues.`
+            : `${ok} peça(s) enviada(s) à Gráfica como produzida(s).`,
+          variant: "success",
+        });
       } else if (nFalhas === 0) {
         toast({
           title: "Marcadas, mas nem todas liberadas",
@@ -411,11 +420,16 @@ export function useAcoesDaRevisao({
   });
 
   const toggleReuseMutation = useMutation({
-    mutationFn: async ({ itemId, isReuse }: { itemId: string; isReuse: boolean }): Promise<{ statusAdvanced: boolean; erro?: string }> => {
+    mutationFn: async ({ itemId, isReuse, origem }: { itemId: string; isReuse: boolean; origem?: ValorDaOrigem }): Promise<{ statusAdvanced: boolean; erro?: string }> => {
       // Marcar é o reaproveitamento TOTAL (a quantidade vai junto, o servidor exige);
-      // desmarcar zera.
+      // desmarcar zera. A origem (16/10) vai junto da marcação: "em trânsito"
+      // faz a liberação logo abaixo fechar a peça sem passar pela Gráfica.
       const qtd = items.find((i) => i.id === itemId)?.quantity;
-      await apiRequest("PATCH", `/api/items/${itemId}`, isReuse ? { isReuse, reuseQty: qtd } : { isReuse, reuseQty: 0 });
+      // Só manda a origem quando há uma escolhida — ou quando é para LIMPAR a
+      // que a peça já tinha (marcada no formulário).
+      const atual = items.find((i) => i.id === itemId);
+      const mandaOrigem = !!origem && (!!origem.origem || !!atual?.origemReaproveitamento);
+      await apiRequest("PATCH", `/api/items/${itemId}`, isReuse ? { isReuse, reuseQty: qtd, ...(mandaOrigem ? corpoDaOrigem(origem!) : {}) } : { isReuse, reuseQty: 0 });
       // Ao marcar reaproveitamento, libera automaticamente para Gráfica (status → produced)
       if (isReuse) {
         try {
@@ -428,7 +442,7 @@ export function useAcoesDaRevisao({
       }
       return { statusAdvanced: true };
     },
-    onSuccess: (result, { itemId, isReuse }) => {
+    onSuccess: (result, { itemId, isReuse, origem }) => {
       setDesfazerReuseId(null);
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
@@ -449,7 +463,9 @@ export function useAcoesDaRevisao({
       toast({
         title: isReuse ? "Reaproveitamento confirmado" : "Marcação removida",
         description: isReuse
-          ? "Peça enviada diretamente para a Gráfica como produzida."
+          ? (origem?.origem === "em_transito"
+            ? "Peça reaproveitada em trânsito: não passa pela Gráfica — já conta como entregue."
+            : "Peça enviada diretamente para a Gráfica como produzida.")
           : "A peça volta ao fluxo normal: para liberar, precisa do arquivo final.",
         variant: "success",
       });
@@ -459,10 +475,11 @@ export function useAcoesDaRevisao({
 
   // Reaproveitamento parcial: define reuseQty e avança via creator-review
   const partialReuseMutation = useMutation({
-    mutationFn: async ({ itemId, reuseQty }: { itemId: string; reuseQty: number }) => {
+    mutationFn: async ({ itemId, reuseQty, origem }: { itemId: string; reuseQty: number; origem?: ValorDaOrigem }) => {
       // creator-review aceita reuseQty no body para registrar o parcial e
-      // avança para ready_for_production (as demais unidades ainda vão para produção)
-      await apiRequest("PATCH", `/api/items/${itemId}/creator-review`, { reuseQty });
+      // avança para ready_for_production (as demais unidades ainda vão para produção).
+      // A origem (16/10) vai junto: estoque | em trânsito + a etapa.
+      await apiRequest("PATCH", `/api/items/${itemId}/creator-review`, { reuseQty, ...(origem?.origem ? corpoDaOrigem(origem) : {}) });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });

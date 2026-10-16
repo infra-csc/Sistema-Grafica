@@ -60,6 +60,7 @@ import { db } from "../db";
 import { storage } from "../storage";
 import { items as itemsTable, tubos, tuboItens, events, auditLogs } from "@shared/schema";
 import { EMBALADO } from "@shared/fluxo-peca";
+import { emTransitoDe } from "@shared/origem-do-reaproveitamento";
 import { aEmbalar, planejarEmbalar, planejarEntrega, planejarRetirada, problemaNoVolume, statusEmbalavel, volumePrincipal } from "@shared/embalagem";
 import { pecaTravada, fraseDaTrava } from "@shared/trava-da-peca";
 import { pecaVisivelPara } from "@shared/kit";
@@ -97,6 +98,9 @@ const COLUNAS_PECA = {
   // Reaproveitamento: a etiqueta do tubo liga o "REAPROVEITAR" sozinha.
   isReuse: itemsTable.isReuse,
   reuseQty: itemsTable.reuseQty,
+  // EM TRÂNSITO (16/10): as reaproveitadas que vêm no caminhão não entram em
+  // volume — a conta de embalar/entregar (shared/embalagem.ts) lê a origem.
+  origemReaproveitamento: itemsTable.origemReaproveitamento,
   // A foto da conferência: quem entrega vê que o material já está documentado.
   conferencePhotoUrl: itemsTable.conferencePhotoUrl,
   tuboId: itemsTable.tuboId,
@@ -124,6 +128,7 @@ type PecaCrua = {
   deliveredQty: number | null;
   isReuse?: boolean | null;
   reuseQty?: number | null;
+  origemReaproveitamento?: string | null;
   conferencePhotoUrl?: string | null;
   tuboId: string | null;
   eventId: string;
@@ -1115,7 +1120,9 @@ export function registerTubosRoutes(app: Express): void {
           entityType: "item",
           entityId: p.id,
           // "Entrega concluída (" é a frase que a medição de tempo por etapa lê.
-          details: `${plano.viraEntregue ? "Entrega concluída (" : "Entrega parcial ("}${plano.deliveredQty}/${p.quantity}, recebido por: ${recebedor}) — ${l.quantidade} un. ${tubo.avulso ? "entregues" : `no Tubo ${tubo.numero}, entregue`} a ${recebedor} em ${hora}`,
+          details: `${plano.viraEntregue ? "Entrega concluída (" : "Entrega parcial ("}${plano.deliveredQty}/${p.quantity}, recebido por: ${recebedor}) — ${l.quantidade} un. ${tubo.avulso ? "entregues" : `no Tubo ${tubo.numero}, entregue`} a ${recebedor} em ${hora}`
+            // A peça fecha com o FÍSICO entregue: o resto veio em trânsito (16/10).
+            + (plano.viraEntregue && emTransitoDe(p) > 0 ? ` — ${emTransitoDe(p)} un. reaproveitadas em trânsito não passam pela Gráfica` : ""),
         });
       }
       await tx.update(tubos).set({

@@ -17,6 +17,42 @@ import { barraEventoFinalizado } from "../eventoFinalizado";
 import { registrarSaidaDaImpressora } from "./comum";
 import { responderFalha } from "../../erros";
 import { vemDeOrigemValida, podeTransicionar } from "@shared/maquina-de-estados";
+import {
+  lerOrigemDoCorpo, colunasDaOrigem, quantidadeFisicaDe, todaEmTransito, origemDe,
+  fraseDaTrilhaDaOrigem, fraseDoFechamentoEmTransito, type OrigemDoReaproveitamento,
+} from "@shared/origem-do-reaproveitamento";
+import { avisarBuscarNoEstoque } from "../../services/aviso-buscar-no-estoque";
+import type { Item } from "@shared/schema";
+
+/**
+ * A origem que vale DEPOIS do gesto: a que veio no corpo, ou a que a peça já
+ * tinha. Zerar o reaproveitamento apaga a origem junto (não há do que falar).
+ */
+function origemDepois(
+  current: Pick<Item, "origemReaproveitamento" | "obsReaproveitamento">,
+  leitura: ReturnType<typeof lerOrigemDoCorpo>,
+  reusoNovo: number,
+): { origemReaproveitamento: OrigemDoReaproveitamento | null; obsReaproveitamento: string | null } {
+  if (reusoNovo <= 0) return colunasDaOrigem(null, null);
+  if (leitura.ok && leitura.veio) return colunasDaOrigem(leitura.origem, leitura.obs);
+  return colunasDaOrigem(origemDe(current), current.obsReaproveitamento ?? null);
+}
+
+/** "Em trânsito: só há N un. impressas…" — a conta física não pode ficar abaixo do que o galpão já contou. */
+function recusaDaContaFisica(current: Item, depois: Partial<Item>): string | null {
+  const fisica = quantidadeFisicaDe({ ...current, ...depois });
+  const jaNoGalpao = Math.max(current.conferredQty ?? 0, current.embaladaQty ?? 0, current.deliveredQty ?? 0);
+  return jaNoGalpao > fisica
+    ? `Não dá para reaproveitar em trânsito: ${jaNoGalpao} un. já foram conferidas/embaladas no galpão e só ${fisica} un. sobrariam para passar por lá. Use "Estoque".`
+    : null;
+}
+
+/** A frase da origem na trilha, só quando o gesto a gravou ou ela mudou. */
+function trilhaDaOrigem(current: Item, depois: { origemReaproveitamento: OrigemDoReaproveitamento | null; obsReaproveitamento: string | null }): string {
+  const mudou = (current.origemReaproveitamento ?? null) !== depois.origemReaproveitamento
+    || (current.obsReaproveitamento ?? null) !== depois.obsReaproveitamento;
+  return mudou ? ` · ${fraseDaTrilhaDaOrigem(depois.origemReaproveitamento, depois.obsReaproveitamento)}` : "";
+}
 
 /** mark-reuse, correct-reuse. */
 export function registrarReaproveitamento(app: Express): void {
@@ -28,6 +64,10 @@ export function registrarReaproveitamento(app: Express): void {
       if (req.userRole !== "grafica" && req.userRole !== "admin" && req.userRole !== "solicitacao") {
         return res.status(403).json({ error: "Apenas a Gráfica ou Solicitação pode marcar reaproveitamento" });
       }
+      // DE ONDE VEM (16/10): opcional no corpo — estoque ou em trânsito (este
+      // pede a observação). Valor inválido é 400 antes de qualquer outra coisa.
+      const leituraDaOrigem = lerOrigemDoCorpo(req.body);
+      if (!leituraDaOrigem.ok) return res.status(400).json({ error: leituraDaOrigem.motivo });
       const current = await storage.getItem(req.params.id);
       if (!current) return res.status(404).json({ error: "Peça não encontrada" });
       // ANDA: marcar reaproveitamento move a peça no fluxo (pode fechá-la como
@@ -87,14 +127,21 @@ export function registrarReaproveitamento(app: Express): void {
           ? Math.max(0, Math.min(current.quantity, Math.floor(Number(req.body.reuseTotal)) || 0))
           // chamador antigo (qty = delta): soma, com teto na quantidade
           : Math.min(current.quantity, alreadyReused + Math.max(1, Math.floor(Number(req.body?.qty)) || (current.quantity - alreadyReused)));
-        if (alvo === alreadyReused) {
+        const origemNova = origemDepois(current, leituraDaOrigem, alvo);
+        const mudaOrigem = (current.origemReaproveitamento ?? null) !== origemNova.origemReaproveitamento
+          || (current.obsReaproveitamento ?? null) !== origemNova.obsReaproveitamento;
+        if (alvo === alreadyReused && !mudaOrigem) {
           return res.status(409).json({ error: `A peça já tem ${alreadyReused} un. reaproveitada(s).` });
         }
+        const depois = { reuseQty: alvo, isReuse: alvo >= current.quantity, quantityProduced: current.quantity - alvo, ...origemNova };
+        const contaFisica = recusaDaContaFisica(current, depois);
+        if (contaFisica) return res.status(409).json({ error: contaFisica });
+        // TODA EM TRÂNSITO (16/10): nada para o galpão — fecha como Entregue.
+        const fecha = todaEmTransito({ ...current, ...depois });
         const item = await storage.updateItem(req.params.id, {
-          reuseQty: alvo,
-          isReuse: alvo >= current.quantity,
-          quantityProduced: current.quantity - alvo,
-          status: "produced" as const,
+          ...depois,
+          status: fecha ? ("delivered" as const) : ("produced" as const),
+          ...(fecha ? { deliveredAt: new Date() } : {}),
           // Produzida: a divisão entre impressoras e a reserva acabaram.
           impressaoPorMaquina: null,
           reservaPorMaquina: null,
@@ -104,8 +151,11 @@ export function registrarReaproveitamento(app: Express): void {
         await createAuditLog(
           req, 'updated', 'item', item.id,
           `Reaproveitamento ajustado após Produzido: ${alreadyReused} → ${alvo} un. reaproveitada(s) (${current.quantity - alvo} produzida(s) de ${current.quantity})`
+            + trilhaDaOrigem(current, origemNova)
+            + (fecha ? ` · Status: ${translateStatus(current.status)} → ${translateStatus("delivered")} — ${fraseDoFechamentoEmTransito(origemNova.obsReaproveitamento)}` : "")
         );
         broadcast({ type: "item_updated", item });
+        await avisarBuscarNoEstoque(current, item, req.userRole);
         return res.json(item);
       }
 
@@ -121,11 +171,21 @@ export function registrarReaproveitamento(app: Express): void {
       const isFullReuse = newReuse >= current.quantity;
       // Fecha em "Produzido" quando reuso + produção cobrem a quantidade toda.
       const isReady = newReuse + produced >= current.quantity;
+      // A origem (16/10) e a conta física que ela muda.
+      const origemNova = origemDepois(current, leituraDaOrigem, newReuse);
+      const contaFisica = recusaDaContaFisica(current, { reuseQty: newReuse, isReuse: isFullReuse, ...origemNova });
+      if (contaFisica) return res.status(409).json({ error: contaFisica });
+      // TODA EM TRÂNSITO: nada impresso e a quantidade inteira vem no caminhão
+      // de outra etapa — a peça não passa pela Gráfica e fecha como Entregue.
+      const fechaEmTransito = isReady && todaEmTransito({ quantity: current.quantity, reuseQty: newReuse, isReuse: isFullReuse, ...origemNova });
 
       const item = await storage.updateItem(req.params.id, {
         reuseQty: newReuse,
         isReuse: isFullReuse,
-        ...(isReady ? { status: "produced" as const } : {}),
+        ...origemNova,
+        ...(fechaEmTransito
+          ? { status: "delivered" as const, deliveredAt: new Date() }
+          : isReady ? { status: "produced" as const } : {}),
         // Reaproveitar muda o que há para imprimir: a divisão entre impressoras
         // é reescalada (e some quando a peça fecha como produzida).
         ...(() => {
@@ -143,12 +203,15 @@ export function registrarReaproveitamento(app: Express): void {
         'updated',
         'item',
         item.id,
-        isFullReuse
+        (isFullReuse
           ? `Reaproveitamento total pela Gráfica: ${newReuse}/${current.quantity} un.`
-          : `Reaproveitamento parcial pela Gráfica: ${n} un. (${newReuse}/${current.quantity} reaproveitadas, ${current.quantity - newReuse} a produzir)`
+          : `Reaproveitamento parcial pela Gráfica: ${n} un. (${newReuse}/${current.quantity} reaproveitadas, ${current.quantity - newReuse} a produzir)`)
+          + trilhaDaOrigem(current, origemNova)
+          + (fechaEmTransito ? ` · Status: ${translateStatus(current.status)} → ${translateStatus("delivered")} — ${fraseDoFechamentoEmTransito(origemNova.obsReaproveitamento)}` : "")
       );
 
       broadcast({ type: "item_updated", item });
+      await avisarBuscarNoEstoque(current, item, req.userRole);
       res.json(item);
     } catch (error) {
       responderFalha(res, error, "POST /api/items/:id/mark-reuse");
@@ -233,13 +296,20 @@ export function registrarReaproveitamento(app: Express): void {
         return res.status(409).json({ error: fraseDaTrava(current), code: CODIGO_PECA_TRAVADA });
       }
 
+      // EM TRÂNSITO (16/10): corrigir para o total com a origem "em trânsito"
+      // gravada fecha a peça como Entregue — nada dela passa pelo galpão. E
+      // zerar o reaproveitamento apaga a origem junto.
+      const fechaEmTransito = reaproveitaTudo && origemDe(current) === "em_transito";
       const item = await storage.updateItem(req.params.id, {
         reuseQty: correctedReuseQty,
         isReuse: reaproveitaTudo,
-        status: reaproveitaTudo ? ("produced" as const) : ("ready_for_production" as const),
+        status: fechaEmTransito ? ("delivered" as const) : reaproveitaTudo ? ("produced" as const) : ("ready_for_production" as const),
+        ...(fechaEmTransito ? { deliveredAt: new Date() } : {}),
+        ...(correctedReuseQty === 0 ? colunasDaOrigem(null, null) : {}),
         // A produção lançada antes da marcação errada não vale mais para a
-        // quantidade que agora precisa ser impressa.
-        quantityProduced: reaproveitaTudo ? current.quantity : null,
+        // quantidade que agora precisa ser impressa. (Em trânsito não é
+        // produção do galpão: nada impresso.)
+        quantityProduced: fechaEmTransito ? 0 : reaproveitaTudo ? current.quantity : null,
         // A peça volta a "Pronto p/ Produção" (ou fecha): a divisão entre
         // impressoras — que só faz sentido em impressão — é descartada; a
         // reserva encolhe para caber no que agora há para imprimir.
@@ -259,6 +329,7 @@ export function registrarReaproveitamento(app: Express): void {
           ? `Reaproveitamento removido por correção — peça voltou para Pronto para Produção (${current.quantity} un. a produzir)`
           : reaproveitaTudo
           ? `Reaproveitamento corrigido para total: ${current.quantity}/${current.quantity} un. — peça pula a produção`
+            + (fechaEmTransito ? ` · Status: ${translateStatus(current.status)} → ${translateStatus("delivered")} — ${fraseDoFechamentoEmTransito(current.obsReaproveitamento)}` : "")
           : `Reaproveitamento corrigido de ${current.reuseQty || (current.isReuse ? current.quantity : 0)} para ${correctedReuseQty}/${current.quantity} un. reaproveitadas, ${current.quantity - correctedReuseQty} a produzir`
       );
       // A peça estava EM IMPRESSÃO (o admin corrige em qualquer etapa antes da

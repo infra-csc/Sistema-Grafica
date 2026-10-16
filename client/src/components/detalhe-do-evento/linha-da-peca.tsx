@@ -3,6 +3,7 @@
 // (área útil estreita). Os dois leem as MESMAS permissões e os mesmos gestos,
 // que chegam em `PropsDaPeca`.
 // ─────────────────────────────────────────────────────────────────────────────
+import { useState } from "react";
 import { Link } from "wouter";
 import { Plus, Pencil, Trash2, Lock, Recycle, AlertTriangle, Factory } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
@@ -26,6 +27,10 @@ import { T, TOM, FONT, FS, FW, R } from "@/lib/theme";
 import { SeloDoEstoque } from "./selo-do-estoque";
 import { MiniaturasDaPeca } from "./miniaturas-da-peca";
 import { formatarM2, formatarMedida } from "./regras";
+import { SeloOrigemDoReaproveitamento } from "@/components/reaproveitamento/selo-da-origem";
+import { DialogoOrigemDoReaproveitamento } from "@/components/reaproveitamento/dialogo-origem";
+import { corpoDaOrigem } from "@/components/reaproveitamento/escolha-da-origem";
+import { origemDe } from "@shared/origem-do-reaproveitamento";
 import type { EventoDoDetalhe, PecaDoEvento, ResumoDoEstoque } from "./tipos";
 
 /** O que a linha e o cartão precisam da tela: permissões e gestos. */
@@ -103,7 +108,8 @@ function Medidas({ item, comM2 }: { item: PecaDoEvento; comM2?: boolean }) {
  */
 function SelosDaPeca({ item, estoque }: { item: PecaDoEvento; estoque: React.ReactNode }) {
   const temSelo = !!item.parentItemId || (item.complements?.length ?? 0) > 0
-    || (item.isReuse && !(PRODUCTION_STATUSES as readonly string[]).includes(item.status)) || !!estoque;
+    || (item.isReuse && !(PRODUCTION_STATUSES as readonly string[]).includes(item.status)) || !!estoque
+    || !!origemDe(item);
   if (!temSelo) return null;
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
@@ -141,6 +147,9 @@ function SelosDaPeca({ item, estoque }: { item: PecaDoEvento; estoque: React.Rea
           Reaproveit.
         </Selo>
       )}
+      {/* De onde vem o reaproveitamento (16/10): Estoque / Em trânsito,
+          com a etapa de origem no title. */}
+      <SeloOrigemDoReaproveitamento peca={item} />
       {estoque}
     </div>
   );
@@ -302,6 +311,8 @@ export function LinhaDaPeca({
   papel, eventoFinalizado, abrirEnvioDireto,
 }: PropsDaPeca & { item: PecaDoEvento; compacto: boolean }) {
   const celula: React.CSSProperties = { padding: '12px 10px', verticalAlign: 'middle' };
+  // O ♻ de MARCAR abre "De onde vem?" (16/10) antes de gravar.
+  const [marcandoReuso, setMarcandoReuso] = useState(false);
   return (
     <tr
       className="evd-linha"
@@ -469,6 +480,8 @@ export function LinhaDaPeca({
               disabled={updateItemIsReuseMutation.isPending}
               onClick={e => {
                 e.stopPropagation();
+                // MARCAR abre "De onde vem?" (16/10); desmarcar segue direto.
+                if (!item.isReuse) { setMarcandoReuso(true); return; }
                 updateItemIsReuseMutation.mutate(
                   { itemId: item.id, isReuse: !item.isReuse, reuseQty: item.quantity },
                   {
@@ -486,6 +499,30 @@ export function LinhaDaPeca({
             >
               <Recycle aria-hidden="true" className="h-4 w-4" />
             </button>
+          )}
+          {marcandoReuso && (
+            <DialogoOrigemDoReaproveitamento
+              peca={item}
+              aoFechar={() => setMarcandoReuso(false)}
+              marcando={updateItemIsReuseMutation.isPending}
+              aoMarcar={(v) => updateItemIsReuseMutation.mutate(
+                { itemId: item.id, isReuse: true, reuseQty: item.quantity, origem: corpoDaOrigem(v) },
+                {
+                  onSuccess: () => {
+                    setMarcandoReuso(false);
+                    toast({
+                      title: "Peça atualizada",
+                      description: v.origem === "em_transito"
+                        ? "Peça marcada como reaproveitamento em trânsito — não passa pela Gráfica."
+                        : v.origem === "estoque"
+                          ? "Peça marcada como reaproveitamento do estoque."
+                          : "Peça marcada como reaproveitamento",
+                      variant: "success",
+                    });
+                  },
+                },
+              )}
+            />
           )}
           {isEditBlocked(item.status) ? (
             <button

@@ -34,8 +34,13 @@ export function useEventItemFlags({ eventId }: UseEventItemFlagsParams) {
     // Ligar o reaproveitamento diz QUANTAS unidades saem do estoque: o
     // servidor recusa a flag sem `reuseQty` (ela deixava a peça "reaproveitada"
     // com zero unidades). O botão da lista é o "reaproveita tudo".
-    mutationFn: async ({ itemId, isReuse, reuseQty }: { itemId: string, isReuse: boolean, reuseQty?: number }) => {
-      await apiRequest("PATCH", `/api/items/${itemId}`, isReuse ? { isReuse, reuseQty } : { isReuse });
+    // DE ONDE VEM (16/10): ao marcar, a origem (estoque | em trânsito) e a
+    // observação vão junto; desmarcar apaga a origem no servidor.
+    mutationFn: async ({ itemId, isReuse, reuseQty, origem }: {
+      itemId: string, isReuse: boolean, reuseQty?: number,
+      origem?: { origemReaproveitamento: string | null; obsReaproveitamento: string | null },
+    }) => {
+      await apiRequest("PATCH", `/api/items/${itemId}`, isReuse ? { isReuse, reuseQty, ...(origem ?? {}) } : { isReuse });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });

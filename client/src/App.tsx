@@ -764,7 +764,7 @@ function AuthenticatedLayout() {
   // (planilha na frente) via o aviso só quando voltava por outro motivo.
   const naoLidas = notifications.filter((n) => !n.isRead).length;
   useEffect(() => {
-    const base = pageLabel ? `NORTE — ${pageLabel}` : "NORTE";
+    const base = pageLabel ? `${pageLabel} · Produção Gráfica` : "Produção Gráfica";
     document.title = naoLidas > 0 ? `(${naoLidas > 99 ? "99+" : naoLidas}) ${base}` : base;
   }, [pageLabel, naoLidas]);
 

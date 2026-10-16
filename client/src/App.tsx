@@ -468,7 +468,8 @@ function Router() {
         {() => <ProtectedRoute component={PainelGeral} />}
       </Route>
       <Route path="/analises">
-        {() => <RoleProtectedRoute component={Analises} allowedRoles={ROLES_ADMIN} />}
+        {/* Aberta a todos (dono, 16/10); o usuário do Kit não tem o menu e a API recusa. */}
+        {() => <ProtectedRoute component={Analises} />}
       </Route>
       <Route path="/prazos">
         {/* Aberta a todo usuário autenticado: o recorte de quem PODE AGIR

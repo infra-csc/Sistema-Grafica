@@ -39,12 +39,10 @@ describe("GET /api/analises/painel-operacional", () => {
   });
   afterEach(() => { vi.restoreAllMocks(); });
 
-  it("só admin: sem sessão 401, outro papel 403 — e o banco nem é tocado", async () => {
+  it("aberta a todos (dono, 16/10): sem sessão 401; usuário do Kit 403 sem tocar o banco", async () => {
     expect((await chamar("GET /api/analises/painel-operacional", {})).status).toBe(401);
-    for (const papel of ["solicitacao", "arte", "grafica", "atendimento", "revisao"]) {
-      const r = await chamar("GET /api/analises/painel-operacional", { sessao: { userId: "u2", userRole: papel, userName: "X" } });
-      expect(r.status, papel).toBe(403);
-    }
+    const kit = await chamar("GET /api/analises/painel-operacional", { sessao: { userId: "u3", userRole: "solicitacao", userName: "K", userKit: true } });
+    expect(kit.status).toBe(403);
     expect(H.db.select).not.toHaveBeenCalled();
   });
 

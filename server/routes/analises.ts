@@ -9,7 +9,7 @@
 // testada em server/__tests__/painel-operacional.test.ts); a leitura do banco,
 // em ../services/painel-operacional.ts.
 import type { Express } from "express";
-import { requireAdmin } from "./shared";
+import { requireAuth } from "./shared";
 import { db } from "../db";
 import type { PainelOperacional } from "@shared/painel-operacional";
 import { carregarPainelOperacional } from "../services/painel-operacional";
@@ -30,7 +30,10 @@ export function registerAnaliseRoutes(app: Express): void {
    * tela (evento, medida, dia da projeção, processos) recortam no cliente,
    * com as funções de derivação do mesmo módulo.
    */
-  app.get("/api/analises/painel-operacional", requireAdmin, async (_req, res) => {
+  // ABERTA A TODOS (dono, 16/10: "Análises para todos") — menos o usuário
+  // do Kit, que só enxerga as peças do Kit dele no resto do app.
+  app.get("/api/analises/painel-operacional", requireAuth, async (req, res) => {
+    if ((req as any).userKit === true) return res.status(403).json({ error: "As Análises não estão disponíveis para o usuário do Kit." });
     try {
       const agora = Date.now();
       if (memo && agora - memo.em <= TTL_MS) return res.json(memo.payload);

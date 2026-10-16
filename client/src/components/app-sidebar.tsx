@@ -103,7 +103,7 @@ const consultaItems: MenuItem[] = [
   // Registros fica aqui (e não dentro da Gráfica) porque a maioria dos perfis
   // não acessa a Gráfica e este acervo interessa a todos.
   { title: "Registros",               url: "/registros",               icon: Camera },
-  { title: "Análises",                url: "/analises",                icon: BarChart3,      roles: ["admin"] },
+  { title: "Análises",                url: "/analises",                icon: BarChart3,      semKit: true },
 ];
 
 // Patrocinadores: visível p/ solicitação, atendimento e admin

@@ -26,7 +26,7 @@ export type PecaParaReaproveitar = {
 
 export function DialogoReaproveitar({
   peca, aberto, ajuste, minimo, maximo, quantidade, setQuantidade, carregando, aoConfirmar, aoFechar,
-  sufixoDoTestid = "", isMobile = false, toque = false,
+  sufixoDoTestid = "", isMobile = false, toque = false, focoAoFechar,
 }: {
   peca: PecaParaReaproveitar;
   aberto: boolean;
@@ -43,6 +43,12 @@ export function DialogoReaproveitar({
   sufixoDoTestid?: string;
   isMobile?: boolean;
   toque?: boolean;
+  /**
+   * Para onde o foco volta ao fechar (revisão adversarial, 16/10). Na tabela
+   * compacta o botão que abriu mora no menu "⋯", que fecha junto — o Radix
+   * devolvia o foco a um botão escondido e ele caía no <body>.
+   */
+  focoAoFechar?: () => HTMLElement | null;
 }) {
   const [origem, setOrigem] = useState<ValorDaOrigem>(valorDaPeca(peca));
   useEffect(() => { if (aberto) setOrigem(valorDaPeca(peca)); }, [aberto, peca.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -60,6 +66,10 @@ export function DialogoReaproveitar({
         data-testid={`dialogo-reaproveitar-${sufixoDoTestid}${peca.id}`}
         data-reap-dialogo=""
         onClick={(e) => e.stopPropagation()}
+        onCloseAutoFocus={(e) => {
+          const alvo = focoAoFechar?.();
+          if (alvo) { e.preventDefault(); alvo.focus(); }
+        }}
       >
         <DialogTitle className="sr-only">{ajuste ? "Ajustar reaproveitamento" : "Reaproveitar"}</DialogTitle>
         <DialogDescription className="sr-only">Quantas unidades reaproveitar e de onde elas vêm</DialogDescription>

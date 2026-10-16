@@ -6,6 +6,7 @@
 import { storage, assetPrefix, assetSeqOf } from "../storage";
 import { broadcast } from "../routes/shared";
 import { executarComoLider } from "./lideranca";
+import { emTransitoDe, quantidadeFisicaDe } from "@shared/origem-do-reaproveitamento";
 
 export async function backfillInventoryAssets() {
     try {
@@ -40,7 +41,14 @@ export async function backfillInventoryAssets() {
       let totalCreated = 0;
       for (const item of produced) {
         const existing = assetsPorItem.get(item.id) ?? [];
-        if (existing.length >= (item.quantityProduced ?? 1)) continue; // already backfilled
+        // EM TRÂNSITO (revisão adversarial, 16/10): as reaproveitadas que vêm
+        // no caminhão de outra etapa nunca passaram pelo galpão — o alvo é o
+        // impresso, até o FÍSICO. (O correct-reuse para o total grava
+        // impressas = quantidade; marcar em trânsito depois fecha a peça sem
+        // mexer no contador, e o backfill criava ativo para unidades que nem
+        // existem aqui.) Os ativos que JÁ existem não são tocados.
+        const alvo = emTransitoDe(item) > 0 ? Math.min(item.quantityProduced ?? 1, quantidadeFisicaDe(item)) : (item.quantityProduced ?? 1);
+        if (existing.length >= alvo) continue; // already backfilled
 
         const event = eventoPorId.get(item.eventId);
         const itemName = item.description
@@ -60,7 +68,7 @@ export async function backfillInventoryAssets() {
         const itemNum = assetPrefix(item.displayId);
 
         const startIdx = existing.length;
-        const qty = (item.quantityProduced ?? 1) - startIdx;
+        const qty = alvo - startIdx;
         if (qty <= 0) continue;
 
         // Numeração pelo MAIOR sufixo existente, nunca por contagem: com

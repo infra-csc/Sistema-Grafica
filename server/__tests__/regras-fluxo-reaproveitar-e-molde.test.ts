@@ -42,6 +42,7 @@ import { calculateEventStatus } from "../routes/shared";
 import { registrarReaproveitamento } from "../routes/itens/reaproveitamento";
 import { registerMoldeRoutes } from "../routes/molde";
 import { capturarRotas } from "./rotas-de-mentira";
+import { txDeMentira } from "./tx-de-mentira";
 import { ligarStorage, mundoNovo, peca, sessao, type Mundo } from "./regras-fluxo-apoio";
 
 const { chamar } = capturarRotas((app) => { registrarReaproveitamento(app); registerMoldeRoutes(app); });
@@ -50,6 +51,8 @@ let mundo: Mundo;
 beforeEach(() => {
   mundo = mundoNovo();
   ligarStorage(H.storage, mundo);
+  // Reaproveitar grava com a peça TRAVADA (gravar-se-nao-mudou.ts, 16/10).
+  H.db.transaction = async (fn: any) => fn(txDeMentira(mundo));
   H.broadcast.length = 0; H.trilha.length = 0; H.eventosRecalculados.length = 0;
 });
 

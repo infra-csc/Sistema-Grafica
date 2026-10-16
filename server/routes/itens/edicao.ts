@@ -8,7 +8,7 @@ import { responderErro } from "../../erros";
 import { urlDeThumbValida, ERRO_THUMB_FORA_DO_STORAGE } from "../thumb-url";
 import { barraEventoFinalizado } from "../eventoFinalizado";
 import { recusaDaMarcaNaEscrita } from "@shared/producao-interna";
-import { lerOrigemDoCorpo, colunasDaOrigem, origemDe, fraseDaTrilhaDaOrigem, FIM_DO_FLUXO, recusaDaContaNoGalpao } from "@shared/origem-do-reaproveitamento";
+import { lerOrigemDoCorpo, colunasDaOrigem, origemDe, fraseDaTrilhaDaOrigem, FIM_DO_FLUXO, recusaDaContaNoGalpao, origemComparavel } from "@shared/origem-do-reaproveitamento";
 import { pecaTravada, fraseDaTrava, CODIGO_PECA_TRAVADA } from "@shared/trava-da-peca";
 import type { Item } from "@shared/schema";
 import { avisarBuscarNoEstoque } from "../../services/aviso-buscar-no-estoque";
@@ -53,7 +53,7 @@ export function registrarEdicao(app: Express): void {
       // updateItemSchema). Transições de status só pelas rotas dedicadas.
       // A origem do reaproveitamento é lida à parte (lerOrigemDoCorpo, logo
       // abaixo): o formulário manda "" para "sem origem", que o enum recusaria.
-      const { origemReaproveitamento: _origem, obsReaproveitamento: _obs, ...corpoSemOrigem } = (req.body ?? {}) as Record<string, unknown>;
+      const { origemReaproveitamento: _origem, obsReaproveitamento: _obs, origemLida: _origemLida, obsLida: _obsLida, ...corpoSemOrigem } = (req.body ?? {}) as Record<string, unknown>;
       const validatedData = updateItemSchema.parse(corpoSemOrigem);
 
       // O arquivo final tem rotas próprias com gate de status (submit/update-
@@ -106,7 +106,27 @@ export function registrarEdicao(app: Express): void {
       // dedicada (o botão "Origem do reaproveitamento").
       const leituraDaOrigem = lerOrigemDoCorpo(req.body);
       if (!leituraDaOrigem.ok) return res.status(400).json({ error: leituraDaOrigem.motivo });
-      if (leituraDaOrigem.veio) {
+      // O QUE O FORMULÁRIO LEU (revisão adversarial, 16/10): o form aberto há
+      // muito tempo manda a origem que leu — e apagava a que outra tela marcou
+      // depois. Com `origemLida`/`obsLida` no corpo: mandar de volta o que
+      // leu é "não mexi" (nada muda); mudar a partir de uma leitura que o
+      // banco já não tem é 409, nunca sobrescrita em silêncio.
+      const corpoCru = (req.body ?? {}) as Record<string, unknown>;
+      const leuAOrigem = Object.prototype.hasOwnProperty.call(corpoCru, "origemLida") || Object.prototype.hasOwnProperty.call(corpoCru, "obsLida");
+      let ignorarOrigem = false;
+      if (leituraDaOrigem.veio && leuAOrigem) {
+        const lida = origemComparavel(corpoCru.origemLida, corpoCru.obsLida);
+        const mandada = origemComparavel(leituraDaOrigem.origem, leituraDaOrigem.obs);
+        const agora = origemComparavel(currentItem.origemReaproveitamento, currentItem.obsReaproveitamento);
+        if (mandada === lida) ignorarOrigem = true;
+        else if (agora !== lida && agora !== mandada) {
+          return res.status(409).json({
+            error: `A origem do reaproveitamento foi mudada por outra tela enquanto este formulário estava aberto (agora: ${fraseDaTrilhaDaOrigem(origemDe(currentItem), currentItem.obsReaproveitamento).replace(/^Reaproveitamento: /, "")}). Feche e abra de novo para não apagar a marcação.`,
+            code: "ORIGEM_MUDOU",
+          });
+        }
+      }
+      if (leituraDaOrigem.veio && !ignorarOrigem) {
         const nova = colunasDaOrigem(leituraDaOrigem.origem, leituraDaOrigem.obs);
         const mudaOrigem = (currentItem.origemReaproveitamento ?? null) !== nova.origemReaproveitamento
           || (currentItem.obsReaproveitamento ?? null) !== nova.obsReaproveitamento;

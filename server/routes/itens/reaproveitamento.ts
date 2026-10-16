@@ -23,6 +23,7 @@ import {
 } from "@shared/origem-do-reaproveitamento";
 import { avisarBuscarNoEstoque } from "../../services/aviso-buscar-no-estoque";
 import { recalcularEventoEAvisar } from "../../services/evento-concluido";
+import { gravarSeNaoMudou, FRASE_PECA_MUDOU } from "./gravar-se-nao-mudou";
 import type { Item } from "@shared/schema";
 
 /**
@@ -140,7 +141,8 @@ export function registrarReaproveitamento(app: Express): void {
         if (contaFisica) return res.status(409).json({ error: contaFisica });
         // TODA EM TRÂNSITO (16/10): nada para o galpão — fecha como Entregue.
         const fecha = todaEmTransito({ ...current, ...depois });
-        const item = await storage.updateItem(req.params.id, {
+        // CONCORRÊNCIA (16/10): grava só se a conta lida ainda é a do banco.
+        const item = await gravarSeNaoMudou(current, {
           ...depois,
           status: fecha ? ("delivered" as const) : ("produced" as const),
           ...(fecha ? { deliveredAt: new Date() } : {}),
@@ -149,6 +151,7 @@ export function registrarReaproveitamento(app: Express): void {
           reservaPorMaquina: null,
           maquinaPrevista: null,
         });
+        if (item === "mudou") return res.status(409).json({ error: FRASE_PECA_MUDOU, code: "PECA_MUDOU" });
         if (!item) return res.status(404).json({ error: "Peça não encontrada" });
         await createAuditLog(
           req, 'updated', 'item', item.id,
@@ -183,7 +186,9 @@ export function registrarReaproveitamento(app: Express): void {
       // de outra etapa — a peça não passa pela Gráfica e fecha como Entregue.
       const fechaEmTransito = isReady && todaEmTransito({ quantity: current.quantity, reuseQty: newReuse, isReuse: isFullReuse, ...origemNova });
 
-      const item = await storage.updateItem(req.params.id, {
+      // CONCORRÊNCIA (16/10): "só soma" é uma soma sobre a LEITURA — outra
+      // pessoa reaproveitando no meio seria apagada. Grava só se nada mudou.
+      const item = await gravarSeNaoMudou(current, {
         reuseQty: newReuse,
         isReuse: isFullReuse,
         ...origemNova,
@@ -200,6 +205,7 @@ export function registrarReaproveitamento(app: Express): void {
           };
         })(),
       });
+      if (item === "mudou") return res.status(409).json({ error: FRASE_PECA_MUDOU, code: "PECA_MUDOU" });
       if (!item) return res.status(404).json({ error: "Peça não encontrada" });
 
       await createAuditLog(
@@ -305,7 +311,9 @@ export function registrarReaproveitamento(app: Express): void {
       // gravada fecha a peça como Entregue — nada dela passa pelo galpão. E
       // zerar o reaproveitamento apaga a origem junto.
       const fechaEmTransito = reaproveitaTudo && origemDe(current) === "em_transito";
-      const item = await storage.updateItem(req.params.id, {
+      // CONCORRÊNCIA (16/10): a correção só vale sobre a peça que foi
+      // conferida/entregue/embalada ZERO vezes — se algo entrou no meio, 409.
+      const item = await gravarSeNaoMudou(current, {
         reuseQty: correctedReuseQty,
         isReuse: reaproveitaTudo,
         status: fechaEmTransito ? ("delivered" as const) : reaproveitaTudo ? ("produced" as const) : ("ready_for_production" as const),
@@ -323,6 +331,7 @@ export function registrarReaproveitamento(app: Express): void {
         ...(!reaproveitaTudo && (current.status === "inProduction" || current.status === "em_producao") ? { printMachine: null } : {}),
         ...colunasDaReserva(reaproveitaTudo ? null : encolherReserva(reservaDaPeca({ ...current, status: "ready_for_production", quantityProduced: 0, impressaoPorMaquina: null }), current.quantity - correctedReuseQty), current.reservaPorMaquina),
       });
+      if (item === "mudou") return res.status(409).json({ error: FRASE_PECA_MUDOU, code: "PECA_MUDOU" });
       if (!item) return res.status(404).json({ error: "Peça não encontrada" });
 
       await createAuditLog(

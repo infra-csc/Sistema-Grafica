@@ -88,7 +88,7 @@ export function EditarPecaDialog({
           onSubmit={(e) => {
             e.preventDefault();
             if (editingItem) {
-              updateItemMutation.mutate({ id: editingItem.id, data: formData });
+              updateItemMutation.mutate({ id: editingItem.id, data: formData, origemLida: editingItem });
             }
           }}
           onCancel={handleCloseEditDialog}

@@ -243,6 +243,9 @@ export function AcoesDaLinha({ ctx, item, selo, emRevisao, isSelected, bulkEligi
                   : { itemId: item.id, qty: reuseQty, origem })}
                 aoFechar={() => setReuseConfirmItemId(null)}
                 toque={ponteiroGrosso}
+                // Tabela compacta: o "Reaproveitar" estava no menu "⋯", que fechou —
+                // o foco volta ao "⋯" da linha (visível), não ao <body>.
+                focoAoFechar={compacto ? () => document.querySelector<HTMLElement>(`[data-testid="button-mais-acoes-${item.id}"]`) : undefined}
               />
             )}
           </>

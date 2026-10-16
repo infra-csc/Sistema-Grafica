@@ -129,6 +129,35 @@ export function lerOrigemDoCorpo(corpo: unknown): LeituraDaOrigem {
   return { ok: true, veio: true, origem, obs: origem ? (obs || null) : null };
 }
 
+/**
+ * A origem como a rota a GRAVARIA (origem válida ou nada; observação aparada e
+ * só ao lado de uma origem) — a chave para comparar o que um formulário leu,
+ * o que ele manda e o que o banco tem agora.
+ */
+export function origemComparavel(origem: unknown, obs: unknown): string {
+  const l = lerOrigemDoCorpo({ origemReaproveitamento: origem ?? null, obsReaproveitamento: obs ?? null });
+  if (!l.ok || !l.veio) return JSON.stringify([origem ?? null, typeof obs === "string" ? obs.replace(/\s+/g, " ").trim() : obs ?? null]);
+  return JSON.stringify([l.origem, l.obs]);
+}
+
+/**
+ * O FORMULÁRIO ABERTO HÁ MUITO TEMPO (revisão adversarial, 16/10): ele manda o
+ * form inteiro, origem incluída — e apagava em silêncio a origem que outra
+ * tela marcou depois que ele abriu. O corpo só leva a origem quando ela MUDOU
+ * em relação ao que o formulário leu, e então leva também o que leu
+ * (`origemLida`/`obsLida`): o PATCH recusa se o banco já não é aquilo.
+ */
+export function corpoComOrigemLida<T extends Record<string, unknown>>(
+  corpo: T,
+  lida: { origemReaproveitamento?: string | null; obsReaproveitamento?: string | null } | null | undefined,
+): Record<string, unknown> {
+  if (!("origemReaproveitamento" in corpo) && !("obsReaproveitamento" in corpo)) return corpo;
+  const { origemReaproveitamento, obsReaproveitamento, ...resto } = corpo;
+  const leu = { origemReaproveitamento: lida?.origemReaproveitamento ?? null, obsReaproveitamento: lida?.obsReaproveitamento ?? null };
+  if (origemComparavel(origemReaproveitamento, obsReaproveitamento) === origemComparavel(leu.origemReaproveitamento, leu.obsReaproveitamento)) return resto;
+  return { ...corpo, origemLida: leu.origemReaproveitamento, obsLida: leu.obsReaproveitamento };
+}
+
 /** As colunas que a rota grava a partir de uma leitura com `veio: true`. */
 export const colunasDaOrigem = (origem: OrigemDoReaproveitamento | null, obs: string | null) => ({
   origemReaproveitamento: origem,

@@ -140,3 +140,42 @@ describe("backfillInventoryAssets — o complemento no boot", () => {
     await expect(backfillInventoryAssets()).resolves.toBeUndefined();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REAPROVEITAMENTO EM TRÂNSITO (revisão adversarial, 16/10): as unidades que
+// vêm no caminhão de outra etapa nunca passaram pelo galpão — o backfill não
+// pode inventar ativo para elas. Os ativos que JÁ existem (a peça impressa e
+// depois convertida para em trânsito) ficam como estão: nada é apagado.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("backfill × reaproveitamento em trânsito", () => {
+  const OBS = "Night Run Salvador, etapa 17/10";
+
+  it("peça 100% em trânsito com o contador de impressas cheio (correção para o total, depois em trânsito): NENHUM ativo novo", async () => {
+    // O correct-reuse para o total grava quantityProduced = quantidade; marcar
+    // em trânsito depois fecha a peça como Entregue sem mexer no contador.
+    H.storage.getAllItems = vi.fn(async () => [peca({ id: "t1", displayId: "#0070", quantityProduced: 10, reuseQty: 10, isReuse: true, origemReaproveitamento: "em_transito", obsReaproveitamento: OBS })]);
+    await backfillInventoryAssets();
+    expect(criados).toEqual([]);
+  });
+
+  it("parcial (6 impressas + 4 em trânsito): ativos só das 6 físicas", async () => {
+    H.storage.getAllItems = vi.fn(async () => [peca({ id: "p1", displayId: "#0071", quantityProduced: 10, reuseQty: 4, origemReaproveitamento: "em_transito", obsReaproveitamento: OBS })]);
+    await backfillInventoryAssets();
+    expect(criados.flat().map((a) => a.displayId)).toEqual(["#EST-0071-1", "#EST-0071-2", "#EST-0071-3", "#EST-0071-4", "#EST-0071-5", "#EST-0071-6"]);
+  });
+
+  it("convertida para em trânsito DEPOIS de impressa: os 10 ativos que já existem ficam, e nenhum nasce", async () => {
+    ativos["c1"] = Array.from({ length: 10 }, (_, i) => ({ id: `a${i}`, displayId: `#EST-0072-${i + 1}` }));
+    H.storage.getAllItems = vi.fn(async () => [peca({ id: "c1", displayId: "#0072", quantityProduced: 0, reuseQty: 10, isReuse: true, origemReaproveitamento: "em_transito", obsReaproveitamento: OBS })]);
+    H.storage.deleteInventoryAsset = vi.fn();
+    await backfillInventoryAssets();
+    expect(criados).toEqual([]);
+    expect(H.storage.deleteInventoryAsset).not.toHaveBeenCalled();
+  });
+
+  it("sem trânsito, nada muda (estoque: o contador manda, como sempre)", async () => {
+    H.storage.getAllItems = vi.fn(async () => [peca({ id: "e1", displayId: "#0073", quantityProduced: 3, reuseQty: 7, origemReaproveitamento: "estoque" })]);
+    await backfillInventoryAssets();
+    expect(criados.flat()).toHaveLength(3);
+  });
+});

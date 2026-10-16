@@ -105,3 +105,24 @@ describe("a coluna Tubo da planilha", () => {
     for (const ws of wb.worksheets) expect(linha(ws, 3), ws.name).not.toContain("Tubo");
   });
 });
+
+describe("reaproveitamento EM TRÂNSITO na planilha (revisão adversarial, 16/10)", () => {
+  it("coluna 'Em trânsito' logo depois de 'Entregue': a peça fechada pelo caminhão diz por quê (Entregue 0 · Em trânsito 10)", async () => {
+    const OBS = "Night Run Salvador, etapa 17/10";
+    H.storage.getItemsByIds = vi.fn(async () => [
+      peca("t", { status: "delivered", quantityProduced: 0, conferredQty: 0, reuseQty: 10, isReuse: true, origemReaproveitamento: "em_transito", obsReaproveitamento: OBS }),
+      peca("p", { status: "delivered", quantityProduced: 6, conferredQty: 6, deliveredQty: 6, reuseQty: 4, origemReaproveitamento: "em_transito", obsReaproveitamento: OBS, tuboId: "t1" }),
+      peca("e", { reuseQty: 4, quantityProduced: 6, origemReaproveitamento: "estoque" }),
+    ]);
+    await handleExportSelectedItemsXlsx({ body: { itemIds: ["t", "p", "e"] } } as any, res());
+    const ws = H.planilhas[0].getWorksheet("Itens");
+    const cab = linha(ws, 3);
+    expect(cab.indexOf("Em trânsito")).toBe(cab.indexOf("Entregue") + 1);
+    const de = (n: number, coluna: string) => linha(ws, n)[cab.indexOf(coluna)];
+    expect([de(4, "Entregue"), de(4, "Em trânsito")]).toEqual([0, 10]);
+    expect([de(5, "Entregue"), de(5, "Em trânsito")]).toEqual([6, 4]);
+    expect(de(6, "Em trânsito")).toBe(0); // estoque passa pelo galpão
+    // as 6 físicas inteiras num tubo: é o número do tubo, não "Tubo 2 (6)"
+    expect(de(5, "Tubo")).toBe(2);
+  });
+});

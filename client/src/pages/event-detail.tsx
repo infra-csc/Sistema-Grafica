@@ -238,7 +238,7 @@ export default function EventDetail() {
       // Ligar o reaproveitamento pelo formulário = reaproveita a peça inteira
       // (o servidor exige a quantidade junto com a flag).
       const ligouReuso = !!formData.isReuse && !editingItem.isReuse;
-      updateItemMutation.mutate({ id: editingItem.id, data: ligouReuso ? { ...formData, reuseQty: Number(formData.quantity) } : formData });
+      updateItemMutation.mutate({ id: editingItem.id, data: ligouReuso ? { ...formData, reuseQty: Number(formData.quantity) } : formData, origemLida: editingItem });
     } else {
       createItemMutation.mutate(formData);
     }

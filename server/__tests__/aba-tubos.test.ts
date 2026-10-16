@@ -252,6 +252,7 @@ describe("na Gráfica e no servidor (fonte)", () => {
 
   it("Excel de peças: a peça dividida diz todos os tubos com a quantidade ('Tubo 1 (7) · Tubo 2 (3)')", () => {
     const X = ler("server/services/xlsxExport.ts");
-    expect(X).toContain("if (volumes.length > 1 || (volumes.length === 1 && Number(volumes[0].quantidade) < Number(item.quantity))) return seloDosVolumes(volumes);");
+    // (16/10: o "inteira" é o FÍSICO — as reaproveitadas em trânsito não entram em volume)
+    expect(X).toContain("if (volumes.length > 1 || (volumes.length === 1 && Number(volumes[0].quantidade) < quantidadeFisicaDe(item))) return seloDosVolumes(volumes);");
   });
 });

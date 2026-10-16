@@ -12,6 +12,7 @@ import { parseApiError } from "@/components/aumentar-quantidade-dialog";
 import { calculateM2 } from "@/lib/calculateM2";
 import { EMPTY_ITEM_FORM, finishes, materials, avisoDoEnvioDaLista, type RespostaDoEnvioDaLista } from "./regras";
 import { corpoDaProducaoInterna, type CamposDaProducaoInterna } from "@shared/producao-interna";
+import { corpoComOrigemLida } from "@shared/origem-do-reaproveitamento";
 import type { FormularioDaPeca } from "./use-formulario-da-peca";
 import type { DadosDaEdicao, ItemFormData, ModeloDePeca, OpcaoDoCatalogo, PecaDoEvento } from "./tipos";
 
@@ -287,7 +288,10 @@ export function useAcoesDasPecas({
   });
 
   const updateItemMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: DadosDaEdicao }) => {
+    // `origemLida`: a origem que o FORMULÁRIO leu ao abrir (16/10) — a origem
+    // só vai no corpo se mudou em relação a ela, e vai junto o que foi lido
+    // (o PATCH recusa se outra tela mudou no meio). Sem ela, como antes.
+    mutationFn: async ({ id, data, origemLida }: { id: string; data: DadosDaEdicao; origemLida?: { origemReaproveitamento?: string | null; obsReaproveitamento?: string | null } | null }) => {
       // Campo decimal vazio não pode virar "" (Postgres: invalid input syntax
       // for type numeric). Coage vazio/invalido para null; mantém como string.
       const toNumStr = (v: unknown): string | null => {
@@ -335,7 +339,7 @@ export function useAcoesDasPecas({
       if (itemData.visual === null) delete itemData.visual;
       if (itemData.calculatedM2 === null) delete itemData.calculatedM2;
 
-      return await apiRequest("PATCH", `/api/items/${id}`, itemData);
+      return await apiRequest("PATCH", `/api/items/${id}`, origemLida !== undefined ? corpoComOrigemLida(itemData, origemLida) : itemData);
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });

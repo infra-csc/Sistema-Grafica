@@ -9,7 +9,7 @@ import { resumosDeTuboPorIds, type MapaDeResumos, type VolumeDaPeca } from "./tu
 import type { Item } from "@shared/schema";
 import { camposDoErro } from "../erros";
 import { seloDosVolumes } from "@shared/embalagem";
-import { origemDe, ROTULO_DA_ORIGEM } from "@shared/origem-do-reaproveitamento";
+import { origemDe, ROTULO_DA_ORIGEM, emTransitoDe, quantidadeFisicaDe } from "@shared/origem-do-reaproveitamento";
 import { STATUS_MOLDE_PRODUZIDO, statusDeExibicao } from "@shared/molde";
 import {
   duracaoCurta, oQueAconteceuNoRegistro, ROTULO_DO_TIPO, nomeDoArquivoDoRelatorio,
@@ -32,6 +32,11 @@ const PRODUCTION_COLS = [
   { header: "Produzido",       key: "qtyProduced",  width: 11 },
   { header: "Conferido",       key: "qtyConferred", width: 11 },
   { header: "Entregue",        key: "qtyDelivered", width: 11 },
+  // EM TRÂNSITO (16/10): as reaproveitadas que vêm no caminhão de outra etapa
+  // não passam por volume — a peça fecha como Entregue com o FÍSICO entregue.
+  // Sem esta coluna, "Entregue 0" numa peça com status Entregue não fechava a
+  // conta de quem lê. Entregue + Em trânsito = a peça resolvida (como a ficha).
+  { header: "Em trânsito",     key: "qtyEmTransito", width: 12 },
 ];
 
 const BASE_COLS = [
@@ -222,7 +227,8 @@ async function writeWorkbook(
           // sempre foi). Embalada sozinha (número negativo): coluna vazia.
           tuboNumero:   (() => {
             const volumes = (tuboPorId.volumesPorItem?.get(item.id) ?? item.tuboVolumes ?? []).filter((v) => !v.avulso);
-            if (volumes.length > 1 || (volumes.length === 1 && Number(volumes[0].quantidade) < Number(item.quantity))) return seloDosVolumes(volumes);
+            // (o "inteira" é o FÍSICO: as em trânsito não entram em volume)
+            if (volumes.length > 1 || (volumes.length === 1 && Number(volumes[0].quantidade) < quantidadeFisicaDe(item))) return seloDosVolumes(volumes);
             const n = item.tuboNumero ?? (item.tuboId ? tuboPorId.get(item.tuboId)?.tuboNumero : undefined);
             return Number(n) > 0 ? n : "";
           })(),
@@ -231,6 +237,7 @@ async function writeWorkbook(
           qtyProduced:  item.quantityProduced ?? 0,
           qtyConferred: item.conferredQty ?? 0,
           qtyDelivered: item.deliveredQty ?? 0,
+          qtyEmTransito: emTransitoDe(item),
         } : {}),
         displayId:    item.displayId ?? "",
         // Prefere o `parent` do enrich; quando a lista vem crua do storage

@@ -18,7 +18,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { txDeMentira } from "./tx-de-mentira";
-import { recusaDaTrocaDeOrigem, noGalpaoDe } from "@shared/origem-do-reaproveitamento";
+import { recusaDaTrocaDeOrigem, noGalpaoDe, corpoComOrigemLida } from "@shared/origem-do-reaproveitamento";
 import { violacoesDaConta } from "@shared/embalagem";
 import { quantidadeEntregueParaChecklist, quantidadeACaminhoParaChecklist } from "@shared/integracao-checklist";
 import { partesDaPeca, temReaproveitamento } from "../../client/src/lib/etiqueta-lista";
@@ -377,5 +377,89 @@ describe("as telas (o que o cliente manda e mostra)", () => {
     const ini = src.indexOf("const markReuseMutation");
     const erro = src.slice(src.indexOf("onError", ini), src.indexOf("const correctReuseMutation"));
     expect(erro).not.toMatch(/setReuseConfirmItemId\(null\)/);
+  });
+});
+
+describe("concorrência no Reaproveitar e na correção: grava só se a conta não mudou", () => {
+  // A leitura de fora (storage.getItem) é a de ANTES; o banco (dentro da
+  // trava) já tem a mudança de outra pessoa.
+  const leituraVelha = (velha: Record<string, unknown>) => {
+    H.storage.getItem = vi.fn(async () => ({ ...H.mundo.itens.p1, ...velha }));
+  };
+
+  it("ajuste pós-Produzido com uma conferência no meio: 409, nada sobrescrito", async () => {
+    H.mundo.itens.p1 = peca({ status: "produced", quantityProduced: 10, conferredQty: 3 });
+    leituraVelha({ conferredQty: 0 });
+    const r = await chamar("POST /api/items/:id/mark-reuse", { reuseTotal: 4 }, "solicitacao");
+    expect(r.status, JSON.stringify(r.body)).toBe(409);
+    expect(r.body.error).toMatch(/A peça mudou/);
+    expect(p1()).toMatchObject({ quantityProduced: 10, reuseQty: 0, conferredQty: 3 });
+  });
+
+  it("dois Reaproveitar ao mesmo tempo: o segundo não apaga o primeiro (antes: gravava 6 por cima de 4 + 6)", async () => {
+    H.mundo.itens.p1 = peca({ status: "approved", reuseQty: 4 });
+    leituraVelha({ reuseQty: 0 });
+    const r = await chamar("POST /api/items/:id/mark-reuse", { qty: 6 }, "grafica");
+    expect(r.status, JSON.stringify(r.body)).toBe(409);
+    expect(p1().reuseQty).toBe(4);
+  });
+
+  it("correção do reaproveitamento com uma conferência no meio: 409, a peça não volta para a fila", async () => {
+    H.mundo.itens.p1 = peca({ status: "produced", quantityProduced: 7, reuseQty: 3, conferredQty: 2 });
+    leituraVelha({ conferredQty: 0 });
+    const r = await chamar("POST /api/items/:id/correct-reuse", { correctedReuseQty: 0 }, "grafica");
+    expect(r.status, JSON.stringify(r.body)).toBe(409);
+    expect(p1()).toMatchObject({ status: "produced", reuseQty: 3, conferredQty: 2 });
+  });
+
+  it("sem corrida, segue gravando (e carimba a mudança de status)", async () => {
+    H.mundo.itens.p1 = peca({ status: "approved" });
+    const r = await chamar("POST /api/items/:id/mark-reuse", { qty: 10, origemReaproveitamento: "estoque" }, "grafica");
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    expect(p1()).toMatchObject({ status: "produced", reuseQty: 10 });
+    expect(p1().statusChangedAt).toBeInstanceOf(Date);
+  });
+});
+
+describe("formulário aberto há muito tempo não apaga a origem marcada por outra tela", () => {
+  // Outra tela marcou "em trânsito" DEPOIS de o formulário abrir (que leu sem origem).
+  const marcadaPorOutraTela = () => peca({ status: "draft", isReuse: true, reuseQty: 10, origemReaproveitamento: "em_transito", obsReaproveitamento: OBS });
+
+  it("o corpo do formulário só leva a origem quando ela MUDOU em relação ao que leu — e leva o que leu", () => {
+    const lida = { origemReaproveitamento: null, obsReaproveitamento: null };
+    // não mexeu: a origem nem vai
+    expect(corpoComOrigemLida({ description: "Nova", origemReaproveitamento: "", obsReaproveitamento: "" }, lida)).toEqual({ description: "Nova" });
+    // mexeu: vai junto com o que leu
+    expect(corpoComOrigemLida({ origemReaproveitamento: "estoque", obsReaproveitamento: "" }, lida))
+      .toEqual({ origemReaproveitamento: "estoque", obsReaproveitamento: "", origemLida: null, obsLida: null });
+    // espaços a mais na observação não contam como mudança
+    expect(corpoComOrigemLida({ origemReaproveitamento: "em_transito", obsReaproveitamento: `  ${OBS} ` }, { origemReaproveitamento: "em_transito", obsReaproveitamento: OBS }))
+      .toEqual({});
+    // e o salvar do formulário passa por ele
+    expect(fonte("client/src/components/detalhe-do-evento/use-detalhe-do-evento-acoes.tsx")).toContain("origemLida !== undefined ? corpoComOrigemLida(itemData, origemLida) : itemData");
+    expect(fonte("client/src/pages/event-detail.tsx")).toContain("origemLida: editingItem });");
+    expect(fonte("client/src/components/detalhe-do-evento/editar-peca-dialog.tsx")).toContain("origemLida: editingItem });");
+  });
+
+  it("PATCH que manda de volta a origem que leu (sem mexer) não sobrescreve a marcada por outra tela", async () => {
+    H.mundo.itens.p1 = marcadaPorOutraTela();
+    const r = await chamar("PATCH /api/items/:id", { description: "Nova", origemReaproveitamento: "", obsReaproveitamento: "", origemLida: "", obsLida: "" }, "solicitacao");
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    expect(p1()).toMatchObject({ description: "Nova", origemReaproveitamento: "em_transito", obsReaproveitamento: OBS });
+  });
+
+  it("PATCH que MUDA a origem a partir de uma leitura velha: 409 com a origem de agora, nada gravado", async () => {
+    H.mundo.itens.p1 = marcadaPorOutraTela();
+    const r = await chamar("PATCH /api/items/:id", { origemReaproveitamento: "estoque", obsReaproveitamento: "", origemLida: "", obsLida: "" }, "solicitacao");
+    expect(r.status, JSON.stringify(r.body)).toBe(409);
+    expect(r.body.error).toMatch(/outra tela/);
+    expect(p1().origemReaproveitamento).toBe("em_transito");
+  });
+
+  it("leitura em dia: a troca vale normalmente", async () => {
+    H.mundo.itens.p1 = marcadaPorOutraTela();
+    const r = await chamar("PATCH /api/items/:id", { origemReaproveitamento: "estoque", obsReaproveitamento: "Galpão B", origemLida: "em_transito", obsLida: OBS }, "solicitacao");
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    expect(p1()).toMatchObject({ origemReaproveitamento: "estoque", obsReaproveitamento: "Galpão B" });
   });
 });

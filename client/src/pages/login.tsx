@@ -7,7 +7,7 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { CorpoDoLogin, UsuarioSemSenha } from "@shared/api";
 import { useToast } from "@/hooks/use-toast";
-import { Compass, Lock, Loader2, AlertTriangle, ChevronDown, ArrowRight, Eye, EyeOff, Info } from "lucide-react";
+import { Lock, Loader2, AlertTriangle, ChevronDown, ArrowRight, Eye, EyeOff, Info } from "lucide-react";
 import { T, FS, R, N, FW, FONT, TOM, ESCURO, H } from "@/lib/theme";
 
 const SSO_ERROR_MESSAGES: Record<string, { title: string; description: string }> = {
@@ -59,18 +59,12 @@ const ROTULO: React.CSSProperties = {
   color: T.apoio,
 };
 
-/** A marca NORTE — o mesmo desenho da barra lateral (bússola + nome + linha). */
+/** A marca NORTE — o mesmo desenho da barra lateral (N do app + nome + linha). */
 function MarcaNorte({ escura = false }: { escura?: boolean }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-      <span aria-hidden="true" style={{
-        width: 40, height: 40, borderRadius: R.lg, flexShrink: 0,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        backgroundColor: escura ? ESCURO.fundoAlto : T.text,
-        border: `1px solid ${escura ? ESCURO.borda : T.text}`,
-      }}>
-        <Compass style={{ width: 20, height: 20, color: ESCURO.foco, strokeWidth: 2.2 }} />
-      </span>
+      {/* Identidade do app (16/10): o "N" da NORTE na cor da Produção. */}
+      <img src="/marca-app.svg" alt="" aria-hidden="true" style={{ height: 40, width: "auto", flexShrink: 0, display: "block" }} />
       <span style={{ display: "flex", flexDirection: "column" }}>
         <span style={{
           fontFamily: FONT.display, fontSize: 17, fontWeight: FW.rotulo,

@@ -8,8 +8,11 @@ import { responderErro } from "../../erros";
 import { urlDeThumbValida, ERRO_THUMB_FORA_DO_STORAGE } from "../thumb-url";
 import { barraEventoFinalizado } from "../eventoFinalizado";
 import { recusaDaMarcaNaEscrita } from "@shared/producao-interna";
-import { lerOrigemDoCorpo, colunasDaOrigem, origemDe, fraseDaTrilhaDaOrigem, FIM_DO_FLUXO } from "@shared/origem-do-reaproveitamento";
+import { lerOrigemDoCorpo, colunasDaOrigem, origemDe, fraseDaTrilhaDaOrigem, FIM_DO_FLUXO, recusaDaContaNoGalpao } from "@shared/origem-do-reaproveitamento";
+import { pecaTravada, fraseDaTrava, CODIGO_PECA_TRAVADA } from "@shared/trava-da-peca";
+import type { Item } from "@shared/schema";
 import { avisarBuscarNoEstoque } from "../../services/aviso-buscar-no-estoque";
+import { recalcularEventoEAvisar } from "../../services/evento-concluido";
 import {
   updateItemSchema, normalizarReferencias, planejarEdicao, descreverEdicao, avisarDepoisDaEdicao,
 } from "../../services/edicao-da-peca";
@@ -155,13 +158,21 @@ export function registrarEdicao(app: Express): void {
       // services/edicao-da-peca.ts. Recusa volta com o status e o corpo prontos.
       const plano = planejarEdicao(currentItem, validatedData, req.body, mudaReuso);
       if ("recusa" in plano) return res.status(plano.recusa.status).json(plano.recusa.corpo);
-      const { updatePayload, mudouQtd, promoveuParaProduzido } = plano;
+      const { updatePayload, mudouQtd, promoveuParaProduzido, fechouEmTransito } = plano;
       // Origem sem reaproveitamento nenhum não grava (a peça não tem o que buscar).
       const reusoFinal = updatePayload.reuseQty ?? currentItem.reuseQty ?? 0;
       const reusoLegado = (updatePayload.isReuse ?? currentItem.isReuse) && reusoFinal === 0;
       if (reusoFinal === 0 && !reusoLegado && updatePayload.origemReaproveitamento) {
         updatePayload.origemReaproveitamento = null;
         updatePayload.obsReaproveitamento = null;
+      }
+      // Em trânsito não entra no galpão: o que já foi conferido lá não pode
+      // passar a "estar no caminhão" (a mesma recusa da rota dedicada).
+      const contaNoGalpao = recusaDaContaNoGalpao({ ...currentItem, ...updatePayload } as Item, "marcar como");
+      if (contaNoGalpao) return res.status(409).json({ error: contaNoGalpao });
+      // Fechar como Entregue é a peça ANDAR: a trava da Solicitação segura.
+      if (fechouEmTransito && pecaTravada(currentItem)) {
+        return res.status(409).json({ error: fraseDaTrava(currentItem), code: CODIGO_PECA_TRAVADA });
       }
 
       const item = await storage.updateItem(req.params.id, updatePayload);
@@ -171,7 +182,7 @@ export function registrarEdicao(app: Express): void {
 
       const mudouAOrigem = (item.origemReaproveitamento ?? null) !== (currentItem.origemReaproveitamento ?? null)
         || (item.obsReaproveitamento ?? null) !== (currentItem.obsReaproveitamento ?? null);
-      const auditDetails = descreverEdicao(currentItem, item, validatedData, { mudaReuso, mudouQtd, promoveuParaProduzido })
+      const auditDetails = descreverEdicao(currentItem, item, validatedData, { mudaReuso, mudouQtd, promoveuParaProduzido, fechouEmTransito })
         + (mudouAOrigem && (item.origemReaproveitamento || currentItem.origemReaproveitamento)
           ? ` · ${fraseDaTrilhaDaOrigem(origemDe(item), item.obsReaproveitamento)}`
           : "");
@@ -185,7 +196,9 @@ export function registrarEdicao(app: Express): void {
       );
       
       // Recalculate event status if item status changed
-      await updateEventStatus(item.eventId);
+      // (fechou como Entregue — tudo em trânsito: avisa se concluiu o evento)
+      if (fechouEmTransito) await recalcularEventoEAvisar(item.eventId);
+      else await updateEventStatus(item.eventId);
 
       broadcast({ type: "item_updated", item });
 

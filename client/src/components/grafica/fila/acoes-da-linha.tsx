@@ -24,6 +24,7 @@ import { corDaAcao, corTintada } from "./aparencia";
 import { complementUntouched, podeDevolverParaRevisao, rotuloAcaoImpressao, rotuloDoConferir, tituloAcaoImpressao } from "./regras";
 import { TirarDaImpressoraBloqueada, bloqueioDaTrava } from "./trava-da-peca";
 import { DialogoReaproveitar } from "@/components/reaproveitamento/dialogo-reaproveitar";
+import { quantidadeFisicaDe as quantidadeFisica } from "@shared/origem-do-reaproveitamento";
 
 export function AcoesDaLinha({ ctx, item, selo, emRevisao, isSelected, bulkEligible, ehComplemento, podeEmbalarPeca }: {
   ctx: ContextoDaLinha;
@@ -396,7 +397,7 @@ export function AcoesDaLinha({ ctx, item, selo, emRevisao, isSelected, bulkEligi
             tamanho={tamLinha}
             icone={CheckCircle}
             onClick={() => openConferenceModal(item)}
-            title={`Conferir (faltam ${remainingConfer(item)} de ${qtyOf(item)})`}
+            title={`Conferir (faltam ${remainingConfer(item)} de ${quantidadeFisica(item)})`}
             data-testid={`button-confer-${item.id}`}
             {...bloqueioDaTrava(item)}
             style={corDaAcao(TOM.ciano.text)}

@@ -38,6 +38,7 @@ import type { PecaDaFila } from "@/components/grafica/tipos";
 // entrega o que resta conferido quando não recebe `qty` — o número mostrado é
 // essa mesma conta, da mesma fonte da lista.
 import { remainingDeliver as saldoAEntregar } from "@/lib/saldo";
+import { quantidadeFisicaDe as quantidadeFisica } from "@shared/origem-do-reaproveitamento";
 
 export interface GalpaoDados { photoUrl: string; qty?: number; receivedBy?: string }
 
@@ -319,7 +320,7 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
             <span style={{ fontSize: FS.body, fontWeight: FW.forte, color: T.strong, flex: 1 }}>
               Conferidas agora
               <span style={{ display: "block", fontWeight: FW.corpo, fontSize: FS.body, color: T.apoio }}>
-                faltam {saldo} de {item.quantity}
+                faltam {saldo} de {quantidadeFisica(item)}
               </span>
             </span>
             <button type="button" aria-label="Uma a menos" data-testid="galpao-qty-menos" className="ds-botao"

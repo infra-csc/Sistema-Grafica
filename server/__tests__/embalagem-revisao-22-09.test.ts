@@ -54,7 +54,8 @@ describe("10 · entregue por volume com foto da embalagem não é 'sem comprovan
   it("a ficha só acusa quando não há foto de entrega NEM foto do volume", () => {
     const F = fonteDoComponente("client/src/components/item-details-dialog.tsx");
     expect(F).toContain("const entregueComFotoDaEmbalagem = !!item.tuboId && !!item.tuboFechadoEm;");
-    expect(F).toContain("const missingDeliveryProof = isDeliveredItem && deliveryPhotos.length === 0 && !entregueComFotoDaEmbalagem;");
+    // (16/10: e a peça 100% em trânsito — fechada sem passar pela Gráfica — também não acusa)
+    expect(F).toContain("const missingDeliveryProof = isDeliveredItem && deliveryPhotos.length === 0 && !entregueComFotoDaEmbalagem && !todaEmTransito(item);");
   });
 });
 

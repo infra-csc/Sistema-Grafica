@@ -479,7 +479,12 @@ export function useAcoesDaRevisao({
       // creator-review aceita reuseQty no body para registrar o parcial e
       // avança para ready_for_production (as demais unidades ainda vão para produção).
       // A origem (16/10) vai junto: estoque | em trânsito + a etapa.
-      await apiRequest("PATCH", `/api/items/${itemId}/creator-review`, { reuseQty, ...(origem?.origem ? corpoDaOrigem(origem) : {}) });
+      // Como no "Reaproveitar tudo": manda a origem quando há uma escolhida — ou
+      // quando é para LIMPAR a que a peça já tinha (sem isto, desmarcar no
+      // diálogo mantinha a origem do formulário em silêncio).
+      const atual = items.find((i) => i.id === itemId);
+      const mandaOrigem = !!origem && (!!origem.origem || !!atual?.origemReaproveitamento);
+      await apiRequest("PATCH", `/api/items/${itemId}/creator-review`, { reuseQty, ...(mandaOrigem ? corpoDaOrigem(origem!) : {}) });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });

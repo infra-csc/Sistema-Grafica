@@ -158,10 +158,17 @@ const VERIFICACOES: Verificacao[] = [
   {
     chave: "entregue_incompleta",
     titulo: "Marcada como entregue com entrega incompleta",
-    explicacao: "O status diz Entregue, mas o número de unidades entregues é menor que a quantidade da peça.",
+    explicacao: "O status diz Entregue, mas o número de unidades entregues é menor que a quantidade da peça " +
+      "(descontadas as reaproveitadas EM TRÂNSITO, que vêm no caminhão de outra etapa e não passam por volume).",
     gravidade: "medio",
+    // Em trânsito (16/10): a peça fecha com o FÍSICO entregue — as unidades
+    // do caminhão saem da conta (shared/origem-do-reaproveitamento.ts,
+    // quantidadeFisicaDe). Sem o desconto, toda peça em trânsito era achado.
     sql: sql`select display_id from items
-      where deleted_at is null and status = 'delivered' and coalesce(delivered_qty,0) < quantity`,
+      where deleted_at is null and status = 'delivered'
+        and coalesce(delivered_qty,0) < quantity - (case when origem_reaproveitamento = 'em_transito'
+          then (case when is_reuse and coalesce(reuse_qty,0) = 0 then quantity else least(coalesce(reuse_qty,0), quantity) end)
+          else 0 end)`,
   },
 ];
 

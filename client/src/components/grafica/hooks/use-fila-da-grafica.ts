@@ -13,6 +13,7 @@ import { ehMolde } from "@shared/molde";
 import { rotuloDaMaquina, podeIrParaTubo } from "@shared/fluxo-peca";
 import { eventoBarraImpressas } from "@shared/impressao-dividida";
 import { pecaTravada } from "@shared/trava-da-peca";
+import { todaEmTransito } from "@shared/origem-do-reaproveitamento";
 import { isDelivered, isPosConferencia, conferredOf, qtyOf, m2ToProduce, remainingProduce, reusedTotalOf, isComplement } from "@/lib/saldo";
 // Recorte da fila: fonte única em lib/grafica-filtros.ts. O recorte é UM
 // objeto: contagem, descrição, URL e casamento item↔filtro saem todos dele —
@@ -533,6 +534,7 @@ export function useFilaDaGrafica() {
     const m = new Map<string, number>();
     for (const i of filteredItems) {
       if (ehMolde(i) || !(conferredOf(i) > 0 || isPosConferencia(i) || isDelivered(i))) continue; // molde não tem etiqueta
+      if (todaEmTransito(i)) continue; // 100% em trânsito (16/10): não passou pelo galpão, não tem etiqueta daqui
       const id = String(i.eventId ?? "");
       if (!id) continue;
       m.set(id, (m.get(id) ?? 0) + 1);

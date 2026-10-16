@@ -41,6 +41,7 @@ import { ControleDePrioridadeNaFila } from "./prioridade-na-fila";
 import { TITULO_DO_SELO_NA_GRAFICA } from "@shared/prioridade-na-impressao";
 import { SeloOrigemDoReaproveitamento } from "@/components/reaproveitamento/selo-da-origem";
 import { AcoesDoCartao } from "./acoes-do-cartao";
+import { quantidadeFisicaDe as quantidadeFisica } from "@shared/origem-do-reaproveitamento";
 
 export function CartaoDaPeca({ ctx, item, index, showEvHeader, corte, prioritarias = null }: {
   ctx: ContextoDaLinha;
@@ -417,12 +418,12 @@ export function CartaoDaPeca({ ctx, item, index, showEvHeader, corte, prioritari
               </span>
             )}
             {conferredOf(item) > 0 && (
-              <span style={qtyChip(TOM.ciano.text, TOM.ciano.bg)} title={`${conferredOf(item)} de ${qtyOf(item)} un. conferidas`}>
+              <span style={qtyChip(TOM.ciano.text, TOM.ciano.bg)} title={`${conferredOf(item)} de ${quantidadeFisica(item)} un. conferidas`}>
                 Conf. {conferredOf(item)}
               </span>
             )}
             {deliveredOf(item) > 0 && (
-              <span style={qtyChip(TOM.sucesso.text, TOM.sucesso.bg)} title={`${deliveredOf(item)} de ${qtyOf(item)} un. entregues`}>
+              <span style={qtyChip(TOM.sucesso.text, TOM.sucesso.bg)} title={`${deliveredOf(item)} de ${quantidadeFisica(item)} un. entregues`}>
                 Entreg. {deliveredOf(item)}
               </span>
             )}

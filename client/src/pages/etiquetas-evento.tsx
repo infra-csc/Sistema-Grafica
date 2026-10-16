@@ -67,6 +67,7 @@ import {
 } from "@/components/etiqueta-lista";
 import type { EventoDaPeca } from "@/components/grafica/tipos";
 import { EtiquetaDaPeca, dataBR, type PecaDoEvento } from "@/components/etiqueta-da-peca";
+import { todaEmTransito } from "@shared/origem-do-reaproveitamento";
 
 /** O retrato dos tubos do evento: aqui só a data de fechamento de cada um. */
 type RetratoDosTubos = { tubos?: Array<{ id?: string; fechadoEm?: string | null } | null> };
@@ -74,7 +75,9 @@ type RetratoDosTubos = { tubos?: Array<{ id?: string; fechadoEm?: string | null 
 /** Conferida = já passou pela conferência (inclui as entregues e as grafias legadas). */
 // `packed` (Embalado, 21/09): embalada é conferida — a etiqueta vale igual.
 const CONFERIDA = new Set(["conferred", "conferido", "packed", "delivered", "entregue"]);
-const jaConferida = (i: PecaDoEvento) => CONFERIDA.has(i.status) || (i.conferredQty ?? 0) > 0;
+// A peça 100% EM TRÂNSITO (16/10) fecha como Entregue sem passar pelo galpão:
+// não há o que etiquetar aqui — ela já veio etiquetada da outra etapa.
+const jaConferida = (i: PecaDoEvento) => !todaEmTransito(i) && (CONFERIDA.has(i.status) || (i.conferredQty ?? 0) > 0);
 
 const tipoDe = (p: { type?: string | null } | null | undefined) => String(p?.type ?? "").trim();
 const slug = (t: string) => t.toLowerCase().replace(/\s+/g, "-");

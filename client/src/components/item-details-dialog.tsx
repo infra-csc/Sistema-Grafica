@@ -63,11 +63,11 @@ interface ItemDetailsDialogProps<TPeca extends ItemDaFicha> {
 }
 
 export function ItemDetailsDialog<TPeca extends ItemDaFicha>({
-  item, auditLogs = [], open, onOpenChange,
+  item: itemDaTela, auditLogs = [], open, onOpenChange,
   customActions, topActions, onEditSave, acaoNoRodape, acimaDaAcaoNoRodape, fecharSecundario = false,
 }: ItemDetailsDialogProps<TPeca>) {
   const [editMode, setEditMode]     = useState(false);
-  const [editedItem, setEditedItem] = useState<TPeca | null>(item);
+  const [editedItem, setEditedItem] = useState<TPeca | null>(itemDaTela);
   const isMobile = useIsMobile();
   // O percurso abre com os 4 mais recentes. Uma peça que foi e voltou três
   // vezes tem trinta registros, e a ficha inteira virava a trilha dela.
@@ -75,6 +75,12 @@ export function ItemDetailsDialog<TPeca extends ItemDaFicha>({
   // ORIGEM DO REAPROVEITAMENTO (16/10): correção do próprio dado, como o
   // "Editar" da especificação — quem pode é quem marca reaproveitamento.
   const [origemAberta, setOrigemAberta] = useState(false);
+  // A peça como o servidor a devolveu depois de salvar a origem: quem abre a
+  // ficha guarda uma CÓPIA da peça, e sem isto a ficha seguia mostrando a
+  // origem e a etapa antigas (a 100% em trânsito não aparecia Entregue) até
+  // fechar e abrir de novo. Vale só para a mesma peça, até a ficha fechar.
+  const [salvoPelaOrigem, setSalvoPelaOrigem] = useState<Partial<ItemDaFicha> | null>(null);
+  const item: TPeca | null = itemDaTela && salvoPelaOrigem?.id === itemDaTela.id ? { ...itemDaTela, ...salvoPelaOrigem } as TPeca : itemDaTela;
   const papel = usePapelDaSessao();
 
   const { fetchedApprovals, approvalsOverride, setApprovalsOverride, refetchApprovals, flowPhotos } = useFichaDados(item, open);
@@ -88,6 +94,7 @@ export function ItemDetailsDialog<TPeca extends ItemDaFicha>({
     setEditedItem(item);
     setPercursoAberto(false);
     setOrigemAberta(false);
+    setSalvoPelaOrigem(null);
   }, [open, item?.id]);
 
   if (!item) return null;
@@ -302,7 +309,8 @@ export function ItemDetailsDialog<TPeca extends ItemDaFicha>({
         </footer>
       </DialogContent>
 
-      <DialogoOrigemDoReaproveitamento peca={origemAberta ? item : null} aoFechar={() => setOrigemAberta(false)} isMobile={isMobile} />
+      <DialogoOrigemDoReaproveitamento peca={origemAberta ? item : null} aoFechar={() => setOrigemAberta(false)} isMobile={isMobile}
+        aoSalvar={(salvo) => setSalvoPelaOrigem(salvo as Partial<ItemDaFicha>)} />
 
       <DialogoTransferirEvento
         item={item}

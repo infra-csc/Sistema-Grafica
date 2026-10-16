@@ -60,7 +60,7 @@ import { db } from "../db";
 import { storage } from "../storage";
 import { items as itemsTable, tubos, tuboItens, events, auditLogs } from "@shared/schema";
 import { EMBALADO } from "@shared/fluxo-peca";
-import { emTransitoDe } from "@shared/origem-do-reaproveitamento";
+import { emTransitoDe, quantidadeFisicaDe } from "@shared/origem-do-reaproveitamento";
 import { aEmbalar, planejarEmbalar, planejarEntrega, planejarRetirada, problemaNoVolume, statusEmbalavel, volumePrincipal } from "@shared/embalagem";
 import { pecaTravada, fraseDaTrava } from "@shared/trava-da-peca";
 import { pecaVisivelPara } from "@shared/kit";
@@ -262,7 +262,9 @@ const pecaParaTela = (p: PecaCrua, linha?: Linha) => ({
   displayId: p.displayId,
   type: p.type,
   description: p.description,
-  quantity: p.quantity,
+  // A quantidade que passa pelo galpão: as reaproveitadas EM TRÂNSITO (16/10)
+  // não entram em volume — "(6 de 10)" diria que faltam 4 noutro tubo.
+  quantity: emTransitoDe(p) > 0 ? quantidadeFisicaDe(p) : p.quantity,
   // O CONTRATO NOVO (21/09): a quantidade da peça NESTE volume — a etiqueta, o
   // modal de entrega e o painel mostram esta, e "(7 de 10)" quando dividida.
   quantidadeNoTubo: linha ? linha.quantidade : 0,
@@ -279,6 +281,8 @@ const pecaParaTela = (p: PecaCrua, linha?: Linha) => ({
   doKit: !!p.kitRemessaId,
   isReuse: !!p.isReuse,
   reuseQty: p.reuseQty ?? 0,
+  // Em trânsito (16/10): as reaproveitadas não estão no volume — a etiqueta não liga o REAPROVEITAR por elas.
+  origemReaproveitamento: p.origemReaproveitamento ?? null,
   conferencePhotoUrl: p.conferencePhotoUrl ?? null,
   // Peça cancelada/arquivada DENTRO de um volume: fica à vista como problema
   // (a entrega recusa até alguém tirá-la), em vez de sumir da lista.

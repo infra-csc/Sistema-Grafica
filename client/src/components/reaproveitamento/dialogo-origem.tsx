@@ -38,12 +38,14 @@ export function invalidarDepoisDaOrigem(eventId?: string | null) {
   invalidarGraficaEMaquinas();
   queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0] ?? "").startsWith("/api/items") });
   if (eventId) queryClient.invalidateQueries({ queryKey: ["/api/events", eventId] });
+  // O percurso da ficha (a trilha ganhou a linha da origem).
+  queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0] ?? "").startsWith("/api/audit-logs") });
 }
 
 /** A frase do servidor (o apiRequest já tira o JSON: vem só o `error`). */
 const motivoDoErro = (e: unknown) => String((e as { message?: unknown })?.message ?? "").trim() || "Erro inesperado";
 
-export function DialogoOrigemDoReaproveitamento({ peca, aoFechar, isMobile = false, aoMarcar, marcando = false }: {
+export function DialogoOrigemDoReaproveitamento({ peca, aoFechar, isMobile = false, aoMarcar, marcando = false, aoSalvar }: {
   /** A peça aberta — `null` fecha o diálogo. */
   peca: PecaDoDialogo | null;
   aoFechar: () => void;
@@ -56,6 +58,11 @@ export function DialogoOrigemDoReaproveitamento({ peca, aoFechar, isMobile = fal
    */
   aoMarcar?: (v: ValorDaOrigem) => void;
   marcando?: boolean;
+  /**
+   * A peça como o servidor a devolveu: a FICHA (que guarda uma cópia da peça)
+   * passa a mostrar a origem e a etapa novas sem fechar e abrir de novo.
+   */
+  aoSalvar?: (item: PecaDoDialogo) => void;
 }) {
   const { toast } = useToast();
   const [valor, setValor] = useState<ValorDaOrigem>(valorDaPeca(peca));
@@ -68,6 +75,7 @@ export function DialogoOrigemDoReaproveitamento({ peca, aoFechar, isMobile = fal
       await (await apiRequest("PATCH", `/api/items/${id}/origem-reaproveitamento`, corpoDaOrigem(v))).json(),
     onSuccess: (item: PecaDoDialogo & { status?: string }) => {
       invalidarDepoisDaOrigem(item?.eventId ?? peca?.eventId);
+      if (item?.id) aoSalvar?.(item);
       const mudouEtapa = !!peca && item?.status && item.status !== peca.status;
       toast({
         title: "Origem do reaproveitamento salva",

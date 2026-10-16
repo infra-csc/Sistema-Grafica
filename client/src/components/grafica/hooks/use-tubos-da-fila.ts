@@ -13,8 +13,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { invalidarGraficaEMaquinas } from "@/lib/tempo-real-grafica";
 import { linhaDaLista } from "@/lib/etiqueta-lista";
-import { embaladaDe, parteDoTotal, seloDosVolumes, type LinhaDoVolume } from "@shared/embalagem";
-import { qtyOf } from "@/lib/saldo";
+import { embaladaDe, parteDoTotal, quantidadeFisica, seloDosVolumes, type LinhaDoVolume } from "@shared/embalagem";
 import type { PainelDeTubos, PecaDaFila, TuboResumo } from "@/components/grafica/tipos";
 import { apiErrorMessage } from "@/components/grafica/fila/regras";
 
@@ -76,7 +75,7 @@ export function useTubosDaFila(pecasDoServidor: PecaDaFila[]) {
             conteudo = {
               total: dentro.length,
               // A quantidade é a QUE ESTÁ NAQUELE volume; "(7 de 10)" quando dividida.
-              lista: dentro.map((l) => { const x = porId.get(l.itemId)!; return `${x.displayId ?? "—"} · ${linhaDaLista({ ...x, quantity: l.quantidade })} ${parteDoTotal(l.quantidade, qtyOf(x))}`.trim(); }).join("\n"),
+              lista: dentro.map((l) => { const x = porId.get(l.itemId)!; return `${x.displayId ?? "—"} · ${linhaDaLista({ ...x, quantity: l.quantidade })} ${parteDoTotal(l.quantidade, quantidadeFisica(x))}`.trim(); }).join("\n"),
             };
           }
         }
@@ -107,7 +106,8 @@ export function useTubosDaFila(pecasDoServidor: PecaDaFila[]) {
     const volumes = volumesDaPeca.get(item.id) ?? [];
     if (!volumes.length) return null;
     // "7 de 10 embaladas" na frente quando ainda falta embalar o resto.
-    const falta = embaladaDe(item) < qtyOf(item) ? `${embaladaDe(item)} de ${qtyOf(item)} embaladas · ` : "";
+    // O "de N" é o FÍSICO: as reaproveitadas em trânsito (16/10) não se embalam.
+    const falta = embaladaDe(item) < quantidadeFisica(item) ? `${embaladaDe(item)} de ${quantidadeFisica(item)} embaladas · ` : "";
     return falta + seloDosVolumes(volumes);
   };
   const tituloDoTubo = (item: PecaDaFila): string => {

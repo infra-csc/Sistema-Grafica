@@ -56,7 +56,19 @@ export function EscolhaDaOrigem({ valor, onChange, idBase, isMobile = false, des
       <legend className="reap-legenda">
         De onde vem? <span className="reap-opcional">(opcional)</span>
       </legend>
-      <div role="radiogroup" aria-label="De onde vem o reaproveitamento" className="reap-opcoes">
+      <div role="radiogroup" aria-label="De onde vem o reaproveitamento" className="reap-opcoes"
+        // Setas como num grupo de rádio (WAI-ARIA): movem o foco E marcam.
+        onKeyDown={(e) => {
+          const passo = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+          if (!passo) return;
+          e.preventDefault();
+          const atual = OPCOES.findIndex((o) => o.valor === valor.origem);
+          // Sem nada marcado, → vai para a primeira e ← para a última; depois dá a volta.
+          const base = atual < 0 ? (passo > 0 ? -1 : OPCOES.length) : atual;
+          const proxima = OPCOES[(base + passo + OPCOES.length) % OPCOES.length];
+          onChange({ ...valor, origem: proxima.valor });
+          (e.currentTarget.querySelector(`[data-testid="${idBase}-origem-${proxima.valor}"]`) as HTMLElement | null)?.focus();
+        }}>
         {OPCOES.map(({ valor: v, rotulo, dica, Icone, tom }) => {
           const marcada = valor.origem === v;
           return (
@@ -99,6 +111,7 @@ export function EscolhaDaOrigem({ valor, onChange, idBase, isMobile = false, des
         onChange={(e) => onChange({ ...valor, obs: e.target.value })}
         placeholder="Ex.: Night Run Salvador, etapa 17/10"
         aria-describedby={idAjuda}
+        aria-required={valor.origem === "em_transito" || undefined}
         aria-invalid={falta || undefined}
         data-testid={`${idBase}-obs`}
         className="grf-campo reap-campo"

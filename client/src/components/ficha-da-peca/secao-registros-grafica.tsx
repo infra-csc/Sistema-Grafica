@@ -5,6 +5,7 @@ import { T, TOM, FONT } from "@/lib/theme";
 import { CARTAO, TITULO_SECAO, useLetraDaFicha } from "./estilos";
 import { PhotoGrid } from "./fotos";
 import type { ItemDaFicha } from "./tipos";
+import { todaEmTransito, quantidadeFisicaDe } from "@shared/origem-do-reaproveitamento";
 
 export function SecaoRegistrosDaGrafica({ item, rawStatus, conferencePhotos, deliveryPhotos }: {
   item: ItemDaFicha;
@@ -29,7 +30,9 @@ export function SecaoRegistrosDaGrafica({ item, rawStatus, conferencePhotos, del
   // existe quando o volume ganhou foto. Peça antiga, sem volume nem foto,
   // continua acusando como antes.
   const entregueComFotoDaEmbalagem = !!item.tuboId && !!item.tuboFechadoEm;
-  const missingDeliveryProof = isDeliveredItem && deliveryPhotos.length === 0 && !entregueComFotoDaEmbalagem;
+  // A peça 100% EM TRÂNSITO (16/10) fecha como Entregue sem passar pela
+  // Gráfica — não há entrega a comprovar.
+  const missingDeliveryProof = isDeliveredItem && deliveryPhotos.length === 0 && !entregueComFotoDaEmbalagem && !todaEmTransito(item);
   const temRegistrosGrafica = conferencePhotos.length > 0 || deliveryPhotos.length > 0
     || !!item.conferenceNotes || !!item.deliveryNotes
     || missingDeliveryProof || andamentoGrafica.length > 0 || !!item.receivedBy || !!item.tuboId;
@@ -38,7 +41,8 @@ export function SecaoRegistrosDaGrafica({ item, rawStatus, conferencePhotos, del
 
   // Ausente conta como zero nas comparações do cabeçalho da seção.
   const entregues = item.deliveredQty ?? 0;
-  const quantidade = item.quantity ?? 0;
+  // O "de N" é o FÍSICO: as reaproveitadas em trânsito não são entregues pela Gráfica (16/10).
+  const quantidade = quantidadeFisicaDe(item);
 
   return (
     <section data-testid="section-registros-grafica">
@@ -46,7 +50,7 @@ export function SecaoRegistrosDaGrafica({ item, rawStatus, conferencePhotos, del
         <h3 style={{ ...TITULO_SECAO, fontSize: fsf(10) }}>Registros da gráfica</h3>
         {entregues > 0 && quantidade > 0 && (
           <span style={{ fontSize: 12, fontWeight: 700, color: entregues < quantidade ? T.accentText : TOM.sucesso.text }}>
-            {item.deliveredQty} de {item.quantity} entregues
+            {item.deliveredQty} de {quantidade} entregues
           </span>
         )}
       </div>

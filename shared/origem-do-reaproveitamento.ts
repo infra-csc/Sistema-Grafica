@@ -139,6 +139,7 @@ export const colunasDaOrigem = (origem: OrigemDoReaproveitamento | null, obs: st
 
 export type PecaDoFimDoFluxo = PecaComOrigem & {
   status?: string | null;
+  quantityProduced?: number | null;
   conferredQty?: number | null;
   embaladaQty?: number | null;
   deliveredQty?: number | null;
@@ -182,12 +183,43 @@ export function statusAposMudarAOrigem(p: PecaDoFimDoFluxo): string | null {
   return (CANONICO[atual] ?? atual) === nova ? null : nova;
 }
 
+/** Status em que a impressão já acabou: a parte impressa vale inteira mesmo com o contador vazio (acervo antigo). */
+const IMPRESSAO_FECHADA: ReadonlySet<string> = FIM_DO_FLUXO;
+
 /**
- * A troca de origem é segura? Marcar "em trânsito" tira unidades da conta
- * física: se já há mais unidades conferidas, embaladas ou entregues do que
- * sobra, as reaproveitadas JÁ passaram pelo galpão — não estão no caminhão.
- * Devolve a frase da recusa, ou null.
+ * Unidades que EXISTEM no galpão: as impressas (a parte impressa inteira
+ * quando a impressão já fechou) mais as reaproveitadas que NÃO estão em
+ * trânsito, até o físico. É o teto do que pode já ter sido conferido, embalado
+ * ou entregue — a mesma régua de tetoDaConferencia (shared/embalagem.ts).
  */
+export function noGalpaoDe(p: PecaDoFimDoFluxo): number {
+  const q = n(p.quantity), reuso = reaproveitadasDe(p);
+  const impressas = IMPRESSAO_FECHADA.has(String(p.status ?? ""))
+    ? Math.max(n(p.quantityProduced), q - reuso)
+    : n(p.quantityProduced);
+  return Math.min(quantidadeFisicaDe(p), impressas + reuso - emTransitoDe(p));
+}
+
+/**
+ * A peça (já com a origem nova) cabe na conta do galpão? As unidades em
+ * trânsito nunca entram lá: se há mais unidades conferidas, embaladas ou
+ * entregues do que as que EXISTEM no galpão (impressas + reaproveitadas fora do
+ * caminhão), as reaproveitadas JÁ passaram pela conferência — não estão no
+ * caminhão. Comparar com o físico (quantidade − trânsito) não basta: na peça a
+ * meio da impressão o físico conta unidades que ainda nem saíram da impressora
+ * (revisão adversarial, 16/10). `verbo` completa a frase ("marcar como",
+ * "reaproveitar"). Devolve a frase da recusa, ou null.
+ */
+export function recusaDaContaNoGalpao(depois: PecaDoFimDoFluxo, verbo: string): string | null {
+  if (origemDe(depois) !== "em_transito") return null;
+  const cabe = noGalpaoDe(depois);
+  const jaNoGalpao = Math.max(n(depois.conferredQty), n(depois.embaladaQty), n(depois.deliveredQty));
+  if (jaNoGalpao <= cabe) return null;
+  return `Não dá para ${verbo} em trânsito: ${jaNoGalpao} un. já foram conferidas/embaladas no galpão e só ${cabe} un. `
+    + `${cabe === 1 ? "foi impressa" : "foram impressas"} — as reaproveitadas já passaram pela conferência. Use "Estoque".`;
+}
+
+/** A troca de origem é segura? (recusaDaContaNoGalpao) Devolve a frase da recusa, ou null. */
 export function recusaDaTrocaDeOrigem(
   atual: PecaDoFimDoFluxo,
   nova: OrigemDoReaproveitamento | null,
@@ -196,13 +228,7 @@ export function recusaDaTrocaDeOrigem(
     return "Esta peça não tem unidade reaproveitada — marque o reaproveitamento antes de dizer de onde ele vem.";
   }
   if (nova !== "em_transito" || origemDe(atual) === "em_transito") return null;
-  const fisica = quantidadeFisicaDe({ ...atual, origemReaproveitamento: "em_transito" });
-  const jaNoGalpao = Math.max(n(atual.conferredQty), n(atual.embaladaQty), n(atual.deliveredQty));
-  if (jaNoGalpao > fisica) {
-    return `Não dá para marcar como em trânsito: ${jaNoGalpao} un. já foram conferidas/embaladas no galpão e só ${fisica} un. `
-      + `são impressas — as reaproveitadas já passaram pela conferência. Use "Estoque".`;
-  }
-  return null;
+  return recusaDaContaNoGalpao({ ...atual, origemReaproveitamento: "em_transito" }, "marcar como");
 }
 
 // ── Como se diz ─────────────────────────────────────────────────────────────

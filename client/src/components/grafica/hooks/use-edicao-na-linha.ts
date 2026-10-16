@@ -60,7 +60,10 @@ export function useEdicaoNaLinha(compacto: boolean) {
       });
     },
     onError: (error: Error) => {
-      setReuseConfirmItemId(null);
+      // O diálogo FICA aberto (revisão adversarial, 16/10): a recusa do
+      // servidor (conta do galpão, trava) não pode jogar fora a etapa de
+      // origem que a pessoa digitou — ela corrige (ex.: troca para Estoque)
+      // ou cancela.
       toast({ title: "Erro ao marcar reaproveitamento", description: error.message, variant: "destructive" });
     },
   });

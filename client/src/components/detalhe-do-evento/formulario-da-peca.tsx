@@ -324,8 +324,10 @@ export function ItemForm({
           </div>
         )}
         {/* DE ONDE VEM (16/10): com o reaproveitamento ligado, Estoque ou
-            Em trânsito (caminhão conjugado) e a etapa de origem. */}
-        {isEdit && formData.isReuse && (
+            Em trânsito (caminhão conjugado) e a etapa de origem. Só para quem
+            pode marcar a origem (admin e Solicitação — os mesmos da prioridade):
+            mexer nela sendo Arte/Atendimento derrubava a edição inteira (403). */}
+        {isEdit && formData.isReuse && podePriorizar && (
           <div data-testid="form-origem-reaproveitamento" style={{ marginTop: -6, padding: isMobile ? "12px 14px" : "14px 18px", border: `1px solid ${T.border}`, borderRadius: 12, background: T.surface }}>
             <EscolhaDaOrigem
               valor={{ origem: ehOrigemDoReaproveitamento(formData.origemReaproveitamento) ? formData.origemReaproveitamento : null, obs: formData.obsReaproveitamento ?? "" }}

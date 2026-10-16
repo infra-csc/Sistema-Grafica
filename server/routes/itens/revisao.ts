@@ -28,6 +28,7 @@ import { responderFalha, camposDoErro } from "../../erros";
 import { vemDeOrigemValida } from "@shared/maquina-de-estados";
 import { lerOrigemDoCorpo, colunasDaOrigem, origemDe, fraseDaTrilhaDaOrigem, fraseDoFechamentoEmTransito } from "@shared/origem-do-reaproveitamento";
 import { avisarBuscarNoEstoque } from "../../services/aviso-buscar-no-estoque";
+import { recalcularEventoEAvisar } from "../../services/evento-concluido";
 import { situacaoParaVoltarAArte } from "@shared/devolver-evento-para-arte";
 // Mexe em decisão de patrocinador (nova aprovação): o quadro de Versões é refeito.
 import { invalidarCacheDeVersoes } from "../versoes";
@@ -318,6 +319,8 @@ export function registrarRevisao(app: Express): void {
       broadcast({ type: "notification_created", notification });
       // Chegou à Gráfica com unidades do ESTOQUE: os meninos já vão buscar.
       await avisarBuscarNoEstoque(null, item, req.userRole);
+      // Fechou como Entregue (tudo em trânsito): pode ter sido a última pendência do evento.
+      if (fechaEmTransito) await recalcularEventoEAvisar(item.eventId);
       
       res.json(item);
     } catch (error) {

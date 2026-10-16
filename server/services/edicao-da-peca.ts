@@ -10,6 +10,11 @@ import { insertItemSchema, type Item, type InsertItem } from "@shared/schema";
 import { pecaTravada, fraseDaTrava, CODIGO_PECA_TRAVADA } from "@shared/trava-da-peca";
 import { colunasDaReserva, lerReserva, reescalarReservaEPartes } from "@shared/reserva-de-impressora";
 import { lerPartes } from "@shared/impressao-dividida";
+import { todaEmTransito, fraseDoFechamentoEmTransito } from "@shared/origem-do-reaproveitamento";
+import { statusDasEtapas } from "@shared/fluxo-peca";
+
+/** A fila da Gráfica antes de produzir: onde a peça 100% em trânsito não tem o que fazer. */
+const NA_FILA_DA_GRAFICA: ReadonlySet<string> = new Set(statusDasEtapas("ready_for_production", "approved", "inProduction"));
 import { storage } from "../storage";
 import { broadcast, translateStatus } from "../routes/shared";
 import { COMPLEMENT_ALLOWED_STATUSES, deriveCalculatedM2, deriveMeasurement, medidaMudou, derivarAreaVisual } from "../routes/itens/comum";
@@ -119,6 +124,8 @@ export type PlanoDaEdicao = {
   updatePayload: Partial<InsertItem>;
   mudouQtd: boolean;
   promoveuParaProduzido: boolean;
+  /** A redução deixou só unidades em trânsito: a peça fechou como Entregue (16/10). */
+  fechouEmTransito?: boolean;
 };
 
 /**
@@ -144,6 +151,7 @@ export function planejarEdicao(
   const novaQtd = validatedData.quantity;
   const mudouQtd = novaQtd != null && Number(novaQtd) !== currentItem.quantity;
   let promoveuParaProduzido = false;
+  let fechouEmTransito = false;
 
   if (mudouQtd) {
     const nova = Number(novaQtd);
@@ -200,6 +208,11 @@ export function planejarEdicao(
     if (reusoNovo !== reusoAtual) {
       updatePayload.reuseQty = reusoNovo;
       updatePayload.isReuse = reusoNovo >= nova;
+    } else if (reusoAtual > 0 && !currentItem.isReuse && reusoNovo >= nova) {
+      // O reuso coube inteiro e passou a ser a quantidade toda: é reuso TOTAL
+      // (10 com 4 reaproveitadas reduzida para 4). O acervo antigo (isReuse com
+      // reuseQty 0) não entra aqui.
+      updatePayload.isReuse = true;
     }
 
     // Promoção SÓ PARA CIMA: se a redução zera o saldo a produzir e a peça
@@ -210,6 +223,11 @@ export function planejarEdicao(
     if (nova <= impressas + reusoNovo && (currentItem.status === "inProduction" || currentItem.status === "em_producao")) {
       updatePayload.status = "produced";
       promoveuParaProduzido = true;
+    }
+    // O reaproveitamento encolheu a zero: não há mais de onde ele venha.
+    if (reusoNovo === 0 && reusoAtual > 0) {
+      updatePayload.origemReaproveitamento = null;
+      updatePayload.obsReaproveitamento = null;
     }
     // Peça dividida entre impressoras: a soma dos `atrib` acompanha o novo
     // teto (senão a divisão fica impossível de fechar). Produzida → sem divisão.
@@ -254,6 +272,22 @@ export function planejarEdicao(
     }
   }
 
+  // EM TRÂNSITO (16/10): se o que sobra da peça na fila da Gráfica é só o que
+  // vem no caminhão de outra etapa (a redução de quantidade, ou o formulário
+  // marcando o total em trânsito), não há nada para imprimir, conferir,
+  // embalar nem entregar — ela fecha como Entregue, como nas outras portas do
+  // reaproveitamento. Sem isto ficava "Produzida" (ou na fila) para sempre: o
+  // teto da conferência é o físico, e o físico é zero.
+  const depois = { ...currentItem, ...updatePayload } as Item;
+  if (NA_FILA_DA_GRAFICA.has(currentItem.status) && todaEmTransito(depois)) {
+    updatePayload.status = "delivered";
+    updatePayload.deliveredAt = new Date();
+    // Fechada: a divisão entre impressoras e a reserva acabaram.
+    if (lerPartes(currentItem.impressaoPorMaquina)) updatePayload.impressaoPorMaquina = null;
+    Object.assign(updatePayload, colunasDaReserva(null, currentItem.reservaPorMaquina));
+    fechouEmTransito = true;
+  }
+
   // m² é derivado, não recebido: quando a quantidade ou as dimensões do
   // arquivo mudam, o valor enviado pelo cliente é ignorado e recalculado
   // com o estado MESCLADO (o que veio no PATCH + o que já estava na peça).
@@ -295,7 +329,7 @@ export function planejarEdicao(
     if (par) { updatePayload.area = par.area; updatePayload.visual = par.visual; }
   }
 
-  return { updatePayload, mudouQtd, promoveuParaProduzido };
+  return { updatePayload, mudouQtd, promoveuParaProduzido, fechouEmTransito };
 }
 
 /** A frase da trilha: o diff dos campos que mudaram (ou "atualizado"). */
@@ -303,7 +337,7 @@ export function descreverEdicao(
   currentItem: Item,
   item: Item,
   validatedData: DadosDaEdicao,
-  { mudaReuso, mudouQtd, promoveuParaProduzido }: { mudaReuso: boolean; mudouQtd: boolean; promoveuParaProduzido: boolean },
+  { mudaReuso, mudouQtd, promoveuParaProduzido, fechouEmTransito = false }: { mudaReuso: boolean; mudouQtd: boolean; promoveuParaProduzido: boolean; fechouEmTransito?: boolean },
 ): string {
   // Create audit log - build descriptive diff of changed fields
   const changedParts: string[] = [];
@@ -332,7 +366,9 @@ export function descreverEdicao(
   if (mudouQtd && (item.reuseQty ?? 0) !== (currentItem.reuseQty ?? 0)) {
     changedParts.push(`Reaproveitamento encolheu com a redução: ${currentItem.reuseQty ?? 0} → ${item.reuseQty ?? 0} un.`);
   }
-  if (promoveuParaProduzido) {
+  if (fechouEmTransito) {
+    changedParts.push(`Saldo zerado pela redução — ${fraseDoFechamentoEmTransito(item.obsReaproveitamento)}`);
+  } else if (promoveuParaProduzido) {
     changedParts.push("Saldo zerado pela redução — peça promovida para Produzido");
   }
   if ('type' in validatedData && item.type !== currentItem.type) {

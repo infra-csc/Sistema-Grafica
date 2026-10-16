@@ -18,10 +18,11 @@ import { registrarSaidaDaImpressora } from "./comum";
 import { responderFalha } from "../../erros";
 import { vemDeOrigemValida, podeTransicionar } from "@shared/maquina-de-estados";
 import {
-  lerOrigemDoCorpo, colunasDaOrigem, quantidadeFisicaDe, todaEmTransito, origemDe,
+  lerOrigemDoCorpo, colunasDaOrigem, recusaDaContaNoGalpao, todaEmTransito, origemDe,
   fraseDaTrilhaDaOrigem, fraseDoFechamentoEmTransito, type OrigemDoReaproveitamento,
 } from "@shared/origem-do-reaproveitamento";
 import { avisarBuscarNoEstoque } from "../../services/aviso-buscar-no-estoque";
+import { recalcularEventoEAvisar } from "../../services/evento-concluido";
 import type { Item } from "@shared/schema";
 
 /**
@@ -38,13 +39,14 @@ function origemDepois(
   return colunasDaOrigem(origemDe(current), current.obsReaproveitamento ?? null);
 }
 
-/** "Em trânsito: só há N un. impressas…" — a conta física não pode ficar abaixo do que o galpão já contou. */
+/**
+ * "Em trânsito: só há N un. impressas…" — o que o galpão já contou não pode
+ * passar do que EXISTE lá depois do gesto (impressas + reaproveitadas fora do
+ * caminhão). Comparar com o físico deixava passar a peça a meio da impressão
+ * (revisão adversarial, 16/10): shared/origem-do-reaproveitamento.ts.
+ */
 function recusaDaContaFisica(current: Item, depois: Partial<Item>): string | null {
-  const fisica = quantidadeFisicaDe({ ...current, ...depois });
-  const jaNoGalpao = Math.max(current.conferredQty ?? 0, current.embaladaQty ?? 0, current.deliveredQty ?? 0);
-  return jaNoGalpao > fisica
-    ? `Não dá para reaproveitar em trânsito: ${jaNoGalpao} un. já foram conferidas/embaladas no galpão e só ${fisica} un. sobrariam para passar por lá. Use "Estoque".`
-    : null;
+  return recusaDaContaNoGalpao({ ...current, ...depois }, "reaproveitar");
 }
 
 /** A frase da origem na trilha, só quando o gesto a gravou ou ela mudou. */
@@ -154,6 +156,8 @@ export function registrarReaproveitamento(app: Express): void {
             + trilhaDaOrigem(current, origemNova)
             + (fecha ? ` · Status: ${translateStatus(current.status)} → ${translateStatus("delivered")} — ${fraseDoFechamentoEmTransito(origemNova.obsReaproveitamento)}` : "")
         );
+        // Fechou como Entregue: pode ter sido a última pendência do evento.
+        if (fecha) await recalcularEventoEAvisar(item.eventId);
         broadcast({ type: "item_updated", item });
         await avisarBuscarNoEstoque(current, item, req.userRole);
         return res.json(item);
@@ -210,6 +214,7 @@ export function registrarReaproveitamento(app: Express): void {
           + (fechaEmTransito ? ` · Status: ${translateStatus(current.status)} → ${translateStatus("delivered")} — ${fraseDoFechamentoEmTransito(origemNova.obsReaproveitamento)}` : "")
       );
 
+      if (fechaEmTransito) await recalcularEventoEAvisar(item.eventId);
       broadcast({ type: "item_updated", item });
       await avisarBuscarNoEstoque(current, item, req.userRole);
       res.json(item);
@@ -335,6 +340,10 @@ export function registrarReaproveitamento(app: Express): void {
       // A peça estava EM IMPRESSÃO (o admin corrige em qualquer etapa antes da
       // conferência): a correção a tira da impressora — "pausa" no diário.
       await registrarSaidaDaImpressora(req, current);
+      // Entrou em Entregue (total em trânsito) ou saiu dele (a peça em trânsito
+      // corrigida volta à fila): o evento muda junto.
+      const eraEntregue = current.status === "delivered" || current.status === "entregue";
+      if (fechaEmTransito || eraEntregue) await recalcularEventoEAvisar(item.eventId);
 
       broadcast({ type: "item_updated", item });
       res.json(item);

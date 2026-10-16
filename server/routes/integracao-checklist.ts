@@ -155,6 +155,7 @@ export function registerIntegracaoChecklistRoutes(app: Express): void {
           type: items.type,
           quantity: items.quantity,
           deliveredQty: items.deliveredQty,
+          origemReaproveitamento: items.origemReaproveitamento,
           status: items.status,
           deletedAt: items.deletedAt,
           kitRemessaId: items.kitRemessaId,

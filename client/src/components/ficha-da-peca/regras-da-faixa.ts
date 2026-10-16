@@ -9,6 +9,7 @@ import { getApprovalMeta, getStatusLabel, guiaDoStatus, proximoPassoDaAprovacao 
 import { DIA_MS, type NomeDoTom } from "./estilos";
 import { dataDoValor, haQuantoTempo } from "./formatos";
 import type { AprovacaoDaFicha, EventoDoPercurso, ItemDaFicha } from "./tipos";
+import { quantidadeFisicaDe } from "@shared/origem-do-reaproveitamento";
 
 export function resolverFaixa({ item, rawStatus, approvalsList, eventosPercurso }: {
   item: ItemDaFicha;
@@ -144,14 +145,14 @@ export function resolverFaixa({ item, rawStatus, approvalsList, eventosPercurso 
     // MOLDE (22/09): produzido é o fim do fluxo dele.
     if (moldeConcluido(item)) return { tom: "ok", frase: "Molde produzido — fluxo concluído", detalhe: "O molde termina no Produzido: sem conferência, embalagem ou entrega." };
     if (["produced", "produzido"].includes(rawStatus)) {
-      return { tom: "espera", frase: `Em acabamento / conferência${desdeQuando}`, detalhe: conferidas > 0 ? `${item.conferredQty} de ${item.quantity} já conferidas` : null };
+      return { tom: "espera", frase: `Em acabamento / conferência${desdeQuando}`, detalhe: conferidas > 0 ? `${item.conferredQty} de ${quantidadeFisicaDe(item)} já conferidas` : null };
     }
     if (["conferred", "conferido"].includes(rawStatus)) {
-      return { tom: "espera", frase: `Conferida — falta embalar ou entregar${desdeQuando}`, detalhe: entregues > 0 ? `${item.deliveredQty} de ${item.quantity} já entregues` : null };
+      return { tom: "espera", frase: `Conferida — falta embalar ou entregar${desdeQuando}`, detalhe: entregues > 0 ? `${item.deliveredQty} de ${quantidadeFisicaDe(item)} já entregues` : null };
     }
     if (rawStatus === "packed") {
       // O número do tubo chega na peça (enrich do servidor) — "Tubo 2 · fechado 14:32".
-      return { tom: "espera", frase: `${item.tuboAvulso ? "Embalada sozinha" : `Embalada${rotuloDoTubo(item) && rotuloDoTubo(item) !== "Em tubo" ? ` no ${rotuloDoTubo(item)}` : " no tubo"}`} — aguarda o caminhão${desdeQuando}`, detalhe: item.tuboFechadoEm ? detalheDaProducao(item) : entregues > 0 ? `${item.deliveredQty} de ${item.quantity} já entregues` : null };
+      return { tom: "espera", frase: `${item.tuboAvulso ? "Embalada sozinha" : `Embalada${rotuloDoTubo(item) && rotuloDoTubo(item) !== "Em tubo" ? ` no ${rotuloDoTubo(item)}` : " no tubo"}`} — aguarda o caminhão${desdeQuando}`, detalhe: item.tuboFechadoEm ? detalheDaProducao(item) : entregues > 0 ? `${item.deliveredQty} de ${quantidadeFisicaDe(item)} já entregues` : null };
     }
     if (["delivered", "entregue"].includes(rawStatus)) {
       return { tom: "ok", frase: "Entregue — nada pendente", detalhe: detalheDaProducao(item) };

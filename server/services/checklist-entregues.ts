@@ -37,6 +37,7 @@ const BOOK_COMPLETO_SQL = "book[[:space:]_-]*completo";
 // (A de quantidadeACaminhoParaChecklist é quantity − esta, dentro do funil.)
 const quantidadeEntregueSql = sql`(case
   when ${inArray(items.status, [...STATUS_ENTREGUES])} and coalesce(${items.deliveredQty}, 0) = 0 then ${items.quantity}
+  when ${inArray(items.status, [...STATUS_ENTREGUES])} and ${items.origemReaproveitamento} = 'em_transito' then ${items.quantity}
   else least(coalesce(${items.deliveredQty}, 0), ${items.quantity})
 end)`;
 
@@ -214,6 +215,7 @@ export async function montarEntreguesDoEvento(banco: BancoDeLeitura, eventoId: s
       measurement: items.measurement,
       quantity: items.quantity,
       deliveredQty: items.deliveredQty,
+      origemReaproveitamento: items.origemReaproveitamento,
       status: items.status,
       deliveredAt: items.deliveredAt,
       receivedBy: items.receivedBy,

@@ -30,6 +30,8 @@ export interface PecaParaChecklist {
   deliveredQty: number | null;
   deletedAt: Date | string | null;
   kitRemessaId: string | null;
+  /** De onde vem o reaproveitamento (16/10): "em_transito" fecha sem entregar as unidades do caminhão. */
+  origemReaproveitamento?: string | null;
 }
 
 /**
@@ -50,6 +52,12 @@ export function quantidadeEntregueParaChecklist(p: PecaParaChecklist): number {
   const quantidade = Math.max(0, Number(p.quantity) || 0);
   const entregue = Math.max(0, Number(p.deliveredQty) || 0);
   if (ehEntregue(p.status) && entregue === 0) return quantidade;
+  // EM TRÂNSITO (16/10): a peça fecha como Entregue quando o FÍSICO saiu — as
+  // unidades reaproveitadas que vêm no caminhão conjugado não passam por
+  // volume. Fechada, ela vai inteira para a Arena (como a 100% em trânsito,
+  // que fecha com 0 entregues e cai na regra de cima); sem isto as do
+  // caminhão ficavam "a caminho" para sempre.
+  if (ehEntregue(p.status) && p.origemReaproveitamento === "em_transito") return quantidade;
   return Math.min(entregue, quantidade);
 }
 

@@ -14,6 +14,8 @@
 // atrás de try/catch) — sem React, para o teste não precisar de tela.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { emTransitoDe, quantidadeFisicaDe } from "@shared/origem-do-reaproveitamento";
+
 export type PecaDaLista = {
   id?: string; type?: string | null; description?: string | null; quantity?: number | null;
   /** EMBALAGEM COM QUANTIDADE (21/09): quanto da peça está NAQUELE tubo. Quando
@@ -180,8 +182,11 @@ export const comCopias = <T,>(paginas: T[], copias: number): T[] =>
 
 /** Alguma peça é de reaproveitamento? Lê os dois campos do cadastro; se a API
  *  não os mandar, devolve false e vale o interruptor manual. */
-export const temReaproveitamento = (pecas: Array<{ isReuse?: boolean | null; reuseQty?: number | null }>) =>
-  pecas.some((p) => p?.isReuse === true || Number(p?.reuseQty ?? 0) > 0);
+// EM TRÂNSITO (16/10): as reaproveitadas que vêm no caminhão de outra etapa
+// não entram em volume — o tubo de uma peça assim só leva as impressas, e o
+// "REAPROVEITAR" não pode ligar sozinho por causa delas.
+export const temReaproveitamento = (pecas: Array<{ isReuse?: boolean | null; reuseQty?: number | null; origemReaproveitamento?: string | null }>) =>
+  pecas.some((p) => p?.origemReaproveitamento !== "em_transito" && (p?.isReuse === true || Number(p?.reuseQty ?? 0) > 0));
 
 // ── Preferências (lembradas por navegador) ──────────────────────────────────
 
@@ -313,6 +318,8 @@ export function cabeNoAdesivo<T extends PecaDaLista>(linhas: LinhaDaEtiqueta<T>[
 export type VolumeDaPeca = { tuboId?: string | null; numero?: number | null; avulso?: boolean | null; quantidade?: number | null };
 export type PecaComTubo = PecaDaLista & {
   tuboVolumes?: VolumeDaPeca[] | null; tuboId?: string | null; tuboNumero?: number | null; tuboAvulso?: boolean | null; embaladaQty?: number | null;
+  /** Reaproveitamento EM TRÂNSITO (16/10): essas unidades vêm no caminhão de outra etapa — não ganham etiqueta aqui. */
+  reuseQty?: number | null; isReuse?: boolean | null; origemReaproveitamento?: string | null;
   /** Os volumes JÁ ENTREGUES da peça, com a quantidade de cada (server/services/tubosDaPeca.ts). */
   tuboVolumesEntregues?: VolumeDaPeca[] | null;
 };
@@ -344,7 +351,10 @@ const inteiroPositivo = (v: unknown) => { const n = Math.floor(Number(v)); retur
 /** As partes da peça, ANTES da edição: os tubos em ordem de número, depois a
  *  embalada sozinha, depois o resto fora de volume. */
 export function partesDaPeca<T extends PecaComTubo>(p: T): ParteDaPeca<T>[] {
-  const quantidade = inteiroPositivo(p.quantity) || 1;
+  // EM TRÂNSITO (16/10): as reaproveitadas que vêm no caminhão de outra etapa
+  // não passam pelo galpão — a etiqueta é do FÍSICO (sem isto sobrava uma
+  // parte "fora de volume" com as unidades do caminhão).
+  const quantidade = (emTransitoDe(p) > 0 ? quantidadeFisicaDe(p) : inteiroPositivo(p.quantity)) || 1;
   const validos = (lista: VolumeDaPeca[] | null | undefined) => (Array.isArray(lista) ? lista.filter((v) => v && inteiroPositivo(v.quantidade) > 0) : []);
   // PEÇA JÁ ENTREGUE (revisão de 22/09): os volumes entregues contam como
   // partes, cada um com a SUA quantidade — a dividida toda entregue não vira

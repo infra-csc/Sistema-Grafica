@@ -41,6 +41,7 @@ import { CHAVE_DAS_PRIORITARIAS } from "./ordem-da-fila";
 import { TITULO_DO_SELO_NA_GRAFICA } from "@shared/prioridade-na-impressao";
 import { SeloOrigemDoReaproveitamento } from "@/components/reaproveitamento/selo-da-origem";
 import { ControleDePrioridadeNaFila } from "./prioridade-na-fila";
+import { quantidadeFisicaDe as quantidadeFisica } from "@shared/origem-do-reaproveitamento";
 
 export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, corte, prioritarias = null }: {
   ctx: ContextoDaLinha;
@@ -429,7 +430,7 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
                   </span>
                 )}
                 {deliveredOf(item) > 0 && (
-                  <span style={qtyChip(TOM.sucesso.text, TOM.sucesso.bg)} title={`${deliveredOf(item)} de ${qtyOf(item)} un. entregues`}>
+                  <span style={qtyChip(TOM.sucesso.text, TOM.sucesso.bg)} title={`${deliveredOf(item)} de ${quantidadeFisica(item)} un. entregues`}>
                     Entreg. {deliveredOf(item)}
                   </span>
                 )}

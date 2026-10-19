@@ -9,6 +9,12 @@ When `server/__tests__/permissoes-declaradas.test.ts` conflicts on a hardcoded r
 
 **How to apply:** During a merge, resolve and commit. During a rebase, resolve, stage, test, then run `GIT_EDITOR=true git rebase --continue` until `.git/rebase-merge` and `.git/rebase-apply` are absent. Do not run another pull while either operation is active.
 
+When resolving a merge in this workspace, stage the final conflict resolutions and create the merge commit in the same shell operation. Then verify the commit has two parents and the branch is no longer behind its remote.
+
+**Why:** The automatic checkpoint process can reset an active merge after the conflicts are staged, create an empty one-parent checkpoint, and leave the branch clean but still divergent. A clean `git status` alone does not prove the merge completed.
+
+**How to apply:** After committing, inspect `git show -s --format='%P' HEAD` and `git rev-list --left-right --count HEAD...origin/main`. If the supposed merge has one parent and the remote side is still nonzero, rerun the merge and commit its resolution explicitly.
+
 When `App.tsx` or the admin sidebar conflicts, preserve lazy route loading and combine all independently added admin pages rather than choosing one side wholesale. In the current feature set, Notificações, Reparar vínculos, and Inferir executivos must coexist.
 
 **Why:** Automatic rebases replayed the repair and inference commits over a base that already contained Notifications and code splitting; selecting either conflict side removed valid routes or restored eager imports.

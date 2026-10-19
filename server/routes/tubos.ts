@@ -62,7 +62,8 @@ import { items as itemsTable, tubos, tuboItens, events, auditLogs } from "@share
 import { EMBALADO } from "@shared/fluxo-peca";
 import { emTransitoDe, quantidadeFisicaDe } from "@shared/origem-do-reaproveitamento";
 import { aEmbalar, planejarEmbalar, planejarEntrega, planejarRetirada, problemaNoVolume, statusEmbalavel, volumePrincipal } from "@shared/embalagem";
-import { pecaTravada, fraseDaTrava } from "@shared/trava-da-peca";
+import { pecaTravada, fraseDaTrava, colunasDoDestravar } from "@shared/trava-da-peca";
+import { lerMotivoDevolucao } from "./itens/comum";
 import { pecaVisivelPara } from "@shared/kit";
 import { urlDeThumbValida } from "./thumb-url";
 import { doEventoNaoArquivado, EVENTO_ARQUIVADO_ERRO } from "../services/arquivamento";
@@ -481,6 +482,70 @@ export async function excluirPecaTirandoDosVolumes(req: Request, itemId: string)
   return { tiradas: feito.reduce((t, m) => t + m.tiradas.length, 0) };
 }
 
+const STATUS_ENTREGUE = new Set(["delivered", "entregue"]);
+
+/**
+ * REABRIR A PEÇA ENTREGUE PARA A REVISÃO (dono, 13/10: "como ADM levar um
+ * entregue de volta para a revisão"; escolha: "zerar e produzir de novo",
+ * inclusive em evento realizado/encerrado).
+ *
+ * Numa transação só: tira a peça de TODOS os volumes (também dos entregues —
+ * ela deixa de constar como entregue), apaga o volume avulso que fica vazio e
+ * zera impressão, conferência, embalagem e entrega. O reaproveitamento fica:
+ * é estoque já destinado à peça, não produção dela. Os valores anteriores vão
+ * para a trilha. A ordem das travas é a do arquivo: volumes (por id), peça.
+ */
+export async function reabrirEntregueParaRevisao(req: Request, itemId: string, motivo: string) {
+  const feito = await db.transaction(async (tx: Ex) => {
+    const linhas = await linhasDasPecas([itemId], tx);
+    const ids = Array.from(new Set(linhas.map((l) => l.tuboId))).sort();
+    const volumes: Tubo[] = ids.length ? await tx.select().from(tubos).where(inArray(tubos.id, ids)).orderBy(asc(tubos.id)).for("update") : [];
+    const [peca] = await tx.select().from(itemsTable).where(eq(itemsTable.id, itemId)).for("update");
+    if (!peca || peca.deletedAt) throw new Recusa(404, "Peça não encontrada");
+    if (!STATUS_ENTREGUE.has(peca.status)) throw new Recusa(409, "Só a peça entregue pode ser reaberta para a Revisão por aqui.");
+    const agora = new Date();
+    for (const l of linhas) await tx.delete(tuboItens).where(eq(tuboItens.id, l.id));
+    const mexidos: Tubo[] = [];
+    for (const tubo of volumes) {
+      if (tubo.avulso && (await linhasDosTubos([tubo.id], tx)).length === 0) {
+        await tx.delete(tubos).where(eq(tubos.id, tubo.id));
+      } else {
+        await marcarConteudoAlterado(tubo, agora, tx);
+      }
+      mexidos.push(tubo);
+    }
+    const [item] = await tx.update(itemsTable).set({
+      status: "awaiting_final_review", statusChangedAt: agora, updatedAt: agora,
+      creatorReviewedAt: null, observations: motivo, rejectionReason: motivo,
+      quantityProduced: null, conferredQty: 0, embaladaQty: 0, deliveredQty: 0, tuboId: null,
+      productionStartedAt: null, producedAt: null, conferredAt: null, deliveredAt: null, labelPrintedAt: null,
+      printMachine: null, maquinaPrevista: null, reservaPorMaquina: null, impressaoPorMaquina: null,
+      conferenceNotes: null, conferencePhotoUrl: null, deliveryNotes: null, deliveryPhotoUrl: null, receivedBy: null,
+      ...colunasDoDestravar(),
+    }).where(eq(itemsTable.id, itemId)).returning();
+    return { antes: peca, item, mexidos };
+  });
+
+  const { antes, item, mexidos } = feito;
+  const nomesDosVolumes = mexidos.map((t) => (t.avulso ? "embalagem avulsa" : `Tubo ${t.numero}`)).join(", ");
+  await depoisDoCommit("avisar a reabertura", async () => {
+    await createAuditLog(req, "rejected", "item", item.id,
+      `ADM reabriu a peça entregue para a Revisão Final e zerou a produção (antes: ${antes.quantityProduced ?? 0} impressas, ${antes.conferredQty} conferidas, ${antes.embaladaQty} embaladas, ${antes.deliveredQty} entregues${nomesDosVolumes ? `; retirada de: ${nomesDosVolumes}` : ""}). Motivo: ${motivo}`);
+    await updateEventStatus(item.eventId);
+    const notification = await storage.createNotification({
+      type: "itemRejected",
+      message: `ADM reabriu ${item.displayId} (entregue) para a Revisão: ${motivo}`,
+      eventId: item.eventId,
+      itemId: item.id,
+      targetRoles: ["solicitacao"],
+    });
+    broadcast({ type: "item_updated", item });
+    broadcast({ type: "notification_created", notification });
+    broadcast({ type: "tubos_atualizados", eventId: item.eventId });
+  });
+  return item;
+}
+
 /** A recusa de dentro da transação da exclusão (404) — para a rota de peças responder. */
 export const ehRecusaDeTubo = (e: unknown): e is { http: number; message: string } => e instanceof Recusa;
 
@@ -561,6 +626,21 @@ async function conteudoDoTubo(tuboId: string, tx?: Ex): Promise<Array<{ p: PecaC
 }
 
 export function registerTubosRoutes(app: Express): void {
+  // Só o ADM reabre a peça entregue (ver reabrirEntregueParaRevisao). Vale em
+  // evento realizado ou encerrado: é correção de quem administra, não operação.
+  app.post("/api/items/:id/reabrir-para-revisao", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "admin") return res.status(403).json({ error: "Só o administrador reabre peça entregue para a Revisão" });
+      const motivo = lerMotivoDevolucao(req);
+      if (!motivo.ok) return res.status(400).json({ error: motivo.erro });
+      res.json(await reabrirEntregueParaRevisao(req, req.params.id, motivo.motivo));
+    } catch (error) {
+      if (responderRecusa(res, error)) return;
+      console.error("[reabrir-para-revisao]", error);
+      res.status(500).json({ error: "Não foi possível reabrir a peça para a Revisão" });
+    }
+  });
+
   // Os tubos de um evento, com o que tem dentro, e as peças com unidade a embalar.
   app.get("/api/events/:eventId/tubos", requireAuth, async (req, res) => {
     if (!podeMexerEmTubo(req)) return res.status(403).json({ error: SEM_PAPEL });

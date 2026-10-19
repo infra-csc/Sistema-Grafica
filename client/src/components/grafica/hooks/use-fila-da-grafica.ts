@@ -5,7 +5,7 @@
 // filtros espelhado na URL, as facetas, a lista ordenada e filtrada, os
 // números dos cartões e do resumo, e o orçamento de linhas desenhadas por lote.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useEffect, useMemo, useRef, useState, startTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, startTransition } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getStatusLabel, seloPecaEventoFinalizado, todayBusinessMs } from "@/lib/status";
 import type { SeloPecaEventoFinalizado } from "@/lib/status";
@@ -27,6 +27,7 @@ import {
 import type { ModeloDoCatalogo, PecaDaFila, RegistroDoHistorico } from "@/components/grafica/tipos";
 import { FILTRO_DOS_CARTOES, LINHAS_DA_PRIMEIRA_LEVA, LINHAS_POR_LOTE, ROW_CAP } from "@/components/grafica/fila/regras";
 import { useFacetasDaFila } from "./use-facetas-da-fila";
+import { recorteSoDaBusca } from "@/components/grafica/recorte-da-busca";
 import { ordenarFilaDaGrafica, CHAVE_DAS_PRIORITARIAS } from "@/components/grafica/fila/ordem-da-fila";
 
 export type FilaDaGrafica = ReturnType<typeof useFilaDaGrafica>;
@@ -269,6 +270,17 @@ export function useFilaDaGrafica() {
     return filaOrdenadaRef.current.ordenada.filter((item) =>
       (naBusca === null || naBusca.has(item)) && itemCasaFiltros(item, recorteDasPassadas, ctxFiltros));
   }, [items, poolDaBusca, recorteDasPassadas, ctxFiltros]);
+
+  // O EXCEL TRAZ TODOS OS EVENTOS (dono, 13/10: "o excel sempre tem que vir
+  // todos os eventos"). Mesmo recorte da lista (busca e filtros), mas sobre
+  // `pecasDoServidor`: as peças de evento realizado, escondidas da fila por
+  // padrão, entram na planilha do fechamento semanal. Calculado só no clique.
+  const pecasParaExcel = useCallback((): PecaDaFila[] => {
+    const soBusca = filtros.busca.trim() ? recorteSoDaBusca(filtros.busca) : null;
+    return ordenarFilaDaGrafica(pecasDoServidor).filter((item) =>
+      (!soBusca || itemCasaFiltros(item, soBusca, ctxFiltros, { ignorarStatus: true }))
+      && itemCasaFiltros(item, recorteDasPassadas, ctxFiltros));
+  }, [pecasDoServidor, filtros.busca, recorteDasPassadas, ctxFiltros]);
 
   // statsPool: todos os filtros ativos EXCETO os de forma de status — os cards
   // mostram a contagem de cada status dentro do recorte atual. É também de onde
@@ -579,7 +591,7 @@ export function useFilaDaGrafica() {
     typeToGroup, groupOf, ctxFiltros,
     ...facetas,
     eventFilterOptions,
-    filteredItems, statsPool, stats, finalizadasNoRecorte,
+    filteredItems, pecasParaExcel, statsPool, stats, finalizadasNoRecorte,
     complementosAbertos, complementosNaLista, complementoChipLabel, comReusoNaLista, entreguesOcultas, realizadosOcultos,
     nFiltros, nFiltrosNaFolha, haFiltro, descricaoFiltros,
     gruposExpandidos, setGruposExpandidos, expandirGrupo, linhasVisiveis, cortePorItem,

@@ -88,6 +88,42 @@ beforeEach(() => {
 });
 
 describe("a coluna Tubo da planilha", () => {
+  it("exporta eventos realizados com entregues, sem depender dos filtros da fila", async () => {
+    H.storage.getItemsByEvents = vi.fn(async () => [peca("a", { status: "delivered", deliveredQty: 10 })]);
+    H.storage.getAllEvents = vi.fn(async () => [{ id: "ev-1", name: "Night Run - Teresina", startDate: "2020-01-01", status: "completed" }]);
+    const resposta = res();
+    await handleExportSelectedItemsXlsx({ body: { eventIds: ["ev-1", "ev-1"] } } as any, resposta);
+    expect(resposta._status).toBe(200);
+    expect(H.storage.getItemsByEvents).toHaveBeenCalledWith(["ev-1"]);
+    expect(H.storage.getItemsByIds).not.toHaveBeenCalled();
+    const ws = H.planilhas[0].getWorksheet("Itens");
+    const cab = linha(ws, 3);
+    expect(linha(ws, 4)[cab.indexOf("Evento")]).toBe("Night Run - Teresina");
+    expect(linha(ws, 4)[cab.indexOf("Status")]).toBe("Entregue");
+    expect(linha(ws, 4)[cab.indexOf("Entregue")]).toBe(10);
+  });
+
+  it("preserva o recorte do Kit ao exportar por eventos", async () => {
+    H.storage.getItemsByEvents = vi.fn(async () => [peca("a"), peca("b")]);
+    H.storage.getIdsDasPecasDoKitDoCriador = vi.fn(async () => ["b"]);
+    await handleExportSelectedItemsXlsx({ body: { eventIds: ["ev-1"] }, userKit: true, userId: "kit" } as any, res());
+    const ws = H.planilhas[0].getWorksheet("Itens");
+    expect(linha(ws, 4)[linha(ws, 3).indexOf("#ID")]).toBe("#b");
+    expect(H.storage.getIdsDasPecasDoKitDoCriador).toHaveBeenCalledWith("kit");
+  });
+
+  it("recusa recorte misturado e eventos inválidos, e informa ausência de peças", async () => {
+    for (const body of [{ itemIds: ["a"], eventIds: ["ev-1"] }, { eventIds: [null] }, { eventIds: [] }]) {
+      const resposta = res();
+      await handleExportSelectedItemsXlsx({ body } as any, resposta);
+      expect(resposta._status).toBe(400);
+    }
+    H.storage.getItemsByEvents = vi.fn(async () => []);
+    const resposta = res();
+    await handleExportSelectedItemsXlsx({ body: { eventIds: ["ev-1"] } } as any, resposta);
+    expect(resposta._status).toBe(404);
+  });
+
   it("export da Gráfica (produção): 'Tubo' logo depois de 'Impressora', com o número do tubo da peça", async () => {
     await handleExportSelectedItemsXlsx({ body: { itemIds: ["a", "b"] } } as any, res());
     const ws = H.planilhas[0].getWorksheet("Itens");

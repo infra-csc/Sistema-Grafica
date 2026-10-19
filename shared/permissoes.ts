@@ -136,6 +136,7 @@ export const REGUA_DE_PAPEIS: RegraDeRota[] = [
   { metodo: "PATCH", rota: "/api/items/:id/return-to-arte", papeis: ["admin", "solicitacao"] },
   { metodo: "POST", rota: "/api/items/:id/return-to-creation", papeis: ["admin", "arte", "atendimento", "solicitacao"] },
   { metodo: "PATCH", rota: "/api/items/:id/return-to-review", papeis: ["admin", "grafica"] },
+  { metodo: "POST", rota: "/api/items/:id/reabrir-para-revisao", papeis: ["admin"] },
   { metodo: "POST", rota: "/api/items/:id/sponsor-approvals/:sponsorId/approve", papeis: ["admin", "atendimento"] },
   { metodo: "POST", rota: "/api/items/:id/sponsor-approvals/:sponsorId/reject", papeis: ["admin", "atendimento"] },
   { metodo: "POST", rota: "/api/items/:id/sponsor-approvals/:sponsorId/revert", papeis: ["admin", "atendimento"] },

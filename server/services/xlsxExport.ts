@@ -397,7 +397,12 @@ export async function handleExportItemsXlsx(req: Request, res: Response) {
 export async function handleExportSelectedItemsXlsx(req: Request, res: Response) {
   try {
     const ids: string[] = Array.isArray(req.body?.itemIds) ? req.body.itemIds : [];
-    if (!ids.length) return res.status(400).json({ error: "Nenhuma peça selecionada para exportar" });
+    const eventIds: string[] = Array.isArray(req.body?.eventIds) ? req.body.eventIds : [];
+    if (eventIds.length > 100 || eventIds.some(id => typeof id !== "string" || !id.trim())) {
+      return res.status(400).json({ error: "Selecione até 100 eventos válidos" });
+    }
+    if (ids.length && eventIds.length) return res.status(400).json({ error: "Selecione peças ou eventos, não ambos" });
+    if (!ids.length && !eventIds.length) return res.status(400).json({ error: "Nenhuma peça ou evento selecionado para exportar" });
 
     // A Gráfica exporta centenas de peças de uma vez. Uma consulta por peça
     // (e outra por patrocinador) estouraria o pool de conexões, então tudo é
@@ -407,9 +412,14 @@ export async function handleExportSelectedItemsXlsx(req: Request, res: Response)
     // recorte de antes: vivas, e o Kit só com as dele. (A ordem final é a do
     // byDisplayId, abaixo.)
     const doKit = req.userKit ? new Set(await storage.getIdsDasPecasDoKitDoCriador(req.userId ?? null)) : null;
-    const raw = (await storage.getItemsByIds(Array.from(wanted)))
+    // O relatório por evento é independente da fila: inclui o histórico e
+    // as entregues, sem reabrir evento ou mudar a visibilidade na produção.
+    const raw = (eventIds.length
+      ? await storage.getItemsByEvents(Array.from(new Set(eventIds)))
+      : await storage.getItemsByIds(Array.from(wanted)))
       .filter(i => !i.deletedAt && (!doKit || doKit.has(i.id)));
     if (!raw.length) return res.status(404).json({ error: "Nenhuma peça encontrada" });
+    raw.forEach(i => wanted.add(i.id));
 
     const eventNames = new Map<string, string>();
     (await storage.getAllEvents()).forEach(ev => eventNames.set(ev.id, ev.name));
@@ -436,6 +446,7 @@ export async function handleExportSelectedItemsXlsx(req: Request, res: Response)
         sponsorNames: sponsorsByItem.get(i.id) ?? [],
       }))
       .sort(byDisplayId);
+    if (!items.length) return res.status(404).json({ error: "Nenhuma peça encontrada nos eventos disponíveis" });
 
     const title = typeof req.body?.title === "string" && req.body.title.trim()
       ? req.body.title.trim()

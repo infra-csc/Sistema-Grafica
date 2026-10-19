@@ -12,6 +12,7 @@
 //   • /api/auth/me uma vez;
 //   • /api/notifications uma vez (a lista do sino é UMA query, da casca);
 //   • o badge de pedidos só para quem resolve pedidos;
+//   • o número do Eventos (auditoria do book, 19/10) só para Solicitação e admin;
 //   • nada de acervo pesado — isso é das páginas, não da casca.
 //
 // O WebSocket aqui nunca abre: a revalidação da (re)conexão é assunto do
@@ -28,6 +29,7 @@ function responder(url: string, papel: string) {
   if (url.startsWith("/api/auth/me")) return { id: "u1", name: "Teste", email: "t@t", role: papel, mustChangePassword: false };
   if (url.startsWith("/api/notifications")) return [];
   if (url.startsWith("/api/pedidos-de-peca/pendentes")) return { total: 0 };
+  if (url.startsWith("/api/auditorias-do-book")) return { auditorias: [] };
   return [];
 }
 
@@ -66,16 +68,18 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("a casca pede o mínimo ao montar", () => {
-  it("admin: me 1×, notificações 1×, badge 1× — e nenhum acervo pesado", async () => {
+  it("admin: me 1×, notificações 1×, os dois números do menu 1× — e nenhum acervo pesado", async () => {
     const contar = await montar("admin");
     expect(contar("/api/auth/me")).toBe(1);
     expect(contar("/api/notifications")).toBe(1);
     expect(contar("/api/pedidos-de-peca/pendentes")).toBe(1);
+    // "Deixa um número no Eventos" (dono, 19/10): peças do book a revisar.
+    expect(contar("/api/auditorias-do-book")).toBe(1);
     for (const pesado of ["/api/events", "/api/sponsors", "/api/standard-items", "/api/items"]) {
       expect(contar(pesado), pesado).toBe(0);
     }
     // Orçamento total da casca: se crescer, que seja de propósito.
-    expect(pedidos.length, pedidos.join(", ")).toBe(3);
+    expect(pedidos.length, pedidos.join(", ")).toBe(4);
   }, 20_000);
 
   it("gráfica: não pede o badge de pedidos (não é dela)", async () => {
@@ -84,6 +88,7 @@ describe("a casca pede o mínimo ao montar", () => {
     // Solicitação ao estoque desligada (dono, 21/09 — segurar): o número do
     // menu não é pedido por ninguém.
     expect(contar("/api/consultas-de-estoque/abertas")).toBe(0);
+    expect(contar("/api/auditorias-do-book")).toBe(0);
     expect(pedidos.length, pedidos.join(", ")).toBe(2);
   }, 20_000);
 });

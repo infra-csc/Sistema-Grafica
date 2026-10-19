@@ -27,6 +27,7 @@
 // filtros e recorte, formulário, ações sobre o evento, cartão e linha.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useMemo, useState } from "react";
+import { useSearch } from "wouter";
 import { podeGerirEvento } from "@shared/permissoes";
 import { T } from "@/lib/theme";
 import { useAuth } from "@/contexts/auth-context";
@@ -48,6 +49,9 @@ import { DialogoDePrioridade } from "@/components/eventos/dialogo-de-prioridade"
 import { useEventosSugeridos } from "@/components/eventos/use-eventos-sugeridos";
 import { BotaoDeSugestoes, PainelDeSugestoes } from "@/components/eventos/sugestoes-do-ummense";
 import { podeVerEventosSugeridos } from "@shared/permissoes";
+import { useAuditoriasDoBook } from "@/components/eventos/use-auditorias-do-book";
+import { FaixaDoBook, AvisoDoBookParaAdmin } from "@/components/eventos/faixa-do-book";
+import { PainelDoBook } from "@/components/eventos/painel-do-book";
 
 export default function Eventos() {
   const { user } = useAuth();
@@ -95,7 +99,25 @@ export default function Eventos() {
   const sugestoes = useEventosSugeridos({ habilitado: veSugestoes, userId: user?.id });
   const [painelDeSugestoes, setPainelDeSugestoes] = useState(false);
   const acoes = useAcoesDoEvento(events, filtros);
-  const recorte = useEventosFiltrados(events, sponsorById, pedidosPorEvento, filtros);
+  // AUDITORIA DO BOOK COM IA (dono, 19/10): peças desenhadas no book que não
+  // estão na lista. Só Solicitação (menos o Kit) e admin — os demais nem pedem.
+  const book = useAuditoriasDoBook(user);
+  const bookPorEvento = book.resumo.porEvento;
+  const recorte = useEventosFiltrados(events, sponsorById, pedidosPorEvento, filtros, bookPorEvento);
+  // O painel de um evento abre pela faixa e pelo aviso do sino
+  // (/eventos?foco=book&book=<id>). Lido do endereço também com a tela já
+  // aberta: o sino navega para cá sem remontar a página.
+  const [bookAberto, setBookAberto] = useState<string | null>(null);
+  const busca = useSearch();
+  const { setFoco } = filtros;
+  useEffect(() => {
+    const p = new URLSearchParams(busca);
+    const id = p.get("book");
+    if (id && book.habilitado) {
+      setBookAberto(id);
+      if (p.get("foco") === "book") setFoco("book");
+    }
+  }, [busca, book.habilitado, setFoco]);
   const carregado = !isLoading && !isError;
   // Nenhum evento existe: filtros, ordem e atalhos não têm o que recortar —
   // fica só o convite para criar o primeiro.
@@ -115,6 +137,7 @@ export default function Eventos() {
           carregado={carregado}
           semEventos={semEventos}
           onNovoEvento={form.abrirNovoEvento}
+          comBook={book.habilitado}
           botaoDeSugestoes={veSugestoes
             ? <BotaoDeSugestoes sug={sugestoes} onAbrir={() => setPainelDeSugestoes(true)} isMobile={isMobile} />
             : undefined}
@@ -132,6 +155,23 @@ export default function Eventos() {
 
         {(user?.role === 'solicitacao' || user?.role === 'admin') && (
           <FaixaDePedidos linhasAbertas={dados.linhasAbertas} foco={filtros.foco} setFoco={filtros.setFoco} dedo={dedo} celular={isMobile} />
+        )}
+
+        {book.habilitado && (
+          <>
+            <FaixaDoBook auditorias={book.auditorias} foco={filtros.foco} setFoco={filtros.setFoco} onAbrir={setBookAberto} dedo={dedo} celular={isMobile} />
+            {user?.role === 'admin' && (
+              <AvisoDoBookParaAdmin semChave={book.semChave} auditorias={book.auditorias} onAbrir={setBookAberto} dedo={dedo} />
+            )}
+            <PainelDoBook
+              eventId={bookAberto}
+              nomeDoEvento={events.find((e) => e.id === bookAberto)?.name}
+              onFechar={() => setBookAberto(null)}
+              aud={book}
+              isMobile={isMobile}
+              admin={user?.role === 'admin'}
+            />
+          </>
         )}
 
         <ModalDoEvento
@@ -167,6 +207,7 @@ export default function Eventos() {
         densidade={filtros.densidade}
         patrocinadoresDoCartao={dados.patrocinadoresDoCartao}
         pedidosPorEvento={pedidosPorEvento}
+        bookPorEvento={bookPorEvento}
         currentYear={currentYear}
         relogioMs={agoraMs}
         isMobile={isMobile}

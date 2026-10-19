@@ -42,6 +42,8 @@ import { registerKitRoutes } from "./routes/kit";
 import { registerArtesBuscaRoutes } from "./routes/artes-busca";
 import { registerMoldeRoutes } from "./routes/molde";
 import { registerIntegracaoChecklistRoutes } from "./routes/integracao-checklist";
+import { registerAuditoriaDoBookRoutes } from "./routes/auditoria-do-book";
+import { retomarAuditoriasDoBook } from "./services/auditoria-do-book/fila";
 import { db, pool } from "./db";
 import { items as itemsTable, events as eventsTable, tubos as tubosTable, tuboItens as tuboItensTable } from "@shared/schema";
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
@@ -181,6 +183,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerKitRoutes(app);
   registerArtesBuscaRoutes(app);
   registerMoldeRoutes(app);
+  // Auditoria do book com IA (19/10): leitura e marcação dos achados.
+  registerAuditoriaDoBookRoutes(app);
   // Checklist de Arena (outro app): só leitura, por token, sem sessão.
   registerIntegracaoChecklistRoutes(app);
   registerNotificationRoutes(app);
@@ -222,6 +226,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Prioridade automática pela saída do caminhão (25/08): boot + hora em hora;
   // respeita a trava manual (events.priority_manual).
   startPrioridadeAutomatica();
+  // Auditoria do book com IA (19/10): o que ficou na fila quando o processo
+  // parou (pendente/processando) volta a rodar. Sem a chave, nada roda.
+  void retomarAuditoriasDoBook();
 
   registerInventoryRoutes(app);
 

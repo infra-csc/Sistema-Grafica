@@ -95,6 +95,8 @@ export type MensagemWS =
   | { type: "estoque_reservas"; itemId?: IdOpcional; eventId?: IdOpcional }
   | { type: "consultas_de_estoque"; itemId: Id; eventId?: IdOpcional }
   | { type: "pedidos_de_peca"; eventId?: IdOpcional }
+  // Auditoria do book com IA (19/10): rodou, concluiu, ou alguém marcou um achado.
+  | { type: "auditorias_do_book"; eventId?: IdOpcional }
 
   // Prazos e avisos
   | { type: "deadline_alert"; event: EventoDoSinal; hoursRemaining: number }

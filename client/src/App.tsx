@@ -366,6 +366,8 @@ function destinoDaNotificacao(n: Notification, role?: string | null): string | n
     }
     return n.eventId ? `/eventos/${n.eventId}?pedidos=1` : "/pedidos-de-peca";
   }
+  // AUDITORIA DO BOOK (19/10): a tela de Eventos já com o painel do evento aberto.
+  if (tipo === "bookAuditado") return n.eventId ? `/eventos?foco=book&book=${n.eventId}` : "/eventos?foco=book";
   // Avisos de LOTE, sem peça: a fila onde o lote espera.
   if (tipo === "itemsSentToArte" && ROLES_ARTE.includes(role ?? "")) return "/arte";
   if (tipo === "itemsSubmitted" && ROLES_VINCULAR.includes(role ?? "")) return "/vincular-patrocinadores";

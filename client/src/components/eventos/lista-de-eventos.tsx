@@ -42,8 +42,10 @@ export interface AcoesDaLista {
   onReopen: AcaoSobreEvento;
 }
 
+const SEM_BOOK = new Map<string, number>();
+
 export function ListaDeEventos({
-  events, isLoading, isError, refetch, recorte, densidade, patrocinadoresDoCartao, pedidosPorEvento,
+  events, isLoading, isError, refetch, recorte, densidade, patrocinadoresDoCartao, pedidosPorEvento, bookPorEvento = SEM_BOOK,
   currentYear, relogioMs: agoraMs, isMobile, permissoes, acoes, onNovoEvento, clearAllEventFilters,
 }: {
   events: EventoDaLista[];
@@ -54,6 +56,8 @@ export function ListaDeEventos({
   densidade: DensidadeDaLista;
   patrocinadoresDoCartao: Map<string, Sponsor[]>;
   pedidosPorEvento: Map<string, number>;
+  /** Auditoria do book (19/10): eventId → peças do book fora da lista. */
+  bookPorEvento?: Map<string, number>;
   currentYear: number;
   /** Relógio de minuto da página: é o que faz o cartão e a linha memoizados andarem. */
   relogioMs: number;
@@ -244,6 +248,7 @@ export function ListaDeEventos({
                 event={event}
                 sponsorCount={cardSponsors.length}
                 pedidosAbertos={pedidosPorEvento.get(event.id) ?? 0}
+                bookAbertos={bookPorEvento.get(event.id) ?? 0}
                 currentYear={currentYear}
                 agoraMs={agoraMs}
                 isMobile={isMobile}
@@ -277,6 +282,7 @@ export function ListaDeEventos({
               event={event}
               cardSponsors={cardSponsors}
               pedidosAbertos={pedidosPorEvento.get(event.id) ?? 0}
+                bookAbertos={bookPorEvento.get(event.id) ?? 0}
               isMobile={isMobile}
               currentYear={currentYear}
               agoraMs={agoraMs}

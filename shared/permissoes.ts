@@ -70,6 +70,10 @@ export const REGUA_DE_PAPEIS: RegraDeRota[] = [
   { metodo: "POST", rota: "/api/events", papeis: ["admin", "solicitacao"] },
   { metodo: "POST", rota: "/api/events/:eventId/book", papeis: ["admin", "arte"] },
   { metodo: "POST", rota: "/api/events/:eventId/book/notify", papeis: ["admin"] },
+  // Auditoria do book com IA (19/10): auditar de novo é do admin (custa uma
+  // chamada de IA); marcar os achados é de quem monta a lista e do admin.
+  { metodo: "POST", rota: "/api/events/:eventId/book/auditar", papeis: ["admin"] },
+  { metodo: "POST", rota: "/api/auditorias-do-book/:id/resolver", papeis: ["admin", "solicitacao"] },
   // Tubos (dono, 14/09): a embalagem da conferência e da entrega — os mesmos
   // papéis de conferir e entregar.
   { metodo: "POST", rota: "/api/events/:eventId/tubos", papeis: ["admin", "grafica", "solicitacao"] },

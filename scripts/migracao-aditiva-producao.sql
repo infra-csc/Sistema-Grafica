@@ -383,3 +383,29 @@ ALTER TABLE "items" ADD COLUMN IF NOT EXISTS "instrucoes_grafica" text;
 -- "em_transito" e a observação livre. Aditivo: o acervo fica NULL.
 ALTER TABLE "items" ADD COLUMN IF NOT EXISTS "origem_reaproveitamento" text;
 ALTER TABLE "items" ADD COLUMN IF NOT EXISTS "obs_reaproveitamento" text;
+-- Auditoria do book com IA (dono, 19/10; migração 0007): tabela nova, nada
+-- existente muda.
+CREATE TABLE IF NOT EXISTS "auditorias_do_book" (
+  "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "event_id" varchar NOT NULL,
+  "book_url" text NOT NULL,
+  "status" text DEFAULT 'pendente' NOT NULL,
+  "modelo" text,
+  "achados" jsonb,
+  "resolvidos" jsonb DEFAULT '{}'::jsonb NOT NULL,
+  "pecas_no_book" integer,
+  "encontradas_no_app" integer,
+  "erro" text,
+  "tokens_entrada" integer,
+  "tokens_saida" integer,
+  "iniciado_em" timestamp,
+  "criado_em" timestamp DEFAULT now() NOT NULL,
+  "concluido_em" timestamp
+);
+CREATE INDEX IF NOT EXISTS "IDX_auditorias_do_book_event_id" ON "auditorias_do_book" USING btree ("event_id");
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'auditorias_do_book_event_id_events_id_fk') THEN
+    ALTER TABLE "auditorias_do_book" ADD CONSTRAINT "auditorias_do_book_event_id_events_id_fk" FOREIGN KEY ("event_id") REFERENCES "public"."events"("id") ON DELETE cascade ON UPDATE no action;
+  END IF;
+END $$;

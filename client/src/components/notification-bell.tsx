@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Bell, CheckCheck, Package, CheckCircle, AlertTriangle, Truck, FileText, ClipboardCheck, CalendarClock, PlusCircle, MinusCircle, ChevronRight, Inbox, RotateCcw, Link2, Palette } from "lucide-react";
+import { Bell, CheckCheck, Package, CheckCircle, AlertTriangle, Truck, FileText, ClipboardCheck, CalendarClock, PlusCircle, MinusCircle, ChevronRight, Inbox, RotateCcw, Link2, Palette, FileSearch } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { T, FS, R, N, FW, FONT, TOM } from "@/lib/theme";
 
@@ -201,6 +201,13 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
     border: TOM.sucesso.dot,
     bgIcon: TOM.sucesso.bg, iconColor: TOM.sucesso.text,
     label: "Ajuste aceito",
+  },
+  // AUDITORIA DO BOOK COM IA (19/10): peças desenhadas no book sem cadastro.
+  bookAuditado: {
+    Icon: FileSearch,
+    border: TOM.alerta.dot,
+    bgIcon: TOM.alerta.bg, iconColor: TOM.alerta.text,
+    label: "Book × lista",
   },
   // SOLICITAÇÃO AO ESTOQUE da Revisão Final (21/09).
   consultaDeEstoque: {

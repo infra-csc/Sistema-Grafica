@@ -4,6 +4,7 @@ import { PHASES, contarPorFaseDoEvento as contarPorFase } from "@/lib/fases";
 import { T, FS, R, N, TOM, FONT } from "@/lib/theme";
 import { EventCardActions } from "./acoes-do-evento";
 import { SeloDePedidos } from "./selo-de-pedidos";
+import { SeloDoBook } from "./selo-do-book";
 import { MARCO_COLOR } from "./constantes";
 import { MILESTONE_TONE, milestoneDueText } from "./formatos";
 import { contarRascunhos, getPriorityConfig, readEventStats } from "./regras";
@@ -59,13 +60,15 @@ export const TH_LISTA: React.CSSProperties = {
  * GRADE_LISTA: densidade não pode custar capacidade.
  */
 function EventRow({
-  event, sponsorCount, currentYear, agoraMs, isMobile, pedidosAbertos = 0,
+  event, sponsorCount, currentYear, agoraMs, isMobile, pedidosAbertos = 0, bookAbertos = 0,
   canEdit, canDelete, canDuplicate, canSetPriority, canClose, soPatrocinadores = false,
   onEdit, onDelete, onDuplicate, onSetPriority, onClose, onReopen,
 }: {
   event: EventoDaLista;
   sponsorCount: number;
   pedidosAbertos?: number;
+  /** Peças do book fora da lista (auditoria do book, 19/10). */
+  bookAbertos?: number;
   currentYear: number;
   /** Relógio de minuto da página (ver `agoraMs` em Eventos). */
   agoraMs: number;
@@ -158,7 +161,7 @@ function EventRow({
         <span className="evl-linha-nome" title={event.name} style={{ fontSize: FS.body, fontWeight: 700, color: T.text, lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>
           {event.name}
         </span>
-        {(sponsorCount > 0 || pedidosAbertos > 0) && (
+        {(sponsorCount > 0 || pedidosAbertos > 0 || bookAbertos > 0) && (
           <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
             {sponsorCount > 0 && (
               <span style={{ fontSize: FS.small, color: T.second, whiteSpace: 'nowrap' }}>
@@ -166,6 +169,7 @@ function EventRow({
               </span>
             )}
             <SeloDePedidos n={pedidosAbertos} eventId={event.id} />
+            <SeloDoBook n={bookAbertos} eventId={event.id} />
           </span>
         )}
       </span>

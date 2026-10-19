@@ -4,6 +4,7 @@ import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { ORIGENS_DO_REAPROVEITAMENTO, OBS_DO_REAPROVEITAMENTO_MAX } from "./origem-do-reaproveitamento";
+import type { AchadosDoBook, ResolvidosDoBook } from "./auditoria-do-book";
 
 // A SEQUÊNCIA DOS NÚMEROS DE PEÇA (#0001, #0002…). O storage a cria e usa via
 // SQL cru (generateNextDisplayId), mas ela TEM de estar declarada aqui pelo
@@ -527,6 +528,38 @@ export const eventBooks = pgTable("event_books", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 }, (table) => [
   index("IDX_event_books_event_id").on(table.eventId),
+]);
+
+// ── AUDITORIA DO BOOK COM IA (dono, 19/10) ──
+// A cada book publicado, a IA compara o PDF com as peças ativas do evento e
+// aponta o que está desenhado mas não tem cadastro (e o que diverge). Roda só
+// no 1º book de cada evento (reenvio não audita; custo); vale a linha mais
+// recente do evento — a do 1º book ou a que o admin pediu de novo (que deixa a
+// anterior como "substituida" se ainda não tinha rodado). Ver shared/auditoria-do-book.ts e
+// server/services/auditoria-do-book/.
+export const auditoriasDoBook = pgTable("auditorias_do_book", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  bookUrl: text("book_url").notNull(),
+  // pendente | processando | concluida | erro | sem_chave | substituida
+  status: text("status").notNull().default("pendente"),
+  modelo: text("modelo"),
+  // { faltando: [...], canceladas: [...], divergencias: [...], observacoes }
+  achados: jsonb("achados").$type<AchadosDoBook | null>(),
+  // chave do achado → { motivo, por, porId, em }
+  resolvidos: jsonb("resolvidos").$type<ResolvidosDoBook>().notNull().default(sql`'{}'::jsonb`),
+  pecasNoBook: integer("pecas_no_book"),
+  encontradasNoApp: integer("encontradas_no_app"),
+  erro: text("erro"),
+  tokensEntrada: integer("tokens_entrada"),
+  tokensSaida: integer("tokens_saida"),
+  // Quando uma cópia do servidor pegou a auditoria para rodar. Serve para
+  // retomar a que ficou "processando" porque o processo caiu no meio.
+  iniciadoEm: timestamp("iniciado_em"),
+  criadoEm: timestamp("criado_em").notNull().default(sql`now()`),
+  concluidoEm: timestamp("concluido_em"),
+}, (table) => [
+  index("IDX_auditorias_do_book_event_id").on(table.eventId),
 ]);
 
 // Destinatários ADMINISTRÁVEIS dos avisos por e-mail (dono, 27/08 — tela
@@ -1566,3 +1599,8 @@ export type InsertPrazoEventSnapshot = typeof prazoEventSnapshots.$inferInsert;
 // validação na própria rota — mesmo critério das tabelas de prazos acima.
 export type ConsultaDeEstoque = typeof consultasDeEstoque.$inferSelect;
 export type InsertConsultaDeEstoque = typeof consultasDeEstoque.$inferInsert;
+
+// Auditoria do book com IA (19/10): só o processo da IA, o importador e a
+// rota de resolver escrevem — mesmo critério.
+export type AuditoriaDoBook = typeof auditoriasDoBook.$inferSelect;
+export type InsertAuditoriaDoBook = typeof auditoriasDoBook.$inferInsert;

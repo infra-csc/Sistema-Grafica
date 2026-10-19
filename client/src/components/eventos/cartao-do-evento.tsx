@@ -10,6 +10,7 @@ import { SponsorChips } from "@/components/sponsor-chips";
 import { alvo, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { EventCardActions } from "./acoes-do-evento";
 import { SeloDePedidos } from "./selo-de-pedidos";
+import { SeloDoBook } from "./selo-do-book";
 import { MARCO_COLOR } from "./constantes";
 import { MILESTONE_TONE, fmtCardDate, fmtDateBR, milestoneDueText } from "./formatos";
 import { contarRascunhos, getPriorityConfig, readEventStats } from "./regras";
@@ -42,6 +43,7 @@ function EventCard({
   event,
   cardSponsors,
   pedidosAbertos = 0,
+  bookAbertos = 0,
   isMobile,
   currentYear,
   agoraMs,
@@ -61,6 +63,8 @@ function EventCard({
   event: EventoDaLista;
   cardSponsors: Sponsor[];
   pedidosAbertos?: number;
+  /** Peças do book fora da lista (auditoria do book, 19/10). */
+  bookAbertos?: number;
   isMobile: boolean;
   currentYear: number;
   /** Relógio de minuto da página (ver `agoraMs` em Eventos). */
@@ -234,9 +238,10 @@ function EventCard({
         <h3 className="evl-cartao-titulo" style={{ fontFamily: FONT.display, fontSize: FS.title, fontWeight: 700, color: T.dark, lineHeight: 1.25, letterSpacing: '-0.01em', margin: 0, overflowWrap: 'anywhere' }}>
           {event.name}
         </h3>
-        {pedidosAbertos > 0 && (
-          <div style={{ marginTop: -8 }}>
+        {(pedidosAbertos > 0 || bookAbertos > 0) && (
+          <div style={{ marginTop: -8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             <SeloDePedidos n={pedidosAbertos} eventId={event.id} />
+            <SeloDoBook n={bookAbertos} eventId={event.id} />
           </div>
         )}
 

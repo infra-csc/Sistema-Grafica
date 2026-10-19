@@ -14,6 +14,8 @@ import {
 import type { BaldeDaSituacao, EventoDaLista } from "./tipos";
 import type { FiltrosDeEventos } from "./use-filtros-de-eventos";
 
+const SEM_BOOK = new Map<string, number>();
+
 const ROTULO_DA_SITUACAO: Record<BaldeDaSituacao, string> = { ativos: 'Ativos', pendencias: 'Pendências', arquivados: 'Encerrados' };
 
 export interface ChipDeFiltro { key: string; label: string; clear: () => void }
@@ -23,6 +25,8 @@ export function useEventosFiltrados(
   sponsorById: Map<string, Sponsor>,
   pedidosPorEvento: Map<string, number>,
   filtros: FiltrosDeEventos,
+  /** Auditoria do book (19/10): eventId → peças do book fora da lista, em aberto. */
+  bookPorEvento: Map<string, number> = SEM_BOOK,
 ) {
   const {
     searchTerm, setSearchInput, setSearchTerm, selectedPriorities, setSelectedPriorities,
@@ -64,8 +68,11 @@ export function useEventosFiltrados(
     if (foco === "sem_pecas") return stats.activeItemCount === 0 && !ARCHIVED_LIFECYCLES.has(stats.lifecycle);
     // Pedidos do Atendimento (dono, 14/09): eventos com pedido esperando a lista.
     if (foco === "pedidos") return (pedidosPorEvento.get(event.id) ?? 0) > 0;
+    // Book com peças fora da lista (dono, 19/10): a auditoria da IA achou peça
+    // desenhada no book sem cadastro, e ninguém marcou ainda.
+    if (foco === "book") return (bookPorEvento.get(event.id) ?? 0) > 0;
     return true;
-  }, [foco, pedidosPorEvento]);
+  }, [foco, pedidosPorEvento, bookPorEvento]);
 
   const matchesPriority = useCallback((event: EventoDaLista) => {
     if (selectedPriorities.length === 0) return true;
@@ -214,7 +221,7 @@ export function useEventosFiltrados(
   // Contagens dos chips de foco (calculadas sem o próprio foco aplicado).
   const focoCounts = useMemo(() => {
     const base = events.filter((e) => matchesSearch(e) && matchesDates(e) && matchesPriority(e) && matchesSponsor(e) && matchesVisibility(e));
-    let atrasado = 0, semPecas = 0, semPrioridade = 0, pedidos = 0;
+    let atrasado = 0, semPecas = 0, semPrioridade = 0, pedidos = 0, bookEventos = 0, bookPecas = 0;
     base.forEach((e) => {
       const stats = statsDoEvento(e);
       if (e.nextMilestone?.state === 'overdue') atrasado += 1;
@@ -222,9 +229,11 @@ export function useEventosFiltrados(
       if (stats.activeItemCount === 0 && !arquivado) semPecas += 1;
       if (!e.priority && !arquivado) semPrioridade += 1;
       pedidos += pedidosPorEvento.get(e.id) ?? 0;
+      const doBook = bookPorEvento.get(e.id) ?? 0;
+      if (doBook > 0) { bookEventos += 1; bookPecas += doBook; }
     });
-    return { atrasado, semPecas, semPrioridade, pedidos };
-  }, [events, matchesSearch, matchesDates, matchesPriority, matchesSponsor, matchesVisibility, pedidosPorEvento]);
+    return { atrasado, semPecas, semPrioridade, pedidos, bookEventos, bookPecas };
+  }, [events, matchesSearch, matchesDates, matchesPriority, matchesSponsor, matchesVisibility, pedidosPorEvento, bookPorEvento]);
 
   // Opções de mês (com ANO) derivadas dos eventos existentes, em ordem cronológica.
   const monthOptions = useMemo(() => {
@@ -259,6 +268,7 @@ export function useEventosFiltrados(
     if (foco === 'atrasado') chips.push({ key: 'foco', label: 'Marco atrasado', clear: () => setFoco("") });
     if (foco === 'sem_pecas') chips.push({ key: 'foco', label: 'Sem peças', clear: () => setFoco("") });
     if (foco === 'pedidos') chips.push({ key: 'foco', label: 'Solicitações de peças', clear: () => setFoco("") });
+    if (foco === 'book') chips.push({ key: 'foco', label: 'Book com peças fora da lista', clear: () => setFoco("") });
     // O chip de "concluídos ocultos" saiu: os três alternadores de situação
     // JÁ mostram o que está dentro e o que está fora, com contagem. Um chip
     // que repete um controle visível ao lado é ruído — e este ainda oferecia

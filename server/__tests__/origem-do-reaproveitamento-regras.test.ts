@@ -182,7 +182,8 @@ describe("schema e migração", () => {
     expect(sql).toContain(`ALTER TABLE "items" ADD COLUMN IF NOT EXISTS "obs_reaproveitamento" text`);
     expect(sql).not.toMatch(/DROP|UPDATE|DEFAULT|NOT NULL/i);
     const journal = JSON.parse(readFileSync(path.join(RAIZ, "migrations", "meta", "_journal.json"), "utf8"));
-    expect(journal.entries.at(-1).tag).toBe("0006_origem-do-reaproveitamento");
+    // Registrada no journal (migrações depois dela — 0007 do book, 19/10 — não a tiram de lá).
+    expect(journal.entries.map((e: { tag: string }) => e.tag)).toContain("0006_origem-do-reaproveitamento");
     const aditiva = readFileSync(path.join(RAIZ, "scripts", "migracao-aditiva-producao.sql"), "utf8");
     expect(aditiva).toContain(`ADD COLUMN IF NOT EXISTS "origem_reaproveitamento" text`);
     expect(aditiva).toContain(`ADD COLUMN IF NOT EXISTS "obs_reaproveitamento" text`);

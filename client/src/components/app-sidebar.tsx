@@ -19,6 +19,8 @@ import { Botao } from "@/components/ui/botao";
 import { prefetchRota } from "@/lib/prefetch-de-rota";
 import { T, FS, R, N, H, FW, FONT, TOM } from "@/lib/theme";
 import { SOLICITACAO_AO_ESTOQUE_ATIVA } from "@shared/consultas-de-estoque";
+import { rotuloDoContadorDoBook } from "@shared/auditoria-do-book";
+import { useResumoDasAuditorias } from "@/components/eventos/use-auditorias-do-book";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import {
   Sidebar,
@@ -192,7 +194,9 @@ const sectionLabelStyle: React.CSSProperties = {
 // ─── Single nav item ─────────────────────────────────────
 /** O que o número ao lado do item está contando — lido em voz alta e no hover. */
 const rotuloDoNumero = (url: string, n: number): string =>
-  url === "/grafica/solicitacoes-ao-estoque"
+  url === "/eventos"
+    ? rotuloDoContadorDoBook(n)
+    : url === "/grafica/solicitacoes-ao-estoque"
     ? `${n} ${n === 1 ? "solicitação ao estoque esperando" : "solicitações ao estoque esperando"} resposta`
     : `${n} ${n === 1 ? "solicitação esperando" : "solicitações esperando"} ação`;
 
@@ -479,7 +483,13 @@ export function AppSidebar() {
     queryKey: ["/api/consultas-de-estoque/abertas"],
     enabled: respondeConsultas,
   });
+  // Peças desenhadas nos books que não estão na lista (dono, 19/10: "deixa um
+  // número no Eventos", "igual na solicitação"). Só Solicitação (menos o Kit)
+  // e admin; a chave /api/auditorias-do-book é a mesma da tela de Eventos, e
+  // o tempo real e o "Já cadastrei" a atualizam.
+  const auditoriasDoBook = useResumoDasAuditorias(user);
   const badges = {
+    "/eventos": auditoriasDoBook.habilitado ? auditoriasDoBook.resumo.pecas : undefined,
     "/pedidos-de-peca": resolvePedidos ? pendentes?.total : undefined,
     "/grafica/solicitacoes-ao-estoque": respondeConsultas ? consultasAbertas?.total : undefined,
   };

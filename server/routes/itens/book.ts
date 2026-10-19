@@ -177,6 +177,22 @@ export async function avisarBookPorEmail(
   }
 }
 
+/**
+ * Enfileira a auditoria do book recém-publicado. Import tardio: a fila puxa o
+ * banco e o armazenamento, e os testes desta rota não precisam deles. Nunca
+ * lança — nem síncrono, nem depois.
+ */
+function dispararAuditoria(eventId: string, bookUrl: string): void {
+  void import("../../services/auditoria-do-book/fila")
+    .then(({ dispararAuditoriaDoBook }) => dispararAuditoriaDoBook(eventId, bookUrl))
+    .catch((error) => {
+      console.error("[book] auditoria do book não enfileirada", {
+        eventId,
+        reason: error instanceof Error ? error.message : "erro desconhecido",
+      });
+    });
+}
+
 /** POST /api/events/:eventId/book e /book/notify. */
 export function registrarBook(app: Express): void {
   // Update production (Gráfica module)
@@ -287,6 +303,11 @@ export function registrarBook(app: Express): void {
       }
       broadcast({ type: "items_book_updated", eventId: req.params.eventId, count });
       res.json({ updated: count, aviso });
+      // AUDITORIA DO BOOK COM IA (dono, 19/10): depois da resposta, sem
+      // await — a IA leva minutos e roda numa fila por trás. Só o 1º BOOK do
+      // evento é auditado (custo); reenvio não dispara. Nada dali volta para
+      // esta rota: falha vira status "erro" na própria auditoria.
+      if (bookUrl) dispararAuditoria(req.params.eventId, bookUrl);
     } catch (error) {
       responderFalha(res, error, "POST /api/events/:eventId/book");
     }

@@ -8,7 +8,7 @@ import { EventosArquivados } from "./eventos-arquivados";
 import type { FiltrosDeEventos } from "./use-filtros-de-eventos";
 import type { EventosFiltrados } from "./use-eventos-filtrados";
 
-export function CabecalhoDeEventos({ filtros, focoCounts, canCreate, canDelete, isMobile, carregado = true, semEventos = false, onNovoEvento, botaoDeSugestoes }: {
+export function CabecalhoDeEventos({ filtros, focoCounts, canCreate, canDelete, isMobile, carregado = true, semEventos = false, onNovoEvento, botaoDeSugestoes, comBook = false }: {
   filtros: FiltrosDeEventos;
   focoCounts: EventosFiltrados["focoCounts"];
   canCreate: boolean;
@@ -24,6 +24,11 @@ export function CabecalhoDeEventos({ filtros, focoCounts, canCreate, canDelete, 
    * celular, uma linha própria abaixo do título (três botões não cabem em 390).
    */
   botaoDeSugestoes?: React.ReactNode;
+  /**
+   * Atalho "Book com peças fora da lista" (19/10): só para quem monta a lista
+   * (Solicitação, menos o Kit) e o admin — os que veem a auditoria do book.
+   */
+  comBook?: boolean;
 }) {
   const { foco, setFoco, selectedPriorities, setSelectedPriorities } = filtros;
 
@@ -36,7 +41,22 @@ export function CabecalhoDeEventos({ filtros, focoCounts, canCreate, canDelete, 
     { key: 'sem_prioridade', label: 'Sem prioridade', count: focoCounts.semPrioridade, tone: { text: T.strong, bg: T.low, border: T.border, dot: T.muted }, active: selectedPriorities.length === 1 && selectedPriorities[0] === 'sem_prioridade', toggle: () => setSelectedPriorities((prev) => (prev.length === 1 && prev[0] === 'sem_prioridade') ? [] : ['sem_prioridade']) },
     { key: 'sem_pecas', label: 'Sem peças', count: focoCounts.semPecas, tone: { text: TOM.alerta.text, bg: TOM.alerta.bg, border: TOM.alerta.border, dot: TOM.alerta.dot }, active: foco === 'sem_pecas', toggle: () => setFoco(foco === 'sem_pecas' ? '' : 'sem_pecas') },
     { key: 'pedidos', label: 'Solicitações de peças', count: focoCounts.pedidos, tone: { text: TOM.alerta.text, bg: TOM.alerta.bg, border: TOM.alerta.border, dot: TOM.alerta.dot }, active: foco === 'pedidos', toggle: () => setFoco(foco === 'pedidos' ? '' : 'pedidos') },
-  ];
+    // A contagem diz PEÇAS e EVENTOS (dono, 19/10: "deixa claro o nº de
+    // peças"): "59 peças em 13 eventos". O número que liga/desliga o atalho
+    // continua sendo o de eventos — é o que o filtro mostra.
+    ...(comBook ? [{
+      key: 'book', label: isMobile ? 'Book fora da lista' : 'Book com peças fora da lista', count: focoCounts.bookEventos,
+      contagem: (
+        <>
+          <span style={{ fontFamily: FONT.mono, fontWeight: FW.rotulo, fontVariantNumeric: 'tabular-nums' }}>{focoCounts.bookPecas}</span>
+          {focoCounts.bookPecas === 1 ? ' peça em ' : ' peças em '}
+          <span style={{ fontFamily: FONT.mono, fontWeight: FW.rotulo, fontVariantNumeric: 'tabular-nums' }}>{focoCounts.bookEventos}</span>
+          {focoCounts.bookEventos === 1 ? ' evento' : ' eventos'}
+        </>
+      ),
+      tone: { text: TOM.alerta.text, bg: TOM.alerta.bg, border: TOM.alerta.border, dot: TOM.alerta.dot }, active: foco === 'book', toggle: () => setFoco(foco === 'book' ? '' : 'book'),
+    }] : []),
+  ] as Array<{ key: string; label: string; count: number; contagem?: React.ReactNode; tone: { text: string; bg: string; border: string; dot: string }; active: boolean; toggle: () => void }>;
 
   const atalhos = semEventos ? null : (
     <span
@@ -84,7 +104,9 @@ export function CabecalhoDeEventos({ filtros, focoCounts, canCreate, canDelete, 
             )}
             {chip.label}
             {carregado && (
-              <span style={{ fontFamily: FONT.mono, fontWeight: FW.rotulo, fontVariantNumeric: 'tabular-nums' }}>{chip.count}</span>
+              chip.count > 0 && chip.contagem
+                ? <span style={{ fontWeight: FW.medio }}>{chip.contagem}</span>
+                : <span style={{ fontFamily: FONT.mono, fontWeight: FW.rotulo, fontVariantNumeric: 'tabular-nums' }}>{chip.count}</span>
             )}
           </button>
         );

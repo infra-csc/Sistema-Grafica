@@ -61,6 +61,8 @@ import { BulkActionDialog } from "@/components/grafica/modais/conferencia-em-lot
 import { ModalDaPeca } from "@/components/grafica/modais/modal-da-peca";
 import { ModalTravar, useTravaDaPeca } from "@/components/grafica/modais/modal-travar";
 import { ModalDevolver, useDevolverParaRevisao } from "@/components/grafica/modais/modal-devolver";
+import { ExportarExcelGrafica, type RecorteDoExcel } from "@/components/grafica/modais/exportar-excel";
+import { ReabrirEntregueParaRevisao, podeReabrirEntregue } from "@/components/grafica/modais/reabrir-entregue";
 
 export default function Grafica() {
   const { user } = useAuth();
@@ -73,6 +75,7 @@ export default function Grafica() {
   // A folha de filtros do CELULAR (ver BarraDeFiltros).
   const [filtrosAbertos, setFiltrosAbertos] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [excelAberto, setExcelAberto] = useState(false);
   // Último "quem recebeu" registrado NESTA sessão (entrega do volume). Só
   // memória da tela: vira atalho de um toque no campo da aba/painel de tubos.
   const [ultimoRecebedor, setUltimoRecebedor] = useState("");
@@ -207,22 +210,23 @@ export default function Grafica() {
   /** Margem interna do corpo dos modais: 24 roubava 48px de largura em 360. */
   const padModal = isMobile ? 16 : 24;
 
-  // Exporta a lista visível. Manda os ids em vez de repetir os filtros no
-  // servidor — o arquivo sai idêntico ao que está na tela.
-  const handleExportXlsx = async () => {
-    if (!filteredItems.length) return;
+  // Exporta o recorte da lista COM as peças de evento realizado (o Excel traz
+  // todos os eventos, 13/10). Manda os ids em vez de repetir os filtros no servidor.
+  const pecasDoExcel = useMemo(() => (excelAberto ? fila.pecasParaExcel() : []), [excelAberto, fila.pecasParaExcel]);
+  const handleExportXlsx = async (recorte?: RecorteDoExcel) => {
+    if (!recorte && !pecasDoExcel.length) return;
     setIsExporting(true);
     try {
       const statusNames = filtros.status.map(s => getStatusLabel(s));
-      const title = statusNames.length
+      const title = recorte?.title ?? (statusNames.length
         ? `Produção — ${statusNames.join(", ")}`
-        : "Produção — Gráfica";
+        : "Produção — Gráfica");
 
       const res = await fetch("/api/items/export-xlsx", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ itemIds: filteredItems.map((i) => i.id), title }),
+        body: JSON.stringify(recorte ?? { itemIds: pecasDoExcel.map((i) => i.id), title }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Falha ao gerar o arquivo");
 
@@ -235,6 +239,7 @@ export default function Grafica() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
+      setExcelAberto(false);
     } catch (error) {
       toast({ title: "Erro ao exportar", description: (error as Error).message, variant: "destructive" });
     } finally {
@@ -335,7 +340,7 @@ export default function Grafica() {
       {dialogoDeConfirmacao}
 
       <CabecalhoDaGrafica fila={fila} lote={lote} podeConferir={podeConferir} isMobile={isMobile} ponteiroGrosso={ponteiroGrosso}
-        isExporting={isExporting} handleExportXlsx={handleExportXlsx} setGalpao={setGalpao} atalhosNasAbas={usaCards && !isMobile} />
+        isExporting={isExporting} handleExportXlsx={() => setExcelAberto(true)} setGalpao={setGalpao} atalhosNasAbas={usaCards && !isMobile} />
 
       {/* ── As abas da tela: Fila | Tubos — uma abinha separada, não uma
           página. O <Abas> do design system — o mesmo de Máquinas: tablist,
@@ -361,7 +366,7 @@ export default function Grafica() {
           ]}
         />
         {(isMobile || usaCards) && !lote.bulkOn && (
-          <AtalhosDaGrafica fila={fila} isMobile ponteiroGrosso={ponteiroGrosso} isExporting={isExporting} handleExportXlsx={handleExportXlsx} />
+          <AtalhosDaGrafica fila={fila} isMobile ponteiroGrosso={ponteiroGrosso} isExporting={isExporting} handleExportXlsx={() => setExcelAberto(true)} />
         )}
         </div>
       </div>
@@ -428,8 +433,16 @@ export default function Grafica() {
         auditLogs={auditLogs}
         open={!!viewDetailsItem}
         onOpenChange={(open) => !open && setViewDetailsItem(null)}
-        topActions={mostraPrioridadeNaImpressao(viewDetailsItem, user, !!seloPecaEventoFinalizado(viewDetailsItem?.event, hojeBusinessMs)) ? (
-          <PrioridadeNaImpressao item={viewDetailsItem} eventoFinalizado={!!seloPecaEventoFinalizado(viewDetailsItem?.event, hojeBusinessMs)} />
+        topActions={(mostraPrioridadeNaImpressao(viewDetailsItem, user, !!seloPecaEventoFinalizado(viewDetailsItem?.event, hojeBusinessMs)) || podeReabrirEntregue(viewDetailsItem, user?.role)) ? (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 12 }}>
+            {mostraPrioridadeNaImpressao(viewDetailsItem, user, !!seloPecaEventoFinalizado(viewDetailsItem?.event, hojeBusinessMs)) && (
+              <PrioridadeNaImpressao item={viewDetailsItem} eventoFinalizado={!!seloPecaEventoFinalizado(viewDetailsItem?.event, hojeBusinessMs)} />
+            )}
+            {/* Só o ADM, só a entregue (dono, 13/10) — também em evento realizado. */}
+            {viewDetailsItem && podeReabrirEntregue(viewDetailsItem, user?.role) && (
+              <ReabrirEntregueParaRevisao item={viewDetailsItem} onReaberta={() => setViewDetailsItem(null)} />
+            )}
+          </div>
         ) : undefined}
         customActions={temBlocoDeComplemento(viewDetailsItem, podeMexerQtd)
           ? (
@@ -481,6 +494,7 @@ export default function Grafica() {
       )}
 
       <ModalDevolver devolucao={devolucao} isMobile={isMobile} padModal={padModal} fsMin={fsMin} />
+      <ExportarExcelGrafica open={excelAberto} onClose={() => setExcelAberto(false)} quantidadeNaLista={pecasDoExcel.length} isExporting={isExporting} onExportar={handleExportXlsx} />
     </div>
   );
 }

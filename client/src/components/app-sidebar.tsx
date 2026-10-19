@@ -77,7 +77,7 @@ const ITEM_SOLICITACOES_AO_ESTOQUE: MenuItem = {
 const fluxoItems: MenuItem[] = [
   { title: "Vincular Patrocinadores", url: "/vincular-patrocinadores", icon: Link2,          roles: ["arte", "solicitacao", "atendimento", "admin"] },
   { title: "Arte",                    url: "/arte",                    icon: Palette,        roles: ["arte", "atendimento", "admin"] },
-  { title: "Atendimento",             url: "/atendimento",             icon: UserCheck,      roles: ["atendimento", "arte", "admin"] },
+  { title: "Atendimento",             url: "/atendimento",             icon: UserCheck,      roles: ["atendimento", "arte", "solicitacao", "admin"], semKit: true },
   // "Revisão Final" e não só "Revisão" (16/09): o status que traz a peça para
   // cá chama-se "Aguardando Revisão Final", e quem lia o selo não achava no
   // menu uma tela com esse nome. A rota continua /solicitacao; o testId fica.

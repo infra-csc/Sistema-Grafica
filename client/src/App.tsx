@@ -267,7 +267,9 @@ function getRouteLabel(location: string): string {
 const ROLES_ADMIN = ["admin"];
 const ROLES_ARTE = ["arte", "atendimento", "admin"];
 const ROLES_VINCULAR = ["arte", "solicitacao", "atendimento", "admin"];
-const ROLES_ATENDIMENTO = ["atendimento", "arte", "admin"];
+// Solicitação entra em modo consulta (dono, 19/10): vê a fila e o histórico;
+// aprovar/reprovar segue só do Atendimento e do admin (a tela e o servidor conferem).
+const ROLES_ATENDIMENTO = ["atendimento", "arte", "solicitacao", "admin"];
 const ROLES_SOLICITACAO = ["solicitacao", "admin"];
 const ROLES_GRAFICA = ["grafica", "solicitacao", "admin"];
 // Triagem e local no galpão são da Gráfica (dono, 14/09). O Estoque usa
@@ -499,7 +501,7 @@ function Router() {
         {() => <RoleProtectedRoute component={VincularPatrocinadores} allowedRoles={ROLES_VINCULAR} />}
       </Route>
       <Route path="/atendimento">
-        {() => <RoleProtectedRoute component={Atendimento} allowedRoles={ROLES_ATENDIMENTO} />}
+        {() => <RoleProtectedRoute component={Atendimento} allowedRoles={ROLES_ATENDIMENTO} semKit />}
       </Route>
       <Route path="/solicitacao">
         {() => <RoleProtectedRoute component={Solicitacao} allowedRoles={ROLES_SOLICITACAO} />}

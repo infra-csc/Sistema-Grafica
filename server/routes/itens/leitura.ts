@@ -703,7 +703,11 @@ export function registrarFilasEPorEvento(app: Express): void {
     try {
       // Devolve TODOS os vínculos e aprovações do sistema — restrito aos
       // papéis que veem a tela de Atendimento (era aberto a qualquer sessão).
-      if (!["atendimento", "arte", "admin"].includes(req.userRole ?? "")) {
+      // Solicitação entrou em 19/10 (Atendimento em modo consulta): sem estes
+      // mapas a tela abria inteira zerada. O usuário do Kit segue fora.
+      const papel = req.userRole ?? "";
+      const consultaDaSolicitacao = papel === "solicitacao" && (req as any).userKit !== true;
+      if (!["atendimento", "arte", "admin"].includes(papel) && !consultaDaSolicitacao) {
         return res.status(403).json({ error: "Acesso não autorizado" });
       }
       // Só das peças vivas, filtrado no banco (a tela cruza por id com a

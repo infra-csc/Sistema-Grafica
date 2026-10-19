@@ -13,6 +13,8 @@ import {
   problemaNaDataDoEvento,
   fraseDaDataInvalida,
   diaDoMarcoUTC,
+  FIM_DE_SEMANA_DO_CAMPO,
+  type RegraDeFimDeSemana,
 } from "@shared/prazo-dates";
 import {
   requireAuth,
@@ -250,7 +252,8 @@ interface MarcoDef {
     | "deadlineRevisaoLista"
     | "deadlineProducaoGrafica";
   defaultOffset: number;
-  allDays: boolean; // true = não ajusta fim de semana
+  // A regra de fim de semana NÃO mora aqui: é a do marco em @shared/prazo-dates
+  // (FIM_DE_SEMANA_DO_CAMPO[offsetField]) — uma cópia aqui divergiria dela.
   // Status de item que significam "ainda não passou por esta etapa".
   pendingStatuses: string[];
 }
@@ -262,36 +265,36 @@ interface MarcoDef {
 const MARCO_DEFS: MarcoDef[] = [
   {
     key: "listaImagens", label: "Lista de Imagens",
-    offsetField: "deadlineListaImagens", defaultOffset: -25, allDays: false,
+    offsetField: "deadlineListaImagens", defaultOffset: -25,
     pendingStatuses: ["draft", "requested", "awaiting_linking"],
   },
   {
     key: "layouts", label: "Entrega de Layouts",
-    offsetField: "deadlineEntregaLayouts", defaultOffset: -20, allDays: false,
+    offsetField: "deadlineEntregaLayouts", defaultOffset: -20,
     pendingStatuses: ["awaiting_submission"],
   },
   {
     key: "aprovacao", label: "Aprovação de Layout",
-    offsetField: "deadlineAprovacaoLayout", defaultOffset: -12, allDays: false,
+    offsetField: "deadlineAprovacaoLayout", defaultOffset: -12,
     pendingStatuses: ["awaiting_approval", "awaiting_sponsor_approval"],
   },
   {
     key: "finalizacao", label: "Finalização",
-    offsetField: "deadlineFinalizacao", defaultOffset: -10, allDays: false,
+    offsetField: "deadlineFinalizacao", defaultOffset: -10,
     pendingStatuses: [
       "awaiting_finalization", "sponsor_approved", "awaiting_creator_review",
     ],
   },
   {
     key: "revisao", label: "Revisão de Lista",
-    offsetField: "deadlineRevisaoLista", defaultOffset: -8, allDays: false,
+    offsetField: "deadlineRevisaoLista", defaultOffset: -8,
     pendingStatuses: [
       "awaiting_final_review", "awaiting_review", "in_review",
     ],
   },
   {
     key: "producao", label: "Produção Gráfica",
-    offsetField: "deadlineProducaoGrafica", defaultOffset: -1, allDays: true,
+    offsetField: "deadlineProducaoGrafica", defaultOffset: -1,
     pendingStatuses: [
       "ready_for_production", "approved", "inProduction", "produced", "conferred", "packed",
       "pronto_para_producao", "liberado", "em_producao", "produzido",
@@ -317,13 +320,13 @@ function marcoIndexFor(status: string, skipApproval?: boolean | null): number | 
   return rank;
 }
 
-// Marco da etapa: saída do caminhão + offset, com ajuste de fim de semana
-// quando a etapa não roda em todos os dias (mesma regra do event-detail e de
+// Marco da etapa: saída do caminhão + offset, com o ajuste de fim de semana
+// da regra do marco (seg–sex; Produção Gráfica seg–sáb — mesma do event-detail e de
 // /api/prazos). A âncora é a SAÍDA, nunca a data do evento.
-function marcoDeadline(truckDay: Date, offsetDays: number, allDays: boolean): Date {
+function marcoDeadline(truckDay: Date, offsetDays: number, regra: RegraDeFimDeSemana): Date {
   // A regra mora em @shared/prazo-dates desde 06/10 (a mesma da Gestão de
   // Prazos e do Calendário); antes era uma cópia aqui.
-  return diaDoMarcoUTC(truckDay, offsetDays, allDays);
+  return diaDoMarcoUTC(truckDay, offsetDays, regra);
 }
 
 export interface NextMilestone {
@@ -378,7 +381,7 @@ function nextMilestoneFor(
 
     const def = MARCO_DEFS[i];
     const offset = (event[def.offsetField] as number | null | undefined) ?? def.defaultOffset;
-    const deadline = marcoDeadline(truckDay, offset, def.allDays);
+    const deadline = marcoDeadline(truckDay, offset, FIM_DE_SEMANA_DO_CAMPO[def.offsetField]);
     const daysRemaining = Math.round((deadline.getTime() - todayMs) / 86400000);
 
     // Sem data confiável não há atraso confiável: nunca pintamos de vermelho

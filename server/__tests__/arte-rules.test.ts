@@ -419,7 +419,7 @@ describe("a tela da Arte e o funil de prazos cobram a MESMA data", () => {
       expect(cfg.label).toBe(def.label);
       expect(cfg.fallback).toBe(def.defaultOffset);
       expect(cfg.field).toBe(def.offsetField);
-      expect(cfg.allDays).toBe(def.allDays);
+      expect(cfg.fimDeSemana).toBe(def.fimDeSemana);
     }
   });
 
@@ -440,7 +440,7 @@ describe("a tela da Arte e o funil de prazos cobram a MESMA data", () => {
       for (const fase of ARTE_MARCOS_FAIXA) {
         const def = etapa(FASE_ETAPA[fase]);
         const cliente = phaseDeadline({ truckDepartureDate: dep }, fase, B.today)!;
-        const servidor = stageDeadline(truckDayUTC(dep), def.defaultOffset, def.allDays);
+        const servidor = stageDeadline(truckDayUTC(dep), def.defaultOffset, def.fimDeSemana);
         expect(diaLocal(cliente.date)).toBe(servidor.toISOString().slice(0, 10));
         const cru = truckDayUTC(dep);
         cru.setUTCDate(cru.getUTCDate() + def.defaultOffset);
@@ -457,7 +457,7 @@ describe("a tela da Arte e o funil de prazos cobram a MESMA data", () => {
     const def = etapa("finalizacao");
     expect(def.offsetField).toBe("deadlineFinalizacao");
     const cliente = phaseDeadline({ truckDepartureDate: dep, deadlineFinalizacao: -13 }, "finalizar-layouts", B.today)!;
-    expect(diaLocal(cliente.date)).toBe(stageDeadline(truckDayUTC(dep), -13, def.allDays).toISOString().slice(0, 10));
+    expect(diaLocal(cliente.date)).toBe(stageDeadline(truckDayUTC(dep), -13, def.fimDeSemana).toISOString().slice(0, 10));
   });
 });
 

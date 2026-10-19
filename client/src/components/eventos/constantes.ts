@@ -1,6 +1,6 @@
 // Constantes da tela de Eventos: cotas, marcos e prazos, e o teto da grade.
 import type { Sponsor } from "@shared/schema";
-import { MARCOS_DO_EVENTO, OFFSET_PADRAO_DO_MARCO } from "@shared/prazo-dates";
+import { MARCOS_DO_EVENTO, OFFSET_PADRAO_DO_MARCO, type RegraDeFimDeSemana } from "@shared/prazo-dates";
 import { T, N, TOM } from "@/lib/theme";
 import type { CampoDePrazo } from "./tipos";
 
@@ -45,14 +45,14 @@ export const MARCO_FIELDS: {
   label: string;
   desc: string;
   color: string;
-  allDays: boolean;
+  fimDeSemana: RegraDeFimDeSemana;
 }[] = MARCOS_DO_EVENTO.map((m) => ({
   field: m.campo as DeadlineField,
   key: m.key,
   label: m.label,
   desc: m.descricao,
   color: m.cor,
-  allDays: m.todosOsDias,
+  fimDeSemana: m.fimDeSemana,
 }));
 export const MARCO_COLOR: Record<string, string> = Object.fromEntries(MARCO_FIELDS.map((m) => [m.key, m.color]));
 

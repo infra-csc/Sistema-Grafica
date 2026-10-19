@@ -85,9 +85,9 @@ describe("REGRA 1 — Finalização é etapa do fluxo, entre Aprovação e Revis
     expect(finalizacao.label).toBe("Finalização");
     expect(finalizacao.defaultOffset).toBe(-10);
     expect(finalizacao.offsetField).toBe("deadlineFinalizacao");
-    // Ajusta fim de semana como as outras — só a Produção Gráfica roda em
-    // qualquer dia.
-    expect(finalizacao.allDays).toBe(false);
+    // Ajusta fim de semana como as outras (seg–sex) — só a Produção Gráfica
+    // vence no sábado (seg–sáb; dono, 19/10).
+    expect(finalizacao.fimDeSemana).toBe("seg-sex");
 
     // A POSIÇÃO é a regra: depois da aprovação (a Arte só finaliza o que foi
     // aprovado) e antes da revisão do criador (que revisa o arquivo final).

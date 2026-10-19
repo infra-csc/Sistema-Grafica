@@ -12,6 +12,7 @@ import { DEFAULT_DEADLINES, DEFAULT_OFFSETS_LABEL, MARCO_FIELDS } from "./consta
 import { fmtDateBR, fmtOffset, parseDateStr, toDateStr } from "./formatos";
 import type { FormularioDoEventoAberto } from "./use-formulario-do-evento";
 import { CALENDARIO, CAMPO } from "./campos-de-data";
+import { ajusteDeFimDeSemana } from "@shared/prazo-dates";
 
 export function SecaoDePrazos({ form, isMobile, dedo }: { form: FormularioDoEventoAberto; isMobile: boolean; dedo: boolean }) {
   const {
@@ -57,7 +58,7 @@ export function SecaoDePrazos({ form, isMobile, dedo }: { form: FormularioDoEven
                 </span>
               </TooltipTrigger>
               <TooltipContent side="top" style={{ maxWidth: '240px', fontSize: FS.body, lineHeight: '1.5' }}>
-                Prazos que caírem no <strong>sábado</strong> são antecipados para <strong>sexta-feira</strong>. Os que caírem no <strong>domingo</strong> são adiados para <strong>segunda-feira</strong>. Exceção: Produção Gráfica funciona todos os dias.
+                Prazos que caírem no <strong>sábado</strong> são antecipados para <strong>sexta-feira</strong>. Os que caírem no <strong>domingo</strong> são adiados para <strong>segunda-feira</strong>. Exceção: a <strong>Produção Gráfica</strong> vale no sábado; se cair no domingo, é antecipada para <strong>sábado</strong>.
               </TooltipContent>
             </Tooltip>
           </span>
@@ -72,13 +73,15 @@ export function SecaoDePrazos({ form, isMobile, dedo }: { form: FormularioDoEven
       </button>
       {prazosExpanded && (
         <div style={{ padding: isMobile ? '4px 12px 12px' : '4px 14px 12px', display: 'flex', flexDirection: 'column', borderTop: `1px solid ${T.border}` }}>
-          {MARCO_FIELDS.map(({ field, key, label, desc, color, allDays }, idx) => {
+          {MARCO_FIELDS.map(({ field, key, label, desc, color, fimDeSemana }, idx) => {
             const currentDays = Number(formData[field]);
-            const dateVal = offsetToDateStr(currentDays, allDays);
+            const dateVal = offsetToDateStr(currentDays, fimDeSemana);
             // Detecta se o ajuste de fim de semana moveu a data.
-            const rawVal = offsetToDateStr(currentDays, true);
-            const weekendAdjusted = !allDays && !!dateVal && rawVal !== dateVal;
+            const rawVal = offsetToDateStr(currentDays, "todos");
             const rawDate = rawVal ? parseDateStr(rawVal) : undefined;
+            // A frase vem da regra do marco (@shared/prazo-dates): na Produção
+            // Gráfica o sábado vale e o domingo é antecipado para sábado.
+            const ajuste = dateVal && rawVal !== dateVal && rawDate ? ajusteDeFimDeSemana(rawDate.getDay(), fimDeSemana) : null;
             const outOfOrder = orderIssues[idx];
             return (
               <div
@@ -131,10 +134,14 @@ export function SecaoDePrazos({ form, isMobile, dedo }: { form: FormularioDoEven
                             selected={parseDateStr(dateVal)}
                             disabled={d => !!(truckDateOnly && toDateStr(d) > truckDateOnly)}
                             onSelect={date => {
-                              if (date) {
-                                setFormData({ ...formData, [field]: dateStrToOffset(toDateStr(date)) });
-                                setOpenPrazoKey(null);
-                              }
+                              // Clicar no dia JÁ marcado chega como `undefined`
+                              // (o seletor "desmarca"): grava esse mesmo dia e
+                              // fecha, em vez de deixar o seletor aberto sem
+                              // resposta — ex.: Produção no domingo aparece no
+                              // sábado, e clicar no sábado fixa o sábado.
+                              const escolhido = date ? toDateStr(date) : dateVal;
+                              if (escolhido) setFormData({ ...formData, [field]: dateStrToOffset(escolhido) });
+                              setOpenPrazoKey(null);
                             }}
                             locale={ptBR}
                             classNames={CALENDARIO}
@@ -147,9 +154,9 @@ export function SecaoDePrazos({ form, isMobile, dedo }: { form: FormularioDoEven
                       <span style={{ fontSize: FS.small, color: T.second, fontWeight: 500, whiteSpace: 'nowrap' as const, minWidth: 78, fontVariantNumeric: 'tabular-nums' }}>{fmtOffset(currentDays)}</span>
                     )}
                   </div>
-                  {weekendAdjusted && rawDate && (
-                    <span style={{ fontSize: FS.micro, color: T.second }}>
-                      Cairia {rawDate.getDay() === 6 ? 'no sábado — antecipado para sexta' : 'no domingo — adiado para segunda'} ({fmtDateBR(dateVal)})
+                  {ajuste && (
+                    <span data-testid={`ajuste-${field}`} style={{ fontSize: FS.micro, color: T.second }}>
+                      Cairia no {ajuste.de} — {ajuste.sentido} para {ajuste.para} ({fmtDateBR(dateVal)})
                     </span>
                   )}
                   {outOfOrder && (

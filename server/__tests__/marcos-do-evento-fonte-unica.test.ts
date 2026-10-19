@@ -62,10 +62,10 @@ describe("a lista canônica", () => {
     }
   });
 
-  it("só a produção gráfica ignora o fim de semana", () => {
-    // Ela roda sábado e domingo quando precisa; as outras cinco são etapas de
-    // escritório e pulam o fim de semana.
-    expect(MARCOS_DO_EVENTO.filter(m => m.todosOsDias).map(m => m.key)).toEqual(["producao"]);
+  it("só a produção gráfica vence no sábado (seg–sáb; dono, 19/10)", () => {
+    // A gráfica trabalha no sábado (dom → sáb); as outras cinco são etapas de
+    // escritório (seg–sex). Antes a produção era "todos" (dono, 19/10).
+    expect(MARCOS_DO_EVENTO.filter(m => m.fimDeSemana !== "seg-sex").map(m => [m.key, m.fimDeSemana])).toEqual([["producao", "seg-sab"]]);
   });
 
   it("o mapa de offsets deriva da lista, não é digitado ao lado dela", () => {

@@ -43,8 +43,8 @@ describe("Mudança 1 · a timeline diz quantas peças estão atrás de cada marc
   it("os seis marcos vêm da fonte única, numa função pura lida por cabeçalho e timeline", () => {
     expect(ED).toContain("function calcularMarcos(event: EventoParaMarcos, today: Date)");
     expect(ED).toContain("const marcos = MARCOS_DO_EVENTO.map((m) => {");
-    // sábado→sexta, domingo→segunda, e `todosOsDias` só onde a fonte diz.
-    expect(ED).toContain("const { date, adjusted } = adjustWeekend(raw, m.todosOsDias);");
+    // a regra de fim de semana de cada marco (`fimDeSemana`), lida da fonte.
+    expect(ED).toContain("const { date, adjusted } = adjustWeekend(raw, m.fimDeSemana);");
     expect(ED).toContain("const milestones = marcosDoEvento?.marcos ?? [];");
     // A lista de cinco, escrita à mão, saiu.
     expect(semCom(ED)).not.toContain("const rawDeadlines = [");

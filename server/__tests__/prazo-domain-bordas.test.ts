@@ -271,13 +271,15 @@ describe("T9 — canceladas/excluídas/arquivadas são invisíveis para o placar
 // T10 — régua completa do risco projetado (0,1,2 acende; 3 não).
 // ─────────────────────────────────────────────────────────────────────────────
 describe("T10 — riskCritical: a régua inteira, não só um ponto", () => {
-  // A etapa de Produção Gráfica é `allDays` (não ajusta fim de semana), então
-  // o marco cai exatamente no dia calculado — é a única forma de varrer
-  // 0/1/2/3 dias sem que sábado/domingo desloquem a conta.
+  // A régua 0/1/2/3 dias precisa de quatro dias ÚTEIS seguidos, sem fim de
+  // semana deslocando a conta. A Produção Gráfica era "todos os dias" e o
+  // "hoje" era a quinta 13/08 (13→16, domingo incluído); desde 19/10 (dono)
+  // ela é seg–sáb e o domingo 16 voltaria para o sábado 15. Por isso o "hoje"
+  // aqui é a SEGUNDA 10/08: 10, 11, 12, 13 — todos dias úteis.
   function comMarcoEm(diasAFrente: number, quantasPecas: number): PrazoEvent {
-    const offset = -17 + diasAFrente; // saída 30/08 − 17 = 13/08 = hoje
+    const offset = -20 + diasAFrente; // saída 30/08 − 20 = 10/08 = hoje
     const itens = Array.from({ length: quantasPecas }, () => peca({ status: "approved" }));
-    return montar(evento({ deadlineProducaoGrafica: offset }), itens);
+    return montar(evento({ deadlineProducaoGrafica: offset }), itens, dia("2026-08-10"));
   }
 
   it("acende com marco a 0, 1 ou 2 dias e 10+ peças no gate", () => {
@@ -364,22 +366,22 @@ describe("T11 — pecasEmAtraso não é a soma das etapas vencidas", () => {
 describe("T12 — piorAtrasoDias e as chaves de ordenação", () => {
   /**
    * Evento com EXATAMENTE duas etapas vencidas: a de Aprovação há 3 dias e a
-   * de Produção Gráfica há 25. A peça em `awaiting_approval` deixa as etapas 0
-   * e 1 concluídas; o offset de produção (-42 → 19/07, domingo, mas a etapa é
-   * `allDays` e não desloca) crava o atraso de 25 dias.
+   * de Produção Gráfica há 26. A peça em `awaiting_approval` deixa as etapas 0
+   * e 1 concluídas; o offset de produção (-42 → 19/07, domingo) vai para o
+   * sábado 18/07 (seg–sáb; dono, 19/10 — antes ficava no domingo, 25 dias) e crava o atraso de 26 dias.
    */
-  function evento3e25(id = "e-25"): PrazoEvent {
+  function evento3e26(id = "e-26"): PrazoEvent {
     return montar(
       evento({ id, deadlineAprovacaoLayout: -20, deadlineProducaoGrafica: -42 }),
       [peca({ status: "awaiting_approval" })],
     );
   }
 
-  it("vale o MAIOR atraso entre as etapas vencidas (25, não 3)", () => {
-    const ev = evento3e25();
+  it("vale o MAIOR atraso entre as etapas vencidas (26, não 3)", () => {
+    const ev = evento3e26();
     const vencidas = ev.stages.filter((s) => s.state === "overdue");
-    expect(vencidas.map((s) => s.diffDays)).toEqual([-3, -25]);
-    expect(ev.piorAtrasoDias).toBe(25);
+    expect(vencidas.map((s) => s.diffDays)).toEqual([-3, -26]);
+    expect(ev.piorAtrasoDias).toBe(26);
   });
 
   it("sem etapa vencida, piorAtrasoDias é 0", () => {
@@ -396,7 +398,7 @@ describe("T12 — piorAtrasoDias e as chaves de ordenação", () => {
     // entrega `piorAtrasoDias` e `truckDepartureDate` com valores suficientes
     // para produzir a ordem certa. Se o servidor parar de calcular o pior
     // atraso, a ordenação da tela quebra aqui e não em produção.
-    const pior = evento3e25("pior");         // piorAtrasoDias 25
+    const pior = evento3e26("pior");         // piorAtrasoDias 26
     const medio = montar(                      // piorAtrasoDias 10
       evento({ id: "medio", deadlineListaImagens: -27 }),
       [peca({ status: "draft" })],

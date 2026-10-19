@@ -1,5 +1,5 @@
 import { DISPENSAVEIS } from "@shared/fluxo-peca";
-import { deslocamentoDeFimDeSemana } from "@shared/prazo-dates";
+import { deslocamentoDeFimDeSemana, FIM_DE_SEMANA_DO_CAMPO, type RegraDeFimDeSemana } from "@shared/prazo-dates";
 import { MOTIVO_TROCA_MIN, type RegraDoThumb, type RegraDaTroca } from "@shared/troca-de-material";
 // ─────────────────────────────────────────────────────────────────────────────
 // Regras PURAS da tela de Arte.
@@ -465,20 +465,20 @@ export function matchFileToItem<T extends { id: string; displayId?: string | nul
  * `finalizacao` (−10) exatamente para esse trabalho: são os mesmos três status,
  * é a mesma peça, e agora é a mesma data nas duas telas.
  *
- * `allDays` replica o campo homônimo de `StageDef`: os marcos do funil não caem
+ * `fimDeSemana` é a regra do marco em @shared/prazo-dates (a mesma de `StageDef`): os marcos do funil não caem
  * em fim de semana (ver `phaseDeadline`). A exceção é Finalizados, cujo "marco"
  * é a própria saída do caminhão — data real de despacho, que não se antecipa
  * por ser sábado.
  */
 export const PHASE_DEADLINE: Record<
   string,
-  { label: string; field: CampoDoMarco | ""; fallback: number; allDays: boolean }
+  { label: string; field: CampoDoMarco | ""; fallback: number; fimDeSemana: RegraDeFimDeSemana }
 > = {
-  "criar-aprovacoes": { label: "Entrega de Layouts", field: "deadlineEntregaLayouts", fallback: -20, allDays: false },
-  correcao: { label: "Entrega de Layouts", field: "deadlineEntregaLayouts", fallback: -20, allDays: false },
-  "aguardando-patrocinador": { label: "Aprovação de Layout", field: "deadlineAprovacaoLayout", fallback: -12, allDays: false },
-  "finalizar-layouts": { label: "Finalização", field: "deadlineFinalizacao", fallback: -10, allDays: false },
-  finalizados: { label: "Saída do caminhão", field: "", fallback: 0, allDays: true },
+  "criar-aprovacoes": { label: "Entrega de Layouts", field: "deadlineEntregaLayouts", fallback: -20, fimDeSemana: FIM_DE_SEMANA_DO_CAMPO.deadlineEntregaLayouts },
+  correcao: { label: "Entrega de Layouts", field: "deadlineEntregaLayouts", fallback: -20, fimDeSemana: FIM_DE_SEMANA_DO_CAMPO.deadlineEntregaLayouts },
+  "aguardando-patrocinador": { label: "Aprovação de Layout", field: "deadlineAprovacaoLayout", fallback: -12, fimDeSemana: FIM_DE_SEMANA_DO_CAMPO.deadlineAprovacaoLayout },
+  "finalizar-layouts": { label: "Finalização", field: "deadlineFinalizacao", fallback: -10, fimDeSemana: FIM_DE_SEMANA_DO_CAMPO.deadlineFinalizacao },
+  finalizados: { label: "Saída do caminhão", field: "", fallback: 0, fimDeSemana: "todos" },
 };
 
 /**
@@ -500,7 +500,8 @@ export interface PhaseDeadline {
 }
 
 /**
- * Antecipa/adia o marco que cai no fim de semana — sábado → sexta, domingo →
+ * Antecipa/adia o marco que cai no fim de semana, pela regra dele — seg–sex:
+ * sábado → sexta, domingo →
  * segunda.
  *
  * PORQUÊ ISTO EXISTE AQUI. É a segunda metade de `stageDeadline`
@@ -520,8 +521,8 @@ export interface PhaseDeadline {
  * `deslocamentoDeFimDeSemana` em @shared/prazo-dates — a mesma que o servidor
  * e o Calendário usam. Aqui sobra só a aplicação no horário local da tela.
  */
-function ajustaFimDeSemana(d: Date): void {
-  d.setDate(d.getDate() + deslocamentoDeFimDeSemana(d.getDay()));
+function ajustaFimDeSemana(d: Date, regra: RegraDeFimDeSemana): void {
+  d.setDate(d.getDate() + deslocamentoDeFimDeSemana(d.getDay(), regra));
 }
 
 /**
@@ -546,7 +547,7 @@ export function phaseDeadline(
   const d = toUTCDisplayDate(raw);
   d.setHours(0, 0, 0, 0);
   d.setDate(d.getDate() + offset);
-  if (!cfg.allDays) ajustaFimDeSemana(d);
+  ajustaFimDeSemana(d, cfg.fimDeSemana);
   return {
     label: cfg.label,
     date: d,

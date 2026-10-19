@@ -5,6 +5,7 @@ import { Printer } from "lucide-react";
 import { FS, FW, N, T, TOM } from "@/lib/theme";
 import { rotuloDaMaquina } from "@shared/fluxo-peca";
 import { fraseDaFila } from "@shared/progresso-da-impressao";
+import { diaDoMarcoUTC, FIM_DE_SEMANA_DO_CAMPO } from "@shared/prazo-dates";
 import { isInProd, m2ToProduce, reusedTotalOf } from "@/lib/saldo";
 import type { EventoDaPeca, PecaDaFila } from "@/components/grafica/tipos";
 
@@ -45,8 +46,10 @@ export function DeadlineChip({ event, fonte = FS.small, curto = false }: {
   const days = event.deadlineProducaoGrafica ?? -1;
   // Conta e formata em UTC — a mesma convenção da "Saída" exibida ao lado.
   // Em fuso local o chip podia mostrar um dia a menos que a data do cabeçalho.
+  // O dia do marco é o da regra de @shared/prazo-dates (Produção Gráfica
+  // seg–sáb: domingo vence no sábado — dono, 19/10), o mesmo da Gestão de Prazos.
   const base = new Date(event.truckDepartureDate);
-  const dUTC = Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate() + days);
+  const dUTC = diaDoMarcoUTC(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate()), days, FIM_DE_SEMANA_DO_CAMPO.deadlineProducaoGrafica).getTime();
   const now = new Date();
   const todayUTC = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
   const diff = Math.round((dUTC - todayUTC) / 86400000);

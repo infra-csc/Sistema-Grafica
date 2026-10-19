@@ -8,6 +8,21 @@ import { executarComoLider } from "./lideranca";
 import { db } from "../db";
 import { kitRemessas } from "@shared/schema";
 import { ancoraDoKit } from "@shared/kit";
+import { deslocamentoDeFimDeSemana, FIM_DE_SEMANA_DO_CAMPO, type MarcoDoEvento } from "@shared/prazo-dates";
+
+/**
+ * Fim do dia do prazo: âncora + offset, com o ajuste de fim de semana do marco
+ * (@shared/prazo-dates — seg–sex: sáb→sex, dom→seg; Produção Gráfica seg–sáb:
+ * dom→sáb). O alerta contava o dia CRU: a Produção de domingo (que vence no
+ * sábado, dono 19/10) avisaria 24h tarde, e os marcos seg–sex já avisavam
+ * pelo dia errado sempre que caíam no fim de semana.
+ */
+export function fimDoDiaDoPrazo(ancoraMs: number, offsetDays: number, campo: MarcoDoEvento["campo"]): Date {
+  const d = new Date(ancoraMs + offsetDays * 24 * 60 * 60 * 1000);
+  d.setUTCDate(d.getUTCDate() + deslocamentoDeFimDeSemana(d.getUTCDay(), FIM_DE_SEMANA_DO_CAMPO[campo]));
+  d.setHours(23, 59, 59, 0);
+  return d;
+}
 
 // Deduplication: track alert keys already sent in this process lifetime.
 // Key format: "<eventId>-departure-<hours>h" or "<eventId>-<label>-<hours>h"
@@ -70,7 +85,7 @@ export function startDeadlineAlerts(): void {
 
         type Role = "solicitacao" | "admin" | "arte" | "grafica" | "atendimento";
         const prazos: Array<{
-          field: keyof typeof event;
+          field: MarcoDoEvento["campo"];
           label: string;
           roles: Role[];
         }> = [
@@ -84,10 +99,8 @@ export function startDeadlineAlerts(): void {
         for (const { field, label, roles } of prazos) {
           const offsetDays = event[field] as number | null;
           if (offsetDays == null) continue;
-
-          // Deadline = truck date + offset days, treated as end-of-day (23:59)
-          const deadlineDate = new Date(truckMs + offsetDays * 24 * 60 * 60 * 1000);
-          deadlineDate.setHours(23, 59, 59, 0);
+          // Prazo = saída + offset, com o ajuste de fim de semana do marco, até 23:59.
+          const deadlineDate = fimDoDiaDoPrazo(truckMs, offsetDays, field);
           const hoursUntil = (deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60);
 
           if (
@@ -132,7 +145,7 @@ export function startDeadlineAlerts(): void {
             broadcast({ type: "notification_created", notification });
           }
         }
-        const etapasDoKit: Array<{ field: keyof typeof event; label: string; roles: Array<"solicitacao" | "admin" | "arte" | "grafica" | "atendimento"> }> = [
+        const etapasDoKit: Array<{ field: MarcoDoEvento["campo"]; label: string; roles: Array<"solicitacao" | "admin" | "arte" | "grafica" | "atendimento"> }> = [
           { field: "deadlineListaImagens",    label: "Lista de Imagens",    roles: ["solicitacao", "admin"] },
           { field: "deadlineEntregaLayouts",  label: "Entrega de Layouts",  roles: ["arte", "admin"] },
           { field: "deadlineAprovacaoLayout", label: "Aprovação de Layout", roles: ["atendimento", "arte", "admin"] },
@@ -142,8 +155,7 @@ export function startDeadlineAlerts(): void {
         for (const { field, label, roles } of etapasDoKit) {
           const offsetDays = event[field] as number | null;
           if (offsetDays == null) continue;
-          const prazo = new Date(ancoraMs + offsetDays * 24 * 60 * 60 * 1000);
-          prazo.setHours(23, 59, 59, 0);
+          const prazo = fimDoDiaDoPrazo(ancoraMs, offsetDays, field);
           const horas = (prazo.getTime() - now.getTime()) / (1000 * 60 * 60);
           if (((horas <= 48 && horas > 47.5) || (horas <= 24 && horas > 23.5))) {
             const h = Math.round(horas);

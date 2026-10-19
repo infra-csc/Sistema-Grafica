@@ -20,7 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
-import { MARCOS_DO_EVENTO, OFFSET_PADRAO_DO_MARCO } from "@shared/prazo-dates";
+import { MARCOS_DO_EVENTO, OFFSET_PADRAO_DO_MARCO, ajusteDeFimDeSemana, fraseDaRegraDeFimDeSemana } from "@shared/prazo-dates";
 import type { EventoDaLista } from "@shared/api";
 import { useDensidadeDoConteudo, usePonteiroGrosso, alvo } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
@@ -81,10 +81,10 @@ function prioMeta(ev: EventoDaLista): { label: string; bg: string; text: string;
 //
 // Com a lista vindo de um lugar só, o próximo marco nasce nas três telas —
 // e não em duas, com a terceira descobrindo meses depois.
-// `todosOsDias` vem junto (06/10): é ele que diz se o marco pula o fim de
-// semana — só a Produção Gráfica fica no dia cru (ver `diaDoMarcoNoCalendario`).
+// `fimDeSemana` vem junto (06/10; 19/10): é a regra do marco no fim de
+// semana — seg–sex, ou seg–sáb na Produção Gráfica (ver `diaDoMarcoNoCalendario`).
 const DEADLINE_TYPES = MARCOS_DO_EVENTO.map(m => ({
-  key: m.campo, label: m.label, short: m.curto, color: m.cor, text: m.texto, todosOsDias: m.todosOsDias,
+  key: m.campo, label: m.label, short: m.curto, color: m.cor, text: m.texto, fimDeSemana: m.fimDeSemana,
 }));
 
 /** Frase de ajuda de cada marco (legenda): o que é e quando vence, por padrão. */
@@ -92,9 +92,9 @@ const DICA_DO_MARCO: Record<string, string> = Object.fromEntries(MARCOS_DO_EVENT
   const dias = Math.abs(m.offset);
   // A frase diz a regra de fim de semana (06/10): sem ela, quem conta os dias
   // na grade acharia o marco "um dia fora" sempre que ele anda para o útil.
-  const fimDeSemana = m.todosOsDias
-    ? " Vale também no sábado e no domingo."
-    : " Se cair no sábado, vence na sexta; no domingo, na segunda.";
+  // A frase é a da regra do marco (@shared/prazo-dates) — Produção Gráfica:
+  // "Vale no sábado; se cair no domingo, vence no sábado." (dono, 19/10).
+  const fimDeSemana = ` ${fraseDaRegraDeFimDeSemana(m.fimDeSemana)}`;
   return [m.campo, `${m.label}: ${m.descricao}. Prazo padrão: ${dias} dia${dias !== 1 ? "s" : ""} antes da saída do caminhão (o evento pode ter prazo próprio).${fimDeSemana}`];
 }));
 
@@ -268,10 +268,10 @@ export default function Calendario() {
       if (!ev.truckDepartureDate) continue;
       bucket(toUTCDisplayDate(ev.truckDepartureDate).toDateString()).events.push({ ...ev, _type: "departure" as const });
       // O dia do marco é o da Gestão de Prazos (decisão do dono, 06/10):
-      // sábado → sexta, domingo → segunda, Produção Gráfica no dia cru.
+      // sábado → sexta, domingo → segunda; Produção Gráfica: sábado vale, domingo → sábado.
       // Antes era saída + offset CRU, e as duas telas discordavam do dia.
       for (const dt of tiposVisiveis) {
-        const d = diaDoMarcoNoCalendario(ev.truckDepartureDate, offsetDoMarco(ev, dt.key), dt.todosOsDias);
+        const d = diaDoMarcoNoCalendario(ev.truckDepartureDate, offsetDoMarco(ev, dt.key), dt.fimDeSemana);
         bucket(d.toDateString()).deadlines.push({ event: ev, dtype: dt });
       }
     }
@@ -396,7 +396,7 @@ export default function Calendario() {
       // um de sábado 1º que volta para sexta 31 muda de mês, e o Resumo vai
       // junto com a grade.
       return tiposVisiveis.some(dt => {
-        return noMes(diaDoMarcoNoCalendario(ev.truckDepartureDate, offsetDoMarco(ev, dt.key), dt.todosOsDias));
+        return noMes(diaDoMarcoNoCalendario(ev.truckDepartureDate, offsetDoMarco(ev, dt.key), dt.fimDeSemana));
       });
     });
   }, [events, year, month, tiposVisiveis]);
@@ -1370,12 +1370,15 @@ export default function Calendario() {
                           {/* Marco que ANDOU por cair no fim de semana diz
                               de onde veio (06/10): quem conta "saída − 12"
                               na mão chega no sábado e acharia a grade errada.
-                              O dia cru é a mesma conta com `todosOsDias`. */}
+                              O dia cru é a mesma conta com a regra "todos";
+                              a frase é a da regra do marco (Produção Gráfica:
+                              domingo vence no sábado — dono, 19/10). */}
                           {(() => {
-                            if (dtype.todosOsDias || !selectedDate) return null;
-                            const cru = diaDoMarcoNoCalendario(event.truckDepartureDate, offsetDoMarco(event, dtype.key), true);
+                            if (!selectedDate) return null;
+                            const cru = diaDoMarcoNoCalendario(event.truckDepartureDate, offsetDoMarco(event, dtype.key), "todos");
                             if (cru.toDateString() === selectedDate.toDateString()) return null;
-                            return cru.getDay() === 6 ? " · cairia no sábado, vence na sexta" : " · cairia no domingo, vence na segunda";
+                            const ajuste = ajusteDeFimDeSemana(cru.getDay(), dtype.fimDeSemana);
+                            return ajuste ? ` · cairia no ${ajuste.de}, vence ${ajuste.paraComArtigo}` : null;
                           })()}
                         </p>
                       </div>

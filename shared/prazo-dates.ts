@@ -242,9 +242,28 @@ export function isEventoFinalizado(
 // A ÂNCORA é sempre a SAÍDA DO CAMINHÃO, e os offsets são negativos: "−10"
 // significa dez dias ANTES do caminhão sair. Todo prazo do sistema pende dela.
 //
-// `allDays: true` = não pula fim de semana. Só a produção gráfica, que roda
-// sábado e domingo quando precisa.
+// `fimDeSemana` = em que dias o prazo do marco pode vencer (ver
+// `RegraDeFimDeSemana`, logo abaixo). É a ÚNICA declaração da regra: servidor,
+// Gestão de Prazos, Análises, Calendário, Detalhe do Evento, formulário, Arte,
+// Máquinas e alertas leem daqui.
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Em que dias o prazo de um marco pode vencer.
+ *
+ *   "seg-sex" → sábado volta para a SEXTA; domingo vai para a SEGUNDA.
+ *   "seg-sab" → sábado VALE; domingo volta para o SÁBADO.
+ *   "todos"   → sem ajuste (o dia cru, inclusive domingo).
+ *
+ * A Produção Gráfica é "seg-sab" (dono, 19/10: "Produção da Gráfica pode
+ * colocar no sábado"). A gráfica trabalha no sábado e não no domingo — e o
+ * domingo volta (não avança) para o prazo nunca passar da saída do caminhão.
+ * Antes ela era "todos": o domingo ficava no domingo.
+ */
+export type RegraDeFimDeSemana = "todos" | "seg-sex" | "seg-sab";
+
+/** Os dias da gráfica: segunda a sábado. O marco de Produção Gráfica e o "planejado por dia" leem daqui. */
+export const DIAS_DA_GRAFICA: RegraDeFimDeSemana = "seg-sab";
 
 export interface MarcoDoEvento {
   /** Casa com `nextMilestone.key` que o servidor devolve. */
@@ -266,32 +285,41 @@ export interface MarcoDoEvento {
   cor: string;
   /** Tom escuro do mesmo matiz, para quando o rótulo for texto. */
   texto: string;
-  /** true = não ajusta fim de semana. */
-  todosOsDias: boolean;
+  /** Em que dias o prazo pode vencer — ver `RegraDeFimDeSemana`. */
+  fimDeSemana: RegraDeFimDeSemana;
   /** O que a etapa significa, em uma frase — o texto de ajuda do formulário. */
   descricao: string;
 }
 
 /** A ordem é a da CADEIA CAUSAL, não a alfabética nem a de criação. */
 export const MARCOS_DO_EVENTO: readonly MarcoDoEvento[] = [
-  { key: "listaImagens", campo: "deadlineListaImagens",    label: "Lista de Imagens",    curto: "Lista Img",      offset: -25, cor: "#8b5cf6", texto: "#6d28d9", todosOsDias: false, descricao: "Criação dos itens do evento" },
-  { key: "layouts",      campo: "deadlineEntregaLayouts",  label: "Entrega de Layouts",  curto: "Entrega Layout", offset: -20, cor: "#3b82f6", texto: "#1d4ed8", todosOsDias: false, descricao: "Arte entrega os arquivos finais" },
-  { key: "aprovacao",    campo: "deadlineAprovacaoLayout", label: "Aprovação de Layout", curto: "Aprov. Layout",  offset: -12, cor: "#f59e0b", texto: "#b45309", todosOsDias: false, descricao: "Aprovação pelo patrocinador" },
-  { key: "finalizacao",  campo: "deadlineFinalizacao",     label: "Finalização",         curto: "Finalização",    offset: -10, cor: "#14b8a6", texto: "#0f766e", todosOsDias: false, descricao: "Arte anexa o arquivo final da peça" },
-  { key: "revisao",      campo: "deadlineRevisaoLista",    label: "Revisão de Lista",    curto: "Revisão Lista",  offset: -8,  cor: "#10b981", texto: "#047857", todosOsDias: false, descricao: "Criador revisa e lança todos os itens" },
-  { key: "producao",     campo: "deadlineProducaoGrafica", label: "Produção Gráfica",    curto: "Prod. Gráfica",  offset: -1,  cor: "#f97316", texto: "#c2410c", todosOsDias: true, descricao: "Prazo da gráfica para produzir" },
+  { key: "listaImagens", campo: "deadlineListaImagens",    label: "Lista de Imagens",    curto: "Lista Img",      offset: -25, cor: "#8b5cf6", texto: "#6d28d9", fimDeSemana: "seg-sex", descricao: "Criação dos itens do evento" },
+  { key: "layouts",      campo: "deadlineEntregaLayouts",  label: "Entrega de Layouts",  curto: "Entrega Layout", offset: -20, cor: "#3b82f6", texto: "#1d4ed8", fimDeSemana: "seg-sex", descricao: "Arte entrega os arquivos finais" },
+  { key: "aprovacao",    campo: "deadlineAprovacaoLayout", label: "Aprovação de Layout", curto: "Aprov. Layout",  offset: -12, cor: "#f59e0b", texto: "#b45309", fimDeSemana: "seg-sex", descricao: "Aprovação pelo patrocinador" },
+  { key: "finalizacao",  campo: "deadlineFinalizacao",     label: "Finalização",         curto: "Finalização",    offset: -10, cor: "#14b8a6", texto: "#0f766e", fimDeSemana: "seg-sex", descricao: "Arte anexa o arquivo final da peça" },
+  { key: "revisao",      campo: "deadlineRevisaoLista",    label: "Revisão de Lista",    curto: "Revisão Lista",  offset: -8,  cor: "#10b981", texto: "#047857", fimDeSemana: "seg-sex", descricao: "Criador revisa e lança todos os itens" },
+  { key: "producao",     campo: "deadlineProducaoGrafica", label: "Produção Gráfica",    curto: "Prod. Gráfica",  offset: -1,  cor: "#f97316", texto: "#c2410c", fimDeSemana: DIAS_DA_GRAFICA, descricao: "Prazo da gráfica para produzir" },
 ] as const;
 
 /** Offset de cada marco, pela coluna. */
 export const OFFSET_PADRAO_DO_MARCO: Record<string, number> =
   Object.fromEntries(MARCOS_DO_EVENTO.map(m => [m.campo, m.offset]));
 
+/** Regra de fim de semana de cada marco, pela coluna de offset. */
+export const FIM_DE_SEMANA_DO_CAMPO: Record<MarcoDoEvento["campo"], RegraDeFimDeSemana> =
+  Object.fromEntries(MARCOS_DO_EVENTO.map(m => [m.campo, m.fimDeSemana])) as Record<MarcoDoEvento["campo"], RegraDeFimDeSemana>;
+
+/** Regra de fim de semana de cada marco, pela chave (`nextMilestone.key`). */
+export const FIM_DE_SEMANA_DO_MARCO: Record<MarcoDoEvento["key"], RegraDeFimDeSemana> =
+  Object.fromEntries(MARCOS_DO_EVENTO.map(m => [m.key, m.fimDeSemana])) as Record<MarcoDoEvento["key"], RegraDeFimDeSemana>;
+
 // ─────────────────────────────────────────────────────────────────────────────
-// O DIA DO MARCO — a regra do fim de semana, num lugar só (06/10).
+// O DIA DO MARCO — a regra do fim de semana, num lugar só (06/10; 19/10).
 //
-// A REGRA: marco que cai no SÁBADO vence na SEXTA; no DOMINGO, na SEGUNDA.
-// A exceção é a Produção Gráfica (`todosOsDias`), que roda no fim de semana
-// quando precisa — o prazo dela fica no dia cru.
+// A REGRA: cada marco diz em que dias pode vencer (`fimDeSemana`). Os da
+// cadeia de criação/aprovação são "seg-sex": SÁBADO vence na SEXTA, DOMINGO na
+// SEGUNDA. A Produção Gráfica é "seg-sab" (dono, 19/10): SÁBADO vale, e
+// DOMINGO volta para o SÁBADO.
 //
 // PORQUÊ MORA AQUI. A conta existia em SEIS cópias: o servidor
 // (`stageDeadline` da Gestão de Prazos e `marcoDeadline` do card do evento),
@@ -303,30 +331,85 @@ export const OFFSET_PADRAO_DO_MARCO: Record<string, number> =
 // prazos. Com a regra aqui, todos leem a MESMA função — o cliente não pode
 // importar `server/`, mas `shared/` sim.
 //
+// A regra é OBRIGATÓRIA nas funções abaixo (não há valor padrão nem boolean):
+// quem calcula um prazo tem de dizer de qual marco ele é, e o compilador
+// recusa o chamador esquecido em vez de aplicar a regra errada em silêncio.
+//
 // A conta é de CALENDÁRIO em UTC-meia-noite (convenção de toda a aritmética de
 // prazo: o dia-calendário gravado é o dia exibido, em qualquer fuso).
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Quantos dias o marco anda por cair no fim de semana: sábado −1 (sexta),
- * domingo +1 (segunda), dia útil 0. Recebe o dia da semana (0 = domingo) para
- * servir tanto a quem conta em UTC quanto a quem conta no horário local da tela
- * — o DIA-calendário é o mesmo nos dois, e é ele que decide.
+ * Quantos dias o marco anda por cair no fim de semana, pela regra dele:
+ * "seg-sex" → sábado −1 (sexta), domingo +1 (segunda); "seg-sab" → domingo −1
+ * (sábado); "todos" → 0. Recebe o dia da semana (0 = domingo) para servir
+ * tanto a quem conta em UTC quanto a quem conta no horário local da tela — o
+ * DIA-calendário é o mesmo nos dois, e é ele que decide.
  */
-export function deslocamentoDeFimDeSemana(diaDaSemana: number): -1 | 0 | 1 {
+export function deslocamentoDeFimDeSemana(diaDaSemana: number, regra: RegraDeFimDeSemana): -1 | 0 | 1 {
+  if (regra === "todos") return 0;
+  if (regra === "seg-sab") return diaDaSemana === 0 ? -1 : 0;
   if (diaDaSemana === 6) return -1;
   if (diaDaSemana === 0) return 1;
   return 0;
 }
 
+/** O prazo pode vencer neste dia da semana (0 = domingo), pela regra? */
+export function venceNoDia(diaDaSemana: number, regra: RegraDeFimDeSemana): boolean {
+  return deslocamentoDeFimDeSemana(diaDaSemana, regra) === 0;
+}
+
+/**
+ * Algum marco pode vencer neste dia da semana? É o que decide se um dia entra
+ * numa régua de "próximos prazos" — com a Produção Gráfica em "seg-sab", o
+ * sábado entra; o domingo, não.
+ */
+export function diaPodeTerPrazo(diaDaSemana: number): boolean {
+  return MARCOS_DO_EVENTO.some(m => venceNoDia(diaDaSemana, m.fimDeSemana));
+}
+
 /**
  * O dia do marco: saída do caminhão (dia-calendário, UTC-meia-noite) + offset
- * em dias de CALENDÁRIO, com o ajuste de fim de semana quando a etapa não roda
- * todos os dias. Devolve uma Date nova em UTC-meia-noite; não mexe na entrada.
+ * em dias de CALENDÁRIO, com o ajuste de fim de semana da regra do marco.
+ * Devolve uma Date nova em UTC-meia-noite; não mexe na entrada.
  */
-export function diaDoMarcoUTC(saidaDia: Date | number, offset: number, todosOsDias: boolean): Date {
+export function diaDoMarcoUTC(saidaDia: Date | number, offset: number, regra: RegraDeFimDeSemana): Date {
   const d = new Date(typeof saidaDia === "number" ? saidaDia : saidaDia.getTime());
   d.setUTCDate(d.getUTCDate() + offset);
-  if (!todosOsDias) d.setUTCDate(d.getUTCDate() + deslocamentoDeFimDeSemana(d.getUTCDay()));
+  d.setUTCDate(d.getUTCDate() + deslocamentoDeFimDeSemana(d.getUTCDay(), regra));
   return d;
+}
+
+// ─── O QUE AS TELAS DIZEM SOBRE O AJUSTE ─────────────────────────────────────
+// As frases moram com a regra: o formulário, o Calendário, o Detalhe do
+// Evento e a Gestão de Prazos explicavam o ajuste cada um com a sua frase, e
+// a frase de um esquecia a exceção que a outra lembrava.
+
+export interface AjusteDeFimDeSemana {
+  /** Onde o prazo cairia ("sábado" | "domingo"). */
+  de: "sábado" | "domingo";
+  /** Para onde foi, sem artigo: "sexta" | "sábado" | "segunda". */
+  para: "sexta" | "sábado" | "segunda";
+  /** Com artigo, para "vence na sexta" / "vence no sábado". */
+  paraComArtigo: "na sexta" | "no sábado" | "na segunda";
+  /** "antecipado" (voltou) | "adiado" (avançou). */
+  sentido: "antecipado" | "adiado";
+}
+
+/** Como o prazo andou, a partir do dia CRU (0 = domingo). `null` = não andou. */
+export function ajusteDeFimDeSemana(diaDaSemanaCru: number, regra: RegraDeFimDeSemana): AjusteDeFimDeSemana | null {
+  const passo = deslocamentoDeFimDeSemana(diaDaSemanaCru, regra);
+  if (passo === 0) return null;
+  const de = diaDaSemanaCru === 6 ? "sábado" : "domingo";
+  const destino = (diaDaSemanaCru + passo + 7) % 7;
+  const para = destino === 5 ? "sexta" : destino === 6 ? "sábado" : "segunda";
+  const paraComArtigo = para === "sábado" ? "no sábado" : para === "sexta" ? "na sexta" : "na segunda";
+  return { de, para, paraComArtigo, sentido: passo < 0 ? "antecipado" : "adiado" };
+}
+
+/** A regra do marco numa frase (legenda do Calendário, ajuda dos prazos). */
+export function fraseDaRegraDeFimDeSemana(regra: RegraDeFimDeSemana): string {
+  if (regra === "todos") return "Vale também no sábado e no domingo.";
+  if (regra === "seg-sab") return "Vale no sábado; se cair no domingo, vence no sábado.";
+  return "Se cair no sábado, vence na sexta; no domingo, na segunda.";
 }

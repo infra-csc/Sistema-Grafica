@@ -34,7 +34,7 @@ const dia = (s: string) => {
 };
 
 // Saída num domingo (2026-08-30) exercita o ajuste de fim de semana nas 4
-// primeiras etapas; a Produção Gráfica (allDays) fica fora do ajuste.
+// primeiras etapas; a Produção Gráfica (seg–sáb) cai no sábado e fica.
 function evento(over: Partial<DomainEvent> = {}): DomainEvent {
   return {
     id: "ev-1",
@@ -101,16 +101,26 @@ describe("marcos e ajuste de fim de semana", () => {
 
   it("sábado anda para sexta e domingo anda para segunda", () => {
     // 2026-08-15 é sábado → 2026-08-14 (sexta).
-    expect(stageDeadline(truckDayUTC("2026-08-16T00:00:00.000Z"), -1, false).toISOString().slice(0, 10))
+    expect(stageDeadline(truckDayUTC("2026-08-16T00:00:00.000Z"), -1, "seg-sex").toISOString().slice(0, 10))
       .toBe("2026-08-14");
     // 2026-08-16 é domingo → 2026-08-17 (segunda).
-    expect(stageDeadline(truckDayUTC("2026-08-17T00:00:00.000Z"), -1, false).toISOString().slice(0, 10))
+    expect(stageDeadline(truckDayUTC("2026-08-17T00:00:00.000Z"), -1, "seg-sex").toISOString().slice(0, 10))
       .toBe("2026-08-17");
   });
 
-  it("Produção Gráfica (allDays) NÃO ajusta fim de semana", () => {
+  it("Produção Gráfica (seg–sáb) mantém o sábado", () => {
     // Saída domingo 2026-08-30, offset -1 → sábado 2026-08-29, e fica.
-    expect(stageDeadline(saidaDomingo, -1, true).toISOString().slice(0, 10)).toBe("2026-08-29");
+    expect(stageDeadline(saidaDomingo, -1, "seg-sab").toISOString().slice(0, 10)).toBe("2026-08-29");
+  });
+
+  // dono, 19/10: a Produção Gráfica que cairia no domingo vence no SÁBADO
+  // (antes ficava no domingo — era "todos os dias").
+  it("Produção Gráfica (seg–sáb) antecipa o domingo para o sábado", () => {
+    // Saída segunda 2026-08-31, offset -1 → domingo 2026-08-30 → sábado 29/08.
+    expect(stageDeadline(truckDayUTC("2026-08-31T00:00:00.000Z"), -1, "seg-sab").toISOString().slice(0, 10))
+      .toBe("2026-08-29");
+    const ev = montar(evento({ truckDepartureDate: "2026-08-31T00:00:00.000Z" }), [peca({ status: "ready_for_production" })]);
+    expect(ev.stages.find((s) => s.key === "producao")!.deadline).toBe("2026-08-29");
   });
 
   it("offset do evento sobrepõe o default da etapa", () => {
@@ -322,7 +332,7 @@ describe("saída da gestão de prazos", () => {
 
 describe("risco projetado", () => {
   it("marco a até 2 dias com 10+ peças no gate acende o alarme", () => {
-    // Saída 2026-08-25; marco de produção (-1, allDays) em 24/08. Usamos um
+    // Saída 2026-08-25; marco de produção (-1, seg–sáb) em 24/08. Usamos um
     // offset explícito para deixar o marco de layouts a 2 dias de hoje.
     const itens = Array.from({ length: 10 }, () => peca({ status: "awaiting_submission" }));
     const ev = montar(evento({ truckDepartureDate: "2026-08-25T00:00:00.000Z", deadlineEntregaLayouts: -10 }), itens);

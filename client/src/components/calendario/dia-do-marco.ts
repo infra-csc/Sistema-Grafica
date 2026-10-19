@@ -2,7 +2,8 @@
 //
 // DECISÃO DO DONO (06/10, "Sim"): o Calendário segue a regra de fim de semana
 // dos prazos. Marco que cai no sábado aparece na SEXTA, no domingo aparece na
-// SEGUNDA; a Produção Gráfica, que roda no fim de semana, fica no dia cru.
+// SEGUNDA. A Produção Gráfica (seg–sáb, dono 19/10) fica no sábado, e a de
+// domingo aparece no SÁBADO.
 //
 // PORQUÊ. O Calendário desenhava o dia CRU (saída do caminhão + offset), e a
 // Gestão de Prazos, a Arte e o Detalhe do Evento cobravam o dia AJUSTADO. Um
@@ -15,15 +16,15 @@
 // (o horário gravado como UTC É o de exibição — ver `toUTCDisplayDate`). O
 // resultado volta como meia-noite LOCAL desse mesmo dia, porque é assim que a
 // grade indexa as células (`toDateString`).
-import { diaDoMarcoUTC } from "@shared/prazo-dates";
+import { diaDoMarcoUTC, type RegraDeFimDeSemana } from "@shared/prazo-dates";
 
 export function diaDoMarcoNoCalendario(
   truckDepartureDate: Date | string,
   offset: number,
-  todosOsDias: boolean,
+  regra: RegraDeFimDeSemana,
 ): Date {
   const saida = new Date(truckDepartureDate);
   const saidaDia = Date.UTC(saida.getUTCFullYear(), saida.getUTCMonth(), saida.getUTCDate());
-  const d = diaDoMarcoUTC(saidaDia, offset, todosOsDias);
+  const d = diaDoMarcoUTC(saidaDia, offset, regra);
   return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }

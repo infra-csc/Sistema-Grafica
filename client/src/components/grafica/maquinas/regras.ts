@@ -6,7 +6,7 @@
 // frases, ordem da fila, o que bloqueia o gesto na tela).
 // ─────────────────────────────────────────────────────────────────────────────
 import { primeiroAsPrioritarias } from "@shared/prioridade-na-impressao";
-import { isEventoFinalizado } from "@shared/prazo-dates";
+import { isEventoFinalizado, diaDoMarcoUTC, FIM_DE_SEMANA_DO_CAMPO } from "@shared/prazo-dates";
 import { MAQUINAS_DE_IMPRESSAO, rotuloDaMaquina } from "@shared/fluxo-peca";
 import { pecaTravada, fraseDaTrava, seloDaTrava } from "@shared/trava-da-peca";
 import { perguntaDaTroca } from "@shared/progresso-da-impressao";
@@ -182,7 +182,8 @@ export function pecaParaOModal(p: PecaNaMaquina): PecaParaImprimir {
 
 /**
  * O prazo de Produção Gráfica da peça (a mesma conta do chip da fila da
- * Gráfica): saída do caminhão + dias do marco, em UTC, contra hoje.
+ * Gráfica): saída do caminhão + dias do marco, em UTC, com a regra de fim de
+ * semana do marco (seg–sáb: domingo vence no sábado — dono, 19/10), contra hoje.
  * `hojeMs` é o relógio de verdade (Date.now) — NÃO o todayBusinessMs do
  * selo de evento, que é meia-noite UTC e cairia no dia anterior em BRT.
  */
@@ -190,7 +191,7 @@ export function prazoDaPeca(saidaCaminhao: string | null, dias: number, hojeMs =
   if (!saidaCaminhao) return null;
   const base = new Date(saidaCaminhao);
   if (Number.isNaN(base.getTime())) return null;
-  const alvo = Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate() + (Number.isFinite(dias) ? dias : -1));
+  const alvo = diaDoMarcoUTC(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate()), Number.isFinite(dias) ? dias : -1, FIM_DE_SEMANA_DO_CAMPO.deadlineProducaoGrafica).getTime();
   const agora = new Date(hojeMs);
   const hojeUTC = Date.UTC(agora.getFullYear(), agora.getMonth(), agora.getDate());
   const diff = Math.round((alvo - hojeUTC) / 86_400_000);

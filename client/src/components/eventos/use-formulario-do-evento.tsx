@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { DEFAULT_DEADLINES, MARCO_FIELDS } from "./constantes";
 import { toDateStr } from "./formatos";
-import { deslocamentoDeFimDeSemana } from "@shared/prazo-dates";
+import { deslocamentoDeFimDeSemana, type RegraDeFimDeSemana } from "@shared/prazo-dates";
 import type { AcaoSobreEvento, EventoDaLista, FormularioDoEvento } from "./tipos";
 
 /** Vínculo como GET /api/events/:id/sponsors devolve (só o que o formulário lê). */
@@ -571,13 +571,14 @@ export function useFormularioDoEvento({ sponsors, sponsorById, soPatrocinadores 
 
   // ── Prazos: conversão offset ↔ data ───────────────────────────────────────
   const truckDateOnly = formData.truckDepartureDate ? formData.truckDepartureDate.slice(0, 10) : "";
-  const offsetToDateStr = (days: number, allDays = false): string => {
+  // A regra é a do MARCO (`fimDeSemana` de @shared/prazo-dates): seg–sex
+  // (sáb → sex, dom → seg) ou, na Produção Gráfica, seg–sáb (sábado vale,
+  // dom → sáb; dono, 19/10). "todos" = o dia cru, que é o que o seletor grava.
+  const offsetToDateStr = (days: number, regra: RegraDeFimDeSemana): string => {
     if (!truckDateOnly) return "";
     const d = new Date(truckDateOnly + "T12:00:00");
     d.setDate(d.getDate() + days);
-    // sábado → sexta, domingo → segunda: a regra de @shared/prazo-dates
-    // (06/10), a mesma da Gestão de Prazos e do Calendário.
-    if (!allDays) d.setDate(d.getDate() + deslocamentoDeFimDeSemana(d.getDay()));
+    d.setDate(d.getDate() + deslocamentoDeFimDeSemana(d.getDay(), regra));
     return toDateStr(d);
   };
   const dateStrToOffset = (dateStr: string): number => {

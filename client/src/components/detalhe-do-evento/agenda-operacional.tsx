@@ -180,7 +180,7 @@ export function AgendaOperacional({ event, isEventClosed, isMobile, marcosDoEven
                 ? { color: T.accentText, bg: TOM.laranja.bg, border: TOM.laranja.border }
                 : { color: T.apoio, bg: N.n2, border: T.border };
               const tituloMarco = (() => {
-                const base = adjusted === 'fri' ? `${label} — movido de sáb para sex` : adjusted === 'mon' ? `${label} — movido de dom para seg` : label;
+                const base = adjusted === 'fri' ? `${label} — movido de sáb para sex` : adjusted === 'sat' ? `${label} — movido de dom para sáb` : adjusted === 'mon' ? `${label} — movido de dom para seg` : label;
                 if (atras === 0) return `${base} — nenhuma peça atrás deste marco`;
                 const frase = `${atras} ${plural(atras, 'peça ainda não passou', 'peças ainda não passaram')} por este marco`;
                 return clicavel ? `${base} — ${frase}. ${selecionado ? 'Clique para ver todas as peças de novo' : 'Clique para ver só essas'}` : `${base} — ${frase}`;

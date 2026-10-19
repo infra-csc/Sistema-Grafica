@@ -365,10 +365,10 @@ describe("evento FUTURO", () => {
     expect(r.nextMilestone!.deadline).toBe("2026-01-29"); // 10/03 - 40 dias
   });
 
-  it("empurra marco de fim de semana para dia útil — menos a Produção Gráfica", () => {
+  it("empurra marco de fim de semana para dia útil — a Produção Gráfica fica no sábado", () => {
     // Saída no domingo 30/08/2026: a Revisão de Lista (-8) cairia no sábado
     // 22/08 e é puxada para sexta 21/08; a Produção Gráfica (-1) cairia no
-    // sábado 29/08 e FICA, porque a gráfica roda em todos os dias.
+    // sábado 29/08 e FICA, porque a gráfica trabalha no sábado (seg–sáb).
     const ev = evento({
       startDate: new Date("2026-09-05T00:00:00.000Z"),
       truckDepartureDate: new Date("2026-08-30T00:00:00.000Z"),

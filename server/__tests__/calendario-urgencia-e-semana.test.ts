@@ -241,7 +241,7 @@ describe("o Resumo conta o mês da grade", () => {
     // aqui — e ela cai no DEADLINE_DEFAULTS quando o evento não tem prazo próprio.)
     // (06/10: o dia sai de `diaDoMarcoNoCalendario` — a regra de fim de semana
     // da Gestão de Prazos —, com a MESMA chamada nos dois pontos.)
-    const conta = "diaDoMarcoNoCalendario(ev.truckDepartureDate, offsetDoMarco(ev, dt.key), dt.todosOsDias)";
+    const conta = "diaDoMarcoNoCalendario(ev.truckDepartureDate, offsetDoMarco(ev, dt.key), dt.fimDeSemana)";
     expect(bloco).toContain(conta);
     const byDay = tela.slice(tela.indexOf("const byDay = useMemo("), tela.indexOf("const byDay = useMemo(") + 1500);
     expect(byDay).toContain(conta);

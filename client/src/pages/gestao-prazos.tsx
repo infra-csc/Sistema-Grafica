@@ -28,7 +28,7 @@ import { FilterSelect } from "@/components/filter-select";
 import { ToastAction } from "@/components/ui/toast";
 import { useToast } from "@/hooks/use-toast";
 import { getPriorityMeta, PRIORITY } from "@/lib/status";
-import { MARCOS_DO_EVENTO } from "@shared/prazo-dates";
+import { MARCOS_DO_EVENTO, diaPodeTerPrazo } from "@shared/prazo-dates";
 import { alvo, useDensidadeDoConteudo, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { onPrazosInvalidated } from "@/hooks/use-websocket";
 import type {
@@ -1451,9 +1451,9 @@ export default function GestaoPrazos() {
     for (let i = 0; i < 15 && out.length < 10; i++) {
       const dia = addDaysStr(today, i);
       const dow = weekdayOfDay(dia);
-      // O servidor já empurra marco de sábado para sexta e de domingo para
-      // segunda — coluna de fim de semana seria sempre zero.
-      if (dow === 0 || dow === 6) continue;
+      // Só entram os dias em que algum marco PODE vencer (regra do marco em
+      // @shared/prazo-dates): o domingo nunca; o sábado sim, pela Produção Gráfica (dono, 19/10).
+      if (!diaPodeTerPrazo(dow)) continue;
       let total = 0;
       for (const ev of events) {
         if (ev.invalidDate) continue;
@@ -1675,7 +1675,7 @@ export default function GestaoPrazos() {
                   as duas telas dão o MESMO dia (@shared/prazo-dates). */}
               <p style={{ margin: 0 }}>
                 <strong style={{ color: TI.title }}>Fim de semana</strong> — prazo que cairia no sábado vence na sexta; no domingo, na segunda.
-                {" "}A Produção Gráfica é a exceção: roda no fim de semana, e o prazo dela fica no dia. O Calendário mostra o mesmo dia.
+                {" "}A Produção Gráfica é a exceção: a gráfica trabalha no sábado — o prazo dela vale no sábado e, se cair no domingo, é antecipado para o sábado. O Calendário mostra o mesmo dia.
               </p>
               <p style={{ margin: 0, color: TI.secondary }}>
                 Evento que já começou ou com todas as peças entregues sai desta tela. A tela se atualiza sozinha.

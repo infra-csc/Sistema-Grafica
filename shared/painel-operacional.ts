@@ -40,7 +40,7 @@
 //
 // DATAS. Todo dia é "YYYY-MM-DD" do negócio. Dia útil = segunda a sábado.
 // ─────────────────────────────────────────────────────────────────────────────
-import { SP_DAY_FMT } from "./prazo-dates";
+import { SP_DAY_FMT, DIAS_DA_GRAFICA, venceNoDia } from "./prazo-dates";
 import { FUNIL_DE_PRAZOS, ehBookCompleto, etapaDaPeca, type EtapaDaPeca } from "./fluxo-peca";
 import { comStatusDeContagem } from "./molde";
 import type { PrazoCategoria, PrazoEvent, PrazoKpis, StageState } from "./prazos-contract";
@@ -223,8 +223,8 @@ export function somarDias(d: string, n: number): string {
   return t.toISOString().slice(0, 10);
 }
 
-/** Dia útil da gráfica: segunda a sábado. */
-export const ehDiaUtil = (d: string): boolean => meioDia(d).getUTCDay() !== 0;
+/** Dia útil da gráfica: segunda a sábado — `DIAS_DA_GRAFICA`, a mesma regra do prazo da Produção Gráfica (@shared/prazo-dates). */
+export const ehDiaUtil = (d: string): boolean => venceNoDia(meioDia(d).getUTCDay(), DIAS_DA_GRAFICA);
 
 export const diasEntre = (a: string, b: string): number => Math.round((meioDia(a).getTime() - meioDia(b).getTime()) / 86_400_000);
 

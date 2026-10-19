@@ -4,7 +4,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { STATUS } from "@/lib/status";
 import { FORA_DO_FUNIL } from "@/lib/fases";
-import { MARCOS_DO_EVENTO, deslocamentoDeFimDeSemana, type MarcoDoEvento } from "@shared/prazo-dates";
+import { MARCOS_DO_EVENTO, deslocamentoDeFimDeSemana, type MarcoDoEvento, type RegraDeFimDeSemana } from "@shared/prazo-dates";
 import { TIPOS_DE_PECA, statusParaContagem } from "@shared/molde";
 import { CAMPOS_VAZIOS_DA_PRODUCAO_INTERNA } from "@shared/producao-interna";
 import type { ItemFormData, Marco, PecaDoEvento, TrabalhoAberto } from "./tipos";
@@ -49,8 +49,9 @@ export type EventoParaMarcos = { truckDepartureDate: string | Date } & Partial<R
 
 /**
  * OS SEIS MARCOS, derivados da fonte única (@shared/prazo-dates) e ancorados
- * na SAÍDA DO CAMINHÃO: sábado→sexta, domingo→segunda, e `todosOsDias` só na
- * Produção Gráfica. Esta lista era escrita à mão aqui com CINCO marcos —
+ * na SAÍDA DO CAMINHÃO, com a regra de fim de semana de cada marco: sábado→sexta,
+ * domingo→segunda; na Produção Gráfica (seg–sáb) o sábado vale e domingo→sábado.
+ * Esta lista era escrita à mão aqui com CINCO marcos —
  * faltava a Finalização (−10), a mesma divergência que o Calendário teve.
  *
  * Função pura, fora do componente: o cabeçalho (frase de resolução) e a
@@ -60,19 +61,18 @@ export function calcularMarcos(event: EventoParaMarcos, today: Date): { marcos: 
   const departure = new Date(event.truckDepartureDate);
   const depDay = new Date(departure); depDay.setHours(0, 0, 0, 0);
   const countdownDays = Math.ceil((depDay.getTime() - today.getTime()) / 86400000);
-  const adjustWeekend = (date: Date, skip: boolean): { date: Date; adjusted: 'fri' | 'mon' | null } => {
-    if (skip) return { date, adjusted: null };
-    // A regra (quantos dias e para que lado) é a de @shared/prazo-dates desde
-    // 06/10 — a mesma da Gestão de Prazos e do Calendário.
-    const passo = deslocamentoDeFimDeSemana(date.getDay());
+  const adjustWeekend = (date: Date, regra: RegraDeFimDeSemana): { date: Date; adjusted: Marco['adjusted'] } => {
+    // A regra (quantos dias e para que lado) é a do marco em @shared/prazo-dates
+    // — a mesma da Gestão de Prazos e do Calendário. Produção Gráfica: seg–sáb.
+    const passo = deslocamentoDeFimDeSemana(date.getDay(), regra);
     if (passo === 0) return { date, adjusted: null };
     const d = new Date(date); d.setDate(d.getDate() + passo);
-    return { date: d, adjusted: passo < 0 ? 'fri' : 'mon' };
+    return { date: d, adjusted: d.getDay() === 5 ? 'fri' : d.getDay() === 6 ? 'sat' : 'mon' };
   };
   const marcos = MARCOS_DO_EVENTO.map((m) => {
     const days: number = event[m.campo] ?? m.offset;
     const raw = new Date(departure); raw.setDate(raw.getDate() + days);
-    const { date, adjusted } = adjustWeekend(raw, m.todosOsDias);
+    const { date, adjusted } = adjustWeekend(raw, m.fimDeSemana);
     const isPast = date < today;
     const isOverdue = isPast && countdownDays > 0;
     return { key: m.key, label: m.label, date, adjusted, isPast, isOverdue };

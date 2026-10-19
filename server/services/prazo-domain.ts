@@ -10,7 +10,7 @@
 // O cálculo dos marcos espelha a Agenda Operacional do event-detail:
 // cada etapa é um offset em dias sobre a SAÍDA DO CAMINHÃO (âncora oficial
 // de prazos do negócio), com ajuste de fim de semana (sáb→sex, dom→seg)
-// exceto na Produção Gráfica, que roda em qualquer dia.
+// exceto na Produção Gráfica, que vence seg–sáb (dom→sáb; dono, 19/10).
 //
 // Toda a aritmética de datas é feita em UTC sobre a data-calendário
 // (YYYY-MM-DD): o servidor pode rodar em qualquer fuso e o resultado
@@ -24,8 +24,9 @@ import {
   todayBusinessStr,
   businessDayStrToMs,
   diaDoMarcoUTC,
+  FIM_DE_SEMANA_DO_CAMPO,
 } from "@shared/prazo-dates";
-import type { EventoFinalizadoMotivo } from "@shared/prazo-dates";
+import type { EventoFinalizadoMotivo, RegraDeFimDeSemana } from "@shared/prazo-dates";
 import { FUNIL_DE_PRAZOS, STATUS_ENTREGUES, STATUS_FORA_DO_FUNIL, statusDoFunil } from "@shared/fluxo-peca";
 import { comStatusDeContagem } from "@shared/molde";
 import type {
@@ -49,7 +50,8 @@ export interface StageDef {
     | "deadlineRevisaoLista"
     | "deadlineProducaoGrafica";
   defaultOffset: number;
-  allDays: boolean; // true = não ajusta fim de semana
+  /** Em que dias o prazo vence — lida do marco em @shared/prazo-dates, nunca escrita aqui. */
+  fimDeSemana: RegraDeFimDeSemana;
   // Status de item que significam "ainda não passou por esta etapa".
   pendingStatuses: string[];
 }
@@ -59,22 +61,23 @@ export interface StageDef {
 // aprovada). Os status legados entram na etapa equivalente.
 // Os status de cada etapa vêm do funil canônico (shared/fluxo-peca), com as
 // grafias legadas: o cliente (Análises) lê a MESMA lista, sem espelho.
-const DEFS_DE_OFFSET: Record<string, Pick<StageDef, "offsetField" | "defaultOffset" | "allDays">> = {
-  listaImagens: { offsetField: "deadlineListaImagens", defaultOffset: -25, allDays: false },
-  layouts:      { offsetField: "deadlineEntregaLayouts", defaultOffset: -20, allDays: false },
-  aprovacao:    { offsetField: "deadlineAprovacaoLayout", defaultOffset: -12, allDays: false },
+const DEFS_DE_OFFSET: Record<string, Pick<StageDef, "offsetField" | "defaultOffset">> = {
+  listaImagens: { offsetField: "deadlineListaImagens", defaultOffset: -25 },
+  layouts:      { offsetField: "deadlineEntregaLayouts", defaultOffset: -20 },
+  aprovacao:    { offsetField: "deadlineAprovacaoLayout", defaultOffset: -12 },
   // Finalização: a Arte anexando o arquivo final (sponsor_approved, isenta de
   // aprovação ou grafia legada — o mesmo trabalho por três caminhos).
-  finalizacao:  { offsetField: "deadlineFinalizacao", defaultOffset: -10, allDays: false },
-  revisao:      { offsetField: "deadlineRevisaoLista", defaultOffset: -8, allDays: false },
-  // Produção Gráfica roda em qualquer dia.
-  producao:     { offsetField: "deadlineProducaoGrafica", defaultOffset: -1, allDays: true },
+  finalizacao:  { offsetField: "deadlineFinalizacao", defaultOffset: -10 },
+  revisao:      { offsetField: "deadlineRevisaoLista", defaultOffset: -8 },
+  // Produção Gráfica: vence seg–sáb (regra no marco, @shared/prazo-dates).
+  producao:     { offsetField: "deadlineProducaoGrafica", defaultOffset: -1 },
 };
 
 export const STAGE_DEFS: StageDef[] = FUNIL_DE_PRAZOS.map((f) => ({
   key: f.key,
   label: f.label,
   ...DEFS_DE_OFFSET[f.key],
+  fimDeSemana: FIM_DE_SEMANA_DO_CAMPO[DEFS_DE_OFFSET[f.key].offsetField],
   pendingStatuses: statusDoFunil(f.key),
 }));
 
@@ -154,13 +157,13 @@ export function truckDayUTC(truckDepartureDate: Date | string): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }
 
-// Marco da etapa: saída + offset, com ajuste de fim de semana quando a
-// etapa não roda em todos os dias (sábado → sexta, domingo → segunda).
+// Marco da etapa: saída + offset, com o ajuste de fim de semana da regra do
+// marco (seg–sex: sáb → sex, dom → seg; seg–sáb: dom → sáb).
 // A conta MUDOU DE CASA em 06/10 (para `diaDoMarcoUTC`, @shared/prazo-dates)
 // sem mudar de resultado: o Calendário passou a seguir a mesma regra (decisão
 // do dono) e precisava ler a MESMA função, não uma sétima cópia dela.
-export function stageDeadline(truckDay: Date, offsetDays: number, allDays: boolean): Date {
-  return diaDoMarcoUTC(truckDay, offsetDays, allDays);
+export function stageDeadline(truckDay: Date, offsetDays: number, regra: RegraDeFimDeSemana): Date {
+  return diaDoMarcoUTC(truckDay, offsetDays, regra);
 }
 
 // Dias-calendário (no fuso do negócio) desde um timestamp real.
@@ -319,7 +322,7 @@ export function buildEventPrazo(
   const stages: PrazoStage[] = STAGE_DEFS.map((def, i) => {
     runningPending += directCounts[i];
     const offset = (event[def.offsetField] as number | null | undefined) ?? def.defaultOffset;
-    const deadline = stageDeadline(truckDay, offset, def.allDays);
+    const deadline = stageDeadline(truckDay, offset, def.fimDeSemana);
     const diffDays = Math.round((deadline.getTime() - today) / 86400000);
 
     let state: StageState;

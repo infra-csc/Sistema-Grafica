@@ -92,7 +92,7 @@ export interface ItemFormData extends CamposDaProducaoInterna {
 export type DadosDaEdicao = { [K in keyof ItemFormData]?: ItemFormData[K] | string | null } & { reuseQty?: number };
 
 /** Um dos seis marcos do evento, já com a data ajustada ao fim de semana. */
-export type Marco = { key: string; label: string; date: Date; adjusted: 'fri' | 'mon' | null; isPast: boolean; isOverdue: boolean };
+export type Marco = { key: string; label: string; date: Date; adjusted: 'fri' | 'sat' | 'mon' | null; isPast: boolean; isOverdue: boolean };
 
 /** Peças que ficaram para trás — o número que a confirmação de encerrar diz. */
 export type TrabalhoAberto = { ativas: number; entregues: number; emProducao: number; abertas: number };

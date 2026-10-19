@@ -50,7 +50,7 @@ export type AcaoDaPeca =
   | "dispensar-aprovacao" | "enviar-arquivo-final" | "trocar-thumb-aprovado" | "trocar-arquivo-final-liberado"
   | "liberar-para-producao" | "liberar-com-reaproveitamento-total" | "liberar-o-que-ja-foi-liberado"
   | "devolver-para-a-arte" | "devolver-para-a-finalizacao" | "devolver-para-a-aprovacao"
-  | "devolver-ao-solicitante" | "devolver-para-a-revisao" | "devolver-evento-para-a-arte"
+  | "devolver-ao-solicitante" | "devolver-para-a-revisao" | "reabrir-entregue-para-a-revisao" | "devolver-evento-para-a-arte"
   | "cancelar" | "descancelar"
   | "iniciar-impressao" | "concluir-impressao" | "informar-impressas-parcial" | "esvaziar-impressoras"
   | "reaproveitar-o-que-falta" | "reaproveitar-parte" | "ajustar-reaproveitamento-da-produzida"
@@ -151,6 +151,7 @@ const ROTA = {
   devolverArteLote: "PATCH /api/items/bulk-return-to-arte",
   devolverSolicitante: "PATCH /api/items/:id/arte-reject",
   devolverRevisao: "PATCH /api/items/:id/return-to-review",
+  reabrirEntregue: "POST /api/items/:id/reabrir-para-revisao",
   devolverEventoArte: "POST /api/events/:id/devolver-para-a-arte",
   cancelar: "PATCH /api/items/:id/cancel",
   cancelarLote: "PATCH /api/items/bulk-cancel",
@@ -259,6 +260,8 @@ export const TRANSICOES: readonly Transicao[] = [
     condicoes: [EVENTO_ABERTO, MOTIVO, "travada: o admin destrava ao devolver", "nenhuma unidade impressa, conferida ou entregue", "todo patrocinador que já aprovou aprova a arte nova"], rotas: [ROTA.devolverEventoArte] },
   { acao: "devolver-para-a-revisao", de: LIBERADA, para: "awaiting_final_review", papeis: ["grafica", "admin"],
     condicoes: [EVENTO_ABERTO, MOTIVO, "nenhuma unidade impressa"], rotas: [ROTA.devolverRevisao] },
+  { acao: "reabrir-entregue-para-a-revisao", de: ["delivered", "entregue"], para: "awaiting_final_review", papeis: ["admin"],
+    condicoes: [MOTIVO, "vale em evento realizado ou encerrado", "zera impressão, conferência, embalagem e entrega e tira a peça dos volumes"], rotas: [ROTA.reabrirEntregue] },
 
   // ── Cancelamento ─────────────────────────────────────────────────────────
   { acao: "cancelar", de: { todosMenos: [] }, para: "canceled", papeis: ["solicitacao", "arte", "admin"],

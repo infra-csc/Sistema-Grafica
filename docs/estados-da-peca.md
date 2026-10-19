@@ -223,6 +223,12 @@ patrocinador, o reaproveitamento) e a peça não muda de status.
 | --- | --- | --- | --- | --- |
 | devolver-para-a-revisao | `ready_for_production`, `pronto_para_producao`, `approved`, `liberado` | `awaiting_final_review` | grafica, admin | evento aberto (nem encerrado nem já realizado); motivo com pelo menos 10 caracteres; nenhuma unidade impressa |
 
+### POST /api/items/:id/reabrir-para-revisao
+
+| Ação | De | Para | Quem | Condições |
+| --- | --- | --- | --- | --- |
+| reabrir-entregue-para-a-revisao | `delivered`, `entregue` | `awaiting_final_review` | admin | motivo com pelo menos 10 caracteres; vale em evento realizado ou encerrado; zera impressão, conferência, embalagem e entrega e tira a peça dos volumes |
+
 ### PATCH /api/items/:id/cancel · PATCH /api/items/bulk-cancel
 
 | Ação | De | Para | Quem | Condições |

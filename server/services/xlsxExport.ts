@@ -31,6 +31,10 @@ const PRODUCTION_COLS = [
   { header: "M² a produzir",   key: "m2ToProduce",  width: 13 },
   { header: "Produzido",       key: "qtyProduced",  width: 11 },
   { header: "Conferido",       key: "qtyConferred", width: 11 },
+  // Unidades já embaladas, entregues ou não (19/10, fechamento por evento):
+  // "o que foi produzido e o que foi reaproveitado" pede a cadeia inteira —
+  // produzido → conferido → embalado → entregue — para a conta fechar.
+  { header: "Embalado",        key: "qtyEmbalado",  width: 11 },
   { header: "Entregue",        key: "qtyDelivered", width: 11 },
   // EM TRÂNSITO (16/10): as reaproveitadas que vêm no caminhão de outra etapa
   // não passam por volume — a peça fecha como Entregue com o FÍSICO entregue.
@@ -85,8 +89,19 @@ const THIN_BORDER: Partial<ExcelJS.Borders> = {
   bottom: { style: "thin", color: { argb: "FFD4D0CC" } },
 };
 
-function fmt(date: string | Date) {
+export function fmt(date: string | Date) {
   return format(new Date(date), "dd/MM/yyyy", { locale: ptBR });
+}
+
+/**
+ * O DIA do evento (startDate) é gravado à meia-noite UTC — a convenção de
+ * eventDayMs (shared/prazo-dates). Formatar no fuso do servidor (Brasília)
+ * mostrava a véspera: "Night Run Teresina" (10/10) saía "09/10".
+ */
+export function fmtDiaDoEvento(date: string | Date) {
+  const d = new Date(date);
+  if (!Number.isFinite(d.getTime())) return "";
+  return `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}/${d.getUTCFullYear()}`;
 }
 
 // O MAPA ÚNICO dos rótulos do Excel (revisão 22/09): curtos de propósito (a
@@ -114,7 +129,7 @@ export const STATUS_LABELS: Record<string, string> = {
  * A peça como a planilha lê: a linha do banco com os nomes já cruzados. Os
  * campos opcionais só existem em peça que chegou enriquecida.
  */
-type PecaDaPlanilha = Item & {
+export type PecaDaPlanilha = Item & {
   sponsorNames?: string[];
   eventName?: string;
   event?: { name?: string | null } | null;
@@ -123,7 +138,7 @@ type PecaDaPlanilha = Item & {
   tuboVolumes?: VolumeDaPeca[];
 };
 
-async function withSponsorNames(rawItems: Item[]) {
+export async function withSponsorNames(rawItems: Item[]) {
   // AUDITORIA 27/08: era N×M queries SIMULTÂNEAS (uma por vínculo, dentro de
   // uma por peça) — exportar 2.000 peças disparava milhares de conexões e
   // derrubava as OUTRAS requisições. Duas queries no total, mapa em memória.
@@ -166,9 +181,10 @@ function byDisplayId(a: { displayId?: string | null } | null | undefined, b: { d
 
 /**
  * Monta a planilha e responde com o arquivo. `withProduction` acrescenta as
- * colunas de evento/status/quantidades usadas na exportação da Gráfica.
+ * colunas de evento/status/quantidades usadas na exportação da Gráfica — e
+ * no fechamento por evento (services/fechamentoDoEvento.ts), no MESMO formato.
  */
-async function writeWorkbook(
+export async function writeWorkbook(
   res: Response,
   opts: { items: PecaDaPlanilha[]; title: string; subtitle: string; filename: string; withProduction?: boolean },
 ) {
@@ -215,6 +231,12 @@ async function writeWorkbook(
 
     let totalQty = 0;
     let totalM2 = 0;
+    // Totais das colunas de produção (19/10, fechamento): quanto se produziu,
+    // reaproveitou, conferiu, embalou, entregou e veio em trânsito — a linha
+    // TOTAL fecha a conta do evento sem ninguém somar coluna por coluna.
+    const totaisDaProducao: Record<string, number> = {
+      qtyReused: 0, m2ToProduce: 0, qtyProduced: 0, qtyConferred: 0, qtyEmbalado: 0, qtyDelivered: 0, qtyEmTransito: 0,
+    };
 
     sorted.forEach((item, idx) => {
       const row = ws.addRow({
@@ -236,6 +258,7 @@ async function writeWorkbook(
           m2ToProduce:  m2ToProduce(item),
           qtyProduced:  item.quantityProduced ?? 0,
           qtyConferred: item.conferredQty ?? 0,
+          qtyEmbalado:  item.embaladaQty ?? 0,
           qtyDelivered: item.deliveredQty ?? 0,
           qtyEmTransito: emTransitoDe(item),
         } : {}),
@@ -274,7 +297,7 @@ async function writeWorkbook(
       });
 
       const numericCols = ["quantity", "visualWidth", "visualHeight", "fileWidth", "fileHeight", "calculatedM2",
-                           "qtyReused", "m2ToProduce", "qtyProduced", "qtyConferred", "qtyDelivered", "tuboNumero"];
+                           "qtyReused", "m2ToProduce", "qtyProduced", "qtyConferred", "qtyEmbalado", "qtyDelivered", "qtyEmTransito", "tuboNumero"];
       numericCols.forEach((key) => {
         const colIdx = COLS.findIndex((c) => c.key === key);
         if (colIdx >= 0) {
@@ -284,6 +307,15 @@ async function writeWorkbook(
 
       totalQty += item.quantity ?? 0;
       totalM2 += item.calculatedM2 != null ? parseFloat(item.calculatedM2) : 0;
+      if (withProduction) {
+        totaisDaProducao.qtyReused += reusedTotal(item);
+        totaisDaProducao.m2ToProduce += m2ToProduce(item);
+        totaisDaProducao.qtyProduced += item.quantityProduced ?? 0;
+        totaisDaProducao.qtyConferred += item.conferredQty ?? 0;
+        totaisDaProducao.qtyEmbalado += item.embaladaQty ?? 0;
+        totaisDaProducao.qtyDelivered += item.deliveredQty ?? 0;
+        totaisDaProducao.qtyEmTransito += emTransitoDe(item);
+      }
     });
 
     const totRow = ws.addRow({});
@@ -302,6 +334,18 @@ async function writeWorkbook(
     totRow.getCell(m2ColIdx).numFmt = "0.00";
     totRow.getCell(m2ColIdx).font = { name: "Arial", bold: true, size: 10, color: { argb: "FF92400E" } };
     totRow.getCell(m2ColIdx).alignment = { horizontal: "center" };
+
+    if (withProduction) {
+      for (const [key, valor] of Object.entries(totaisDaProducao)) {
+        const idx = COLS.findIndex((c) => c.key === key) + 1;
+        if (idx <= 0) continue;
+        const cell = totRow.getCell(idx);
+        cell.value = key === "m2ToProduce" ? parseFloat(valor.toFixed(2)) : valor;
+        if (key === "m2ToProduce") cell.numFmt = "0.00";
+        cell.font = { name: "Arial", bold: true, size: 10, color: { argb: "FF92400E" } };
+        cell.alignment = { horizontal: "center" };
+      }
+    }
 
     totRow.eachCell({ includeEmpty: true }, (cell) => {
       cell.fill = TOTAL_FILL;
@@ -329,7 +373,7 @@ export async function handleExportItemsXlsx(req: Request, res: Response) {
     const items = (await withSponsorNames(doEvento)).sort(byDisplayId);
 
     const parts = [
-      `Data do evento: ${fmt(event.startDate)}`,
+      `Data do evento: ${fmtDiaDoEvento(event.startDate)}`,
       `Saída do caminhão: ${fmt(event.truckDepartureDate)}`,
     ];
     if (event.franchise) parts.push(`Franquia: ${event.franchise}`);

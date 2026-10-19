@@ -17,6 +17,7 @@ import { Botao } from "@/components/ui/botao";
 import type { useToast } from "@/hooks/use-toast";
 import { T, TOM, FS } from "@/lib/theme";
 import { motivoSomenteLeitura } from "./regras";
+import { useExportarFechamento } from "@/lib/exportar-fechamento";
 
 export function AcoesDoEvento({
   eventId, isMobile, canEditLists, canCloseEvent, isEventClosed, eventoFinalizado, avisoEventoFim,
@@ -47,6 +48,10 @@ export function AcoesDoEvento({
   // Ação escolhida no menu "Mais" que abre um diálogo — executada só quando o
   // menu termina de fechar (ver onCloseAutoFocus abaixo).
   const acaoAposMenuRef = useRef<(() => void) | null>(null);
+  const { exportar: exportarFechamento, exportando: exportandoFechamento } = useExportarFechamento();
+  // Evento realizado ou encerrado: o fechamento é O trabalho que sobrou, e
+  // sai do "Mais" para um botão à vista (a equipe procurava e não achava).
+  const fechamentoAVista = eventoFinalizado || isEventClosed;
   const nota: React.CSSProperties = { display: 'inline-flex', alignItems: 'flex-start', gap: 6, fontSize: FS.meta, color: T.second, lineHeight: 1.45, maxWidth: isMobile ? '100%' : 340, textAlign: isMobile ? 'left' : 'right' };
 
   return (
@@ -169,6 +174,22 @@ export function AcoesDoEvento({
                 <FileSpreadsheet aria-hidden="true" style={{ color: TOM.sucesso.text }} />
                 Exportar Excel
               </DropdownMenuItem>
+              {/* FECHAMENTO (19/10) — a planilha de produção do evento
+                  INTEIRO: todo status, entregues, reaproveitadas e em
+                  trânsito, também com o evento realizado ou encerrado. O
+                  "Exportar Excel" acima é a especificação (a que se reimporta). */}
+              <DropdownMenuItem
+                data-testid="button-export-fechamento-menu"
+                disabled={exportandoFechamento || !eventId}
+                onSelect={() => { if (eventId) void exportarFechamento([eventId]); }}
+                className={itemDoMenu}
+              >
+                <FileSpreadsheet aria-hidden="true" style={{ color: TOM.sucesso.text }} />
+                <span className="fech-item-menu">
+                  Exportar fechamento (Excel)
+                  <span className="fech-item-menu-apoio">Todas as peças: produzidas, reaproveitadas e entregues</span>
+                </span>
+              </DropdownMenuItem>
               {/* Encerrar / Reabrir — só admin (mesmo gate do servidor).
                   No fim do menu e separado: é decisão sobre o EVENTO, não
                   uma saída. O rótulo troca conforme o estado, porque é a
@@ -207,6 +228,20 @@ export function AcoesDoEvento({
 
         return (
           <>
+            {!isMobile && fechamentoAVista && (
+              <Botao
+                variante="secundario"
+                tamanho={tamanhoAcao}
+                icone={FileSpreadsheet}
+                carregando={exportandoFechamento}
+                onClick={() => { if (eventId) void exportarFechamento([eventId]); }}
+                data-testid="button-export-fechamento"
+                title="Planilha com todas as peças do evento: produzidas, reaproveitadas, em trânsito e entregues"
+                style={{ flexShrink: 0 }}
+              >
+                Exportar fechamento
+              </Botao>
+            )}
             {!isMobile && menuMais}
 
             {/* Importar Excel — só quem edita a lista; visível fora do celular. */}
@@ -252,6 +287,22 @@ export function AcoesDoEvento({
 
       {children}
     </div>
+
+      {/* Celular: a fileira já tem "Adicionar peça" e "Mais" — o fechamento
+          ganha a linha dele, inteira, logo abaixo. */}
+      {isMobile && fechamentoAVista && (
+        <Botao
+          variante="secundario"
+          tamanho="toque"
+          icone={FileSpreadsheet}
+          larguraCheia
+          carregando={exportandoFechamento}
+          onClick={() => { if (eventId) void exportarFechamento([eventId]); }}
+          data-testid="button-export-fechamento"
+        >
+          Exportar fechamento (Excel)
+        </Botao>
+      )}
 
       {/* A explicação fica sob os botões travados: sem ela, botões cinzas em
           sequência leem como bug de permissão. */}

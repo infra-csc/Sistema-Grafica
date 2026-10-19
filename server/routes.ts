@@ -31,6 +31,7 @@ import { registerInferirExecutivosRoutes } from "./routes/inferir-executivos";
 import { registerVersoesRoutes } from "./routes/versoes";
 import { registerBuscaRoutes } from "./routes/busca";
 import { registerRelatorioRoutes } from "./routes/relatorio";
+import { registerFechamentoRoutes } from "./routes/fechamento";
 import { registerMaquinasRoutes } from "./routes/maquinas";
 import { registerTravaRoutes } from "./routes/trava";
 import { registerTubosRoutes } from "./routes/tubos";
@@ -169,6 +170,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerVersoesRoutes(app);
   registerBuscaRoutes(app);
   registerRelatorioRoutes(app);
+  registerFechamentoRoutes(app);
   registerMaquinasRoutes(app);
   registerTravaRoutes(app);
   registerTubosRoutes(app);

@@ -53,6 +53,7 @@ import { AtalhosDaGrafica, CabecalhoDaGrafica } from "@/components/grafica/fila/
 import { CartoesDeEtapa } from "@/components/grafica/fila/cartoes-de-etapa";
 import { BarraDeFiltros } from "@/components/grafica/fila/barra-de-filtros";
 import { ResumoDaLista, BannerDoComplemento } from "@/components/grafica/fila/resumo-da-lista";
+import { FaixaDoFechamento } from "@/components/grafica/fila/faixa-do-fechamento";
 import { ListaDaFila } from "@/components/grafica/fila/lista-da-fila";
 import { BarraDoLote } from "@/components/grafica/fila/barra-do-lote";
 import { CSS_DA_TRAVA } from "@/components/grafica/fila/trava-da-peca";
@@ -378,6 +379,10 @@ export default function Grafica() {
         <BarraDeFiltros fila={fila} isMobile={isMobile} usaCards={usaCards} ponteiroGrosso={ponteiroGrosso}
           showAdvancedFilters={showAdvancedFilters} setShowAdvancedFilters={setShowAdvancedFilters}
           filtrosAbertos={filtrosAbertos} setFiltrosAbertos={setFiltrosAbertos} folhaFiltrosRef={folhaFiltrosRef} />
+
+        {/* FECHAMENTO (19/10): com evento escolhido, a planilha do evento
+            INTEIRO — não só da lista visível. */}
+        <FaixaDoFechamento fila={fila} isMobile={isMobile} ponteiroGrosso={ponteiroGrosso} />
 
         {/* ── A lista: o resumo do recorte em cima, o aviso da peça-filha que
             nasceu fora dele e as peças (cartões ou tabela). ── */}

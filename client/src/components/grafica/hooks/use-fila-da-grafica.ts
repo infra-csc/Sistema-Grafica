@@ -232,7 +232,19 @@ export function useFilaDaGrafica() {
 
   // As facetas (as opções de cada dropdown) — ver use-facetas-da-fila.ts.
   const facetas = useFacetasDaFila({ items, filtros, ctxFiltros, groupOf });
-  const { poolDaBusca, recorteDasPassadas, eventFilterOptions } = facetas;
+  const { poolDaBusca, recorteDasPassadas } = facetas;
+  // EVENTO ESCOLHIDO QUE A FILA ESCONDE (19/10, fechamento): o de evento
+  // realizado sai das facetas junto com as peças — e o filtro, vindo da URL
+  // ou de antes de esconder, mostrava o ID cru ("e2…") no botão e no "Recorte
+  // atual". O escolhido continua no menu, com o nome e 0 na fila.
+  const eventFilterOptions = useMemo(() => {
+    const base = facetas.eventFilterOptions;
+    const faltam = filtros.evento.filter((id) => !base.some((o) => o.value === id));
+    if (faltam.length === 0) return base;
+    const nomes = new Map<string, string>();
+    for (const p of pecasDoServidor) if (faltam.includes(p.eventId) && p.event?.name && !nomes.has(p.eventId)) nomes.set(p.eventId, p.event.name);
+    return [...base, ...faltam.filter((id) => nomes.has(id)).map((id) => ({ value: id, label: nomes.get(id)!, count: 0 }))];
+  }, [facetas.eventFilterOptions, filtros.evento, pecasDoServidor]);
 
   // O casamento item↔recorte mora em lib/grafica-filtros.ts. A lista e o pool
   // dos KPIs usam a MESMA função; a única diferença é `ignorarStatus`, que
@@ -566,6 +578,7 @@ export function useFilaDaGrafica() {
     filtros, setFiltros, patchFiltros, buscaInput, setBuscaInput, limparFiltros,
     typeToGroup, groupOf, ctxFiltros,
     ...facetas,
+    eventFilterOptions,
     filteredItems, statsPool, stats, finalizadasNoRecorte,
     complementosAbertos, complementosNaLista, complementoChipLabel, comReusoNaLista, entreguesOcultas, realizadosOcultos,
     nFiltros, nFiltrosNaFolha, haFiltro, descricaoFiltros,

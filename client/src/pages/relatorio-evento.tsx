@@ -17,13 +17,14 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
-import { Printer, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { Printer, ArrowLeft, CheckCircle2, FileSpreadsheet } from "lucide-react";
 import { getStatusLabel } from "@/lib/status";
 import { FONT, FS, FW, N, R, SHADOW, T, TOM } from "@/lib/theme";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Botao, BotaoLink } from "@/components/ui/botao";
 import { EstadoErro, Esqueleto } from "@/components/ui/estados";
 import { cssDeImpressaoIsolada } from "@/lib/impressao-isolada";
+import { useExportarFechamento } from "@/lib/exportar-fechamento";
 
 interface Relatorio {
   gerado: { em: string; por: string };
@@ -73,6 +74,7 @@ export default function RelatorioEvento() {
     queryKey: [`/api/events/${eventId}/relatorio`],
     enabled: !!eventId,
   });
+  const { exportar: exportarFechamento, exportando: exportandoFechamento } = useExportarFechamento();
 
   // A MESA: fundo da página, com a folha branca no meio. É a mesma moldura nos
   // três estados (montando, falhou, pronto) — a tela não "pula" de layout.
@@ -147,17 +149,39 @@ export default function RelatorioEvento() {
           Voltar ao evento
         </BotaoLink>
         <span style={{ flex: "1 1 auto" }} />
-        {/* "Imprimir / PDF" abre a janela do navegador — quem quer o arquivo
-            não sabia que o PDF sai dali. Uma linha, ao lado do botão. */}
-        {!isMobile && (
-          <span style={{ fontSize: FS.meta, color: T.second, textAlign: "right", maxWidth: 300, lineHeight: 1.4 }}>
-            Para salvar em arquivo, escolha “Salvar como PDF” no destino da impressão.
-          </span>
-        )}
-        <Botao variante="primario" icone={Printer} onClick={() => window.print()} data-testid="button-imprimir-relatorio" tamanho={isMobile ? "toque" : "md"}
-          title='Abre a impressão do navegador — para o arquivo, escolha "Salvar como PDF".'>
-          Imprimir / PDF
-        </Botao>
+        {(() => {
+          // FECHAMENTO (19/10): a planilha com TODAS as peças do evento — o
+          // que foi produzido e o que foi reaproveitado —, também com o evento
+          // realizado ou encerrado. Este documento é o resumo; ela é o detalhe.
+          const fechamento = (
+            <Botao variante="secundario" icone={FileSpreadsheet} onClick={() => void exportarFechamento([r.evento.id])} carregando={exportandoFechamento}
+              data-testid="button-export-fechamento-relatorio" tamanho={isMobile ? "toque" : "md"}
+              title="Baixar a planilha com todas as peças do evento: produzidas, reaproveitadas, em trânsito e entregues"
+              style={isMobile ? { flex: "1 1 0%" } : undefined}>
+              {isMobile ? "Fechamento" : "Fechamento (Excel)"}
+            </Botao>
+          );
+          const imprimir = (
+            <Botao variante="primario" icone={Printer} onClick={() => window.print()} data-testid="button-imprimir-relatorio" tamanho={isMobile ? "toque" : "md"}
+              title='Abre a impressão do navegador — para o arquivo, escolha "Salvar como PDF".'
+              style={isMobile ? { flex: "1 1 0%" } : undefined}>
+              Imprimir / PDF
+            </Botao>
+          );
+          // Celular: as duas saídas lado a lado, numa linha só, sob o Voltar.
+          if (isMobile) return <div style={{ display: "flex", gap: 10, width: "100%" }}>{fechamento}{imprimir}</div>;
+          return (
+            <>
+              {fechamento}
+              {/* "Imprimir / PDF" abre a janela do navegador — quem quer o
+                  arquivo não sabia que o PDF sai dali. Ao lado do botão. */}
+              <span style={{ fontSize: FS.meta, color: T.second, textAlign: "right", maxWidth: 230, lineHeight: 1.4 }}>
+                Para salvar em arquivo, escolha “Salvar como PDF” no destino da impressão.
+              </span>
+              {imprimir}
+            </>
+          );
+        })()}
         {isMobile && (
           <p style={{ flex: "1 1 100%", margin: 0, fontSize: FS.meta, color: T.second, lineHeight: 1.4 }}>
             Para salvar em arquivo, escolha “Salvar como PDF” no destino da impressão.

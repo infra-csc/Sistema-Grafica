@@ -412,8 +412,13 @@ export function montarPainelOperacional(e: EntradaDoPainel): PainelOperacional {
     }
 
     // Planejado da pré-produção: cada processo pendente no prazo da fase; vencido vai para hoje.
+    // A peça atrasada conta UMA vez em "Atrasado" (no processo em que está) — os
+    // processos seguintes, também vencidos por causa dela, não repetem a peça
+    // (dono, 19/10: "a mesma peça atrasada em layout aparece nos demais, fica confuso").
+    let jaContouAtraso = false;
     for (const s of passosPendentes(fase, !!p.skipApproval)) {
       const atrasado = dl[s] < hoje;
+      if (atrasado) { if (jaContouAtraso) continue; jaContouAtraso = true; }
       const d = atrasado ? hoje : dl[s];
       const proc = PROCESSO_DO_PASSO[s];
       juntar(pl, `${d}|${chave}|${proc}|${atrasado}`, { dia: d, evento: chave, processo: proc, atrasado }, { itens: 1, unidades: qtd });
@@ -507,8 +512,13 @@ export const PASSO_DO_PROCESSO: Record<Exclude<ProcessoDePre, "cadastro">, numbe
 /**
  * A peça na fase N ainda passa pelos processos N..4 (layout, aprovação,
  * finalização, revisão final); a da Lista de imagens (fase 0) passa por todos.
- * A isenta de aprovação pula a aprovação.
+ * A isenta de aprovação pula a aprovação. O primeiro é o processo em que a
+ * peça ESTÁ (passoAtual) — é nele, e só nele, que ela conta nas pendências.
  */
+export function passoAtual(fase: number, semAprovacao: boolean): number | null {
+  return passosPendentes(fase, semAprovacao)[0] ?? null;
+}
+
 export function passosPendentes(fase: number, semAprovacao: boolean): number[] {
   if (fase < 0 || fase > 4) return [];
   const out: number[] = [];
@@ -791,19 +801,24 @@ export interface PendenciaDoEvento {
   evento: string;
   pendentes: Record<ColunaDePre, number>;
   atrasados: Record<ColunaDePre, number>;
-  /** Soma dos processos vencidos (uma peça atrasada em dois processos conta duas vezes). */
+  /** Peças atrasadas no processo em que estão (cada peça conta uma vez). */
   totalAtrasados: number;
 }
 
 const prazosDoEvento = (painel: Pick<PainelOperacional, "eventos">) =>
   new Map(painel.eventos.map((e) => [e.chave, e.fases.map((f) => f.prazo)]));
 
-/** "Pendências de pré-produção por evento". */
+/**
+ * "Pendências de pré-produção por evento": cada peça conta UMA vez, na coluna
+ * do processo em que ela está agora (dono, 19/10 — antes a peça parada no
+ * layout aparecia também em aprovação, finalização e revisão).
+ */
 export function pendenciasPorEvento(painel: Pick<PainelOperacional, "hoje" | "pecas" | "eventos">): PendenciaDoEvento[] {
   const prazos = prazosDoEvento(painel);
   const m = new Map<string, PendenciaDoEvento>();
   for (const p of painel.pecas) {
-    const passos = passosPendentes(p.fase, p.semAprovacao);
+    const atual = passoAtual(p.fase, p.semAprovacao);
+    const passos = atual == null ? [] : [atual];
     if (!passos.length) continue;
     const dl = prazos.get(p.evento) ?? [];
     let x = m.get(p.evento);
@@ -834,7 +849,8 @@ export function pecasDaPendencia(
   const so = soAtrasados || processo === "atrasados";
   return painel.pecas.filter((p) => {
     if (p.evento !== evento) return false;
-    const passos = passosPendentes(p.fase, p.semAprovacao).filter((s) => alvo == null || s === alvo);
+    const atual = passoAtual(p.fase, p.semAprovacao);
+    const passos = (atual == null ? [] : [atual]).filter((s) => alvo == null || s === alvo);
     if (!passos.length) return false;
     return so ? passos.some((s) => !!dl[s] && dl[s] < painel.hoje) : true;
   });

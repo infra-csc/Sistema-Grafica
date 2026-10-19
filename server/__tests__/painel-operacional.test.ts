@@ -260,12 +260,14 @@ describe("Pré-produção", () => {
     expect(r.find((d) => d.dia === "2026-10-20")!.finalizacao).toBe(3); // b1 b2 b6
   });
 
-  it("pendências por evento e a lista por trás de cada número", () => {
+  it("pendências por evento: cada peça conta uma vez, no processo em que está (dono, 19/10)", () => {
     const e2 = pendenciasPorEvento(P).find((r) => r.evento === "e2")!;
-    expect(e2.pendentes).toEqual({ layout: 2, aprovacao: 2, finalizacao: 3, revisao: 4 });
+    expect(e2.pendentes).toEqual({ layout: 2, aprovacao: 1, finalizacao: 0, revisao: 1 });
+    // a soma das colunas = número de peças pendentes (nenhuma peça aparece em duas colunas)
+    expect(Object.values(e2.pendentes).reduce((a, b) => a + b, 0)).toBe(pecasDaPendencia(P, "e2", null, false).length);
     expect(e2.atrasados).toEqual({ layout: 2, aprovacao: 0, finalizacao: 0, revisao: 0 });
     expect(e2.totalAtrasados).toBe(2);
-    expect(pecasDaPendencia(P, "e2", "aprovacao", false).map((p) => p.id).sort()).toEqual(["b2", "b6"]);
+    expect(pecasDaPendencia(P, "e2", "aprovacao", false).map((p) => p.id).sort()).toEqual(["b6"]);
     expect(pecasDaPendencia(P, "e2", "atrasados", false).map((p) => p.id).sort()).toEqual(["b1", "b2"]);
     expect(pecasDaPendencia(P, "e2", null, false)).toHaveLength(4);
   });
@@ -301,5 +303,13 @@ describe("Status por evento", () => {
     const ev = P.eventos.find((e) => e.chave === "e2")!;
     expect(ev.fases.map((f) => f.prazo)).toEqual(["2026-10-05", "2026-10-09", "2026-10-19", "2026-10-20", "2026-10-22", "2026-10-29"]);
     expect(ev.fases[0].situacao).toBe("Atrasada");
+  });
+});
+
+describe("Pré-produção — atrasado conta a peça uma vez (dono, 19/10)", () => {
+  it("o 'Atrasado' de hoje no planejado não passa do número de peças atrasadas", () => {
+    const hojeLinha = prePlanejadoPorDia(P, null, null).find((l) => l.dia === P.hoje);
+    const pecasAtrasadas = P.pecas.filter((p) => p.fase >= 0 && p.fase <= 4 && pecasDaPendencia(P, p.evento, "atrasados", false).some((x) => x.id === p.id)).length;
+    expect(hojeLinha?.atrasado ?? 0).toBeLessThanOrEqual(pecasAtrasadas);
   });
 });

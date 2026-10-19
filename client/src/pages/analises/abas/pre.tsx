@@ -133,8 +133,8 @@ export default function AbaPre({ ctx }: { ctx: ContextoDoPainel }) {
       <SecaoDaAnalise
         id="h-op-pre-ev" testId="op-pre-evento-tabela" titulo="Pendências de pré-produção por evento"
         descricao={soAtrasados
-          ? "Só as peças que já passaram do prazo de cada processo. Clique num número para ver as peças; no evento, para ver todas as atrasadas dele."
-          : "Itens que ainda precisam passar por cada processo. Clique num número para ver as peças; no evento, para ver todas as pendências dele."}
+          ? "Só as peças que já passaram do prazo do processo em que estão. Cada peça conta uma vez, na coluna onde ela está agora. Clique num número para ver as peças."
+          : "Peças paradas em cada processo — cada peça conta uma vez, na coluna onde ela está agora. Clique num número para ver as peças; no evento, para ver todas as pendências dele."}
         acoes={<Marcador marcado={soAtrasados} aoMudar={setSoAtrasados} testId="op-pre-so-atrasados">somente atrasados de cada processo</Marcador>}
       >
         <TabelaCompacta<PendenciaDoEvento>
@@ -161,7 +161,7 @@ export default function AbaPre({ ctx }: { ctx: ContextoDoPainel }) {
             })),
             ];
             const atrasados: ColunaDaTabela<PendenciaDoEvento>[] = [
-            { id: "atrasados", rotulo: "Atrasados", alinhar: "direita", ordenavel: true, titulo: "Processos vencidos (uma peça atrasada em dois processos conta duas vezes)",
+            { id: "atrasados", rotulo: "Atrasados", alinhar: "direita", ordenavel: true, titulo: "Peças atrasadas no processo em que estão (cada peça conta uma vez)",
               valor: (r) => r.totalAtrasados,
               render: (r) => r.totalAtrasados === 0 ? <span style={{ color: T.second }}>0</span> : (
                 <button type="button" className="pop-numero" data-testid="op-pre-celula-atrasados" onClick={() => selecionar({ evento: r.evento, processo: "atrasados" })}

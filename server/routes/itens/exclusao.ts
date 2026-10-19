@@ -1,5 +1,6 @@
 // Excluir peça (soft delete) e restaurar da lixeira.
-import type { Express } from "express";
+import type { Express, Request } from "express";
+import type { Event, Item } from "@shared/schema";
 import { storage } from "../../storage";
 import { excluirPecaTirandoDosVolumes, ehRecusaDeTubo } from "../tubos";
 import { liberarReservasDasPecas } from "../estoque-reservas";
@@ -84,65 +85,94 @@ export function registrarExclusao(app: Express): void {
       // admin nem solicitação segue tomando 403 logo acima.
       //
       // O que NÃO é regra de papel e por isso continua valendo para todo mundo,
-      // inclusive admin: a integridade do complemento, logo abaixo.
+      // inclusive admin: a integridade do complemento, em excluirPecaParaALixeira
+      // (a mesma função que o desfazer da clonagem usa).
 
-      // Mãe com complemento vivo não some. O `ON DELETE SET NULL` da FK só
-      // dispara em DELETE físico — aqui a exclusão é SOFT (deletedAt), então o
-      // banco não limpa nada e o filho ficaria órfão, apontando para uma peça
-      // invisível: a linha da Gráfica diria "COMPLEMENTO DE #0062" com #0062
-      // fora de todas as listagens. Cancelar o complemento primeiro é a ordem
-      // correta e é reversível.
-      const complementosVivos = await storage.getLiveComplements(req.params.id).catch(() => []);
-      if (complementosVivos.length > 0) {
-        return res.status(409).json({
-          error: `Esta peça tem ${complementosVivos.length} complemento(s) ativo(s) (${complementosVivos.map(c => c.displayId).join(", ")}). Cancele o complemento antes de excluir.`,
-          code: "HAS_COMPLEMENTS",
-          complements: complementosVivos.map(c => ({ id: c.id, displayId: c.displayId })),
-        });
-      }
-
-      // Sai dos volumes ABERTOS e vai para a lixeira NUMA TRANSAÇÃO SÓ, com a
-      // peça travada (revisão de 22/09): antes eram dois passos, e um embalar
-      // ou uma entrega entre eles deixava linha "fantasma" num tubo — ou a peça
-      // fora do tubo sem ter sido excluída. Se falhar, nada muda (500).
-      let excluida: { tiradas: number } | null;
-      try {
-        excluida = await excluirPecaTirandoDosVolumes(req, req.params.id);
-      } catch (e) {
-        if (ehRecusaDeTubo(e)) return res.status(e.http).json({ error: e.message });
-        throw e;
-      }
-      if (!excluida) {
-        return res.status(404).json({ error: "Peça não encontrada" });
-      }
-      // Peça que atendia uma solicitação: se era a última, a peça solicitada
-      // volta para aberta sozinha (dono, 14/09 — sem "desfazer atendimento").
-      if (item.pedidoDePecaLinhaId) {
-        const { aoExcluirPeca } = await import("../pedidos-de-peca");
-        await aoExcluirPeca(req, item);
-      }
-      
-      // Create audit log
-      //
-      // O nome do evento entra no texto porque a exclusão é SOFT: a peça sai de
-      // /api/items e o Histórico perde a única forma de saber a que evento ela
-      // pertencia — a linha mais sensível da auditoria era a única que
-      // renderizava "Evento desconhecido", sem ID e sem link.
-      const eventoDaPeca = await storage.getEvent(item.eventId).catch(() => undefined);
-      await createAuditLog(
-        req,
-        'deleted',
-        'item',
-        req.params.id,
-        `Item "${item.type}" (${item.displayId})${eventoDaPeca ? ` do evento "${eventoDaPeca.name}"` : ""} excluído por ${req.userRole}`
-      );
-      await liberarReservasDasPecas(req, [req.params.id], "excluída"); // reserva de peça morta não segura estoque
-
-      broadcast({ type: "item_deleted", itemId: req.params.id, eventId: item.eventId });
+      const feito = await excluirPecaParaALixeira(req, item);
+      if (!feito.ok) return res.status(feito.recusa.status).json(feito.recusa.corpo);
 
       res.json({ success: true });
     } catch (error) {
       responderFalha(res, error, "DELETE /api/items/:id");
     }
   });
+}
+
+/** Por que a exclusão não aconteceu (vira a resposta HTTP de quem chamou). */
+export interface RecusaDaExclusao { status: number; corpo: { error: string } & Record<string, unknown> }
+
+/**
+ * EXCLUIR UMA PEÇA PARA A LIXEIRA — o miolo do DELETE /api/items/:id, para
+ * quem exclui por outro caminho (o desfazer da clonagem, 19/10) fazer
+ * EXATAMENTE o mesmo: barra a mãe com complemento vivo, tira dos volumes e
+ * marca deletedAt numa transação, devolve a solicitação de peça, grava a
+ * trilha, solta as reservas do estoque e avisa as telas.
+ *
+ * O gate de papel e a guarda de evento arquivado ficam com quem chama — cada
+ * porta tem a sua regra de quem pode.
+ *
+ * `opcoes.evento`: o evento já lido (o desfazer exclui dezenas de peças do
+ * mesmo evento; reler a cada peça era uma ida ao banco por nada).
+ * `opcoes.porque`: o complemento da frase da trilha ("ao desfazer a clonagem").
+ */
+export async function excluirPecaParaALixeira(
+  req: Request,
+  item: Item,
+  opcoes: { evento?: Event | null; porque?: string } = {},
+): Promise<{ ok: true } | { ok: false; recusa: RecusaDaExclusao }> {
+  // Mãe com complemento vivo não some. O `ON DELETE SET NULL` da FK só
+  // dispara em DELETE físico — aqui a exclusão é SOFT (deletedAt), então o
+  // banco não limpa nada e o filho ficaria órfão, apontando para uma peça
+  // invisível: a linha da Gráfica diria "COMPLEMENTO DE #0062" com #0062
+  // fora de todas as listagens. Cancelar o complemento primeiro é a ordem
+  // correta e é reversível.
+  const complementosVivos = await storage.getLiveComplements(item.id).catch(() => []);
+  if (complementosVivos.length > 0) {
+    return { ok: false, recusa: { status: 409, corpo: {
+      error: `Esta peça tem ${complementosVivos.length} complemento(s) ativo(s) (${complementosVivos.map(c => c.displayId).join(", ")}). Cancele o complemento antes de excluir.`,
+      code: "HAS_COMPLEMENTS",
+      complements: complementosVivos.map(c => ({ id: c.id, displayId: c.displayId })),
+    } } };
+  }
+
+  // Sai dos volumes ABERTOS e vai para a lixeira NUMA TRANSAÇÃO SÓ, com a
+  // peça travada (revisão de 22/09): antes eram dois passos, e um embalar
+  // ou uma entrega entre eles deixava linha "fantasma" num tubo — ou a peça
+  // fora do tubo sem ter sido excluída. Se falhar, nada muda (500).
+  let excluida: { tiradas: number } | null;
+  try {
+    excluida = await excluirPecaTirandoDosVolumes(req, item.id);
+  } catch (e) {
+    if (ehRecusaDeTubo(e)) return { ok: false, recusa: { status: e.http, corpo: { error: e.message } } };
+    throw e;
+  }
+  if (!excluida) {
+    return { ok: false, recusa: { status: 404, corpo: { error: "Peça não encontrada" } } };
+  }
+  // Peça que atendia uma solicitação: se era a última, a peça solicitada
+  // volta para aberta sozinha (dono, 14/09 — sem "desfazer atendimento").
+  if (item.pedidoDePecaLinhaId) {
+    const { aoExcluirPeca } = await import("../pedidos-de-peca");
+    await aoExcluirPeca(req, item);
+  }
+
+  // Create audit log
+  //
+  // O nome do evento entra no texto porque a exclusão é SOFT: a peça sai de
+  // /api/items e o Histórico perde a única forma de saber a que evento ela
+  // pertencia — a linha mais sensível da auditoria era a única que
+  // renderizava "Evento desconhecido", sem ID e sem link.
+  const eventoDaPeca = opcoes.evento !== undefined ? opcoes.evento : await storage.getEvent(item.eventId).catch(() => undefined);
+  await createAuditLog(
+    req,
+    'deleted',
+    'item',
+    item.id,
+    `Item "${item.type}" (${item.displayId})${eventoDaPeca ? ` do evento "${eventoDaPeca.name}"` : ""} excluído${opcoes.porque ? ` ${opcoes.porque}` : ""} por ${req.userRole}`
+  );
+  await liberarReservasDasPecas(req, [item.id], "excluída"); // reserva de peça morta não segura estoque
+
+  broadcast({ type: "item_deleted", itemId: item.id, eventId: item.eventId });
+
+  return { ok: true };
 }

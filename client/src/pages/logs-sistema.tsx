@@ -67,6 +67,9 @@ const ACTION_CFG: Record<string, { label: string; tom: NomeDeTom }> = {
   produced:          { label: "Produzido",        tom: "esmeralda" },
   production:        { label: "Produção",         tom: "laranja" },
   archived:          { label: "Arquivado",        tom: "neutro" },
+  // Desfazer a clonagem (19/10): as duas linhas de máquina do lote.
+  clone_lote:        { label: "Clonagem",         tom: "info" },
+  clone_desfeito:    { label: "Clonagem desfeita", tom: "alerta" },
   // 'login' saiu de propósito: o sistema NÃO grava log de login — manter o
   // badge sugeria um rastreamento de acessos que não existe.
 };
@@ -98,10 +101,17 @@ const ENTITY_LABELS: Record<string, string> = {
   catalogOption: "Opção de catálogo",
   tubo: "Tubo",
   sistema: "Sistema",
+  clonagem: "Clonagem",
 };
 
 const rotuloDaEntidade = (tipo: string) => ENTITY_LABELS[tipo] ?? tipo;
-const descricaoDo = (l: AuditLog) => l.details ?? `${getActionCfg(l.action).label} em ${rotuloDaEntidade(l.entityType)}`;
+// As linhas da clonagem guardam JSON (o lote do "Desfazer", 19/10): a tela
+// mostra a frase que vem dentro dele, não o JSON cru.
+const resumoDaClonagem = (l: AuditLog): string | null => {
+  if (l.entityType !== "clonagem" || !l.details) return null;
+  try { const d = JSON.parse(l.details) as { resumo?: unknown }; return typeof d.resumo === "string" ? d.resumo : null; } catch { return null; }
+};
+const descricaoDo = (l: AuditLog) => resumoDaClonagem(l) ?? l.details ?? `${getActionCfg(l.action).label} em ${rotuloDaEntidade(l.entityType)}`;
 
 /* ── Avatar ── */
 // O payload de /api/audit-logs NÃO traz o papel do usuário (só userName), então
@@ -302,7 +312,7 @@ export default function LogsSistema() {
       format(new Date(l.createdAt), "dd/MM/yyyy HH:mm:ss", { locale: ptBR }),
       l.userName,
       getActionCfg(l.action).label,
-      l.details ?? `${getActionCfg(l.action).label} em ${ENTITY_LABELS[l.entityType] ?? l.entityType}`,
+      descricaoDo(l),
       ENTITY_LABELS[l.entityType] ?? l.entityType,
       l.entityId,
     ]);

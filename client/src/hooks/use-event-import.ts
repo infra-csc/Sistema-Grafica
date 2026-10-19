@@ -10,6 +10,7 @@ import type { CabecalhoDoKit } from "@shared/kit";
 import type { PecaLidaDaPlanilha, PreviaDaPlanilha, RespostaDaClonagem, RespostaDaImportacao } from "@shared/api";
 import type { LinhaDaImportacao } from "@/components/importar-planilha/tipos";
 import type { DestinoDaImportacao } from "@/components/kit/destino-da-importacao";
+import { avisarClonagem } from "@/components/detalhe-do-evento/desfazer-clonagem";
 
 interface EventSponsorListEntry {
   sponsorId: string;
@@ -224,10 +225,10 @@ export function useEventClone({ eventId }: UseEventCloneParams) {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setCloneDialogOpen(false);
       setCloneSourceId("");
-      toast({
-        title: `${data.cloned} ${data.cloned === 1 ? "peça clonada" : "peças clonadas"}`,
-        description: "Entraram em Rascunho — envie para a vinculação quando a lista estiver pronta.",
-      });
+      // "69 peças clonadas de Eco Run Londrina · Desfazer" (19/10): o aviso
+      // traz o caminho de volta, e a faixa do Detalhe do Evento o mantém
+      // depois que o aviso some (components/detalhe-do-evento/desfazer-clonagem).
+      avisarClonagem(eventId, data);
     },
     onError: (error) => {
       toast({ title: "Não foi possível clonar as peças", description: mensagemDoErro(error), variant: "destructive" });

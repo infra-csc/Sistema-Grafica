@@ -33,6 +33,10 @@ const ORDEM_ORIGINAL = [
   "POST /api/events/:id/preview-xlsx",
   "POST /api/events/:id/confirm-import",
   "POST /api/events/:id/clone-items",
+  // 19/10: o desfazer da clonagem (registrarDesfazerClonagem, chamado por
+  // registrarClonagem). Caminhos próprios, sem irmã com :param que os case.
+  "GET /api/events/:id/clone-items/desfazivel",
+  "POST /api/events/:id/clone-items/desfazer",
   "PATCH /api/items/:id",
   "POST /api/items/:id/transfer-event",
   "DELETE /api/items/:id",

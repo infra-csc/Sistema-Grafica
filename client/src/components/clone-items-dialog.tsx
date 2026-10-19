@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Copy, Loader2, Search, ListChecks } from "lucide-react";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
@@ -48,6 +48,12 @@ interface CloneItemsDialogProps {
   isCloning: boolean;
   /** As peças ESCOLHIDAS — a seleção é do dialog, o POST é de quem o abriu. */
   onConfirmClone: (itemIds: string[]) => void;
+  /**
+   * Quantas peças o evento DESTINO já tem. Decide a seleção inicial (19/10):
+   * com peças, o caso é "jogar umas peças" — nada vem marcado; vazio, o caso é
+   * "montar a lista a partir de outro evento" — tudo vem marcado.
+   */
+  pecasNoDestino?: number;
 }
 
 // LISTA VAZIA COM IDENTIDADE FIXA (PERF-6, 17/09). Com a query desligada (o
@@ -72,14 +78,29 @@ export function CloneItemsDialog({
   setCloneSourceId,
   isCloning,
   onConfirmClone,
+  pecasNoDestino = 0,
 }: CloneItemsDialogProps) {
   // ── A SELEÇÃO (dono, 01/09: "poder selecionar os itens que vão ser
   // clonados"). Escolhido o evento de origem, as peças dele aparecem em
-  // lista com checkbox — TODAS marcadas de saída, porque o caso comum segue
-  // sendo "quero o evento inteiro" e desmarcar as exceções é mais rápido do
-  // que marcar dezenas. A busca recorta a lista; marcar/desmarcar todas age
+  // lista com checkbox. A busca recorta a lista; marcar/desmarcar todas age
   // só sobre o recorte visível, senão "desmarcar todas" com uma busca ativa
   // apagaria seleção que o operador nem estava vendo.
+  //
+  // O QUE VEM MARCADO DEPENDE DO DESTINO (19/10). Abria SEMPRE com tudo
+  // marcado (01/09, pensando em "quero o evento inteiro") — e a Fernanda,
+  // querendo "umas peças" de outra lista para um evento que já tinha 67,
+  // confirmou e recebeu as 69 da origem. Agora:
+  //   · destino COM peças → nada marcado: o caso é escolher algumas, e o
+  //     botão fica travado até escolher;
+  //   · destino VAZIO → tudo marcado (menos as canceladas): o caso é montar a
+  //     lista a partir de outro evento, e desmarcar as exceções é mais rápido.
+  // O modo é fixado ao ABRIR: uma peça chegando pelo tempo real com o diálogo
+  // aberto não pode zerar a seleção que a pessoa está fazendo.
+  const destinoTinhaPecas = useRef(pecasNoDestino > 0);
+  const estavaAberto = useRef(false);
+  if (open && !estavaAberto.current) destinoTinhaPecas.current = pecasNoDestino > 0;
+  estavaAberto.current = open;
+  const escolherAlgumas = destinoTinhaPecas.current;
   const { data: todasDaOrigem = SEM_PECAS, isLoading: pecasCarregando } = useQuery<PecaParaClonar[]>({
     queryKey: ["/api/items", cloneSourceId],
     enabled: open && !!cloneSourceId,
@@ -91,13 +112,30 @@ export function CloneItemsDialog({
   const [escolhidas, setEscolhidas] = useState<Set<string>>(new Set());
   const [busca, setBusca] = useState("");
 
-  // Trocou a origem (ou os dados chegaram): recomeça com tudo marcado —
-  // MENOS as canceladas: o evento novo não renasce com o que o anterior
-  // desistiu. Elas seguem na lista, desmarcadas, para quem quiser mesmo.
+  // Trocou a origem (e os dados chegaram): recomeça do modo do destino. No
+  // "tudo marcado", MENOS as canceladas: o evento não renasce com o que o
+  // anterior desistiu. Elas seguem na lista, desmarcadas, para quem quiser.
+  //
+  // UMA VEZ POR ORIGEM (19/10): o efeito rodava a cada array novo da lista —
+  // e qualquer aviso de tempo real que recarregasse /api/items zerava a
+  // seleção que a pessoa estava montando. Agora semeia ao escolher a origem;
+  // depois, a seleção é dela.
+  const semeadaPara = useRef("");
   useEffect(() => {
-    setEscolhidas(new Set(pecasDaOrigem.filter((i) => i.status !== "canceled").map((i) => i.id)));
+    if (!open) { semeadaPara.current = ""; return; }
+    if (semeadaPara.current === cloneSourceId) return;
+    if (!cloneSourceId || pecasCarregando) {
+      // Origem nova ainda carregando: não deixa a seleção da anterior valendo.
+      setEscolhidas((atual) => (atual.size === 0 ? atual : new Set()));
+      return;
+    }
+    semeadaPara.current = cloneSourceId;
+    setEscolhidas(escolherAlgumas
+      ? new Set()
+      : new Set(pecasDaOrigem.filter((i) => i.status !== "canceled").map((i) => i.id)));
     setBusca("");
-  }, [cloneSourceId, pecasDaOrigem]);
+  }, [open, cloneSourceId, pecasCarregando, pecasDaOrigem, escolherAlgumas]);
+  const canceladasNaOrigem = pecasDaOrigem.filter((i) => i.status === "canceled").length;
 
   const visiveis = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -108,6 +146,21 @@ export function CloneItemsDialog({
   }, [pecasDaOrigem, busca]);
 
   const visiveisMarcadas = visiveis.filter((i) => escolhidas.has(i.id)).length;
+
+  // A linha do modo — o estado da seleção, dito em português.
+  const paraOnde = eventName ?? "este evento";
+  const soCanceladasDeFora = canceladasNaOrigem > 0
+    && escolhidas.size === pecasDaOrigem.length - canceladasNaOrigem
+    && pecasDaOrigem.every((i) => (i.status === "canceled") !== escolhidas.has(i.id));
+  const fraseDaSelecao = escolhidas.size === 0
+    ? `Nenhuma peça marcada — escolha as que vão para ${paraOnde}.`
+    : escolhidas.size === pecasDaOrigem.length
+      ? "Todas marcadas — desmarque as que não vão."
+      : soCanceladasDeFora
+        ? "Todas marcadas, menos as canceladas — desmarque as que não vão."
+        : escolherAlgumas
+          ? `Só as marcadas vão para ${paraOnde}.`
+          : `Desmarque as que não vão para ${paraOnde}.`;
   const alternarTodas = () => {
     setEscolhidas((atual) => {
       const prox = new Set(atual);
@@ -211,7 +264,9 @@ export function CloneItemsDialog({
             <div data-testid="clone-antes-de-escolher" style={{ marginTop: 20, padding: '18px 16px', borderRadius: R.md, border: `1px dashed ${T.bdark}`, display: 'flex', gap: 12, alignItems: 'flex-start' }}>
               <ListChecks aria-hidden="true" style={{ width: 18, height: 18, color: T.second, flexShrink: 0, marginTop: 1 }} />
               <p style={{ margin: 0, fontSize: FS.body, color: T.apoio, lineHeight: 1.5 }}>
-                Escolha o evento de origem para ver as peças dele. Todas vêm marcadas (menos as canceladas) — desmarque as que não quer copiar.
+                {escolherAlgumas
+                  ? <>Escolha o evento de origem para ver as peças dele. Nenhuma vem marcada — {eventName ?? "este evento"} já tem {pecasNoDestino} {pecasNoDestino === 1 ? "peça" : "peças"}, então marque só as que vão.</>
+                  : <>Escolha o evento de origem para ver as peças dele. Todas vêm marcadas (menos as canceladas) — desmarque as que não quer copiar.</>}
               </p>
             </div>
           )}
@@ -245,6 +300,16 @@ export function CloneItemsDialog({
                   {visiveisMarcadas === visiveis.length ? "Desmarcar todas" : "Marcar todas"}
                 </button>
               </div>
+
+              {/* O MODO EM UMA LINHA (19/10): o que veio marcado e por quê —
+                  "abriu com tudo marcado" era invisível, e foi assim que 69
+                  peças entraram onde a pessoa queria umas poucas. */}
+              <p
+                data-testid="linha-modo-da-selecao"
+                style={{ margin: "0 0 10px", fontSize: 12.5, lineHeight: 1.45, color: escolhidas.size === 0 ? TOM.info.text : T.apoio, fontWeight: escolhidas.size === 0 ? 600 : 400 }}
+              >
+                {fraseDaSelecao}
+              </p>
 
               {pecasDaOrigem.length > 8 && (
                 <div style={{ position: 'relative', marginBottom: 8 }}>
@@ -299,7 +364,7 @@ export function CloneItemsDialog({
             </div>
           )}
 
-          {cloneSourceId && !pecasCarregando && pecasDaOrigem.length > 0 && (
+          {cloneSourceId && !pecasCarregando && pecasDaOrigem.length > 0 && escolhidas.size > 0 && (
             <div style={{ marginTop: 12, backgroundColor: TOM.info.bg, border: `1px solid ${TOM.info.border}`, borderRadius: 8, padding: '12px 14px', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
               <Copy style={{ width: 14, height: 14, color: TOM.info.dot, flexShrink: 0, marginTop: 1 }} />
               <div>

@@ -119,7 +119,9 @@ describe("toda rota de escrita de peça/evento deixa rastro", () => {
         // auditoria da rota que os chama — é lá que o insert(auditLogs) mora.
         // gravarEnviosDiretos (itens/producao-interna.ts, 02/10): o envio direto
         // para a Gráfica grava a trilha de cada peça na mesma transação.
-        .filter(r => !/createAuditLog(sEmLote)?\(|insert\(auditLogs\)|lancarImpressas\(|criarComplemento\(|desfazerComplemento\(|gravarEnviosDiretos\(/.test(r.corpo))
+        // excluirPecaParaALixeira (itens/exclusao.ts, 19/10): o miolo do DELETE,
+        // compartilhado com o desfazer da clonagem — grava a trilha da peça.
+        .filter(r => !/createAuditLog(sEmLote)?\(|insert\(auditLogs\)|lancarImpressas\(|criarComplemento\(|desfazerComplemento\(|gravarEnviosDiretos\(|excluirPecaParaALixeira\(/.test(r.corpo))
         .map(r => `${r.verbo} ${r.caminho}`)
         .filter(chave => !(chave in SEM_AUDITORIA_POR_DESENHO));
       expect(semRastro).toEqual([]);

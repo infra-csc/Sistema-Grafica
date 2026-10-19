@@ -542,6 +542,7 @@ const SEM_GUARDA_POR_DESENHO: Record<string, string> = {
   "POST /api/items/:id/restore": "desfaz a exclusão; sem ela um clique errado vira permanente",
   "DELETE /api/items/:id": "limpeza SOFT e restaurável; barrar deixaria lixo preso no evento",
   "DELETE /api/items/:id/complement": "desfaz um aumento, e só quando nada foi produzido",
+  "POST /api/events/:id/clone-items/desfazer": "desfaz uma clonagem de até 2 h atrás excluindo (SOFT, pela mesma função do DELETE) só as cópias que seguem em rascunho e intocadas — mesma família de excluir peça; evento ARQUIVADO barra, como lá",
   // FECHA A CONTA do que fisicamente já existe.
   "POST /api/items/:id/confer": "exige a peça em Produzido: registra contagem, não produz nada",
   "PATCH /api/items/:id/deliver": "teto é o já conferido; a papelada da entrega chega depois do evento",
@@ -608,7 +609,9 @@ const FORA_DO_RECORTE: Record<string, string> = {
   // 19/10: dois GETs da planilha de fechamento do evento — só leitura.
   "server/routes/fechamento.ts": "leitura (planilha de fechamento)",
   "server/routes/consultas-de-estoque.ts": "consulta de estoque", "server/routes/estoque-reservas.ts": "reserva de estoque",
-  "server/routes/eventoFinalizado.ts": "a própria guarda", "server/routes/inferir-executivos.ts": "cadastro de patrocinador",
+  "server/routes/eventoFinalizado.ts": "a própria guarda",
+  // 19/10: auditoria do book com IA — lê e marca achados; não move peça.
+  "server/routes/auditoria-do-book.ts": "auditoria do book (não move peça)", "server/routes/inferir-executivos.ts": "cadastro de patrocinador",
   // 15/10: GET das sugestões do Ummense — só leitura (criar é POST /api/events).
   "server/routes/eventos-sugeridos.ts": "leitura (sugestões do Ummense)",
   // PR #9 (24/09): três GETs por token para o Checklist de Arena — só leitura.

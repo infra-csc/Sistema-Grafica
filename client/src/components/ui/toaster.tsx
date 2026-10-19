@@ -65,6 +65,12 @@ type ToastItem = {
    * nunca leu o campo. As três ações eram descartadas em silêncio.
    */
   action?: React.ReactNode
+  /**
+   * Tempo próprio, em ms — para a oferta que precisa de mais que os 7 s de
+   * DURACAO_COM_ACAO (o "Desfazer" da clonagem fica 30 s: quem clonou 69
+   * peças por engano descobre isso olhando a lista, não o aviso).
+   */
+  duration?: number
 }
 
 /** O texto legível de um ReactNode (string, número, fragmentos, elementos). */
@@ -96,7 +102,7 @@ function NorteToast({ toast, onDismiss, devolverFoco }: { toast: ToastItem; onDi
   // Aviso fica tanto quanto erro: ele também traz a INSTRUÇÃO ("escolha ao
   // menos uma peça"), e é a instrução que a pessoa ainda estava lendo quando o
   // cartão de 4,2s sumia.
-  const duracao = isError || toast.variant === "warning" ? DURACAO_ERRO : acao ? DURACAO_COM_ACAO : DURACAO_OK
+  const duracao = toast.duration ?? (isError || toast.variant === "warning" ? DURACAO_ERRO : acao ? DURACAO_COM_ACAO : DURACAO_OK)
 
   // PAUSA SOB O PONTEIRO/FOCO. O relógio vive em refs (não em estado) de
   // propósito: este Toaster é montado junto dos testes de "modal congelado",

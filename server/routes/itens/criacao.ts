@@ -11,6 +11,7 @@ import { motivoEventoFechado } from "../eventoFinalizado";
 import { deriveCalculatedM2, deriveMeasurement, quemVe, canCreateItemsFor } from "./comum";
 import { recusaDaMarcaNaEscrita } from "@shared/producao-interna";
 import { lerArquivoDaProducaoInterna } from "./producao-interna";
+import { gravarLoteDaClonagem, registrarDesfazerClonagem } from "./desfazer-clonagem";
 
 /** POST /api/items, POST /api/items/bulk. */
 export function registrarCriacao(app: Express): void {
@@ -284,7 +285,7 @@ export function registrarCriacao(app: Express): void {
   });
 }
 
-/** POST /api/events/:id/clone-items. */
+/** POST /api/events/:id/clone-items (+ o desfazer: GET …/desfazivel, POST …/desfazer). */
 export function registrarClonagem(app: Express): void {
   // ── Clone items from another event ───────────────────────────────────────
   app.post("/api/events/:id/clone-items", requireAuth, async (req, res) => {
@@ -395,6 +396,15 @@ export function registrarClonagem(app: Express): void {
         `${created.length} itens clonados do evento "${sourceEvent.name}"${itemIds !== undefined && created.length < todasDaOrigem.length ? ` (seleção: ${created.length} de ${todasDaOrigem.length})` : ""}`
       );
 
+      // O LOTE para o "Desfazer" (19/10): os ids das cópias na trilha, sem
+      // coluna nova — ver desfazer-clonagem.ts. Só na clonagem COM SELEÇÃO
+      // (o diálogo do Detalhe do Evento, que sempre manda itemIds): criar um
+      // evento clonando outro inteiro não oferece desfazer — o desfazer ali é
+      // excluir o evento.
+      const lote = itemIds !== undefined
+        ? await gravarLoteDaClonagem(req, { destino: targetEvent, origem: sourceEvent, criadas: created })
+        : null;
+
       const notification = await storage.createNotification({
         type: "itemAdded",
         message: `${created.length} itens clonados de "${sourceEvent.name}" → "${targetEvent.name}"`,
@@ -405,9 +415,12 @@ export function registrarClonagem(app: Express): void {
       broadcast({ type: "items_bulk_created", items: created, eventId: targetEvent.id });
       await updateEventStatus(targetEvent.id);
 
-      res.status(201).json({ cloned: created.length, items: created, deixadasDeFora });
+      res.status(201).json({ cloned: created.length, items: created, deixadasDeFora, lote });
     } catch (error) {
       responderErro(res, error, "clonar peças");
     }
   });
+
+  // GET …/clone-items/desfazivel e POST …/clone-items/desfazer (19/10).
+  registrarDesfazerClonagem(app);
 }

@@ -40,6 +40,7 @@ import { useFormularioDaPeca, useColarPrintNaReferencia } from "@/components/det
 import { getUploadUrl, useAcoesDasPecas, useEncerrarEReabrir } from "@/components/detalhe-do-evento/use-detalhe-do-evento-acoes";
 import { EsqueletoDoEvento, EventoIndisponivel } from "@/components/detalhe-do-evento/estados-da-tela";
 import { FaixasDoEvento } from "@/components/detalhe-do-evento/faixas-do-evento";
+import { FaixaDaClonagem } from "@/components/detalhe-do-evento/desfazer-clonagem";
 import { TituloDoEvento, ResumoDoEvento } from "@/components/detalhe-do-evento/titulo-do-evento";
 import { eventoTemMoldeSemPrazo, AVISO_MOLDE_SEM_PRAZO } from "@shared/prazo-molde";
 import { AcoesDoEvento } from "@/components/detalhe-do-evento/acoes-do-evento";
@@ -324,6 +325,11 @@ export default function EventDetail() {
         isMobile={isMobile}
         onReabrir={() => setReopenDialogOpen(true)}
       />
+
+      {/* Clonou há pouco? O caminho de volta fica aqui enquanto o servidor
+          disser que ainda dá (2 h, peças em rascunho) — para quem fechou o
+          aviso de "Desfazer" ou só percebeu olhando a lista (19/10). */}
+      <FaixaDaClonagem eventId={eventId} isMobile={isMobile} />
 
       {/* Header principal — título e ações numa linha; o resumo (progresso,
           total e chips) ganha a largura inteira logo abaixo. */}
@@ -769,6 +775,9 @@ export default function EventDetail() {
         cloneSourceId={cloneSourceId}
         setCloneSourceId={setCloneSourceId}
         isCloning={cloneItemsMutation.isPending}
+        // Destino com peças abre com NADA marcado (o caso "jogar umas peças");
+        // vazio, com tudo marcado (19/10 — ver o diálogo).
+        pecasNoDestino={rawItems.length}
         onConfirmClone={(itemIds) => { if (cloneSourceId) cloneItemsMutation.mutate({ sourceEventId: cloneSourceId, itemIds }); }}
       />
       {/* ── Dialog: Buscar no estoque ──────────────────────────────────────── */}

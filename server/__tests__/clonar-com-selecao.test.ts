@@ -8,9 +8,9 @@
 // cada id precisa SER do evento de origem, senão qualquer um clonaria peça
 // de evento que não pode ver.
 //
-// No dialog, a seleção nasce com TUDO marcado: o caso comum segue sendo
-// "quero o evento inteiro", e desmarcar as exceções é mais rápido do que
-// marcar dezenas.
+// No dialog, a seleção nasce com TUDO marcado quando o destino está vazio
+// ("montar a lista a partir de outro evento"); com peças no destino, com NADA
+// marcado ("jogar umas peças" — o caso da Fernanda, 19/10).
 //
 // A ROTA roda de verdade em regras-fluxo-transferir-descancelar-clonar.test.ts;
 // aqui fica só a tela.
@@ -32,8 +32,12 @@ describe("o dialog", () => {
     expect(DIALOG).toContain("enabled: open && !!cloneSourceId");
   });
 
-  it("nasce com todas marcadas MENOS as canceladas — e sem complementos na lista", () => {
-    expect(DIALOG).toContain("setEscolhidas(new Set(pecasDaOrigem.filter((i) => i.status !== \"canceled\").map((i) => i.id)))");
+  // 19/10: "tudo marcado" só quando o destino está VAZIO; com peças no destino,
+  // nada vem marcado (ver desfazer-clonagem-telas.test.ts, que monta a tela).
+  it("destino vazio nasce com todas marcadas MENOS as canceladas; com peças, nenhuma — e sem complementos na lista", () => {
+    expect(DIALOG).toContain(": new Set(pecasDaOrigem.filter((i) => i.status !== \"canceled\").map((i) => i.id)));");
+    expect(DIALOG).toContain("setEscolhidas(escolherAlgumas");
+    expect(DETALHE).toContain("pecasNoDestino={rawItems.length}");
     expect(DIALOG).toContain("todasDaOrigem.filter((i) => !i.parentItemId)");
   });
 

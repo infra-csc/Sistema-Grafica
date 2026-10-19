@@ -56,4 +56,42 @@ export interface RespostaDaClonagem {
   items: PecaJson[];
   /** Peças da origem que não entraram (recorte do Kit). */
   deixadasDeFora: number;
+  /** A clonagem recém-feita, para o "Desfazer" do aviso. null quando a trilha
+   *  não conseguiu guardar o lote (aí não há o que oferecer). */
+  lote?: ClonagemDesfazivel | null;
+}
+
+/**
+ * Uma clonagem que ainda pode ser desfeita (shared/desfazer-clonagem.ts):
+ * devolvida pela própria clonagem e por GET /api/events/:id/clone-items/desfazivel.
+ */
+export interface ClonagemDesfazivel {
+  /** Id da linha do lote na trilha — é o que o desfazer recebe. */
+  id: string;
+  origemNome: string;
+  /** Quantas peças a clonagem criou. */
+  total: number;
+  /** Quantas ainda estão em rascunho (as que o desfazer tiraria, se intocadas). */
+  emRascunho: number;
+  /** Quando clonou e quando a janela fecha (ISO). */
+  em: string;
+  expiraEm: string;
+  /** A clonagem é de quem está vendo (senão é um admin vendo a de outra pessoa). */
+  porVoce: boolean;
+  porNome: string;
+}
+
+/** GET /api/events/:id/clone-items/desfazivel → 200. */
+export interface RespostaDaClonagemDesfazivel {
+  lote: ClonagemDesfazivel | null;
+}
+
+/** POST /api/events/:id/clone-items/desfazer → 200. */
+export interface RespostaDoDesfazerClonagem {
+  removidas: number;
+  /** As que ficaram, cada uma com o motivo (shared/desfazer-clonagem.ts). */
+  ficaram: Array<{ id: string; displayId: string | null; motivo: string }>;
+  /** Já tinham sido excluídas antes (à mão, pela lixeira). */
+  jaExcluidas: number;
+  origemNome: string;
 }

@@ -284,3 +284,22 @@ describe("reenviar o aviso", () => {
     expect(H.notifyBookSaved).not.toHaveBeenCalled();
   });
 });
+
+describe("o book só leva peça viva deste evento (19/10)", () => {
+  it("ignora id de outro evento, peça na lixeira e cancelada — a contagem não passa a do evento", async () => {
+    H.storage.getItemsByEvent.mockResolvedValue([
+      { id: "item-1", bookUrl: null, status: "awaiting_sponsor_approval" },
+      { id: "item-2", bookUrl: null, status: "canceled" },
+      { id: "item-3", bookUrl: null, status: "awaiting_sponsor_approval", deletedAt: new Date() },
+    ]);
+    await callBookRoute({ bookUrl: "/objects/books/corrida.pdf", itemIds: ["item-1", "item-2", "item-3", "de-outro-evento"] });
+    expect(H.storage.setItemsBookUrl).toHaveBeenCalledWith(["item-1"], "/objects/books/corrida.pdf");
+  });
+
+  it("nenhuma peça válida: 400 com frase clara e nada gravado", async () => {
+    H.storage.getItemsByEvent.mockResolvedValue([{ id: "item-1", bookUrl: null, status: "canceled" }]);
+    const r = await callBookRoute({ bookUrl: "/objects/books/corrida.pdf", itemIds: ["item-1"] });
+    expect(r.status).toBe(400);
+    expect(H.storage.setItemsBookUrl).not.toHaveBeenCalled();
+  });
+});

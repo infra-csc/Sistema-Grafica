@@ -232,7 +232,20 @@ export function registrarBook(app: Express): void {
       // Isso garante que itens não selecionados não fiquem com URL obsoleta,
       // evitando que a exportação abra a versão antiga do book.
       await storage.clearEventBookUrl(req.params.eventId);
-      const count = await storage.setItemsBookUrl(itemIds, bookUrl || null);
+      // O book só leva peça VIVA DESTE evento: id de outro evento, peça na
+      // lixeira ou cancelada não entra nem na contagem (19/10 — o número do
+      // book chegou a passar o de peças do evento). Tela velha mandando id
+      // que mudou não infla o book.
+      const doEvento = new Set(
+        (await storage.getItemsByEvent(req.params.eventId))
+          .filter((i) => !i.deletedAt && i.status !== "canceled")
+          .map((i) => i.id),
+      );
+      const idsValidos = (itemIds as unknown[]).filter((id): id is string => typeof id === "string" && doEvento.has(id));
+      if (idsValidos.length === 0) {
+        return res.status(400).json({ error: "Nenhuma das peças selecionadas está ativa neste evento — atualize a tela e selecione de novo." });
+      }
+      const count = await storage.setItemsBookUrl(idsValidos, bookUrl || null);
       if (bookUrl) {
         await storage.createEventBook({ eventId: req.params.eventId, bookUrl, itemCount: count, createdBy: req.userName ?? null, comment: textoDoComentario || null });
         invalidarCacheDeVersoes();

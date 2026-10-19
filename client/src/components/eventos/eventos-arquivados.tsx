@@ -3,15 +3,17 @@
 // há algo arquivado, e abre a lista de onde se restaura.
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Archive, RotateCcw } from "lucide-react";
+import { Archive, FileSpreadsheet, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { Botao } from "@/components/ui/botao";
 import { useConfirmar } from "@/components/ui/usar-confirmar";
 import { ModalDeArquivados, type LinhaArquivada } from "@/components/modal-de-arquivados";
+import { useExportarFechamento } from "@/lib/exportar-fechamento";
+import { foiArquivadoAutomaticamente } from "@shared/arquivamento-automatico";
 
 /** Linha de GET /api/events/arquivados (server/storage.ts: EventoArquivado). */
 export interface EventoArquivado {
@@ -39,8 +41,17 @@ function detalheDoEvento(e: EventoArquivado): string {
 export function EventosArquivados() {
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  const ponteiroGrosso = usePonteiroGrosso();
   const { confirmar, dialogo } = useConfirmar();
   const [aberto, setAberto] = useState(false);
+  // O fechamento do evento arquivado (o servidor libera o arquivado só ao
+  // admin — services/fechamentoDoEvento.ts). Spinner só na linha baixando.
+  const { exportar, exportando } = useExportarFechamento();
+  const [baixandoId, setBaixandoId] = useState<string | null>(null);
+  const baixarFechamento = async (id: string) => {
+    setBaixandoId(id);
+    try { await exportar([id]); } finally { setBaixandoId(null); }
+  };
 
   const { data: arquivados = [], isLoading, isError, refetch } = useQuery<EventoArquivado[]>({
     queryKey: CHAVE_EVENTOS_ARQUIVADOS,
@@ -73,9 +84,11 @@ export function EventosArquivados() {
     if (!evento) return;
     const ok = await confirmar({
       titulo: `Restaurar ${evento.name}?`,
-      descricao: evento.totalPecas > 0
+      descricao: (evento.totalPecas > 0
         ? `O evento volta à lista e as ${pecas(evento.totalPecas)} voltam às filas, exatamente como estavam.`
-        : "O evento volta à lista de eventos, exatamente como estava.",
+        : "O evento volta à lista de eventos, exatamente como estava.")
+        // Restaurado depois de vencido, o automático não volta a arquivá-lo.
+        + (foiArquivadoAutomaticamente(evento.arquivadoPor) ? " O arquivamento automático não mexe mais nele; para tirar de novo, use Excluir." : ""),
       confirmar: "Restaurar",
       cancelar: "Manter arquivado",
       icone: RotateCcw,
@@ -112,7 +125,7 @@ export function EventosArquivados() {
         aberto={aberto}
         aoFechar={() => setAberto(false)}
         titulo="Eventos arquivados"
-        explicacao="Eventos excluídos saem de todas as telas, mas nada foi apagado. Restaurar devolve o evento e as peças dele exatamente como estavam."
+        explicacao="Eventos excluídos — e os arquivados automaticamente 2 semanas após a data do evento — saem de todas as telas, mas nada foi apagado. Restaurar devolve o evento e as peças dele exatamente como estavam."
         linhas={linhas}
         carregando={isLoading}
         erro={isError}
@@ -120,6 +133,22 @@ export function EventosArquivados() {
         aoRestaurar={(l) => { void pedirRestauracao(l); }}
         restaurandoId={restaurar.isPending ? restaurar.variables?.id ?? null : null}
         prefixo="eventos-arquivados"
+        acoesDaLinha={(l) => (
+          <Botao
+            variante="fantasma"
+            tamanho={isMobile || ponteiroGrosso ? "toque" : "sm"}
+            icone={FileSpreadsheet}
+            carregando={baixandoId === l.id}
+            disabled={exportando && baixandoId !== l.id}
+            onClick={() => { void baixarFechamento(l.id); }}
+            data-testid={`eventos-arquivados-fechamento-${l.id}`}
+            aria-label={`Baixar fechamento de ${l.nome}`}
+            title="Planilha com todas as peças do evento"
+            style={{ flexShrink: 0, width: isMobile ? "100%" : undefined }}
+          >
+            Baixar fechamento
+          </Botao>
+        )}
       />
       {dialogo}
     </>

@@ -436,6 +436,7 @@ export async function handleExportSelectedItemsXlsx(req: Request, res: Response)
         sponsorNames: sponsorsByItem.get(i.id) ?? [],
       }))
       .sort(byDisplayId);
+    if (!items.length) return res.status(404).json({ error: "Nenhuma peça encontrada nos eventos disponíveis" });
 
     const title = typeof req.body?.title === "string" && req.body.title.trim()
       ? req.body.title.trim()

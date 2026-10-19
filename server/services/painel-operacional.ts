@@ -21,6 +21,7 @@ import type { PrazoEvent } from "@shared/prazos-contract";
 import { businessDayStrToMs } from "@shared/prazo-dates";
 import type { db as DbReal } from "../db";
 import { storage } from "../storage";
+import { doEventoNaoArquivado } from "./arquivamento";
 import {
   buildEventPrazo, comKit, computeKpis, eventosDoPrazo, isPrazoCandidate, todayBusinessMs, todayBusinessStr,
   type DomainItem,
@@ -85,6 +86,10 @@ export async function carregarPainelOperacional(db: Db, agora: number = Date.now
     .from(items)
     .where(and(
       isNull(items.deletedAt),
+      // Peça de evento arquivado (à mão ou pelo arquivamento automático de 2
+      // semanas) não entra: a janela de 60 dias a trazia pela produção, e ela
+      // aparecia nas Análises como "(evento não encontrado)".
+      doEventoNaoArquivado(items.eventId),
       idsCandidatos.length ? or(inArray(items.eventId, idsCandidatos), ...naJanela) : or(...naJanela),
     ));
 

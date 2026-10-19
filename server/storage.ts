@@ -2823,6 +2823,20 @@ export class DatabaseStorage implements IStorage {
     }
     return linked;
   }
+
+  /**
+   * Peças vivas de vários eventos INCLUSIVE os arquivados. Só o fechamento
+   * pedido pelo admin (o "Baixar fechamento" da tela de Arquivados) lê por
+   * aqui; toda outra leitura usa getItemsByEvents, que esconde os arquivados.
+   */
+  async getItemsByEventsInclusiveArquivados(eventIds: string[]): Promise<Item[]> {
+    if (eventIds.length === 0) return [];
+    return await db
+      .select()
+      .from(items)
+      .where(and(inArray(items.eventId, eventIds), sql`${items.deletedAt} IS NULL`))
+      .orderBy(desc(items.createdAt));
+  }
 }
 
 export const storage = new DatabaseStorage();

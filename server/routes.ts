@@ -57,6 +57,7 @@ import { startInventoryLifecycle } from "./services/inventoryLifecycle";
 import { startPrazoSnapshots } from "./services/prazoSnapshots";
 import { startPrioridadeAutomatica } from "./services/prioridadeAutomatica";
 import { startGestaoDigest } from "./services/gestaoDigest";
+import { startArquivamentoAutomatico } from "./services/arquivamento-automatico";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Sessão com teto absoluto e de usuário que ainda existe (server/sessao-valida).
@@ -210,6 +211,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // GESTAO_DIGEST_ENABLED=false.
   startGestaoDigest();
   startInventoryLifecycle();
+  // Arquivamento automático (dono, 19/10): evento 14 dias depois da data é
+  // arquivado — some da Gráfica e do Exportar Excel; restaura pelos Arquivados.
+  // Pouco depois de subir e 1x por dia (services/arquivamento-automatico.ts).
+  startArquivamentoAutomatico();
   // Fecho diário da Gestão de Prazos. Se este registro sumir, nenhum snapshot
   // é gravado: a tendência ▲▼ e a faixa "o que mudou desde ontem" desaparecem
   // para sempre, em silêncio e sem erro. Ver services/prazoSnapshots.ts.

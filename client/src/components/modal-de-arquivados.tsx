@@ -18,6 +18,7 @@ import { Botao } from "@/components/ui/botao";
 import { EstadoErro, EstadoVazio, Esqueleto } from "@/components/ui/estados";
 import { useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { T, TOM, FS, FW, R } from "@/lib/theme";
+import { foiArquivadoAutomaticamente } from "@shared/arquivamento-automatico";
 
 export interface LinhaArquivada {
   id: string;
@@ -43,21 +44,28 @@ export interface ModalDeArquivadosProps {
   restaurandoId: string | null;
   /** Prefixo dos data-testid: `${prefixo}-lista`, `${prefixo}-restaurar-<id>`. */
   prefixo: string;
+  /** Ações discretas da linha, antes do Restaurar (ex.: "Baixar fechamento" do evento). */
+  acoesDaLinha?: (linha: LinhaArquivada) => React.ReactNode;
 }
 
-/** "Arquivado em 20/09/2026 às 09:00 por Ana" — sem o "por" quando não se sabe quem. */
+/**
+ * "Arquivado em 20/09/2026 às 09:00 por Ana" — sem o "por" quando não se sabe
+ * quem. O arquivamento automático (2 semanas depois do evento) diz isso com
+ * todas as letras: "Arquivado automaticamente em … — 2 semanas após o evento".
+ */
 export function quemEQuando(linha: Pick<LinhaArquivada, "arquivadoEm" | "arquivadoPor">): string {
   const data = linha.arquivadoEm ? new Date(linha.arquivadoEm) : null;
   const quando = data && !Number.isNaN(data.getTime())
     ? ` em ${format(data, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`
     : "";
+  if (foiArquivadoAutomaticamente(linha.arquivadoPor)) return `Arquivado automaticamente${quando} — 2 semanas após o evento`;
   const quem = linha.arquivadoPor ? ` por ${linha.arquivadoPor}` : "";
   return `Arquivado${quando}${quem}`;
 }
 
 export function ModalDeArquivados({
   aberto, aoFechar, titulo, explicacao, linhas, carregando, erro, aoTentarDeNovo,
-  aoRestaurar, restaurandoId, prefixo,
+  aoRestaurar, restaurandoId, prefixo, acoesDaLinha,
 }: ModalDeArquivadosProps) {
   const isMobile = useIsMobile();
   const ponteiroGrosso = usePonteiroGrosso();
@@ -86,6 +94,7 @@ export function ModalDeArquivados({
                 {linha.detalhe ? ` · ${linha.detalhe}` : ""}
               </p>
             </div>
+            {acoesDaLinha?.(linha)}
             <Botao
               variante="secundario"
               tamanho={tamanho}

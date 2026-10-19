@@ -12,7 +12,9 @@
 // Aqui o recorte é o EVENTO, não a fila: todas as peças vivas dele, em
 // qualquer status (inclusive entregues, reaproveitadas e em trânsito), em
 // qualquer situação do evento (aberto, realizado, encerrado). Arquivado
-// responde 404 — sumiu de todas as listas, como em toda rota de evento.
+// responde 404 — sumiu de todas as listas, como em toda rota de evento —,
+// menos para o admin: o "Baixar fechamento" da tela de Arquivados (o evento
+// arquivado 2 semanas depois da data ainda precisa do fechamento).
 //
 // O FORMATO é o da exportação da Gráfica (writeWorkbook com as colunas de
 // produção): quem fecha o evento lê a mesma planilha que já conhece, com a
@@ -60,18 +62,26 @@ export async function responderFechamento(req: Request, res: Response, idsPedido
       return res.status(400).json({ error: `No máximo ${FECHAMENTO_MAX_EVENTOS} eventos por arquivo.` });
     }
 
-    // Arquivado responde como inexistente (some de todas as listas). Os
+    // Arquivado responde como inexistente (some de todas as listas) — menos
+    // para o ADMIN, que baixa o fechamento pela tela de Arquivados (o evento
+    // arquivado 2 semanas depois da data continua tendo fechamento). Os
     // demais — aberto, realizado, encerrado à mão — entram sem distinção.
+    const veArquivados = req.userRole === "admin";
     const eventos = (await Promise.all(ids.map((id) => storage.getEvent(id))))
-      .filter((e): e is NonNullable<typeof e> => !!e && !e.arquivadoEm)
+      .filter((e): e is NonNullable<typeof e> => !!e && (!e.arquivadoEm || veArquivados))
       .sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { numeric: true }));
     if (eventos.length === 0) return res.status(404).json({ error: EVENTO_NAO_ENCONTRADO });
 
     // TODAS as peças vivas (getItemsByEvents já tira as excluídas), em todo
     // status. BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma
     // peça (shared/fluxo-peca). Kit: só as peças do Kit que ele criou.
+    // Com evento arquivado na lista (só admin chega aqui), a leitura que não
+    // esconde as peças dele.
     const doKit = req.userKit === true;
-    const pecas = (await storage.getItemsByEvents(eventos.map((e) => e.id)))
+    const idsDosEventos = eventos.map((e) => e.id);
+    const pecas = (await (eventos.some((e) => e.arquivadoEm)
+      ? storage.getItemsByEventsInclusiveArquivados(idsDosEventos)
+      : storage.getItemsByEvents(idsDosEventos)))
       .filter((i) => !ehBookCompleto(i) && (!doKit || (!!i.kitRemessaId && i.criadoPorId === req.userId)));
 
     const nomePorEvento = new Map(eventos.map((e) => [e.id, e.name] as const));

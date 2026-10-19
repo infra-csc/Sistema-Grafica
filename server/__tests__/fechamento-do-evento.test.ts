@@ -14,6 +14,8 @@
 // de mentira; o que se confere é o que a planilha RECEBE.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "fs";
+import path from "path";
 import { bancoDeMentira, mundoVazio, type MundoDoBanco } from "./regras-producao-apoio";
 
 const H = vi.hoisted(() => ({
@@ -158,6 +160,8 @@ beforeEach(() => {
     peca("0302", "abe", { status: "conferred", embaladaQty: 0, deliveredQty: 0 }),
     peca("0303", "abe", { status: "approved", quantityProduced: 0, conferredQty: 0, embaladaQty: 0, deliveredQty: 0, kitRemessaId: "kr1", criadoPorId: "u-kit" }),
     peca("0304", "abe", { status: "approved", quantityProduced: 0, conferredQty: 0, embaladaQty: 0, deliveredQty: 0, kitRemessaId: "kr2", criadoPorId: "u-outro-kit" }),
+    // Do evento ARQUIVADO (à mão ou pelo automático de 2 semanas).
+    peca("0401", "arq"),
   ];
 
   const s = H.storage;
@@ -167,6 +171,11 @@ beforeEach(() => {
   s.getItemsByEvents = vi.fn(async (ids: string[]) => PECAS.filter((p) => ids.includes(p.eventId) && !p.deletedAt && !EVENTOS[p.eventId]?.arquivadoEm));
   s.getAllSponsors = vi.fn(async () => [{ id: "sp1", name: "Petrobras" }]);
   s.getAllItemSponsors = vi.fn(async () => [{ itemId: "0101", sponsorId: "sp1" }]);
+  // Só o fechamento do admin com evento arquivado lê por aqui.
+  s.getItemsByEventsInclusiveArquivados = vi.fn(async (ids: string[]) => PECAS.filter((p) => ids.includes(p.eventId) && !p.deletedAt));
+  // Exportar Excel da Gráfica (POST /api/items/export-xlsx).
+  s.getItemsByIds = vi.fn(async (ids: string[]) => PECAS.filter((p) => ids.includes(p.id)));
+  s.getAllEvents = vi.fn(async () => Object.values(EVENTOS).filter((e: any) => !e.arquivadoEm));
 });
 
 describe("GET /api/events/:id/export-xlsx — o fechamento de UM evento", () => {
@@ -292,5 +301,66 @@ describe("data do evento na planilha (meia-noite UTC)", () => {
     expect(fmtDiaDoEvento(new Date("2026-10-10T00:00:00Z"))).toBe("10/10/2026");
     expect(fmtDiaDoEvento("2026-12-31T00:00:00.000Z")).toBe("31/12/2026");
     expect(fmtDiaDoEvento("lixo")).toBe("");
+  });
+});
+
+// ── ARQUIVAMENTO AUTOMÁTICO (dono, 19/10) ────────────────────────────────────
+// Evento 2 semanas depois da data é arquivado: as peças dele saem do
+// "Exportar Excel" da Gráfica (mesmo com os ids vindos de uma aba aberta
+// antes), e o fechamento continua saindo para o ADMIN, pelos Arquivados.
+describe("evento arquivado: fechamento só para o admin", () => {
+  it("admin baixa o fechamento do evento arquivado, com as peças dele", async () => {
+    const res = await chamar("GET /api/events/:id/export-xlsx", { params: { id: "arq" }, userRole: "admin" });
+    expect(res._status).toBe(200);
+    expect(linhasDePeca(planilha()).map((l) => [l.Evento, l["#ID"]])).toEqual([["Evento Arquivado", "#0401"]]);
+    expect(H.storage.getItemsByEventsInclusiveArquivados).toHaveBeenCalledWith(["arq"]);
+  });
+
+  it("os outros papéis seguem recebendo 404; evento vivo não usa a leitura inclusiva", async () => {
+    for (const userRole of ["grafica", "solicitacao", "arte", "atendimento"]) {
+      expect((await chamar("GET /api/events/:id/export-xlsx", { params: { id: "arq" }, userRole }))._status, userRole).toBe(404);
+    }
+    await chamar("GET /api/events/:id/export-xlsx", { params: { id: "ter" }, userRole: "admin" });
+    expect(H.storage.getItemsByEventsInclusiveArquivados).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/items/export-xlsx ignora peça de evento arquivado", () => {
+  async function exportar(itemIds: string[], eventIds?: string[]) {
+    const { handleExportSelectedItemsXlsx } = await import("../services/xlsxExport");
+    const req: any = { body: { ...(eventIds ? { eventIds } : { itemIds }), title: "Produção — Gráfica" }, userKit: false, userId: "u1", userRole: "grafica" };
+    const res: any = { _status: 200, _body: undefined, _headers: {} as Record<string, string>, headersSent: false };
+    res.status = (c: number) => { res._status = c; return res; };
+    res.json = (b: any) => { res._body = b; return res; };
+    res.setHeader = (k: string, v: string) => { res._headers[k.toLowerCase()] = v; return res; };
+    res.end = () => res;
+    await handleExportSelectedItemsXlsx(req, res);
+    return res;
+  }
+
+  it("id de peça arquivada vindo da aba aberta antiga: fica fora da planilha", async () => {
+    const res = await exportar(["0101", "0401", "0201"]);
+    expect(res._status).toBe(200);
+    expect(linhasDePeca(planilha()).map((l) => l["#ID"]).sort()).toEqual(["#0101", "#0201"]);
+    expect(String(planilha().getCell("A2").value)).toContain("2 peças");
+  });
+
+  it("só peças de evento arquivado: 404 com a frase, e nenhuma planilha vazia", async () => {
+    const res = await exportar(["0401"]);
+    expect(res._status).toBe(404);
+    expect(res._body.error).toContain("Nenhuma peça encontrada");
+    expect(H.planilhas).toHaveLength(0);
+  });
+
+  // O modal novo da Gráfica ("Selecionar eventos", commit 4c3a3d47 no main)
+  // manda { eventIds }. Liga sozinho quando o servidor aceitar eventIds.
+  const aceitaEventIds = readFileSync(path.resolve(__dirname, "../services/xlsxExport.ts"), "utf8").includes("req.body?.eventIds");
+  it.skipIf(!aceitaEventIds)("pelo caminho de eventIds: evento arquivado escolhido fica fora; só ele → 404", async () => {
+    const res = await exportar([], ["ter", "arq"]);
+    expect(res._status).toBe(200);
+    expect(new Set(linhasDePeca(planilha()).map((l) => l.Evento))).toEqual(new Set(["Night Run Teresina"]));
+    H.planilhas.length = 0;
+    expect((await exportar([], ["arq"]))._status).toBe(404);
+    expect(H.planilhas).toHaveLength(0);
   });
 });

@@ -44,6 +44,7 @@ import { prioridadePelaSaida } from "@shared/prioridade-do-evento";
 import { responderErro } from "../erros";
 import { aplicarPrioridadeAutomatica } from "../services/prioridadeAutomatica";
 import { barraSeArquivado } from "../services/arquivamento";
+import { arquivarEventoEAvisar } from "../services/arquivar-evento";
 import { vincularAutomaticamente } from "../services/sugestao-de-vinculo";
 
 // Normaliza startDate/truckDepartureDate (string "YYYY-MM-DD[THH:MM...]" ou Date
@@ -1076,34 +1077,23 @@ export function registerEventRoutes(app: Express): void {
         return res.status(404).json({ error: "Evento não encontrado" });
       }
 
-      // Dimensão do que sai de vista — para a trilha e para a resposta (a
-      // confirmação da UI diz "e 128 peças (96 já entregues)"). Lida ANTES de
-      // arquivar: depois, a leitura de peças já não enxerga o evento.
-      const items = await storage.getItemsByEvent(req.params.id);
-      const deliveredCount = items.filter((it) => DELIVERED.has(it.status)).length;
-
-      const arquivado = await storage.arquivarEvento(req.params.id, (req as any).userName ?? null);
-      if (!arquivado) {
+      // Contar o que sai de vista, arquivar, trilha e avisos às telas: o mesmo
+      // passo a passo do arquivamento automático (services/arquivar-evento.ts).
+      // A contagem volta para a resposta (a confirmação da UI diz "e 128
+      // peças (96 já entregues)").
+      const contagem = await arquivarEventoEAvisar(
+        { id: req.params.id },
+        { ator: (req as any).userName, arquivadoPor: (req as any).userName ?? null },
+        ({ pecas, entregues }) =>
+          `Evento "${event.name}" arquivado — ${pecas} ${pecas === 1 ? 'peça saiu' : 'peças saíram'} de vista (${entregues} já ${entregues === 1 ? 'entregue' : 'entregues'}). Nada foi apagado: restaurar devolve tudo como estava`,
+      );
+      if (!contagem) {
         // Outro clique arquivou no meio: para quem pediu, o resultado é o mesmo.
         return res.status(404).json({ error: "Evento não encontrado" });
       }
 
-      await createAuditLog(
-        (req as any).userName,
-        'deleted',
-        'event',
-        req.params.id,
-        `Evento "${event.name}" arquivado — ${items.length} ${items.length === 1 ? 'peça saiu' : 'peças saíram'} de vista (${deliveredCount} já ${deliveredCount === 1 ? 'entregue' : 'entregues'}). Nada foi apagado: restaurar devolve tudo como estava`
-      );
-
-      // event_deleted: as telas tiram o evento. items_bulk_updated: a lista de
-      // peças busca o delta, que já vem sem o evento em `eventos` — e o cliente
-      // derruba as peças dele (aplicarDelta).
-      broadcast({ type: "event_deleted", eventId: req.params.id });
-      if (items.length > 0) broadcast({ type: "items_bulk_updated", itemIds: items.map((i) => i.id), eventId: req.params.id });
-
       // Mesmo contrato de antes (`deletedItems` = peças que saíram de vista).
-      res.json({ success: true, deletedItems: items.length, deliveredItems: deliveredCount, archived: true });
+      res.json({ success: true, deletedItems: contagem.pecas, deliveredItems: contagem.entregues, archived: true });
     } catch (error: any) {
       responderErro(res, error, "excluir evento");
     }

@@ -856,6 +856,158 @@ export function pecasDaPendencia(
   });
 }
 
+// ─── Pré-produção › Eventos × processo × prazo ───────────────────────────────
+//
+// A grade "evento × fase": em cada célula, o prazo da fase (o MESMO da Gestão
+// de Prazos — `EventoDoPainel.fases`, que vem de buildEventPrazo, inclusive a
+// Produção Gráfica seg–sáb) e as peças que ainda precisam passar por ela.
+//
+// A CONTAGEM AQUI É CUMULATIVA, e é diferente da tabela "Pendências de
+// pré-produção" (que conta cada peça uma vez, onde ela está agora):
+//   · fases 1–4 (layout, aprovação, finalização, revisão final): a peça cuja
+//     fase atual é ≤ N e que ainda não passou por N — `passosPendentes`, a
+//     mesma lista de processos do planejado (a isenta de aprovação não conta
+//     na fase 2; a da Lista de imagens passa por todas);
+//   · fase 5 (Produção gráfica): toda peça do evento ainda não entregue — o
+//     mesmo número que a Gestão de Prazos mostra na etapa (pendingCount).
+// Fase atrasada = prazo < hoje com peça pendente. Dias de atraso = hoje − prazo.
+
+/** As cinco colunas de fase (N = índice da fase em `EventoDoPainel.fases`). */
+export const FASES_DO_CALENDARIO: ReadonlyArray<{ n: 1 | 2 | 3 | 4 | 5; nome: string }> = [
+  { n: 1, nome: "Entrega de layout" },
+  { n: 2, nome: "Aprovação de layout" },
+  { n: 3, nome: "Finalização" },
+  { n: 4, nome: "Revisão final" },
+  { n: 5, nome: "Produção gráfica" },
+];
+/** A janela da tela: hoje + 14 dias (os "próximos 15 dias", hoje incluído). */
+export const JANELA_DO_CALENDARIO_DIAS = 14;
+
+export type ColunaDoCalendario = "evento" | "data_evento" | "saida" | "f1" | "f2" | "f3" | "f4" | "f5";
+export const COLUNAS_DO_CALENDARIO: ReadonlyArray<ColunaDoCalendario> = ["evento", "data_evento", "saida", "f1", "f2", "f3", "f4", "f5"];
+export interface OrdemDoCalendario { coluna: ColunaDoCalendario; direcao: "asc" | "desc" }
+
+/**
+ * atrasada = prazo vencido com peça pendente · proxima = vence nos próximos 15
+ * dias, com pendência · depois = vence depois disso, com pendência · concluida
+ * = nenhuma peça pendente · semPrazo = a fase não tem data.
+ */
+export type SituacaoNoCalendario = "atrasada" | "proxima" | "depois" | "concluida" | "semPrazo";
+
+export interface CelulaDoCalendario {
+  n: number;
+  nome: string;
+  prazo: string | null;
+  pendentes: number;
+  situacao: SituacaoNoCalendario;
+  diasAtraso: number;
+}
+
+export interface LinhaDoCalendario {
+  evento: EventoDoPainel;
+  fases: CelulaDoCalendario[];
+  fasesAtrasadas: number;
+  /** O evento não tem peça nenhuma (nada a concluir — a tela não diz "concluída"). */
+  semPecas: boolean;
+  /** A saída do caminhão já passou (a data aparece riscada). */
+  saidaPassou: boolean;
+}
+
+export interface EventosProcessoPrazo {
+  hoje: string;
+  /** Último dia da janela (hoje + 14). */
+  fim: string;
+  /** As linhas da tabela, já filtradas e ordenadas. */
+  linhas: LinhaDoCalendario[];
+  /** Eventos que entram na tela (antes do filtro "somente com fase atrasada"). */
+  total: number;
+  /** Desses, quantos têm alguma fase atrasada. */
+  comAtraso: number;
+}
+
+/** A peça ainda precisa passar pela fase N? (1–4 pré-produção; 5 = não entregue.) */
+export function pendeNaFase(p: Pick<PecaDaLinha, "fase" | "semAprovacao">, n: number): boolean {
+  if (n === FASE_PRODUCAO) return p.fase < FASE_ENTREGUE;
+  return passosPendentes(p.fase, p.semAprovacao).includes(n);
+}
+
+/** As peças por trás de uma célula: as do evento que ainda precisam passar pela fase N. */
+export function pecasDaFaseDoEvento(painel: Pick<PainelOperacional, "pecas">, evento: string, n: number): PecaDaLinha[] {
+  return painel.pecas.filter((p) => p.evento === evento && pendeNaFase(p, n));
+}
+
+const chaveDaColuna = (l: LinhaDoCalendario, c: ColunaDoCalendario): string | null => {
+  if (c === "evento") return l.evento.nome;
+  if (c === "data_evento") return l.evento.dataEvento || null;
+  if (c === "saida") return l.evento.saidaCaminhao || null;
+  return l.fases[Number(c.slice(1)) - 1]?.prazo ?? null;
+};
+
+/**
+ * Ordem padrão: eventos com fase atrasada primeiro, depois pela data do
+ * evento. Com coluna: crescente ou decrescente por ela (nas fases, pela data
+ * do prazo); empate pela data do evento; prazo vazio sempre no fim.
+ */
+export function ordenarCalendario(linhas: ReadonlyArray<LinhaDoCalendario>, ordem: OrdemDoCalendario | null): LinhaDoCalendario[] {
+  const porData = (a: LinhaDoCalendario, b: LinhaDoCalendario) =>
+    a.evento.dataEvento.localeCompare(b.evento.dataEvento) || a.evento.nome.localeCompare(b.evento.nome, "pt-BR");
+  if (!ordem) return [...linhas].sort((a, b) => Number(b.fasesAtrasadas > 0) - Number(a.fasesAtrasadas > 0) || porData(a, b));
+  const sinal = ordem.direcao === "desc" ? -1 : 1;
+  return [...linhas].sort((a, b) => {
+    const ka = chaveDaColuna(a, ordem.coluna), kb = chaveDaColuna(b, ordem.coluna);
+    if (ka == null || kb == null) return ka == null && kb == null ? porData(a, b) : ka == null ? 1 : -1;
+    const cmp = ordem.coluna === "evento" ? ka.localeCompare(kb, "pt-BR", { sensitivity: "base" }) : ka < kb ? -1 : ka > kb ? 1 : 0;
+    return sinal * cmp || porData(a, b);
+  });
+}
+
+/**
+ * Quais eventos entram: data do evento ≥ hoje E (alguma fase com prazo entre
+ * hoje e hoje + 14, OU data do evento nessa janela, OU alguma fase atrasada).
+ * Eventos e peças arquivados já não chegam aqui (o servidor os tira).
+ */
+export function eventosProcessoPrazo(
+  painel: Pick<PainelOperacional, "hoje" | "eventos" | "pecas">,
+  opcoes: { soAtrasadas?: boolean; ordem?: OrdemDoCalendario | null } = {},
+): EventosProcessoPrazo {
+  const { hoje } = painel;
+  const fim = somarDias(hoje, JANELA_DO_CALENDARIO_DIAS);
+  const porEvento = new Map<string, PecaDaLinha[]>();
+  for (const p of painel.pecas) {
+    const l = porEvento.get(p.evento);
+    if (l) l.push(p); else porEvento.set(p.evento, [p]);
+  }
+  const naJanela = (d: string | null) => !!d && d >= hoje && d <= fim;
+
+  const elegiveis: LinhaDoCalendario[] = [];
+  for (const evento of painel.eventos) {
+    if (!evento.dataEvento || evento.dataEvento < hoje) continue;
+    const pcs = porEvento.get(evento.chave) ?? [];
+    const fases = FASES_DO_CALENDARIO.map(({ n, nome }): CelulaDoCalendario => {
+      const prazo = evento.fases[n]?.prazo || null;
+      const pendentes = pcs.filter((p) => pendeNaFase(p, n)).length;
+      const situacao: SituacaoNoCalendario = !prazo ? "semPrazo"
+        : pendentes === 0 ? "concluida"
+          : prazo < hoje ? "atrasada"
+            : prazo <= fim ? "proxima" : "depois";
+      return { n, nome, prazo, pendentes, situacao, diasAtraso: situacao === "atrasada" ? diasEntre(hoje, prazo!) : 0 };
+    });
+    const fasesAtrasadas = fases.filter((f) => f.situacao === "atrasada").length;
+    if (fasesAtrasadas === 0 && !fases.some((f) => naJanela(f.prazo)) && !naJanela(evento.dataEvento)) continue;
+    elegiveis.push({
+      evento, fases, fasesAtrasadas, semPecas: pcs.length === 0,
+      saidaPassou: !!evento.saidaCaminhao && evento.saidaCaminhao < hoje,
+    });
+  }
+  const filtradas = opcoes.soAtrasadas ? elegiveis.filter((l) => l.fasesAtrasadas > 0) : elegiveis;
+  return {
+    hoje, fim,
+    linhas: ordenarCalendario(filtradas, opcoes.ordem ?? null),
+    total: elegiveis.length,
+    comAtraso: elegiveis.filter((l) => l.fasesAtrasadas > 0).length,
+  };
+}
+
 // ─── Problemas operacionais ──────────────────────────────────────────────────
 
 export type TipoDeProblema = "todos" | "atraso" | "fura" | "refacao" | "reprovada";

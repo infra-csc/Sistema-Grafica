@@ -2379,6 +2379,10 @@ textarea.erp-pi-campo { min-height: 52px; }
 .pop-numero { min-height: 28px; padding: 2px 6px !important; margin: -2px -6px; border-radius: 6px; }
 .pop-numero:hover { background: var(--n2, #f5f5f4) !important; }
 .pop-ordenar:hover { color: var(--n10, #1c1917) !important; }
+/* Eventos × processo × prazo: a célula clicável escurece um tom no hover. */
+.pop-cal-celula { transition: filter 120ms; }
+.pop-cal-celula:hover { filter: brightness(0.93); }
+.pop-cal-celula:focus-visible { outline-offset: 2px; }
 .pop-texto-longo {
   display: -webkit-box;
   -webkit-line-clamp: 2;

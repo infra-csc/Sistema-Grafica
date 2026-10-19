@@ -1,18 +1,26 @@
-// ANÁLISES › PRÉ-PRODUÇÃO — o que a Arte, o Atendimento e a Revisão
-// fizeram por dia (realizado), o que precisa ser feito até cada prazo
-// (planejado) e as pendências por evento. Clicar num número lista as peças;
-// clicar no evento lista todas as pendências dele.
+// ANÁLISES › PRÉ-PRODUÇÃO — dois submenus:
+//   · Realizado e pendências: o que a Arte, o Atendimento e a Revisão
+//     fizeram por dia (realizado), o que precisa ser feito até cada prazo
+//     (planejado) e as pendências por evento. Clicar num número lista as
+//     peças; clicar no evento lista todas as pendências dele;
+//   · Eventos × processo × prazo: a grade evento × fase (./pre-calendario).
 import * as React from "react";
+import { Segmentado } from "@/components/ui/abas";
+import CalendarioDeFases from "./pre-calendario";
 import { X } from "lucide-react";
 import {
   PROCESSOS_DE_PRE, PASSO_DO_PROCESSO, pecasDaPendencia, pendenciasPorEvento, preRealizadoPorDia, prePlanejadoPorDia,
-  rotuloDaEtapaNoPainel, FASES_DO_PAINEL, type PecaDaLinha, type PendenciaDoEvento, type ProcessoDePre,
+  type PendenciaDoEvento, type ProcessoDePre,
 } from "@shared/painel-operacional";
 import { Botao } from "@/components/ui/botao";
-import { T, TOM, FS, FW, FONT } from "@/lib/theme";
-import { SecaoDaAnalise, TabelaCompacta, idDaPeca, type ColunaDaTabela } from "../blocos";
-import { COR, Campo, Chips, DiasDeAtraso, FaixaDeControles, FiltroDeEvento, GraficoDeDias, Marcador, NomeDoEvento, dma, fmt0, opcoesDeEvento } from "../comum";
+import { T, TOM, FW } from "@/lib/theme";
+import { SecaoDaAnalise, TabelaCompacta, type ColunaDaTabela } from "../blocos";
+import { COR, Campo, Chips, FaixaDeControles, FiltroDeEvento, GraficoDeDias, Marcador, NomeDoEvento, dma, fmt0, opcoesDeEvento } from "../comum";
 import type { ContextoDoPainel } from "../contexto";
+import { TabelaDePecas } from "./tabela-de-pecas";
+
+// A lista de peças mudou para ./tabela-de-pecas (os dois submenus a usam); o nome segue exportado daqui.
+export { TabelaDePecas };
 
 type ColunaDePre = Exclude<ProcessoDePre, "cadastro">;
 const COLUNAS: { id: ColunaDePre; rotulo: string }[] = [
@@ -25,6 +33,32 @@ const COR_DO_PROCESSO: Record<ProcessoDePre, string> = {
 type Selecao = { evento: string; processo: ColunaDePre | "atrasados" | null };
 
 export default function AbaPre({ ctx }: { ctx: ContextoDoPainel }) {
+  const { subPre, trocarSubPre, isMobile } = ctx;
+  return (
+    <div data-testid="aba-painel-pre" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <Segmentado
+        itens={[
+          { id: "pendencias", rotulo: isMobile ? "Realizado" : "Realizado e pendências", title: "Realizado e pendências", ariaControls: "painel-op-pre-sub" },
+          { id: "calendario", rotulo: isMobile ? "Processo × prazo" : "Eventos × processo × prazo", title: "Eventos × processo × prazo", ariaControls: "painel-op-pre-sub" },
+        ]}
+        ativo={subPre}
+        aoTrocar={(id) => trocarSubPre(id as "pendencias" | "calendario")}
+        rotuloDaLista="Painéis de pré-produção"
+        prefixoDeTestId="op-pre-sub"
+        testId="op-pre-subabas"
+        tamanho={isMobile ? "toque" : "md"}
+        larguraCheia={isMobile}
+        style={{ alignSelf: isMobile ? "stretch" : "flex-start" }}
+      />
+      <div id="painel-op-pre-sub" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        {subPre === "calendario" ? <CalendarioDeFases ctx={ctx} /> : <RealizadoEPendencias ctx={ctx} />}
+      </div>
+    </div>
+  );
+}
+
+/** "Realizado e pendências" — o conteúdo da aba antes do submenu, intacto. */
+function RealizadoEPendencias({ ctx }: { ctx: ContextoDoPainel }) {
   const { painel, isMobile } = ctx;
   const [evento, setEvento] = React.useState<string | null>(null);
   const [processos, setProcessos] = React.useState<ProcessoDePre[]>([]);
@@ -87,7 +121,7 @@ export default function AbaPre({ ctx }: { ctx: ContextoDoPainel }) {
   };
 
   return (
-    <div data-testid="aba-painel-pre" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+    <div data-testid="op-pre-pendencias" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <FaixaDeControles testId="op-pre-filtros">
         <FiltroDeEvento valor={evento} aoMudar={(v) => { setEvento(v); setSelecao(null); }} opcoes={opcoes} isMobile={isMobile} testId="op-pre-evento" />
         <Campo rotulo="Processo">
@@ -189,39 +223,5 @@ export default function AbaPre({ ctx }: { ctx: ContextoDoPainel }) {
         </div>
       )}
     </div>
-  );
-}
-
-/** A lista de peças (pré-produção e problemas usam a mesma régua de colunas). */
-export function TabelaDePecas({ pecas, nomes, testId, vazio, mostrarEvento = true }: {
-  pecas: PecaDaLinha[]; nomes: Record<string, string>; testId: string; vazio: string; mostrarEvento?: boolean;
-}) {
-  return (
-    <TabelaCompacta<PecaDaLinha>
-      testId={testId}
-      larguraDaPrimeira={84}
-          encolherAoTransbordar={false}
-      legenda="Peças"
-      linhas={pecas}
-      chave={(p) => p.id}
-      limite={15}
-      minLargura={860}
-      alturaMaxima={560}
-      ordemInicial={{ coluna: "atraso", direcao: "desc" }}
-      vazio={vazio}
-      colunas={[
-        { id: "peca", rotulo: "Peça", ordenavel: true, valor: (p) => p.displayId, render: (p) => <span style={{ fontFamily: FONT.mono }}>{idDaPeca(p)}</span> },
-        ...(mostrarEvento ? [{ id: "evento", rotulo: "Evento", ordenavel: true, ocultarNoCelular: true, valor: (p: PecaDaLinha) => nomes[p.evento] ?? p.evento }] : []),
-        { id: "tipo", rotulo: "Tipo", ordenavel: true, ocultarNoCelular: true, valor: (p) => p.tipo || null },
-        { id: "descricao", rotulo: "Descrição", ordenavel: true, valor: (p) => p.descricao || null,
-          render: (p) => <span className="pop-texto-longo" title={p.descricao} style={{ fontSize: FS.body }}>{p.descricao || "—"}</span> },
-        { id: "qtd", rotulo: "Qtd", alinhar: "direita", ordenavel: true, valor: (p) => p.quantidade },
-        { id: "status", rotulo: "Status", ordenavel: true, valor: (p) => rotuloDaEtapaNoPainel(p.etapa) },
-        { id: "fase", rotulo: "Fase atual", ordenavel: true, ocultarNoCelular: true, valor: (p) => FASES_DO_PAINEL[p.fase] ?? "—" },
-        { id: "prazo", rotulo: "Prazo da fase", ordenavel: true, valor: (p) => p.prazoFase,
-          render: (p) => <span style={{ color: p.diasAtraso > 0 ? TOM.perigo.text : undefined, fontWeight: p.diasAtraso > 0 ? FW.forte : undefined }}>{dma(p.prazoFase)}</span> },
-        { id: "atraso", rotulo: "Atraso (dias)", alinhar: "direita", ordenavel: true, valor: (p) => p.diasAtraso, render: (p) => <DiasDeAtraso dias={p.diasAtraso} /> },
-      ]}
-    />
   );
 }

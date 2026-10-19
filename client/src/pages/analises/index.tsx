@@ -15,6 +15,9 @@
 //
 // URL: ?aba=<aba>&sub=<realizado|projecao>&ev=<evento> (o evento aberto em
 // "Status por evento") — o recorte sobrevive ao F5 e a um link colado.
+// Pré-produção: &pre=calendario abre o submenu "Eventos × processo × prazo",
+// com o estado dele em cal_so_atr, cal_ev, cal_fase, cal_ord e cal_dir. O link
+// direto do pacote de referência, #pre-calendario, é aceito e vira query.
 //
 // Acesso: só admin (App.tsx e app-sidebar.tsx) — é a tela do gestor.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -28,22 +31,30 @@ import { EstadoErro, Esqueleto } from "@/components/ui/estados";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { T, TOM, FS, FW, R } from "@/lib/theme";
 import { fmt0 } from "./comum";
-import { ABAS_DO_PAINEL, type ContextoDoPainel, type IdDoPainel, type SubDaProducao } from "./contexto";
+import {
+  ABAS_DO_PAINEL, gravarCalendario, lerCalendario,
+  type ContextoDoPainel, type EstadoDoCalendario, type IdDoPainel, type SubDaPre, type SubDaProducao,
+} from "./contexto";
 import AbaGeral from "./abas/geral";
 import AbaProducao from "./abas/producao";
 import AbaPre from "./abas/pre";
 import AbaProblemas from "./abas/problemas";
 import AbaEvento from "./abas/evento";
 
-const URL_CHAVES = { aba: "aba", sub: "sub", ev: "ev" } as const;
+const URL_CHAVES = { aba: "aba", sub: "sub", ev: "ev", pre: "pre" } as const;
+/** O link direto do pacote de referência para o submenu novo da Pré-produção. */
+const HASH_DO_CALENDARIO = "#pre-calendario";
 
-function lerDaUrl(): { aba: IdDoPainel; sub: SubDaProducao; ev: string | null } {
+function lerDaUrl(): { aba: IdDoPainel; sub: SubDaProducao; ev: string | null; subPre: SubDaPre; calendario: EstadoDoCalendario } {
   const p = new URLSearchParams(window.location.search);
   const aba = p.get(URL_CHAVES.aba);
+  const peloHash = window.location.hash === HASH_DO_CALENDARIO;
   return {
-    aba: ABAS_DO_PAINEL.some((a) => a.id === aba) ? (aba as IdDoPainel) : "geral",
+    aba: peloHash ? "pre" : ABAS_DO_PAINEL.some((a) => a.id === aba) ? (aba as IdDoPainel) : "geral",
     sub: p.get(URL_CHAVES.sub) === "projecao" ? "projecao" : "realizado",
     ev: p.get(URL_CHAVES.ev) || null,
+    subPre: peloHash || p.get(URL_CHAVES.pre) === "calendario" ? "calendario" : "pendencias",
+    calendario: lerCalendario(p),
   };
 }
 
@@ -60,6 +71,9 @@ export default function Analises() {
   const [aba, setAba] = React.useState<IdDoPainel>(inicial.aba);
   const [sub, setSub] = React.useState<SubDaProducao>(inicial.sub);
   const [ev, setEv] = React.useState<string | null>(inicial.ev);
+  const [subPre, setSubPre] = React.useState<SubDaPre>(inicial.subPre);
+  const [calendario, setCalendario] = React.useState<EstadoDoCalendario>(inicial.calendario);
+  const mudarCalendario = React.useCallback((m: Partial<EstadoDoCalendario>) => setCalendario((c) => ({ ...c, ...m })), []);
   const raizRef = React.useRef<HTMLDivElement>(null);
 
   const q = useQuery<PainelOperacional>({ queryKey: [CHAVE_DA_BUSCA], ...FRESCOR, retry: 1 });
@@ -71,16 +85,26 @@ export default function Analises() {
       if (aba === "geral") p.delete(URL_CHAVES.aba); else p.set(URL_CHAVES.aba, aba);
       if (sub === "realizado") p.delete(URL_CHAVES.sub); else p.set(URL_CHAVES.sub, sub);
       if (!ev) p.delete(URL_CHAVES.ev); else p.set(URL_CHAVES.ev, ev);
+      if (subPre === "pendencias") p.delete(URL_CHAVES.pre); else p.set(URL_CHAVES.pre, subPre);
+      gravarCalendario(p, calendario);
       const qs = p.toString();
-      window.history.replaceState(window.history.state, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
+      // O #pre-calendario cumpriu o papel na abertura: daqui em diante a URL é a query.
+      const hash = window.location.hash === HASH_DO_CALENDARIO ? "" : window.location.hash;
+      window.history.replaceState(window.history.state, "", `${window.location.pathname}${qs ? `?${qs}` : ""}${hash}`);
     }, 150);
     return () => clearTimeout(t);
-  }, [aba, sub, ev]);
+  }, [aba, sub, ev, subPre, calendario]);
 
   React.useEffect(() => {
-    const onPop = () => { const f = lerDaUrl(); setAba(f.aba); setSub(f.sub); setEv(f.ev); };
+    const onPop = () => {
+      const f = lerDaUrl();
+      setAba(f.aba); setSub(f.sub); setEv(f.ev); setSubPre(f.subPre); setCalendario(f.calendario);
+    };
+    // Um link para #pre-calendario com a tela já aberta não recarrega a página.
+    const onHash = () => { if (window.location.hash === HASH_DO_CALENDARIO) { setAba("pre"); setSubPre("calendario"); } };
     window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
+    window.addEventListener("hashchange", onHash);
+    return () => { window.removeEventListener("popstate", onPop); window.removeEventListener("hashchange", onHash); };
   }, []);
 
   const irPara = React.useCallback((id: IdDoPainel) => {
@@ -92,7 +116,8 @@ export default function Analises() {
   const painel = q.data ?? null;
   const ctx: ContextoDoPainel | null = React.useMemo(() => painel && ({
     painel, isMobile, abrirEvento, eventoAberto: ev, sub, trocarSub: setSub,
-  }), [painel, isMobile, abrirEvento, ev, sub]);
+    subPre, trocarSubPre: setSubPre, calendario, mudarCalendario,
+  }), [painel, isMobile, abrirEvento, ev, sub, subPre, calendario, mudarCalendario]);
 
   const PADDING = isMobile ? "14px 14px 40px" : "24px 28px 56px";
   const frase = painel ? (
@@ -241,6 +266,7 @@ function ComoCalculamos() {
           {p("Planejado: o saldo de cada peça é distribuído igualmente pelos dias úteis (segunda a sábado) entre hoje — ou o dia seguinte ao prazo da revisão final, se a peça ainda está em pré-produção — e o prazo da produção gráfica. Se o prazo já venceu, todo o saldo vai para hoje como atrasado. Unidades = quantidade − reaproveitadas; m² = área do arquivo (ou a visual, sem arquivo) × unidades a imprimir — o reaproveitamento não entra.")}
           {p("Projeção do dia: carga = atrasados + programados para o dia − já produzidos para o dia. Programado = peças cujo prazo de produção gráfica cai no dia; atrasados = prazo anterior a hoje e o processo ainda não feito (datas futuras nunca entram como atrasadas). Impresso = Impresso/acabamento, Conferido, Embalado ou Entregue; acabado = Conferido, Embalado ou Entregue.")}
           {p("Pré-produção: a peça ainda passa por cada processo da fase em que está até a revisão final (a da Lista de imagens passa por todos; a isenta de aprovação pula a aprovação). O processo está atrasado quando o prazo dele, no evento da peça, é anterior a hoje.")}
+          {p("Eventos × processo × prazo: entram os eventos com data a partir de hoje que têm alguma fase com prazo nos próximos 15 dias (hoje + 14), a data do evento nessa janela ou alguma fase atrasada. Cada célula conta as peças que ainda precisam passar por aquela fase — a peça parada no layout conta no layout, na aprovação, na finalização e na revisão final (a isenta de aprovação pula a aprovação); na produção gráfica conta toda peça ainda não entregue, o mesmo número da tela de Prazos. Fase atrasada = prazo anterior a hoje com peça pendente.")}
           {p("Problemas: fura-fila = peça marcada como prioridade; refação/reprodução = complemento de peça (o motivo é o do pedido de complemento); reprovada = layout reprovado pelo patrocinador ou pela Solicitação; atrasada = prazo da fase atual anterior a hoje. Contam só as peças em aberto dos eventos ativos. Peças em rascunho, solicitadas ou aguardando vinculação contam em aberto, na fase Lista de imagens. BOOK COMPLETO e peças canceladas ficam de fora.")}
         </div>
       )}

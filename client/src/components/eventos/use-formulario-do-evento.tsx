@@ -14,6 +14,9 @@ import { DEFAULT_DEADLINES, MARCO_FIELDS } from "./constantes";
 import { toDateStr } from "./formatos";
 import { deslocamentoDeFimDeSemana, type RegraDeFimDeSemana } from "@shared/prazo-dates";
 import type { AcaoSobreEvento, EventoDaLista, FormularioDoEvento } from "./tipos";
+import {
+  useSaidaDePatrocinador, executarSaidas, fraseDasTrocas, type DecisoesDeSaida,
+} from "@/components/saida-de-patrocinador/use-saida-de-patrocinador";
 
 /** Vínculo como GET /api/events/:id/sponsors devolve (só o que o formulário lê). */
 type VinculoDoEvento = Pick<EventSponsor, "sponsorId" | "quota">;
@@ -58,6 +61,9 @@ export function useFormularioDoEvento({ sponsors, sponsorById, soPatrocinadores 
   const [openStartDate, setOpenStartDate] = useState(false);
   const [openTruckDate, setOpenTruckDate] = useState(false);
   const [openPrazoKey, setOpenPrazoKey] = useState<string | null>(null);
+  // Patrocinador que SAI do evento com peças: pergunta antes de gravar
+  // (trocar por outro ou só remover) — dono, 20/10, caso "Bradesco Seguros".
+  const saida = useSaidaDePatrocinador();
 
   // Quem estava marcado quando a lista apareceu. Só isto decide quem fica
   // no topo — ver o comentário longo na montagem da lista.
@@ -284,8 +290,9 @@ export function useFormularioDoEvento({ sponsors, sponsorById, soPatrocinadores 
   });
 
   const updateEventMutation = useMutation({
-    mutationFn: async ({ id, fd, soPatrocinadores: soVinculos = false }: { id: string; fd: FormularioDoEvento; soPatrocinadores?: boolean }) => {
+    mutationFn: async ({ id, fd, soPatrocinadores: soVinculos = false, decisoes = {} }: { id: string; fd: FormularioDoEvento; soPatrocinadores?: boolean; decisoes?: DecisoesDeSaida }) => {
       const failedSponsors: string[] = [];
+      let trocas: Awaited<ReturnType<typeof executarSaidas>>["trocas"] = [];
       try {
         // Só patrocinadores (Atendimento): o evento em si não é gravado.
         if (!soVinculos) await apiRequest("PATCH", `/api/events/${id}`, eventPayload(fd));
@@ -312,11 +319,11 @@ export function useFormularioDoEvento({ sponsors, sponsorById, soPatrocinadores 
 
         // Mesma razão do create: lotes de 5 em vez de um Promise.all com todas
         // as operações de vínculo de uma vez.
+        // ORDEM (20/10): primeiro entram os novos e as cotas; depois saem os
+        // removidos — as TROCAS antes das remoções (executarSaidas). Assim o
+        // destino de uma troca já está no evento com a cota escolhida aqui, e
+        // peça nenhuma fica vazia no meio do caminho.
         const operations: { run: () => Promise<unknown>; name: string }[] = [
-          ...toRemove.map((sponsorId: string) => ({
-            name: sponsorById.get(sponsorId)?.name || sponsorId,
-            run: () => apiRequest("DELETE", `/api/events/${id}/sponsors/${sponsorId}`),
-          })),
           ...toAdd.map((sponsorId: string) => ({
             name: sponsorById.get(sponsorId)?.name || sponsorId,
             run: () => apiRequest("POST", `/api/events/${id}/sponsors`, { sponsorId, quota: sponsorQuotaMap[sponsorId] || null }),
@@ -332,13 +339,20 @@ export function useFormularioDoEvento({ sponsors, sponsorById, soPatrocinadores 
             try { await op.run(); } catch { failedSponsors.push(op.name); }
           }, 5);
         }
+        if (toRemove.length > 0) {
+          const r = await executarSaidas(id, toRemove, decisoes, (sid) => sponsorById.get(sid)?.name || sid);
+          trocas = r.trocas;
+          failedSponsors.push(...r.falhas);
+        }
       } catch (error) {
         throw new Error(mensagemDoErro(error, "Erro ao atualizar evento e patrocinadores"));
       }
-      return { failedSponsors, soVinculos };
+      return { failedSponsors, soVinculos, trocas };
     },
-    onSuccess: ({ failedSponsors, soVinculos }, { fd }) => {
+    onSuccess: ({ failedSponsors, soVinculos, trocas }, { fd }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      // A troca mexe nas PEÇAS (marca, aprovação pendente): as listas relêem.
+      if (trocas.length > 0) queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       handleCloseDialog();
       // O NOME no toast: quem edita três eventos seguidos precisa saber qual
       // acabou de salvar, e "atualizado com sucesso" servia para qualquer um.
@@ -347,7 +361,9 @@ export function useFormularioDoEvento({ sponsors, sponsorById, soPatrocinadores 
         title: soVinculos ? "Patrocinadores atualizados" : "Evento atualizado",
         description: failedSponsors.length > 0
           ? `Não foi possível atualizar: ${failedSponsors.join(", ")}. Reabra o evento para revisar.`
-          : soVinculos ? `Patrocinadores e cotas de "${nomeSalvo}" salvos.` : `"${nomeSalvo}" salvo.`,
+          : trocas.length > 0
+            ? fraseDasTrocas(trocas)
+            : soVinculos ? `Patrocinadores e cotas de "${nomeSalvo}" salvos.` : `"${nomeSalvo}" salvo.`,
         // Evento salvo e só parte dos vínculos não: aviso, não falha — nada se perdeu.
         variant: failedSponsors.length > 0 ? "warning" : "success",
       });
@@ -366,6 +382,36 @@ export function useFormularioDoEvento({ sponsors, sponsorById, soPatrocinadores 
   const hasOrderIssue = orderIssues.some(Boolean);
   const customDeadlineCount = MARCO_FIELDS.filter((m) => Number(formData[m.field]) !== DEFAULT_DEADLINES[m.field]).length;
 
+  /**
+   * SALVAR A EDIÇÃO, perguntando antes sobre quem sai (dono, 20/10). Lê os
+   * vínculos de AGORA no servidor (outra aba pode ter mexido), e se algum
+   * patrocinador que sai tem peças, abre o diálogo: passar para outro ou só
+   * remover. Cancelar no diálogo volta ao formulário sem gravar nada. Se a
+   * conferência falhar, NÃO grava — sem ela, salvar poderia cancelar peças.
+   */
+  const salvarEdicao = async (id: string, fd: FormularioDoEvento, soVinculos: boolean) => {
+    let decisoes: DecisoesDeSaida | null;
+    try {
+      const res = await apiRequest("GET", `/api/events/${id}/sponsors`);
+      const atuais = (await res.json() as VinculoDoEvento[]).map((v) => v.sponsorId);
+      decisoes = await saida.perguntar({
+        eventId: id,
+        removidos: atuais.filter((sid) => !selectedSponsorIds.includes(sid)),
+        entrantes: selectedSponsorIds.filter((sid) => !atuais.includes(sid)),
+        doEvento: selectedSponsorIds,
+      });
+    } catch (error) {
+      toast({
+        title: "Não foi possível conferir as peças dos patrocinadores que saem",
+        description: `Nada foi salvo. ${mensagemDoErro(error, "Tente de novo.")}`,
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!decisoes) return;
+    updateEventMutation.mutate({ id, fd, soPatrocinadores: soVinculos, decisoes });
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -382,7 +428,7 @@ export function useFormularioDoEvento({ sponsors, sponsorById, soPatrocinadores 
         });
         return;
       }
-      updateEventMutation.mutate({ id: editingEvent.id, fd: formData, soPatrocinadores: true });
+      void salvarEdicao(editingEvent.id, formData, true);
       return;
     }
     if (!formData.startDate || !formData.truckDepartureDate) {
@@ -459,7 +505,7 @@ export function useFormularioDoEvento({ sponsors, sponsorById, soPatrocinadores 
     }
 
     if (editingEvent) {
-      updateEventMutation.mutate({ id: editingEvent.id, fd: formData });
+      void salvarEdicao(editingEvent.id, formData, false);
     } else {
       createEventMutation.mutate({
         fd: formData,
@@ -589,7 +635,7 @@ export function useFormularioDoEvento({ sponsors, sponsorById, soPatrocinadores 
   };
   const noStart = !truckDateOnly;
 
-  const submitPending = createEventMutation.isPending || updateEventMutation.isPending;
+  const submitPending = createEventMutation.isPending || updateEventMutation.isPending || saida.verificando;
 
   return {
     open, setOpen, formData, setFormData,
@@ -606,6 +652,7 @@ export function useFormularioDoEvento({ sponsors, sponsorById, soPatrocinadores 
     orderIssues, hasOrderIssue, customDeadlineCount,
     handleSubmit, handleEdit, handleDuplicate, fetchEventSponsors,
     truckDateOnly, offsetToDateStr, dateStrToOffset, noStart,
+    saida,
   };
 }
 

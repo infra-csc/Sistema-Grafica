@@ -14,6 +14,7 @@ import { SecaoDePrazos } from "./secao-de-prazos";
 import { EscolhaDePatrocinadores } from "./escolha-de-patrocinadores";
 import { PatrocinadoresDoUmmense } from "./patrocinadores-do-ummense";
 import { DialogoDeDescarte } from "./dialogo-de-descarte";
+import { DialogoDeSaida } from "@/components/saida-de-patrocinador/dialogo-de-saida";
 import { readEventStats } from "./regras";
 import type { FormularioDoEventoAberto } from "./use-formulario-do-evento";
 import { ROTULO_DO_CAMPO, CAMPO, saidaDepoisDoInicio } from "./campos-de-data";
@@ -289,6 +290,8 @@ export function ModalDoEvento({ form, isMobile, dedo, sponsors, sponsorsQueryLoa
       </Dialog>
 
       <DialogoDeDescarte form={form} isMobile={isMobile} />
+      {/* Patrocinador que sai com peças: passar para outro ou só remover (20/10). */}
+      <DialogoDeSaida saida={form.saida} sponsors={sponsors} isMobile={isMobile} />
     </>
   );
 }

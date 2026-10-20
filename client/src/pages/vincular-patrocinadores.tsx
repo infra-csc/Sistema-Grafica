@@ -26,6 +26,7 @@ import { BarraDeLote } from "@/components/vinculacao/barra-de-lote";
 import { ModalReferenciaVisual } from "@/components/vinculacao/modal-referencia-visual";
 import { ModalAutoVinculo } from "@/components/vinculacao/modal-auto-vinculo";
 import { ModalPatrocinadoresDoEvento } from "@/components/vinculacao/modal-patrocinadores-do-evento";
+import { DialogoDeSaida } from "@/components/saida-de-patrocinador/dialogo-de-saida";
 import { ModalAcrescentar } from "@/components/vinculacao/modal-acrescentar";
 import { ModalAplicarEmLote } from "@/components/vinculacao/modal-aplicar-em-lote";
 import { ModalResultadoDoLote } from "@/components/vinculacao/modal-resultado-do-lote";
@@ -337,10 +338,12 @@ function TelaDaVinculacao({ emCartoes, isMobile }: { emCartoes: boolean; isMobil
         setSelectedSponsorIds={a.setSelectedSponsorIds}
         sponsors={v.sponsors}
         handleSaveEventSponsors={a.handleSaveEventSponsors}
-        salvando={a.manageEventSponsorsMutation.isPending}
+        salvando={a.manageEventSponsorsMutation.isPending || a.saida.verificando}
         dedo={dedo}
         isMobile={isMobile}
       />
+      {/* Quem sai do evento com peças: passar para outro ou só remover (20/10). */}
+      <DialogoDeSaida saida={a.saida} sponsors={v.sponsors} isMobile={isMobile} />
 
       <ModalAcrescentar
         acrescentarAberto={a.acrescentarAberto}

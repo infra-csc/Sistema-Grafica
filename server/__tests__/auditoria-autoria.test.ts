@@ -121,7 +121,9 @@ describe("toda rota de escrita de peça/evento deixa rastro", () => {
         // para a Gráfica grava a trilha de cada peça na mesma transação.
         // excluirPecaParaALixeira (itens/exclusao.ts, 19/10): o miolo do DELETE,
         // compartilhado com o desfazer da clonagem — grava a trilha da peça.
-        .filter(r => !/createAuditLog(sEmLote)?\(|insert\(auditLogs\)|lancarImpressas\(|criarComplemento\(|desfazerComplemento\(|gravarEnviosDiretos\(|excluirPecaParaALixeira\(/.test(r.corpo))
+        // trocarPatrocinadorDoEvento (services/troca-de-patrocinador.ts, 20/10):
+        // a troca grava a trilha de cada peça e o resumo do evento na transação.
+        .filter(r => !/createAuditLog(sEmLote)?\(|insert\(auditLogs\)|lancarImpressas\(|criarComplemento\(|desfazerComplemento\(|gravarEnviosDiretos\(|excluirPecaParaALixeira\(|trocarPatrocinadorDoEvento\(/.test(r.corpo))
         .map(r => `${r.verbo} ${r.caminho}`)
         .filter(chave => !(chave in SEM_AUDITORIA_POR_DESENHO));
       expect(semRastro).toEqual([]);

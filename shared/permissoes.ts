@@ -79,6 +79,9 @@ export const REGUA_DE_PAPEIS: RegraDeRota[] = [
   { metodo: "POST", rota: "/api/events/:eventId/tubos", papeis: ["admin", "grafica", "solicitacao"] },
   { metodo: "DELETE", rota: "/api/events/:eventId/sponsors/:sponsorId", papeis: ["admin", "arte", "atendimento", "solicitacao"] },
   { metodo: "PATCH", rota: "/api/events/:eventId/sponsors/:sponsorId", papeis: ["admin", "arte", "atendimento", "solicitacao"] },
+  // Trocar o patrocinador do evento sem cancelar peças (dono, 20/10): os
+  // mesmos papéis que tiram patrocinador do evento (o DELETE acima).
+  { metodo: "POST", rota: "/api/events/:id/sponsors/trocar", papeis: ["admin", "arte", "atendimento", "solicitacao"] },
   { metodo: "DELETE", rota: "/api/events/:id", papeis: ["admin"] },
   // Guardas no formato `if (![...].includes(req.userRole))`, que a régua só
   // passou a ler em 22/09 — já existiam, apareciam como "qualquer logado".

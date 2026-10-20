@@ -19,6 +19,9 @@ import type { Vinculacao } from "./use-vinculacao";
 import { useEnvioParaArte } from "./use-envio-para-arte";
 import { useAutoVinculo } from "./use-auto-vinculo";
 import { useAcrescentar } from "./use-acrescentar";
+import {
+  useSaidaDePatrocinador, executarSaidas, fraseDasTrocas, type DecisoesDeSaida,
+} from "@/components/saida-de-patrocinador/use-saida-de-patrocinador";
 import type {
   EventoDaVinculacao, FalhaDaPeca, FotoDoSalvamento, ItemChanges, PecaDaVinculacao, ResultadoDoLote,
   RespostaDoAplicarSugestoes, ResultadoDoSalvamento, SavePayload,
@@ -37,6 +40,8 @@ export function useAcoesDaVinculacao(v: Vinculacao) {
   const [selectedSponsorIds, setSelectedSponsorIds] = useState<string[]>([]);
   const [sponsorDialogOpen, setSponsorDialogOpen] = useState(false);
   const [sponsorModalSearch, setSponsorModalSearch] = useState('');
+  // Quem sai do evento com peças: passar para outro ou só remover (dono, 20/10).
+  const saida = useSaidaDePatrocinador();
 
   const [bulkApplyDialogOpen, setBulkApplyDialogOpen] = useState(false);
   const [bulkSelectedSponsors, setBulkSelectedSponsors] = useState<string[]>([]);
@@ -106,21 +111,24 @@ export function useAcoesDaVinculacao(v: Vinculacao) {
 
   // Mutation para gerenciar patrocinadores do evento
   const manageEventSponsorsMutation = useMutation({
-    mutationFn: async ({ eventId, currentSponsors, newSponsors }: {
+    mutationFn: async ({ eventId, currentSponsors, newSponsors, decisoes = {} }: {
       eventId: string,
       currentSponsors: string[],
-      newSponsors: string[]
+      newSponsors: string[],
+      decisoes?: DecisoesDeSaida,
     }) => {
       const toAdd = newSponsors.filter(id => !currentSponsors.includes(id));
       const toRemove = currentSponsors.filter(id => !newSponsors.includes(id));
 
-      // Adiciona e remove em paralelo.
-      await Promise.all([
-        ...toAdd.map(sponsorId => apiRequest("POST", `/api/events/${eventId}/sponsors`, { sponsorId })),
-        ...toRemove.map(sponsorId => apiRequest("DELETE", `/api/events/${eventId}/sponsors/${sponsorId}`)),
-      ]);
+      // Primeiro entram os novos; depois saem os removidos — as TROCAS antes
+      // das remoções (executarSaidas), para nenhuma peça ficar vazia no meio.
+      await Promise.all(toAdd.map(sponsorId => apiRequest("POST", `/api/events/${eventId}/sponsors`, { sponsorId })));
+      const nome = (id: string) => sponsors.find(s => s.id === id)?.name || id;
+      const { trocas, falhas } = await executarSaidas(eventId, toRemove, decisoes, nome);
+      if (falhas.length > 0) throw new Error(`Não foi possível tirar do evento: ${falhas.join(", ")}.`);
+      return { trocas };
     },
-    onSuccess: async () => {
+    onSuccess: async ({ trocas }) => {
       // Invalidar e fazer refetch forçado
       queryClient.removeQueries({ queryKey: ["/api/events"] });
       await queryClient.refetchQueries({ queryKey: ["/api/events"], type: 'active' });
@@ -128,9 +136,10 @@ export function useAcoesDaVinculacao(v: Vinculacao) {
       queryClient.invalidateQueries({ queryKey: ["/api/sponsors"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setSponsorDialogOpen(false);
+      if (trocas.length > 0) queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       toast({
         title: "Patrocinadores do evento atualizados",
-        description: "Só eles aparecem como opção nas peças deste evento.",
+        description: trocas.length > 0 ? fraseDasTrocas(trocas) : "Só eles aparecem como opção nas peças deste evento.",
         variant: "success",
       });
     },
@@ -291,16 +300,30 @@ export function useAcoesDaVinculacao(v: Vinculacao) {
     setSponsorDialogOpen(true);
   };
 
-  const handleSaveEventSponsors = () => {
+  // Antes de gravar, quem sai COM PEÇAS pergunta: passar para outro ou só
+  // remover (dono, 20/10). Cancelar no diálogo volta ao modal sem gravar.
+  const handleSaveEventSponsors = async () => {
     if (!selectedEventForSponsors) return;
-
-    const currentSponsors = getEventSponsors(selectedEventForSponsors.id).map(s => s.id);
-
-    manageEventSponsorsMutation.mutate({
-      eventId: selectedEventForSponsors.id,
-      currentSponsors,
-      newSponsors: selectedSponsorIds,
-    });
+    const eventId = selectedEventForSponsors.id;
+    const currentSponsors = getEventSponsors(eventId).map(s => s.id);
+    let decisoes: DecisoesDeSaida | null;
+    try {
+      decisoes = await saida.perguntar({
+        eventId,
+        removidos: currentSponsors.filter(id => !selectedSponsorIds.includes(id)),
+        entrantes: selectedSponsorIds.filter(id => !currentSponsors.includes(id)),
+        doEvento: selectedSponsorIds,
+      });
+    } catch (error) {
+      toast({
+        title: "Não foi possível conferir as peças dos patrocinadores que saem",
+        description: `Nada foi salvo. ${(error as Error)?.message || "Tente de novo."}`,
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!decisoes) return;
+    manageEventSponsorsMutation.mutate({ eventId, currentSponsors, newSponsors: selectedSponsorIds, decisoes });
   };
 
   // Funções para seleção em lote
@@ -636,7 +659,7 @@ export function useAcoesDaVinculacao(v: Vinculacao) {
     toggleAllItemsInEvent, toggleTypeGroup, vincularRestantes, handleOpenBulkApplyDialog,
     salvarRascunhosVisiveis, salvarSelecionadas,
     // mutações (o que a tela lê delas: pendente e variáveis)
-    saveLinkingMutation, manageEventSponsorsMutation,
+    saveLinkingMutation, manageEventSponsorsMutation, saida,
     // referência visual
     previewRefUrl, refImgFailed, setRefImgFailed,
     // patrocinadores do evento

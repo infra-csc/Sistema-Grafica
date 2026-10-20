@@ -1,8 +1,9 @@
 // Sponsor, quota-rule, event-sponsor, and item-sponsor routes. Extracted from server/routes.ts.
 import type { Express } from "express";
 import { storage } from "../storage";
-import { pool } from "../db";
-import { insertSponsorSchema, insertEventSponsorSchema, insertItemSponsorSchema } from "@shared/schema";
+import { db, pool } from "../db";
+import { and, eq, inArray, isNull } from "drizzle-orm";
+import { insertSponsorSchema, insertEventSponsorSchema, insertItemSponsorSchema, items as itemsTable, itemSponsors as itemSponsorsTable } from "@shared/schema";
 import {
   requireAuth,
   requireAdmin,
@@ -12,6 +13,7 @@ import {
   createAuditLog,
   updateEventStatus,
   sendSensitiveError,
+  resolveActor,
 } from "./shared";
 // A guarda de evento finalizado mora em ./items porque é lá que o predicado
 // compartilhado (@shared/prazo-dates) já estava embrulhado nas frases de erro
@@ -28,6 +30,8 @@ import { ERRO_PATROCINADOR_NA_PRODUCAO_INTERNA, CODIGO_COM_PATROCINADOR } from "
 import { responderFalha } from "../erros";
 import { vemDeOrigemValida } from "@shared/maquina-de-estados";
 import { invalidarPadroesDeVinculo } from "../services/sugestao-de-vinculo";
+import { trocarPatrocinadorDoEvento } from "../services/troca-de-patrocinador";
+import type { PecaNaSaida } from "@shared/troca-de-patrocinador";
 
 /** Molde não tem patrocinador (revisão 22/09): não passa por Vincular nem por aprovação. */
 const ERRO_PATROCINADOR_EM_MOLDE = "Molde não recebe patrocinador — ele não passa por Vincular Patrocinadores nem por aprovação";
@@ -646,6 +650,97 @@ export function registerSponsorRoutes(app: Express): void {
       });
     } catch (error: any) {
       responderFalha(res, error, "DELETE /api/events/:eventId/sponsors/:sponsorId");
+    }
+  });
+
+  // ── AS PEÇAS DE QUEM ESTÁ SAINDO (dono, 20/10) ────────────────────────────
+  // Antes de tirar patrocinador do evento, a tela pergunta "passar as peças
+  // para o novo?" — e precisa saber QUANTAS peças são, quantas só têm ele (e
+  // seriam canceladas no "Só remover") e quantas estão em aprovação. Devolve
+  // as peças vivas do evento que têm algum dos `ids`, com TODOS os
+  // patrocinadores de cada uma: a conta (shared/troca-de-patrocinador) é
+  // feita na tela, porque ela muda conforme as decisões dos outros que saem.
+  app.get("/api/events/:id/sponsors/pecas", requireAuth, async (req, res) => {
+    try {
+      const ids = String(req.query.ids ?? "").split(",").map((s) => s.trim()).filter(Boolean).slice(0, 100);
+      if (ids.length === 0) return res.json({ pecas: [] });
+      const comAlgum = await db
+        .selectDistinct({ id: itemsTable.id, displayId: itemsTable.displayId, type: itemsTable.type, status: itemsTable.status })
+        .from(itemSponsorsTable)
+        .innerJoin(itemsTable, eq(itemsTable.id, itemSponsorsTable.itemId))
+        .where(and(eq(itemsTable.eventId, req.params.id), isNull(itemsTable.deletedAt), inArray(itemSponsorsTable.sponsorId, ids)));
+      const todos = comAlgum.length === 0 ? [] : await db
+        .select({ itemId: itemSponsorsTable.itemId, sponsorId: itemSponsorsTable.sponsorId })
+        .from(itemSponsorsTable)
+        .where(inArray(itemSponsorsTable.itemId, comAlgum.map((p) => p.id)));
+      const porPeca = new Map<string, string[]>();
+      for (const v of todos) (porPeca.get(v.itemId) ?? porPeca.set(v.itemId, []).get(v.itemId)!).push(v.sponsorId);
+      const pecas: PecaNaSaida[] = comAlgum.map((p) => ({ ...p, sponsorIds: porPeca.get(p.id) ?? [] }));
+      res.json({ pecas });
+    } catch (error: any) {
+      responderFalha(res, error, "GET /api/events/:id/sponsors/pecas");
+    }
+  });
+
+  // ── TROCAR O PATROCINADOR DO EVENTO SEM CANCELAR PEÇAS (dono, 20/10) ──────
+  // O caso: "Longevidade Bradesco - Manaus" (16/10). Criaram "Bradesco
+  // Seguros", vincularam e, na mesma edição, tiraram "Bradesco" — o DELETE
+  // acima cancelou as 13 peças que só tinham ele. A intenção era trocar.
+  //
+  // Esta rota passa as peças do antigo para o novo numa transação só (a regra
+  // de cada peça mora em shared/troca-de-patrocinador.ts → faseNaTroca, e a
+  // escrita em services/troca-de-patrocinador.ts). Mesmos papéis do DELETE.
+  //
+  // IDEMPOTENTE: repetir (clique duplo, nova tentativa depois de timeout)
+  // depois da troca feita não muda nada — o antigo já não está no evento nem
+  // nas peças, e a resposta diz "nada a trocar".
+  app.post("/api/events/:id/sponsors/trocar", requireLinkingWrite, async (req, res) => {
+    try {
+      const eventId = req.params.id;
+      const de = typeof req.body?.de === "string" ? req.body.de.trim() : "";
+      const para = typeof req.body?.para === "string" ? req.body.para.trim() : "";
+      if (!de || !para) return res.status(400).json({ error: "Diga de qual patrocinador e para qual as peças passam." });
+      if (de === para) return res.status(400).json({ error: "O patrocinador de destino é o mesmo que está saindo — escolha outro." });
+
+      const event = await storage.getEvent(eventId);
+      if (!event) return res.status(404).json({ error: "Evento não encontrado" });
+      // ANDA: mexe em peça (vínculo, aprovação pendente) — a mesma guarda do
+      // DELETE com cascata. Evento arquivado também cai aqui.
+      if (await barraEventoFinalizado({ eventId }, res)) return;
+
+      const [sponsorDe, sponsorPara] = await Promise.all([storage.getSponsor(de), storage.getSponsor(para)]);
+      if (!sponsorDe) return res.status(404).json({ error: "O patrocinador que está saindo não foi encontrado — recarregue a tela." });
+      if (!sponsorPara) return res.status(404).json({ error: "O patrocinador de destino não foi encontrado — recarregue a tela." });
+      // O novo não pode estar arquivado: seria vínculo NOVO com quem saiu das listas.
+      if (barraSeArquivado(sponsorPara, res, PATROCINADOR_ARQUIVADO_ERRO)) return;
+
+      const { resultado, itensAlterados, notificacoes, vinculoCriado } = await trocarPatrocinadorDoEvento({
+        eventId,
+        eventName: event.name,
+        de: { id: sponsorDe.id, name: sponsorDe.name },
+        para: { id: sponsorPara.id, name: sponsorPara.name },
+        ator: resolveActor(req),
+      });
+
+      // Depois do COMMIT: os mesmos avisos que vínculo e desvínculo já mandam,
+      // para as outras telas (Vincular, Atendimento, Versões, Eventos) verem.
+      if (resultado.pecas > 0) {
+        invalidarCacheDeVersoes();
+        invalidarPadroesDeVinculo();
+      }
+      for (const item of itensAlterados) {
+        broadcast({ type: "item_sponsor_removed", itemId: item.id, sponsorId: de });
+        if (!ehMolde(item) && !item.producaoInterna) broadcast({ type: "item_sponsor_added", itemSponsor: { itemId: item.id, sponsorId: para } });
+        broadcast({ type: "item_updated", item });
+      }
+      if (vinculoCriado) broadcast({ type: "event_sponsor_added", eventId, sponsorId: para });
+      else broadcast({ type: "event_sponsor_updated", eventId, sponsorId: para, quota: resultado.cotaHerdada });
+      broadcast({ type: "event_sponsor_removed", eventId, sponsorId: de });
+      for (const notification of notificacoes) broadcast({ type: "notification_created", notification });
+
+      res.json(resultado);
+    } catch (error: any) {
+      responderFalha(res, error, "POST /api/events/:id/sponsors/trocar");
     }
   });
 

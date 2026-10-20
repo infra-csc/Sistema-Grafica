@@ -50,7 +50,8 @@ describe("tabela ↔ código, sem sobras de nenhum lado", () => {
   // 124 desde 16/10: entra o PATCH /api/items/:id/origem-reaproveitamento.
   // 125 desde 16/10: entra o POST /api/items/:id/reabrir-para-revisao (ADM).
   // 127 desde 19/10: auditoria do book — reauditar (admin) e marcar achado (Solicitação/admin).
-  it("são as 127 — o número que o diagnóstico mediu; mudou, atualize os dois", () => {
+  // 128 desde 20/10: POST /api/events/:id/sponsors/trocar (troca sem cancelar peças).
+  it("são as 128 — o número que o diagnóstico mediu; mudou, atualize os dois", () => {
     // 96 = as 78 do diagnóstico + o descancelar do admin (01/09)
     //    + iniciar impressão da Gráfica (14/09)
     //    + reservar e liberar peça do estoque (14/09)
@@ -76,8 +77,9 @@ describe("tabela ↔ código, sem sobras de nenhum lado", () => {
     //    + ADM reabre a peça entregue para a Revisão (13/10).
     //    + trocar a origem do reaproveitamento (16/10).
     //    + auditar o book de novo e marcar achado da auditoria (19/10).
-    expect(REGUA_DE_PAPEIS.length).toBe(127);
-    expect(doCodigo.length).toBe(127);
+    //    + trocar o patrocinador do evento sem cancelar peças (20/10).
+    expect(REGUA_DE_PAPEIS.length).toBe(128);
+    expect(doCodigo.length).toBe(128);
   });
 });
 

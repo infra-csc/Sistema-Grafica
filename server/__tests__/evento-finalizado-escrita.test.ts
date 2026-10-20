@@ -334,6 +334,9 @@ const BARRADAS: Caso[] = [
   { chave: "POST /api/items/send-to-arte", body: { itemIds: ["it-1"] }, estado: { status: "awaiting_linking" } },
   { chave: "POST /api/items/:id/sponsors", params: { id: "it-1" }, body: { sponsorId: "sp-1" } },
   { chave: "DELETE /api/items/:itemId/sponsors/:sponsorId", params: { itemId: "it-1", sponsorId: "sp-1" } },
+  // Trocar o patrocinador do evento (20/10): passa as peças de um para o outro
+  // e abre aprovação pendente — faz o trabalho andar como o desvínculo.
+  { chave: "POST /api/events/:id/sponsors/trocar", params: { id: "ev-1" }, body: { de: "sp-1", para: "sp-2" } },
 
   // ── Envio em lote de rascunhos (server/routes/events.ts) ─────────────────
   // A ÚNICA escrita de peça deste arquivo — o commit que barrou as outras 39

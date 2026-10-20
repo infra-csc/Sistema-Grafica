@@ -860,17 +860,22 @@ export function pecasDaPendencia(
 //
 // A grade "evento × fase": em cada célula, o prazo da fase (o MESMO da Gestão
 // de Prazos — `EventoDoPainel.fases`, que vem de buildEventPrazo, inclusive a
-// Produção Gráfica seg–sáb) e as peças que ainda precisam passar por ela.
+// Produção Gráfica seg–sáb) e as peças que estão NELA agora.
 //
-// A CONTAGEM AQUI É CUMULATIVA, e é diferente da tabela "Pendências de
-// pré-produção" (que conta cada peça uma vez, onde ela está agora):
-//   · fases 1–4 (layout, aprovação, finalização, revisão final): a peça cuja
-//     fase atual é ≤ N e que ainda não passou por N — `passosPendentes`, a
-//     mesma lista de processos do planejado (a isenta de aprovação não conta
-//     na fase 2; a da Lista de imagens passa por todas);
-//   · fase 5 (Produção gráfica): toda peça do evento ainda não entregue — o
-//     mesmo número que a Gestão de Prazos mostra na etapa (pendingCount).
-// Fase atrasada = prazo < hoje com peça pendente. Dias de atraso = hoje − prazo.
+// CADA PEÇA CONTA UMA VEZ, na fase em que está agora (dono, 20/10: "o registro
+// tá aparecendo em todas as colunas" — antes a contagem era cumulativa e a
+// mesma peça parada no layout se repetia em aprovação, finalização, revisão e
+// produção). É a mesma regra da tabela "Pendências de pré-produção":
+//   · fases 1–4 (layout, aprovação, finalização, revisão final): a peça cujo
+//     processo atual (`passoAtual`) é N — a da Lista de imagens conta no
+//     layout; a isenta de aprovação nunca conta na fase 2;
+//   · fase 5 (Produção gráfica): a peça já liberada para a gráfica e ainda
+//     não entregue.
+// As cinco colunas somadas dão as peças não entregues do evento (o pendingCount
+// da Produção Gráfica na Gestão de Prazos, que lá é acumulado).
+// Fase atrasada = prazo < hoje com peça NELA agora — a peça atrasada no layout
+// não pinta as fases seguintes. Sem peça na fase, mas com peças em fases
+// anteriores = "aguardando". Dias de atraso = hoje − prazo.
 
 /** As cinco colunas de fase (N = índice da fase em `EventoDoPainel.fases`). */
 export const FASES_DO_CALENDARIO: ReadonlyArray<{ n: 1 | 2 | 3 | 4 | 5; nome: string }> = [
@@ -888,17 +893,23 @@ export const COLUNAS_DO_CALENDARIO: ReadonlyArray<ColunaDoCalendario> = ["evento
 export interface OrdemDoCalendario { coluna: ColunaDoCalendario; direcao: "asc" | "desc" }
 
 /**
- * atrasada = prazo vencido com peça pendente · proxima = vence nos próximos 15
- * dias, com pendência · depois = vence depois disso, com pendência · concluida
- * = nenhuma peça pendente · semPrazo = a fase não tem data.
+ * atrasada = prazo vencido com peça nesta fase agora · proxima = vence nos
+ * próximos 15 dias, com peça nesta fase · depois = vence depois disso, com
+ * peça nesta fase · concluida
+ * = nenhuma peça nesta fase nem antes dela · aguardando = nenhuma peça aqui
+ * agora, mas há peças em fases anteriores que ainda vão chegar · semPrazo = a
+ * fase não tem data.
  */
-export type SituacaoNoCalendario = "atrasada" | "proxima" | "depois" | "concluida" | "semPrazo";
+export type SituacaoNoCalendario = "atrasada" | "proxima" | "depois" | "aguardando" | "concluida" | "semPrazo";
 
 export interface CelulaDoCalendario {
   n: number;
   nome: string;
   prazo: string | null;
+  /** Peças que estão AGORA nesta fase (cada peça conta uma vez). */
   pendentes: number;
+  /** Peças ainda em fases anteriores (vão chegar aqui; não contam na célula). */
+  aCaminho: number;
   situacao: SituacaoNoCalendario;
   diasAtraso: number;
 }
@@ -925,13 +936,29 @@ export interface EventosProcessoPrazo {
   comAtraso: number;
 }
 
-/** A peça ainda precisa passar pela fase N? (1–4 pré-produção; 5 = não entregue.) */
+/**
+ * A peça está AGORA na fase N? Cada peça conta UMA vez, na fase em que está
+ * (dono, 20/10: "o registro tá aparecendo em todas as colunas" — a contagem
+ * cumulativa da spec repetia a mesma peça atrasada no layout em aprovação,
+ * finalização, revisão e produção). 1–4 = passo atual da pré-produção;
+ * 5 = liberada para a gráfica e ainda não entregue.
+ */
 export function pendeNaFase(p: Pick<PecaDaLinha, "fase" | "semAprovacao">, n: number): boolean {
-  if (n === FASE_PRODUCAO) return p.fase < FASE_ENTREGUE;
-  return passosPendentes(p.fase, p.semAprovacao).includes(n);
+  if (n === FASE_PRODUCAO) return p.fase === FASE_PRODUCAO;
+  return passoAtual(p.fase, p.semAprovacao) === n;
 }
 
-/** As peças por trás de uma célula: as do evento que ainda precisam passar pela fase N. */
+/** A peça ainda está ANTES da fase N (vai chegar nela)? Não conta na célula. */
+export function antesDaFase(p: Pick<PecaDaLinha, "fase" | "semAprovacao">, n: number): boolean {
+  if (p.fase >= FASE_ENTREGUE) return false;
+  if (n === FASE_PRODUCAO) return p.fase < FASE_PRODUCAO;
+  // A isenta de aprovação nunca vai passar pela 2: não está "a caminho" dela.
+  if (n === 2 && p.semAprovacao) return false;
+  const atual = passoAtual(p.fase, p.semAprovacao);
+  return atual != null && atual < n;
+}
+
+/** As peças por trás de uma célula: as do evento que estão agora na fase N. */
 export function pecasDaFaseDoEvento(painel: Pick<PainelOperacional, "pecas">, evento: string, n: number): PecaDaLinha[] {
   return painel.pecas.filter((p) => p.evento === evento && pendeNaFase(p, n));
 }
@@ -986,11 +1013,12 @@ export function eventosProcessoPrazo(
     const fases = FASES_DO_CALENDARIO.map(({ n, nome }): CelulaDoCalendario => {
       const prazo = evento.fases[n]?.prazo || null;
       const pendentes = pcs.filter((p) => pendeNaFase(p, n)).length;
+      const aCaminho = pcs.filter((p) => antesDaFase(p, n)).length;
       const situacao: SituacaoNoCalendario = !prazo ? "semPrazo"
-        : pendentes === 0 ? "concluida"
+        : pendentes === 0 ? (aCaminho > 0 ? "aguardando" : "concluida")
           : prazo < hoje ? "atrasada"
             : prazo <= fim ? "proxima" : "depois";
-      return { n, nome, prazo, pendentes, situacao, diasAtraso: situacao === "atrasada" ? diasEntre(hoje, prazo!) : 0 };
+      return { n, nome, prazo, pendentes, aCaminho, situacao, diasAtraso: situacao === "atrasada" ? diasEntre(hoje, prazo!) : 0 };
     });
     const fasesAtrasadas = fases.filter((f) => f.situacao === "atrasada").length;
     if (fasesAtrasadas === 0 && !fases.some((f) => naJanela(f.prazo)) && !naJanela(evento.dataEvento)) continue;

@@ -4,14 +4,19 @@
 // pecasDaFaseDoEvento, ordenarCalendario), na especificação do pacote do dono:
 //   · só eventos com data ≥ hoje; desses, os com fase na janela (hoje..hoje+14),
 //     data do evento na janela ou fase atrasada;
-//   · pendentes CUMULATIVOS por fase (1–4: fase atual ≤ N e ainda não passou
-//     por N; a isenta de aprovação não conta na 2; 5: toda peça não entregue);
-//   · cores/atraso; ordenação com empates e prazos vazios no fim;
-//   · critério 4: a Produção gráfica bate com a Gestão de Prazos (mesma fonte).
+//   · cada peça conta UMA vez, na fase em que está agora (dono, 20/10: "o
+//     registro tá aparecendo em todas as colunas"): 1–4 = processo atual (a
+//     isenta de aprovação nunca na 2); 5 = liberada p/ a gráfica e não entregue;
+//     é a mesma regra da tabela "Pendências de pré-produção";
+//   · cores/atraso: a peça atrasada no layout não pinta as fases seguintes;
+//     "aguardando" (nada na fase, peças antes) × "concluida" (nada nem antes);
+//   · ordenação com empates e prazos vazios no fim;
+//   · critério 4: prazos = Gestão de Prazos; produção = peças cobradas na etapa
+//     (directCount); as cinco colunas somam as não entregues (pendingCount).
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import {
-  eventosProcessoPrazo, pendeNaFase, pecasDaFaseDoEvento, ordenarCalendario, montarPainelOperacional, somarDias,
+  eventosProcessoPrazo, pendeNaFase, antesDaFase, pecasDaFaseDoEvento, ordenarCalendario, montarPainelOperacional, somarDias,
   pendenciasPorEvento,
   type EventoDoPainel, type PecaDaLinha, type PecaDoPainel, type PainelOperacional,
 } from "@shared/painel-operacional";
@@ -84,33 +89,51 @@ describe("Eventos × processo × prazo — quais eventos entram", () => {
   });
 });
 
-describe("Eventos × processo × prazo — peças pendentes por fase (cumulativo)", () => {
+describe("Eventos × processo × prazo — cada peça conta uma vez, na fase em que está agora", () => {
   const ev = evento("e", d(10), [d(-5), d(-2), d(3), d(8), d(20)]);
   const pecas = [
-    peca("e", 0), // Lista de imagens: passa por todas
-    peca("e", 1), peca("e", 1, { semAprovacao: true }), // a isenta pula a aprovação
+    peca("e", 0), // Lista de imagens: conta no layout (o primeiro processo dela)
+    peca("e", 1), peca("e", 1, { semAprovacao: true }), // isenta parada no layout: só no layout
     peca("e", 0, { semAprovacao: true }),
-    peca("e", 2), peca("e", 3), peca("e", 4),
-    peca("e", 5), // produção: só na fase 5
+    peca("e", 2), // na aprovação
+    peca("e", 2, { semAprovacao: true }), // isenta "na aprovação": o processo dela é a finalização
+    peca("e", 3), peca("e", 4),
+    peca("e", 5), // liberada para a gráfica: só na produção
     peca("e", 6), // entregue: em nenhuma
     peca("outro", 1), // outro evento
   ];
   const l = eventosProcessoPrazo(painelDe([ev], pecas)).linhas[0];
   const pend = l.fases.map((f) => f.pendentes);
 
-  it("fases 1–4: fase atual ≤ N e ainda não passou por N; a isenta de aprovação não conta na 2", () => {
-    // f1: 0, 1, 1s, 0s = 4 · f2: 0, 1, 2 = 3 (as duas isentas fora) · f3: 0,1,1s,0s,2,3 = 6 · f4: + 4 = 7
-    expect(pend.slice(0, 4)).toEqual([4, 3, 6, 7]);
+  it("a peça parada no layout aparece só no layout (não se repete nas colunas seguintes)", () => {
+    // f1: 0, 1, 1s, 0s = 4 · f2: 2 = 1 · f3: 2s, 3 = 2 · f4: 4 = 1 · f5: 5 = 1
+    expect(pend).toEqual([4, 1, 2, 1, 1]);
+    const so = eventosProcessoPrazo(painelDe([ev], [peca("e", 1)])).linhas[0];
+    expect(so.fases.map((f) => f.pendentes)).toEqual([1, 0, 0, 0, 0]);
+    for (const n of [1, 2, 3, 4, 5]) expect(pendeNaFase({ fase: 1, semAprovacao: false }, n), `f${n}`).toBe(n === 1);
   });
-  it("fase 5 (produção gráfica): toda peça do evento ainda não entregue", () => {
-    expect(pend[4]).toBe(8);
+  it("a isenta de aprovação nunca conta na fase 2", () => {
+    expect(pecasDaFaseDoEvento({ pecas }, "e", 2).some((p) => p.semAprovacao)).toBe(false);
+    for (const fase of [0, 1, 2, 3, 4, 5, 6]) expect(pendeNaFase({ fase, semAprovacao: true }, 2), `fase ${fase}`).toBe(false);
+    expect(pendeNaFase({ fase: 2, semAprovacao: true }, 3)).toBe(true);
+  });
+  it("fase 5 (produção gráfica): só as liberadas para a gráfica e ainda não entregues", () => {
+    expect(pend[4]).toBe(1);
+    expect(pendeNaFase({ fase: 5, semAprovacao: false }, 5)).toBe(true);
     expect(pendeNaFase({ fase: 6, semAprovacao: false }, 5)).toBe(false);
-    expect(pendeNaFase({ fase: 0, semAprovacao: false }, 5)).toBe(true);
+    for (const fase of [0, 1, 2, 3, 4]) expect(pendeNaFase({ fase, semAprovacao: false }, 5), `fase ${fase}`).toBe(false);
   });
-  it("NÃO é a regra da tabela de pendências (lá cada peça conta uma vez, onde está)", () => {
+  it("as cinco colunas somadas = peças não entregues do evento (cada uma em exatamente uma)", () => {
+    const naoEntregues = pecas.filter((p) => p.evento === "e" && p.fase < 6);
+    expect(pend.reduce((s, x) => s + x, 0)).toBe(naoEntregues.length);
+    for (const p of naoEntregues) expect([1, 2, 3, 4, 5].filter((n) => pendeNaFase(p, n)), `peça fase ${p.fase}`).toHaveLength(1);
+  });
+  it("É a mesma regra da tabela Pendências de pré-produção (fases 1–4, pendentes e atrasados)", () => {
     const tabela = pendenciasPorEvento({ hoje: HOJE, eventos: [ev], pecas }).find((r) => r.evento === "e")!;
-    expect(tabela.pendentes.revisao).toBe(1);
-    expect(pend[3]).toBe(7);
+    expect(pend.slice(0, 4)).toEqual([tabela.pendentes.layout, tabela.pendentes.aprovacao, tabela.pendentes.finalizacao, tabela.pendentes.revisao]);
+    // Atrasadas: as fases vermelhas daqui são as colunas com atrasados lá, com a mesma contagem.
+    const atrasadosAqui = l.fases.slice(0, 4).map((f) => (f.situacao === "atrasada" ? f.pendentes : 0));
+    expect(atrasadosAqui).toEqual([tabela.atrasados.layout, tabela.atrasados.aprovacao, tabela.atrasados.finalizacao, tabela.atrasados.revisao]);
   });
   it("o quadro da célula lista exatamente as peças contadas nela (critério 5)", () => {
     for (const f of l.fases) {
@@ -118,21 +141,50 @@ describe("Eventos × processo × prazo — peças pendentes por fase (cumulativo
       expect(lista).toHaveLength(f.pendentes);
       expect(lista.every((p) => p.evento === "e")).toBe(true);
     }
-    expect(pecasDaFaseDoEvento({ pecas }, "e", 2).some((p) => p.semAprovacao)).toBe(false);
   });
-  it("cores e atraso: vencida com pendência, próximos 15 dias, depois, concluída, sem prazo", () => {
+  it("cores e atraso: vencida com peça na fase, próximos 15 dias, depois, aguardando, concluída, sem prazo", () => {
     expect(l.fases.map((f) => f.situacao)).toEqual(["atrasada", "atrasada", "proxima", "proxima", "depois"]);
     expect(l.fases.map((f) => f.diasAtraso)).toEqual([5, 2, 0, 0, 0]);
     expect(l.fasesAtrasadas).toBe(2);
 
     const borda = evento("b", d(5), [d(14), d(15), null, d(-1), d(0)]);
-    const so5 = eventosProcessoPrazo(painelDe([borda], [peca("b", 1), peca("b", 5)])).linhas[0];
-    // f1 hoje+14 → próxima · f2 hoje+15 → depois · f3 sem prazo · f4 vencida mas só a peça
-    // de produção ainda falta? Não: a peça da fase 1 também passa pela 4 → atrasada.
-    expect(so5.fases.map((f) => f.situacao)).toEqual(["proxima", "depois", "semPrazo", "atrasada", "proxima"]);
+    const doisCantos = eventosProcessoPrazo(painelDe([borda], [peca("b", 1), peca("b", 5)])).linhas[0];
+    // f1 hoje+14 → próxima · f2 hoje+15 sem peça nela, mas a do layout ainda vem → aguardando
+    // · f3 sem prazo · f4 vencida sem peça nela (a do layout não conta aqui) → aguardando, não
+    // atrasada · f5 hoje, com a peça liberada → próxima.
+    expect(doisCantos.fases.map((f) => f.situacao)).toEqual(["proxima", "aguardando", "semPrazo", "aguardando", "proxima"]);
+    expect(doisCantos.fases.map((f) => f.pendentes)).toEqual([1, 0, 0, 0, 1]);
+    expect(doisCantos.fasesAtrasadas).toBe(0);
     const concl = eventosProcessoPrazo(painelDe([borda], [peca("b", 5)])).linhas[0];
     expect(concl.fases.map((f) => f.situacao)).toEqual(["concluida", "concluida", "semPrazo", "concluida", "proxima"]);
     expect(concl.fasesAtrasadas).toBe(0);
+  });
+  it("uma peça atrasada no layout NÃO deixa as fases seguintes vermelhas", () => {
+    const tudoVencido = evento("v", d(5), [d(-10), d(-8), d(-6), d(-4), d(-2)]);
+    const l1 = eventosProcessoPrazo(painelDe([tudoVencido], [peca("v", 1)])).linhas[0];
+    expect(l1.fases.map((f) => f.situacao)).toEqual(["atrasada", "aguardando", "aguardando", "aguardando", "aguardando"]);
+    expect(l1.fases.map((f) => f.pendentes)).toEqual([1, 0, 0, 0, 0]);
+    expect(l1.fases.map((f) => f.aCaminho)).toEqual([0, 1, 1, 1, 1]);
+    expect(l1.fases.map((f) => f.diasAtraso)).toEqual([10, 0, 0, 0, 0]);
+    expect(l1.fasesAtrasadas).toBe(1);
+  });
+  it("aguardando = nenhuma peça na fase, mas peças antes; concluída = nada na fase nem antes", () => {
+    const ev2 = evento("w", d(5), prazosNaFrente);
+    // Uma na finalização, uma na produção, uma entregue.
+    const w = eventosProcessoPrazo(painelDe([ev2], [peca("w", 3), peca("w", 5), peca("w", 6)])).linhas[0];
+    expect(w.fases.map((f) => f.situacao)).toEqual(["concluida", "concluida", "depois", "aguardando", "depois"]);
+    expect(w.fases.map((f) => f.aCaminho)).toEqual([0, 0, 0, 1, 1]);
+    // A da Lista de imagens está antes de todas (conta no layout).
+    const li = eventosProcessoPrazo(painelDe([ev2], [peca("w", 0)])).linhas[0];
+    expect(li.fases.map((f) => f.situacao)).toEqual(["depois", "aguardando", "aguardando", "aguardando", "aguardando"]);
+    // Só entregues: tudo concluído, nada a caminho.
+    const ent = eventosProcessoPrazo(painelDe([ev2], [peca("w", 6)])).linhas[0];
+    expect(ent.fases.map((f) => f.situacao)).toEqual(["concluida", "concluida", "concluida", "concluida", "concluida"]);
+    expect(ent.fases.every((f) => f.aCaminho === 0)).toBe(true);
+    expect(antesDaFase({ fase: 6, semAprovacao: false }, 5)).toBe(false);
+    expect(antesDaFase({ fase: 4, semAprovacao: false }, 5)).toBe(true);
+    expect(antesDaFase({ fase: 5, semAprovacao: false }, 5)).toBe(false);
+    expect(antesDaFase({ fase: 3, semAprovacao: false }, 3)).toBe(false);
   });
   it("evento sem nenhuma peça: marcado semPecas (a tela não diz 'concluída')", () => {
     const vazio = eventosProcessoPrazo(painelDe([evento("v", d(3), prazosNaFrente)], [])).linhas[0];
@@ -213,23 +265,37 @@ describe("Eventos × processo × prazo — bate com a Gestão de Prazos (critér
       expect(l.fases.map((f) => f.prazo)).toEqual(ev.stages.slice(1).map((s) => s.deadline));
     }
   });
-  it("Produção gráfica: pendentes = pendingCount da etapa na Gestão de Prazos, evento a evento e na soma das vermelhas", () => {
+  it("Produção gráfica: pendentes = peças cobradas na etapa pela Gestão (directCount), evento a evento e na soma das vermelhas", () => {
     for (const l of r.linhas) {
       const ev = prazos.find((e) => e.id === l.evento.chave)!;
-      expect(l.fases[4].pendentes, l.evento.nome).toBe(ev.stages[5].pendingCount);
+      expect(l.fases[4].pendentes, l.evento.nome).toBe(ev.stages[5].directCount);
     }
     const vermelhas = r.linhas.filter((l) => l.fases[4].situacao === "atrasada");
     expect(vermelhas.length).toBeGreaterThan(0);
     const soma = vermelhas.reduce((s, l) => s + l.fases[4].pendentes, 0);
-    const daGestao = vermelhas.reduce((s, l) => s + prazos.find((e) => e.id === l.evento.chave)!.stages[5].pendingCount, 0);
+    const daGestao = vermelhas.reduce((s, l) => s + prazos.find((e) => e.id === l.evento.chave)!.stages[5].directCount, 0);
     expect(soma).toBe(daGestao);
-    // e1: pronto p/ produção, ag. envio, rascunho e impresso — entregue, cancelada e BOOK fora.
-    expect(r.linhas.find((l) => l.evento.chave === "e1")!.fases[4].pendentes).toBe(4);
+    // e1: só pronto p/ produção e impresso — ag. envio e rascunho estão em fases
+    // anteriores; entregue, cancelada e BOOK fora.
+    expect(r.linhas.find((l) => l.evento.chave === "e1")!.fases[4].pendentes).toBe(2);
   });
-  it("aprovação, finalização e revisão final também coincidem com a pendência acumulada da Gestão", () => {
+  it("as cinco colunas somadas = peças não entregues do evento (o pendingCount acumulado da Produção Gráfica na Gestão)", () => {
     for (const l of r.linhas) {
       const ev = prazos.find((e) => e.id === l.evento.chave)!;
-      for (const n of [2, 3, 4]) expect(l.fases[n - 1].pendentes, `${l.evento.nome} f${n}`).toBe(ev.stages[n].pendingCount);
+      const soma = l.fases.reduce((s, f) => s + f.pendentes, 0);
+      expect(soma, l.evento.nome).toBe(ev.stages[5].pendingCount);
+      const naoEntregues = painel.pecas.filter((p) => p.evento === l.evento.chave && p.fase < 6).length;
+      expect(soma, l.evento.nome).toBe(naoEntregues);
+    }
+    // e1: ag. envio + rascunho no layout, as duas liberadas na produção.
+    expect(r.linhas.find((l) => l.evento.chave === "e1")!.fases.map((f) => f.pendentes)).toEqual([2, 0, 0, 0, 2]);
+  });
+  it("fases 1–4 batem com a tabela Pendências de pré-produção do mesmo painel", () => {
+    const tabela = pendenciasPorEvento(painel);
+    for (const l of r.linhas) {
+      const t = tabela.find((x) => x.evento === l.evento.chave);
+      const naTabela = t ? [t.pendentes.layout, t.pendentes.aprovacao, t.pendentes.finalizacao, t.pendentes.revisao] : [0, 0, 0, 0];
+      expect(l.fases.slice(0, 4).map((f) => f.pendentes), l.evento.nome).toEqual(naTabela);
     }
   });
 });

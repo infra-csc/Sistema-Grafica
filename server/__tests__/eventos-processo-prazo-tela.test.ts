@@ -5,6 +5,8 @@
 //   · o submenu (Realizado e pendências | Eventos × processo × prazo), com o
 //     conteúdo antigo intacto no primeiro;
 //   · ?pre=calendario e o link direto #pre-calendario abrem o submenu novo;
+//   · cada peça conta uma vez, na fase em que está agora: a peça atrasada no
+//     layout não pinta as fases seguintes (célula "aguardando", tracejada);
 //   · a célula vermelha abre o quadro com a MESMA contagem da célula, a
 //     célula fica marcada e Fechar devolve o foco a ela;
 //   · o filtro "somente eventos com fase atrasada" e a ordenação por coluna
@@ -53,8 +55,8 @@ const peca = (eventId: string, status: string, over: Partial<PecaDoPainel> = {})
 });
 const PECAS = [
   peca("e1", "ready_for_production", { quantity: 4 }),
-  peca("e1", "awaiting_submission", { isPriority: true }),
-  peca("e1", "ready_for_production"),
+  peca("e1", "awaiting_submission"), // atrasada no layout: só no layout
+  peca("e1", "ready_for_production", { isPriority: true }),
   peca("e2", "awaiting_submission"),
   peca("e2", "awaiting_sponsor_approval"),
   peca("e2", "produced"),
@@ -126,13 +128,18 @@ describe("Análises › Pré-produção › Eventos × processo × prazo", () =>
     expect(window.location.hash).toBe("");
   });
 
-  it("a grade: só eventos que entram, atrasados primeiro, saída passada riscada, frase da contagem cumulativa", () => {
+  it("a grade: só eventos que entram, atrasados primeiro, saída passada riscada, cada peça uma vez", () => {
     const c = abrirCalendario();
     expect(eventosDaGrade(c)).toEqual(["e1", "e2", "e3"]);
     const linhaE1 = todos(c, "op-cal-linha")[0];
-    expect(linhaE1.querySelector('[data-testid="op-cal-fases-atrasadas"]')!.textContent).toBe("5 fases atrasadas");
+    // Todas as fases do e1 venceram, mas só layout (1 peça) e produção (2) têm peça
+    // agora: aprovação, finalização e revisão não ficam vermelhas por causa da do layout.
+    expect(linhaE1.querySelector('[data-testid="op-cal-fases-atrasadas"]')!.textContent).toBe("2 fases atrasadas");
+    expect([1, 2, 3, 4, 5].map((n) => linhaE1.querySelector(`[data-testid="op-cal-celula-f${n}"]`)!.getAttribute("data-situacao")))
+      .toEqual(["atrasada", "aguardando", "aguardando", "aguardando", "atrasada"]);
+    expect(linhaE1.querySelector(".pop-cal-celula[data-cal-celula=\"e1|1\"] [data-testid=\"op-cal-celula-info\"]")!.textContent).toMatch(/^1 pç · \d+d atraso$/);
     expect(linhaE1.querySelector('[data-testid="op-cal-saida-passou"]')).not.toBeNull();
-    expect(pelo(c, "op-cal")!.textContent).toContain("cada célula conta as peças que ainda precisam passar por aquela fase");
+    expect(pelo(c, "op-cal")!.textContent).toContain("Cada peça conta uma vez, na fase em que está agora");
     expect(pelo(c, "op-cal-contagem")!.textContent).toMatch(/3 eventos, 2 com fase atrasada/);
     // Cada fase mostra a data do prazo (critério 3).
     for (const cel of linhaE1.querySelectorAll('[data-testid^="op-cal-celula-f"]')) expect(cel.textContent).toMatch(/\d{2}\/\d{2}/);
@@ -145,12 +152,13 @@ describe("Análises › Pré-produção › Eventos × processo × prazo", () =>
     expect(celula.tagName).toBe("BUTTON");
     expect(celula.getAttribute("data-situacao")).toBe("atrasada");
     const naCelula = Number(celula.querySelector('[data-testid="op-cal-celula-info"]')!.textContent!.match(/^(\d+) pç/)![1]);
-    expect(naCelula).toBe(3);
+    // Só as duas liberadas para a gráfica — a do layout fica na coluna dela.
+    expect(naCelula).toBe(2);
 
     act(() => { fireEvent.click(celula); });
     const quadro = pelo(c, "op-cal-pecas")!;
     expect(quadro.textContent).toContain("Copa Norte — Produção gráfica");
-    expect(pelo(c, "op-cal-pecas-resumo")!.textContent).toMatch(/^3 peças atrasadas nesta fase · prazo da fase \d{2}\/\d{2}\/2026 \(vencido há \d+ dias?\)$/);
+    expect(pelo(c, "op-cal-pecas-resumo")!.textContent).toMatch(/^2 peças atrasadas nesta fase · prazo da fase \d{2}\/\d{2}\/2026 \(vencido há \d+ dias?\)$/);
     expect(todos(quadro, "op-tabela-cal-pecas-linha")).toHaveLength(naCelula);
     expect(quadro.textContent).toContain("Fura-fila");
     expect(celula.getAttribute("aria-pressed")).toBe("true");
@@ -164,13 +172,36 @@ describe("Análises › Pré-produção › Eventos × processo × prazo", () =>
     expect(document.activeElement).toBe(c.querySelector('[data-cal-celula="e1|5"]'));
   });
 
-  it("célula sem pendência não é clicável; a URL com cal_ev/cal_fase abre o quadro direto", () => {
+  it("célula sem peça na fase não é clicável (concluída ou aguardando); a URL com cal_ev/cal_fase abre o quadro direto", () => {
     window.history.replaceState(null, "", "/analises?aba=pre&pre=calendario&cal_ev=e2&cal_fase=2");
     const { container: c } = render(h(Analises));
     expect(pelo(c, "op-cal-pecas")!.textContent).toContain("Abertura Sul — Aprovação de layout");
+    expect(todos(pelo(c, "op-cal-pecas")!, "op-tabela-cal-pecas-linha")).toHaveLength(1);
     const concluidas = Array.from(c.querySelectorAll('[data-situacao="concluida"]'));
     expect(concluidas.length).toBeGreaterThan(0);
     expect(concluidas.every((x) => x.tagName === "SPAN" && x.textContent!.includes("concluída"))).toBe(true);
+    // Aguardando: nenhuma peça na fase agora, mas há peças antes — tracejada, não clicável.
+    const aguardando = Array.from(c.querySelectorAll('[data-situacao="aguardando"]')) as HTMLElement[];
+    expect(aguardando.length).toBeGreaterThan(0);
+    expect(aguardando.every((x) => x.tagName === "SPAN" && /aguarda \d+ pç/.test(x.textContent!))).toBe(true);
+    expect(aguardando[0].style.borderStyle || aguardando[0].style.border).toContain("dashed");
+    // e2: layout (1, vencido) · aprovação (1) · finalização e revisão aguardando as 2 de antes.
+    const linhaE2 = todos(c, "op-cal-linha").find((l) => l.getAttribute("data-evento") === "e2")!;
+    expect([1, 2, 3, 4].map((n) => linhaE2.querySelector(`[data-testid="op-cal-celula-f${n}"]`)!.getAttribute("data-situacao")))
+      .toEqual(["atrasada", "proxima", "aguardando", "aguardando"]);
+    expect(linhaE2.querySelector('[data-testid="op-cal-celula-f3"]')!.textContent).toContain("aguarda 2 pç");
+    // e3: só a peça liberada — pré-produção toda concluída.
+    const linhaE3 = todos(c, "op-cal-linha").find((l) => l.getAttribute("data-evento") === "e3")!;
+    expect([1, 2, 3, 4].map((n) => linhaE3.querySelector(`[data-testid="op-cal-celula-f${n}"]`)!.getAttribute("data-situacao")))
+      .toEqual(["concluida", "concluida", "concluida", "concluida"]);
+  });
+
+  it("a legenda explica o tracejado (aguardando) e o cinza (concluída)", () => {
+    const c = abrirCalendario();
+    const legenda = pelo(c, "op-cal-legenda")!.textContent!;
+    expect(legenda).toContain("Vencida com peças nesta fase");
+    expect(legenda).toContain("Aguardando peças de fases anteriores");
+    expect(legenda).toContain("Concluída");
   });
 
   it("somente eventos com fase atrasada esconde os outros (e vai para a URL)", async () => {

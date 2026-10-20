@@ -3,11 +3,12 @@
 // A grade "evento × fase" do pacote de referência do dono ("sobe no nosso
 // layout"): linhas = eventos, colunas = Evento | Data do evento | Saída
 // caminhão | as cinco fases. Cada célula mostra o prazo da fase e as peças que
-// ainda precisam passar por ela; vermelho = vencida com pendência, contorno
-// laranja = vence nos próximos 15 dias, contorno neutro = depois, cinza claro
-// = sem pendência. Clicar numa célula abre, abaixo, o quadro peça a peça.
+// estão NELA agora (cada peça conta uma vez — dono, 20/10); vermelho = vencida
+// com peças, contorno laranja = vence nos próximos 15 dias, contorno neutro =
+// depois, tracejado = nenhuma aqui ainda (peças em fases anteriores), cinza
+// claro = concluída. Clicar numa célula abre, abaixo, o quadro peça a peça.
 //
-// A regra (quais eventos entram, a contagem cumulativa por fase, o atraso e a
+// A regra (quais eventos entram, a contagem por fase, o atraso e a
 // ordenação) mora em @shared/painel-operacional (`eventosProcessoPrazo`,
 // `pecasDaFaseDoEvento`) — aqui só se desenha. O estado vive na página (e na
 // URL: cal_so_atr, cal_ev, cal_fase, cal_ord, cal_dir).
@@ -34,13 +35,15 @@ const PINTURA: Record<Exclude<SituacaoNoCalendario, "semPrazo">, React.CSSProper
   // Contorno de 2px sem mexer no tamanho da caixa: 1px de borda + 1px de sombra interna.
   proxima: { backgroundColor: T.surface, border: `1px solid ${LARANJA}`, boxShadow: `inset 0 0 0 1px ${LARANJA}`, color: T.text },
   depois: { backgroundColor: T.surface, border: `1px solid ${N.n5}`, color: T.text },
+  aguardando: { backgroundColor: T.surface, border: `1px dashed ${N.n4}`, color: T.second },
   concluida: { backgroundColor: N.n2, border: `1px solid ${N.n3}`, color: T.second },
 };
 const LEGENDA: { id: Exclude<SituacaoNoCalendario, "semPrazo">; texto: string }[] = [
-  { id: "atrasada", texto: "Vencida com peças pendentes" },
-  { id: "proxima", texto: "Vence nos próximos 15 dias, com pendências" },
-  { id: "depois", texto: "Vence depois, com pendências" },
-  { id: "concluida", texto: "Sem pendências" },
+  { id: "atrasada", texto: "Vencida com peças nesta fase" },
+  { id: "proxima", texto: "Vence nos próximos 15 dias, com peças nesta fase" },
+  { id: "depois", texto: "Vence depois, com peças nesta fase" },
+  { id: "aguardando", texto: "Aguardando peças de fases anteriores" },
+  { id: "concluida", texto: "Concluída" },
 ];
 
 const COLUNAS_FIXAS: { id: ColunaDoCalendario; rotulo: string }[] = [
@@ -93,8 +96,8 @@ export default function CalendarioDeFases({ ctx }: { ctx: ContextoDoPainel }) {
         <strong style={{ color: dados.comAtraso > 0 ? TOM.perigo.text : T.text, ...TABULAR }}>{fmt0(dados.comAtraso)}</strong> com fase atrasada
       </span>
       {cal.soAtrasadas && dados.total > dados.comAtraso ? ` (mostrando só esses)` : ""}.{" "}
-      <strong style={{ color: T.text, fontWeight: FW.medio }}>Aqui cada célula conta as peças que ainda precisam passar por aquela fase</strong>{" "}
-      — a peça parada no layout conta também nas fases seguintes; na produção gráfica, toda peça ainda não entregue. Clique numa célula para ver as peças.
+      <strong style={{ color: T.text, fontWeight: FW.medio }}>Cada peça conta uma vez, na fase em que está agora</strong>{" "}
+      — a peça parada no layout aparece só no layout; na produção gráfica, as já liberadas para a gráfica e ainda não entregues. Clique numa célula para ver as peças.
     </>
   );
 
@@ -214,7 +217,7 @@ function Grade({ linhas, hoje, isMobile, ordem, direcao, aoOrdenar, aoAbrir, sel
   return (
     <table style={{ width: "100%", minWidth: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
       <caption className="sr-only">
-        Eventos × processo × prazo: o prazo de cada fase por evento e as peças que ainda precisam passar por ela. Clique no topo de uma coluna para ordenar.
+        Eventos × processo × prazo: o prazo de cada fase por evento e as peças que estão nela agora. Clique no topo de uma coluna para ordenar.
       </caption>
       <thead>
         <tr>
@@ -277,6 +280,15 @@ function Celula({ linha, fase: f, hoje, isMobile, selecionada, aoAbrir }: {
     font: "inherit", fontSize: FS.meta, lineHeight: 1.3, textAlign: "left", whiteSpace: "nowrap", ...TABULAR,
   };
   const data = <span style={{ fontWeight: FW.forte }}>{diaDaSemana(f.prazo)} {dm(f.prazo)}</span>;
+
+  if (f.pendentes === 0 && f.situacao === "aguardando") {
+    return (
+      <span data-testid={testId} data-situacao="aguardando" style={{ ...caixa, ...PINTURA.aguardando }} title={`${f.nome} · prazo ${dma(f.prazo)} · nenhuma peça nesta fase agora; ${f.aCaminho} ${plural(f.aCaminho, "peça ainda está", "peças ainda estão")} em fases anteriores`}>
+        {data}
+        <span style={{ fontSize: FS.small }}>aguarda {fmt0(f.aCaminho)} pç</span>
+      </span>
+    );
+  }
 
   if (f.pendentes === 0) {
     return (

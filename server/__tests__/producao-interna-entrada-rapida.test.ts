@@ -117,7 +117,11 @@ describe("a coluna 'Gráfica' da Entrada rápida", () => {
     expect(tid("linha-lote-0")!.nextElementSibling).toBe(bloco);
     expect(tid("textarea-instrucoes-grafica-0")).not.toBeNull();
     expect(tid("input-arquivo-grafica-0")).not.toBeNull();
-    expect(tid("aviso-instrucoes-grafica-0")?.textContent).toMatch(/pelo menos 10 letras/);
+    expect(tid("aviso-instrucoes-grafica-0")?.textContent).toMatch(/escreva as instruções antes de enviar a lista/);
+    expect(tid("aviso-instrucoes-grafica-0")?.textContent).not.toMatch(/letras/);
+    // uma letra só já basta: o aviso some
+    await digitar("textarea-instrucoes-grafica-0", "x");
+    expect(tid("aviso-instrucoes-grafica-0")).toBeNull();
     // o campo Obs da linha continua sendo o Obs (não é a instrução)
     expect(tid("input-observations-0")).not.toBeNull();
     await digitar("textarea-instrucoes-grafica-0", INSTR);

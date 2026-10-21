@@ -46,8 +46,10 @@ export const MARCAVEL_NA_LISTA: readonly string[] = ["draft", "requested"];
 /** Para onde a peça vai: Pronto para Produção, a fila da Gráfica. */
 export const DESTINO_DA_PRODUCAO_INTERNA = "ready_for_production";
 
-/** A instrução: texto livre, com pelo menos isto de letras quando é ela que descreve a peça. */
-export const INSTRUCOES_MINIMO = 10;
+/**
+ * A instrução: texto livre. Sem mínimo de tamanho (pedido da equipe, 21/10):
+ * quando é ela que descreve a peça (sem arquivo), basta haver ALGUM texto.
+ */
 export const INSTRUCOES_MAXIMO = 2000;
 
 /** Os rótulos — a Gráfica lê "Produção interna"; a lista da Solicitação, "Direto para a Gráfica". */
@@ -91,14 +93,16 @@ export function lerInstrucoes(bruto: unknown): { ok: true; instrucoes: string | 
   return { ok: true, instrucoes: limpo };
 }
 
-/** Sem arquivo final, a instrução descreve a peça — e tem de dizer alguma coisa. */
+/** Sem arquivo final, a instrução descreve a peça — e tem de dizer alguma coisa (um caractere já vale). */
 export function faltamInstrucoes(instrucoes: string | null | undefined, temArquivo: boolean): boolean {
   if (temArquivo) return false;
-  return String(instrucoes ?? "").trim().length < INSTRUCOES_MINIMO;
+  return String(instrucoes ?? "").trim().length === 0;
 }
 
-export const fraseDasInstrucoesQueFaltam = () =>
-  `Sem arquivo, escreva as instruções para a Gráfica (pelo menos ${INSTRUCOES_MINIMO} letras): o que fazer, medida, material, acabamento.`;
+/** A frase única do que falta — a tela e o servidor dizem o mesmo. */
+export const FRASE_ESCREVA_AS_INSTRUCOES = "Escreva as instruções para a Gráfica — sem arquivo, é o que ela vai seguir.";
+
+export const fraseDasInstrucoesQueFaltam = () => FRASE_ESCREVA_AS_INSTRUCOES;
 
 /** Tem patrocinador vinculado? (Na tela, pela lista da peça.) */
 const temPatrocinadorNaTela = (p: PecaDaProducaoInterna) => Array.isArray(p.sponsors) && p.sponsors.length > 0;

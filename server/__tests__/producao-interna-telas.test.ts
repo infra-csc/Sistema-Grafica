@@ -147,6 +147,13 @@ describe.each([1366, 390])("Diálogo em %ipx", (largura) => {
     expect(document.body.textContent).toContain("O que acontece");
     expect(tid("input-arquivo-grafica"), "uma peça: o arquivo opcional aparece").not.toBeNull();
 
+    expect(document.body.textContent).not.toMatch(/letras/);
+    // Sem mínimo de tamanho: uma letra já habilita o botão
+    await act(async () => { fireEvent.change(tid("input-instrucoes-grafica")!, { target: { value: "x" } }); });
+    expect((tid("button-confirmar-direto-grafica") as HTMLButtonElement).disabled, "uma letra já vale").toBe(false);
+    expect(document.body.textContent).not.toMatch(/Ainda curta|letras/);
+    await act(async () => { fireEvent.change(tid("input-instrucoes-grafica")!, { target: { value: "   " } }); });
+    expect((tid("button-confirmar-direto-grafica") as HTMLButtonElement).disabled, "só espaços não vale").toBe(true);
     await act(async () => { fireEvent.change(tid("input-instrucoes-grafica")!, { target: { value: "Cortar e furar nos cantos" } }); });
     expect((tid("button-confirmar-direto-grafica") as HTMLButtonElement).disabled).toBe(false);
     await act(async () => { fireEvent.click(tid("button-confirmar-direto-grafica")!); });

@@ -19,7 +19,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { Factory, FolderOpen } from "lucide-react";
 import { FW, R, T, TOM } from "@/lib/theme";
-import { INSTRUCOES_MAXIMO, INSTRUCOES_MINIMO } from "@shared/producao-interna";
+import { INSTRUCOES_MAXIMO } from "@shared/producao-interna";
 import { linhaSemInstrucoes } from "./regras";
 import type { BulkItemRow } from "./tipos";
 
@@ -130,7 +130,7 @@ export function LinhaDaGrafica({ row, ri, colSpan, motivo, onChange, onNavegarPr
 
           {!motivo && aviso && (
             <p id={idAviso} data-testid={`aviso-instrucoes-grafica-${ri}`} style={{ margin: 0, fontSize: 12, color: TOM.alerta.text }}>
-              Sem arquivo, a Gráfica faz a peça pelas instruções — escreva pelo menos {INSTRUCOES_MINIMO} letras antes de enviar a lista.
+              Sem arquivo, a Gráfica faz a peça pelas instruções — escreva as instruções antes de enviar a lista.
             </p>
           )}
         </div>

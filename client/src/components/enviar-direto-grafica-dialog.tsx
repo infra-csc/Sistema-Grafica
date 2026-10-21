@@ -27,7 +27,7 @@ import { useFileUpload } from "@/hooks/use-file-upload";
 import { useEnviarDiretoParaGrafica, type ResultadoDoEnvioDireto } from "@/hooks/use-enviar-direto-grafica";
 import { FONT, FS, FW, R, T, TOM } from "@/lib/theme";
 import {
-  motivoParaNaoEnviarDireto, faltamInstrucoes, INSTRUCOES_MINIMO, INSTRUCOES_MAXIMO,
+  motivoParaNaoEnviarDireto, faltamInstrucoes, INSTRUCOES_MAXIMO, FRASE_ESCREVA_AS_INSTRUCOES,
   type PecaDaProducaoInterna,
 } from "@shared/producao-interna";
 
@@ -113,8 +113,7 @@ export function EnviarDiretoGraficaDialog({ aberto, aoFechar, pecas, papel, even
   // Quem precisa de instrução: a peça sem arquivo (o dela, ou o deste envio)
   // e sem instrução própria — a instrução digitada aqui vale para todas.
   const instrucoesDigitadas = instrucoes.trim();
-  const curtaDemais = instrucoesDigitadas.length > 0 && instrucoesDigitadas.length < INSTRUCOES_MINIMO;
-  const valeDigitada = instrucoesDigitadas.length >= INSTRUCOES_MINIMO ? instrucoesDigitadas : "";
+  const valeDigitada = instrucoesDigitadas;
   // NO LOTE, a peça sem arquivo e sem instrução (e sem a comum) fica DE FORA,
   // como o servidor faz — as outras seguem. Escrever a instrução comum a traz
   // de volta. Numa peça só, a instrução é exigida (o botão diz por quê).
@@ -126,10 +125,10 @@ export function EnviarDiretoGraficaDialog({ aberto, aoFechar, pecas, papel, even
 
   const motivoDoBotao = vao.length === 0
     ? (semNadaNoLote.length > 0
-        ? `Escreva as instruções para a Gráfica (pelo menos ${INSTRUCOES_MINIMO} letras) — sem arquivo, é o que ela vai seguir.`
+        ? FRASE_ESCREVA_AS_INSTRUCOES
         : "Nenhuma das peças pode ir direto para a Gráfica — veja o motivo de cada uma.")
     : upload.isUploading ? "Esperando o arquivo terminar de subir."
-    : semNada.length > 0 || curtaDemais ? `Escreva as instruções para a Gráfica (pelo menos ${INSTRUCOES_MINIMO} letras) — sem arquivo, é o que ela vai seguir.`
+    : semNada.length > 0 ? FRASE_ESCREVA_AS_INSTRUCOES
     : undefined;
 
   const confirmar = () => {
@@ -229,14 +228,13 @@ export function EnviarDiretoGraficaDialog({ aberto, aoFechar, pecas, papel, even
                 rows={isMobile ? 4 : 3}
                 placeholder="O que fazer: medida, material, acabamento, quantidade de cópias, onde está a arte…"
                 aria-describedby="instrucoes-grafica-ajuda"
-                aria-invalid={curtaDemais || (semNada.length > 0 && !!erro) ? true : undefined}
-                style={{ width: "100%", boxSizing: "border-box", resize: "vertical", minHeight: 88, padding: "10px 12px", borderRadius: R.md, border: `1px solid ${curtaDemais ? TOM.alerta.border : T.bdark}`, background: T.surface, color: T.text, fontFamily: "inherit", fontSize: isMobile ? FS.lead : FS.body, lineHeight: 1.45 }}
+                aria-invalid={semNada.length > 0 && !!erro ? true : undefined}
+                style={{ width: "100%", boxSizing: "border-box", resize: "vertical", minHeight: 88, padding: "10px 12px", borderRadius: R.md, border: `1px solid ${semNada.length > 0 && !!erro ? TOM.alerta.border : T.bdark}`, background: T.surface, color: T.text, fontFamily: "inherit", fontSize: isMobile ? FS.lead : FS.body, lineHeight: 1.45 }}
               />
               <p id="instrucoes-grafica-ajuda" style={{ margin: 0, fontSize: FS.meta, color: T.apoio, lineHeight: 1.45 }}>
                 {umaSo
                   ? "Aparece em destaque na fila da Gráfica, junto da peça."
                   : "Vale para as peças sem instrução própria — as que já têm a sua seguem com ela."}
-                {curtaDemais ? ` Ainda curta: pelo menos ${INSTRUCOES_MINIMO} letras.` : ""}
               </p>
             </div>
           )}

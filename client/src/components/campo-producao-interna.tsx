@@ -17,7 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Botao } from "@/components/ui/botao";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { FS, FW, R, T, TOM } from "@/lib/theme";
-import { INSTRUCOES_MAXIMO, INSTRUCOES_MINIMO, type CamposDaProducaoInterna } from "@shared/producao-interna";
+import { INSTRUCOES_MAXIMO, faltamInstrucoes, type CamposDaProducaoInterna } from "@shared/producao-interna";
 
 // Os campos e as contas puras do formulário moram em shared/producao-interna
 // (regras.ts do Detalhe do Evento os lê sem arrastar React); reexportados aqui.
@@ -56,8 +56,7 @@ export function CampoProducaoInterna({ valor, onChange, temPatrocinador = false,
   });
   const set = (parcial: Partial<CamposDaProducaoInterna>) => onChange({ ...valor, ...parcial });
   const temArquivo = jaTemArquivo || !!valor.arquivoGrafica.trim();
-  const instr = valor.instrucoesGrafica.trim();
-  const avisoInstrucao = valor.producaoInterna && !temArquivo && instr.length < INSTRUCOES_MINIMO;
+  const avisoInstrucao = valor.producaoInterna && faltamInstrucoes(valor.instrucoesGrafica, temArquivo);
   const desabilitado = temPatrocinador && !valor.producaoInterna;
 
   return (
@@ -107,7 +106,7 @@ export function CampoProducaoInterna({ valor, onChange, temPatrocinador = false,
             />
             {avisoInstrucao && (
               <p style={{ margin: 0, fontSize: FS.meta, color: TOM.alerta.text }}>
-                Sem arquivo, a Gráfica faz a peça pelas instruções — escreva pelo menos {INSTRUCOES_MINIMO} letras antes de enviar a lista.
+                Sem arquivo, a Gráfica faz a peça pelas instruções — escreva as instruções antes de enviar a lista.
               </p>
             )}
           </div>

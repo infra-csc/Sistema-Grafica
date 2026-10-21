@@ -6,7 +6,7 @@ import { describe, it, expect } from "vitest";
 import {
   podeEnviarDiretoParaGrafica, motivoParaNaoEnviarDireto, motivoParaNaoMarcar, recusaDaMarcaNaEscrita,
   faltamInstrucoes, lerInstrucoes, camposDoEnvioDireto, fraseDaTrilhaDoEnvioDireto,
-  ENVIAVEL_DIRETO_PARA_A_GRAFICA, MARCAVEL_NA_LISTA, INSTRUCOES_MINIMO, INSTRUCOES_MAXIMO, CODIGO_COM_PATROCINADOR,
+  ENVIAVEL_DIRETO_PARA_A_GRAFICA, MARCAVEL_NA_LISTA, INSTRUCOES_MAXIMO, FRASE_ESCREVA_AS_INSTRUCOES, fraseDasInstrucoesQueFaltam, CODIGO_COM_PATROCINADOR,
 } from "@shared/producao-interna";
 import { origemDaAcao, proximoStatus, podeTransicionar, ANTES_DA_ARTE } from "@shared/maquina-de-estados";
 import { dividirEnvioDaLista, corpoDaProducaoInterna, CAMPOS_VAZIOS_DA_PRODUCAO_INTERNA } from "@shared/producao-interna";
@@ -68,8 +68,13 @@ describe("a máquina de estados e a regra dizem o mesmo", () => {
 describe("instruções", () => {
   it("obrigatórias só sem arquivo, com o mínimo", () => {
     expect(faltamInstrucoes(null, false)).toBe(true);
-    expect(faltamInstrucoes("x".repeat(INSTRUCOES_MINIMO - 1), false)).toBe(true);
-    expect(faltamInstrucoes("x".repeat(INSTRUCOES_MINIMO), false)).toBe(false);
+    // Sem mínimo de tamanho (21/10): só o vazio (ou só espaços) falta; um caractere já vale.
+    expect(faltamInstrucoes("", false)).toBe(true);
+    expect(faltamInstrucoes("   \n ", false)).toBe(true);
+    expect(faltamInstrucoes("x", false)).toBe(false);
+    expect(faltamInstrucoes("A4", false)).toBe(false);
+    expect(fraseDasInstrucoesQueFaltam()).toBe(FRASE_ESCREVA_AS_INSTRUCOES);
+    expect(FRASE_ESCREVA_AS_INSTRUCOES).not.toMatch(/letras|\d/);
     expect(faltamInstrucoes(null, true)).toBe(false);
   });
 

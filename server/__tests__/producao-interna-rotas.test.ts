@@ -186,14 +186,18 @@ describe("POST /api/items/:id/direto-para-grafica — as recusas", () => {
     expect(H.mundo.itens.p1.status).toBe("draft");
   });
 
-  it("sem arquivo e sem instrução: 400 — e com instrução curta também", async () => {
+  it("sem arquivo e sem instrução (ou só espaços): 400 — sem mínimo de tamanho, uma letra já vale", async () => {
     H.mundo.itens.p1 = peca("p1");
     const r = await chamar(DIRETO, { params: { id: "p1" }, userRole: "solicitacao", body: {} });
     expect(r.status).toBe(400);
     expect(r.body.code).toBe(PI.CODIGO_SEM_INSTRUCOES);
-    const curta = await chamar(DIRETO, { params: { id: "p1" }, userRole: "solicitacao", body: { instrucoes: "lona" } });
-    expect(curta.status).toBe(400);
+    expect(r.body.error).toBe(PI.FRASE_ESCREVA_AS_INSTRUCOES);
+    const espacos = await chamar(DIRETO, { params: { id: "p1" }, userRole: "solicitacao", body: { instrucoes: "   " } });
+    expect(espacos.status).toBe(400);
     expect(H.mundo.itens.p1.status).toBe("draft");
+    const umaLetra = await chamar(DIRETO, { params: { id: "p1" }, userRole: "solicitacao", body: { instrucoes: "x" } });
+    expect(umaLetra.status, JSON.stringify(umaLetra.body)).toBe(200);
+    expect(H.mundo.itens.p1).toMatchObject({ status: "ready_for_production", instrucoesGrafica: "x" });
   });
 
   it("com arquivo, a instrução é opcional", async () => {

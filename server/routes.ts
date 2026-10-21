@@ -119,6 +119,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(async (req, res, next) => {
     try {
       if (req.userRole !== "solicitacao" || req.userKit || !["POST", "PATCH", "PUT", "DELETE"].includes(req.method)) return next();
+      // A planilha do Painel é LEITURA por POST (a lista vai em `itemIds`):
+      // com uma peça do Kit no recorte, a Solicitação levava 403 ao baixar o
+      // Excel do que ela já vê (21/10). Não escreve nada — fica de fora da trava.
+      if (req.method === "POST" && req.path === "/api/items/export-xlsx") return next();
       const ids: string[] = [];
       const alvo = req.path.match(/^\/api\/items\/([^/]+)(?:\/|$)/);
       if (alvo && !["bulk", "export-xlsx"].includes(alvo[1])) ids.push(alvo[1]);

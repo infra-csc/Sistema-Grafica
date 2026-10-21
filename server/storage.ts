@@ -552,8 +552,8 @@ export interface IStorage {
   getEventQuotaRules(eventId: string): Promise<EventQuotaRule[]>;
   upsertEventQuotaRule(eventId: string, quota: string, itemTypes: string[]): Promise<EventQuotaRule>;
   deleteEventQuotaRule(eventId: string, quota: string): Promise<void>;
-  previewAutoLink(eventId: string): Promise<Array<{ sponsorId: string; sponsorName: string; quota: string; items: Array<{ itemId: string; displayId: string; type: string; description: string | null }> }>>;
-  autoLinkByQuota(eventId: string): Promise<number>;
+  previewAutoLink(eventId: string, opcoes?: { semPecasDoKit?: boolean }): Promise<Array<{ sponsorId: string; sponsorName: string; quota: string; items: Array<{ itemId: string; displayId: string; type: string; description: string | null }> }>>;
+  autoLinkByQuota(eventId: string, opcoes?: { semPecasDoKit?: boolean }): Promise<number>;
   updateEventSponsorQuota(eventId: string, sponsorId: string, quota: string | null): Promise<void>;
 }
 
@@ -2712,7 +2712,7 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
-  async previewAutoLink(eventId: string): Promise<Array<{ sponsorId: string; sponsorName: string; quota: string; items: Array<{ itemId: string; displayId: string; type: string; description: string | null }> }>> {
+  async previewAutoLink(eventId: string, opcoes: { semPecasDoKit?: boolean } = {}): Promise<Array<{ sponsorId: string; sponsorName: string; quota: string; items: Array<{ itemId: string; displayId: string; type: string; description: string | null }> }>> {
     // Regras do evento; sem nenhuma, as GLOBAIS (tabela global_quota_rules).
     let rules: Array<Pick<EventQuotaRule, "eventId" | "quota" | "itemTypes">> =
       await db.select().from(eventQuotaRules).where(eq(eventQuotaRules.eventId, eventId));
@@ -2746,7 +2746,9 @@ export class DatabaseStorage implements IStorage {
       .from(items)
       // Produção interna (02/10) não leva patrocinador: a vinculação
       // automática por cota não a enxerga (shared/producao-interna.ts).
-      .where(and(eq(items.eventId, eventId), eq(items.producaoInterna, false)));
+      // KIT (21/10): para a Solicitação da Arena, as peças do Kit ficam de
+      // fora — ela só as visualiza (a mesma régua do "Aplicar sugestões").
+      .where(and(eq(items.eventId, eventId), eq(items.producaoInterna, false), ...(opcoes.semPecasDoKit ? [isNull(items.kitRemessaId)] : [])));
 
     // Get existing item-sponsor links to avoid duplicates
     const existingLinks = await db.select({ itemId: itemSponsors.itemId, sponsorId: itemSponsors.sponsorId })
@@ -2790,8 +2792,8 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(eventSponsors.eventId, eventId), eq(eventSponsors.sponsorId, sponsorId)));
   }
 
-  async autoLinkByQuota(eventId: string): Promise<number> {
-    const preview = await this.previewAutoLink(eventId);
+  async autoLinkByQuota(eventId: string, opcoes: { semPecasDoKit?: boolean } = {}): Promise<number> {
+    const preview = await this.previewAutoLink(eventId, opcoes);
     let linked = 0;
     const touchedItemIds = new Set<string>();
     for (const entry of preview) {

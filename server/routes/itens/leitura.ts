@@ -2,7 +2,7 @@
 import type { Express, Request } from "express";
 import { storage, cabeNaJanelaDeEntregues, type ComplementSummary } from "../../storage";
 import { ITEM_STATUSES, type Item, type Event, type Sponsor, type ItemSponsorApproval, type kitRemessas } from "@shared/schema";
-import { eventoComDatasDoKit, pecaVisivelPara } from "@shared/kit";
+import { eventoComDatasDoKit, pecaVisivelPara, PARAM_SEM_KIT_ALHEIO, pecaNaVinculacaoDe } from "@shared/kit";
 import { remessasPorIds } from "../../services/kitRemessas";
 import { resumosDeTuboPorIds, comTubo } from "../../services/tubosDaPeca";
 import {
@@ -261,6 +261,19 @@ type RecorteDePecas = {
  * O recorte é aplicado ANTES do enriquecimento e DEPOIS de pecaVisivelPara —
  * a regra do Kit continua sendo a mesma para a lista recortada.
  */
+/**
+ * `?semKitAlheio=1` (Vinculação, dono 21/10: "usuário de Solicitação NÃO vê
+ * Kit"): para a Solicitação da Arena, as peças do Kit saem da resposta — ela
+ * só as visualiza (trava de server/routes.ts) e elas travavam o lote. Para o
+ * admin e o usuário do Kit o parâmetro não muda nada. É recorte de TELA, não
+ * de permissão: as outras telas seguem mostrando o Kit para consulta.
+ */
+function filtroDoKitAlheio(req: Request): (i: { kitRemessaId?: string | null }) => boolean {
+  if (req.query?.[PARAM_SEM_KIT_ALHEIO] !== "1") return () => true;
+  const quem = { role: req.userRole ?? null, kit: req.userKit === true };
+  return (i) => pecaNaVinculacaoDe(quem, i);
+}
+
 function lerRecorte(req: Request): { ok: true; recorte: RecorteDePecas | null } | { ok: false; erro: string } {
   const lista = (v: unknown): string[] | null => {
     if (v === undefined) return null;
@@ -446,10 +459,12 @@ export function registrarListaEExcluidas(app: Express): void {
       const trilha = querTrilha(req);
       const agora = agoraDoDelta();
       const usuario = quemVe(req);
+      const semKitAlheio = filtroDoKitAlheio(req);
       if (since) {
         const mudadas = await storage.getItemsChangedSince(since);
         // Usuário do Kit: o que ele não enxerga sai do cache dele como removido.
-        const cabe = (i: Item) => !i.deletedAt && pecaVisivelPara(usuario, i) && casaRecorte(recorte, i);
+        // (E, com ?semKitAlheio=1, a peça do Kit sai do cache da Solicitação.)
+        const cabe = (i: Item) => !i.deletedAt && pecaVisivelPara(usuario, i) && semKitAlheio(i) && casaRecorte(recorte, i);
         const visivel = mudadas.map(cabe);
         // Projeção da trilha: o delta anda pelo mesmo caminho, só que sem
         // enriquecimento nenhum — inclusive sem as mães dos complementos, que
@@ -490,7 +505,7 @@ export function registrarListaEExcluidas(app: Express): void {
       }
 
       if (recorte) {
-        const doRecorte = (await pecasDoRecorte(recorte)).filter((i) => pecaVisivelPara(usuario, i));
+        const doRecorte = (await pecasDoRecorte(recorte)).filter((i) => pecaVisivelPara(usuario, i) && semKitAlheio(i));
         if (trilha) {
           const itens = doRecorte.map(projetarNaTrilha);
           return res.json(compacto ? { agora, ...compactarPecas(itens) } : itens);
@@ -499,7 +514,7 @@ export function registrarListaEExcluidas(app: Express): void {
         return res.json(compacto ? { agora, ...compactarPecas(itens) } : itens);
       }
 
-      const allItems = (await storage.getAllItems()).filter((i) => pecaVisivelPara(quemVe(req), i));
+      const allItems = (await storage.getAllItems()).filter((i) => pecaVisivelPara(quemVe(req), i) && semKitAlheio(i));
       avisarAcervoInteiro(req, allItems.length, trilha);
       if (trilha) {
         const itens = allItems.map(projetarNaTrilha);

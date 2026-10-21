@@ -11,6 +11,7 @@ import { useState, useEffect, useMemo, useRef, useDeferredValue } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { AuditLog } from "@shared/schema";
 import { ehMolde } from "@shared/molde";
+import { pecaNaVinculacaoDe } from "@shared/kit";
 import { useAuth } from "@/contexts/auth-context";
 import { TOM, T } from "@/lib/theme";
 import { isEventoFinalizado, todayBusinessMs } from "@/lib/status";
@@ -138,12 +139,23 @@ export function useVinculacao() {
     () => [CHAVE_DA_VINCULACAO[0], `${CHAVE_DA_VINCULACAO[1]}&eventId=${eventosEmJogo.join(",")}`] as const,
     [eventosEmJogo],
   );
-  const { data: items = VAZIO, isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<PecaDaVinculacao[]>({
+  const { data: pecasDoServidor = VAZIO, isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<PecaDaVinculacao[]>({
     queryKey: chaveDaVinculacao,
     // Sem evento em jogo não há nada para vincular — e `?eventId=` vazio seria
     // um 400 do servidor (a validação exige de 1 a 500 ids).
     enabled: eventosEmJogo.length > 0,
   });
+  // KIT (dono, 21/10: "usuário de Solicitação NÃO vê Kit"): a Solicitação da
+  // Arena só visualiza peça do Kit — e ela travava o lote ("não pode liberar
+  // peça do Kit"). Fica fora daqui, na fonte: lista, contagens, seleção,
+  // "Salvar em lote" e "Enviar N para a Arte" nascem todos desta lista. O
+  // servidor já recorta (?semKitAlheio=1); este filtro cobre o cache que uma
+  // atualização otimista ou um servidor antigo deixe passar. Admin e usuário do
+  // Kit: nada muda.
+  const items = useMemo(
+    () => (pecasDoServidor.some((p) => !pecaNaVinculacaoDe(user, p)) ? pecasDoServidor.filter((p) => pecaNaVinculacaoDe(user, p)) : pecasDoServidor),
+    [pecasDoServidor, user],
+  );
 
   // Histórico DA PEÇA aberta no dialog de detalhes, com escopo no servidor.
   // A listagem global tem teto de 500 registros — peça antiga caía fora da

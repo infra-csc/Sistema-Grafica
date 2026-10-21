@@ -4,6 +4,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import type { CSSProperties } from "react";
 import { statusDasEtapas } from "@shared/fluxo-peca";
+import { PARAM_SEM_KIT_ALHEIO } from "@shared/kit";
 import { PRODUCTION_STATUSES } from "@/lib/status";
 import { T } from "@/lib/theme";
 import type { UIStatus } from "./tipos";
@@ -61,7 +62,10 @@ export const VINCULACAO_ETAPAS = [
   "awaiting_finalization", "awaiting_final_review", "ready_for_production",
   "inProduction", "produced", "conferred", "packed", "delivered",
 ] as const;
-export const CHAVE_DA_VINCULACAO = ["/api/items", `?status=${statusDasEtapas(...VINCULACAO_ETAPAS).join(",")}`] as const;
+// `semKitAlheio=1` (dono, 21/10: "usuário de Solicitação NÃO vê Kit"): para a
+// Solicitação da Arena o servidor já não manda as peças do Kit (shared/kit.ts,
+// pecaNaVinculacaoDe). Admin e usuário do Kit recebem o de sempre.
+export const CHAVE_DA_VINCULACAO = ["/api/items", `?status=${statusDasEtapas(...VINCULACAO_ETAPAS).join(",")}&${PARAM_SEM_KIT_ALHEIO}=1`] as const;
 
 // Status "a jusante": o item já saiu da vinculação (foi para a Arte, aprovação
 // ou produção). Precisa cobrir TODAS as convenções de status de ITEM realmente

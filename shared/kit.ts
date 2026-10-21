@@ -47,6 +47,55 @@ export function pecaVisivelPara(
   return !!peca.kitRemessaId && !!usuario.userId && peca.criadoPorId === usuario.userId;
 }
 
+/**
+ * A Solicitação da Arena só VISUALIZA peça do Kit (dono, 15/09): a trava de
+ * server/routes.ts responde 403 a toda escrita de quem tem papel
+ * "solicitacao", NÃO é usuário do Kit, e mira peça com remessa do Kit — por
+ * id na URL (/api/items/:id/…) ou na lista `itemIds` de um lote (aí o lote
+ * inteiro volta 403). O admin age em tudo; o usuário do Kit, nas dele
+ * (server/trava-do-kit.ts). Esta é a MESMA régua, para a tela não montar lote
+ * que o servidor vai recusar.
+ */
+export function soVisualizaPecaDoKit(
+  usuario: { role?: string | null; kit?: boolean | null } | null | undefined,
+  peca: { kitRemessaId?: string | null },
+): boolean {
+  return usuario?.role === "solicitacao" && !usuario?.kit && !!peca.kitRemessaId;
+}
+
+/**
+ * VINCULAÇÃO (dono, 21/10: "usuário de Solicitação NÃO vê Kit"): a Solicitação
+ * da Arena não vê as peças do Kit nesta tela — fora da lista, das contagens e
+ * do lote. O servidor recorta com `?semKitAlheio=1` (GET /api/items) e a tela
+ * aplica o mesmo filtro. Admin vê tudo; o usuário do Kit vê as dele.
+ */
+export const PARAM_SEM_KIT_ALHEIO = "semKitAlheio";
+export const pecaNaVinculacaoDe = (
+  usuario: { role?: string | null; kit?: boolean | null } | null | undefined,
+  peca: { kitRemessaId?: string | null },
+): boolean => !soVisualizaPecaDoKit(usuario, peca);
+
+/**
+ * Divide um lote entre o que a pessoa pode liberar e as peças do Kit que ela
+ * só visualiza — para mandar as primeiras e dizer quais ficaram, em vez de o
+ * servidor recusar o lote inteiro.
+ */
+export function separarPecasDoKitAlheio<P extends { kitRemessaId?: string | null }>(
+  usuario: { role?: string | null; kit?: boolean | null } | null | undefined,
+  pecas: readonly P[],
+): { podem: P[]; doKit: P[] } {
+  const podem: P[] = [];
+  const doKit: P[] = [];
+  for (const p of pecas) (soVisualizaPecaDoKit(usuario, p) ? doKit : podem).push(p);
+  return { podem, doKit };
+}
+
+/** "3 peças do Kit ficaram de fora: quem libera é o Kit." */
+export const fraseDasPecasDoKitQueFicaram = (n: number): string =>
+  n === 1
+    ? "1 peça do Kit ficou de fora: quem libera é o Kit."
+    : `${n} peças do Kit ficaram de fora: quem libera é o Kit.`;
+
 /** A remessa pode receber peça deste usuário? O do Kit só usa as dele. */
 export const remessaUtilizavelPor = (
   usuario: { kit?: boolean | null; userId?: string | null },

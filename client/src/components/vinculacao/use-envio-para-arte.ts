@@ -8,6 +8,8 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { runInBatches } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/auth-context";
+import { fraseDasPecasDoKitQueFicaram, separarPecasDoKitAlheio } from "@shared/kit";
 import { DOWNSTREAM_STATUSES } from "./constantes";
 import { mensagemDoErro } from "./regras";
 import type { Vinculacao } from "./use-vinculacao";
@@ -19,6 +21,7 @@ export function useEnvioParaArte(v: Vinculacao, registrarFalhas: (ok: string[], 
     pendingChanges, setPendingChanges, setSelectedItemIds,
   } = v;
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const [optimisticSentIds, setOptimisticSentIds] = useState<Set<string>>(new Set());
 
@@ -143,7 +146,18 @@ export function useEnvioParaArte(v: Vinculacao, registrarFalhas: (ok: string[], 
     // na hora do clique, em vez de ir ao servidor para voltar como erro.
     const statusAtual = new Map(items.map((i) => [i.id, i.status]));
     const jaEnviadas = doModal.filter(i => DOWNSTREAM_STATUSES.includes(statusAtual.get(i.id) ?? i.status));
-    const paraEnviar = doModal.filter(i => !jaEnviadas.includes(i));
+    // KIT: a peça do Kit que a Solicitação da Arena só visualiza não vai no
+    // lote — com ela, o servidor recusava o lote INTEIRO (403). Vão as que a
+    // pessoa libera, e o aviso diz quantas ficaram e por quê. (A lista já não
+    // as mostra para a Solicitação; isto é o cinto de segurança.)
+    const { podem: paraEnviar, doKit } = separarPecasDoKitAlheio(user, doModal.filter(i => !jaEnviadas.includes(i)));
+    if (doKit.length > 0) {
+      toast({ title: fraseDasPecasDoKitQueFicaram(doKit.length), description: doKit.map(p => p.displayId).filter(Boolean).join(", "), variant: "warning" });
+    }
+    if (paraEnviar.length === 0 && doKit.length > 0) {
+      setSendConfirmModal(null);
+      return;
+    }
     if (paraEnviar.length === 0) {
       setSendConfirmModal(null);
       toast({

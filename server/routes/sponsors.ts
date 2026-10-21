@@ -453,7 +453,8 @@ export function registerSponsorRoutes(app: Express): void {
 
   app.get("/api/events/:id/auto-link-preview", requireAuth, async (req, res) => {
     try {
-      const preview = await storage.previewAutoLink(req.params.id);
+      // A Solicitação da Arena não vê nem vincula peça do Kit (dono, 21/10).
+      const preview = await storage.previewAutoLink(req.params.id, { semPecasDoKit: req.userRole === "solicitacao" && req.userKit !== true });
       res.json(preview);
     } catch (error: any) {
       responderFalha(res, error, "GET /api/events/:id/auto-link-preview");
@@ -466,7 +467,7 @@ export function registerSponsorRoutes(app: Express): void {
       // que é a etapa que faz a peça seguir para a Arte. Recebe o eventId
       // direto — a guarda só precisa saber a que evento a escrita pertence.
       if (await barraEventoFinalizado({ eventId: req.params.id }, res)) return;
-      const linked = await storage.autoLinkByQuota(req.params.id);
+      const linked = await storage.autoLinkByQuota(req.params.id, { semPecasDoKit: req.userRole === "solicitacao" && req.userKit !== true });
       // Vínculo em massa: os padrões aprendidos (sugestão de vínculo) relêem o histórico.
       if (linked > 0) invalidarPadroesDeVinculo();
       // Era a única escrita da tela de vinculação invisível no histórico e

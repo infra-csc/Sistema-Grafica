@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// INTEGRAÇÃO COM O CHECKLIST DE ARENA — leitura, e só leitura.
+// INTEGRAÇÃO COM O CHECKLIST DE ARENA — leitura, e um pedido: a REPOSIÇÃO.
 //
 // O Checklist de Arena é outro app: na montagem do evento, ele confere peça a
 // peça o que a Gráfica entregou. Ele precisa de duas perguntas respondidas:
@@ -10,6 +10,9 @@
 //      chegaram; (b) aberto o tubo, conta-se o que a Gráfica pôs nele.
 // E, para o montador reconhecer a peça no chão, a ARTE dela (a miniatura),
 // pedida peça a peça pelo id.
+// A única ESCRITA: o pedido de reposição de uma peça entregue que chegou
+// faltando ou avariada (POST /reposicoes) — vira complemento na Revisão Final
+// (services/reposicao-do-checklist.ts). Nada mais o token escreve.
 // A regra do que conta como "entregue" mora em shared/integracao-checklist.ts.
 //
 // POR QUE UM TOKEN E NÃO A SESSÃO: quem chama é um SERVIDOR, não uma pessoa.
@@ -34,6 +37,8 @@ import { urlDeThumbValida } from "./thumb-url";
 import { cabecalhosDoObjeto } from "../upload-seguro";
 import { obterMiniatura, type ArquivoComMetadados } from "../services/miniaturas";
 import { listarEventosDoChecklist, montarEntreguesDoEvento } from "../services/checklist-entregues";
+import { z } from "zod";
+import { pedirReposicaoDoChecklist } from "../services/reposicao-do-checklist";
 
 // A montagem das respostas mora no serviço, sem db no import — o script de
 // exportação para a demo local (scripts/exportar-checklist.ts) usa a mesma.
@@ -214,11 +219,32 @@ export function registerIntegracaoChecklistRoutes(app: Express): void {
     }
   });
 
+  // REPOSIÇÃO: peça entregue que chegou faltando/avariada vira complemento na
+  // Revisão Final. O token já foi conferido pelo middleware do prefixo.
+  app.post("/api/integracao/checklist/reposicoes", async (req, res) => {
+    const corpo = z
+      .object({
+        itemId: z.string().uuid("Peça inválida."),
+        quantidade: z.number().int().min(1, "Informe ao menos 1 unidade.").max(9999),
+        motivo: z.string().trim().min(3, "Diga o motivo.").max(400, "Motivo muito longo (máx. 400)."),
+        solicitante: z.string().trim().min(1).max(120),
+      })
+      .safeParse(req.body);
+    if (!corpo.success) return res.status(400).json({ error: corpo.error.issues[0]?.message ?? "Pedido inválido." });
+    try {
+      const r = await pedirReposicaoDoChecklist(corpo.data);
+      res.status(r.status).json(r.corpo);
+    } catch (error) {
+      console.error("[integracao-checklist] falha ao criar a reposição:", error);
+      res.status(500).json({ error: "Não foi possível criar a reposição agora. Tente de novo em instantes." });
+    }
+  });
+
   // O resto do prefixo responde em JSON aqui mesmo. Sem isto, um caminho
   // errado (ou um POST) cairia no index.html do app com 200 — e o Checklist
-  // leria HTML achando que é resposta. A integração é só leitura: 405 fora do GET.
+  // leria HTML achando que é resposta. Fora a reposição, a integração é só leitura.
   app.use("/api/integracao/checklist", (req, res) => {
-    if (req.method !== "GET") return res.status(405).json({ error: "A integração com o Checklist é só leitura." });
+    if (req.method !== "GET") return res.status(405).json({ error: "A integração com o Checklist só lê — a única escrita é o pedido de reposição." });
     res.status(404).json({ error: "Rota da integração não encontrada." });
   });
 }

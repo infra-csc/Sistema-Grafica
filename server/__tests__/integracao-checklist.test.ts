@@ -255,12 +255,12 @@ describe("o middleware", () => {
 });
 
 describe("o registro das rotas", () => {
-  it("o token vem antes de qualquer GET do prefixo, e tudo é GET", () => {
+  it("o token vem antes de qualquer rota do prefixo; fora os GET, só o pedido de reposição escreve", () => {
     const ordem: string[] = [];
     const appFalso: any = {
       use: (caminho: string, fn: any) => { ordem.push(`use ${caminho}${fn === exigirTokenDoChecklist ? " [token]" : ""}`); return appFalso; },
       get: (caminho: string) => { ordem.push(`get ${caminho}`); return appFalso; },
-      post: () => { throw new Error("a integração é só leitura"); },
+      post: (caminho: string) => { ordem.push(`post ${caminho}`); return appFalso; },
       patch: () => { throw new Error("a integração é só leitura"); },
       put: () => { throw new Error("a integração é só leitura"); },
       delete: () => { throw new Error("a integração é só leitura"); },
@@ -272,6 +272,9 @@ describe("o registro das rotas", () => {
       "get /api/integracao/checklist/eventos/:id/entregues",
       "get /api/integracao/checklist/itens/:itemId/thumb",
     ]);
+    // A única escrita: a reposição (21/10) — depois do token e antes do catch-all (405).
+    expect(ordem.filter((l) => l.startsWith("post "))).toEqual(["post /api/integracao/checklist/reposicoes"]);
+    expect(ordem.indexOf("post /api/integracao/checklist/reposicoes")).toBeLessThan(ordem.lastIndexOf("use /api/integracao/checklist"));
   });
 
   it("está registrada no orquestrador", () => {
@@ -317,6 +320,7 @@ describe("a arte da peça", () => {
   const appFalso: any = {
     use: () => appFalso,
     get: (caminho: string, fn: any) => { gets.set(caminho, fn); return appFalso; },
+    post: () => appFalso,
   };
   registerIntegracaoChecklistRoutes(appFalso);
 

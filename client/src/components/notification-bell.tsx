@@ -139,6 +139,15 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
     bgIcon: TOM.laranja.bg, iconColor: T.accentText,
     label: "Complemento",
   },
+  // REPOSIÇÃO pedida pelo Checklist de Arena: peça que chegou faltando ou
+  // avariada no evento volta como complemento na Revisão Final — trabalho
+  // para a Solicitação conferir e liberar.
+  reposicaoChecklist: {
+    Icon: RotateCcw,
+    border: TOM.alerta.dot,
+    bgIcon: TOM.alerta.bg, iconColor: TOM.alerta.text,
+    label: "Reposição",
+  },
   complementCanceled: {
     Icon: MinusCircle,
     border: TOM.perigo.dot,

@@ -14,12 +14,23 @@ import { translateStatus, resolveActor, type AuditActor } from "../routes/shared
 import { deriveCalculatedM2 } from "../routes/itens/comum";
 import { mensagemDoErro } from "../erros";
 
+/**
+ * Variações do complemento. A reposição pedida pelo Checklist de Arena (peça que
+ * chegou faltando ou avariada no evento) nasce na REVISÃO FINAL e avisa a
+ * Solicitação, em vez de ir direto para a fila da Gráfica.
+ */
+export interface OpcoesDoComplemento {
+  status?: string;
+  notificacao?: { type: string; targetRoles: string[]; message: string };
+}
+
 /** Cria o complemento (a peça-filha com a diferença) — a mãe não recebe UPDATE nenhum. */
 export async function criarComplemento(
   parent: Item,
   event: Event,
   pedido: { quantity: number; reason: string },
   ator: AuditActor,
+  opcoes: OpcoesDoComplemento = {},
 ): Promise<{ child: Item; notification: Notification }> {
   // m² do filho SEMPRE derivado no servidor, nesta ordem:
   // 1) fórmula normal (quantidade × largura × altura do arquivo);
@@ -56,7 +67,7 @@ export async function criarComplemento(
     const child = await storage.createComplementItemTx(tx, parent, {
       quantity: pedido.quantity,
       calculatedM2: m2,
-      status: "ready_for_production",
+      status: opcoes.status ?? "ready_for_production",
       complementReason: pedido.reason,
       complementRequestedBy: userName,
       complementRequestedAt: new Date(),
@@ -81,11 +92,11 @@ export async function criarComplemento(
     });
 
     const [notification] = await tx.insert(notifications).values({
-      type: "complementCreated",
-      message: `+${pedido.quantity} un. em ${parent.displayId} (${parent.type}) — ${event.name}. Motivo: ${pedido.reason}`,
+      type: opcoes.notificacao?.type ?? "complementCreated",
+      message: opcoes.notificacao?.message ?? `+${pedido.quantity} un. em ${parent.displayId} (${parent.type}) — ${event.name}. Motivo: ${pedido.reason}`,
       eventId: parent.eventId,
       itemId: child.id,
-      targetRoles: ["grafica"],
+      targetRoles: opcoes.notificacao?.targetRoles ?? ["grafica"],
     }).returning();
 
     return { child, notification };

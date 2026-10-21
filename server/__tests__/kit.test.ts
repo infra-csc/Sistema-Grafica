@@ -95,13 +95,15 @@ describe("planilha do Kit e filtros (fase 2)", () => {
     // comportamento pinado em importacao-com-transacao.test.ts.
     expect(IMPORT).toContain("novaRemessa = dadosRemessa.data;");
     expect(IMPORT).toContain("[remessaCriada] = await tx.insert(kitRemessas).values({");
-    expect(IMPORT).toContain("kit: lerCabecalhoDoKit(file.buffer)");
+    // O cabeçalho vem da aba do Kit quando é ela a lida (21/10, pasta com abas).
+    expect(IMPORT).toContain("kit: lerCabecalhoDoKit(file.buffer, { abaDoKit: leuAbaDoKit ? leitura.arquivoDaAba : null }),");
     // Nova remessa à mão também pode vir preenchida pelo template (14/09).
     const PAINEL_KIT = ler("client/src/components/kit/painel-do-kit.tsx");
     // Tela só: planilha preenche a remessa E traz as peças; próximas remessas
     // começam com os dados da última.
     expect(PAINEL_KIT).toContain('data-testid="button-planilha-remessa-kit"');
-    expect(PAINEL_KIT).toContain("fetch(`/api/events/${eventId}/preview-xlsx`");
+    // Para o Kit: numa pasta com as abas "KIT" e "Arena", vale a do Kit (21/10).
+    expect(PAINEL_KIT).toContain('fetch(`/api/events/${eventId}/preview-xlsx${consultaDaPrevia("kit", aba)}`');
     expect(PAINEL_KIT).toContain("kitNovaRemessa: remessa,");
     expect(PAINEL_KIT).toContain("solicitante: ultima?.solicitante || nomeDoUsuario,");
   });

@@ -48,3 +48,44 @@ export function alinharTipo(
   if (grupo) return { type: grupo, standardItemId: null };
   return { type: tipo, standardItemId: null };
 }
+
+/**
+ * O TIPO TIRADO DO TEXTO DO ITEM, quando a planilha não tem coluna de tipo nem
+ * linha de seção (aba KIT da New Balance BSB, 21/10: o "item" é a descrição
+ * inteira — "Placa de octanorme - COMUNICAÇAO DA PROVA"). Procura, no começo
+ * do texto, o nome mais longo de um Modelo, de um tipo do evento ou de um
+ * grupo do catálogo ("Placa de octanorme", "Backdrop", "Totem"), terminando
+ * em fronteira de palavra. Null quando nada do catálogo abre o texto.
+ */
+export function tipoPeloTextoDoItem(
+  texto: string,
+  ctx: { modelos: readonly ModeloDoCatalogo[]; tiposDoEvento?: readonly string[] },
+): string | null {
+  const k = chaveDoTipo(texto);
+  if (!k) return null;
+  const candidatos = [
+    ...ctx.modelos.map((m) => m.name),
+    ...(ctx.tiposDoEvento ?? []),
+    ...ctx.modelos.map((m) => m.group ?? ""),
+  ];
+  let melhor: { nome: string; tamanho: number } | null = null;
+  for (const c of candidatos) {
+    const kc = chaveDoTipo(c);
+    if (!kc || !k.startsWith(kc)) continue;
+    const resto = k.slice(kc.length);
+    if (resto && !/^[^a-z0-9]/.test(resto)) continue; // "Placa" não abre "Placas"
+    if (!melhor || kc.length > melhor.tamanho) melhor = { nome: c, tamanho: kc.length };
+  }
+  return melhor?.nome ?? null;
+}
+
+/**
+ * Sem nada do catálogo: o texto antes do primeiro separador (" - ", " – ",
+ * " (") — "PLACA DE OCTANORME (RETIRADA DE KIT)" → "PLACA DE OCTANORME".
+ * Texto sem separador fica inteiro.
+ */
+export function tipoAntesDoSeparador(texto: string): string {
+  const t = texto.trim();
+  const corte = t.split(/\s+[-–—]\s+|\s*\(/)[0]?.trim();
+  return corte || t;
+}

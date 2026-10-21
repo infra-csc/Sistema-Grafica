@@ -76,6 +76,100 @@ export async function excluirRemessa(req: QuemPede, id: string) {
   return { status: 200, excluidas: vivas.length } as const;
 }
 
+/**
+ * O que a edição aceita (dono, 21/10: "botão para o Kit mudar os dados"): os
+ * mesmos campos e as mesmas réguas da criação, menos o evento — a remessa não
+ * troca de evento (as peças dela moram nele). Campo ausente fica como está.
+ */
+export const edicaoDaRemessaSchema = remessaSchema.omit({ eventId: true }).partial()
+  .refine((d) => Object.values(d).some((v) => v !== undefined), { message: "Nada para alterar na remessa" });
+
+/** Os campos de data da remessa, na ordem em que a trilha os conta. */
+const DATAS_DA_REMESSA = [
+  ["entregaMaterial", "entrega do material"],
+  ["dataEvento", "data do evento"],
+  ["cargaCaminhao", "carga do caminhão"],
+  ["saidaCaminhao", "saída do caminhão"],
+  ["dataSolicitacao", "data da solicitação"],
+] as const;
+
+/**
+ * Edita a remessa. Mesmas guardas do excluir (dono da remessa para o usuário
+ * do Kit) e da criação (evento aberto, versão única no evento).
+ *
+ * OS PRAZOS SEGUEM A REMESSA: Arte, Gráfica, Gestão de Prazos e os alertas
+ * leem as datas da remessa na hora (eventoComDatasDoKit / ancoraDoKit) — nada
+ * fica gravado na peça. Mas o cliente guarda as peças em cache e só recebe no
+ * delta a peça cujo updated_at andou; por isso as peças da remessa são
+ * carimbadas e avisadas, e a tela de cada um troca as datas sem F5.
+ */
+export async function editarRemessa(req: QuemPede, id: string, dados: z.infer<typeof edicaoDaRemessaSchema>) {
+  const remessa = await carregarRemessa(id);
+  if (!remessa) return { status: 404, erro: "Remessa do Kit não encontrada" } as const;
+  if (!remessaUtilizavelPor({ kit: req.userKit === true, userId: req.userId ?? null }, remessa)) {
+    return { status: 403, erro: "Esta remessa do Kit é de outra pessoa." } as const;
+  }
+  const evento = await storage.getEvent(remessa.eventId);
+  if (!evento) return { status: 404, erro: "Evento não encontrado" } as const;
+  const fechado = motivoEventoFechado(evento);
+  if (fechado) return { status: 409, erro: erroEventoFechado(fechado) } as const;
+
+  if (dados.versao !== undefined && dados.versao.toLowerCase() !== remessa.versao.toLowerCase()) {
+    const mesmas = await db.select({ id: kitRemessas.id }).from(kitRemessas)
+      .where(and(eq(kitRemessas.eventId, remessa.eventId), sql`lower(${kitRemessas.versao}) = lower(${dados.versao})`));
+    if (mesmas.some((m) => m.id !== remessa.id)) {
+      return { status: 409, erro: `Já existe a remessa KIT ${dados.versao} neste evento — escolha outra versão.` } as const;
+    }
+  }
+
+  const mudancas: Partial<typeof kitRemessas.$inferInsert> = {};
+  const trilha: string[] = [];
+  const dia = (d: Date | string | null | undefined) => diaMesDoKit(d) ?? "—";
+  if (dados.versao !== undefined && dados.versao !== remessa.versao) {
+    mudancas.versao = dados.versao;
+    trilha.push(`versão ${remessa.versao} → ${dados.versao}`);
+  }
+  for (const [campo, rotulo] of [["solicitante", "solicitante"], ["departamento", "departamento"], ["arquivo", "planilha"]] as const) {
+    if (dados[campo] === undefined) continue;
+    const novo = dados[campo] || null;
+    if (novo === (remessa[campo] ?? null)) continue;
+    mudancas[campo] = novo;
+    trilha.push(`${rotulo} ${remessa[campo] || "—"} → ${novo || "—"}`);
+  }
+  let mudouData = false;
+  for (const [campo, rotulo] of DATAS_DA_REMESSA) {
+    if (dados[campo] === undefined) continue;
+    const nova = paraData(dados[campo]);
+    const antes = remessa[campo] ? new Date(remessa[campo] as Date) : null;
+    if ((nova?.getTime() ?? null) === (antes?.getTime() ?? null)) continue;
+    if (campo === "entregaMaterial" && !nova) continue; // obrigatória: o schema já barra o vazio
+    (mudancas as Record<string, Date | null>)[campo] = nova;
+    trilha.push(`${rotulo} ${dia(antes)} → ${dia(nova)}`);
+    mudouData = true;
+  }
+  if (trilha.length === 0) return { status: 200, remessa, pecasAtualizadas: 0, prazosMudaram: false } as const;
+
+  const [atualizada] = await db.update(kitRemessas).set(mudancas).where(eq(kitRemessas.id, remessa.id)).returning();
+
+  // As peças carregam a versão e as datas da remessa embutidas no cache do
+  // cliente (selo "KIT V1 · entrega 20/09" e os prazos): carimbar faz o delta
+  // trazê-las de novo, já com a remessa nova.
+  let tocadas: Array<{ id: string }> = [];
+  if (mudouData || mudancas.versao !== undefined) {
+    tocadas = await db.update(items).set({ updatedAt: new Date() })
+      .where(and(eq(items.kitRemessaId, remessa.id), isNull(items.deletedAt)))
+      .returning({ id: items.id });
+  }
+
+  await createAuditLog(req, "updated", "event", remessa.eventId,
+    `Remessa do Kit ${atualizada.versao} editada — ${trilha.join("; ")}`
+    + (tocadas.length ? ` (prazos de ${tocadas.length} ${tocadas.length === 1 ? "peça" : "peças"} pela data nova)` : ""));
+  broadcast({ type: "kit_remessas", eventId: remessa.eventId });
+  if (tocadas.length > 0) broadcast({ type: "items_bulk_updated", itemIds: tocadas.map((p) => p.id), eventId: remessa.eventId });
+  return { status: 200, remessa: atualizada, pecasAtualizadas: tocadas.length, prazosMudaram: mudouData } as const;
+}
+
+
 /** Cria a remessa (rota de remessas e importação da planilha do Kit). */
 export async function criarRemessa(req: QuemPede, dados: z.infer<typeof remessaSchema>) {
   const evento = await storage.getEvent(dados.eventId);

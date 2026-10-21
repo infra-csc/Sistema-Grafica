@@ -93,7 +93,8 @@ export const CHAVES_POR_MENSAGEM: Readonly<Record<TipoMensagemWS, readonly AlvoD
   production_started: ["/api/items", "/api/events", ...GM],
   production_updated: ["/api/items", "/api/events", ...GM],
   tubos_atualizados: ["/api/tubos"],
-  kit_remessas: [{ prefixo: "/api/kit/remessas" }, "/api/events"],
+  // Remessa editada (21/10): as datas dela são a âncora dos prazos do Kit.
+  kit_remessas: [{ prefixo: "/api/kit/remessas" }, "/api/events", "/api/prazos"],
 
   sponsor_created: [...PATROCINIO],
   sponsor_updated: [...PATROCINIO],

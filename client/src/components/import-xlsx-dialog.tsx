@@ -8,6 +8,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useMemo, useState } from "react";
 import type { CabecalhoDoKit, RemessaDoKit } from "@shared/kit";
+import type { AbaComPecasDaPlanilha } from "@shared/api";
 import { DestinoDaImportacaoDialog, type DestinoDaImportacao } from "@/components/kit/destino-da-importacao";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -52,6 +53,9 @@ interface ImportXlsxDialogProps {
   kitRemessas?: RemessaDoKit[];
   kitCabecalho?: CabecalhoDoKit | null;
   somenteKit?: boolean;
+  /** As abas com peças (mais de uma = a pessoa escolhe) e a troca de aba. */
+  abas?: AbaComPecasDaPlanilha[];
+  onTrocarAba?: (nome: string) => void;
 }
 
 // Extracted from event-detail.tsx: the "Importar Peças" split-panel dialog
@@ -79,6 +83,8 @@ export function ImportXlsxDialog({
   kitRemessas = [],
   kitCabecalho = null,
   somenteKit = false,
+  abas = [],
+  onTrocarAba,
 }: ImportXlsxDialogProps) {
   const isMobile = useIsMobile();
 
@@ -201,6 +207,8 @@ export function ImportXlsxDialog({
           setTriagem={setTriagem}
           matchesImportSearch={matchesImportSearch}
           setEscolhendoDestino={setEscolhendoDestino}
+          abas={abas}
+          onTrocarAba={onTrocarAba}
         />
 
         {/* ── Right panel: table (ou, antes da planilha, o lugar dela) ── */}
@@ -233,6 +241,8 @@ export function ImportXlsxDialog({
         remessas={kitRemessas}
         cabecalho={kitCabecalho}
         somenteKit={somenteKit}
+        abas={abas}
+        onTrocarAba={onTrocarAba ? (nome) => { setEscolhendoDestino(false); onTrocarAba(nome); } : undefined}
         pendente={confirmImportPending}
         onConfirmar={(destino) => { if (importPreviewItems?.length) onConfirmImport(importPreviewItems, importFileName, destino); }}
         onFechar={() => setEscolhendoDestino(false)}

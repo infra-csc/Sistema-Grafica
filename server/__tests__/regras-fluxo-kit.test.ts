@@ -311,6 +311,95 @@ describe("remessas do Kit", () => {
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
+// EDITAR A REMESSA (dono, 21/10: "botão para o Kit mudar os dados de data
+// início e tudo mais") — mesma régua do excluir e da criação.
+describe("editar a remessa do Kit", () => {
+  let gravacoes: Array<{ tabela: string; set: Record<string, unknown> }>;
+  beforeEach(() => {
+    gravacoes = [];
+    H.db.update = (t: unknown) => ({
+      set: (set: Record<string, unknown>) => {
+        const tabela = getTableName(t as any);
+        gravacoes.push({ tabela, set });
+        const retorno = tabela === "kit_remessas"
+          ? [{ ...remessas[0], ...set }]
+          : Object.values(mundo.itens).filter((i: any) => i.kitRemessaId === "rem-kit" && !i.deletedAt).map((i: any) => ({ id: i.id }));
+        return { where: () => ({ returning: async () => retorno, then: (ok: any, erro: any) => Promise.resolve(retorno).then(ok, erro) }) };
+      },
+    });
+  });
+  const editar = (quem: any, body: any, id = "rem-kit") => chamar("PATCH /api/kit/remessas/:id", { sessao: quem, params: { id }, body });
+
+  it("é do admin e da Solicitação; o usuário do Kit só edita a dele", async () => {
+    for (const papel of ["arte", "grafica", "atendimento"]) {
+      expect((await editar(sessao(papel), { entregaMaterial: "2099-01-10" })).status, papel).toBe(403);
+    }
+    const alheia = await editar(KIT, { entregaMaterial: "2099-01-10" }, "rem-outro");
+    expect(alheia.status).toBe(403);
+    expect((alheia.body as any).error).toBe("Esta remessa do Kit é de outra pessoa.");
+    expect((await editar(KIT, { entregaMaterial: "2099-01-10" }, "rem-nao-existe")).status).toBe(404);
+    expect(gravacoes).toEqual([]);
+    // A Solicitação da Arena e o admin editam a de qualquer um.
+    expect((await editar(ARENA, { solicitante: "Bruno" }, "rem-outro")).status).toBe(200);
+  });
+
+  it("valida como a criação: entrega obrigatória, data no formato, versão única no evento", async () => {
+    const semEntrega = await editar(KIT, { entregaMaterial: "" });
+    expect(semEntrega.status).toBe(400);
+    expect((semEntrega.body as any).error).toBe("Data inválida");
+    expect((await editar(KIT, { saidaCaminhao: "21/01/2099" })).status).toBe(400);
+    expect((await editar(KIT, { versao: "  " })).status).toBe(400);
+    expect(((await editar(KIT, {})).body as any).error).toBe("Nada para alterar na remessa");
+    const repetida = await editar(KIT, { versao: "v2" });
+    expect(repetida.status).toBe(409);
+    expect((repetida.body as any).error).toBe("Já existe a remessa KIT v2 neste evento — escolha outra versão.");
+    expect(gravacoes).toEqual([]);
+  });
+
+  it("evento encerrado não aceita a edição", async () => {
+    mundo.eventos["ev-1"] = { ...mundo.eventos["ev-1"], manuallyClosed: true };
+    const r = await editar(KIT, { entregaMaterial: "2099-01-10" });
+    expect(r.status).toBe(409);
+    expect(gravacoes).toEqual([]);
+  });
+
+  it("grava as datas novas, conta o antes → depois na trilha e reavisa as peças (os prazos seguem a remessa)", async () => {
+    const r = await editar(KIT, { versao: "V1", entregaMaterial: "2099-01-10", saidaCaminhao: "2099-01-12", solicitante: "Kaio" });
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ id: "rem-kit", pecasAtualizadas: 1, prazosMudaram: true });
+    const daRemessa = gravacoes.find((g) => g.tabela === "kit_remessas")!.set;
+    expect(daRemessa).toEqual({
+      solicitante: "Kaio",
+      entregaMaterial: new Date("2099-01-10T12:00:00Z"),
+      saidaCaminhao: new Date("2099-01-12T12:00:00Z"),
+    });
+    // A peça da remessa é carimbada: o delta do cliente a traz com as datas novas.
+    expect(gravacoes.some((g) => g.tabela === "items" && g.set.updatedAt instanceof Date)).toBe(true);
+    expect(H.trilha.at(-1)).toBe("Remessa do Kit V1 editada — solicitante — → Kaio; entrega do material 03/01 → 10/01; saída do caminhão — → 12/01 (prazos de 1 peça pela data nova)");
+    expect(H.broadcast).toEqual([
+      { type: "kit_remessas", eventId: "ev-1" },
+      { type: "items_bulk_updated", itemIds: ["minha"], eventId: "ev-1" },
+    ]);
+  });
+
+  it("os prazos leem a remessa na hora: a peça do Kit passa a enxergar a entrega nova", async () => {
+    const { eventoComDatasDoKit } = await import("@shared/kit");
+    const antes = eventoComDatasDoKit(mundo.eventos["ev-1"], remessas[0])!;
+    const depois = eventoComDatasDoKit(mundo.eventos["ev-1"], { ...remessas[0], entregaMaterial: new Date("2099-01-10T12:00:00Z") })!;
+    expect(antes.truckDepartureDate).toEqual(new Date("2099-01-03T12:00:00Z"));
+    expect(depois.truckDepartureDate).toEqual(new Date("2099-01-10T12:00:00Z"));
+  });
+
+  it("sem mudança de verdade, nada é gravado nem avisado", async () => {
+    const r = await editar(KIT, { versao: "V1", entregaMaterial: "2099-01-03" });
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ pecasAtualizadas: 0, prazosMudaram: false });
+    expect(gravacoes).toEqual([]);
+    expect(H.broadcast).toEqual([]);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
 describe("as peças do Kit", () => {
   const LINHA = { eventId: "ev-1", type: "Pórtico", description: "x", quantity: 1, area: "9.00", visual: "9.00", material: "Lona", finish: "Ilhós", measurement: "3x3", calculatedM2: "9.00" };
   const ids = (r: { body: unknown }) => (r.body as any[]).map((i) => i.id).sort();

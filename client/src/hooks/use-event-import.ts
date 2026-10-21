@@ -7,9 +7,10 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { CabecalhoDoKit } from "@shared/kit";
-import type { PecaLidaDaPlanilha, PreviaDaPlanilha, RespostaDaClonagem, RespostaDaImportacao } from "@shared/api";
+import type { AbaComPecasDaPlanilha, PecaLidaDaPlanilha, PreviaDaPlanilha, RespostaDaClonagem, RespostaDaImportacao } from "@shared/api";
 import type { LinhaDaImportacao } from "@/components/importar-planilha/tipos";
 import type { DestinoDaImportacao } from "@/components/kit/destino-da-importacao";
+import { consultaDaPrevia } from "@/components/importar-planilha/seletor-de-abas";
 import { avisarClonagem } from "@/components/detalhe-do-evento/desfazer-clonagem";
 
 interface EventSponsorListEntry {
@@ -58,13 +59,16 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
   const [importKit, setImportKit] = useState<CabecalhoDoKit | null>(null);
   // Linhas da planilha que ficaram de fora do preview, e por quê.
   const [importIgnoradas, setImportIgnoradas] = useState<{ linha: number; motivo: string }[]>([]);
+  // Pasta com as abas "KIT" e "Arena" (21/10): de qual aba vieram as peças
+  // e as outras com peças — a tela deixa trocar.
+  const [importAbas, setImportAbas] = useState<AbaComPecasDaPlanilha[]>([]);
 
   // ── Preview Excel mutation (parse → show review modal) ─────────────────
   const previewXlsxMutation = useMutation({
-    mutationFn: async ({ file }: { file: File }): Promise<PreviaDaPlanilha> => {
+    mutationFn: async ({ file, para, aba }: { file: File; para?: "kit"; aba?: string }): Promise<PreviaDaPlanilha> => {
       const formData = new FormData();
       formData.append("file", file);
-      const response = await fetch(`/api/events/${eventId}/preview-xlsx`, {
+      const response = await fetch(`/api/events/${eventId}/preview-xlsx${consultaDaPrevia(para, aba)}`, {
         method: "POST",
         body: formData,
         credentials: "include",
@@ -118,6 +122,7 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
       setImportPreviewItems(withIds);
       setImportIgnoradas(Array.isArray(data.ignoradas) ? data.ignoradas : []);
       setImportKit(data.kit ?? null);
+      setImportAbas(Array.isArray(data.abas) ? data.abas : []);
       setImportFileName(data.fileName || "");
       setImportSearch("");
     },
@@ -163,6 +168,7 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
       setImportPreviewItems(null);
       setImportIgnoradas([]);
       setImportKit(null);
+      setImportAbas([]);
       setImportFile(null);
       setImportFileName("");
       setImportSearch("");
@@ -195,6 +201,7 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
     confirmImportMutation,
     importKit,
     importIgnoradas,
+    importAbas,
   };
 }
 

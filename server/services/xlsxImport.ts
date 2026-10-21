@@ -15,12 +15,16 @@ import { camposDoErro, fraseDoZod } from "../erros";
 import { tipoCanonico } from "@shared/molde";
 // O tipo da planilha casado com o catálogo e com os tipos do evento (relato
 // de 25/09: a peça importada não caía no grupo da criada à mão).
-import { alinharTipo } from "@shared/tipo-da-peca";
+import { alinharTipo, chaveDoTipo, tipoAntesDoSeparador, tipoPeloTextoDoItem, type ModeloDoCatalogo } from "@shared/tipo-da-peca";
 
   // ── O CABEÇALHO DA PLANILHA DO KIT (14/09) ───────────────────────────────
   // Rótulo na coluna A, valor na B, nas linhas acima da tabela de peças; o
   // nome do evento na A1. Null quando a planilha não é do Kit.
-  export function lerCabecalhoDoKit(buffer: Buffer): CabecalhoDoKit | null {
+  //
+  // `abaDoKit`: o arquivo interno da aba "KIT" que foi LIDA (leitura para o
+  // Kit). Nela o cabeçalho vale mesmo sem as datas — a pessoa as preenche à
+  // mão, e a versão e o solicitante já vêm (New Balance BSB, 21/10).
+  export function lerCabecalhoDoKit(buffer: Buffer, opcoes: { abaDoKit?: string | null } = {}): CabecalhoDoKit | null {
     let zip: AdmZip;
     try { zip = new AdmZip(buffer); } catch { return null; }
     const compartilhadas: string[] = [];
@@ -32,6 +36,7 @@ import { alinharTipo } from "@shared/tipo-da-peca";
       }
     }
     const decodificar = (s: string) => s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'");
+    let semDatas: CabecalhoDoKit | null = null;
     for (const entry of zip.getEntries()) {
       if (!/^xl\/worksheets\/sheet\d+\.xml$/.test(entry.entryName)) continue;
       const xml = entry.getData().toString("utf8");
@@ -57,8 +62,9 @@ import { alinharTipo } from "@shared/tipo-da-peca";
       }
       const cabecalho = cabecalhoDoKit(pares, primeira);
       if (cabecalho) return cabecalho;
+      if (opcoes.abaDoKit && entry.entryName === opcoes.abaDoKit) semDatas = cabecalhoDoKit(pares, primeira, { aceitarSemDatas: true });
     }
-    return null;
+    return semDatas;
   }
 
 
@@ -115,9 +121,62 @@ import { alinharTipo } from "@shared/tipo-da-peca";
   /** Linha com cara de peça que ficou fora da leitura, e por quê. */
   export type LinhaIgnorada = { linha: number; motivo: string };
 
+  /**
+   * Uma aba com peças numa pasta de várias abas (New Balance BSB, 21/10: "KIT",
+   * "Arena", duas vazias e uma oculta cheia de #REF!). `doKit`: o nome é
+   * "KIT…" ou a aba traz o cabeçalho do Kit (versão do pedido, entrega).
+   */
+  export type AbaDaPlanilha = { nome: string; arquivo: string; pecas: number; doKit: boolean };
+
   export type LeituraDaPlanilha =
-    | { ok: true; items: PecaLida[]; ignoradas: LinhaIgnorada[] }
+    | {
+        ok: true; items: PecaLida[]; ignoradas: LinhaIgnorada[];
+        /** O nome da aba de onde as peças saíram (null em planilha sem workbook.xml). */
+        aba: string | null;
+        /** O arquivo interno da aba lida (xl/worksheets/sheetN.xml). */
+        arquivoDaAba: string | null;
+        /** As abas VISÍVEIS com peças, na ordem da pasta — a tela deixa escolher quando há mais de uma. */
+        abas: AbaDaPlanilha[];
+        /** A aba do Kit da pasta, quando existe e tem peças — lida ou não. */
+        abaDoKit: AbaDaPlanilha | null;
+      }
     | { ok: false; erro: string; amostra?: string };
+
+  const semAcento = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+  /** "KIT", "Kit", "KIT V2", "kit - retirada" — o nome de aba do Kit. */
+  export const ehNomeDeAbaDoKit = (nome: string | null | undefined): boolean =>
+    /^kit\b/.test(semAcento(String(nome ?? "")).trim());
+
+  /**
+   * O NOME de cada aba (e se está oculta), pelo arquivo interno
+   * (xl/worksheets/sheetN.xml). O número do arquivo NÃO é o nome nem garante
+   * a ordem: na New Balance BSB a aba "KIT" é a sheet1 e a "Arena" a sheet2.
+   * Sem workbook.xml (planilha montada à mão, testes antigos), sai vazio.
+   */
+  export function abasDaPasta(zip: AdmZip): Map<string, { nome: string; oculta: boolean; ordem: number }> {
+    const abas = new Map<string, { nome: string; oculta: boolean; ordem: number }>();
+    const wb = zip.getEntry("xl/workbook.xml")?.getData().toString("utf8");
+    const rels = zip.getEntry("xl/_rels/workbook.xml.rels")?.getData().toString("utf8");
+    if (!wb || !rels) return abas;
+    const alvoPorId = new Map<string, string>();
+    for (const m of Array.from(rels.matchAll(/<Relationship\b[^>]*>/g)) as RegExpMatchArray[]) {
+      const id = (m[0].match(/\bId="([^"]+)"/) ?? [])[1];
+      const alvo = (m[0].match(/\bTarget="([^"]+)"/) ?? [])[1];
+      // "worksheets/sheet1.xml" (relativo a xl/) ou "/xl/worksheets/sheet1.xml".
+      if (id && alvo) alvoPorId.set(id, alvo.replace(/^\/?(xl\/)?/, "xl/"));
+    }
+    const decod = (v: string) => v.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'");
+    let ordem = 0;
+    for (const m of Array.from(wb.matchAll(/<sheet\b[^>]*>/g)) as RegExpMatchArray[]) {
+      const nome = (m[0].match(/\bname="([^"]*)"/) ?? [])[1];
+      const id = (m[0].match(/\br:id="([^"]+)"/) ?? [])[1];
+      const estado = (m[0].match(/\bstate="([^"]*)"/) ?? [])[1] ?? "visible";
+      const alvo = id ? alvoPorId.get(id) : undefined;
+      if (nome !== undefined && alvo) abas.set(alvo, { nome: decod(nome), oculta: estado !== "visible", ordem: ordem++ });
+    }
+    return abas;
+  }
 
   /**
    * A identidade de uma peça DENTRO da planilha: tipo, descrição e medida de
@@ -150,6 +209,16 @@ import { alinharTipo } from "@shared/tipo-da-peca";
   export function lerPlanilhaDePecas(
     buffer: Buffer,
     matchSponsors: (texto: string) => string[],
+    /**
+     * `paraOKit`: a leitura é para o Kit (usuário do Kit, "Nova remessa do
+     * Kit", ou a pessoa escolheu "Kit"). Numa pasta com a aba "KIT" e a aba
+     * "Arena", é a do Kit que vale — sem isto o parser ficava com a aba de
+     * MAIS peças, e o Kit importava as 31 peças da Arena (New Balance BSB,
+     * 21/10) no lugar das 10 dele.
+     * `aba`: a aba que a pessoa escolheu na tela (pelo nome). Vale sobre as
+     * duas regras acima quando tem peças.
+     */
+    opcoes: { paraOKit?: boolean; aba?: string | null } = {},
   ): LeituraDaPlanilha {
     let zip: AdmZip;
     try { zip = new AdmZip(buffer); }
@@ -208,9 +277,12 @@ import { alinharTipo } from "@shared/tipo-da-peca";
     const normHdr = (s: string) =>
       s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
 
+    const infoDasAbas = abasDaPasta(zip);
     const sheetEntries: string[] = [];
     for (const entry of zip.getEntries()) {
-      if (/^xl\/worksheets\/sheet\d+\.xml$/.test(entry.entryName)) sheetEntries.push(entry.entryName);
+      // Aba OCULTA não é fonte de peças (na New Balance BSB, a
+      // "memória-tapeçaria" oculta vem cheia de #REF!).
+      if (/^xl\/worksheets\/sheet\d+\.xml$/.test(entry.entryName) && !infoDasAbas.get(entry.entryName)?.oculta) sheetEntries.push(entry.entryName);
     }
     // sheet2 primeiro (comum em pastas com capa), depois sheet1, depois o resto.
     sheetEntries.sort((a, b) => {
@@ -257,8 +329,8 @@ import { alinharTipo } from "@shared/tipo-da-peca";
     // Testa todas as abas; fica com a que rende mais peças válidas. Pastas com
     // uma aba de capa que tem cara de cabeçalho e nenhum dado paravam o parser
     // na aba errada.
-    let bestItems: PecaLida[] = [];
-    let bestIgnoradas: LinhaIgnorada[] = [];
+    // Cada aba com cabeçalho rende uma leitura; a escolha vem no fim.
+    const leituras: Array<{ arquivo: string; nome: string | null; ordem: number; doKit: boolean; items: PecaLida[]; ignoradas: LinhaIgnorada[] }> = [];
     let anyHeaderFound = false;
     const amostras: string[] = [];
 
@@ -426,6 +498,10 @@ import { alinharTipo } from "@shared/tipo-da-peca";
           }
         }
 
+        // E o inverso: AREA/VISUAL em branco com a medida do arquivo escrita
+        // (aba KIT da New Balance BSB, 21/10) — o visual é o próprio arquivo.
+        const semVisual = !visualW && !visualH && !!fileW && !!fileH;
+
         let groupType: string;
         if (grupoExplicito) {
           // Tipo vindo de coluna própria é o tipo do app: não se normaliza.
@@ -457,8 +533,8 @@ import { alinharTipo } from "@shared/tipo-da-peca";
           type: tipoCanonico(groupType),
           description: itemVal,
           quantity: qty,
-          visualWidth: visualW || null,
-          visualHeight: visualH || null,
+          visualWidth: (semVisual ? fileW : visualW) || null,
+          visualHeight: (semVisual ? fileH : visualH) || null,
           fileWidth: fileW || null,
           fileHeight: fileH || null,
           calculatedM2: fileW && fileH ? Math.round(qty * fileW * fileH * 10000) / 10000 : 0,
@@ -473,7 +549,15 @@ import { alinharTipo } from "@shared/tipo-da-peca";
         localItems.push(peca);
       }
 
-      if (localItems.length > bestItems.length) { bestItems = localItems; bestIgnoradas = localIgnoradas; }
+      // Aba do Kit: pelo nome, ou pelo cabeçalho do Kit acima da tabela.
+      const rotulosDoTopo = Object.entries(candidate).filter(([rn]) => Number(rn) < headerRow).map(([, c]) => normHdr(c.A ?? ""));
+      const temCabecalhoDoKit = rotulosDoTopo.some((r) => r.startsWith("versao do pedido") || r.startsWith("data de entrega do material"));
+      const info = infoDasAbas.get(sn);
+      leituras.push({
+        arquivo: sn, nome: info?.nome ?? null, ordem: info?.ordem ?? Number.MAX_SAFE_INTEGER,
+        doKit: ehNomeDeAbaDoKit(info?.nome) || temCabecalhoDoKit,
+        items: localItems, ignoradas: localIgnoradas,
+      });
     }
 
     if (!anyHeaderFound) {
@@ -483,10 +567,59 @@ import { alinharTipo } from "@shared/tipo-da-peca";
         amostra: amostras.join("\n"),
       };
     }
-    if (bestItems.length === 0) {
-      return { ok: false, erro: "Nenhum item válido encontrado. Verifique se há linhas com quantidade > 0." };
+    // A ESCOLHA DA ABA. Sem preferência: a que rende mais peças (pastas com
+    // capa ou abas de apoio). Para o Kit: a aba "KIT", quando ela tem peças.
+    const maisPecas = <T extends { items: PecaLida[] }>(lista: T[]): T | undefined =>
+      lista.reduce<T | undefined>((melhor, l) => (!melhor || l.items.length > melhor.items.length ? l : melhor), undefined);
+    const doKit = maisPecas(leituras.filter((l) => l.doKit && l.items.length > 0));
+    const pedida = opcoes.aba ? leituras.find((l) => l.nome === opcoes.aba && l.items.length > 0) : undefined;
+    const escolhida = pedida || (opcoes.paraOKit && doKit) || maisPecas(leituras);
+    if (!escolhida || escolhida.items.length === 0) {
+      // A régua de sempre, agora dizendo ONDE: "0 peças" sem a aba e as linhas
+      // não deixava ninguém achar o defeito (dono, 21/10).
+      const comMaisLinhas = [...leituras].sort((x, y) => y.ignoradas.length - x.ignoradas.length)[0];
+      const ign = comMaisLinhas && comMaisLinhas.ignoradas.length > 0 ? comMaisLinhas : null;
+      const detalhe = ign
+        ? ` Na aba ${ign.nome ? `"${ign.nome}"` : "lida"}, ${ign.ignoradas.length} ${ign.ignoradas.length === 1 ? "linha ficou" : "linhas ficaram"} sem quantidade válida (${ign.ignoradas.slice(0, 3).map((l) => `linha ${l.linha}: ${l.motivo}`).join("; ")}${ign.ignoradas.length > 3 ? "; …" : ""}).`
+        : "";
+      return { ok: false, erro: `Nenhum item válido encontrado. Verifique se há linhas com quantidade > 0.${detalhe}` };
     }
-    return { ok: true, items: marcarRepetidas(bestItems, chaveNaPlanilha), ignoradas: bestIgnoradas };
+    return {
+      ok: true,
+      items: marcarRepetidas(escolhida.items, chaveNaPlanilha),
+      ignoradas: escolhida.ignoradas,
+      aba: escolhida.nome,
+      arquivoDaAba: escolhida.arquivo,
+      abas: leituras.filter((l) => l.items.length > 0).sort((x, y) => x.ordem - y.ordem)
+        .map((l) => ({ nome: l.nome ?? "Planilha", arquivo: l.arquivo, pecas: l.items.length, doKit: l.doKit })),
+      abaDoKit: doKit ? { nome: doKit.nome ?? "KIT", arquivo: doKit.arquivo, pecas: doKit.items.length, doKit: true } : null,
+    };
+  }
+
+  /**
+   * O TIPO QUE A PRÉVIA MOSTRA (e que vai ser gravado). Casado com o catálogo
+   * e o evento (alinharTipo). Quando a planilha não tem tipo — o tipo saiu
+   * igual ao texto do item —, o tipo vem do COMEÇO do texto: o Modelo/tipo do
+   * evento/grupo que o abre ("Placa de octanorme - CHECK-IN" → "Placa de
+   * octanorme"); na aba do Kit, sem nada do catálogo, o texto antes do
+   * separador. Grafias diferentes do mesmo tipo na mesma planilha viram uma.
+   */
+  export function tiposDaPrevia<T extends { type: string; description: string }>(
+    pecas: T[],
+    ctx: { modelos: readonly ModeloDoCatalogo[]; tiposDoEvento?: readonly string[] },
+    opcoes: { recortarSemCatalogo?: boolean } = {},
+  ): T[] {
+    const primeiraGrafia = new Map<string, string>();
+    return pecas.map((p) => {
+      let tipo = p.type;
+      if (chaveDoTipo(p.type) === chaveDoTipo(p.description)) {
+        tipo = tipoPeloTextoDoItem(p.description, ctx) ?? (opcoes.recortarSemCatalogo ? tipoAntesDoSeparador(p.description) : p.type);
+      }
+      const alinhado = alinharTipo(tipo, ctx).type;
+      const k = chaveDoTipo(alinhado);
+      if (!primeiraGrafia.has(k)) primeiraGrafia.set(k, alinhado);
+      return { ...p, type: primeiraGrafia.get(k)! };
+    });
   }
 
   // ── Preview Excel items (parse without saving) ───────────────────────────
@@ -527,7 +660,13 @@ import { alinharTipo } from "@shared/tipo-da-peca";
       const file: { buffer: Buffer; originalname: string } | undefined = req.file;
       if (!file) return res.status(400).json({ error: "Arquivo .xlsx não encontrado" });
 
-      const leitura = lerPlanilhaDePecas(file.buffer, matchSponsors);
+      // PARA O KIT (21/10): o usuário do Kit sempre; os outros quando a tela
+      // diz (?para=kit — "Nova remessa do Kit"). Numa pasta com as abas "KIT"
+      // e "Arena", é a aba do Kit que vale.
+      const paraOKit = req.userKit === true || req.query.para === "kit";
+      // A aba que a pessoa escolheu na tela, quando a pasta tem mais de uma.
+      const abaPedida = typeof req.query.aba === "string" && req.query.aba ? req.query.aba : null;
+      const leitura = lerPlanilhaDePecas(file.buffer, matchSponsors, { paraOKit, aba: abaPedida });
       if (!leitura.ok) {
         if (leitura.amostra) console.error("[preview-xlsx] header not found. File:", file.originalname, "\nRows scanned:\n" + leitura.amostra);
         return res.status(400).json({ error: leitura.erro });
@@ -539,8 +678,16 @@ import { alinharTipo } from "@shared/tipo-da-peca";
       // O tipo que a prévia mostra já é o que vai ser gravado (ver alinharTipo).
       const [modelos, pecasDoEvento] = await Promise.all([storage.getAllStandardItems(), storage.getItemsByEvent(event.id)]);
       const ctxDoTipo = { modelos, tiposDoEvento: Array.from(new Set(pecasDoEvento.map((i) => i.type).filter(Boolean))) };
-      const items = leitura.items.map((it) => ({ ...it, type: alinharTipo(it.type, ctxDoTipo).type }));
-      res.json({ items, ignoradas: leitura.ignoradas, fileName: file.originalname, kit: lerCabecalhoDoKit(file.buffer) });
+      const leuAbaDoKit = !!leitura.abaDoKit && leitura.abaDoKit.arquivo === leitura.arquivoDaAba;
+      const items = tiposDaPrevia(leitura.items, ctxDoTipo, { recortarSemCatalogo: leuAbaDoKit });
+      res.json({
+        items, ignoradas: leitura.ignoradas, fileName: file.originalname,
+        kit: lerCabecalhoDoKit(file.buffer, { abaDoKit: leuAbaDoKit ? leitura.arquivoDaAba : null }),
+        // De qual aba vieram as peças, e a aba do Kit quando a pasta tem uma.
+        aba: leitura.aba,
+        abas: leitura.abas.map((a) => ({ nome: a.nome, pecas: a.pecas, doKit: a.doKit, lida: a.arquivo === leitura.arquivoDaAba })),
+        abaDoKit: leitura.abaDoKit ? { nome: leitura.abaDoKit.nome, pecas: leitura.abaDoKit.pecas, lida: leuAbaDoKit } : null,
+      });
     } catch (error: unknown) {
       const campos = camposDoErro(error) as { message?: string; code?: string; stack?: string };
       console.error("[preview-xlsx] unhandled error:", campos.message, campos.stack?.slice(0, 600));

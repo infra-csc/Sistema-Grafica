@@ -7,12 +7,14 @@ import { T, N, TOM, FONT } from "@/lib/theme";
 import { Botao } from "@/components/ui/botao";
 import { DEFEITO_LABEL, defeitosDaLinha, tipoDoGrupo, type DefeitoImport } from "./regras";
 import type { LinhaDaImportacao } from "./tipos";
+import type { AbaComPecasDaPlanilha } from "@shared/api";
+import { SeletorDeAbas } from "./seletor-de-abas";
 
 export function BarraLateralDaImportacao({
   isMobile, importFile, setImportFile, setImportPreview, importPreviewItems, setImportPreviewItems,
   importFileName, setImportSearch, previewXlsxPending, onPreview, confirmImportPending,
   ignoradas, verIgnoradas, setVerIgnoradas, repetidas, comQtdInvalida, chavesDoEvento, repetidasDaPlanilha,
-  triagem, setTriagem, matchesImportSearch, setEscolhendoDestino,
+  triagem, setTriagem, matchesImportSearch, setEscolhendoDestino, abas = [], onTrocarAba,
 }: {
   isMobile: boolean;
   importFile: File | null;
@@ -38,6 +40,9 @@ export function BarraLateralDaImportacao({
   setTriagem: (t: DefeitoImport | null) => void;
   matchesImportSearch: (i: LinhaDaImportacao) => boolean | undefined;
   setEscolhendoDestino: (v: boolean) => void;
+  /** Pasta com mais de uma aba com peças: qual foi lida, e a troca. */
+  abas?: AbaComPecasDaPlanilha[];
+  onTrocarAba?: (nome: string) => void;
 }) {
   const { toast } = useToast();
 
@@ -126,6 +131,7 @@ export function BarraLateralDaImportacao({
         )}
       </label>
       )}
+      {importPreviewItems && onTrocarAba && <SeletorDeAbas abas={abas} pendente={previewXlsxPending} onEscolher={onTrocarAba} />}
       </div>
 
       {/* MEIO ROLÁVEL: resumo, triagem e a dica de formato. */}

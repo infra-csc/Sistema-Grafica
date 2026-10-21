@@ -150,18 +150,34 @@ export function dataDaPlanilha(valor: string | null | undefined): string | null 
 const rotuloNormal = (s: string) =>
   s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[:\s]+/g, " ").trim();
 
-/** Lê o cabeçalho do Kit dos pares (rótulo na A, valor na B). Null se não for do Kit. */
-export function cabecalhoDoKit(pares: Array<{ rotulo: string; valor: string }>, primeiraCelula?: string | null): CabecalhoDoKit | null {
+/**
+ * Lê o cabeçalho do Kit dos pares (rótulo na A, valor na B). Null se não for do Kit.
+ *
+ * Pelas DATAS (entrega do material ou saída do caminhão) em qualquer aba. Com
+ * `aceitarSemDatas` — só para a aba "KIT" que é a lida —, basta a versão do
+ * pedido com solicitante, departamento ou data da solicitação: a New Balance
+ * BSB (21/10) veio sem as datas, e a versão e o solicitante se perdiam junto.
+ */
+export function cabecalhoDoKit(
+  pares: Array<{ rotulo: string; valor: string }>,
+  primeiraCelula?: string | null,
+  opcoes: { aceitarSemDatas?: boolean } = {},
+): CabecalhoDoKit | null {
   const acha = (teste: (rotulo: string) => boolean) => pares.find((p) => teste(rotuloNormal(p.rotulo)))?.valor?.trim() || null;
   const entregaMaterial = dataDaPlanilha(acha((r) => r.startsWith("data de entrega") || r.startsWith("entrega do material")));
   const saidaCaminhao = dataDaPlanilha(acha((r) => r.includes("saida") && r.includes("caminhao")));
-  if (!entregaMaterial && !saidaCaminhao) return null;
+  const versao = acha((r) => r.startsWith("versao"));
+  const solicitante = acha((r) => r === "solicitante");
+  const departamento = acha((r) => r === "departamento");
+  const dataSolicitacao = dataDaPlanilha(acha((r) => r.startsWith("data solicitacao") || r.startsWith("data da solicitacao")));
+  const temCaraDeKit = opcoes.aceitarSemDatas === true && !!versao && !!(solicitante || departamento || dataSolicitacao);
+  if (!entregaMaterial && !saidaCaminhao && !temCaraDeKit) return null;
   return {
     evento: primeiraCelula?.trim() || null,
-    versao: acha((r) => r.startsWith("versao")),
-    solicitante: acha((r) => r === "solicitante"),
-    departamento: acha((r) => r === "departamento"),
-    dataSolicitacao: dataDaPlanilha(acha((r) => r.startsWith("data solicitacao") || r.startsWith("data da solicitacao"))),
+    versao,
+    solicitante,
+    departamento,
+    dataSolicitacao,
     entregaMaterial,
     dataEvento: dataDaPlanilha(acha((r) => r === "data do evento")),
     cargaCaminhao: dataDaPlanilha(acha((r) => r.includes("carrega") || (r.includes("carga") && r.includes("caminhao")))),

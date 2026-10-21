@@ -146,6 +146,7 @@ export default function EventDetail() {
     confirmImportMutation,
     importKit,
     importIgnoradas,
+    importAbas,
   } = useEventImport({ eventId, eventSponsorsList, eventQuotaRules });
 
   // Estado e mutation de clonagem de itens entre eventos (extraído para @/hooks/use-event-import)
@@ -763,6 +764,9 @@ export default function EventDetail() {
         // evento inteiro em silêncio.
         itensDoEvento={items}
         ignoradas={importIgnoradas}
+        // Pasta com as abas "KIT" e "Arena" (21/10): a pessoa vê e troca a aba lida.
+        abas={importAbas}
+        onTrocarAba={(nome) => { if (importFile) previewXlsxMutation.mutate({ file: importFile, aba: nome }); }}
       />
       {/* ── Dialog: Clonar Evento ──────────────────────────────────────────── */}
       <CloneItemsDialog

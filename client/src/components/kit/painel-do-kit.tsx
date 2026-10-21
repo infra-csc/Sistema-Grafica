@@ -11,7 +11,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ChevronDown, FileSpreadsheet, Package, Plus, Trash2, X } from "lucide-react";
+import { ChevronDown, FileSpreadsheet, Package, Pencil, Plus, Trash2, X } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { diaMesDoKit, type RemessaDoKit } from "@shared/kit";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -21,6 +21,8 @@ import { useToast } from "@/hooks/use-toast";
 import { alvo, useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { T, FS, R, N, TOM, FONT, FW, SHADOW } from "@/lib/theme";
 import { Botao } from "@/components/ui/botao";
+import { SeletorDeAbas, consultaDaPrevia } from "@/components/importar-planilha/seletor-de-abas";
+import type { AbaComPecasDaPlanilha } from "@shared/api";
 
 const ROTULO: React.CSSProperties = { display: "block", fontSize: FS.small, fontWeight: FW.rotulo, letterSpacing: "0.08em", textTransform: "uppercase", color: T.apoio, marginBottom: 5 };
 const CAMPO: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: 38, padding: "0 10px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, fontSize: FS.read, color: T.text, fontFamily: "inherit" };
@@ -77,10 +79,15 @@ export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, podeCriar
   /** Dedo (celular OU tablet do galpão): manda no TAMANHO do alvo, só nele. */
   const dedo = usePonteiroGrosso() || isMobile;
   const [aberto, setAberto] = useState(false);
+  // EDITAR (dono, 21/10: "botão para o Kit mudar os dados"): o MESMO modal da
+  // criação, já preenchido com a remessa — sem planilha (as peças já entraram).
+  const [editando, setEditando] = useState<RemessaDoKit | null>(null);
   const { data: remessas = [] } = useQuery<RemessaDoKit[]>({ queryKey: [chaveDasRemessas(eventId)], enabled: !!eventId });
 
   const [form, setForm] = useState({ versao: "V1", solicitante: "", entregaMaterial: "", dataEvento: "", cargaCaminhao: "", saidaCaminhao: "" });
-  const [planilha, setPlanilha] = useState<{ nome: string; pecas: PecaDaPlanilha[]; departamento: string | null; dataSolicitacao: string | null } | null>(null);
+  const [planilha, setPlanilha] = useState<{ nome: string; pecas: PecaDaPlanilha[]; departamento: string | null; dataSolicitacao: string | null; abas: AbaComPecasDaPlanilha[] } | null>(null);
+  // O arquivo, para ler OUTRA aba da mesma pasta sem pedir de novo.
+  const arquivoRef = useRef<File | null>(null);
   const [lendoPlanilha, setLendoPlanilha] = useState(false);
   // Detalhe das peças de cada remessa, com status (15/09: "igual o da Arena").
   const [remessaAberta, setRemessaAberta] = useState<string | null>(null);
@@ -112,7 +119,14 @@ export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, podeCriar
     const ultima = remessas[0];
     setPlanilha(null);
     setConfirmandoDescarte(false);
-    const inicial = {
+    const inicial = editando ? {
+      versao: editando.versao,
+      solicitante: editando.solicitante || "",
+      entregaMaterial: dataDoCampo(editando.entregaMaterial),
+      dataEvento: dataDoCampo(editando.dataEvento),
+      cargaCaminhao: dataDoCampo(editando.cargaCaminhao),
+      saidaCaminhao: dataDoCampo(editando.saidaCaminhao),
+    } : {
       versao: proximaVersao(remessas),
       solicitante: ultima?.solicitante || nomeDoUsuario,
       entregaMaterial: dataDoCampo(ultima?.entregaMaterial),
@@ -132,13 +146,16 @@ export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, podeCriar
     if (confirmandoDescarte) continuarRef.current?.focus();
   }, [confirmandoDescarte]);
 
-  const lerPlanilha = async (arquivo: File | undefined) => {
+  const lerPlanilha = async (arquivo: File | undefined | null, aba?: string) => {
     if (!arquivo) return;
+    arquivoRef.current = arquivo;
     setLendoPlanilha(true);
     try {
       const corpo = new FormData();
       corpo.append("file", arquivo);
-      const resposta = await fetch(`/api/events/${eventId}/preview-xlsx`, { method: "POST", body: corpo, credentials: "include" });
+      // `para=kit`: numa pasta com as abas "KIT" e "Arena", vale a do Kit
+      // (ou a aba que a pessoa escolheu no seletor).
+      const resposta = await fetch(`/api/events/${eventId}/preview-xlsx${consultaDaPrevia("kit", aba)}`, { method: "POST", body: corpo, credentials: "include" });
       const dados = await resposta.json().catch(() => ({}));
       if (!resposta.ok) throw new Error(dados?.error || "Não deu para ler a planilha");
       const c = dados?.kit ?? null;
@@ -155,10 +172,15 @@ export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, podeCriar
           saidaCaminhao: c.saidaCaminhao || f.saidaCaminhao,
         }));
       }
-      setPlanilha({ nome: dados?.fileName ?? arquivo.name, pecas: lidas, departamento: c?.departamento ?? null, dataSolicitacao: c?.dataSolicitacao ?? null });
-      toast(c
-        ? { title: `Planilha do Kit lida: ${lidas.length} ${lidas.length === 1 ? "peça" : "peças"}`, description: "Datas e versão preenchidas pelo cabeçalho — confira antes de criar.", variant: "success" as const }
-        : { title: `${lidas.length} ${lidas.length === 1 ? "peça lida" : "peças lidas"}`, description: "A planilha não tem o cabeçalho do Kit: preencha as datas à mão.", variant: "warning" as const });
+      setPlanilha({ nome: dados?.fileName ?? arquivo.name, pecas: lidas, departamento: c?.departamento ?? null, dataSolicitacao: c?.dataSolicitacao ?? null, abas: Array.isArray(dados?.abas) ? dados.abas : [] });
+      // A aba lida entra no título quando a pasta tem várias ("da aba KIT"):
+      // é o que mostra que as peças são as do Kit, e não as da Arena.
+      const daAba = typeof dados?.aba === "string" && dados.aba ? ` da aba ${dados.aba}` : "";
+      toast(c && c.entregaMaterial
+        ? { title: `Planilha do Kit lida: ${lidas.length} ${lidas.length === 1 ? "peça" : "peças"}${daAba}`, description: "Datas e versão preenchidas pelo cabeçalho — confira antes de criar.", variant: "success" as const }
+        : c
+        ? { title: `Planilha do Kit lida: ${lidas.length} ${lidas.length === 1 ? "peça" : "peças"}${daAba}`, description: "Versão e solicitante vieram do cabeçalho; a planilha não traz a entrega do material — preencha as datas à mão.", variant: "warning" as const }
+        : { title: `${lidas.length} ${lidas.length === 1 ? "peça lida" : "peças lidas"}${daAba}`, description: "A planilha não tem o cabeçalho do Kit: preencha as datas à mão.", variant: "warning" as const });
     } catch (e) {
       toast({ title: "Não deu para ler a planilha", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
@@ -207,15 +229,56 @@ export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, podeCriar
     onError: (e) => toast({ title: "Não deu para criar a remessa", description: String(e?.message ?? "").replace(/^\d{3}:\s*/, ""), variant: "destructive" }),
   });
 
+  const salvar = useMutation({
+    mutationFn: async (): Promise<RemessaDoKit & { pecasAtualizadas?: number; prazosMudaram?: boolean }> => {
+      if (!editando) throw new Error("Nenhuma remessa em edição");
+      // Campo de data vazio é null (apagar a data); a entrega do material é
+      // obrigatória e o botão já trava sem ela.
+      return (await apiRequest("PATCH", `/api/kit/remessas/${editando.id}`, {
+        versao: form.versao.trim(),
+        solicitante: form.solicitante.trim() || null,
+        entregaMaterial: form.entregaMaterial,
+        dataEvento: form.dataEvento || null,
+        cargaCaminhao: form.cargaCaminhao || null,
+        saidaCaminhao: form.saidaCaminhao || null,
+      })).json();
+    },
+    onSuccess: (r) => {
+      const n = r?.pecasAtualizadas ?? 0;
+      toast({
+        title: `Remessa KIT ${r?.versao ?? form.versao.trim()} atualizada`,
+        description: n > 0 && r?.prazosMudaram
+          ? `Os prazos ${n === 1 ? "da peça" : `das ${n} peças`} desta remessa já seguem as datas novas.`
+          : undefined,
+        variant: "success",
+      });
+      queryClient.invalidateQueries({ queryKey: [chaveDasRemessas(eventId)] });
+      queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0] ?? "").startsWith("/api/kit/remessas") });
+      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/prazos"] });
+      setAberto(false);
+    },
+    onError: (e) => toast({ title: "Não deu para salvar a remessa", description: String(e?.message ?? "").replace(/^\d{3}:\s*/, "").replace(/^\{"error":"(.*)"\}$/, "$1"), variant: "destructive" }),
+  });
+  const ocupado = criar.isPending || salvar.isPending;
+
   if (remessas.length === 0 && !podeCriar) return null;
   const pecasDe = (id: string) => pecas.filter((p) => p.kitRemessaId === id && !p.deletedAt).length;
-  const faltando = !form.versao.trim() ? "Informe a versão" : !form.entregaMaterial ? "Informe a data de entrega do material" : lendoPlanilha ? "Aguarde a leitura da planilha" : null;
+  const mexeu = JSON.stringify(form) !== formInicialRef.current;
+  const faltando = !form.versao.trim() ? "Informe a versão" : !form.entregaMaterial ? "Informe a data de entrega do material" : lendoPlanilha ? "Aguarde a leitura da planilha"
+    : editando && !mexeu ? "Nenhuma alteração ainda" : null;
   const nPecas = planilha?.pecas.length ?? 0;
   const tirarPeca = (i: number) => setPlanilha((p) => (p ? { ...p, pecas: p.pecas.filter((_, j) => j !== i) } : p));
-  const temAlgoAPerder = !!planilha || JSON.stringify(form) !== formInicialRef.current;
+  const temAlgoAPerder = !!planilha || mexeu;
+  // As peças da remessa em edição: são os prazos delas que a data nova move.
+  const pecasEmEdicao = editando ? pecasDe(editando.id) : 0;
+  const abrirNova = () => { setEditando(null); setAberto(true); };
+  const abrirEdicao = (r: RemessaDoKit) => { setEditando(r); setAberto(true); };
   // Toda saída que não é "Criar" passa por aqui: X, Cancelar, Esc e clique fora.
   const pedirParaFechar = () => {
-    if (criar.isPending) return;
+    if (ocupado) return;
     if (confirmandoDescarte) { setConfirmandoDescarte(false); return; }
     if (temAlgoAPerder) { setConfirmandoDescarte(true); return; }
     setAberto(false);
@@ -267,7 +330,7 @@ export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, podeCriar
           /* Secundário no roxo do Kit (a identidade do painel). O motivo do
              desabilitado deixa o `title` e fica VISÍVEL embaixo do botão. */
           <span style={{ marginLeft: "auto" }}>
-            <Botao variante={ocioso ? "fantasma" : "secundario"} icone={Plus} data-testid="button-nova-remessa-kit" disabled={eventoFinalizado} onClick={() => setAberto(true)}
+            <Botao variante={ocioso ? "fantasma" : "secundario"} icone={Plus} data-testid="button-nova-remessa-kit" disabled={eventoFinalizado} onClick={abrirNova}
               title={eventoFinalizado ? "Evento finalizado — não recebe peças" : undefined}
               motivo={eventoFinalizado ? "Evento finalizado — não recebe peças." : undefined} alinharMotivo="end"
               style={ocioso
@@ -286,12 +349,25 @@ export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, podeCriar
           {remessas.map((r) => (
             <li key={r.id} data-testid={`remessa-kit-${r.id}`}
               style={{ display: "flex", flexDirection: "column", gap: 2, padding: "8px 12px", borderRadius: R.md, border: `1px solid ${TOM.roxo.border}`, background: TOM.roxo.bg, minWidth: 200 }}>
-              <button type="button" aria-expanded={remessaAberta === r.id} data-testid={`button-abrir-remessa-${r.id}`}
-                onClick={() => { setRemessaAberta((a) => (a === r.id ? null : r.id)); setConfirmandoExclusao(null); }}
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: 0, border: "none", background: "none", cursor: "pointer", textAlign: "left", fontSize: FS.body, fontWeight: FW.rotulo, color: TOM.roxo.text, minHeight: isMobile ? 44 : undefined }}>
-                KIT {r.versao} · {pecasDe(r.id)} {pecasDe(r.id) === 1 ? "peça" : "peças"}
-                <ChevronDown size={14} aria-hidden="true" style={{ transform: remessaAberta === r.id ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
-              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button type="button" aria-expanded={remessaAberta === r.id} data-testid={`button-abrir-remessa-${r.id}`}
+                  onClick={() => { setRemessaAberta((a) => (a === r.id ? null : r.id)); setConfirmandoExclusao(null); }}
+                  style={{ display: "flex", alignItems: "center", gap: 6, padding: 0, border: "none", background: "none", cursor: "pointer", textAlign: "left", fontSize: FS.body, fontWeight: FW.rotulo, color: TOM.roxo.text, minHeight: isMobile ? 44 : undefined }}>
+                  KIT {r.versao} · {pecasDe(r.id)} {pecasDe(r.id) === 1 ? "peça" : "peças"}
+                  <ChevronDown size={14} aria-hidden="true" style={{ transform: remessaAberta === r.id ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+                </button>
+                {/* Corrigir a remessa (datas, versão, solicitante) sem excluir
+                    e recriar — as peças ficam e os prazos seguem a data nova. */}
+                {podeCriar && (
+                  <Botao variante="fantasma" tamanho="sm" icone={Pencil} data-testid={`button-editar-remessa-${r.id}`}
+                    disabled={eventoFinalizado} onClick={() => abrirEdicao(r)}
+                    aria-label={`Editar a remessa KIT ${r.versao}`}
+                    title={eventoFinalizado ? "Evento finalizado — a remessa não muda mais" : `Mudar versão, solicitante e datas da KIT ${r.versao}`}
+                    style={{ marginLeft: "auto", minHeight: alvo(28, dedo), padding: "0 8px", color: TOM.roxo.text, fontSize: FS.meta, fontWeight: FW.rotulo }}>
+                    Editar
+                  </Botao>
+                )}
+              </div>
               <span style={{ fontSize: FS.small, color: T.strong }}>
                 Entrega do material <strong>{diaMesDoKit(r.entregaMaterial) ?? "—"}</strong>
                 {r.saidaCaminhao ? <> · saída do caminhão <strong>{diaMesDoKit(r.saidaCaminhao)}</strong></> : null}
@@ -404,18 +480,29 @@ export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, podeCriar
 
       <Dialog open={aberto} onOpenChange={(o) => { if (!o) pedirParaFechar(); }}>
         <DialogContent data-testid="dialog-nova-remessa-kit" className={HIDE_NATIVE_CLOSE} style={modalSurface(nPecas > 0 ? 1100 : 600)}>
-          <DialogTitle className="sr-only">Nova remessa do Kit</DialogTitle>
-          <DialogDescription className="sr-only">Planilha do Kit, datas da remessa e peças numa tela só.</DialogDescription>
-          <ModalHeader icon={Package} tint={TOM.roxo.text} title="Nova remessa do Kit"
-            subtitle={remessas.length > 0 ? `Começa com os dados da ${remessas[0].versao} — a planilha, se tiver, substitui.` : "Envie a planilha do Kit: as datas e as peças entram juntas."}
-            onClose={criar.isPending ? undefined : pedirParaFechar} />
+          <DialogTitle className="sr-only">{editando ? `Editar a remessa KIT ${editando.versao}` : "Nova remessa do Kit"}</DialogTitle>
+          <DialogDescription className="sr-only">{editando ? "Versão, solicitante e datas da remessa." : "Planilha do Kit, datas da remessa e peças numa tela só."}</DialogDescription>
+          <ModalHeader icon={editando ? Pencil : Package} tint={TOM.roxo.text} title={editando ? `Editar remessa KIT ${editando.versao}` : "Nova remessa do Kit"}
+            subtitle={editando
+              ? `${pecasEmEdicao} ${pecasEmEdicao === 1 ? "peça" : "peças"} nesta remessa${editando.arquivo ? ` · ${editando.arquivo}` : ""}`
+              : remessas.length > 0 ? `Começa com os dados da ${remessas[0].versao} — a planilha, se tiver, substitui.` : "Envie a planilha do Kit: as datas e as peças entram juntas."}
+            onClose={ocupado ? undefined : pedirParaFechar} />
 
           <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", padding: isMobile ? 16 : "16px 24px", display: "grid", gap: 16,
             gridTemplateColumns: !isMobile && nPecas > 0 ? "minmax(0, 360px) minmax(0, 1fr)" : "minmax(0, 1fr)", alignItems: "start" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
               {/* O input era `hidden`: invisível E fora da ordem de Tab — sem
                   mouse não havia como enviar a planilha. `sr-only` mantém o
-                  campo focável, e o anel no rótulo mostra onde o foco está. */}
+                  campo focável, e o anel no rótulo mostra onde o foco está.
+                  Na EDIÇÃO não há planilha: as peças já entraram (mais peças
+                  vão por "Adicionar peça" ou por uma remessa nova). */}
+              {editando ? (
+                <p data-testid="aviso-edicao-remessa-kit" style={{ margin: 0, fontSize: FS.body, color: TOM.roxo.text, background: TOM.roxo.bg, border: `1px solid ${TOM.roxo.border}`, borderRadius: R.md, padding: "8px 12px", lineHeight: 1.45 }}>
+                  {pecasEmEdicao > 0
+                    ? `A entrega do material é o prazo ${pecasEmEdicao === 1 ? "da peça" : `das ${pecasEmEdicao} peças`} desta remessa: mudou aqui, muda na Arte, na Gráfica e na Gestão de Prazos.`
+                    : "A entrega do material é o prazo das peças desta remessa: mudou aqui, muda na Arte, na Gráfica e na Gestão de Prazos."}
+                </p>
+              ) : (
               <label data-testid="button-planilha-remessa-kit"
                 className="focus-within:ring-2 focus-within:ring-violet-600 focus-within:ring-offset-2"
                 style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "12px 10px", borderRadius: R.md, border: `1.5px dashed ${planilha ? TOM.sucesso.text : TOM.roxo.dot}`, background: planilha ? TOM.sucesso.bg : TOM.roxo.bg, color: planilha ? TOM.sucesso.text : TOM.roxo.text, cursor: lendoPlanilha ? "wait" : "pointer", textAlign: "center" }}>
@@ -430,6 +517,10 @@ export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, podeCriar
                   aria-label="Enviar a planilha do Kit (.xlsx)"
                   onChange={(e) => { void lerPlanilha(e.target.files?.[0]); e.target.value = ""; }} />
               </label>
+              )}
+              {!editando && planilha && (
+                <SeletorDeAbas abas={planilha.abas} pendente={lendoPlanilha} onEscolher={(nome) => { void lerPlanilha(arquivoRef.current, nome); }} />
+              )}
               <div style={{ display: "grid", gap: 10, gridTemplateColumns: "1fr 1fr" }}>
                 {campo("versao", "Versão", "versao")}
                 {campo("solicitante", "Solicitante", "solicitante")}
@@ -483,7 +574,9 @@ export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, podeCriar
             // deste esconderia justamente o que a pessoa está decidindo perder.
             <div data-testid="confirmar-descarte-remessa-kit" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, flexWrap: "wrap", padding: isMobile ? "12px 16px" : "14px 24px", borderTop: `1px solid ${TOM.perigo.border}`, background: TOM.perigo.bg, flexShrink: 0 }}>
               <span role="alert" style={{ fontSize: FS.body, color: TOM.perigo.text, fontWeight: FW.forte, marginRight: "auto" }}>
-                {planilha
+                {editando
+                  ? `Descartar as alterações da KIT ${editando.versao}?`
+                  : planilha
                   ? `Descartar a planilha lida${nPecas > 0 ? ` (${nPecas} ${nPecas === 1 ? "peça" : "peças"})` : ""} e os dados da remessa?`
                   : "Descartar os dados da remessa que você preencheu?"}
               </span>
@@ -499,13 +592,20 @@ export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, podeCriar
             {faltando && <span aria-live="polite" style={{ fontSize: FS.body, color: TOM.alerta.text, marginRight: "auto" }}>{faltando}.</span>}
             {/* O motivo do desabilitado já está VISÍVEL à esquerda (`faltando`),
                 por isso o Botao não repete `motivo`. */}
-            <Botao variante="secundario" tamanho="toque" onClick={pedirParaFechar} disabled={criar.isPending}>
+            <Botao variante="secundario" tamanho="toque" onClick={pedirParaFechar} disabled={ocupado}>
               Cancelar
             </Botao>
+            {editando ? (
+              <Botao variante="primario" tamanho="toque" data-testid="button-salvar-remessa-kit" disabled={!!faltando} carregando={salvar.isPending} onClick={() => salvar.mutate()}
+                style={{ padding: "0 22px" }}>
+                {salvar.isPending ? "Salvando…" : "Salvar alterações"}
+              </Botao>
+            ) : (
             <Botao variante="primario" tamanho="toque" data-testid="button-criar-remessa-kit" disabled={!!faltando} carregando={criar.isPending} onClick={() => criar.mutate()}
               style={{ padding: "0 22px" }}>
               {criar.isPending ? "Criando…" : nPecas > 0 ? `Criar remessa e importar ${nPecas} ${nPecas === 1 ? "peça" : "peças"}` : "Criar remessa"}
             </Botao>
+            )}
           </div>
           )}
         </DialogContent>

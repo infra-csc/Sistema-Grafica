@@ -33,14 +33,26 @@ export interface PecaLidaDaPlanilha {
 /** Linha com cara de peça que ficou fora da leitura, e por quê. */
 export interface LinhaIgnoradaDaPlanilha { linha: number; motivo: string }
 
-/** POST /api/events/:id/preview-xlsx (multipart, campo `file`). */
+/** A aba "KIT" de uma pasta com várias abas: quantas peças tem e se foi ela a lida. */
+export interface AbaDoKitDaPlanilha { nome: string; pecas: number; lida: boolean }
+
+/** POST /api/events/:id/preview-xlsx[?para=kit] (multipart, campo `file`). */
 export interface PreviaDaPlanilha {
   items: PecaLidaDaPlanilha[];
   ignoradas: LinhaIgnoradaDaPlanilha[];
   fileName: string;
   /** Cabeçalho da planilha do Kit (datas, versão); null quando não é do Kit. */
   kit: CabecalhoDoKit | null;
+  /** O nome da aba de onde as peças saíram (null sem nomes de aba). */
+  aba?: string | null;
+  /** As abas visíveis com peças (ordem da pasta); mais de uma = a tela deixa escolher. */
+  abas?: AbaComPecasDaPlanilha[];
+  /** A aba do Kit, quando a pasta tem uma com peças. */
+  abaDoKit?: AbaDoKitDaPlanilha | null;
 }
+
+/** Uma aba com peças: o nome, quantas, se é a do Kit e se foi a lida. */
+export interface AbaComPecasDaPlanilha { nome: string; pecas: number; doKit: boolean; lida: boolean }
 
 /** POST /api/events/:id/confirm-import → 201. */
 export interface RespostaDaImportacao {

@@ -609,6 +609,8 @@ const NA_REDE = (rel: string) => rel.startsWith("server/routes/itens/") || ["ser
 const FORA_DO_RECORTE: Record<string, string> = {
   "server/routes/analises.ts": "leitura", "server/routes/artes-busca.ts": "leitura", "server/routes/audit-logs.ts": "leitura",
   "server/routes/auth.ts": "sessão e usuários", "server/routes/busca.ts": "leitura",
+  // 21/10: quem está na máquina no login compartilhado — sessão, não peça.
+  "server/routes/operadores.ts": "operadores do login compartilhado (sessão)",
   // 19/10: dois GETs da planilha de fechamento do evento — só leitura.
   "server/routes/fechamento.ts": "leitura (planilha de fechamento)",
   "server/routes/consultas-de-estoque.ts": "consulta de estoque", "server/routes/estoque-reservas.ts": "reserva de estoque",

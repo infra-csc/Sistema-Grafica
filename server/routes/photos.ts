@@ -44,6 +44,9 @@ export function registerPhotoRoutes(app: Express): void {
       const validatedData = insertDeliveryPhotoSchema.parse({
         ...req.body,
         itemId: req.params.itemId,
+        // Quem enviou vem da SESSÃO (com o operador do login compartilhado,
+        // 21/10), nunca do corpo: o navegador mandava o nome do localStorage.
+        uploadedBy: req.userName || "Sistema",
       });
 
       const photo = await storage.addDeliveryPhoto(validatedData);

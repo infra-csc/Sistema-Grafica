@@ -25,6 +25,9 @@ import { roleLabel, rotuloDoPerfilCompleto, userInitials } from "@/lib/utils";
 import { useToast, toast as toastGlobal } from "@/hooks/use-toast";
 import { useLogout } from "@/hooks/use-logout";
 import { useWebSocket, onConexaoTempoReal } from "@/hooks/use-websocket";
+import { useEstadoDoOperador } from "@/hooks/use-operador";
+import { QuemEstaNaMaquina } from "@/components/operadores/quem-esta-na-maquina";
+import { SeloDoOperador } from "@/components/operadores/selo-do-operador";
 import { useEffect, useState, Component, lazy, Suspense, type ReactNode, type ComponentType } from "react";
 import { T, N, R, FS, FW, FONT, TOM, ESCURO } from "@/lib/theme";
 
@@ -711,6 +714,17 @@ function AuthenticatedLayout() {
   // o hook compartilhado.
   const logoutMutation = useLogout();
 
+  // QUEM ESTÁ NA MÁQUINA (login compartilhado, 21/10). Sem operador escolhido
+  // (ou com o "Trocar" aberto), a tela de escolha cobre o app — que continua
+  // MONTADO por baixo: quem assume volta para a mesma fila, com os mesmos
+  // filtros e a mesma rolagem. Login sem operadores nunca vê nada disto.
+  const { data: estadoDoOperador } = useEstadoDoOperador();
+  const [trocandoOperador, setTrocandoOperador] = useState(false);
+  const operadorAtual = estadoDoOperador?.atual ?? null;
+  // Alguém entrou (o próximo, ou o mesmo de novo): a troca terminou.
+  useEffect(() => { setTrocandoOperador(false); }, [operadorAtual?.id, operadorAtual?.entrouEm]);
+  const escolherOperador = !!estadoDoOperador?.exigeOperador && (!operadorAtual || trocandoOperador);
+
   // O gatilho da barra lateral diz o que vai acontecer ao clicar.
   const { state: estadoDaBarra, isMobile: barraEmFolha, openMobile: barraAbertaNoCelular } = useSidebar();
   const rotuloDoGatilho = barraEmFolha ? "Abrir menu" : estadoDaBarra === "expanded" ? "Recolher menu" : "Expandir menu";
@@ -864,8 +878,13 @@ function AuthenticatedLayout() {
             )}
           </div>
 
-          {/* Right: busca + notifications + avatar */}
+          {/* Right: operador + busca + notifications + avatar */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            {/* "Operando: Gilmar · Trocar" — em todas as telas do login
+                compartilhado; o Trocar é um toque só (troca de turno). */}
+            {estadoDoOperador?.exigeOperador && operadorAtual && (
+              <SeloDoOperador atual={operadorAtual} onTrocar={() => setTrocandoOperador(true)} />
+            )}
             {/* A porta VISÍVEL da busca global — o Ctrl+K existe, mas atalho
                 sem botão é recurso que só quem já sabe usa. Mesma peça dos
                 vizinhos: 36 no ponteiro, 44 no toque, contorno e raio 9. */}
@@ -930,7 +949,10 @@ function AuthenticatedLayout() {
                     cursor: "pointer", flexShrink: 0,
                   }}
                 >
-                  <div className="hidden md:block" style={{ textAlign: "right", lineHeight: 1.2 }}>
+                  {/* Com o selo do operador na barra, o nome do login (que o selo e o
+                      menu já mostram) só aparece em tela larga — a 768 a barra
+                      não comporta os dois. */}
+                  <div className={operadorAtual ? "hidden xl:block" : "hidden md:block"} style={{ textAlign: "right", lineHeight: 1.2 }}>
                     <p style={{ margin: 0, fontSize: FS.meta, fontWeight: FW.forte, color: T.text, whiteSpace: "nowrap" }}>
                       {user?.name}
                     </p>
@@ -1041,6 +1063,13 @@ function AuthenticatedLayout() {
           </ErrorBoundary>
         </SidebarInset>
       </div>
+      {escolherOperador && estadoDoOperador && (
+        <QuemEstaNaMaquina
+          estado={estadoDoOperador}
+          modoTroca={trocandoOperador && !!operadorAtual}
+          onVoltar={() => setTrocandoOperador(false)}
+        />
+      )}
     </div>
   );
 }

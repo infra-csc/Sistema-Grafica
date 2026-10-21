@@ -12,6 +12,7 @@ import { WebSocketServer } from "ws";
 import { wsClients, iniciarTempoReal, type SocketDoApp } from "./tempo-real";
 import { sessionMiddleware } from "./session";
 import { registerAuthRoutes } from "./routes/auth";
+import { registerOperadorRoutes, montarIdentidadeDoOperador } from "./routes/operadores";
 import { registerSponsorRoutes } from "./routes/sponsors";
 import { registerSugestoesDeVinculoRoutes } from "./routes/sugestoes-de-vinculo";
 import { registerEventosSugeridosRoutes } from "./routes/eventos-sugeridos";
@@ -95,6 +96,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     next();
   });
 
+  // ── OPERADORES NO LOGIN COMPARTILHADO (dono, 21/10) ──────────────────────
+  // Login com operadores (Produção Grafica): com operador escolhido, o nome
+  // efetivo vira "Produção Grafica (Gilmar)" — e é ESTE req.userName que toda
+  // trilha grava; sem operador, escrita responde 428 "Escolha quem está
+  // operando". Login sem operadores passa direto (server/operadores.ts).
+  app.use(montarIdentidadeDoOperador());
+
   // ── KIT: a Solicitação da Arena só VISUALIZA peça do Kit (dono, 15/09) ────
   // Uma trava só para toda escrita em peça (/api/items/:id/…, e lotes com
   // `itemIds`): quem é da Solicitação e NÃO é usuário do Kit não age sobre
@@ -164,6 +172,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ── Route registration ──────────────────────────────────────────────────
   registerAuthRoutes(app);
+  registerOperadorRoutes(app);
   registerSponsorRoutes(app);
   registerSugestoesDeVinculoRoutes(app);
   registerEventosSugeridosRoutes(app);

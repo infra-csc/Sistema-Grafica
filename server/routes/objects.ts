@@ -161,7 +161,9 @@ export async function registerObjectRoutes(app: Express): Promise<void> {
   // Save delivery photo info to database
   app.post("/api/delivery-photos", requireAuth, async (req, res) => {
     try {
-      const validatedData = insertDeliveryPhotoSchema.parse(req.body);
+      // Quem enviou vem da SESSÃO (com o operador do login compartilhado, 21/10),
+      // nunca do corpo: o navegador mandava o nome do localStorage.
+      const validatedData = insertDeliveryPhotoSchema.parse({ ...req.body, uploadedBy: req.userName || "Sistema" });
 
       // Normalize the photo URL to object path and record an ACL policy so
       // the object is attributed to its uploader. Delivery photos are

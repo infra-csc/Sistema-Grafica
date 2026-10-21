@@ -1160,6 +1160,20 @@ a.ds-botao[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; filter: no
 .csc-menu-sair[data-highlighted] { background-color: var(--perigo-bg) !important; }
 @media (pointer: coarse) { .csc-menu-item { min-height: 44px; } }
 
+/* OPERADOR NO LOGIN COMPARTILHADO (21/10). O selo do topo ("Operando: Gilmar ·
+   Trocar") e a tela "Quem está na máquina?" — cartões e teclado sobre o escuro,
+   com o realce translúcido da superfície escura (não o cinza do claro). */
+.csc-selo-operador { transition: background-color var(--dur-rapida) ease; }
+.csc-selo-operador:hover, .csc-selo-operador[data-state="open"] { background-color: rgba(194, 65, 12, 0.08) !important; }
+.csc-selo-operador:active { background-color: rgba(194, 65, 12, 0.14) !important; }
+@media (pointer: coarse) { .csc-selo-operador { min-height: 44px; } }
+.qm-cartao, .qm-tecla { transition: background-color var(--dur-rapida) ease, border-color var(--dur-rapida) ease, transform var(--dur-rapida) ease; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+@media (hover: hover) { .qm-cartao:hover, .qm-tecla:hover { background-color: var(--escuro-realce-forte) !important; } }
+.qm-cartao:active, .qm-tecla:active { background-color: var(--escuro-realce-forte) !important; }
+.qm-cartao:active, .qm-tecla:active { transform: scale(0.97); }
+@keyframes qm-tremer { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-8px); } 40% { transform: translateX(7px); } 60% { transform: translateX(-5px); } 80% { transform: translateX(3px); } }
+.qm-tremer { animation: qm-tremer 360ms ease; }
+
 /* Busca global e sino: linhas de resultado/aviso com realce de ponteiro e
    de teclado (o ativo da busca vem do estado; aqui só o hover). */
 .csc-aviso { transition: background-color var(--dur-rapida) ease; }

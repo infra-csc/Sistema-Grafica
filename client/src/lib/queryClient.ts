@@ -44,6 +44,16 @@ async function throwIfResNotOk(res: Response, url?: string) {
     throw new Error("Sua sessão expirou. Entre novamente para continuar.");
   }
 
+  // 428 = login compartilhado sem operador escolhido (o turno venceu ou alguém
+  // saiu). O estado dos operadores é rebuscado e a tela "Quem está na
+  // máquina?" aparece por cima — sem perder a tela de trás (21/10).
+  if (res.status === 428) {
+    // O /api/auth/me também: o login pode ter acabado de GANHAR operadores
+    // (o admin cadastrou com a sessão aberta) — é ele que liga a pergunta.
+    void queryClient.invalidateQueries({ queryKey: ["/api/operadores"] });
+    void queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+  }
+
   const raw = (await res.text()) || res.statusText;
   // Se a resposta for uma página HTML (ex: página 404 do Replit), não exibir
   // o HTML bruto — substituir por mensagem genérica legível.

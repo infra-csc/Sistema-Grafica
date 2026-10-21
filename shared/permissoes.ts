@@ -213,6 +213,12 @@ export const REGUA_DE_PAPEIS: RegraDeRota[] = [
   { metodo: "POST", rota: "/api/tubos/:id/fechar", papeis: ["admin", "grafica", "solicitacao"] },
   { metodo: "PATCH", rota: "/api/tubos/:id/itens", papeis: ["admin", "grafica", "solicitacao"] },
   { metodo: "DELETE", rota: "/api/users/:id", papeis: ["admin"] },
+  // Operadores do login compartilhado (dono, 21/10): só o admin cadastra,
+  // renomeia, desativa e redefine o PIN (limpa — nunca vê nem digita o PIN).
+  // Entrar/sair/criar o próprio PIN é de qualquer logado (o próprio login).
+  { metodo: "POST", rota: "/api/users/:id/operadores", papeis: ["admin"] },
+  { metodo: "PATCH", rota: "/api/operadores/:id", papeis: ["admin"] },
+  { metodo: "POST", rota: "/api/operadores/:id/redefinir-pin", papeis: ["admin"] },
   { metodo: "PATCH", rota: "/api/users/:id", papeis: ["admin"] },
 ];
 

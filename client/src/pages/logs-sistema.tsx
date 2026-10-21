@@ -70,6 +70,12 @@ const ACTION_CFG: Record<string, { label: string; tom: NomeDeTom }> = {
   // Desfazer a clonagem (19/10): as duas linhas de máquina do lote.
   clone_lote:        { label: "Clonagem",         tom: "info" },
   clone_desfeito:    { label: "Clonagem desfeita", tom: "alerta" },
+  // Operadores do login compartilhado (21/10): quem estava no turno.
+  turno_inicio:      { label: "Assumiu a máquina", tom: "sucesso" },
+  turno_fim:         { label: "Saiu da máquina",   tom: "neutro" },
+  pin_criado:        { label: "PIN criado",        tom: "roxo" },
+  pin_redefinido:    { label: "PIN redefinido",    tom: "alerta" },
+  pin_bloqueado:     { label: "PIN bloqueado",     tom: "perigo" },
   // 'login' saiu de propósito: o sistema NÃO grava log de login — manter o
   // badge sugeria um rastreamento de acessos que não existe.
 };
@@ -102,6 +108,7 @@ const ENTITY_LABELS: Record<string, string> = {
   tubo: "Tubo",
   sistema: "Sistema",
   clonagem: "Clonagem",
+  operador: "Operador",
 };
 
 const rotuloDaEntidade = (tipo: string) => ENTITY_LABELS[tipo] ?? tipo;

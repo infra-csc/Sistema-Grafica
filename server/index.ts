@@ -6,6 +6,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { pool } from "./db";
 import { writeRateLimiter } from "./routes/shared";
+import { cacheDeOperadores } from "./routes/operadores";
 import { sessionMiddleware, SESSION_SECRET } from "./session";
 import { criarTrocaDeSso, verificarJwtDoPortal } from "./sso-troca";
 import { cabecalhosDeSeguranca } from "./cabecalhos-de-seguranca";
@@ -221,6 +222,8 @@ app.post("/api/auth/sso-exchange", async (req: Request, res: Response) => {
       email: fullUser[0].email,
       role: fullUser[0].role,
       mustChangePassword: fullUser[0].must_change_password,
+      // Login compartilhado com operadores (21/10): a tela pergunta quem opera.
+      loginComOperadores: (await cacheDeOperadores.ativos(fullUser[0].id)).length > 0,
     });
   } catch (err) {
     console.error("[SSO] falha na troca:", err);

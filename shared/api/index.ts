@@ -50,6 +50,7 @@ import type { RegistroDeAuditoriaJson } from "./auditoria";
 import type { NotificacaoJson } from "./notificacoes";
 import type { UsuarioBasico, UsuarioDaLista, UsuarioDaSessao } from "./usuarios";
 import type { ModeloComUso } from "./modelos";
+import type { EstadoDosOperadores } from "../operadores";
 
 export type { Json } from "./json";
 export * from "./itens";
@@ -64,6 +65,7 @@ export * from "./corpos";
 export * from "./modelos";
 export * from "./planilha";
 export type { PrazosPayload } from "../prazos-contract";
+export type { EstadoDosOperadores, OperadorDoAdmin, OperadorParaEscolher } from "../operadores";
 
 /**
  * GET mais usados → o que o `useQuery` recebe com a chave `[rota]` (ou
@@ -96,6 +98,8 @@ export interface Rotas {
   "/api/users": UsuarioDaLista[];
   "/api/users/basic": UsuarioBasico[];
   "/api/standard-items": ModeloComUso[];
+  /** Quem está na máquina no login compartilhado (shared/operadores.ts). */
+  "/api/operadores": EstadoDosOperadores;
 }
 
 /** Uma rota GET com contrato. */

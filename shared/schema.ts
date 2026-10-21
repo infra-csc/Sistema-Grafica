@@ -956,6 +956,27 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });
 
+// OPERADORES DE UM LOGIN COMPARTILHADO (dono, 21/10). A Gráfica entra com um
+// login só ("Produção Grafica") e quem está na máquina se identifica com o
+// PRÓPRIO PIN: a trilha passa a dizer "Produção Grafica (Gilmar)". O PIN nunca
+// é guardado em claro — `pin_hash` é bcrypt, como a senha; NULL quer dizer
+// "ainda não criou" (primeiro acesso, ou o admin redefiniu). O limite de
+// tentativas erradas usa a tabela limite_de_tentativas (migração 0002), não
+// colunas daqui. Regras em shared/operadores.ts; servidor em server/operadores.ts.
+export const operadores = pgTable("operadores", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  nome: text("nome").notNull(),
+  pinHash: text("pin_hash"),
+  ativo: boolean("ativo").notNull().default(true),
+  criadoEm: timestamp("criado_em").notNull().default(sql`now()`),
+  atualizadoEm: timestamp("atualizado_em").notNull().default(sql`now()`),
+}, (table) => [
+  index("IDX_operadores_user_id").on(table.userId),
+]);
+
+export type Operador = typeof operadores.$inferSelect;
+
 // Comments table (discussion on items)
 export const comments = pgTable("comments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

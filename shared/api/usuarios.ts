@@ -19,10 +19,17 @@ export type UsuarioSemSenha = Json<Omit<User, "passwordHash">>;
  * VER COMO (15/09): enquanto o admin navega como outro perfil, `role` e `kit`
  * são os da SESSÃO e `papelReal` é "admin"; fora disso `papelReal` é null.
  */
-export type UsuarioDaSessao = UsuarioSemSenha & { papelReal: string | null };
+export type UsuarioDaSessao = UsuarioSemSenha & {
+  papelReal: string | null;
+  /** Login compartilhado com operadores ativos (21/10): a tela pergunta "Quem está na máquina?". */
+  loginComOperadores?: boolean;
+};
 
-/** Elemento de GET /api/users (só admin). */
-export type UsuarioDaLista = UsuarioSemSenha;
+/**
+ * Elemento de GET /api/users (só admin). `operadoresAtivos` (21/10): quantos
+ * operadores o login compartilhado tem (0 para login de uma pessoa só).
+ */
+export type UsuarioDaLista = UsuarioSemSenha & { operadoresAtivos?: number };
 
 /** Elemento de GET /api/users/basic — o que qualquer sessão pode ver. */
 export interface UsuarioBasico { id: string; name: string; role: string }

@@ -15,6 +15,9 @@ import {
 } from "./shared";
 import { buscarUsuarioPorEmail, conferirSenha, senhaAleatoria } from "../login-seguro";
 import { avisarSessoesEncerradas } from "../sessoes-encerradas";
+import { nomeComOperador } from "@shared/operadores";
+import { horaDeBrasilia } from "../operadores";
+import { cacheDeOperadores } from "./operadores";
 
 // Apaga as sessões do usuário (todas, ou todas menos a atual) e avisa o tempo
 // real para derrubar os sockets dele. Falha aqui não desfaz a operação.
@@ -119,7 +122,17 @@ export function registerAuthRoutes(app: Express): void {
   });
 
   // Logout
-  app.post("/api/auth/logout", (req, res) => {
+  app.post("/api/auth/logout", async (req, res) => {
+    // Operador na máquina (login compartilhado): sair do login também encerra
+    // o turno dele — a trilha registra a saída, como no "Sair para o almoço".
+    if (req.session?.operadorId) {
+      const nome = req.session.operadorNome || "Operador";
+      await createAuditLog(
+        { userName: nomeComOperador(req.session.userName || "Sistema", nome), userId: req.session.userId },
+        "turno_fim", "operador", req.session.operadorId,
+        `${nome} saiu às ${horaDeBrasilia(Date.now())} (saiu do login)`,
+      );
+    }
     req.session.destroy((err) => {
       if (err) {
         return res.status(500).json({ error: "Erro ao fazer logout" });
@@ -147,7 +160,10 @@ export function registerAuthRoutes(app: Express): void {
       const verComo = req.session.papelReal
         ? { role: req.session.userRole, kit: req.session.userKit === true, cultura: req.session.userCultura === true, papelReal: req.session.papelReal }
         : { papelReal: null };
-      res.json({ ...userWithoutPassword, ...verComo });
+      // Login compartilhado com operadores (21/10): só ele busca o estado da
+      // máquina (GET /api/operadores) — os demais não pagam requisição a mais.
+      const loginComOperadores = (await cacheDeOperadores.ativos(user.id)).length > 0;
+      res.json({ ...userWithoutPassword, ...verComo, loginComOperadores });
     } catch (error: unknown) {
       sendSensitiveError(res, error, "Get current user error", 500);
     }
@@ -277,8 +293,16 @@ export function registerAuthRoutes(app: Express): void {
   app.get("/api/users", requireAdmin, async (req, res) => {
     try {
       const users = await storage.getAllUsers();
+      // Quantos operadores ativos cada login compartilhado tem (21/10): a lista
+      // mostra o selo e abre "Operadores deste login". Sem a tabela (migração
+      // 0008 ainda não rodou), a lista sai igual a antes.
+      const operadoresAtivos = new Map<string, number>();
+      try {
+        const { rows } = await pool.query<{ user_id: string; n: string }>("SELECT user_id, count(*)::text AS n FROM operadores WHERE ativo GROUP BY user_id");
+        for (const r of rows) operadoresAtivos.set(r.user_id, Number(r.n));
+      } catch { /* sem a tabela de operadores: segue sem a contagem */ }
       // Don't send password hashes to client
-      const usersWithoutPasswords = users.map(({ passwordHash: _, ...user }) => user);
+      const usersWithoutPasswords = users.map(({ passwordHash: _, ...user }) => ({ ...user, operadoresAtivos: operadoresAtivos.get(user.id) ?? 0 }));
       res.json(usersWithoutPasswords);
     } catch (error: unknown) {
       sendSensitiveError(res, error, "Get all users error", 500);

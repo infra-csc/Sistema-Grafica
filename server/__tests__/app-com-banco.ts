@@ -19,7 +19,11 @@ import type { Server } from "http";
 import type { Request, Response, NextFunction } from "express";
 import type { BancoDeTeste } from "./banco-pglite";
 
-export interface Usuario { id: string; nome: string; papel: string; kit?: boolean }
+export interface Usuario {
+  id: string; nome: string; papel: string; kit?: boolean;
+  /** Operador do login compartilhado na "sessão" (21/10): entrouEm/ultimaAcaoEm em ms (pd. agora). */
+  operador?: { id: string; nome: string; entrouEm?: number; ultimaAcaoEm?: number };
+}
 
 export const USUARIOS = {
   admin: { id: "u-admin", nome: "Ana Admin", papel: "admin" },
@@ -65,6 +69,7 @@ export async function montarApp(): Promise<AppDeTeste> {
   const { registerEstoqueReservasRoutes } = await import("../routes/estoque-reservas");
   const { registerKitRoutes } = await import("../routes/kit");
   const { registerInventoryRoutes } = await import("../routes/inventory");
+  const { montarIdentidadeDoOperador } = await import("../routes/operadores");
 
   const app = express();
   app.use(express.json({ limit: "5mb" }));
@@ -73,7 +78,11 @@ export async function montarApp(): Promise<AppDeTeste> {
   app.use((req: Request, _res: Response, next: NextFunction) => {
     const cru = req.header("x-teste-usuario");
     const u = cru ? (JSON.parse(decodeURIComponent(cru)) as Usuario) : null;
-    const sessao = (u ? { userId: u.id, userName: u.nome, userRole: u.papel, userKit: u.kit === true } : {}) as Request["session"];
+    const op = u?.operador;
+    const sessao = (u ? {
+      userId: u.id, userName: u.nome, userRole: u.papel, userKit: u.kit === true,
+      ...(op ? { operadorId: op.id, operadorNome: op.nome, operadorEntrouEm: op.entrouEm ?? Date.now(), operadorUltimaAcaoEm: op.ultimaAcaoEm ?? Date.now() } : {}),
+    } : {}) as Request["session"];
     Object.defineProperty(req, "session", { value: sessao, writable: true, configurable: true });
     next();
   });
@@ -89,6 +98,8 @@ export async function montarApp(): Promise<AppDeTeste> {
     }
     next();
   });
+  // Operadores do login compartilhado (21/10), como em server/routes.ts.
+  app.use(montarIdentidadeDoOperador());
   app.use(async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (req.userRole !== "solicitacao" || req.userKit || !["POST", "PATCH", "PUT", "DELETE"].includes(req.method)) return next();

@@ -16,7 +16,7 @@ import {
 import { format, formatDistanceToNowStrict } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
-  UserPlus, Pencil, Trash2, Search,
+  UserPlus, Pencil, Trash2, Search, UsersRound,
   ChevronLeft, ChevronRight, X, Check, ScrollText, ShieldOff, Users, Info, ShieldAlert, LogOut, AlertTriangle,
 } from "lucide-react";
 import { T, N, TOM, FS, FW, R, FONT } from "@/lib/theme";
@@ -27,6 +27,7 @@ import { EstadoErro, EstadoVazio, Esqueleto } from "@/components/ui/estados";
 import { useConfirmar } from "@/components/ui/usar-confirmar";
 import { alvo, useDensidadeDoConteudo, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { useFiltrosNaUrl, paginaValida } from "@/hooks/use-filtros-na-url";
+import { OperadoresDoLogin } from "@/components/admin/operadores-do-login";
 
 /**
  * O QUE CADA PERFIL CONCEDE.
@@ -191,6 +192,12 @@ function SelosDoPerfil({ user, semTestId = false }: { user: User; semTestId?: bo
           <span className="sr-only"> — também cria e edita eventos</span>
         </Selo>
       )}
+      {(user.operadoresAtivos ?? 0) > 0 && (
+        <Selo tamanho="sm" tom="laranja" icone={UsersRound} data-testid={semTestId ? undefined : `badge-operadores-${user.id}`}>
+          {user.operadoresAtivos} {user.operadoresAtivos === 1 ? "operador" : "operadores"}
+          <span className="sr-only"> — login compartilhado: cada um entra com o próprio PIN</span>
+        </Selo>
+      )}
       {user.kit && (
         <Selo tamanho="sm" cores={KIT} data-testid={semTestId ? undefined : `badge-kit-${user.id}`}>
           Kit
@@ -284,6 +291,9 @@ export default function Usuarios() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
+  // Operadores do login compartilhado (21/10): quem usa o login da Gráfica e
+  // se identifica com o próprio PIN.
+  const [operadoresDe, setOperadoresDe] = useState<User | null>(null);
   // RECORTE NA URL (regra da casa): F5, voltar e o link mandado a um colega
   // devolvem a mesma busca, o mesmo perfil e a mesma página. Mudar busca ou
   // perfil volta para a página 1 no MESMO update — como já era.
@@ -503,6 +513,21 @@ export default function Usuarios() {
           aria-label={`Editar usuário ${user.name}`}
           style={iconeBtn}
         />
+        {/* OPERADORES (21/10): no login da Gráfica (ou em qualquer login que
+            já tenha operadores), quem usa o login e entra com o próprio PIN. */}
+        {(user.role === "grafica" || (user.operadoresAtivos ?? 0) > 0) && (
+          <Botao
+            variante="fantasma"
+            tamanho="sm"
+            icone={UsersRound}
+            data-testid={`button-operadores-${user.id}`}
+            className="usu-acao"
+            title="Operadores deste login"
+            onClick={() => setOperadoresDe(user)}
+            aria-label={`Operadores do login ${user.name}`}
+            style={iconeBtn}
+          />
+        )}
         {/* "QUEM FEZ ISSO?" ao contrário: "o que esta pessoa fez?". Era abrir
             Logs e digitar o nome; o atalho abre a trilha já buscando por ele (a
             busca dos Logs casa o nome do autor e mora na URL). */}
@@ -1204,6 +1229,8 @@ export default function Usuarios() {
           </FreezeWhileClosing>
         </DialogContent>
       </Dialog>
+
+      <OperadoresDoLogin login={operadoresDe} aberto={!!operadoresDe} onFechar={() => setOperadoresDe(null)} />
 
       {/* ══════════════════════════════
           MODAL: Confirmar Exclusão

@@ -9,8 +9,7 @@
 //
 // A regra, peça a peça:
 //   · peça excluída (deleted_at) não existe para ninguém;
-//   · peça do Kit (kit_remessa_id) tem remessa e datas próprias — o Checklist
-//     é da ARENA;
+//   · peça do Kit (kit_remessa_id) fica de fora — o Checklist é da ARENA;
 //   · o "book completo" não é peça física (shared/fluxo-peca.ts);
 //   · cancelada/arquivada saiu do funil, mesmo que um dia tenha saído algo;
 //   · o que conta é a QUANTIDADE entregue, não o status: entrega parcial por

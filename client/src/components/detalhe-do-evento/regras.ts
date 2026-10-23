@@ -6,6 +6,7 @@ import { STATUS } from "@/lib/status";
 import { FORA_DO_FUNIL } from "@/lib/fases";
 import { MARCOS_DO_EVENTO, deslocamentoDeFimDeSemana, type MarcoDoEvento, type RegraDeFimDeSemana } from "@shared/prazo-dates";
 import { TIPOS_DE_PECA, statusParaContagem } from "@shared/molde";
+import { kitCobradoNoMarco } from "@shared/kit";
 import { CAMPOS_VAZIOS_DA_PRODUCAO_INTERNA } from "@shared/producao-interna";
 import type { ItemFormData, Marco, PecaDoEvento, TrabalhoAberto } from "./tipos";
 
@@ -29,8 +30,13 @@ const ETAPA_CUMPRIDA: Record<string, number> = {
   delivered: 6, entregue: 6, canceled: 6, deleted: 6,
 };
 const etapaCumprida = (status: string) => ETAPA_CUMPRIDA[status] ?? 0;
-/** A peça ainda não passou pelo marco `i`? */
-export const estaAtrasDoMarco = (status: string, i: number) => etapaCumprida(status) < i + 1;
+/**
+ * A peça ainda não passou pelo marco `i` — e esse marco a COBRA? A peça do
+ * Kit (dono, 23/10) só é cobrada da Aprovação de Layout em diante: Lista de
+ * Imagens e Entrega de Layouts não a contam (`kitCobradoNoMarco`).
+ */
+export const estaAtrasDoMarco = (status: string, i: number, doKit = false) =>
+  etapaCumprida(status) < i + 1 && (!doKit || kitCobradoNoMarco(MARCOS_DO_EVENTO[i]?.key ?? ""));
 
 /** A ordem do fluxo, para as seções do modo Status: a ordem das chaves de STATUS em lib/status. */
 export const ORDEM_DO_FLUXO = new Map(Object.keys(STATUS).map((k, i) => [k, i]));
@@ -130,8 +136,8 @@ export const EMPTY_ITEM_FORM: ItemFormData = {
   referenceUrl: "",
   // O modelo de que a peça nasce (id), ou "" quando o tipo foi digitado.
   standardItemId: "",
-  // KIT: a remessa do Kit a que a peça pertence; "" = Arena.
-  kitRemessaId: "",
+  // KIT (23/10): a peça é do Kit do evento (a inclusão única); false = Arena.
+  doKit: false,
 };
 
 // Apenas nomes do vocabulário canônico (lib/status.ts): os antigos

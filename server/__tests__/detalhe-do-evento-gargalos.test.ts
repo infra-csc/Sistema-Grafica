@@ -36,8 +36,9 @@ describe("Mudança 1 · a timeline diz quantas peças estão atrás de cada marc
     expect(ED).toContain("ready_for_production: 4,");
     expect(ED).toContain("inProduction: 5, em_producao: 5, produced: 5, produzido: 5, conferred: 5,");
     expect(ED).toContain("delivered: 6, entregue: 6,");
-    // Atrás do marco i: etapa < i + 1.
-    expect(ED).toContain("const estaAtrasDoMarco = (status: string, i: number) => etapaCumprida(status) < i + 1;");
+    // Atrás do marco i: etapa < i + 1 — e o marco cobra a peça (o Kit só da Aprovação em diante, 23/10).
+    expect(ED).toContain("export const estaAtrasDoMarco = (status: string, i: number, doKit = false) =>");
+    expect(ED).toContain("etapaCumprida(status) < i + 1 && (!doKit || kitCobradoNoMarco(MARCOS_DO_EVENTO[i]?.key ?? \"\"));");
   });
 
   it("os seis marcos vêm da fonte única, numa função pura lida por cabeçalho e timeline", () => {
@@ -68,7 +69,7 @@ describe("Mudança 1 · a timeline diz quantas peças estão atrás de cada marc
     expect(ED).toContain("const clicavel = atras > 0 && !isHistorical;");
     expect(ED).toContain("cursor: clicavel ? 'pointer' : 'default',");
     // E a lista obedece.
-    expect(ED).toContain("if (marcoFiltro !== null) base = base.filter(item => estaAtrasDoMarco(statusParaContagem(item), marcoFiltro));");
+    expect(ED).toContain("if (marcoFiltro !== null) base = base.filter(item => estaAtrasDoMarco(statusParaContagem(item), marcoFiltro, !!item.kitRemessaId));");
   });
 
   it("o title diz o número por extenso e que dá para clicar", () => {

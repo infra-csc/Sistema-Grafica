@@ -53,7 +53,7 @@ export function usePecasDaLista(mainItems: PecaDoEvento[], filtros: FiltrosDaLis
     let base = mainItems;
     if (statusFilter.length > 0) base = base.filter(item => statusFilter.includes(item.status));
     // O gargalo clicado na timeline: as peças que AINDA NÃO passaram por ele.
-    if (marcoFiltro !== null) base = base.filter(item => estaAtrasDoMarco(statusParaContagem(item), marcoFiltro));
+    if (marcoFiltro !== null) base = base.filter(item => estaAtrasDoMarco(statusParaContagem(item), marcoFiltro, !!item.kitRemessaId));
     if (itemSearchLower) {
       base = base.filter((item) =>
         (item.displayId || "").toLowerCase().includes(itemSearchLower) ||
@@ -80,7 +80,7 @@ export function usePecasDaLista(mainItems: PecaDoEvento[], filtros: FiltrosDaLis
     // mesma peça e ficam juntas, sob a primeira grafia que aparecer.
     const rotuloDoTipo = new Map<string, string>();
     visibleEventItems.forEach(item => {
-      // Peça do Kit: agrupada na remessa ("KIT V1 · entrega 14/09"),
+      // Peça do Kit: agrupada no grupo "KIT" (uma inclusão só, 23/10),
       // não misturada nos grupos da Arena.
       const g = grupoDoKit(item) ?? (groupOf(item.type) || '');
       const k = chaveDoTipo(item.type);

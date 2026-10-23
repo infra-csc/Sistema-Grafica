@@ -1,11 +1,10 @@
 // ─── Tipos do Painel Geral ──────────────────────────────────────────────────
 // A peça chega de /api/items já ENRIQUECIDA pelo servidor
-// (server/routes/itens/leitura.ts): o evento CRU (com as datas da remessa,
-// quando é peça do Kit), os patrocinadores com o status da aprovação e a
-// remessa do Kit. Pelo JSON, toda data do banco vira texto ISO — por isso os
+// (server/routes/itens/leitura.ts): o evento CRU (o mesmo para a peça do Kit,
+// que segue as datas do evento) e os patrocinadores com o status da
+// aprovação. Pelo JSON, toda data do banco vira texto ISO — por isso os
 // tipos do schema passam por `ComoJson` antes de chegar aqui.
 import type { AuditLog, Event, Item, Sponsor } from "@shared/schema";
-import type { RemessaDoKit } from "@shared/kit";
 import type { SeloEventoFinalizado } from "@/lib/painel-encerrados";
 
 /** O que o JSON faz com a linha do banco: `Date` vira string ISO. */
@@ -23,7 +22,6 @@ export type PatrocinadorDaPeca = ComoJson<Sponsor> & { approvalStatus?: string |
 export type PecaDoPainel = ComoJson<Item> & {
   event?: EventoDaPeca | null;
   sponsors?: PatrocinadorDaPeca[] | null;
-  kitRemessa?: Partial<RemessaDoKit> | null;
   /** Grafia antiga do carimbo — `diasNoEstado` aceita as duas. */
   status_changed_at?: string | null;
 };

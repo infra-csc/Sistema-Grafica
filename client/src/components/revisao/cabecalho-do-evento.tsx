@@ -25,7 +25,7 @@ import type { EventoDaPeca } from "./tipos";
  * exibição" (UTC = relógio de São Paulo), daí o timeZone "UTC" na data e na
  * hora. `nivel` é a régua de urgência: cada superfície pinta com o seu tom.
  */
-export function saidaDoCaminhao(event: Pick<EventoDaPeca, "truckDepartureDate" | "datasDoKit">) {
+export function saidaDoCaminhao(event: Pick<EventoDaPeca, "truckDepartureDate">) {
   const saida = new Date(event.truckDepartureDate as string);
   const hoje = new Date(); hoje.setHours(0,0,0,0);
   const dia = new Date(saida); dia.setHours(0,0,0,0);
@@ -38,7 +38,7 @@ export function saidaDoCaminhao(event: Pick<EventoDaPeca, "truckDepartureDate" |
   const data = saida.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", timeZone: 'UTC' }).toUpperCase().replace(".", "");
   const hora = saida.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: 'UTC' });
   const title = `Saída do caminhão em ${saida.toLocaleDateString("pt-BR", { timeZone: 'UTC' })} às ${hora}`;
-  return { dias, nivel, quando, data, hora, title, comHora: !event.datasDoKit };
+  return { dias, nivel, quando, data, hora, title };
 }
 
 export function CabecalhoDoEvento({ eventId, event, total, grupoMarcado, aoMarcarGrupo, colunasDeDados }: {
@@ -102,8 +102,8 @@ export function CabecalhoDoEvento({ eventId, event, total, grupoMarcado, aoMarca
                     style={{ ...PILULA_NO_ESCURO, color: cor }}
                   >
                     <Truck aria-hidden="true" style={{ width: 11, height: 11 }} />
-                    {event.datasDoKit ? "Entrega do material" : "Caminhão"} {s.data}
-                    {s.comHora && <>{" · "}{s.hora}</>}
+                    Caminhão {s.data}
+                    {" · "}{s.hora}
                     {" · "}{s.quando}
                   </span>
                 );

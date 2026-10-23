@@ -13,7 +13,7 @@ import { alvo } from "@/hooks/use-mobile";
 import { diasNaFase, tomDaIdade } from "@/lib/idade-na-fase";
 import { P } from "@/lib/status";
 import { T, TOM, N, R, FS } from "@/lib/theme";
-import { DISPENSAVEIS_STATUSES, formatQuantity, phaseDeadline } from "@/lib/arte-rules";
+import { DISPENSAVEIS_STATUSES, faseDoPrazo, formatQuantity, phaseDeadline } from "@/lib/arte-rules";
 import { naoDevolvivel } from "@shared/fluxo-peca";
 import { ehMolde, statusDeExibicao } from "@shared/molde";
 import { prazoDoMolde } from "@shared/prazo-molde";
@@ -269,7 +269,8 @@ export function BotaoPrimario({ item, tabId, largura, podeEditar, dedo, enviando
 export function PrazoDaPeca({ item, tabId, hoje, dedo = false, emLinha = false }: { item: PecaDaArte; tabId: string; hoje: Date; dedo?: boolean; emLinha?: boolean }) {
   // PRAZO DO MOLDE (22/09): no molde de evento com prazo do molde, é ele
   // que a coluna mostra; sem ele (ou peça comum), o marco da fase de sempre.
-  const p = prazoDoMolde(item, item.event, hoje) ?? phaseDeadline(item.event, tabId, hoje);
+  // Peça do Kit: em "Enviar thumb" vence na Aprovação de Layout (faseDoPrazo).
+  const p = prazoDoMolde(item, item.event, hoje) ?? phaseDeadline(item.event, faseDoPrazo(tabId, item), hoje);
   // A IDADE NA FASE, abaixo da data. O prazo diz o marco (futuro); isto diz
   // há quanto tempo a peça está parada onde está — numa fila que espera
   // terceiros, é a pergunta. Sem `statusChangedAt`, sem idade (ver

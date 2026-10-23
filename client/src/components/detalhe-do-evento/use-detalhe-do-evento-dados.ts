@@ -7,7 +7,7 @@
 import { useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { Sponsor, EventQuotaRule } from "@shared/schema";
-import type { RemessaDoKit } from "@shared/kit";
+import type { InclusaoDoKit } from "@shared/kit";
 import { chaveDasRemessas } from "@/components/kit/painel-do-kit";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { finishes, materials, normKey } from "./regras";
@@ -16,7 +16,7 @@ import type {
   ResumoDoEstoque, VinculoDePatrocinador,
 } from "./tipos";
 
-/** O evento, as peças dele e as remessas do Kit. */
+/** O evento, as peças dele e a inclusão do Kit (uma por evento). */
 export function useDadosDoEvento(eventId: string | undefined) {
   const { data: event, isLoading: loadingEvent, isError: eventError, refetch: refetchEvent } = useQuery<EventoDoDetalhe>({
     queryKey: ["/api/events", eventId],
@@ -32,13 +32,14 @@ export function useDadosDoEvento(eventId: string | undefined) {
     refetchOnWindowFocus: false,
   });
 
-  // Remessas do Kit deste evento — "Peça de" no formulário.
-  const { data: remessasDoKit = [] } = useQuery<RemessaDoKit[]>({
+  // O Kit deste evento (uma inclusão só, 23/10) — "Peça de" no formulário.
+  const { data: inclusoesDoKit = [] } = useQuery<InclusaoDoKit[]>({
     queryKey: [chaveDasRemessas(eventId ?? "")],
     enabled: !!eventId,
   });
+  const inclusaoDoKit = inclusoesDoKit[0] ?? null;
 
-  return { event, loadingEvent, eventError, refetchEvent, rawItems, loadingItems, isFetching, itemsError, refetchItems, remessasDoKit };
+  return { event, loadingEvent, eventError, refetchEvent, rawItems, loadingItems, isFetching, itemsError, refetchItems, inclusaoDoKit };
 }
 
 /**

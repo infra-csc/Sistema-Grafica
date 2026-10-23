@@ -48,7 +48,12 @@ vi.mock("../routes/shared", async () => {
     updateEventStatus: async () => {},
   };
 });
-vi.mock("../services/kitRemessas", () => ({ carregarRemessa: async () => null, remessasPorIds: async () => new Map() }));
+vi.mock("../services/kitRemessas", () => ({
+  // A lista de peças não lê mais a inclusão do Kit (23/10); a criação, sim — aqui não cria.
+  inclusaoDoKitDoEvento: async () => null,
+  inclusoesDoKitPorEvento: async () => new Map(),
+  obterOuCriarInclusaoDoKit: async () => { throw new Error("sem banco neste teste"); },
+}));
 vi.mock("../services/tubosDaPeca", async () => {
   const real = await vi.importActual<any>("../services/tubosDaPeca");
   return { ...real, resumosDeTuboPorIds: async () => new Map() };

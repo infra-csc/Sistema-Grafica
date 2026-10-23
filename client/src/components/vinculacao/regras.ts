@@ -6,7 +6,7 @@ import { compareDisplayId } from "@/lib/displayId";
 import { COLLATOR_PTBR, DOWNSTREAM_STATUSES, LINKING_STATUSES } from "./constantes";
 import type { ItemChanges, PecaDaVinculacao, SugestaoDaPeca, SugestoesDosEventos, UIStatus, VinculoAutomatico } from "./tipos";
 
-/** A seção da linha: a remessa do Kit ("KIT · entrega 14/09") ou o tipo. */
+/** A seção da linha: "KIT" (a peça do Kit) ou o tipo. */
 export const secaoDaPeca = (p: PecaDaVinculacao): string => grupoDoKit(p) ?? (p.type || '');
 
 // Função para determinar estado UI de um item (FONTE ÚNICA DE VERDADE)
@@ -70,7 +70,7 @@ export const areSponsorsEqual = (a: string[], b: string[]): boolean => {
  * linha embaixo, seguida de "QUADROS 4X3 6" com uma linha, e assim por
  * diante: a contagem certa, a lista misturada.
  *
- * O Kit vai por último, cada remessa junta. Dentro do tipo, compareDisplayId
+ * O Kit vai por último, todo junto (uma inclusão só, 23/10). Dentro do tipo, compareDisplayId
  * (não replace(/\D/g,'')): o complemento "#0062-C1" virava 621 e desgrudava
  * da peça original.
  */

@@ -3,8 +3,7 @@
 //
 // O que este arquivo prende:
 //  1. decodificar(codificar(x)) SERIALIZA BYTE A BYTE IGUAL a x — mesmas
-//     chaves, mesma ordem, mesmos valores, peças do Kit com o evento nas datas
-//     da remessa, complementos e `parent` intactos. A régua é a string JSON
+//     chaves, mesma ordem, mesmos valores, peças do Kit com o evento delas, complementos e `parent` intactos. A régua é a string JSON
 //     inteira, não um deepEqual frouxo.
 //  2. As rotas reais (handlers de routes/items.ts com o storage em memória):
 //     sem `?formato=` a resposta é a de sempre; com, decodifica igual.
@@ -49,9 +48,10 @@ vi.mock("../routes/shared", async () => {
   };
 });
 vi.mock("../services/kitRemessas", () => ({
-  carregarRemessa: async (id: string) => H.remessas.get(id) ?? null,
-  remessasPorIds: async (ids: string[]) =>
-    new Map(ids.filter((id) => H.remessas.has(id)).map((id) => [id, H.remessas.get(id)])),
+  // A lista de peças não lê mais a inclusão do Kit (23/10); a criação, sim — aqui não cria.
+  inclusaoDoKitDoEvento: async () => null,
+  inclusoesDoKitPorEvento: async () => new Map(),
+  obterOuCriarInclusaoDoKit: async () => { throw new Error("sem banco neste teste"); },
 }));
 // O tubo viaja na peça (21/09) por um select em lote — aqui, sem banco, o lote
 // é vazio; o `comTubo` real segue valendo (devolve a mesma peça).
@@ -66,7 +66,6 @@ vi.mock("../services/xlsxExport", () => ({ handleExportItemsXlsx: vi.fn(), handl
 import { getTableColumns } from "drizzle-orm";
 import { replaceEqualDeep } from "@tanstack/react-query";
 import { items as tItems, events as tEvents, sponsors as tSponsors, itemSponsorApprovals as tApprovals } from "@shared/schema";
-import { eventoComDatasDoKit } from "@shared/kit";
 import {
   compactarPecas, expandirPecas, expandirResposta, compactarAprovacoes, expandirAprovacoes,
 } from "@shared/itens-compactos";
@@ -286,10 +285,11 @@ describe("codificar/decodificar é exato", () => {
     expect(json(decodificado)).toBe(jsonAntigo);
     expect(decodificado[5]).toStrictEqual(parseAntigo[5]);
 
-    // Kit: o evento decodificado é o do servidor, com as datas da remessa.
+    // Kit (23/10): a peça do Kit é peça do evento — o MESMO evento, sem as
+    // datas de remessa e sem o objeto da remessa embutido.
     const doKit = decodificado.filter((i) => i.kitRemessaId);
     expect(doKit.length).toBeGreaterThan(100);
-    expect(doKit.every((i) => i.event.datasDoKit === true && i.kitRemessa)).toBe(true);
+    expect(doKit.every((i) => i.event.datasDoKit === undefined && i.kitRemessa === undefined)).toBe(true);
     // Complemento e parent seguem inteiros.
     expect(decodificado.filter((i) => i.complements).length).toBe(40);
     expect(decodificado.filter((i) => i.parent).length).toBe(40);
@@ -468,11 +468,11 @@ describe("o cliente de verdade: queryFn com delta + compacto", () => {
       expect(json(depois)).toBe(json(viaRede(await chamar(`GET ${chave}`))));
       // Identidade: a peça que nada teve a ver com as mudanças é o mesmo objeto.
       if (naoTocada) expect((depois as any[]).find((i) => i.id === naoTocada.id)).toBe(naoTocada);
-      // A peça do Kit no evento encerrado: status novo E as datas da remessa.
+      // A peça do Kit no evento encerrado: o status novo do evento (o mesmo evento).
       const kitV2 = (depois as any[]).find((i) => i.kitRemessaId === M.remessas[1].id);
       if (kitV2) {
         expect(kitV2.event.status).toBe("closed");
-        expect(kitV2.event.datasDoKit).toBe(true);
+        expect(kitV2.event.datasDoKit).toBeUndefined();
       }
       console.log(`[perf] ${chave}: ciclo de delta com 7 mudanças no cliente (fetch simulado + decodificar + merge): ${tDelta}`);
     });
@@ -503,9 +503,7 @@ describe("merge do delta: identidade e custo do structuralSharing", () => {
     for (const item of delta.itens ?? []) porId.set(item.id, item);
     return Array.from(porId.values()).map((i) => ({
       ...i,
-      event: i.kitRemessaId && i.kitRemessa
-        ? eventoComDatasDoKit((evPorId.get(i.eventId) as any) ?? i.event, i.kitRemessa)
-        : evPorId.get(i.eventId) ?? i.event,
+      event: evPorId.get(i.eventId) ?? i.event,
       sponsors: Array.isArray(i.sponsors)
         ? i.sponsors.map((s: any) => {
             const atual = spPorId.get(s.id);

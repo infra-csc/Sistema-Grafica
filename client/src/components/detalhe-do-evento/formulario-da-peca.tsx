@@ -10,7 +10,6 @@ import { ModalFooter } from "@/components/modal-shell";
 import { AumentarQuantidadeButton } from "@/components/aumentar-quantidade-dialog";
 import { calculateM2 } from "@/lib/calculateM2";
 import { T, N, TOM, FS, FONT, R } from "@/lib/theme";
-import { rotuloDaRemessa, type RemessaDoKit } from "@shared/kit";
 import { alinharTipo } from "@shared/tipo-da-peca";
 import type { ItemFormData, ModeloDePeca } from "./tipos";
 import { formatarM2 } from "./regras";
@@ -44,9 +43,9 @@ interface ItemFormProps {
   localRefPreview: string;
   setLocalRefPreview: (v: string) => void;
   getUploadUrl: () => Promise<{ method: "PUT"; url: string }>;
-  /** Remessas do Kit deste evento (criar: "Peça de" Arena ou KIT). */
-  remessasDoKit?: RemessaDoKit[];
-  /** Usuário do Kit: a remessa é obrigatória (não cria peça da Arena). */
+  /** O evento já tem Kit (criar: "Peça de" Arena ou Kit). */
+  eventoTemKit?: boolean;
+  /** Usuário do Kit: a peça é sempre do Kit (não cria peça da Arena). */
   kitObrigatorio?: boolean;
   /** Peça já em produção: sobe por complemento, desce até o piso físico. */
   quantityLocked?: boolean;
@@ -80,7 +79,7 @@ export function ItemForm({
   localRefPreview, setLocalRefPreview, getUploadUrl,
   quantityLocked = false, quantityFloor = 0, quantityCeiling = Number.MAX_SAFE_INTEGER,
   onAumentarQuantidade, podePriorizar = false, statusDaPeca, temPatrocinador = false, jaTemArquivo = false,
-  remessasDoKit = [], kitObrigatorio = false,
+  eventoTemKit = false, kitObrigatorio = false,
 }: ItemFormProps) {
   const isEdit = mode === "edit";
   // "Digitar novo tipo" só existe no criar — no editar o tipo já é texto livre.
@@ -94,27 +93,27 @@ export function ItemForm({
     <form onSubmit={onSubmit} style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minHeight: 0 }}>
       <div className="scrollbar-visible" style={{ flex: 1, overflowY: "auto", padding: "28px", display: "flex", flexDirection: "column", gap: 24 }}>
 
-        {/* KIT: a peça é da Arena ou de uma remessa do Kit (com as
-            datas do Kit). O usuário do Kit só cria peça do Kit. */}
-        {!isEdit && (kitObrigatorio || remessasDoKit.length > 0) && (
+        {/* KIT (23/10): a peça é da Arena ou do Kit do evento — uma
+            inclusão só, sem datas próprias. O usuário do Kit só cria peça do
+            Kit (o campo vira um aviso fixo). */}
+        {!isEdit && kitObrigatorio && (
+          <p data-testid="aviso-item-kit" style={{ margin: 0, fontSize: FS.body, color: TOM.roxo.text, background: TOM.roxo.bg, border: `1px solid ${TOM.roxo.border}`, borderRadius: 8, padding: "8px 12px", lineHeight: 1.45 }}>
+            Peça do Kit deste evento — segue os prazos do evento a partir da Aprovação de layout.
+          </p>
+        )}
+        {!isEdit && !kitObrigatorio && (eventoTemKit || formData.doKit) && (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <label htmlFor="item-kit" style={FIELD_LABEL}>Peça de</label>
             <select
               id="item-kit"
-              required={kitObrigatorio}
-              value={formData.kitRemessaId}
-              onChange={(e) => setFormData({ ...formData, kitRemessaId: e.target.value })}
+              value={formData.doKit ? "kit" : ""}
+              onChange={(e) => setFormData({ ...formData, doKit: e.target.value === "kit" })}
               data-testid="select-item-kit"
-              style={{ ...FIELD_INPUT, cursor: "pointer", color: formData.kitRemessaId ? TOM.roxo.text : FIELD_INPUT.color, fontWeight: formData.kitRemessaId ? 700 : 500 }}
+              style={{ ...FIELD_INPUT, cursor: "pointer", color: formData.doKit ? TOM.roxo.text : FIELD_INPUT.color, fontWeight: formData.doKit ? 700 : 500 }}
             >
-              {kitObrigatorio
-                ? <option value="">— escolha a remessa do Kit —</option>
-                : <option value="">Arena (lista do evento)</option>}
-              {remessasDoKit.map((r) => <option key={r.id} value={r.id}>{rotuloDaRemessa(r)}</option>)}
+              <option value="">Arena (lista do evento)</option>
+              <option value="kit">Kit do evento</option>
             </select>
-            {kitObrigatorio && remessasDoKit.length === 0 && (
-              <span style={{ fontSize: 12, color: TOM.alerta.text }}>Crie a remessa do Kit neste evento (painel Kit) antes de adicionar peças.</span>
-            )}
           </div>
         )}
 

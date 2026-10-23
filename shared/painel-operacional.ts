@@ -96,8 +96,6 @@ export interface EntradaDoPainel {
   geradoEm: string;
   /** id do evento → nome (para o realizado de evento que já saiu dos prazos). */
   nomeDoEvento: ReadonlyMap<string, string>;
-  /** Remessas do Kit que existem — a peça de remessa desconhecida conta na Arena (como em eventosDoPrazo). */
-  remessasConhecidas: ReadonlySet<string>;
 }
 
 // ─── Saída (o contrato de GET /api/analises/painel-operacional) ─────────────
@@ -127,7 +125,7 @@ export interface FaseDoEvento {
 }
 
 export interface EventoDoPainel {
-  /** Chave da linha (a do Kit é `<evento>#kit-<remessa>`, como na Gestão de Prazos). */
+  /** Chave da linha: o id do evento (o Kit é peça do evento desde 23/10 — nada de linha "· KIT"). */
   chave: string;
   eventoId: string;
   nome: string;
@@ -309,7 +307,7 @@ export function montarPainelOperacional(e: EntradaDoPainel): PainelOperacional {
   const prazoPorChave = new Map<string, PrazoEvent>();
   const marcoDaPeca = new Map<string, number>();
   for (const ev of e.prazos) {
-    prazoPorChave.set(`${ev.eventId ?? ev.id}|${ev.kit?.remessaId ?? ""}`, ev);
+    prazoPorChave.set(ev.eventId ?? ev.id, ev);
     for (const it of ev.pendingItems ?? []) marcoDaPeca.set(it.id, it.marcoIndex);
   }
   const nomes: Record<string, string> = {};
@@ -334,13 +332,13 @@ export function montarPainelOperacional(e: EntradaDoPainel): PainelOperacional {
     };
   });
 
-  const doKit = (p: PecaDoPainel) => !!p.kitRemessaId && e.remessasConhecidas.has(p.kitRemessaId);
-  const eventoDaPeca = (p: PecaDoPainel) => prazoPorChave.get(`${p.eventId}|${doKit(p) ? p.kitRemessaId : ""}`) ?? null;
+  // KIT (23/10): a peça do Kit cai na linha do PRÓPRIO evento — antes cada
+  // remessa virava uma linha "Evento · KIT" e as Análises pareciam ter dois
+  // eventos onde havia um.
+  const eventoDaPeca = (p: PecaDoPainel) => prazoPorChave.get(p.eventId) ?? null;
   const chaveFora = (p: PecaDoPainel) => {
-    const kit = doKit(p);
-    const chave = kit ? `${p.eventId}#kit-${p.kitRemessaId}` : p.eventId;
-    if (!(chave in nomes)) nomes[chave] = `${e.nomeDoEvento.get(p.eventId) ?? "(evento não encontrado)"}${kit ? " · KIT" : ""}`;
-    return chave;
+    if (!(p.eventId in nomes)) nomes[p.eventId] = e.nomeDoEvento.get(p.eventId) ?? "(evento não encontrado)";
+    return p.eventId;
   };
 
   type Soma = Record<string, number>;

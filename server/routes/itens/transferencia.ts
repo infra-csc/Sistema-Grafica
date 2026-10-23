@@ -35,10 +35,10 @@ export function registrarTransferencia(app: Express): void {
       if (item.deletedAt) {
         return res.status(409).json({ error: "Esta peça está na lixeira. Restaure a peça antes de transferir.", code: "ITEM_DELETED" });
       }
-      // PEÇA DO KIT: a remessa é do evento de origem (mesmas datas do Kit) —
-      // no destino ela ficaria pendurada numa remessa de outro evento.
+      // PEÇA DO KIT: aponta para a inclusão do Kit DESTE evento — no destino
+      // ela ficaria pendurada no Kit de outro evento.
       if (item.kitRemessaId) {
-        return res.status(409).json({ error: "Peça do Kit pertence a uma remessa deste evento e não troca de evento. Crie a peça no evento de destino.", code: "KIT_ITEM" });
+        return res.status(409).json({ error: "Peça do Kit pertence ao Kit deste evento e não troca de evento. Crie a peça no evento de destino.", code: "KIT_ITEM" });
       }
 
       if (destinoId === item.eventId) {

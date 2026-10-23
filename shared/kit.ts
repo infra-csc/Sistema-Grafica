@@ -1,31 +1,39 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// KIT (dono, 14/09).
+// KIT (dono, 14/09; SIMPLIFICADO em 23/10).
 //
-// "Vamos precisar criar, com base nesse template, novas peças que vão ser do
-// Kit." Decisões do dono:
-//   · a peça do Kit fica no MESMO evento, com as datas próprias do Kit
-//     (entrega do material, carga e saída do caminhão) — as da Arena não mudam;
-//   · cada planilha (ou criação à mão) é uma REMESSA; cada versão (V1, V2…) é
-//     uma remessa nova;
-//   · o fluxo é o mesmo da Arena, e quem cria escolhe se precisa de aprovação;
+// "O kit não precisa ser tão diferente das peças normais, ele entra nessa
+// aprovação [Aprovação de layout] pra frente e não seriam várias remessas,
+// seria tudo a mesma inclusão, e ele não precisaria colocar as datas, mas
+// seguiremos com a planilha de inclusão do kit." (dono, 23/10)
+//
+// O que vale desde 23/10:
+//   · a peça do Kit é PEÇA DO EVENTO, com o selo KIT — mesmas datas, mesmos
+//     marcos, mesmo evento em toda tela (nada de "Evento · KIT" à parte);
+//   · PRAZOS: o Kit é cobrado pelos marcos do evento a partir da APROVAÇÃO DE
+//     LAYOUT (Aprovação → Finalização → Revisão de lista → Produção gráfica).
+//     Lista de imagens e Entrega de layouts NÃO cobram o Kit (ver
+//     `kitCobradoNoMarco`) — a peça do Kit que ainda está nessas etapas é
+//     medida pelo prazo da Aprovação;
+//   · UMA INCLUSÃO POR EVENTO: a linha de `kit_remessas` virou "a inclusão do
+//     Kit do evento" (UNIQUE em event_id, migração 0009). Subir outra planilha
+//     do Kit só ACRESCENTA peças a ela. As datas da antiga remessa (entrega do
+//     material, carga e saída do caminhão) ficam no banco, ignoradas;
+//   · `items.kit_remessa_id` continua sendo a marca "peça do Kit";
 //   · o usuário do Kit é um usuário de Solicitação marcado "Kit": tem as mesmas
-//     telas, mas só vê as peças do Kit que ELE criou;
-//   · admin, Solicitação, Atendimento e Arte veem tudo misturado, com o selo
-//     KIT e o prazo de entrega em todas as etapas.
+//     telas, mas só vê (e só cria) as peças do Kit que ELE criou;
+//   · admin, Solicitação, Atendimento e Arte veem tudo misturado, com o selo.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** A remessa do Kit como a API devolve. Datas em ISO. */
-export interface RemessaDoKit {
+/**
+ * A INCLUSÃO DO KIT do evento como a API devolve (uma por evento). As colunas
+ * de data da antiga remessa seguem no banco, mas não chegam mais à tela.
+ */
+export interface InclusaoDoKit {
   id: string;
   eventId: string;
-  versao: string;
   solicitante: string | null;
   departamento: string | null;
-  dataSolicitacao: string | null;
-  entregaMaterial: string;
-  dataEvento: string | null;
-  cargaCaminhao: string | null;
-  saidaCaminhao: string | null;
+  /** A última planilha do Kit incluída. */
   arquivo: string | null;
   criadoPor: string | null;
   criadoPorId: string | null;
@@ -48,11 +56,21 @@ export function pecaVisivelPara(
 }
 
 /**
+ * QUEM PÕE PEÇA NO KIT DO EVENTO (23/10, no lugar de `remessaUtilizavelPor`):
+ * a inclusão é do EVENTO, não de quem a abriu — admin, Solicitação e o usuário
+ * do Kit (que é um usuário de Solicitação) acrescentam peças a ela. O que
+ * continua por pessoa é a VISÃO: o usuário do Kit só vê (e só mexe) nas peças
+ * que ele mesmo criou (`pecaVisivelPara`, server/trava-do-kit.ts).
+ */
+export const podeIncluirNoKit = (usuario: { role?: string | null; kit?: boolean | null }): boolean =>
+  usuario.kit === true || usuario.role === "admin" || usuario.role === "solicitacao";
+
+/**
  * A Solicitação da Arena só VISUALIZA peça do Kit (dono, 15/09): a trava de
  * server/routes.ts responde 403 a toda escrita de quem tem papel
- * "solicitacao", NÃO é usuário do Kit, e mira peça com remessa do Kit — por
- * id na URL (/api/items/:id/…) ou na lista `itemIds` de um lote (aí o lote
- * inteiro volta 403). O admin age em tudo; o usuário do Kit, nas dele
+ * "solicitacao", NÃO é usuário do Kit, e mira peça do Kit — por id na URL
+ * (/api/items/:id/…) ou na lista `itemIds` de um lote (aí o lote inteiro volta
+ * 403). O admin age em tudo; o usuário do Kit, nas dele
  * (server/trava-do-kit.ts). Esta é a MESMA régua, para a tela não montar lote
  * que o servidor vai recusar.
  */
@@ -96,70 +114,33 @@ export const fraseDasPecasDoKitQueFicaram = (n: number): string =>
     ? "1 peça do Kit ficou de fora: quem libera é o Kit."
     : `${n} peças do Kit ficaram de fora: quem libera é o Kit.`;
 
-/** A remessa pode receber peça deste usuário? O do Kit só usa as dele. */
-export const remessaUtilizavelPor = (
-  usuario: { kit?: boolean | null; userId?: string | null },
-  remessa: { criadoPorId?: string | null },
-): boolean => !usuario.kit || (!!usuario.userId && remessa.criadoPorId === usuario.userId);
+// ─── Selo e grupo (23/10: só "KIT", sem data) ────────────────────────────────
 
-/** "20/09" de uma data do Kit (gravada ao meio-dia UTC do dia). */
-export function diaMesDoKit(d: string | Date | null | undefined): string | null {
-  if (!d) return null;
-  const data = new Date(d);
-  if (Number.isNaN(data.getTime())) return null;
-  const iso = data.toISOString();
-  return `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+/** O texto do selo da peça do Kit, em toda tela. */
+export const TEXTO_DO_SELO_KIT = "KIT";
+
+/** O que o selo explica ao passar o mouse (title/tooltip). */
+export const DETALHE_DO_SELO_KIT = "Peça do Kit — segue os prazos do evento a partir da Aprovação de layout";
+
+/** O texto do selo: sempre "KIT" (a data própria do Kit deixou de existir em 23/10). */
+export const textoDoSeloKit = (): string => TEXTO_DO_SELO_KIT;
+
+/** O grupo da peça nas listas (15/09: "as peças devem ser agrupadas como Kit"):
+ *  "KIT" para a peça do Kit; null para a da Arena. */
+export function grupoDoKit(peca: { kitRemessaId?: string | null }): string | null {
+  return peca.kitRemessaId ? TEXTO_DO_SELO_KIT : null;
 }
 
-/** O texto do selo: "KIT · entrega 20/09" (ou só "KIT" sem a data). */
-export function textoDoSeloKit(remessa: { entregaMaterial?: string | Date | null } | null | undefined): string {
-  const dia = diaMesDoKit(remessa?.entregaMaterial);
-  return dia ? `KIT · entrega ${dia}` : "KIT";
-}
+// ─── Prazos: o Kit entra no funil na Aprovação de layout (dono, 23/10) ───────
 
-/** O grupo da peça nas listas (15/09: "as peças devem ser agrupadas como Kit").
- *  "KIT V1 · entrega 20/09" para a peça do Kit; null para a da Arena. */
-export function grupoDoKit(peca: { kitRemessaId?: string | null; kitRemessa?: { versao?: string | null; entregaMaterial?: string | Date | null } | null }): string | null {
-  if (!peca.kitRemessaId) return null;
-  // Sem a versão (15/09: "V1 não precisa, apenas que é Kit").
-  const dia = diaMesDoKit(peca.kitRemessa?.entregaMaterial);
-  return `KIT${dia ? ` · entrega ${dia}` : ""}`;
-}
+/** Os marcos do funil que NÃO cobram a peça do Kit (chaves de FUNIL_DE_PRAZOS). */
+export const MARCOS_QUE_NAO_COBRAM_O_KIT: ReadonlySet<string> = new Set(["listaImagens", "layouts"]);
 
-/** "KIT V1 · entrega 20/09" — como a remessa aparece numa lista de escolha. */
-export function rotuloDaRemessa(remessa: { versao: string; entregaMaterial?: string | Date | null }): string {
-  const dia = diaMesDoKit(remessa.entregaMaterial);
-  return `KIT ${remessa.versao}${dia ? ` · entrega ${dia}` : ""}`;
-}
+/** O primeiro marco que cobra a peça do Kit. */
+export const MARCO_EM_QUE_O_KIT_ENTRA = "aprovacao" as const;
 
-// ─── Prazos pelas datas do Kit (dono, 14/09: "tem que ser pela data deles") ──
-
-/** A âncora dos prazos da peça do Kit: QUANDO ELES PRECISAM DA PEÇA — a data de
- *  entrega do material (dono, 15/09: "o prazo não é a data do caminhão, e sim
- *  quando eles precisam do item"). Faz o papel da saída do caminhão na Arena. */
-export const ancoraDoKit = (remessa: { entregaMaterial: string | Date }): string | Date =>
-  remessa.entregaMaterial;
-
-/**
- * O evento como a PEÇA DO KIT o enxerga: as mesmas regras e offsets do evento,
- * com as datas da remessa no lugar das da Arena. Toda tela que calcula prazo a
- * partir de `item.event` (Arte, Gráfica, Painel) passa a cobrar a peça do Kit
- * pela data dela sem mudar a conta. Sem remessa, devolve o evento como está.
- */
-export function eventoComDatasDoKit<E extends { startDate?: unknown; truckDepartureDate?: unknown }>(
-  evento: E | undefined,
-  remessa: { versao: string; saidaCaminhao?: string | Date | null; entregaMaterial: string | Date; dataEvento?: string | Date | null } | null | undefined,
-): E | undefined {
-  if (!evento || !remessa) return evento;
-  return {
-    ...evento,
-    truckDepartureDate: ancoraDoKit(remessa),
-    startDate: remessa.dataEvento ?? evento.startDate,
-    datasDoKit: true,
-    kitVersao: remessa.versao,
-    saidaDaArena: evento.truckDepartureDate,
-  };
-}
+/** O marco (pela chave) cobra a peça do Kit? Da Aprovação em diante, sim. */
+export const kitCobradoNoMarco = (chaveDoMarco: string): boolean => !MARCOS_QUE_NAO_COBRAM_O_KIT.has(chaveDoMarco);
 
 // ─── A planilha do Kit ───────────────────────────────────────────────────────
 //
@@ -168,6 +149,10 @@ export function eventoComDatasDoKit<E extends { startDate?: unknown; truckDepart
 // "Versão do Pedido", "Data de Entrega do material:", "Data do Evento", "Data
 // Carrega caminhão", "Data Saída Caminhão". Na A1, o nome do evento. As datas
 // chegam como número de série do Excel (46279 = 14/09/2026).
+//
+// Desde 23/10 o cabeçalho só RECONHECE a planilha do Kit e traz o solicitante e
+// o departamento: as datas são lidas (é por elas que o template se identifica),
+// mas não viram prazo nem são gravadas — o Kit segue as datas do evento.
 
 export interface CabecalhoDoKit {
   evento: string | null;
@@ -232,17 +217,4 @@ export function cabecalhoDoKit(
     cargaCaminhao: dataDaPlanilha(acha((r) => r.includes("carrega") || (r.includes("carga") && r.includes("caminhao")))),
     saidaCaminhao,
   };
-}
-
-/** Explicação completa do selo (title/tooltip). */
-export function detalheDaRemessa(remessa: Partial<RemessaDoKit> | null | undefined): string {
-  if (!remessa) return "Peça do Kit";
-  const partes = [`Peça do Kit${remessa.versao ? ` — remessa ${remessa.versao}` : ""}`];
-  const entrega = diaMesDoKit(remessa.entregaMaterial);
-  const carga = diaMesDoKit(remessa.cargaCaminhao);
-  const saida = diaMesDoKit(remessa.saidaCaminhao);
-  if (entrega) partes.push(`entrega do material ${entrega}`);
-  if (carga) partes.push(`carga do caminhão ${carga}`);
-  if (saida) partes.push(`saída do caminhão ${saida}`);
-  return partes.join(" · ");
 }

@@ -6,7 +6,6 @@
 // `Serializado`, e não de interfaces escritas à mão que envelheceriam sozinhas.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { AuditLog, Event, Item, Sponsor, StandardItem } from "@shared/schema";
-import type { RemessaDoKit } from "@shared/kit";
 import type { PecaComProducao } from "@/lib/detalhe-producao";
 
 /** A linha como chega pelo JSON: toda coluna de data vira texto ISO. */
@@ -16,20 +15,19 @@ export type Serializado<T> = {
 
 /**
  * Evento de GET /api/events — e também o `item.event` que vem junto da peça
- * (cru do storage, com as datas da remessa quando é peça do Kit).
+ * (cru do storage — o mesmo para a peça do Kit, que segue as datas do evento).
  */
 export type EventoAtendimento = Serializado<Event> & { manuallyClosed?: boolean | null };
 
 /**
  * Peça de GET /api/items (recortes da fila e do histórico, já expandidos do
- * formato compacto). Além das colunas, o servidor anexa o evento, a remessa do
- * Kit e o tubo — o que a jornada e o selo de produção leem.
+ * formato compacto). Além das colunas, o servidor anexa o evento e o tubo — o
+ * que a jornada e o selo de produção leem.
  */
 export type PecaAtendimento = Serializado<Item>
   & Pick<PecaComProducao, "tuboNumero" | "tuboAvulso" | "tuboVolumes" | "tuboEntregueEm" | "tuboRecebidoPor">
   & {
     event?: EventoAtendimento | null;
-    kitRemessa?: Partial<RemessaDoKit> | null;
     /** Fechamento do tubo em que a peça foi embalada (enrich do servidor). */
     tuboFechadoEm?: string | null;
   };

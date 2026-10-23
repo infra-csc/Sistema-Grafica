@@ -29,6 +29,7 @@ import {
 import type { EventoFinalizadoMotivo, RegraDeFimDeSemana } from "@shared/prazo-dates";
 import { FUNIL_DE_PRAZOS, STATUS_ENTREGUES, STATUS_FORA_DO_FUNIL, statusDoFunil } from "@shared/fluxo-peca";
 import { comStatusDeContagem } from "@shared/molde";
+import { MARCO_EM_QUE_O_KIT_ENTRA } from "@shared/kit";
 import type {
   PrazoCategoria,
   PrazoEvent,
@@ -98,6 +99,9 @@ export const APROVACAO_STAGE_INDEX = STAGE_DEFS.findIndex((s) => s.key === "apro
 /** Índice da Finalização — o marco que cobra a peça isenta de aprovação. */
 export const FINALIZACAO_STAGE_INDEX = STAGE_DEFS.findIndex((s) => s.key === "finalizacao");
 
+/** Índice do primeiro marco que cobra a peça do Kit (a Aprovação de Layout). */
+export const KIT_STAGE_INDEX = STAGE_DEFS.findIndex((s) => s.key === MARCO_EM_QUE_O_KIT_ENTRA);
+
 /**
  * Marco que MEDE o prazo de uma peça — nem sempre é a etapa em que ela está.
  *
@@ -120,10 +124,15 @@ export const FINALIZACAO_STAGE_INDEX = STAGE_DEFS.findIndex((s) => s.key === "fi
  * `STATUS_STAGE_RANK`: quem atribui setor no resumo de gargalos precisa da
  * etapa real, não do marco.
  */
-export function marcoIndexFor(status: string, skipApproval?: boolean | null): number | undefined {
+export function marcoIndexFor(status: string, skipApproval?: boolean | null, doKit?: boolean | null): number | undefined {
   const rank = STATUS_STAGE_RANK[status];
   if (rank === undefined) return undefined;
   if (skipApproval && rank < FINALIZACAO_STAGE_INDEX) return FINALIZACAO_STAGE_INDEX;
+  // PEÇA DO KIT (dono, 23/10: "ele entra nessa aprovação pra frente"): Lista
+  // de Imagens e Entrega de Layouts não cobram o Kit — a peça do Kit que ainda
+  // está nessas etapas é medida pelo prazo da Aprovação de Layout, como a
+  // isenta de aprovação é medida pela Finalização (mesma folga aceita acima).
+  if (doKit && rank < KIT_STAGE_INDEX) return KIT_STAGE_INDEX;
   return rank;
 }
 
@@ -202,6 +211,8 @@ export interface DomainItem {
   quantity: number;
   /** Peça isenta da aprovação do patrocinador — muda o marco que a cobra. */
   skipApproval?: boolean | null;
+  /** Peça do Kit (a marca): cobrada só da Aprovação de Layout em diante. */
+  kitRemessaId?: string | null;
   updatedAt?: Date | string | null;
   createdAt?: Date | string | null;
   /**
@@ -310,7 +321,7 @@ export function buildEventPrazo(
   // pelo prazo de Aprovação de Layout em vez do prazo da etapa anterior.
   const directCounts = new Array(STAGE_DEFS.length).fill(0);
   for (const it of eventItems) {
-    const marco = marcoIndexFor(it.status, it.skipApproval);
+    const marco = marcoIndexFor(it.status, it.skipApproval, !!it.kitRemessaId);
     if (marco !== undefined) directCounts[marco] += 1;
   }
   // Evento sem NENHUMA peça: runningPending 0 deixaria todas as etapas
@@ -412,8 +423,8 @@ export function buildEventPrazo(
         // um espelho do mapa status→etapa que podia divergir.
         stageIndex: STATUS_STAGE_RANK[it.status],
         // Marco que MEDE esta peça. Igual a `stageIndex` no caso normal;
-        // diferente só na peça isenta de aprovação — ver `marcoIndexFor`.
-        marcoIndex: marcoIndexFor(it.status, it.skipApproval) as number,
+        // diferente na peça isenta de aprovação e na do Kit — ver `marcoIndexFor`.
+        marcoIndex: marcoIndexFor(it.status, it.skipApproval, !!it.kitRemessaId) as number,
         type: it.type,
         description: it.description ?? null,
         quantity: it.quantity,
@@ -497,71 +508,6 @@ export function buildEventPrazo(
     piorEsperaDias,
     solicitante: (event.createdBy && deps.userNameById?.get(event.createdBy)) || null,
   };
-}
-
-// ─── Kit: cada remessa com os próprios prazos (dono, 14/09) ──────────────────
-//
-// "Tem que ser pela data deles." As peças do Kit moram no mesmo evento, mas o
-// funil delas conta da saída do caminhão do KIT (ou da entrega do material).
-// Cada remessa vira uma linha própria da Gestão de Prazos ("Evento · KIT V1"),
-// com id `<evento>#kit-<remessa>` e `eventId` apontando para o evento real (os
-// links e a cobrança usam o real).
-
-export interface RemessaDoPrazo {
-  id: string;
-  versao: string;
-  entregaMaterial: Date | string;
-  saidaCaminhao?: Date | string | null;
-  dataEvento?: Date | string | null;
-}
-
-const SEPARADOR_KIT = "#kit-";
-
-/** O id do evento real por trás de uma linha (a do Kit ou a própria). */
-export const idDoEventoReal = (id: string): string => id.split(SEPARADOR_KIT)[0];
-
-/** Separa as peças do evento: Arena (datas do evento) e uma linha por remessa do Kit. */
-export function eventosDoPrazo<E extends DomainEvent, I extends { kitRemessaId?: string | null }>(
-  event: E,
-  items: I[],
-  remessaPorId: Map<string, RemessaDoPrazo>,
-): Array<{ evento: E; itens: I[]; kit: RemessaDoPrazo | null }> {
-  const daArena: I[] = [];
-  const porRemessa = new Map<string, I[]>();
-  for (const it of items) {
-    const rid = it.kitRemessaId;
-    if (rid && remessaPorId.has(rid)) {
-      const lista = porRemessa.get(rid);
-      if (lista) lista.push(it); else porRemessa.set(rid, [it]);
-    } else {
-      daArena.push(it);
-    }
-  }
-  const blocos: Array<{ evento: E; itens: I[]; kit: RemessaDoPrazo | null }> = [];
-  // Evento só com peças do Kit não vira uma linha "sem peças" da Arena.
-  if (daArena.length > 0 || porRemessa.size === 0) blocos.push({ evento: event, itens: daArena, kit: null });
-  for (const [rid, itens] of Array.from(porRemessa.entries())) {
-    const r = remessaPorId.get(rid)!;
-    blocos.push({
-      evento: {
-        ...event,
-        id: `${event.id}${SEPARADOR_KIT}${rid}`,
-        name: `${event.name} · KIT`,
-        // Quando eles precisam da peça: a entrega do material (dono, 15/09).
-        truckDepartureDate: r.entregaMaterial,
-        startDate: r.dataEvento ?? event.startDate,
-      },
-      itens,
-      kit: r,
-    });
-  }
-  return blocos;
-}
-
-/** Carimba no `PrazoEvent` o evento real e a remessa (quando é linha do Kit). */
-export function comKit(prazo: PrazoEvent | null, kit: RemessaDoPrazo | null): PrazoEvent | null {
-  if (!prazo) return null;
-  return { ...prazo, eventId: idDoEventoReal(prazo.id), kit: kit ? { remessaId: kit.id, versao: kit.versao } : null };
 }
 
 /**

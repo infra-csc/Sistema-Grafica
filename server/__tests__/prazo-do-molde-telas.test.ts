@@ -76,7 +76,7 @@ describe("as telas (fonte)", () => {
 
   it("Arte: a coluna e a ordenação 'prazo' usam o prazo do molde só no molde", () => {
     const a = ler("client/src/pages/arte.tsx");
-    expect(a).toContain("const p = prazoDoMolde(item, item.event, hoje) ?? phaseDeadline(item.event, tabId, hoje);");
+    expect(a).toContain("const p = prazoDoMolde(item, item.event, hoje) ?? phaseDeadline(item.event, faseDoPrazo(tabId, item), hoje);");
     expect(a).toContain("const pa = prazoDoMolde(a, a.event, hoje), pb = prazoDoMolde(b, b.event, hoje);");
   });
 

@@ -48,6 +48,8 @@ export interface PecaDaArte {
   finalFileUrl?: string | null;
   event?: EventoDaArte | null;
   sponsors?: ReadonlyArray<{ id: string }> | null;
+  /** Peça do Kit: o marco que a cobra começa na Aprovação (`faseDoPrazo`). */
+  kitRemessaId?: string | null;
 }
 
 /** `lista.includes(v)` sem exigir que `v` já seja texto (id ausente não casa). */
@@ -482,6 +484,18 @@ export const PHASE_DEADLINE: Record<
 };
 
 /**
+ * A FASE CUJO MARCO COBRA A PEÇA nesta aba. A da Arena, a própria aba. A do
+ * KIT (dono, 23/10: "ele entra nessa aprovação pra frente") não é cobrada pela
+ * Entrega de Layouts — em "Enviar thumb" e na correção ela vence na Aprovação
+ * de Layout, o mesmo marco que a Gestão de Prazos usa para ela
+ * (`marcoIndexFor` em server/services/prazo-domain.ts).
+ */
+export function faseDoPrazo(tab: string, peca: { kitRemessaId?: string | null } | null | undefined): string {
+  if (peca?.kitRemessaId && (tab === "criar-aprovacoes" || tab === "correcao")) return "aguardando-patrocinador";
+  return tab;
+}
+
+/**
  * Marcos que a faixa do evento exibe, na ordem do funil. São as FASES (não
  * rótulos soltos): a faixa reusa `phaseDeadline`, então a data do chip é
  * necessariamente a mesma da coluna "Prazo" e do selo de atraso.
@@ -595,7 +609,7 @@ export function compareEventUrgency(a: EventoDaArte | null | undefined, b: Event
  */
 export function isAtrasadaNaFase(item: PecaDaArte | null | undefined, tab: string, today: Date): boolean {
   if (tab === "finalizados") return false;
-  const p = phaseDeadline(item?.event, tab, today);
+  const p = phaseDeadline(item?.event, faseDoPrazo(tab, item), today);
   return !!p && p.diff < 0;
 }
 

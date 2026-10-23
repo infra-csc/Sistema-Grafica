@@ -1,13 +1,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // O KIT NO SERVIDOR — as rotas, o login e os serviços reais, sobre um storage e
 // um banco de mentira. O usuário do Kit só vê (e só mexe) nas peças do Kit que
-// ele criou; a marca vem do login; remessa é do admin e da Solicitação.
+// ele criou; a marca vem do login; o Kit do evento é UMA inclusão (23/10), que
+// nasce com a primeira peça do Kit e recebe as seguintes.
 //
 // Vieram de casos de kit.test.ts que só liam o fonte:
-//   · schema (marca no usuário, remessa com as datas, peça com remessa e autor);
+//   · schema (marca no usuário, inclusão única por evento, peça com a marca e autor);
 //   · a marca vem do login e mudar a marca derruba as sessões;
-//   · remessas: criar/excluir é admin|Solicitação, o Kit lista só as dele,
-//     versão repetida barrada, excluir só antes de a peça andar;
+//   · o Kit do evento: só leitura na rota, uma inclusão, nada de remessa/datas;
 //   · peças: o recorte nas listas, na criação, na Entrada Rápida e na importação
 //     (e o aviso que falha não desfaz a importação);
 //   · eventos: contagens só das peças dele, e o envio separa Kit e Arena;
@@ -143,20 +143,21 @@ beforeEach(async () => {
   mundo = mundoNovo();
   ligarStorage(H.storage, mundo);
   H.broadcast.length = 0; H.trilha.length = 0; H.sessoesAvisadas.length = 0; H.inseridos.length = 0;
+  // O Kit do ev-1: UMA inclusão (23/10), aberta por outro usuário do Kit — e
+  // mesmo assim é nela que as peças do Kit de qualquer um entram.
   remessas = [
-    { id: "rem-kit", eventId: "ev-1", versao: "V1", criadoPorId: "u-kit", entregaMaterial: new Date("2099-01-03T12:00:00Z") },
-    { id: "rem-outro", eventId: "ev-1", versao: "V2", criadoPorId: "u-outro-kit", entregaMaterial: new Date("2099-01-04T12:00:00Z") },
+    { id: "inc-ev1", eventId: "ev-1", versao: "KIT", solicitante: "Bruno", departamento: "Kit", arquivo: "kit.xlsx", criadoPor: "Outro", criadoPorId: "u-outro-kit", entregaMaterial: new Date("2099-01-03T12:00:00Z"), createdAt: new Date("2099-01-01T12:00:00Z") },
   ];
   // As peças do Kit dele, de outro usuário do Kit, e a da Arena.
-  mundo.itens.minha = peca({ id: "minha", displayId: "#K1", kitRemessaId: "rem-kit", criadoPorId: "u-kit", status: "draft" });
-  mundo.itens.alheia = peca({ id: "alheia", displayId: "#K2", kitRemessaId: "rem-outro", criadoPorId: "u-outro-kit", status: "draft" });
+  mundo.itens.minha = peca({ id: "minha", displayId: "#K1", kitRemessaId: "inc-ev1", criadoPorId: "u-kit", status: "draft" });
+  mundo.itens.alheia = peca({ id: "alheia", displayId: "#K2", kitRemessaId: "inc-ev1", criadoPorId: "u-outro-kit", status: "draft" });
   mundo.itens.arena = peca({ id: "arena", displayId: "#0500", status: "draft" });
   H.consulta = (tabela, where) => {
     if (tabela === "kit_remessas") {
-      // O WHERE de verdade: por id, por evento, por versão (sem caixa) e (Kit) por quem criou.
+      // O WHERE de verdade: por id e por evento.
       const textos = textosDoWhere(where);
-      const filtra = (prefixo: RegExp, valor: string) => !textos.some((t) => prefixo.test(t)) || textos.some((t) => t.toLowerCase() === valor.toLowerCase());
-      return remessas.filter((r) => filtra(/^rem-/, r.id) && filtra(/^u-/, r.criadoPorId) && filtra(/^ev-/, r.eventId) && filtra(/^v[0-9]+$/i, r.versao));
+      const filtra = (prefixo: RegExp, valor: string) => !textos.some((t) => prefixo.test(t)) || textos.some((t) => t === valor);
+      return remessas.filter((r) => filtra(/^(inc|rem)-/, r.id) && filtra(/^ev-/, r.eventId));
     }
     if (tabela === "items") return Object.values(mundo.itens);
     return [];
@@ -205,12 +206,16 @@ beforeEach(async () => {
 
 // ═════════════════════════════════════════════════════════════════════════════
 describe("o modelo", () => {
-  it("marca no usuário, remessa com as datas do Kit, peça com remessa e autor — o autor não vem do corpo", () => {
+  it("marca no usuário, UMA inclusão do Kit por evento (sem data obrigatória), peça com a marca e autor — o autor não vem do corpo", () => {
     const kit = getTableConfig(users).columns.find((c) => c.name === "kit");
     expect(kit).toMatchObject({ notNull: true, default: false });
     const rem = getTableConfig(kitRemessas);
     expect(rem.name).toBe("kit_remessas");
-    expect(rem.columns.find((c) => c.name === "entrega_material")?.notNull).toBe(true);
+    // 23/10: a inclusão não tem data própria; o Kit segue o evento.
+    expect(rem.columns.find((c) => c.name === "entrega_material")?.notNull).toBe(false);
+    const unico = rem.indexes.find((i) => i.config.name === "UQ_kit_remessas_event");
+    expect(unico?.config.unique).toBe(true);
+    expect(unico?.config.columns.map((c: any) => c.name)).toEqual(["event_id"]);
     const tabela = getTableConfig(items);
     const fk = tabela.foreignKeys.find((f) => f.reference().columns.some((c) => c.name === "kit_remessa_id"));
     expect(getTableName(fk!.reference().foreignTable)).toBe("kit_remessas");
@@ -271,131 +276,27 @@ describe("a marca vem do login", () => {
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
-describe("remessas do Kit", () => {
-  const nova = { eventId: "ev-1", versao: "V9", entregaMaterial: "2099-01-05" };
-
-  it("criar e excluir é do admin e da Solicitação", async () => {
-    for (const papel of ["arte", "grafica", "atendimento"]) {
-      expect((await chamar("POST /api/kit/remessas", { sessao: sessao(papel), body: nova })).status, papel).toBe(403);
-      expect((await chamar("DELETE /api/kit/remessas/:id", { sessao: sessao(papel), params: { id: "rem-kit" } })).status, papel).toBe(403);
-    }
-    expect((await chamar("POST /api/kit/remessas", { sessao: sessao("admin"), body: nova })).status).toBe(201);
-    expect(H.inseridos[0]).toMatchObject({ tabela: "kit_remessas", valores: { versao: "V9", criadoPorId: "u1" } });
-  });
-
-  it("o usuário do Kit lista só as dele; os outros listam todas do evento", async () => {
+// O KIT DO EVENTO (dono, 23/10: "seria tudo a mesma inclusão"): uma inclusão só,
+// sem datas, criada pela primeira peça do Kit. A rota é só de leitura.
+describe("o Kit do evento (uma inclusão só)", () => {
+  it("todo mundo lê a MESMA inclusão do evento — o usuário do Kit também, mesmo aberta por outra pessoa", async () => {
     const doKit = await chamar("GET /api/kit/remessas", { sessao: KIT, query: { eventId: "ev-1" } });
-    expect((doKit.body as any[]).map((r) => r.id)).toEqual(["rem-kit"]);
     const daArena = await chamar("GET /api/kit/remessas", { sessao: ARENA, query: { eventId: "ev-1" } });
-    expect((daArena.body as any[]).map((r) => r.id)).toEqual(["rem-kit", "rem-outro"]);
+    expect((doKit.body as any[]).map((r) => r.id)).toEqual(["inc-ev1"]);
+    expect(daArena.body).toEqual(doKit.body);
+    // Sem as datas da antiga remessa (o Kit segue o evento) e sem versão.
+    expect(Object.keys((doKit.body as any[])[0]).sort()).toEqual(["arquivo", "createdAt", "criadoPor", "criadoPorId", "departamento", "eventId", "id", "solicitante"]);
   });
 
-  it("versão repetida no mesmo evento é barrada (sem diferença de caixa)", async () => {
-    const repetida = await chamar("POST /api/kit/remessas", { sessao: sessao("admin"), body: { ...nova, versao: "v1" } });
-    expect(repetida.status).toBe(409);
-    expect(H.inseridos).toEqual([]);
-    expect((repetida.body as any).error).toBe("Já existe a remessa KIT v1 neste evento — use a próxima versão ou exclua a repetida.");
+  it("banco antes da junção (duas linhas no evento): a rota devolve só a mais antiga", async () => {
+    remessas.push({ id: "inc-ev1-b", eventId: "ev-1", versao: "V2", criadoPorId: "u-kit", createdAt: new Date("2099-01-02T12:00:00Z") });
+    const r = await chamar("GET /api/kit/remessas", { sessao: ARENA, query: { eventId: "ev-1" } });
+    expect((r.body as any[]).map((x) => x.id)).toEqual(["inc-ev1"]);
   });
 
-  it("excluir a remessa só enquanto nenhuma peça andou", async () => {
-    H.consulta = (t) => (t === "kit_remessas" ? [remessas[0]] : t === "items" ? [{ id: "minha", displayId: "#K1", status: "awaiting_linking" }] : []);
-    const andou = await chamar("DELETE /api/kit/remessas/:id", { sessao: KIT, params: { id: "rem-kit" } });
-    expect(andou.status).toBe(409);
-    expect((andou.body as any).error).toBe("Não dá para excluir: 1 peça já seguiu o fluxo (#K1). Cancele antes.");
-
-    H.consulta = (t) => (t === "kit_remessas" ? [remessas[0]] : t === "items" ? [{ id: "minha", displayId: "#K1", status: "draft" }] : []);
-    const ok = await chamar("DELETE /api/kit/remessas/:id", { sessao: KIT, params: { id: "rem-kit" } });
-    expect(ok.status).toBe(200);
-    expect(ok.body).toEqual({ ok: true, excluidas: 1 });
-  });
-});
-
-// ═════════════════════════════════════════════════════════════════════════════
-// EDITAR A REMESSA (dono, 21/10: "botão para o Kit mudar os dados de data
-// início e tudo mais") — mesma régua do excluir e da criação.
-describe("editar a remessa do Kit", () => {
-  let gravacoes: Array<{ tabela: string; set: Record<string, unknown> }>;
-  beforeEach(() => {
-    gravacoes = [];
-    H.db.update = (t: unknown) => ({
-      set: (set: Record<string, unknown>) => {
-        const tabela = getTableName(t as any);
-        gravacoes.push({ tabela, set });
-        const retorno = tabela === "kit_remessas"
-          ? [{ ...remessas[0], ...set }]
-          : Object.values(mundo.itens).filter((i: any) => i.kitRemessaId === "rem-kit" && !i.deletedAt).map((i: any) => ({ id: i.id }));
-        return { where: () => ({ returning: async () => retorno, then: (ok: any, erro: any) => Promise.resolve(retorno).then(ok, erro) }) };
-      },
-    });
-  });
-  const editar = (quem: any, body: any, id = "rem-kit") => chamar("PATCH /api/kit/remessas/:id", { sessao: quem, params: { id }, body });
-
-  it("é do admin e da Solicitação; o usuário do Kit só edita a dele", async () => {
-    for (const papel of ["arte", "grafica", "atendimento"]) {
-      expect((await editar(sessao(papel), { entregaMaterial: "2099-01-10" })).status, papel).toBe(403);
-    }
-    const alheia = await editar(KIT, { entregaMaterial: "2099-01-10" }, "rem-outro");
-    expect(alheia.status).toBe(403);
-    expect((alheia.body as any).error).toBe("Esta remessa do Kit é de outra pessoa.");
-    expect((await editar(KIT, { entregaMaterial: "2099-01-10" }, "rem-nao-existe")).status).toBe(404);
-    expect(gravacoes).toEqual([]);
-    // A Solicitação da Arena e o admin editam a de qualquer um.
-    expect((await editar(ARENA, { solicitante: "Bruno" }, "rem-outro")).status).toBe(200);
-  });
-
-  it("valida como a criação: entrega obrigatória, data no formato, versão única no evento", async () => {
-    const semEntrega = await editar(KIT, { entregaMaterial: "" });
-    expect(semEntrega.status).toBe(400);
-    expect((semEntrega.body as any).error).toBe("Data inválida");
-    expect((await editar(KIT, { saidaCaminhao: "21/01/2099" })).status).toBe(400);
-    expect((await editar(KIT, { versao: "  " })).status).toBe(400);
-    expect(((await editar(KIT, {})).body as any).error).toBe("Nada para alterar na remessa");
-    const repetida = await editar(KIT, { versao: "v2" });
-    expect(repetida.status).toBe(409);
-    expect((repetida.body as any).error).toBe("Já existe a remessa KIT v2 neste evento — escolha outra versão.");
-    expect(gravacoes).toEqual([]);
-  });
-
-  it("evento encerrado não aceita a edição", async () => {
-    mundo.eventos["ev-1"] = { ...mundo.eventos["ev-1"], manuallyClosed: true };
-    const r = await editar(KIT, { entregaMaterial: "2099-01-10" });
-    expect(r.status).toBe(409);
-    expect(gravacoes).toEqual([]);
-  });
-
-  it("grava as datas novas, conta o antes → depois na trilha e reavisa as peças (os prazos seguem a remessa)", async () => {
-    const r = await editar(KIT, { versao: "V1", entregaMaterial: "2099-01-10", saidaCaminhao: "2099-01-12", solicitante: "Kaio" });
-    expect(r.status).toBe(200);
-    expect(r.body).toMatchObject({ id: "rem-kit", pecasAtualizadas: 1, prazosMudaram: true });
-    const daRemessa = gravacoes.find((g) => g.tabela === "kit_remessas")!.set;
-    expect(daRemessa).toEqual({
-      solicitante: "Kaio",
-      entregaMaterial: new Date("2099-01-10T12:00:00Z"),
-      saidaCaminhao: new Date("2099-01-12T12:00:00Z"),
-    });
-    // A peça da remessa é carimbada: o delta do cliente a traz com as datas novas.
-    expect(gravacoes.some((g) => g.tabela === "items" && g.set.updatedAt instanceof Date)).toBe(true);
-    expect(H.trilha.at(-1)).toBe("Remessa do Kit V1 editada — solicitante — → Kaio; entrega do material 03/01 → 10/01; saída do caminhão — → 12/01 (prazos de 1 peça pela data nova)");
-    expect(H.broadcast).toEqual([
-      { type: "kit_remessas", eventId: "ev-1" },
-      { type: "items_bulk_updated", itemIds: ["minha"], eventId: "ev-1" },
-    ]);
-  });
-
-  it("os prazos leem a remessa na hora: a peça do Kit passa a enxergar a entrega nova", async () => {
-    const { eventoComDatasDoKit } = await import("@shared/kit");
-    const antes = eventoComDatasDoKit(mundo.eventos["ev-1"], remessas[0])!;
-    const depois = eventoComDatasDoKit(mundo.eventos["ev-1"], { ...remessas[0], entregaMaterial: new Date("2099-01-10T12:00:00Z") })!;
-    expect(antes.truckDepartureDate).toEqual(new Date("2099-01-03T12:00:00Z"));
-    expect(depois.truckDepartureDate).toEqual(new Date("2099-01-10T12:00:00Z"));
-  });
-
-  it("sem mudança de verdade, nada é gravado nem avisado", async () => {
-    const r = await editar(KIT, { versao: "V1", entregaMaterial: "2099-01-03" });
-    expect(r.status).toBe(200);
-    expect(r.body).toMatchObject({ pecasAtualizadas: 0, prazosMudaram: false });
-    expect(gravacoes).toEqual([]);
-    expect(H.broadcast).toEqual([]);
+  it("criar, editar e excluir 'remessa' deixaram de existir", () => {
+    expect(rotas.has("GET /api/kit/remessas")).toBe(true);
+    for (const r of ["POST /api/kit/remessas", "PATCH /api/kit/remessas/:id", "DELETE /api/kit/remessas/:id"]) expect(rotas.has(r), r).toBe(false);
   });
 });
 
@@ -412,17 +313,29 @@ describe("as peças do Kit", () => {
     expect(ids(await chamar("GET /api/items/:eventId", { sessao: ARENA, params: { eventId: "ev-1" } }))).toEqual(["alheia", "arena", "minha"]);
   });
 
-  it("criar: o Kit só cria na remessa DELE, e o autor é quem está logado", async () => {
-    const semRemessa = await chamar("POST /api/items", { sessao: KIT, body: LINHA });
-    expect(semRemessa.status).toBe(400);
-    expect((semRemessa.body as any).error).toBe("Usuário do Kit cria só peça do Kit — escolha a remessa do Kit.");
-
-    const alheia = await chamar("POST /api/items", { sessao: KIT, body: { ...LINHA, kitRemessaId: "rem-outro" } });
-    expect(alheia.status).toBe(403);
-
-    const ok = await chamar("POST /api/items", { sessao: KIT, body: { ...LINHA, kitRemessaId: "rem-kit", criadoPorId: "forjado" } });
+  it("criar: a peça do usuário do Kit é SEMPRE do Kit, entra na inclusão do evento (de quem quer que a tenha aberto), e o autor é quem está logado", async () => {
+    const ok = await chamar("POST /api/items", { sessao: KIT, body: { ...LINHA, criadoPorId: "forjado" } });
     expect(ok.status).toBe(201);
-    expect(mundo.criadas.at(-1)).toMatchObject({ kitRemessaId: "rem-kit", criadoPorId: "u-kit" });
+    expect(mundo.criadas.at(-1)).toMatchObject({ kitRemessaId: "inc-ev1", criadoPorId: "u-kit" });
+    // Um id de remessa vindo do corpo (tela antiga) vale só como "é do Kit":
+    // nunca pendura a peça numa linha que não é a do evento.
+    await chamar("POST /api/items", { sessao: KIT, body: { ...LINHA, kitRemessaId: "rem-de-outro-evento" } });
+    expect(mundo.criadas.at(-1)).toMatchObject({ kitRemessaId: "inc-ev1" });
+    expect(H.inseridos.filter((o) => o.tabela === "kit_remessas")).toEqual([]);
+  });
+
+  it("criar: a Solicitação marca 'Kit' (doKit) e a primeira peça do Kit abre a inclusão do evento", async () => {
+    const daArena = await chamar("POST /api/items", { sessao: ARENA, body: LINHA });
+    expect(daArena.status).toBe(201);
+    expect(mundo.criadas.at(-1)).toMatchObject({ kitRemessaId: null });
+    // ev-2 não tem Kit: a peça do Kit cria a inclusão (sem data) e aponta para ela.
+    const primeira = await chamar("POST /api/items", { sessao: ARENA, body: { ...LINHA, eventId: "ev-2", doKit: true } });
+    expect(primeira.status).toBe(201);
+    const criada = H.inseridos.find((o) => o.tabela === "kit_remessas")!;
+    expect(criada.valores).toMatchObject({ eventId: "ev-2", versao: "KIT", criadoPorId: "u-arena" });
+    expect(criada.valores).not.toHaveProperty("entregaMaterial");
+    expect(mundo.criadas.at(-1)).toMatchObject({ eventId: "ev-2", kitRemessaId: "rem-nova" });
+    expect(H.broadcast).toContainEqual({ type: "kit_remessas", eventId: "ev-2" });
   });
 
   it("a Entrada Rápida não cria peça do Kit", async () => {
@@ -436,6 +349,7 @@ describe("as peças do Kit", () => {
     const LINHA_DA_PLANILHA = { type: "Testeira", description: "A", quantity: 2, fileWidth: 3, fileHeight: 1, calculatedM2: 6, material: "Lona", finish: "Ilhós", measurement: "3.00 × 1.00", observations: "", suggestedSponsorIds: [], linha: 7 };
     const confirmar = async (body: any, quem: Record<string, unknown>) => {
       const req: any = { params: { id: "ev-1" }, body, ...quem };
+      if (quem.params) req.params = quem.params;
       const res: any = { _status: 200 };
       res.status = (c: number) => { res._status = c; return res; };
       res.json = (b: any) => { res._body = b; return res; };
@@ -448,21 +362,46 @@ describe("as peças do Kit", () => {
       H.storage.getAllStandardItems = vi.fn(async () => []);
       H.storage.getItemsByEvent = vi.fn(async () => []);
       H.db.transaction = vi.fn(async (fazer: any) => fazer({
-        select: () => ({ from: () => ({ where: async () => [] }) }),
+        select: () => ({ from: (t: unknown) => cadeia(t) }),
         insert: inserir,
+        update: () => ({ set: (set: any) => ({ where: () => ({ returning: async () => [{ ...remessas[0], ...set }] }) }) }),
         execute: async () => ({ rows: [{ next_id: 101 }] }),
       }));
     });
 
-    it("o Kit só importa para uma remessa, e as peças saem com o autor logado", async () => {
-      const sem = await confirmar({ items: [LINHA_DA_PLANILHA] }, { userRole: "solicitacao", userKit: true, userId: "u-kit" });
-      expect(sem.status).toBe(400);
-      expect(sem.body.error).toBe("Usuário do Kit importa só peças do Kit — escolha a remessa do Kit.");
-      expect(H.db.transaction).not.toHaveBeenCalled();
+    const pecasGravadas = () => H.inseridos.filter((o) => o.tabela === "items").flatMap((o) => o.valores);
 
-      const ok = await confirmar({ items: [LINHA_DA_PLANILHA], kitRemessaId: "rem-kit" }, { userRole: "solicitacao", userKit: true, userId: "u-kit", userName: "Kaio" });
+    it("o usuário do Kit importa sempre para o Kit do evento — a planilha ACRESCENTA à inclusão que já existe", async () => {
+      const ok = await confirmar({ items: [LINHA_DA_PLANILHA] }, { userRole: "solicitacao", userKit: true, userId: "u-kit", userName: "Kaio" });
       expect(ok.status).toBe(201);
-      expect(H.inseridos.find((o) => o.tabela === "items")!.valores[0]).toMatchObject({ kitRemessaId: "rem-kit", criadoPorId: "u-kit" });
+      expect(ok.body.kitRemessaId).toBe("inc-ev1");
+      expect(pecasGravadas()[0]).toMatchObject({ kitRemessaId: "inc-ev1", criadoPorId: "u-kit" });
+      // A segunda planilha: as mesmas peças somam na MESMA inclusão — nada de V2.
+      const segunda = await confirmar({ items: [LINHA_DA_PLANILHA, { ...LINHA_DA_PLANILHA, description: "B", linha: 8 }], fileName: "kit-v2.xlsx", kit: { solicitante: "Kaio" } },
+        { userRole: "solicitacao", userKit: true, userId: "u-kit", userName: "Kaio" });
+      expect(segunda.status).toBe(201);
+      expect(pecasGravadas().map((x: any) => x.kitRemessaId)).toEqual(["inc-ev1", "inc-ev1", "inc-ev1"]);
+      expect(H.inseridos.filter((o) => o.tabela === "kit_remessas")).toEqual([]);
+      expect(H.trilha.some((t) => t.startsWith("Kit do evento: 2 peças incluídas pela planilha \"kit-v2.xlsx\""))).toBe(true);
+    });
+
+    it("a primeira planilha do Kit abre a inclusão (sem datas); a tela antiga (kitNovaRemessa) vale como 'é do Kit'", async () => {
+      const r = await confirmar({ items: [LINHA_DA_PLANILHA], fileName: "kit.xlsx", kitNovaRemessa: { versao: "V1", entregaMaterial: "2099-01-05", solicitante: "Bruno" } },
+        { params: { id: "ev-2" }, userRole: "solicitacao", userId: "u-arena", userName: "Ana" });
+      expect(r.status).toBe(201);
+      const criada = H.inseridos.find((o) => o.tabela === "kit_remessas")!;
+      expect(criada.valores).toMatchObject({ eventId: "ev-2", versao: "KIT", solicitante: "Bruno", arquivo: "kit.xlsx" });
+      expect(criada.valores).not.toHaveProperty("entregaMaterial");
+      expect(pecasGravadas()[0]).toMatchObject({ kitRemessaId: "rem-nova", eventId: "ev-2" });
+    });
+
+    it("importar no Kit é do admin e da Solicitação; a importação da Arena segue sem Kit", async () => {
+      const arte = await confirmar({ items: [LINHA_DA_PLANILHA], kit: true }, { userRole: "arte", userId: "u-arte" });
+      expect(arte.status).toBe(403);
+      expect(H.db.transaction).not.toHaveBeenCalled();
+      const arena = await confirmar({ items: [LINHA_DA_PLANILHA] }, { userRole: "solicitacao", userId: "u-arena", userName: "Ana" });
+      expect(arena.status).toBe(201);
+      expect(pecasGravadas()[0]).toMatchObject({ kitRemessaId: null });
     });
 
     it("o aviso que falha não desfaz a importação — vai para o log", async () => {

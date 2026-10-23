@@ -101,7 +101,11 @@ let falharNoInsertDePecas: boolean;
 
 function txFalso() {
   return {
-    select: () => ({ from: () => ({ where: async () => [] }) }),
+    // A busca da inclusão do Kit do evento (where → orderBy → limit): nenhuma ainda.
+    select: () => {
+      const c: any = { from: () => c, where: () => c, orderBy: () => c, limit: () => c, then: (ok: any, erro: any) => Promise.resolve([]).then(ok, erro) };
+      return c;
+    },
     insert: (tabela: unknown) => ({
       values: (valores: any) => {
         if (tabela === itemsTable && falharNoInsertDePecas) throw new Error("violação de chave");
@@ -191,18 +195,20 @@ describe("confirmar a importação", () => {
     expect(pecas.map((p: any) => [p.type, p.standardItemId])).toEqual([["TESTEIRA", "m-t"], ["Wind Banner", null], ["Faixa", null]]);
   });
 
-  it("remessa nova do Kit nasce DENTRO da transação, e as peças entram nela", async () => {
-    const r = await confirmar({ items: [LINHA], kitNovaRemessa: { versao: "V2", entregaMaterial: "2099-01-05" } });
+  it("a inclusão do Kit do evento nasce DENTRO da transação (sem datas), e as peças entram nela", async () => {
+    const r = await confirmar({ items: [LINHA], fileName: "kit.xlsx", kit: { solicitante: "Bruno" } });
     expect(r.status).toBe(201);
     expect(r.body.kitRemessaId).toBe("rem-nova");
     expect(inseridos[0].tabela).toBe(kitRemessas);
+    expect(inseridos[0].valores).toMatchObject({ eventId: "ev-1", versao: "KIT", solicitante: "Bruno", arquivo: "kit.xlsx" });
+    expect(inseridos[0].valores).not.toHaveProperty("entregaMaterial");
     expect(inseridos.find((o) => o.tabela === itemsTable)!.valores[0].kitRemessaId).toBe("rem-nova");
   });
 
   it("falhou no meio: 500 sem mensagem interna, sem trilha nem aviso (a transação desfaz a remessa)", async () => {
     falharNoInsertDePecas = true;
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
-    const r = await confirmar({ items: [LINHA], kitNovaRemessa: { versao: "V2", entregaMaterial: "2099-01-05" } });
+    const r = await confirmar({ items: [LINHA], kit: true });
     log.mockRestore();
     expect(r.status).toBe(500);
     expect(r.body.error).toBe("Não foi possível importar agora — nenhuma peça foi gravada. Tente de novo em instantes.");

@@ -4,7 +4,6 @@
 // any>`), e um campo renomeado no servidor só aparecia como bug na tela.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Item, Event as EventRecord, StandardItem, AuditLog, EventSponsor } from "@shared/schema";
-import type { RemessaDoKit } from "@shared/kit";
 import type { MaeDoComplemento } from "@shared/api";
 import type { useAuth } from "@/contexts/auth-context";
 import type { CamposDaProducaoInterna } from "@shared/producao-interna";
@@ -26,8 +25,6 @@ export type PecaDoEvento = ComoJson<Item> & {
   /** Na mãe: os complementos vivos. */
   complements?: Array<{ id: string; displayId: string; quantity: number | string; status?: string }>;
   contractedTotal?: number;
-  /** Peça do Kit: a remessa (as datas do Kit). */
-  kitRemessa?: Partial<RemessaDoKit> | null;
 };
 
 /** O evento como GET /api/events/:id devolve (enrichEvent). */
@@ -81,7 +78,8 @@ export interface ItemFormData extends CamposDaProducaoInterna {
   obsReaproveitamento: string;
   referenceUrl: string;
   standardItemId: string;
-  kitRemessaId: string;
+  /** Peça do Kit do evento (23/10: uma inclusão só, sem datas próprias). */
+  doKit: boolean;
 }
 
 /**

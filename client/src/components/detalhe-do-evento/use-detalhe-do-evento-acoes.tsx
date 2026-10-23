@@ -143,8 +143,9 @@ export function useAcoesDasPecas({
         // Criada a partir de um pedido do Atendimento: o servidor liga a peça
         // ao pedido na mesma requisição.
         ...(pedidoEmAtendimento ? { pedidoDePecaLinhaId: pedidoEmAtendimento.linha.id } : {}),
-        // Peça do Kit: o servidor confere a remessa (mesmo evento, dona certa).
-        ...(data.kitRemessaId ? { kitRemessaId: data.kitRemessaId } : {}),
+        // Peça do Kit: o servidor a põe no Kit do evento (cria a inclusão na
+        // primeira). O usuário do Kit sempre cria peça do Kit.
+        ...(data.doKit ? { doKit: true } : {}),
         // Produção interna (02/10): a marca, a instrução e — só na peça
         // marcada — o arquivo (shared/producao-interna).
         ...corpoDaProducaoInterna(data),

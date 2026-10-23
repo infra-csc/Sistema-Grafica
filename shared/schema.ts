@@ -372,8 +372,9 @@ export const items = pgTable("items", {
   // E de qual PEÇA da solicitação (a solicitação tem várias, cada uma com
   // status próprio). Só o servidor grava.
   pedidoDePecaLinhaId: varchar("pedido_de_peca_linha_id").references((): any => linhasDoPedidoDePeca.id, { onDelete: "set null" }),
-  // PEÇA DO KIT (dono, 14/09): a remessa do Kit a que ela pertence (datas do
-  // Kit). Nula = peça da Arena.
+  // PEÇA DO KIT (dono, 14/09; 23/10): a marca "peça do Kit" — aponta para a
+  // inclusão do Kit do evento (uma por evento). Nula = peça da Arena. O Kit
+  // segue as datas do evento (shared/kit.ts).
   kitRemessaId: varchar("kit_remessa_id").references((): any => kitRemessas.id, { onDelete: "set null" }),
   // QUEM CRIOU a peça (id do usuário). Só o servidor grava. É o que deixa o
   // usuário do Kit ver só as peças dele.
@@ -871,8 +872,11 @@ export const linhasDoPedidoDePeca = pgTable("pedidos_de_peca_linhas", {
   index("IDX_pedidos_de_peca_linhas_event_status").on(table.eventId, table.status),
 ]);
 
-/** REMESSA DO KIT (dono, 14/09): as datas do Kit de um evento — cada planilha
- *  (ou criação à mão) é uma remessa, cada versão uma remessa nova. */
+/** INCLUSÃO DO KIT do evento (dono, 23/10: "seria tudo a mesma inclusão"): UMA
+ *  por evento (UQ_kit_remessas_event, migração 0009, que juntou as remessas
+ *  V1/V2… que existiam). Toda planilha do Kit acrescenta peças a ela. O nome da
+ *  tabela e as colunas de data são da época das remessas (14/09): as datas
+ *  ficam NULL-áveis e IGNORADAS — o Kit segue as datas do evento. */
 export const kitRemessas = pgTable("kit_remessas", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
@@ -880,7 +884,7 @@ export const kitRemessas = pgTable("kit_remessas", {
   solicitante: text("solicitante"),
   departamento: text("departamento"),
   dataSolicitacao: timestamp("data_solicitacao"),
-  entregaMaterial: timestamp("entrega_material").notNull(),
+  entregaMaterial: timestamp("entrega_material"),
   dataEvento: timestamp("data_evento"),
   cargaCaminhao: timestamp("carga_caminhao"),
   saidaCaminhao: timestamp("saida_caminhao"),
@@ -890,6 +894,7 @@ export const kitRemessas = pgTable("kit_remessas", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 }, (table) => [
   index("IDX_kit_remessas_event").on(table.eventId),
+  uniqueIndex("UQ_kit_remessas_event").on(table.eventId),
 ]);
 
 export const notifications = pgTable("notifications", {

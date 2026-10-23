@@ -219,7 +219,7 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
           >
             {idBase}{idSuffix && <span style={{ color: CO.suffix }}>{idSuffix}</span>}
           </button>
-          {/* Kit (14/09): a peça do Kit se declara na fila, com a entrega. */}
+          {/* Kit (14/09): a peça do Kit se declara na fila (o selo KIT, sem data desde 23/10). */}
           <SeloKit peca={item} style={{ display: "flex", width: "fit-content", marginTop: 4 }} />
           <AvisoDoEstoqueNaPeca peca={item} style={{ marginTop: 4 }} />
           {seloDoTubo(item) && (

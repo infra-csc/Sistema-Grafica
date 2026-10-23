@@ -9,7 +9,6 @@
 // não embutem as aprovações.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { AuditLog, Event, Item, ItemSponsorApproval, Sponsor, StandardItem } from "@shared/schema";
-import type { RemessaDoKit } from "@shared/kit";
 
 /** Um registro do banco depois do JSON: `Date` vira texto ISO. */
 export type NoJson<T> = {
@@ -18,8 +17,6 @@ export type NoJson<T> = {
 
 /** O evento embutido na peça (e o de /api/events). */
 export type EventoDaPeca = NoJson<Event> & {
-  /** Peça do Kit: o evento chega com as datas da remessa (shared/kit.ts). */
-  datasDoKit?: boolean;
 };
 
 /** Patrocinador embutido na peça, com o status CRU da aprovação dele. */
@@ -32,7 +29,6 @@ export type PecaDaArte = NoJson<Item> & {
   event: EventoDaPeca | null;
   /** Ausente na fila da Correção: aquela rota não embute os vínculos. */
   sponsors?: PatrocinadorDaPeca[];
-  kitRemessa?: Partial<RemessaDoKit> | null;
   /** Só na fila da Correção: as linhas reprovadas (awaiting_arte). */
   awaitingArteApprovals?: AprovacaoDaCorrecao[];
   /** Só na fila da Correção: TODAS as linhas de aprovação da peça. */

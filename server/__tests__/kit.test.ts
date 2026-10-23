@@ -1,33 +1,41 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// KIT — fase 1 (dono, 14/09): usuário do Kit, remessas com as datas do Kit,
-// peça do Kit com quem criou, e o filtro "o usuário do Kit só vê as dele".
+// KIT — usuário do Kit, peça do Kit com quem criou, e o filtro "o usuário do
+// Kit só vê as dele" (14/09); SIMPLIFICADO em 23/10: uma inclusão só por
+// evento, sem datas próprias — o Kit segue os prazos do evento a partir da
+// Aprovação de layout.
 //
-// O SERVIDOR (schema, login, remessas, recorte das listas, criação, Entrada
-// Rápida, importação, eventos, prazos, busca, trilha, sino, fotos e planilha)
-// roda de verdade em regras-fluxo-kit.test.ts. Já rodavam em outro lugar e só
-// são citados: GET /api/items cheio/delta/recorte (itens-compactos.test.ts,
-// "KIT: o recorte respeita pecaVisivelPara") e Versões
-// (regras-avisos-versoes.test.ts, "usuário do Kit vê só as peças dele").
+// O SERVIDOR (schema, login, inclusão do Kit, recorte das listas, criação,
+// Entrada Rápida, importação, eventos, prazos, busca, trilha, sino, fotos e
+// planilha) roda de verdade em regras-fluxo-kit.test.ts. A junção das remessas
+// antigas (migração 0009) roda em kit-inclusao-unica.test.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import { fonteDaTela } from "./fonte-da-tela";
 import { fonteDoComponente } from "./fonte-dos-componentes";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
-import { readFileSync } from "fs";
-import path from "path";
 import { fonteDaGrafica } from "./fonte-da-grafica";
 import { gatesDaGrafica } from "../../client/src/components/grafica/fila/regras";
 import { lerTelaOuArquivo } from "./fonte-das-telas-da-arte";
 import {
   pecaVisivelPara,
-  remessaUtilizavelPor,
+  podeIncluirNoKit,
   textoDoSeloKit,
-  rotuloDaRemessa,
-  diaMesDoKit,
-  detalheDaRemessa,
+  grupoDoKit,
+  kitCobradoNoMarco,
+  MARCOS_QUE_NAO_COBRAM_O_KIT,
+  DETALHE_DO_SELO_KIT,
 } from "@shared/kit";
+import * as kit from "@shared/kit";
+import {
+  buildEventPrazo, marcoIndexFor, KIT_STAGE_INDEX, APROVACAO_STAGE_INDEX, FINALIZACAO_STAGE_INDEX, STAGE_DEFS,
+  type DomainEvent, type DomainItem,
+} from "../services/prazo-domain";
+import { businessDayStrToMs } from "@shared/prazo-dates";
+import { faseDoPrazo, isAtrasadaNaFase, phaseDeadline } from "../../client/src/lib/arte-rules";
+import { estaAtrasDoMarco } from "../../client/src/components/detalhe-do-evento/regras";
+import { montarPainelOperacional, type PecaDoPainel } from "@shared/painel-operacional";
+import { computeKpis } from "../services/prazo-domain";
 
-const RAIZ = path.resolve(__dirname, "../..");
 // Arte, Revisão e Vinculação são lidas como a área inteira (página + pasta).
 const ler = (rel: string) => lerTelaOuArquivo(rel);
 const ITEMS = fonteDasRotasDeItens();
@@ -39,28 +47,158 @@ const EVENTO = fonteDaTela("detalhe-do-evento");
 
 describe("regras puras do Kit", () => {
   it("usuário do Kit só vê as peças do Kit que ele criou; o resto vê tudo", () => {
-    const kit = { kit: true, userId: "u1" };
-    expect(pecaVisivelPara(kit, { kitRemessaId: "r1", criadoPorId: "u1" })).toBe(true);
-    expect(pecaVisivelPara(kit, { kitRemessaId: "r1", criadoPorId: "u2" })).toBe(false);
-    expect(pecaVisivelPara(kit, { kitRemessaId: null, criadoPorId: "u1" })).toBe(false);
+    const k = { kit: true, userId: "u1" };
+    expect(pecaVisivelPara(k, { kitRemessaId: "r1", criadoPorId: "u1" })).toBe(true);
+    expect(pecaVisivelPara(k, { kitRemessaId: "r1", criadoPorId: "u2" })).toBe(false);
+    expect(pecaVisivelPara(k, { kitRemessaId: null, criadoPorId: "u1" })).toBe(false);
     expect(pecaVisivelPara({ kit: false, userId: "u9" }, { kitRemessaId: "r1", criadoPorId: "u1" })).toBe(true);
     expect(pecaVisivelPara({ kit: false, userId: "u9" }, { kitRemessaId: null, criadoPorId: null })).toBe(true);
-    expect(remessaUtilizavelPor(kit, { criadoPorId: "u2" })).toBe(false);
-    expect(remessaUtilizavelPor({ kit: false, userId: "u9" }, { criadoPorId: "u2" })).toBe(true);
   });
 
-  it("selo e rótulos: KIT · entrega dd/mm", () => {
-    expect(diaMesDoKit("2026-09-20T12:00:00Z")).toBe("20/09");
-    expect(textoDoSeloKit({ entregaMaterial: "2026-09-20T12:00:00Z" })).toBe("KIT · entrega 20/09");
-    expect(textoDoSeloKit(null)).toBe("KIT");
-    expect(rotuloDaRemessa({ versao: "V2", entregaMaterial: "2026-09-20T12:00:00Z" })).toBe("KIT V2 · entrega 20/09");
-    expect(detalheDaRemessa({ versao: "V1", entregaMaterial: "2026-09-20T12:00:00Z", saidaCaminhao: "2026-09-21T12:00:00Z" }))
-      .toBe("Peça do Kit — remessa V1 · entrega do material 20/09 · saída do caminhão 21/09");
+  it("quem põe peça no Kit do evento: admin, Solicitação e o usuário do Kit (a inclusão é do EVENTO)", () => {
+    expect(podeIncluirNoKit({ role: "admin" })).toBe(true);
+    expect(podeIncluirNoKit({ role: "solicitacao" })).toBe(true);
+    expect(podeIncluirNoKit({ role: "solicitacao", kit: true })).toBe(true);
+    expect(podeIncluirNoKit({ role: "arte" })).toBe(false);
+    expect(podeIncluirNoKit({ role: "atendimento" })).toBe(false);
+    // A régua antiga por remessa ("só a remessa que ELE criou") saiu com as remessas.
+    expect("remessaUtilizavelPor" in kit).toBe(false);
+  });
+
+  it("selo e grupo: só 'KIT', sem data (23/10)", () => {
+    expect(textoDoSeloKit()).toBe("KIT");
+    expect(grupoDoKit({ kitRemessaId: "r1" })).toBe("KIT");
+    expect(grupoDoKit({ kitRemessaId: null })).toBeNull();
+    expect(DETALHE_DO_SELO_KIT).toContain("Aprovação de layout");
+    // As funções das datas e das remessas sumiram do módulo.
+    for (const nome of ["eventoComDatasDoKit", "ancoraDoKit", "diaMesDoKit", "rotuloDaRemessa", "detalheDaRemessa"]) {
+      expect(nome in kit, nome).toBe(false);
+    }
+    const SELO = ler("client/src/components/kit/selo-kit.tsx");
+    expect(SELO).toContain("{TEXTO_DO_SELO_KIT}");
+    expect(SELO).toContain("title={DETALHE_DO_SELO_KIT}");
+    expect(SELO).not.toContain("entregaMaterial");
   });
 });
 
-describe("planilha do Kit e filtros (fase 2)", () => {
-  it("lê o cabeçalho do template (datas em série do Excel)", async () => {
+// ─── PRAZOS DO KIT: os marcos do evento, da Aprovação de layout em diante ────
+
+const HOJE = "2026-10-23";
+const HOJE_MS = businessDayStrToMs(HOJE);
+// Saída em 05/11: Lista (−25) e Layouts (−20) já venceram; Aprovação (−12 → 24/10) ainda não.
+const EVENTO_E1: DomainEvent = { id: "e1", name: "Copa Norte", status: "created", startDate: "2026-11-07", truckDepartureDate: "2026-11-05T08:00:00.000Z" };
+const pecaD = (id: string, status: string, kitRemessaId: string | null = null, over: Partial<DomainItem> = {}): DomainItem & { kitRemessaId: string | null } => ({
+  id, displayId: `#${id}`, status, type: "Banner", quantity: 1, kitRemessaId, ...over,
+});
+
+describe("prazos do Kit pelos marcos do evento (dono, 23/10)", () => {
+  it("Lista de imagens e Entrega de layouts não cobram o Kit; da Aprovação em diante, sim", () => {
+    expect(Array.from(MARCOS_QUE_NAO_COBRAM_O_KIT).sort()).toEqual(["layouts", "listaImagens"]);
+    for (const def of STAGE_DEFS) {
+      expect(kitCobradoNoMarco(def.key), def.key).toBe(def.key !== "listaImagens" && def.key !== "layouts");
+    }
+    expect(KIT_STAGE_INDEX).toBe(APROVACAO_STAGE_INDEX);
+  });
+
+  it("marcoIndexFor: a peça do Kit em Lista/Layouts é medida pela Aprovação; a da Arena, pela própria etapa", () => {
+    const LISTA = STAGE_DEFS.findIndex((s) => s.key === "listaImagens");
+    const LAYOUTS = STAGE_DEFS.findIndex((s) => s.key === "layouts");
+    expect(marcoIndexFor("requested")).toBe(LISTA);
+    expect(marcoIndexFor("requested", false, true)).toBe(APROVACAO_STAGE_INDEX);
+    expect(marcoIndexFor("awaiting_submission")).toBe(LAYOUTS);
+    expect(marcoIndexFor("awaiting_submission", false, true)).toBe(APROVACAO_STAGE_INDEX);
+    // Da Aprovação em diante a peça do Kit é cobrada como qualquer outra.
+    expect(marcoIndexFor("awaiting_sponsor_approval", false, true)).toBe(APROVACAO_STAGE_INDEX);
+    expect(marcoIndexFor("ready_for_production", false, true)).toBe(marcoIndexFor("ready_for_production"));
+    // Kit isento de aprovação: vale a regra mais adiante (Finalização).
+    expect(marcoIndexFor("awaiting_submission", true, true)).toBe(FINALIZACAO_STAGE_INDEX);
+  });
+
+  it("Gestão de Prazos: UMA linha por evento; o Kit atrasado na Lista/Layouts não deixa o evento vermelho", () => {
+    // Só peças do Kit em Lista e Layouts: as duas etapas já venceram, mas não as cobram.
+    const soKit = buildEventPrazo(EVENTO_E1, [pecaD("k1", "requested", "inc"), pecaD("k2", "awaiting_submission", "inc")], { today: HOJE_MS })!;
+    expect(soKit.id).toBe("e1");
+    expect(soKit.name).toBe("Copa Norte");
+    expect(soKit.truckDepartureDate).toBe("2026-11-05T08:00:00.000Z");
+    expect(soKit.categoria).toBe("emDia");
+    expect(soKit.stages.find((s) => s.key === "listaImagens")!.directCount).toBe(0);
+    expect(soKit.stages.find((s) => s.key === "layouts")!.directCount).toBe(0);
+    expect(soKit.stages.find((s) => s.key === "aprovacao")!.directCount).toBe(2);
+    expect(soKit.pendingItems.every((p) => p.marcoIndex === APROVACAO_STAGE_INDEX)).toBe(true);
+    // A mesma peça da Arena acende a Lista de imagens vencida.
+    const arena = buildEventPrazo(EVENTO_E1, [pecaD("a1", "requested")], { today: HOJE_MS })!;
+    expect(arena.categoria).toBe("atrasado");
+    expect(arena.stages.find((s) => s.key === "listaImagens")!.state).toBe("overdue");
+    // Misturado: um evento, as contagens somadas — nada de "Copa Norte · KIT".
+    const misto = buildEventPrazo(EVENTO_E1, [pecaD("a1", "requested"), pecaD("k1", "requested", "inc")], { today: HOJE_MS })!;
+    expect(misto.totalItems).toBe(2);
+    expect(misto.stages.find((s) => s.key === "listaImagens")!.directCount).toBe(1);
+    expect(misto.stages.find((s) => s.key === "aprovacao")!.pendingCount).toBe(2);
+  });
+
+  it("o desdobramento por remessa saiu do domínio, das rotas e do fecho diário", async () => {
+    const dominio = await import("../services/prazo-domain");
+    for (const nome of ["eventosDoPrazo", "comKit", "idDoEventoReal"]) expect(nome in dominio, nome).toBe(false);
+    for (const arquivo of ["server/routes/prazos.ts", "server/services/prazoSnapshots.ts", "server/services/painel-operacional.ts"]) {
+      const fonte = ler(arquivo);
+      expect(fonte, arquivo).not.toContain("eventosDoPrazo");
+      expect(fonte, arquivo).not.toContain("#kit-");
+      expect(fonte, arquivo).not.toContain("kitRemessas");
+    }
+    // O próximo marco do card do evento usa a mesma regra.
+    expect(ler("server/routes/events.ts")).toContain("const marco = marcoIndexFor(statusParaContagem(it), it.skipApproval, !!it.kitRemessaId);");
+    // Os alertas de prazo do Kit pela entrega do material deixaram de existir.
+    const ALERTAS = ler("server/services/deadlineAlerts.ts");
+    expect(ALERTAS).not.toContain("kitRemessas");
+    expect(ALERTAS).not.toContain("· KIT");
+  });
+
+  it("Arte: 'Enviar thumb' e a correção do Kit vencem na Aprovação de Layout", () => {
+    expect(faseDoPrazo("criar-aprovacoes", { kitRemessaId: "inc" })).toBe("aguardando-patrocinador");
+    expect(faseDoPrazo("correcao", { kitRemessaId: "inc" })).toBe("aguardando-patrocinador");
+    expect(faseDoPrazo("finalizar-layouts", { kitRemessaId: "inc" })).toBe("finalizar-layouts");
+    expect(faseDoPrazo("criar-aprovacoes", { kitRemessaId: null })).toBe("criar-aprovacoes");
+    // Saída 05/11: Layouts vence 16/10 (já foi), Aprovação 24/10 (amanhã).
+    const evento = { truckDepartureDate: EVENTO_E1.truckDepartureDate as string, name: "Copa Norte" };
+    const hoje = new Date(2026, 9, 23);
+    expect(phaseDeadline(evento, "criar-aprovacoes", hoje)!.label).toBe("Entrega de Layouts");
+    expect(isAtrasadaNaFase({ event: evento, kitRemessaId: null }, "criar-aprovacoes", hoje)).toBe(true);
+    expect(isAtrasadaNaFase({ event: evento, kitRemessaId: "inc" }, "criar-aprovacoes", hoje)).toBe(false);
+  });
+
+  it("Detalhe do Evento: a agenda não conta o Kit atrás da Lista nem dos Layouts", () => {
+    expect(estaAtrasDoMarco("requested", 0)).toBe(true);
+    expect(estaAtrasDoMarco("requested", 0, true)).toBe(false);
+    expect(estaAtrasDoMarco("awaiting_submission", 1, true)).toBe(false);
+    expect(estaAtrasDoMarco("awaiting_submission", 2, true)).toBe(true);
+    expect(estaAtrasDoMarco("ready_for_production", 5, true)).toBe(true);
+  });
+});
+
+describe("Análises: a peça do Kit cai no PRÓPRIO evento (sem 'Evento · KIT')", () => {
+  it("um evento com peças da Arena e do Kit vira UMA linha, e toda peça aponta para ela", () => {
+    const pecaP = (id: string, status: string, kitRemessaId: string | null): PecaDoPainel => ({
+      id, displayId: id, eventId: "e1", kitRemessaId, status, type: "Banner", description: id, measurement: "1x1",
+      material: "lona", finish: "ilhos", quantity: 2, reuseQty: 0, fileWidth: "1", fileHeight: "1", visualWidth: null, visualHeight: null,
+      skipApproval: false, isPriority: false, parentItemId: null, complementReason: null, rejectedBySponsor: false, rejectedByCreator: false,
+      createdAt: new Date("2026-10-01T15:00:00Z"), producedAt: new Date("2026-10-22T15:00:00Z"),
+    });
+    const pecas = [pecaP("a1", "ready_for_production", null), pecaP("k1", "ready_for_production", "inc-1"), pecaP("k2", "produced", "inc-1")];
+    const prazo = buildEventPrazo(EVENTO_E1, pecas as never, { today: HOJE_MS })!;
+    const painel = montarPainelOperacional({
+      pecas, prazos: [prazo], kpis: computeKpis([prazo]), hoje: HOJE, geradoEm: new Date().toISOString(),
+      nomeDoEvento: new Map([["e1", "Copa Norte"]]),
+    });
+    expect(painel.eventos.map((e) => e.chave)).toEqual(["e1"]);
+    expect(painel.eventos[0].totalPecas).toBe(3);
+    expect(new Set(painel.pecas.map((p) => p.evento))).toEqual(new Set(["e1"]));
+    expect(Object.values(painel.nomes).some((n) => n.includes("KIT"))).toBe(false);
+    expect(painel.prodRealizado.every((l) => l.evento === "e1")).toBe(true);
+  });
+});
+
+describe("planilha do Kit (a inclusão continua pela planilha, sem datas)", () => {
+  it("lê o cabeçalho do template (o reconhecimento do Kit continua igual)", async () => {
     const { cabecalhoDoKit, dataDaPlanilha } = await import("@shared/kit");
     expect(dataDaPlanilha("46279")).toBe("2026-09-14");
     expect(dataDaPlanilha("20/09/2026")).toBe("2026-09-20");
@@ -75,61 +213,53 @@ describe("planilha do Kit e filtros (fase 2)", () => {
       { rotulo: "Data Carrega caminhão", valor: "46280" },
       { rotulo: "Data Saída Caminhão", valor: "46280" },
     ], "MANGARATIBA");
-    expect(c).toEqual({
-      evento: "MANGARATIBA", versao: "V1", solicitante: "BRUNO FERREIRA", departamento: "Kit",
-      dataSolicitacao: "2026-09-03", entregaMaterial: "2026-09-14", dataEvento: "2026-09-20",
-      cargaCaminhao: "2026-09-15", saidaCaminhao: "2026-09-15",
-    });
+    expect(c).toMatchObject({ evento: "MANGARATIBA", versao: "V1", solicitante: "BRUNO FERREIRA", departamento: "Kit" });
     expect(cabecalhoDoKit([{ rotulo: "item", valor: "qtde" }], null)).toBeNull();
   });
 
-  it("importar: modal Arena ou Kit antes de importar; remessa nova nasce na importação", () => {
+  it("importar: modal Arena ou Kit; Kit sem formulário de datas e sem escolher remessa", () => {
     const DIALOGO = fonteDoComponente("client/src/components/import-xlsx-dialog.tsx");
     const DESTINO = ler("client/src/components/kit/destino-da-importacao.tsx");
     expect(DIALOGO).toContain("onClick={() => { if (importPreviewItems.length > 0 && comQtdInvalida.length === 0) setEscolhendoDestino(true); }}");
     expect(DESTINO).toContain('title="Estas peças são da Arena ou do Kit?"');
-    // O cartão virou função (não remonta e não perde o foco); a regra — o
-    // usuário do Kit não escolhe Arena — é a mesma.
     expect(DESTINO).toContain('bloqueio: somenteKit ? "Usuário do Kit importa só peças do Kit." : undefined');
-    // A remessa nova nasce DENTRO da transação das peças (tudo ou nada) —
-    // comportamento pinado em importacao-com-transacao.test.ts.
-    expect(IMPORT).toContain("novaRemessa = dadosRemessa.data;");
-    expect(IMPORT).toContain("[remessaCriada] = await tx.insert(kitRemessas).values({");
+    expect(DESTINO).toContain('onConfirmar({ tipo: "kit", kit: {');
+    for (const velho of ['type="date"', "Nova remessa", "select-destino-remessa", "entregaMaterial"]) expect(DESTINO, velho).not.toContain(velho);
+    // O servidor põe as peças na inclusão do evento DENTRO da transação.
+    expect(IMPORT).toContain("const r = await obterOuCriarInclusaoDoKit(tx, p.eventId, p.req, p.kit);");
     // O cabeçalho vem da aba do Kit quando é ela a lida (21/10, pasta com abas).
     expect(IMPORT).toContain("kit: lerCabecalhoDoKit(file.buffer, { abaDoKit: leuAbaDoKit ? leitura.arquivoDaAba : null }),");
-    // Nova remessa à mão também pode vir preenchida pelo template (14/09).
+  });
+
+  it("painel do Kit: 'Incluir peças do Kit (planilha)' → prévia → incluir; sem remessas, datas ou edição", () => {
     const PAINEL_KIT = ler("client/src/components/kit/painel-do-kit.tsx");
-    // Tela só: planilha preenche a remessa E traz as peças; próximas remessas
-    // começam com os dados da última.
-    expect(PAINEL_KIT).toContain('data-testid="button-planilha-remessa-kit"');
+    expect(PAINEL_KIT).toContain("Incluir peças do Kit (planilha)");
+    expect(PAINEL_KIT).toContain('data-testid="button-planilha-kit"');
     // Para o Kit: numa pasta com as abas "KIT" e "Arena", vale a do Kit (21/10).
     expect(PAINEL_KIT).toContain('fetch(`/api/events/${eventId}/preview-xlsx${consultaDaPrevia("kit", aba)}`');
-    expect(PAINEL_KIT).toContain("kitNovaRemessa: remessa,");
-    expect(PAINEL_KIT).toContain("solicitante: ultima?.solicitante || nomeDoUsuario,");
+    expect(PAINEL_KIT).toContain("kit: { solicitante: planilha.solicitante, departamento: planilha.departamento },");
+    expect(PAINEL_KIT).toContain("{ocioso ? \"Kit\" : `Kit · ${pecas1(n)}`}");
+    for (const velho of ["button-nova-remessa-kit", "button-editar-remessa", "button-excluir-remessa", "kitNovaRemessa", 'type="date"', "entregaMaterial", "/api/kit/remessas/"]) {
+      expect(PAINEL_KIT, velho).not.toContain(velho);
+    }
   });
 });
 
-describe("selo KIT nas etapas (fase 3)", () => {
+describe("selo KIT nas etapas", () => {
   it("Arte, Atendimento, Revisão, Painel Geral, Gráfica e Vincular mostram o selo", () => {
     for (const arquivo of [
-      // Arte (dividida em components/arte): a célula da fila e o cartão da Correção.
       "client/src/components/arte/celulas-da-peca.tsx",
       "client/src/components/arte/cartao-da-correcao.tsx",
-      // Atendimento: o card da fila, a linha do lote, a linha do histórico e o cabeçalho da revisão.
       "client/src/components/atendimento/cartao-da-peca.tsx",
       "client/src/components/atendimento/linha-do-lote.tsx",
       "client/src/components/atendimento/linha-do-historico.tsx",
       "client/src/components/atendimento/cabecalho-da-revisao.tsx",
-      // Revisão Final (dividida em components/revisao): a linha, o cartão e o modal de decisão.
       "client/src/components/revisao/linha-da-peca.tsx",
       "client/src/components/revisao/cartao-da-peca.tsx",
       "client/src/components/revisao/modal-de-decisao.tsx",
-      // Painel Geral: a linha (tabela) e o cartão (celular) da peça.
       "client/src/components/painel/linha-da-peca.tsx",
       "client/src/components/painel/cartao-da-peca.tsx",
-      // A Gráfica desenha o selo na linha da tabela (components/grafica/fila).
       "client/src/components/grafica/fila/linha-da-tabela.tsx",
-      // Vinculação (dividida em components/vinculacao): o modal de confirmar o envio.
       "client/src/components/vinculacao/modal-confirmar-envio.tsx",
     ]) {
       const fonte = ler(arquivo);
@@ -139,81 +269,34 @@ describe("selo KIT nas etapas (fase 3)", () => {
   });
 });
 
-describe("prazos pelas datas do Kit (fase 4)", () => {
-  it("a peça do Kit enxerga o evento com as datas da remessa", async () => {
-    const { eventoComDatasDoKit, ancoraDoKit } = await import("@shared/kit");
-    const evento = { id: "e1", name: "Mangaratiba", startDate: "2026-09-20T12:00:00Z", truckDepartureDate: "2026-09-18T08:00:00Z", deadlineProducaoGrafica: -1 };
-    const remessa = { versao: "V1", entregaMaterial: "2026-09-14T12:00:00Z", saidaCaminhao: "2026-09-15T12:00:00Z", dataEvento: null };
-    const doKit = eventoComDatasDoKit(evento, remessa)!;
-    // 15/09: o prazo é quando eles precisam da peça — a entrega do material.
-    expect(doKit.truckDepartureDate).toBe("2026-09-14T12:00:00Z");
-    expect(doKit.startDate).toBe("2026-09-20T12:00:00Z");
-    expect(doKit.deadlineProducaoGrafica).toBe(-1);
-    expect((doKit as any).saidaDaArena).toBe("2026-09-18T08:00:00Z");
-    expect(eventoComDatasDoKit(evento, null)).toBe(evento);
-    expect(ancoraDoKit({ entregaMaterial: "2026-09-14T12:00:00Z" })).toBe("2026-09-14T12:00:00Z");
-  });
-
-  it("Gestão de Prazos: cada remessa do Kit vira linha própria, com link para o evento real", async () => {
-    const { eventosDoPrazo, comKit, idDoEventoReal } = await import("../services/prazo-domain");
-    const evento = { id: "e1", name: "Mangaratiba", status: "created", startDate: "2026-09-20T12:00:00Z", truckDepartureDate: "2026-09-18T08:00:00Z" };
-    const remessas = new Map([["r1", { id: "r1", versao: "V1", entregaMaterial: "2026-09-14T12:00:00Z", saidaCaminhao: "2026-09-15T12:00:00Z", dataEvento: null }]]);
-    const blocos = eventosDoPrazo(evento, [{ id: "a", kitRemessaId: null }, { id: "b", kitRemessaId: "r1" }], remessas);
-    expect(blocos).toHaveLength(2);
-    expect(blocos[0].evento.id).toBe("e1");
-    expect(blocos[0].itens.map((i) => i.id)).toEqual(["a"]);
-    expect(blocos[1].evento.id).toBe("e1#kit-r1");
-    expect(blocos[1].evento.name).toBe("Mangaratiba · KIT");
-    expect(blocos[1].evento.truckDepartureDate).toBe("2026-09-14T12:00:00Z");
-    // Só peças do Kit: não aparece uma linha "sem peças" da Arena.
-    expect(eventosDoPrazo(evento, [{ id: "b", kitRemessaId: "r1" }], remessas)).toHaveLength(1);
-    expect(idDoEventoReal("e1#kit-r1")).toBe("e1");
-    expect(comKit({ id: "e1#kit-r1" } as any, remessas.get("r1")!)).toMatchObject({ eventId: "e1", kit: { remessaId: "r1", versao: "V1" } });
-  });
-
-  it("ligações: peças enriquecidas, rota e fecho diário, Arte, Atendimento, alertas e links", () => {
-    expect(ITEMS).toContain("event: eventoComDatasDoKit(eventById.get(item.eventId), item.kitRemessaId ? remessaPorId.get(item.kitRemessaId) : null),");
-    expect(ler("server/routes/prazos.ts")).toContain(".flatMap((event) => eventosDoPrazo(event, itemsByEvent.get(event.id) ?? [], remessaPorId))");
-    const SNAP = ler("server/services/prazoSnapshots.ts");
-    expect(SNAP).toContain(".flatMap((ev) => eventosDoPrazo(ev, itemsByEvent.get(ev.id) ?? [], remessaPorId))");
-    expect(SNAP).toContain("const eventId = idDoEventoReal(ev.id);");
-    expect(ler("client/src/pages/arte.tsx")).toContain("const chave = item.kitRemessaId ? `${eventKey}#kit-${item.kitRemessaId}` : eventKey;");
-    expect(fonteDaTela("atendimento")).toContain("isEventoAtrasadoNaAprovacao(item.kitRemessaId && item.event ? item.event : eventoPorId.get(item.eventId), hoje)");
-    expect(ler("server/services/deadlineAlerts.ts")).toContain("const ancoraMs = new Date(ancoraDoKit(remessa)).getTime();");
-    // O drill aponta para o evento REAL, não para a linha do Kit ("e1#kit-r1").
-    // Era conferido pelo alvo da cobrança, que saiu em 06/10; o link do evento
-    // é o que sobrou com o mesmo risco.
-    expect(ler("client/src/components/prazos/event-drilldown.tsx")).toContain("href={`/eventos/${ev.eventId ?? ev.id}`}");
-  });
-});
-
-describe("agrupar como Kit, selo compacto e datas do Kit no delta (15/09)", () => {
-  it("grupo da peça: remessa do Kit ou nada", async () => {
-    const { grupoDoKit } = await import("@shared/kit");
-    expect(grupoDoKit({ kitRemessaId: "r1", kitRemessa: { versao: "V1", entregaMaterial: "2026-09-14T12:00:00Z" } })).toBe("KIT · entrega 14/09");
-    expect(grupoDoKit({ kitRemessaId: null })).toBeNull();
-  });
-
-  it("lista do evento, rascunhos e Vincular agrupam o Kit; delta mantém as datas do Kit; selo em duas linhas", async () => {
-    expect(EVENTO).toContain("const g = grupoDoKit(item) ?? (groupOf(item.type) || '');");
-    const VINC = ler("client/src/pages/vincular-patrocinadores.tsx");
-    expect(VINC).toContain("const abreTipo = !anterior || secaoDaPeca(anterior) !== secaoDaPeca(item);");
-    // Delta mantém as datas do Kit — por COMPORTAMENTO (a linha de código que
-    // isto conferia foi tipada): o evento renomeado chega no delta e a peça do
-    // Kit o recebe re-costurado com as datas da remessa, não com as da Arena.
+describe("a peça do Kit enxerga o MESMO evento (23/10)", () => {
+  it("peças enriquecidas e o delta do cliente não trocam mais as datas do evento", async () => {
+    expect(ITEMS).toContain("event: eventById.get(item.eventId),");
+    expect(ITEMS).not.toContain("eventoComDatasDoKit");
     const { aplicarDelta } = await import("../../client/src/lib/queryClient");
-    const { eventoComDatasDoKit } = await import("@shared/kit");
     const arena = { id: "e1", name: "Arena", truckDepartureDate: "2026-09-20T08:00:00Z", startDate: "2026-09-21T00:00:00Z" };
-    const remessa = { versao: "V1", entregaMaterial: "2026-09-14T12:00:00Z", saidaCaminhao: null, dataEvento: null };
-    const pecaDoKit = { id: "p1", eventId: "e1", createdAt: "2026-09-01T00:00:00Z", event: eventoComDatasDoKit(arena, remessa), sponsors: [], kitRemessaId: "r1", kitRemessa: remessa };
+    const pecaDoKit = { id: "p1", eventId: "e1", createdAt: "2026-09-01T00:00:00Z", event: arena, sponsors: [], kitRemessaId: "r1" };
     const renomeado = { ...arena, name: "Arena Renomeada" };
     const [depois] = aplicarDelta([pecaDoKit], { delta: true, itens: [], removidas: [], eventos: [renomeado], patrocinadores: [] }, null);
-    expect(depois.event).toEqual(eventoComDatasDoKit(renomeado, remessa));
-    expect((depois.event as { truckDepartureDate?: unknown }).truckDepartureDate).not.toBe(arena.truckDepartureDate);
-    // Selo de uma linha, curto: "KIT · 14/09" (detalhe no title).
-    const SELO = ler("client/src/components/kit/selo-kit.tsx");
-    expect(SELO).toContain("KIT{entrega ? <span");
-    expect(SELO).toContain("title={detalheDaRemessa(peca.kitRemessa)}");
+    expect(depois.event).toEqual(renomeado);
+  });
+
+  it("Arte e Revisão: o Kit fica no bloco do evento (sem '· KIT' nem chave '#kit-'); o Kit continua em cima", () => {
+    const ARTE = ler("client/src/pages/arte.tsx");
+    expect(ARTE).toContain("const chave = eventKey;");
+    expect(ARTE).not.toContain("#kit-");
+    expect(ARTE).not.toContain("datasDoKit");
+    const kitEmCima = ARTE.indexOf("const kit = Number(!!b.kitRemessaId) - Number(!!a.kitRemessaId);");
+    expect(kitEmCima).toBeGreaterThan(-1);
+    expect(kitEmCima).toBeLessThan(ARTE.indexOf("const prio = Number(!!b.isPriority) - Number(!!a.isPriority);"));
+    expect(ARTE).toContain('data-testid="faixa-kit"');
+    const REVISAO = ler("client/src/pages/solicitacao.tsx");
+    expect(REVISAO).toContain('const key = item.eventId || "__none__";');
+    expect(REVISAO).not.toContain("#kit-");
+    expect(REVISAO).not.toContain("Entrega do material");
+    expect(fonteDaTela("atendimento")).toContain("isEventoAtrasadoNaAprovacao(eventoPorId.get(item.eventId), hoje)");
+    // O drill aponta para o evento.
+    expect(ler("client/src/components/prazos/event-drilldown.tsx")).toContain("href={`/eventos/${ev.eventId ?? ev.id}`}");
   });
 });
 
@@ -222,7 +305,6 @@ describe("Solicitação da Arena e o Kit (15/09)", () => {
     const REVISAO = ler("client/src/pages/solicitacao.tsx");
     expect(REVISAO).toContain('&& !(user?.role === "solicitacao" && !user?.kit && item.kitRemessaId)),');
     expect(REVISAO).toContain('<table style={{ width: "100%", tableLayout: "fixed", textAlign: "left", borderCollapse: "collapse" }}>');
-    // Gráfica: os gates são função pura (components/grafica/fila/regras.ts).
     const pecaDoKit = { id: "p", kitRemessaId: "k1", status: "produced", quantity: 2, quantityProduced: 2, conferredQty: 0 } as never;
     const semKit = { id: "p", kitRemessaId: null, status: "produced", quantity: 2, quantityProduced: 2, conferredQty: 0 } as never;
     const arena = gatesDaGrafica({ role: "solicitacao", kit: false });
@@ -230,23 +312,16 @@ describe("Solicitação da Arena e o Kit (15/09)", () => {
     expect(arena.soVisualizaKit(semKit)).toBe(false);
     expect(gatesDaGrafica({ role: "solicitacao", kit: true }).soVisualizaKit(pecaDoKit)).toBe(false);
     expect(gatesDaGrafica({ role: "grafica" }).soVisualizaKit(pecaDoKit)).toBe(false);
-    // conferir a peça do Kit não é da Arena; a mesma peça sem Kit, é
     expect(arena.canConfer(pecaDoKit)).toBe(false);
     expect(arena.canConfer(semKit)).toBe(true);
     expect(ROUTES).toContain('if (req.userRole !== "solicitacao" || req.userKit || !["POST", "PATCH", "PUT", "DELETE"].includes(req.method)) return next();');
     expect(ROUTES).toContain("Peça do Kit: a Solicitação da Arena só visualiza.");
   });
-});
 
-describe("fechamento (15/09): Gráfica sem ações do Kit para a Arena e Revisão com bloco do Kit", () => {
-  it("Gráfica esconde aumentar, reaproveitar e cancelar complemento; Revisão agrupa o Kit em cima com a entrega", () => {
+  it("Gráfica esconde aumentar, reaproveitar e cancelar complemento do Kit para a Arena", () => {
     const GRAFICA = fonteDaGrafica();
     expect(GRAFICA).toContain("const mostraAumentar = !bulkOn && !emRevisao && !soVisualizaKit(item) && podeAumentarQuantidade(item, podeMexerQtd);");
     expect(GRAFICA).toContain("{!bulkOn && !emRevisao && !pecaTravada(item) && !soVisualizaKit(item) && !isDelivered(item)");
-    const REVISAO = ler("client/src/pages/solicitacao.tsx");
-    expect(REVISAO).toContain("const key = item.kitRemessaId ? `${item.eventId}#kit-${item.kitRemessaId}` : (item.eventId || \"__none__\");");
-    expect(REVISAO).toContain("if (kitA !== kitB) return kitA ? -1 : 1;");
-    expect(REVISAO).toContain('{event.datasDoKit ? "Entrega do material" : "Caminhão"}');
   });
 });
 
@@ -267,39 +342,10 @@ describe("Ver como outro perfil (15/09)", () => {
   it("só o admin troca o perfil da sessão, /me devolve o perfil em uso e o menu tem a faixa de volta", () => {
     expect(AUTH).toContain('app.post("/api/auth/ver-como", requireAuth');
     expect(AUTH).toContain('const papelReal = req.session.papelReal ?? req.session.userRole;');
-    // 30/09: a marca Cultura (Atendimento que cria/edita evento) vai junto.
     expect(AUTH).toContain('? { role: req.session.userRole, kit: req.session.userKit === true, cultura: req.session.userCultura === true, papelReal: req.session.papelReal }');
     const APP = ler("client/src/App.tsx");
     expect(APP).toContain('data-testid="faixa-ver-como"');
     expect(APP).toContain('{ chave: "solicitacao-kit", role: "solicitacao", kit: true, rotulo: "Solicitação · Kit" },');
-  });
-});
-
-describe("Arte: Kit em cima (15/09)", () => {
-  it("peças do Kit ordenadas antes das da Arena, remessa junta, e cabeçalho com a entrega do material", () => {
-    const ARTE = ler("client/src/pages/arte.tsx");
-    const kit = ARTE.indexOf("const kit = Number(!!b.kitRemessaId) - Number(!!a.kitRemessaId);");
-    expect(kit).toBeGreaterThan(-1);
-    expect(kit).toBeLessThan(ARTE.indexOf("const prio = Number(!!b.isPriority) - Number(!!a.isPriority);"));
-    expect(ARTE).toContain("const rA = a.kitRemessaId || '', rB = b.kitRemessaId || '';");
-    expect(ARTE).toContain("? <>Entrega do material: {new Date(bloco.eventObj.truckDepartureDate)");
-  });
-});
-
-describe("inclusão individual do Kit (15/09)", () => {
-  it("cada remessa tem 'Adicionar peça' que abre o formulário já na remessa", () => {
-    const PAINEL_KIT = ler("client/src/components/kit/painel-do-kit.tsx");
-    expect(PAINEL_KIT).toContain("data-testid={`button-adicionar-peca-remessa-${r.id}`}");
-    expect(EVENTO).toContain("setFormData({ ...EMPTY_ITEM_FORM, kitRemessaId: remessaId });");
-  });
-});
-
-describe("remessa duplicada e detalhe das peças (15/09)", () => {
-  it("painel do Kit: cada remessa abre as peças com status e abre o detalhe da peça", () => {
-    const PAINEL_KIT = ler("client/src/components/kit/painel-do-kit.tsx");
-    expect(PAINEL_KIT).toContain('<td style={{ padding: "8px 12px" }}><StatusBadge status={p.status} /></td>');
-    expect(PAINEL_KIT).toContain("data-testid={`button-excluir-remessa-${r.id}`}");
-    expect(EVENTO).toContain("onAbrirPeca={(peca) => setSelectedItemForDetails(peca)}");
   });
 });
 
@@ -310,11 +356,16 @@ describe("telas do Kit", () => {
     expect(USUARIOS).toContain('const kit = data.role === "solicitacao" && data.kit;');
   });
 
-  it("evento: painel do Kit, 'Peça de' no formulário, selo KIT na lista, sem Entrada Rápida para o usuário do Kit", () => {
+  it("evento: um bloco do Kit, 'Peça de: Arena | Kit' no formulário, selo KIT na lista, sem Entrada Rápida para o usuário do Kit", () => {
     expect(EVENTO).toContain("<PainelDoKit");
+    expect(EVENTO).toContain("onAdicionarPeca={() => form.abrirNoKit()}");
+    expect(EVENTO).toContain("setFormData({ ...EMPTY_ITEM_FORM, doKit: true });");
+    expect(EVENTO).toContain("onAbrirPeca={(peca) => setSelectedItemForDetails(peca)}");
     expect(EVENTO).toContain('data-testid="select-item-kit"');
-    expect(EVENTO).toContain("...(data.kitRemessaId ? { kitRemessaId: data.kitRemessaId } : {}),");
+    expect(EVENTO).toContain('<option value="kit">Kit do evento</option>');
+    expect(EVENTO).toContain("...(data.doKit ? { doKit: true } : {}),");
     expect(EVENTO).toContain('<SeloKit peca={item} style={{ marginLeft: 6 }} />');
-    expect(EVENTO).toContain("trailing={!editingItem && !pedidoEmAtendimento && !user?.kit ? (");
+    expect(EVENTO).toContain("trailing={!editingItem && !pedidoEmAtendimento && !user?.kit && !formData.doKit ? (");
+    expect(EVENTO).not.toContain("rotuloDaRemessa");
   });
 });

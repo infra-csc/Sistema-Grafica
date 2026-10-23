@@ -72,7 +72,8 @@ describe("2. nenhum gradiente escuro sobrou na Correção", () => {
 
 describe("3. o card diz de qual evento é e quando sai", () => {
   it("usa o phaseDeadline das outras abas, não uma conta nova", () => {
-    expect(arte).toContain('phaseDeadline(item.event, "correcao", hoje)');
+    // A peça do Kit vence na Aprovação (faseDoPrazo, 23/10); a da Arena, na própria correção.
+    expect(arte).toContain('phaseDeadline(item.event, faseDoPrazo("correcao", item), hoje)');
   });
 
   it("e mostra a data de saída do evento", () => {

@@ -3,12 +3,11 @@
 //
 // Parte do schema (@shared/schema), mas no formato do JSON: `Date` chega como
 // string, e as relações que o servidor embute (patrocinadores da peça e do
-// evento, remessa do Kit) entram só com os campos que a tela usa. Quem
+// evento) entram só com os campos que a tela usa. Quem
 // precisar de outro campo acrescenta aqui — e o tsc aponta onde ele faltar.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { QueryKey } from "@tanstack/react-query";
 import type { Event, EventSponsor, Item, Sponsor, StandardItem } from "@shared/schema";
-import type { RemessaDoKit } from "@shared/kit";
 import type { Sugestao } from "@shared/sugestao-de-vinculo";
 
 /** Como o JSON entrega: `Date` vira string ISO. */
@@ -27,7 +26,6 @@ export type PecaDaVinculacao = Pick<
   | "skipApproval" | "isReuse" | "quantity" | "calculatedM2" | "referenceUrl" | "kitRemessaId"
 > & {
   sponsors?: Pick<Sponsor, "id">[] | null;
-  kitRemessa?: Partial<RemessaDoKit> | null;
 };
 
 /** O EVENTO de GET /api/events, com os patrocinadores dele embutidos. */

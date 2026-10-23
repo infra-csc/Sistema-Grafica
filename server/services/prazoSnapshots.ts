@@ -12,16 +12,13 @@
 // Agora o GET só lê e este job escreve, no boot e de hora em hora, usando o
 // MESMO cálculo da rota (`prazo-domain`) — não há segunda implementação da
 // regra para divergir.
-import { inArray, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { db } from "../db";
-import { prazoSnapshots, prazoEventSnapshots, kitRemessas } from "@shared/schema";
+import { prazoSnapshots, prazoEventSnapshots } from "@shared/schema";
 import { storage, type ItemParaPrazo } from "../storage";
 import { executarComoLider } from "./lideranca";
 import {
   buildEventPrazo,
-  comKit,
-  eventosDoPrazo,
-  idDoEventoReal,
   computeKpis,
   isPrazoCandidate,
   todayBusinessMs,
@@ -54,15 +51,9 @@ async function agregarDiaCorrente(): Promise<{ day: string; events: PrazoEvent[]
     if (arr) arr.push(it); else itemsByEvent.set(it.eventId, [it]);
   }
 
-  // KIT (14/09): o mesmo recorte da rota — cada remessa com os prazos dela.
-  const idsDeRemessa = Array.from(new Set(candidateItems.map((i) => i.kitRemessaId).filter((v): v is string => !!v)));
-  const remessaPorId = new Map((idsDeRemessa.length
-    ? await db.select().from(kitRemessas).where(inArray(kitRemessas.id, idsDeRemessa))
-    : []).map((r) => [r.id, r]));
-
+  // KIT (23/10): peça do Kit é peça do evento — a mesma montagem da rota.
   const events = candidates
-    .flatMap((ev) => eventosDoPrazo(ev, itemsByEvent.get(ev.id) ?? [], remessaPorId))
-    .map(({ evento, itens, kit }) => comKit(buildEventPrazo(evento, itens, { today }), kit))
+    .map((ev) => buildEventPrazo(ev, itemsByEvent.get(ev.id) ?? [], { today }))
     .filter((e): e is PrazoEvent => e !== null);
 
   return { day, events };
@@ -99,20 +90,8 @@ export async function runPrazoSnapshot(): Promise<void> {
 
   // Fecho POR EVENTO: é o que permite dizer QUAIS eventos entraram e saíram do
   // vermelho. O agregado acima só sabe dizer "subiu de 4 para 6".
-  // A linha do Kit (id "<evento>#kit-<remessa>") soma no evento REAL: a tabela
-  // tem chave estrangeira para events, e o fecho é por evento.
-  const porEventoReal = new Map<string, { day: string; eventId: string; hasOverdue: boolean; pecasAtrasadas: number }>();
-  for (const ev of events) {
-    const eventId = idDoEventoReal(ev.id);
-    const atual = porEventoReal.get(eventId);
-    if (atual) {
-      atual.hasOverdue = atual.hasOverdue || ev.categoria === "atrasado";
-      atual.pecasAtrasadas += ev.pecasEmAtraso;
-    } else {
-      porEventoReal.set(eventId, { day, eventId, hasOverdue: ev.categoria === "atrasado", pecasAtrasadas: ev.pecasEmAtraso });
-    }
-  }
-  const linhas = Array.from(porEventoReal.values());
+  // Uma linha por evento (o Kit é peça do evento desde 23/10).
+  const linhas = events.map((ev) => ({ day, eventId: ev.id, hasOverdue: ev.categoria === "atrasado", pecasAtrasadas: ev.pecasEmAtraso }));
 
   if (linhas.length > 0) {
     await db.insert(prazoEventSnapshots)

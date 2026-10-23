@@ -314,10 +314,13 @@ const APROVACAO_MARCO_INDEX = MARCO_DEFS.findIndex((m) => m.key === "aprovacao")
 // pela etapa de aprovação, então é esse o marco que vale para ela. Sem isto o
 // card do evento apontaria um "próximo marco" diferente do que a Gestão de
 // Prazos cobra para a mesma peça.
-function marcoIndexFor(status: string, skipApproval?: boolean | null): number | undefined {
+// PEÇA DO KIT (dono, 23/10): mesma regra do domínio — Lista de Imagens e
+// Entrega de Layouts não cobram o Kit; a peça do Kit nessas etapas é medida
+// pela Aprovação de Layout.
+function marcoIndexFor(status: string, skipApproval?: boolean | null, doKit?: boolean | null): number | undefined {
   const rank = STATUS_MARCO_RANK[status];
   if (rank === undefined) return undefined;
-  if (skipApproval && rank < APROVACAO_MARCO_INDEX) return APROVACAO_MARCO_INDEX;
+  if ((skipApproval || doKit) && rank < APROVACAO_MARCO_INDEX) return APROVACAO_MARCO_INDEX;
   return rank;
 }
 
@@ -351,14 +354,14 @@ export interface NextMilestone {
 // resolver a seguir. Devolve null quando não há mais nada pendente no funil.
 function nextMilestoneFor(
   event: Record<string, any>,
-  eventItems: { status: string; skipApproval?: boolean | null }[],
+  eventItems: { status: string; skipApproval?: boolean | null; kitRemessaId?: string | null }[],
   todayMs: number,
 ): NextMilestone | null {
   const funnelItems = eventItems.filter((it) => !OUT_OF_FUNNEL.has(it.status));
 
   const direct = new Array(MARCO_DEFS.length).fill(0);
   for (const it of funnelItems) {
-    const marco = marcoIndexFor(statusParaContagem(it), it.skipApproval);
+    const marco = marcoIndexFor(statusParaContagem(it), it.skipApproval, !!it.kitRemessaId);
     if (marco !== undefined) direct[marco] += 1;
   }
 
@@ -651,8 +654,8 @@ export function registerEventRoutes(app: Express): void {
       // `?itens=resumo` (perf 17/09): as peças embutidas vão como contagem por
       // status (shared/eventos-resumo.ts). Sem o parâmetro, a resposta de sempre.
       const resumo = req.query?.itens === ITENS_RESUMO;
-      // USUÁRIO DO KIT (14/09): vê todos os eventos (precisa deles para criar
-      // as remessas), mas as peças embutidas — contagens e fases — são só as
+      // USUÁRIO DO KIT (14/09): vê todos os eventos (precisa deles para incluir
+      // o Kit), mas as peças embutidas — contagens e fases — são só as
       // peças do Kit dele. Fora do cache compartilhado, que é o de todos.
       if ((req as any).userKit) {
         const userId = (req as any).userId ?? "";

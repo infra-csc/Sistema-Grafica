@@ -12,10 +12,11 @@
 //   · `formas`: cada lista distinta de chaves (em ordem) uma vez só; cada peça
 //     vira [índiceDaForma, ...valores] — a peça reconstruída tem as mesmas
 //     chaves, na MESMA ORDEM, e as ausentes continuam ausentes;
-//   · `event` vira a CHAVE do evento num dicionário (`eventos`); a peça do Kit
-//     aponta para `eventosDoKit`, onde o evento já vem com as datas da remessa
-//     calculadas pelo servidor (eventoComDatasDoKit) — o cliente não recalcula
-//     regra nenhuma, só troca a referência pelo objeto;
+//   · `event` vira a CHAVE do evento num dicionário (`eventos`). (`eventosDoKit`
+//     era o dicionário dos eventos com as datas de uma remessa do Kit; desde
+//     23/10 o Kit segue as datas do evento e o servidor não marca mais
+//     `datasDoKit` — o dicionário vai vazio e fica só pela compatibilidade do
+//     formato);
 //   · cada patrocinador vira [sponsorId, approvalStatus] e o objeto do
 //     patrocinador vai uma vez em `patrocinadores`.
 //
@@ -79,7 +80,7 @@ export interface PecasCompactas {
   v: 1;
   /** Eventos referenciados pelas peças (no delta: todos, como sempre foi). */
   eventos: Obj[];
-  /** `${eventId}#kit-${kitRemessaId}` → evento com as datas da remessa. */
+  /** Legado (até 23/10): `${eventId}#kit-${kitRemessaId}` → evento com as datas da remessa. Vai vazio. */
   eventosDoKit: Record<string, Obj>;
   /** Patrocinadores referenciados (no delta: todos, como sempre foi). */
   patrocinadores: Obj[];

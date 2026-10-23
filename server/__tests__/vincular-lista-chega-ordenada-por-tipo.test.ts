@@ -32,7 +32,6 @@ const peca = (displayId: string, type: string, kit?: string): PecaDaVinculacao =
   id: displayId, displayId, eventId: "e1", type, description: null, status: "awaiting_linking",
   skipApproval: false, isReuse: false, quantity: 1, calculatedM2: "1.00", referenceUrl: null,
   kitRemessaId: kit ?? null,
-  kitRemessa: kit ? { versao: "V1", entregaMaterial: "2099-09-14T12:00:00.000Z" } : null,
 });
 
 describe("a ordem de leitura da produção: grupo pai → tipo → ID", () => {

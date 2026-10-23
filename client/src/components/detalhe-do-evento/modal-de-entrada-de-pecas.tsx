@@ -5,7 +5,6 @@
 import type { ComponentProps } from "react";
 import { Plus, List } from "lucide-react";
 import type { Sponsor } from "@shared/schema";
-import type { RemessaDoKit } from "@shared/kit";
 import { patrocinadoresDaLinha } from "@shared/pedidos-de-peca";
 import { mostraCampoProducaoInterna } from "@shared/producao-interna";
 import {
@@ -26,7 +25,7 @@ import type { EventoDoDetalhe, ModeloDePeca, PecaDoEvento, UsuarioLogado } from 
 
 export function ModalDeEntradaDePecas({
   form, event, eventId, user, isMobile, standardItems, sponsors, items, materialOptions, finishOptions,
-  remessasDoKit, acoes, confirmar, handleSubmit, getUploadUrl,
+  eventoTemKit, acoes, confirmar, handleSubmit, getUploadUrl,
 }: {
   form: FormularioDaPeca;
   event: EventoDoDetalhe;
@@ -38,7 +37,8 @@ export function ModalDeEntradaDePecas({
   items: PecaDoEvento[];
   materialOptions: string[];
   finishOptions: string[];
-  remessasDoKit: RemessaDoKit[];
+  /** O evento já tem Kit: o formulário oferece "Peça de: Arena | Kit". */
+  eventoTemKit: boolean;
   acoes: Pick<AcoesDasPecas, "createBulkItemsMutation" | "createItemMutation" | "updateItemMutation">;
   confirmar: ReturnType<typeof useConfirmar>["confirmar"];
   handleSubmit: (e: React.FormEvent) => void;
@@ -113,7 +113,7 @@ export function ModalDeEntradaDePecas({
             : handleCloseDialog}
           // Atendendo um pedido, a Entrada Rápida some: a peça criada em
           // lote não seria ligada ao pedido.
-          trailing={!editingItem && !pedidoEmAtendimento && !user?.kit ? (
+          trailing={!editingItem && !pedidoEmAtendimento && !user?.kit && !formData.doKit ? (
             // <button> + .ds-botao, e não <Botao>: as variantes do Botao
             // são para fundo claro, e este mora no cabeçalho escuro.
             <button
@@ -172,7 +172,7 @@ export function ModalDeEntradaDePecas({
             isMobile={isMobile}
             isAdmin={user?.role === 'admin'}
             podePriorizar={user?.role === 'admin' || user?.role === 'solicitacao'}
-            remessasDoKit={remessasDoKit}
+            eventoTemKit={eventoTemKit}
             kitObrigatorio={!!user?.kit}
             isPending={createItemMutation.isPending || updateItemMutation.isPending}
             onSubmit={handleSubmit}

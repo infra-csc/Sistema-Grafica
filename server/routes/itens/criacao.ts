@@ -2,13 +2,14 @@
 import type { Express } from "express";
 import { z } from "zod";
 import { storage } from "../../storage";
+import { db } from "../../db";
 import { insertItemSchema, publicInsertItemSchema, type InsertItem } from "@shared/schema";
-import { remessaUtilizavelPor } from "@shared/kit";
-import { carregarRemessa } from "../../services/kitRemessas";
+import { podeIncluirNoKit } from "@shared/kit";
+import { obterOuCriarInclusaoDoKit } from "../../services/kitRemessas";
 import { requireAuth, broadcast, createAuditLog, createAuditLogsEmLote, updateEventStatus } from "../shared";
 import { responderErro, fraseDoZod, erroPublico, corpoEventoFechado, EVENTO_NAO_ENCONTRADO } from "../../erros";
 import { motivoEventoFechado } from "../eventoFinalizado";
-import { deriveCalculatedM2, deriveMeasurement, quemVe, canCreateItemsFor } from "./comum";
+import { deriveCalculatedM2, deriveMeasurement, canCreateItemsFor } from "./comum";
 import { recusaDaMarcaNaEscrita } from "@shared/producao-interna";
 import { lerArquivoDaProducaoInterna } from "./producao-interna";
 import { gravarLoteDaClonagem, registrarDesfazerClonagem } from "./desfazer-clonagem";
@@ -25,27 +26,22 @@ export function registrarCriacao(app: Express): void {
       // contractedTotal, a ordenação e a fila da Gráfica. Parentesco só nasce
       // em POST /api/items/:id/complement, que valida papel, status e
       // ancestralidade.
-      // Tipada como InsertItem: o servidor completa abaixo a remessa e o autor.
+      // Tipada como InsertItem: o servidor completa abaixo o Kit e o autor.
       const validatedData: InsertItem = publicInsertItemSchema.parse(req.body);
       if (!(await canCreateItemsFor(req, validatedData.eventId))) {
         return res.status(403).json({ error: "Sem permissão para criar itens neste evento" });
       }
-      // PEÇA DO KIT (dono, 14/09): pertence a uma remessa do MESMO evento; o
-      // usuário do Kit só cria peça do Kit, numa remessa dele.
-      const kitRemessaId = typeof req.body?.kitRemessaId === "string" && req.body.kitRemessaId ? req.body.kitRemessaId : null;
-      if (req.userKit && !kitRemessaId) {
-        return res.status(400).json({ error: "Usuário do Kit cria só peça do Kit — escolha a remessa do Kit." });
+      // PEÇA DO KIT (dono, 23/10): é peça do evento com a marca do Kit — entra
+      // na inclusão do Kit do evento (uma só, criada aqui se ainda não houver).
+      // O corpo pede com `doKit: true` (ou o `kitRemessaId` antigo, de uma tela
+      // anterior à 23/10: vale só como "é do Kit"). O usuário do Kit só cria
+      // peça do Kit — a dele é sempre do Kit, sem precisar pedir.
+      const pedeKit = req.body?.doKit === true || (typeof req.body?.kitRemessaId === "string" && !!req.body.kitRemessaId);
+      const doKit = req.userKit === true || pedeKit;
+      if (doKit && !podeIncluirNoKit({ role: req.userRole, kit: req.userKit })) {
+        return res.status(403).json({ error: "Peça do Kit é do admin e da Solicitação." });
       }
-      if (kitRemessaId) {
-        const remessa = await carregarRemessa(kitRemessaId);
-        if (!remessa || remessa.eventId !== validatedData.eventId) {
-          return res.status(400).json({ error: "Remessa do Kit inválida para este evento." });
-        }
-        if (!remessaUtilizavelPor(quemVe(req), remessa)) {
-          return res.status(403).json({ error: "Esta remessa do Kit é de outra pessoa." });
-        }
-      }
-      validatedData.kitRemessaId = kitRemessaId;
+      validatedData.kitRemessaId = null;
       validatedData.criadoPorId = req.userId ?? null;
       // Nascer PRIORITÁRIA é decisão de quem gerencia a lista (dono, 27/08) —
       // mesmo gate do PATCH. Criador de evento sem papel cria a peça normal.
@@ -107,6 +103,14 @@ export function registrarCriacao(app: Express): void {
         broadcast({ type: "notification_created", notification });
       }
       
+      // A inclusão do Kit do evento: só agora, com o evento conferido e aberto
+      // (antes daqui uma recusa deixaria a inclusão criada à toa).
+      if (doKit) {
+        const { inclusao, criada } = await obterOuCriarInclusaoDoKit(db, event.id, req);
+        validatedData.kitRemessaId = inclusao.id;
+        if (criada) broadcast({ type: "kit_remessas", eventId: event.id });
+      }
+
       const item = await storage.createItem(validatedData);
       
       // Create audit log
@@ -178,7 +182,7 @@ export function registrarCriacao(app: Express): void {
         return res.status(403).json({ error: "Sem permissão para criar itens neste evento" });
       }
       // Entrada Rápida cria peça da Arena: o usuário do Kit usa o formulário
-      // ou a importação, que pedem a remessa (14/09).
+      // ou a planilha do Kit (14/09).
       if (req.userKit) {
         return res.status(403).json({ error: "A Entrada Rápida não cria peça do Kit — use o formulário ou a importação." });
       }
@@ -196,9 +200,8 @@ export function registrarCriacao(app: Express): void {
         try {
           // publicInsertItemSchema: mesma blindagem do POST unitário — o body
           // do lote não cria parentesco de complemento (ver acima). Sem a
-          // remessa do Kit: a Entrada Rápida só cria peça da Arena, e a
-          // remessa sem a conferência do POST unitário penduraria a peça numa
-          // remessa de outro evento ou de outra pessoa.
+          // marca do Kit: a Entrada Rápida só cria peça da Arena, e a marca
+          // vinda do corpo penduraria a peça na inclusão de outro evento.
           // Tipada como InsertItem: o arquivo da produção interna (abaixo) é
           // campo que o schema público não aceita do corpo — o servidor o põe.
           const parsed: InsertItem = publicInsertItemSchema.omit({ kitRemessaId: true }).parse(item);
@@ -292,10 +295,10 @@ export function registrarClonagem(app: Express): void {
     if (!(await canCreateItemsFor(req, req.params.id))) {
       return res.status(403).json({ error: "Sem permissão para clonar itens para este evento" });
     }
-    // O usuário do Kit cria peça só numa remessa dele (formulário ou
-    // importação); o clone traria peças da Arena, sem remessa.
+    // O usuário do Kit cria só peça do Kit (formulário ou planilha do Kit);
+    // o clone traria peças da Arena.
     if (req.userKit) {
-      return res.status(403).json({ error: "Usuário do Kit não clona peças — crie pelo formulário ou pela importação, escolhendo a remessa." });
+      return res.status(403).json({ error: "Usuário do Kit não clona peças — crie pelo formulário ou pela planilha do Kit." });
     }
     try {
       const targetEvent = await storage.getEvent(req.params.id);

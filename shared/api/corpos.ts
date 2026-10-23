@@ -8,8 +8,10 @@
 import type { z } from "zod";
 import type { insertEventSchema, insertSponsorSchema, publicInsertItemSchema } from "../schema";
 
-/** POST /api/items — a peça nova (a remessa do Kit vai à parte, fora do schema). */
-export type CorpoNovaPeca = z.input<typeof publicInsertItemSchema> & { kitRemessaId?: string | null };
+/** POST /api/items — a peça nova. `doKit`: a peça é do Kit do evento (o servidor
+ *  resolve a inclusão; o usuário do Kit cria sempre do Kit). `kitRemessaId` é
+ *  da tela anterior a 23/10 e vale só como "é do Kit". */
+export type CorpoNovaPeca = z.input<typeof publicInsertItemSchema> & { doKit?: boolean; kitRemessaId?: string | null };
 
 /** POST /api/events — o evento novo (datas aceitam texto "YYYY-MM-DD" ou Date). */
 export type CorpoNovoEvento = z.input<typeof insertEventSchema>;

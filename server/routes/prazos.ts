@@ -12,9 +12,9 @@
 // cliente importa: um campo esquecido aqui vira erro de tsc, não um número
 // errado na cara do diretor.
 import type { Express } from "express";
-import { eq, lt, desc, inArray } from "drizzle-orm";
+import { eq, lt, desc } from "drizzle-orm";
 import { db } from "../db";
-import { prazoSnapshots, prazoEventSnapshots, kitRemessas } from "@shared/schema";
+import { prazoSnapshots, prazoEventSnapshots } from "@shared/schema";
 import type { ItemSponsorApproval } from "@shared/schema";
 import { storage, type ItemParaPrazo } from "../storage";
 import { ehBookCompleto } from "@shared/fluxo-peca";
@@ -22,9 +22,6 @@ import { requireAuth } from "./shared";
 import {
   STAGE_META,
   buildEventPrazo,
-  comKit,
-  eventosDoPrazo,
-  idDoEventoReal,
   computeKpis,
   isPrazoCandidate,
   todayBusinessMs,
@@ -120,13 +117,6 @@ export function registerPrazoRoutes(app: Express): void {
       const candidateItems = (await storage.getItemsParaPrazos(candidates.map((ev) => ev.id)))
         .filter((i) => !ehBookCompleto(i) && (!doKit || (!!i.kitRemessaId && i.criadoPorId === req.userId)));
 
-      // KIT (14/09): as remessas das peças do Kit — cada uma vira linha própria,
-      // com o funil pelas datas dela.
-      const idsDeRemessa = Array.from(new Set(candidateItems.map((i) => i.kitRemessaId).filter((v): v is string => !!v)));
-      const remessaPorId = new Map((idsDeRemessa.length
-        ? await db.select().from(kitRemessas).where(inArray(kitRemessas.id, idsDeRemessa))
-        : []).map((r) => [r.id, r]));
-
       const itemsByEvent = new Map<string, ItemParaPrazo[]>();
       for (const it of candidateItems) {
         const arr = itemsByEvent.get(it.eventId);
@@ -163,8 +153,9 @@ export function registerPrazoRoutes(app: Express): void {
       }>();
 
       const events: PrazoEvent[] = candidates
-        .flatMap((event) => eventosDoPrazo(event, itemsByEvent.get(event.id) ?? [], remessaPorId))
-        .map(({ evento, itens, kit }) => comKit(buildEventPrazo(evento, itens, {
+        // KIT (23/10): peça do Kit é peça do evento — uma linha por evento; o
+        // funil a cobra da Aprovação de Layout em diante (marcoIndexFor).
+        .map((event) => buildEventPrazo(event, itemsByEvent.get(event.id) ?? [], {
           today,
           sponsorNameById,
           openApprovalsByItem,
@@ -174,14 +165,14 @@ export function registerPrazoRoutes(app: Express): void {
               ?? { name: info.sponsorName, pendingCount: 0, maxDays: 0, eventIds: new Set<string>(), items: [] };
             agg.pendingCount += 1;
             agg.maxDays = Math.max(agg.maxDays, info.days);
-            agg.eventIds.add(idDoEventoReal(info.eventId));
+            agg.eventIds.add(info.eventId);
             agg.items.push({
-              itemId: info.itemId, eventId: idDoEventoReal(info.eventId), eventName: info.eventName,
+              itemId: info.itemId, eventId: info.eventId, eventName: info.eventName,
               displayId: info.displayId, days: info.days,
             });
             sponsorAgg.set(info.sponsorId, agg);
           },
-        }), kit))
+        }))
         .filter((e): e is PrazoEvent => e !== null)
         .sort((a, b) => new Date(a.truckDepartureDate).getTime() - new Date(b.truckDepartureDate).getTime());
 

@@ -111,7 +111,7 @@ function podeVer(req: Request, res: Response): boolean {
 /**
  * O MESMO recorte do Kit que as leituras de peças aplicam (ver
  * pecaVisivelPara): o usuário do Kit só enxerga as peças que ele mesmo criou
- * em remessa. Sem isto, a aba Máquinas vazaria o que a fila esconde.
+ * no Kit. Sem isto, a aba Máquinas vazaria o que a fila esconde.
  */
 type ColunasDoKit = { kit_remessa_id: string | null; criado_por_id: string | null };
 function filtroDoKit(req: Request): (l: ColunasDoKit) => boolean {

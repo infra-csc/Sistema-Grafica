@@ -64,6 +64,13 @@
       "when": 1792595282080,
       "tag": "0008_operadores",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792769415741,
+      "tag": "0009_juntar-remessas-do-kit",
+      "breakpoints": true
     }
   ]
 }

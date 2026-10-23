@@ -3,11 +3,10 @@
 //
 // A base é o schema (`Item`, `Event`, `StandardItem`, `AuditLog`); em cima
 // dela vai só o que o servidor ANEXA na leitura (evento, mãe, complementos,
-// remessa do Kit, resumo do tubo) — ver server/routes/itens/leitura.ts
+// resumo do tubo) — ver server/routes/itens/leitura.ts
 // (enrichItemsWithEventsAndSponsors). Datas chegam como texto ISO (JSON).
 // ─────────────────────────────────────────────────────────────────────────────
 import type { AuditLog, Event, Item, StandardItem } from "@shared/schema";
-import type { RemessaDoKit } from "@shared/kit";
 
 /** Como o JSON entrega um registro do banco: `Date` vira texto ISO. */
 export type ComoJson<T> = {
@@ -29,7 +28,6 @@ export type PecaDaFila = ComoJson<Item> & {
   /** Mãe do complemento (só o que a tela lê). */
   parent?: { id?: string; displayId?: string | null } | null;
   complements?: ComplementoResumo[] | null;
-  kitRemessa?: Partial<RemessaDoKit> | null;
   // Resumo do tubo em que a peça está (services/tubosDaPeca.ts → comTubo).
   tuboNumero?: number;
   tuboAvulso?: boolean;

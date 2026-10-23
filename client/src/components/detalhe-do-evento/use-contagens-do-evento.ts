@@ -87,7 +87,7 @@ export function useContagensDoEvento(rawItems: PecaDoEvento[], event: EventoDoDe
     [event, hoje],
   );
   const atrasDoMarco = useMemo(
-    () => MARCOS_DO_EVENTO.map((_, i) => pecasNaConta.filter(it => estaAtrasDoMarco(statusParaContagem(it), i)).length),
+    () => MARCOS_DO_EVENTO.map((_, i) => pecasNaConta.filter(it => estaAtrasDoMarco(statusParaContagem(it), i, !!it.kitRemessaId)).length),
     [pecasNaConta],
   );
   // Fases de produção — a MESMA contagem do cartão de Eventos (lib/fases).

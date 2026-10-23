@@ -5,9 +5,6 @@ import { storage } from "../storage";
 import { broadcast, EVENT_CLOSED_STATUS } from "../routes/shared";
 import { reservarDisparo } from "./reservaDeDisparo";
 import { executarComoLider } from "./lideranca";
-import { db } from "../db";
-import { kitRemessas } from "@shared/schema";
-import { ancoraDoKit } from "@shared/kit";
 import { deslocamentoDeFimDeSemana, FIM_DE_SEMANA_DO_CAMPO, type MarcoDoEvento } from "@shared/prazo-dates";
 
 /**
@@ -122,55 +119,9 @@ export function startDeadlineAlerts(): void {
           }
         }
       }
-      // ── KIT (14/09): as mesmas janelas, pelas datas de cada remessa do Kit ──
-      // A âncora é a saída do caminhão do Kit (ou a entrega do material); os
-      // offsets de etapa são os do evento, como na Arena.
-      const eventoPorId = new Map(allEvents.map((e) => [e.id, e]));
-      const remessas = await db.select().from(kitRemessas);
-      for (const remessa of remessas) {
-        const event = eventoPorId.get(remessa.eventId);
-        if (!event || event.status === 'completed' || event.status === EVENT_CLOSED_STATUS) continue;
-        const ancoraMs = new Date(ancoraDoKit(remessa)).getTime();
-        const nome = `${event.name} · KIT`;
-        const oQue = "a entrega do material do Kit";
-        const faltam = (ancoraMs - now.getTime()) / (1000 * 60 * 60);
-        for (const janela of [48, 24, 12]) {
-          if (faltam <= janela && faltam > janela - 0.5 && await podeAlertar(`${remessa.id}-kit-saida-${janela}h`)) {
-            const notification = await storage.createNotification({
-              type: "deadlineAlert",
-              message: `ALERTA: Faltam ${janela}h para ${oQue} - ${nome}`,
-              eventId: event.id,
-              targetRoles: ["arte", "grafica", "solicitacao"],
-            });
-            broadcast({ type: "notification_created", notification });
-          }
-        }
-        const etapasDoKit: Array<{ field: MarcoDoEvento["campo"]; label: string; roles: Array<"solicitacao" | "admin" | "arte" | "grafica" | "atendimento"> }> = [
-          { field: "deadlineListaImagens",    label: "Lista de Imagens",    roles: ["solicitacao", "admin"] },
-          { field: "deadlineEntregaLayouts",  label: "Entrega de Layouts",  roles: ["arte", "admin"] },
-          { field: "deadlineAprovacaoLayout", label: "Aprovação de Layout", roles: ["atendimento", "arte", "admin"] },
-          { field: "deadlineRevisaoLista",    label: "Revisão de Lista",    roles: ["solicitacao", "admin"] },
-          { field: "deadlineProducaoGrafica", label: "Produção Gráfica",    roles: ["grafica", "admin"] },
-        ];
-        for (const { field, label, roles } of etapasDoKit) {
-          const offsetDays = event[field] as number | null;
-          if (offsetDays == null) continue;
-          const prazo = fimDoDiaDoPrazo(ancoraMs, offsetDays, field);
-          const horas = (prazo.getTime() - now.getTime()) / (1000 * 60 * 60);
-          if (((horas <= 48 && horas > 47.5) || (horas <= 24 && horas > 23.5))) {
-            const h = Math.round(horas);
-            if (await podeAlertar(`${remessa.id}-kit-${label}-${h}h`)) {
-              const notification = await storage.createNotification({
-                type: "prazoAlert",
-                message: `Prazo "${label}" em ${h}h — ${nome}`,
-                eventId: event.id,
-                targetRoles: roles,
-              });
-              broadcast({ type: "notification_created", notification });
-            }
-          }
-        }
-      }
+      // KIT (23/10): a peça do Kit segue as datas do evento — os alertas acima
+      // já valem para ela. Os alertas próprios das remessas (pela entrega do
+      // material) deixaram de existir com as datas do Kit.
     } catch (error) {
       console.error("Error checking deadlines:", error);
     }

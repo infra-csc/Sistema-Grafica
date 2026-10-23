@@ -4,7 +4,7 @@ import { SeloKit } from "@/components/kit/selo-kit";
 import { TextoComLinks } from "@/components/texto-com-links";
 import { Botao } from "@/components/ui/botao";
 import { PrazoInline } from "@/components/prazo-inline";
-import { phaseDeadline } from "@/lib/arte-rules";
+import { faseDoPrazo, phaseDeadline } from "@/lib/arte-rules";
 import { miniatura } from "@/lib/miniatura";
 import { toUTCDisplayDate } from "@/lib/utils";
 import { T, TOM, N, R, FS, FONT } from "@/lib/theme";
@@ -96,7 +96,7 @@ export function CartaoDaCorrecao({ item, correcaoSponsorFilter, emCartoes, hoje,
           mesmo `phaseDeadline` da coluna Prazo e do filtro
           "atrasados"; nada de conta nova. */}
       {(() => {
-        const pr = phaseDeadline(item.event, "correcao", hoje);
+        const pr = phaseDeadline(item.event, faseDoPrazo("correcao", item), hoje);
         const saida = item.event?.truckDepartureDate ? toUTCDisplayDate(item.event.truckDepartureDate) : null;
         if (!item.event?.name && !saida && !pr) return null;
         // A MESMA LÍNGUA DA FILA. Era "06/10" sem rótulo ao lado de um selo

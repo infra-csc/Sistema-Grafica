@@ -131,8 +131,8 @@ vê e escreve. Ganha um token que abre só `/api/integracao/checklist/*`
 
 | `POST /api/integracao/checklist/reposicoes` (21/10) | Corpo `{ itemId, quantidade, motivo, solicitante }`. A peça **entregue** que chegou faltando, não encontrada ou avariada no evento vira um **complemento** dela (mesmos dados, arte e arquivo final; `#0062-C1`, `-C2`…) que nasce na **Revisão Final** (`awaiting_final_review`) e avisa a Solicitação (notificação `reposicaoChecklist`). Reposição de um complemento vai na peça original. Evento **já realizado** é reaberto (o mesmo gesto do `POST /api/events/:id/reopen`, com trilha "Checklist de Arena · quem pediu"); **encerrado à mão** ou **arquivado** → 409. **201** `{ id, codigo, status, quantidade, pecaOriginal, eventoReaberto }`; **200** com a mesma resposta no duplo clique (60 s); **409** peça que nem entrou em produção; **404** peça/evento inexistente; **400** corpo inválido. Regra em `server/services/reposicao-do-checklist.ts` |
 
-"Peça da Arena entregue" é `shared/integracao-checklist.ts`: não excluída, sem
-remessa do Kit, não é book completo, não cancelada, e com **unidade entregue**
+"Peça da Arena entregue" é `shared/integracao-checklist.ts`: não excluída, fora
+do Kit (`kit_remessa_id` nulo), não é book completo, não cancelada, e com **unidade entregue**
 (parcial conta; legado entregue com `delivered_qty` 0 vale a quantidade toda).
 A lista de eventos repete a regra em SQL — mexeu numa, mexa na outra.
 

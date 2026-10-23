@@ -1,9 +1,8 @@
 // Leituras de peças: a lista (com delta e recorte), a lixeira e as filas das telas.
 import type { Express, Request } from "express";
 import { storage, cabeNaJanelaDeEntregues, type ComplementSummary } from "../../storage";
-import { ITEM_STATUSES, type Item, type Event, type Sponsor, type ItemSponsorApproval, type kitRemessas } from "@shared/schema";
-import { eventoComDatasDoKit, pecaVisivelPara, PARAM_SEM_KIT_ALHEIO, pecaNaVinculacaoDe } from "@shared/kit";
-import { remessasPorIds } from "../../services/kitRemessas";
+import { ITEM_STATUSES, type Item, type Event, type Sponsor, type ItemSponsorApproval } from "@shared/schema";
+import { pecaVisivelPara, PARAM_SEM_KIT_ALHEIO, pecaNaVinculacaoDe } from "@shared/kit";
 import { resumosDeTuboPorIds, comTubo } from "../../services/tubosDaPeca";
 import {
   FORMATO_COMPACTO,
@@ -20,9 +19,8 @@ import { responderFalha, camposDoErro } from "../../erros";
 /** Patrocinador na peça, com o status da aprovação dele NESTA peça. */
 type PatrocinadorNaPeca = Sponsor & { approvalStatus: string | null };
 
-/** A peça como as listas devolvem: evento, patrocinadores, remessa e complementos. */
+/** A peça como as listas devolvem: evento, patrocinadores e complementos. */
 type PecaEnriquecida = Item & {
-  kitRemessa: typeof kitRemessas.$inferSelect | null;
   event: Event | undefined;
   sponsors: PatrocinadorNaPeca[];
   complements?: ComplementSummary[];
@@ -98,21 +96,15 @@ async function enrichItemsWithEventsAndSponsors(
     if (arr) arr.push(enrichedSponsor);
     else sponsorsByItem.set(is.itemId, [enrichedSponsor]);
   }
-  // A remessa do Kit (datas do Kit) vai junto: é o que o selo "KIT · entrega"
-  // mostra em todas as etapas.
   // O TUBO vai junto (21/09): número e carimbos, para Atendimento/Solicitação
   // lerem "Tubo 2" sem acesso a /api/tubos (403 para eles, e continua assim).
   // Um select em lote, só com os ids presentes — ver services/tubosDaPeca.
-  const [remessaPorId, tuboPorId] = await Promise.all([
-    remessasPorIds(list.map((i) => i.kitRemessaId).filter((id): id is string => !!id)),
-    resumosDeTuboPorIds(list.map((i) => i.tuboId)),
-  ]);
+  const tuboPorId = await resumosDeTuboPorIds(list.map((i) => i.tuboId));
   const withEventsAndSponsors = list.map((item): PecaEnriquecida => ({
     ...comTubo(item, tuboPorId),
-    kitRemessa: item.kitRemessaId ? remessaPorId.get(item.kitRemessaId) ?? null : null,
-    // Peça do Kit: o evento vem com as datas da remessa (dono, 14/09: "tem
-    // que ser pela data deles") — Arte, Gráfica e Painel cobram por elas.
-    event: eventoComDatasDoKit(eventById.get(item.eventId), item.kitRemessaId ? remessaPorId.get(item.kitRemessaId) : null),
+    // Peça do Kit é peça do evento (dono, 23/10): o MESMO evento, as MESMAS
+    // datas — a marca é só `kitRemessaId` (o selo KIT).
+    event: eventById.get(item.eventId),
     sponsors: sponsorsByItem.get(item.id) ?? [],
   }));
 

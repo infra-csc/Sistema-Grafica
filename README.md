@@ -27,8 +27,11 @@ PostgreSQL (Neon) · WebSocket para tempo real · publicado no Replit (autoscale
 O admin pode **ver como** outro perfil (sem trocar o cadastro): a sessão empresta
 o papel e toda ação entra na trilha como "Ana (como Gráfica)".
 
-O perfil **Kit** é um recorte da Solicitação: enxerga e envia só as peças das
-remessas do próprio Kit.
+O perfil **Kit** é um recorte da Solicitação: enxerga e envia só as peças do Kit
+que ele mesmo criou. O Kit é **uma inclusão por evento** (23/10): as peças do Kit
+são peças do evento com o selo KIT, entram pela planilha de inclusão do Kit (ou
+uma a uma) e seguem os prazos do evento a partir da **Aprovação de layout** —
+Lista de imagens e Entrega de layouts não cobram o Kit.
 
 ---
 

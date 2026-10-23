@@ -2,16 +2,16 @@
 //
 // A REGRA mora em @shared/painel-operacional (pura, testada). Aqui só:
 //   1. os eventos da Gestão de Prazos montados EXATAMENTE como /api/prazos os
-//      monta — candidatos (isPrazoCandidate), separação do Kit
-//      (eventosDoPrazo), buildEventPrazo, comKit, computeKpis. Nenhuma regra
-//      de prazo nova: é a mesma função, chamada daqui;
+//      monta — candidatos (isPrazoCandidate), buildEventPrazo, computeKpis
+//      (uma linha por evento: o Kit é peça do evento desde 23/10). Nenhuma
+//      regra de prazo nova: é a mesma função, chamada daqui;
 //   2. UMA consulta de peças, só com as colunas que o painel lê: as dos eventos
 //      ativos + as de qualquer evento com alguma data dentro da janela do
 //      realizado (60 dias) — o realizado de um evento que já saiu dos prazos
 //      ainda é produção da gráfica no período. Nada de N+1; ~7 mil peças no
 //      pior caso, em colunas estreitas.
 import { and, gte, inArray, isNull, or, eq } from "drizzle-orm";
-import { items, kitRemessas } from "@shared/schema";
+import { items } from "@shared/schema";
 import { ehBookCompleto } from "@shared/fluxo-peca";
 import {
   JANELA_DO_REALIZADO_DIAS, montarPainelOperacional, somarDias,
@@ -23,7 +23,7 @@ import type { db as DbReal } from "../db";
 import { storage } from "../storage";
 import { doEventoNaoArquivado } from "./arquivamento";
 import {
-  buildEventPrazo, comKit, computeKpis, eventosDoPrazo, isPrazoCandidate, todayBusinessMs, todayBusinessStr,
+  buildEventPrazo, computeKpis, isPrazoCandidate, todayBusinessMs, todayBusinessStr,
   type DomainItem,
 } from "./prazo-domain";
 
@@ -96,12 +96,6 @@ export async function carregarPainelOperacional(db: Db, agora: number = Date.now
   // BOOK COMPLETO não é peça — nem para os prazos (como em /api/prazos), nem para o painel.
   const pecas = linhas.filter((l) => !ehBookCompleto(l));
 
-  const idsDeRemessa = Array.from(new Set(pecas.map((p) => p.kitRemessaId).filter((v): v is string => !!v)));
-  const remessas = idsDeRemessa.length
-    ? await db.select().from(kitRemessas).where(inArray(kitRemessas.id, idsDeRemessa))
-    : [];
-  const remessaPorId = new Map(remessas.map((r) => [r.id, r]));
-
   const candidatosSet = new Set(idsCandidatos);
   const porEvento = new Map<string, typeof pecas>();
   for (const p of pecas) {
@@ -112,8 +106,7 @@ export async function carregarPainelOperacional(db: Db, agora: number = Date.now
 
   // A MESMA montagem de /api/prazos (server/routes/prazos.ts).
   const prazos: PrazoEvent[] = candidatos
-    .flatMap((ev) => eventosDoPrazo(ev, porEvento.get(ev.id) ?? [], remessaPorId))
-    .map(({ evento, itens, kit }) => comKit(buildEventPrazo(evento, itens as DomainItem[], { today }), kit))
+    .map((ev) => buildEventPrazo(ev, (porEvento.get(ev.id) ?? []) as DomainItem[], { today }))
     .filter((e): e is PrazoEvent => e !== null)
     .sort((a, b) => new Date(a.truckDepartureDate).getTime() - new Date(b.truckDepartureDate).getTime());
 
@@ -124,6 +117,5 @@ export async function carregarPainelOperacional(db: Db, agora: number = Date.now
     hoje,
     geradoEm: new Date(agora).toISOString(),
     nomeDoEvento: new Map(todosOsEventos.map((ev) => [ev.id, ev.name])),
-    remessasConhecidas: new Set(remessaPorId.keys()),
   });
 }

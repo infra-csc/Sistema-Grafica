@@ -205,7 +205,7 @@ describe("as telas", () => {
   it("no evento: só as peças deste evento, ?criar= abre o formulário, Entrada Rápida some ao atender", () => {
     expect(PAINEL).toContain("const doEvento = (p: PedidoDePeca) => p.linhas.filter((l) => l.eventId === eventId);");
     expect(PAINEL).toContain('const alvoCriar = params.get("criar");');
-    expect(EVENTO).toContain("trailing={!editingItem && !pedidoEmAtendimento && !user?.kit ? (");
+    expect(EVENTO).toContain("trailing={!editingItem && !pedidoEmAtendimento && !user?.kit && !formData.doKit ? (");
     expect(EVENTO).toContain("...(pedidoEmAtendimento ? { pedidoDePecaLinhaId: pedidoEmAtendimento.linha.id } : {}),");
     expect(EVENTOS).toContain("for (const { linha } of linhasAbertas)");
   });

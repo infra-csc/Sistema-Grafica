@@ -7,7 +7,7 @@
 // components/importar-planilha/. Os exports antigos continuam saindo daqui.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useMemo, useState } from "react";
-import type { CabecalhoDoKit, RemessaDoKit } from "@shared/kit";
+import type { CabecalhoDoKit } from "@shared/kit";
 import type { AbaComPecasDaPlanilha } from "@shared/api";
 import { DestinoDaImportacaoDialog, type DestinoDaImportacao } from "@/components/kit/destino-da-importacao";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -49,8 +49,8 @@ interface ImportXlsxDialogProps {
   itensDoEvento?: { type?: string | null; description?: string | null }[];
   /** Linhas da planilha que o servidor deixou de fora no preview, e por quê. */
   ignoradas?: { linha: number; motivo: string }[];
-  /** KIT (14/09): remessas do evento, cabeçalho lido da planilha do Kit e se só Kit vale. */
-  kitRemessas?: RemessaDoKit[];
+  /** KIT (23/10): quantas peças o Kit do evento já tem, cabeçalho lido da planilha do Kit e se só Kit vale. */
+  pecasNoKit?: number;
   kitCabecalho?: CabecalhoDoKit | null;
   somenteKit?: boolean;
   /** As abas com peças (mais de uma = a pessoa escolhe) e a troca de aba. */
@@ -80,7 +80,7 @@ export function ImportXlsxDialog({
   onConfirmImport,
   itensDoEvento = [],
   ignoradas = [],
-  kitRemessas = [],
+  pecasNoKit = 0,
   kitCabecalho = null,
   somenteKit = false,
   abas = [],
@@ -238,7 +238,7 @@ export function ImportXlsxDialog({
         aberto={escolhendoDestino && !!importPreviewItems}
         quantidade={importPreviewItems?.length ?? 0}
         arquivo={importFileName}
-        remessas={kitRemessas}
+        pecasNoKit={pecasNoKit}
         cabecalho={kitCabecalho}
         somenteKit={somenteKit}
         abas={abas}

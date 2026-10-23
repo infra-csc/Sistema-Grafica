@@ -8,7 +8,7 @@
 // decodificados em client/src/lib/queryClient.ts ANTES do cache: o que o
 // `useQuery` recebe é sempre o array de `PecaEnriquecida` descrito aqui.
 // ─────────────────────────────────────────────────────────────────────────────
-import type { Event, Item, ItemSponsorApproval, Sponsor, kitRemessas } from "../schema";
+import type { Event, Item, ItemSponsorApproval, Sponsor } from "../schema";
 import type { COLUNAS_DA_TRILHA } from "../itens-compactos";
 import type { Json } from "./json";
 
@@ -18,20 +18,11 @@ export type PecaJson = Json<Item>;
 export type EventoJson = Json<Event>;
 /** Linha do patrocinador como chega pelo cabo. */
 export type PatrocinadorJson = Json<Sponsor>;
-/** Remessa do Kit (linha de `kit_remessas`) como chega pelo cabo. */
-export type RemessaDoKitJson = Json<typeof kitRemessas.$inferSelect>;
-
 /**
- * O evento EMBUTIDO na peça. Na peça do Kit ele vem com as datas da remessa
- * (shared/kit.ts, eventoComDatasDoKit): `truckDepartureDate`/`startDate` já
- * trocados e as três marcas abaixo presentes.
+ * O evento EMBUTIDO na peça — o mesmo para a peça da Arena e a do Kit (dono,
+ * 23/10: o Kit segue as datas do evento; shared/kit.ts).
  */
-export type EventoEmbutido = EventoJson & {
-  datasDoKit?: true;
-  kitVersao?: string;
-  /** A saída ORIGINAL da Arena, guardada quando a peça do Kit troca as datas. */
-  saidaDaArena?: string | null;
-};
+export type EventoEmbutido = EventoJson;
 
 /** O patrocinador embutido na peça, com o status da aprovação DESTA peça. */
 export type PatrocinadorDaPeca = PatrocinadorJson & {
@@ -72,7 +63,6 @@ export type MaeDoComplemento = { id: string; displayId: string | null; quantity:
 export type PecaEnriquecida = PecaJson & Partial<TuboDaPeca> & {
   event?: EventoEmbutido;
   sponsors: PatrocinadorDaPeca[];
-  kitRemessa: RemessaDoKitJson | null;
   complements?: PecaJson[];
   contractedTotal?: number;
   parent?: MaeDoComplemento;

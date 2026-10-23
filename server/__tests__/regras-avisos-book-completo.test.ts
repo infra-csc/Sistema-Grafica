@@ -90,7 +90,7 @@ describe("as portas fechadas do servidor", () => {
     const painel = (lista: Linha[]) => montarPainelOperacional({
       pecas: lista.map((p) => ({ ...p, quantity: 2, fileWidth: "1", fileHeight: "1", producedAt: new Date() })) as never,
       prazos: [], kpis, hoje: new Date().toISOString().slice(0, 10), geradoEm: new Date().toISOString(),
-      nomeDoEvento: new Map([["ev-1", "COPA NORTE"]]), remessasConhecidas: new Set(),
+      nomeDoEvento: new Map([["ev-1", "COPA NORTE"]]),
     });
     const semBook = JSON.stringify(painel([comum({ status: "produced" })]).prodRealizado);
     expect(JSON.stringify(painel([comum({ status: "produced" }), book({ status: "produced" })]).prodRealizado)).toBe(semBook);

@@ -3,14 +3,14 @@
 // original code review — pure relocation, no parsing logic changed.
 import type { Request, Response } from "express";
 import { z } from "zod";
-import { and, eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { db } from "../db";
 import { storage, isDisplayIdConflictError } from "../storage";
-import { insertItemSchema, items as itemsTable, itemSponsors, kitRemessas } from "@shared/schema";
+import { insertItemSchema, items as itemsTable, itemSponsors } from "@shared/schema";
 import { broadcast, createAuditLog, createAuditLogsEmLote, updateEventStatus } from "../routes/shared";
 import AdmZip from "adm-zip";
-import { carregarRemessa, remessaSchema } from "./kitRemessas";
-import { cabecalhoDoKit, diaMesDoKit, remessaUtilizavelPor, type CabecalhoDoKit } from "@shared/kit";
+import { obterOuCriarInclusaoDoKit, type DadosDaInclusao, type InclusaoDoKitLinha } from "./kitRemessas";
+import { cabecalhoDoKit, podeIncluirNoKit, type CabecalhoDoKit } from "@shared/kit";
 import { camposDoErro, fraseDoZod } from "../erros";
 import { tipoCanonico } from "@shared/molde";
 // O tipo da planilha casado com o catálogo e com os tipos do evento (relato
@@ -210,7 +210,7 @@ import { alinharTipo, chaveDoTipo, tipoAntesDoSeparador, tipoPeloTextoDoItem, ty
     buffer: Buffer,
     matchSponsors: (texto: string) => string[],
     /**
-     * `paraOKit`: a leitura é para o Kit (usuário do Kit, "Nova remessa do
+     * `paraOKit`: a leitura é para o Kit (usuário do Kit, "Incluir peças do
      * Kit", ou a pessoa escolheu "Kit"). Numa pasta com a aba "KIT" e a aba
      * "Arena", é a do Kit que vale — sem isto o parser ficava com a aba de
      * MAIS peças, e o Kit importava as 31 peças da Arena (New Balance BSB,
@@ -661,7 +661,7 @@ import { alinharTipo, chaveDoTipo, tipoAntesDoSeparador, tipoPeloTextoDoItem, ty
       if (!file) return res.status(400).json({ error: "Arquivo .xlsx não encontrado" });
 
       // PARA O KIT (21/10): o usuário do Kit sempre; os outros quando a tela
-      // diz (?para=kit — "Nova remessa do Kit"). Numa pasta com as abas "KIT"
+      // diz (?para=kit — "Incluir peças do Kit"). Numa pasta com as abas "KIT"
       // e "Arena", é a aba do Kit que vale.
       const paraOKit = req.userKit === true || req.query.para === "kit";
       // A aba que a pessoa escolheu na tela, quando a pasta tem mais de uma.
@@ -671,8 +671,8 @@ import { alinharTipo, chaveDoTipo, tipoAntesDoSeparador, tipoPeloTextoDoItem, ty
         if (leitura.amostra) console.error("[preview-xlsx] header not found. File:", file.originalname, "\nRows scanned:\n" + leitura.amostra);
         return res.status(400).json({ error: leitura.erro });
       }
-      // Planilha do Kit: o cabeçalho (datas, versão, solicitante) vai junto
-      // para a tela sugerir a remessa nova.
+      // Planilha do Kit: o cabeçalho (solicitante, departamento) vai junto
+      // para a tela mostrar de quem é a inclusão (as datas dele são ignoradas).
       // `ignoradas`: as linhas que ficaram de fora e por quê — a tela lista
       // "Linha 12: quantidade mínima é 1" em vez de a peça sumir calada.
       // O tipo que a prévia mostra já é o que vai ser gravado (ver alinharTipo).
@@ -707,9 +707,9 @@ import { alinharTipo, chaveDoTipo, tipoAntesDoSeparador, tipoPeloTextoDoItem, ty
 
   // ── Confirm import (save pre-reviewed items) ─────────────────────────────
   //
-  // TUDO OU NADA: a remessa nova do Kit, as peças e os vínculos com
+  // TUDO OU NADA: a inclusão do Kit (quando nasce), as peças e os vínculos com
   // patrocinador são gravados numa transação só. Antes eram três passos
-  // soltos — a remessa nascia, as peças falhavam na validação e a remessa
+  // soltos — a remessa do Kit nascia, as peças falhavam na validação e ela
   // ficava vazia no evento; ou as peças entravam e um vínculo falhava calado
   // (`.catch(() => {})`), e a peça seguia "sem patrocinador" sem ninguém saber.
   // O que vem DEPOIS (trilha, aviso, status do evento) não desfaz a importação:
@@ -719,37 +719,37 @@ import { alinharTipo, chaveDoTipo, tipoAntesDoSeparador, tipoPeloTextoDoItem, ty
       const event = await storage.getEvent(req.params.id);
       if (!event) return res.status(404).json({ error: "Evento não encontrado" });
 
-      const { items, fileName, kitRemessaId: kitCru } = req.body as { items: LinhaImportada[]; fileName?: string; kitRemessaId?: string };
+      const corpo = (req.body ?? {}) as {
+        items: LinhaImportada[]; fileName?: string;
+        kit?: unknown; kitRemessaId?: unknown; kitNovaRemessa?: unknown;
+      };
+      const { items, fileName } = corpo;
       if (!items || !Array.isArray(items) || items.length === 0)
         return res.status(400).json({ error: "Nenhum item para importar" });
 
-      // KIT (14/09): importação para uma remessa do Kit; o usuário do Kit só
-      // importa para uma remessa dele.
-      const kitRemessaExistente = typeof kitCru === "string" && kitCru ? kitCru : null;
-      // Planilha do Kit com remessa NOVA: a remessa nasce DENTRO da transação
-      // das peças (abaixo) — aqui só se valida.
-      const novaRemessaCrua: unknown = (req.body as { kitNovaRemessa?: unknown } | undefined)?.kitNovaRemessa;
-      let novaRemessa: z.infer<typeof remessaSchema> | null = null;
-      if (!kitRemessaExistente && novaRemessaCrua && typeof novaRemessaCrua === "object") {
-        if (!["admin", "solicitacao"].includes(req.userRole ?? "")) {
-          return res.status(403).json({ error: "Criar remessa do Kit é do admin e da Solicitação." });
-        }
-        const dadosRemessa = remessaSchema.safeParse({ ...novaRemessaCrua, eventId: event.id });
-        if (!dadosRemessa.success) {
-          return res.status(400).json({ error: dadosRemessa.error.errors?.[0]?.message || "Dados da remessa do Kit inválidos" });
-        }
-        novaRemessa = dadosRemessa.data;
+      // PLANILHA DO KIT (dono, 23/10: "seria tudo a mesma inclusão"): as peças
+      // entram na inclusão do Kit do evento — uma só, criada na primeira
+      // planilha; as seguintes só ACRESCENTAM peças. Sem datas: o Kit segue as
+      // do evento. O corpo diz `kit: true` (ou `kit: { solicitante,
+      // departamento }`, do cabeçalho da planilha); `kitRemessaId` e
+      // `kitNovaRemessa` são da tela anterior à 23/10 e valem só como "é do Kit".
+      // O usuário do Kit importa sempre para o Kit.
+      const dadosDoKit = (v: unknown): DadosDaInclusao => {
+        if (!v || typeof v !== "object") return {};
+        const o = v as Record<string, unknown>;
+        const t = (x: unknown) => (typeof x === "string" ? x : null);
+        return { solicitante: t(o.solicitante), departamento: t(o.departamento) };
+      };
+      const pedeKit = corpo.kit === true || (!!corpo.kit && typeof corpo.kit === "object")
+        || (typeof corpo.kitRemessaId === "string" && !!corpo.kitRemessaId)
+        || (!!corpo.kitNovaRemessa && typeof corpo.kitNovaRemessa === "object");
+      const paraOKit = req.userKit === true || pedeKit;
+      if (paraOKit && !podeIncluirNoKit({ role: req.userRole, kit: req.userKit })) {
+        return res.status(403).json({ error: "Incluir peças do Kit é do admin e da Solicitação." });
       }
-      if (req.userKit && !kitRemessaExistente && !novaRemessa) {
-        return res.status(400).json({ error: "Usuário do Kit importa só peças do Kit — escolha a remessa do Kit." });
-      }
-      if (kitRemessaExistente) {
-        const remessa = await carregarRemessa(kitRemessaExistente);
-        if (!remessa || remessa.eventId !== event.id) return res.status(400).json({ error: "Remessa do Kit inválida para este evento." });
-        if (!remessaUtilizavelPor({ kit: req.userKit === true, userId: req.userId }, remessa)) {
-          return res.status(403).json({ error: "Esta remessa do Kit é de outra pessoa." });
-        }
-      }
+      const kit: DadosDaInclusao | null = paraOKit
+        ? { ...dadosDoKit(corpo.kitNovaRemessa), ...dadosDoKit(corpo.kit), arquivo: typeof fileName === "string" ? fileName : null }
+        : null;
 
       // A linha que a pessoa vê na planilha (o preview manda `linha`); sem
       // ela, a posição na lista.
@@ -785,7 +785,8 @@ import { alinharTipo, chaveDoTipo, tipoAntesDoSeparador, tipoPeloTextoDoItem, ty
         measurement: item.measurement || "",
         observations: item.observations || "",
         status: "requested",
-        kitRemessaId: kitRemessaExistente,
+        // A inclusão do Kit é resolvida DENTRO da transação (gravarImportacao).
+        kitRemessaId: null,
         criadoPorId: req.userId ?? null,
       }));
 
@@ -825,16 +826,16 @@ import { alinharTipo, chaveDoTipo, tipoAntesDoSeparador, tipoPeloTextoDoItem, ty
         vinculosPorLinha.push(unicos);
       }
 
-      const { created, remessaCriada } = await gravarImportacao({ eventId: event.id, validated, vinculosPorLinha, novaRemessa, req });
+      const { created, inclusao, inclusaoCriada } = await gravarImportacao({ eventId: event.id, validated, vinculosPorLinha, kit, req });
 
       // ── Daqui para baixo nada desfaz a importação ──────────────────────────
-      if (remessaCriada) {
+      if (inclusao) {
         try {
-          await createAuditLog(req, "created", "event", event.id,
-            `Remessa do Kit ${remessaCriada.versao} criada — entrega do material ${diaMesDoKit(remessaCriada.entregaMaterial) ?? "—"}`
-            + (remessaCriada.saidaCaminhao ? `, saída do caminhão ${diaMesDoKit(remessaCriada.saidaCaminhao)}` : "")
-            + (remessaCriada.arquivo ? ` (planilha "${remessaCriada.arquivo}")` : ""));
-        } catch (e: unknown) { console.error("[confirm-import] trilha da remessa falhou:", camposDoErro(e).message); }
+          await createAuditLog(req, inclusaoCriada ? "created" : "updated", "event", event.id,
+            `Kit do evento: ${created.length} ${created.length === 1 ? "peça incluída" : "peças incluídas"}`
+            + (fileName ? ` pela planilha "${fileName}"` : "")
+            + (inclusaoCriada ? " (primeira inclusão do Kit neste evento)" : ""));
+        } catch (e: unknown) { console.error("[confirm-import] trilha do Kit falhou:", camposDoErro(e).message); }
         broadcast({ type: "kit_remessas", eventId: event.id });
       }
       try {
@@ -854,7 +855,7 @@ import { alinharTipo, chaveDoTipo, tipoAntesDoSeparador, tipoPeloTextoDoItem, ty
       }
       // O aviso não pode desfazer a importação (15/09): as peças já estão
       // gravadas — erro aqui fazia a tela dizer "não deu" e a pessoa importar
-      // de novo, duplicando a remessa inteira.
+      // de novo, duplicando a planilha inteira.
       try {
         const notification = await storage.createNotification({
           type: "itemAdded",
@@ -873,7 +874,7 @@ import { alinharTipo, chaveDoTipo, tipoAntesDoSeparador, tipoPeloTextoDoItem, ty
         console.error("[confirm-import] peças importadas, mas o status do evento não recalculou:", camposDoErro(e).message);
       }
 
-      res.status(201).json({ imported: created.length, items: created, ...(remessaCriada ? { kitRemessaId: remessaCriada.id } : {}) });
+      res.status(201).json({ imported: created.length, items: created, ...(inclusao ? { kitRemessaId: inclusao.id } : {}) });
     } catch (error: unknown) {
       const { httpStatus, publico } = camposDoErro(error) as { httpStatus?: number; publico?: string };
       if (httpStatus && publico) return res.status(httpStatus).json({ error: publico });
@@ -882,10 +883,8 @@ import { alinharTipo, chaveDoTipo, tipoAntesDoSeparador, tipoPeloTextoDoItem, ty
     }
   }
 
-  const paraDataDoKit = (d: string | null | undefined): Date | null => (d ? new Date(`${d}T12:00:00Z`) : null);
-
   /**
-   * A transação da importação: remessa nova (se houver), peças e vínculos.
+   * A transação da importação: a inclusão do Kit (planilha do Kit), peças e vínculos.
    * O código (#0001) sai da mesma sequência de storage.createBulkItems; numa
    * colisão entre servidores a sequência é ressincronizada e a transação
    * inteira roda de novo, uma vez.
@@ -894,7 +893,8 @@ import { alinharTipo, chaveDoTipo, tipoAntesDoSeparador, tipoPeloTextoDoItem, ty
     eventId: string;
     validated: Array<z.infer<typeof insertItemSchema>>;
     vinculosPorLinha: string[][];
-    novaRemessa: z.infer<typeof remessaSchema> | null;
+    /** Planilha do Kit: os dados da inclusão; null = peças da Arena. */
+    kit: DadosDaInclusao | null;
     req: Pick<Request, "userName" | "userId">;
   }) {
     // Os dois cuidados da sequência moram (privados) no storage; aqui só se
@@ -903,36 +903,16 @@ import { alinharTipo, chaveDoTipo, tipoAntesDoSeparador, tipoPeloTextoDoItem, ty
     const armazem = storage;
     if (typeof armazem["ensureDisplayIdSequence"] === "function") await armazem["ensureDisplayIdSequence"]();
     const rodar = () => db.transaction(async (tx) => {
-      let remessaCriada: typeof kitRemessas.$inferSelect | null = null;
-      let kitRemessaId: string | null = p.validated[0]?.kitRemessaId ?? null;
-      if (p.novaRemessa) {
-        const d = p.novaRemessa;
-        // Mesma versão duas vezes no mesmo evento é engano (um clique repetido
-        // duplicava a remessa com as peças) — a regra de criarRemessa.
-        const mesmas = await tx.select({ id: kitRemessas.id }).from(kitRemessas)
-          .where(and(eq(kitRemessas.eventId, p.eventId), sql`lower(${kitRemessas.versao}) = lower(${d.versao})`));
-        if (mesmas.length > 0) {
-          throw Object.assign(new Error("remessa repetida"), {
-            httpStatus: 409,
-            publico: `Já existe a remessa KIT ${d.versao} neste evento — use a próxima versão ou exclua a repetida.`,
-          });
-        }
-        [remessaCriada] = await tx.insert(kitRemessas).values({
-          eventId: p.eventId,
-          versao: d.versao,
-          solicitante: d.solicitante || null,
-          departamento: d.departamento || null,
-          dataSolicitacao: paraDataDoKit(d.dataSolicitacao),
-          entregaMaterial: paraDataDoKit(d.entregaMaterial)!,
-          dataEvento: paraDataDoKit(d.dataEvento),
-          cargaCaminhao: paraDataDoKit(d.cargaCaminhao),
-          saidaCaminhao: paraDataDoKit(d.saidaCaminhao),
-          arquivo: d.arquivo || null,
-          criadoPor: p.req.userName ?? null,
-          criadoPorId: p.req.userId ?? null,
-        }).returning();
-        kitRemessaId = remessaCriada!.id;
+      let inclusao: InclusaoDoKitLinha | null = null;
+      let inclusaoCriada = false;
+      if (p.kit) {
+        // UMA inclusão por evento: a primeira planilha a cria; as outras
+        // acrescentam peças a ela (dono, 23/10).
+        const r = await obterOuCriarInclusaoDoKit(tx, p.eventId, p.req, p.kit);
+        inclusao = r.inclusao;
+        inclusaoCriada = r.criada;
       }
+      const kitRemessaId = inclusao?.id ?? null;
 
       const seq = await tx.execute(sql`SELECT nextval('item_display_id_seq') as next_id FROM generate_series(1, ${p.validated.length})`);
       const codigos: string[] = ((seq as { rows?: Array<{ next_id?: unknown }> }).rows ?? []).map((row) => `#${String(Number(row.next_id)).padStart(4, "0")}`);
@@ -949,7 +929,7 @@ import { alinharTipo, chaveDoTipo, tipoAntesDoSeparador, tipoPeloTextoDoItem, ty
       const vinculos = created.flatMap((peca, i) => (p.vinculosPorLinha[i] ?? []).map((sponsorId) => ({ itemId: peca.id, sponsorId })));
       if (vinculos.length > 0) await tx.insert(itemSponsors).values(vinculos).onConflictDoNothing();
 
-      return { created, remessaCriada };
+      return { created, inclusao, inclusaoCriada };
     });
     try {
       return await rodar();

@@ -72,15 +72,15 @@ export function useFormularioDaPeca() {
     setOpen(true);
   };
 
-  /** Inclusão individual do Kit: o formulário de sempre, já na remessa. */
-  const abrirNaRemessaDoKit = (remessaId: string) => {
+  /** Inclusão individual do Kit: o formulário de sempre, já marcado "Kit". */
+  const abrirNoKit = () => {
     setEditingItem(null);
     setBulkMode(false);
     setCustomMaterial(false);
     setCustomFinish(false);
     setLocalRefPreview("");
     setPedidoEmAtendimento(null);
-    setFormData({ ...EMPTY_ITEM_FORM, kitRemessaId: remessaId });
+    setFormData({ ...EMPTY_ITEM_FORM, doKit: true });
     setOpen(true);
   };
 
@@ -92,7 +92,7 @@ export function useFormularioDaPeca() {
     setCustomFinish(false);
     setEditingItem(item);
     setFormData({
-      kitRemessaId: item.kitRemessaId || "",
+      doKit: !!item.kitRemessaId,
       type: item.type || "",
       description: item.description || "",
       quantity: item.quantity || 1,
@@ -151,7 +151,7 @@ export function useFormularioDaPeca() {
     bulkMode, setBulkMode, editingItem, setEditingItem, bulkSavedTick, setBulkSavedTick,
     bulkLeftoverRef, bulkTemConteudoRef, customMaterial, setCustomMaterial, customFinish, setCustomFinish,
     formData, setFormData, pedidoEmAtendimento, setPedidoEmAtendimento,
-    criarPecaDoPedido, abrirNaRemessaDoKit, hidratarEdicao, handleCloseDialog, abrirEntradaDePecas, handleCloseEditDialog,
+    criarPecaDoPedido, abrirNoKit, hidratarEdicao, handleCloseDialog, abrirEntradaDePecas, handleCloseEditDialog,
   };
 }
 

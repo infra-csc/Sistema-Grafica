@@ -72,7 +72,7 @@ type Peca = {
   travadaPor?: string | null;
   travadaMotivo?: string | null;
   excluida?: boolean;
-  /** Peça de remessa do Kit — quem só visualiza não age nela. */
+  /** Peça do Kit — quem só visualiza não age nela. */
   doKit?: boolean;
   /** Foto da conferência da peça — quem entrega vê que o material está documentado. */
   conferencePhotoUrl?: string | null;

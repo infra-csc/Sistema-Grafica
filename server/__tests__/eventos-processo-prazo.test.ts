@@ -252,7 +252,7 @@ describe("Eventos × processo × prazo — bate com a Gestão de Prazos (critér
     .filter((e): e is PrazoEvent => !!e).map((e) => ({ ...e, eventId: e.id, kit: null }));
   const painel = montarPainelOperacional({
     pecas: PECAS, prazos, kpis: computeKpis(prazos), hoje: HOJE, geradoEm: new Date().toISOString(),
-    nomeDoEvento: new Map(EVENTOS.map((e) => [e.id, e.name])), remessasConhecidas: new Set(),
+    nomeDoEvento: new Map(EVENTOS.map((e) => [e.id, e.name])),
   });
   const r = eventosProcessoPrazo(painel);
 

@@ -150,9 +150,9 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
       const response = await apiRequest<RespostaDaImportacao>("POST", `/api/events/${eventId}/confirm-import`, {
         items,
         fileName,
-        // Kit (14/09): remessa existente ou nova (o servidor cria e liga).
-        ...(destino?.tipo === "remessa" ? { kitRemessaId: destino.kitRemessaId } : {}),
-        ...(destino?.tipo === "nova" ? { kitNovaRemessa: destino.kitNovaRemessa } : {}),
+        // Kit (23/10): as peças entram no Kit do evento — uma inclusão só,
+        // criada pelo servidor na primeira planilha.
+        ...(destino?.tipo === "kit" ? { kit: destino.kit } : {}),
       });
       if (!response.ok) {
         const err: unknown = await response.json();

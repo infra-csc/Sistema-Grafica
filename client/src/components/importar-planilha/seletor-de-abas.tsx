@@ -3,7 +3,7 @@
 // as abas "KIT" e "Arena", e o importador pegava uma em silêncio (a de mais
 // peças). Com mais de uma aba com peças, a tela mostra as abas, quantas peças
 // cada uma tem, qual foi lida — e deixa trocar. Usado na importação do evento
-// e na "Nova remessa do Kit".
+// e no "Incluir peças do Kit".
 // ─────────────────────────────────────────────────────────────────────────────
 import { Package } from "lucide-react";
 import type { AbaComPecasDaPlanilha } from "@shared/api";

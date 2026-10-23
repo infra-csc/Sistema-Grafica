@@ -506,7 +506,9 @@ describe("11 · o schema declara o que o SQL cria", () => {
     const fks = getTableConfig(tuboItens).foreignKeys.map((f: any) => f.getName());
     expect(fks.sort()).toEqual(["tubo_itens_item_id_items_id_fk", "tubo_itens_tubo_id_tubos_id_fk"]);
     // Só renomeia: nada de DROP no bloco novo.
-    const bloco = aditivo.slice(aditivo.indexOf("Nomes das FKs e do CHECK alinhados"));
+    // (até a 0009, que tira o NOT NULL da data do Kit — o único DROP de propósito, 23/10).
+    const fim = aditivo.indexOf("-- 0009 (23/10)");
+    const bloco = aditivo.slice(aditivo.indexOf("Nomes das FKs e do CHECK alinhados"), fim > 0 ? fim : undefined);
     expect(bloco).not.toMatch(/\bDROP\b/i);
   });
 });

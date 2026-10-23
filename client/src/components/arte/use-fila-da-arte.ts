@@ -22,6 +22,7 @@ import {
   isUrgente,
   matchesArteFilters,
   phaseDeadline,
+  faseDoPrazo,
   type ArteFilters,
   type ArteSortMode,
   type DateBounds,
@@ -398,8 +399,8 @@ export function useFilaDaArte({
         // as demais peças, pelo marco da fase do evento — como sempre.
         const pa = prazoDoMolde(a, a.event, hoje), pb = prazoDoMolde(b, b.event, hoje);
         if (pa || pb) {
-          const da = pa ?? phaseDeadline(a.event, activeTab, hoje);
-          const db = pb ?? phaseDeadline(b.event, activeTab, hoje);
+          const da = pa ?? phaseDeadline(a.event, faseDoPrazo(activeTab, a), hoje);
+          const db = pb ?? phaseDeadline(b.event, faseDoPrazo(activeTab, b), hoje);
           if (da && db && da.date.getTime() !== db.date.getTime()) return da.date.getTime() - db.date.getTime();
           if (da && !db) return -1;
           if (!da && db) return 1;
@@ -409,9 +410,6 @@ export function useFilaDaArte({
       }
       const eA = a.event?.name || '', eB = b.event?.name || '';
       if (eA !== eB) return cmp.compare(eA, eB);
-      // Cada remessa do Kit junta, num bloco só.
-      const rA = a.kitRemessaId || '', rB = b.kitRemessaId || '';
-      if (rA !== rB) return cmp.compare(rA, rB);
       const gA = groupOf(a.type) || '', gB = groupOf(b.type) || '';
       if (gA !== gB) return cmp.compare(gA, gB);
       // compareDisplayId, não replace(/\D/g,''): o complemento "#0062-C1"

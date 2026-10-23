@@ -126,10 +126,11 @@ describe("a mesma ação tem a mesma cor em todas as telas", () => {
     expect(ler("client/src/index.css")).toContain(".cor-acao-lixeira:hover:not(:disabled)");
   });
 
-  it("perigo secundário oficial (Cotas, Pedidos, Kit) e o Criar preto dos Pedidos", () => {
+  it("perigo secundário oficial (Cotas, Pedidos) e o Criar preto dos Pedidos", () => {
     expect(ler("client/src/pages/configurar-cotas.tsx").match(/variante="perigoSecundario"/g)?.length).toBe(2);
     expect(ler("client/src/components/pedidos/formulario-do-pedido.tsx")).toContain('<Botao variante="perigoSecundario" tamanho={tamanhoPequeno} icone={Trash2} onClick={onRemover}');
-    expect(ler("client/src/components/kit/painel-do-kit.tsx")).toContain('<Botao variante="perigoSecundario" tamanho="sm" icone={Trash2} data-testid={`button-excluir-remessa-${r.id}`}');
+    // O Kit não tem mais "Excluir remessa" (23/10: uma inclusão só por evento).
+    expect(ler("client/src/components/kit/painel-do-kit.tsx")).not.toContain("button-excluir-remessa");
     expect(ler("client/src/components/pedidos/cartao-do-pedido.tsx")).toContain('criar:      { fundo: T.dark, cor: T.surface, borda: T.dark, classe: "ds-botao" }');
   });
 

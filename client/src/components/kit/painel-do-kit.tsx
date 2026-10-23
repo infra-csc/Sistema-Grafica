@@ -1,19 +1,24 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// KIT DENTRO DO EVENTO (dono, 14/09): as remessas do Kit deste evento, com as
-// datas do Kit (entrega do material, carga e saída do caminhão).
+// O KIT DENTRO DO EVENTO (dono, 14/09; simplificado em 23/10).
 //
-// "NOVA REMESSA DO KIT" É UMA TELA SÓ: "o perfeito seria uma tela só que
-// preenche os itens e esses dados". Envia a planilha do Kit → o cabeçalho
-// preenche a remessa e a tabela vira a lista de peças; um botão cria a
-// remessa e importa as peças juntas. Sem planilha, cria só a remessa.
-// "Nas próximas remessas, se tiver, já vem os dados": a remessa nova abre com
-// o solicitante e as datas da última, e a versão seguinte.
+// "O kit não precisa ser tão diferente das peças normais [...] não seriam
+// várias remessas, seria tudo a mesma inclusão, e ele não precisaria colocar as
+// datas, mas seguiremos com a planilha de inclusão do kit." (dono, 23/10)
+//
+// UM BLOCO SÓ: "Kit · N peças". As peças do Kit são peças do evento, com o selo
+// KIT, e seguem os prazos do evento a partir da Aprovação de layout. Nada de
+// V1/V2, de datas próprias, de "Editar remessa" ou "Nova remessa".
+//
+// "INCLUIR PEÇAS DO KIT" É A PLANILHA: subir a planilha do Kit (aba KIT, com o
+// seletor de abas quando a pasta tem várias) → prévia das peças → incluir. A
+// primeira planilha cria o Kit do evento; as seguintes só acrescentam peças.
+// "Adicionar peça" abre o formulário de sempre, já marcado Kit.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useRef, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { ChevronDown, FileSpreadsheet, Package, Pencil, Plus, Trash2, X } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import { ChevronDown, FileSpreadsheet, Package, Plus, X } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
-import { diaMesDoKit, type RemessaDoKit } from "@shared/kit";
+import type { InclusaoDoKit } from "@shared/kit";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -24,16 +29,11 @@ import { Botao } from "@/components/ui/botao";
 import { SeletorDeAbas, consultaDaPrevia } from "@/components/importar-planilha/seletor-de-abas";
 import type { AbaComPecasDaPlanilha } from "@shared/api";
 
-const ROTULO: React.CSSProperties = { display: "block", fontSize: FS.small, fontWeight: FW.rotulo, letterSpacing: "0.08em", textTransform: "uppercase", color: T.apoio, marginBottom: 5 };
-const CAMPO: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: 38, padding: "0 10px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, fontSize: FS.read, color: T.text, fontFamily: "inherit" };
-
-const dataDoCampo = (d: string | Date | null | undefined) => (d ? new Date(d).toISOString().slice(0, 10) : "");
-const proximaVersao = (remessas: RemessaDoKit[]) => {
-  const numeros = remessas.map((r) => parseInt(String(r.versao).replace(/\D/g, ""), 10)).filter((n) => Number.isFinite(n));
-  return `V${(numeros.length ? Math.max(...numeros) : remessas.length) + 1}`;
-};
-
+/** A chave da query do Kit do evento (GET /api/kit/remessas?eventId=). */
 export const chaveDasRemessas = (eventId: string) => `/api/kit/remessas?eventId=${eventId}`;
+
+/** A frase dos prazos do Kit, a mesma em toda tela do evento. */
+export const FRASE_DOS_PRAZOS_DO_KIT = "Seguem os prazos do evento a partir da Aprovação de layout.";
 
 type PecaDaPlanilha = {
   type: string; description: string; quantity: number;
@@ -44,7 +44,7 @@ type PecaDaPlanilha = {
   _chave: string;
 };
 
-/** A peça do evento, no que o painel lê para listar a remessa aberta. */
+/** A peça do evento, no que o painel lê para listar o Kit. */
 export interface PecaDoKit {
   id: string;
   kitRemessaId?: string | null;
@@ -58,20 +58,21 @@ export interface PecaDoKit {
   status: string;
 }
 
+const pecas1 = (n: number) => `${n} ${n === 1 ? "peça" : "peças"}`;
+
 // Genérico na peça: o `onAbrirPeca` devolve a peça no tipo da tela que a passou.
-export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsuario, dataDoEvento, saidaDoEvento, eventoFinalizado, onAbrirPeca, onAdicionarPeca }: {
+export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, inclusao, podeCriar, usuarioDoKit, eventoFinalizado, onAbrirPeca, onAdicionarPeca }: {
   eventId: string;
   pecas: readonly TPeca[];
+  /** A inclusão do Kit do evento (null = o evento ainda não tem Kit). */
+  inclusao: InclusaoDoKit | null;
   /** Abre o detalhe da peça (o mesmo da lista da Arena). */
   onAbrirPeca?: (peca: TPeca) => void;
-  /** Inclusão individual (15/09): abre "Adicionar Peça" já na remessa. */
-  onAdicionarPeca?: (remessaId: string) => void;
+  /** Inclusão individual (15/09): abre "Adicionar Peça" já marcado Kit. */
+  onAdicionarPeca?: () => void;
   /** admin | solicitacao (inclui o usuário do Kit) — a régua do servidor. */
   podeCriar: boolean;
   usuarioDoKit: boolean;
-  nomeDoUsuario: string;
-  dataDoEvento: string | null;
-  saidaDoEvento: string | null;
   eventoFinalizado: boolean;
 }) {
   const { toast } = useToast();
@@ -79,69 +80,25 @@ export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, podeCriar
   /** Dedo (celular OU tablet do galpão): manda no TAMANHO do alvo, só nele. */
   const dedo = usePonteiroGrosso() || isMobile;
   const [aberto, setAberto] = useState(false);
-  // EDITAR (dono, 21/10: "botão para o Kit mudar os dados"): o MESMO modal da
-  // criação, já preenchido com a remessa — sem planilha (as peças já entraram).
-  const [editando, setEditando] = useState<RemessaDoKit | null>(null);
-  const { data: remessas = [] } = useQuery<RemessaDoKit[]>({ queryKey: [chaveDasRemessas(eventId)], enabled: !!eventId });
-
-  const [form, setForm] = useState({ versao: "V1", solicitante: "", entregaMaterial: "", dataEvento: "", cargaCaminhao: "", saidaCaminhao: "" });
-  const [planilha, setPlanilha] = useState<{ nome: string; pecas: PecaDaPlanilha[]; departamento: string | null; dataSolicitacao: string | null; abas: AbaComPecasDaPlanilha[] } | null>(null);
+  const [listaAberta, setListaAberta] = useState(false);
+  const [planilha, setPlanilha] = useState<{ nome: string; pecas: PecaDaPlanilha[]; solicitante: string | null; departamento: string | null; abas: AbaComPecasDaPlanilha[] } | null>(null);
   // O arquivo, para ler OUTRA aba da mesma pasta sem pedir de novo.
   const arquivoRef = useRef<File | null>(null);
   const [lendoPlanilha, setLendoPlanilha] = useState(false);
-  // Detalhe das peças de cada remessa, com status (15/09: "igual o da Arena").
-  const [remessaAberta, setRemessaAberta] = useState<string | null>(null);
-  const [confirmandoExclusao, setConfirmandoExclusao] = useState<string | null>(null);
-  // DESCARTE COM PERGUNTA — só quando há o que perder. O modal abre já
-  // preenchido com os dados da última remessa; fechar isso sem mexer não custa
-  // nada, e perguntar ali seria um clique a mais. Perder uma planilha lida (ou
-  // datas digitadas à mão) custa refazer tudo: é aí que se pergunta.
+  // DESCARTE COM PERGUNTA — só quando há o que perder (uma planilha lida).
   const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
-  const formInicialRef = useRef<string>("");
   const continuarRef = useRef<HTMLButtonElement | null>(null);
 
-  const excluir = useMutation({
-    mutationFn: async (id: string): Promise<{ excluidas?: number }> => (await apiRequest("DELETE", `/api/kit/remessas/${id}`)).json(),
-    onSuccess: (r) => {
-      toast({ title: "Remessa do Kit excluída", description: r?.excluidas ? `${r.excluidas} ${r.excluidas === 1 ? "peça foi para" : "peças foram para"} Peças Excluídas.` : undefined, variant: "success" });
-      setConfirmandoExclusao(null);
-      setRemessaAberta(null);
-      queryClient.invalidateQueries({ queryKey: [chaveDasRemessas(eventId)] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-    },
-    onError: (e) => toast({ title: "Não deu para excluir a remessa", description: String(e?.message ?? "").replace(/^\d{3}:\s*/, "").replace(/^\{"error":"(.*)"\}$/, "$1"), variant: "destructive" }),
-  });
-
-  // Cada abertura: a versão seguinte e os dados da ÚLTIMA remessa (quando há).
+  // Cada abertura começa limpa.
   useEffect(() => {
     if (!aberto) return;
-    const ultima = remessas[0];
     setPlanilha(null);
     setConfirmandoDescarte(false);
-    const inicial = editando ? {
-      versao: editando.versao,
-      solicitante: editando.solicitante || "",
-      entregaMaterial: dataDoCampo(editando.entregaMaterial),
-      dataEvento: dataDoCampo(editando.dataEvento),
-      cargaCaminhao: dataDoCampo(editando.cargaCaminhao),
-      saidaCaminhao: dataDoCampo(editando.saidaCaminhao),
-    } : {
-      versao: proximaVersao(remessas),
-      solicitante: ultima?.solicitante || nomeDoUsuario,
-      entregaMaterial: dataDoCampo(ultima?.entregaMaterial),
-      dataEvento: dataDoCampo(ultima?.dataEvento) || dataDoCampo(dataDoEvento),
-      cargaCaminhao: dataDoCampo(ultima?.cargaCaminhao),
-      saidaCaminhao: dataDoCampo(ultima?.saidaCaminhao),
-    };
-    // A foto do formulário como abriu: é contra ela que "mexeu?" é medido.
-    formInicialRef.current = JSON.stringify(inicial);
-    setForm(inicial);
-  }, [aberto]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [aberto]);
 
-  // O foco vai para "Continuar editando" quando a pergunta aparece: o botão
-  // que tinha o foco (Cancelar) acabou de sair da tela, e um Enter distraído
-  // tem de cair na opção que NÃO perde nada. Esc de novo também volta.
+  // O foco vai para "Continuar" quando a pergunta aparece: o botão que tinha o
+  // foco (Cancelar) acabou de sair da tela, e um Enter distraído tem de cair
+  // na opção que NÃO perde nada.
   useEffect(() => {
     if (confirmandoDescarte) continuarRef.current?.focus();
   }, [confirmandoDescarte]);
@@ -162,25 +119,13 @@ export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, podeCriar
       const lidas: PecaDaPlanilha[] = Array.isArray(dados?.items)
         ? dados.items.map((p: Omit<PecaDaPlanilha, "_chave">, i: number) => ({ ...p, _chave: `${Date.now()}-${i}` }))
         : [];
-      if (c) {
-        setForm((f) => ({
-          versao: c.versao || f.versao,
-          solicitante: c.solicitante || f.solicitante,
-          entregaMaterial: c.entregaMaterial || f.entregaMaterial,
-          dataEvento: c.dataEvento || f.dataEvento,
-          cargaCaminhao: c.cargaCaminhao || f.cargaCaminhao,
-          saidaCaminhao: c.saidaCaminhao || f.saidaCaminhao,
-        }));
-      }
-      setPlanilha({ nome: dados?.fileName ?? arquivo.name, pecas: lidas, departamento: c?.departamento ?? null, dataSolicitacao: c?.dataSolicitacao ?? null, abas: Array.isArray(dados?.abas) ? dados.abas : [] });
+      setPlanilha({ nome: dados?.fileName ?? arquivo.name, pecas: lidas, solicitante: c?.solicitante ?? null, departamento: c?.departamento ?? null, abas: Array.isArray(dados?.abas) ? dados.abas : [] });
       // A aba lida entra no título quando a pasta tem várias ("da aba KIT"):
       // é o que mostra que as peças são as do Kit, e não as da Arena.
       const daAba = typeof dados?.aba === "string" && dados.aba ? ` da aba ${dados.aba}` : "";
-      toast(c && c.entregaMaterial
-        ? { title: `Planilha do Kit lida: ${lidas.length} ${lidas.length === 1 ? "peça" : "peças"}${daAba}`, description: "Datas e versão preenchidas pelo cabeçalho — confira antes de criar.", variant: "success" as const }
-        : c
-        ? { title: `Planilha do Kit lida: ${lidas.length} ${lidas.length === 1 ? "peça" : "peças"}${daAba}`, description: "Versão e solicitante vieram do cabeçalho; a planilha não traz a entrega do material — preencha as datas à mão.", variant: "warning" as const }
-        : { title: `${lidas.length} ${lidas.length === 1 ? "peça lida" : "peças lidas"}${daAba}`, description: "A planilha não tem o cabeçalho do Kit: preencha as datas à mão.", variant: "warning" as const });
+      toast(lidas.length > 0
+        ? { title: `Planilha do Kit lida: ${pecas1(lidas.length)}${daAba}`, description: "Confira as peças antes de incluir.", variant: "success" as const }
+        : { title: `Nenhuma peça lida${daAba}`, description: "A planilha não trouxe linhas de peça — confira a aba ou o arquivo.", variant: "warning" as const });
     } catch (e) {
       toast({ title: "Não deu para ler a planilha", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
@@ -188,37 +133,24 @@ export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, podeCriar
     }
   };
 
-  const criar = useMutation({
+  const incluir = useMutation({
     mutationFn: async () => {
-      const remessa = {
-        versao: form.versao.trim(),
-        solicitante: form.solicitante.trim() || null,
-        departamento: planilha?.departamento || "Kit",
-        dataSolicitacao: planilha?.dataSolicitacao || null,
-        entregaMaterial: form.entregaMaterial,
-        dataEvento: form.dataEvento || null,
-        cargaCaminhao: form.cargaCaminhao || null,
-        saidaCaminhao: form.saidaCaminhao || null,
-        arquivo: planilha?.nome || null,
-      };
-      // Com peças: a importação cria a remessa e as peças numa ida só.
-      if (planilha && planilha.pecas.length > 0) {
-        const r = await apiRequest("POST", `/api/events/${eventId}/confirm-import`, {
-          items: planilha.pecas.map(({ _chave, ...p }) => ({ ...p, suggestedSponsorIds: [] })),
-          fileName: planilha.nome,
-          kitNovaRemessa: remessa,
-        });
-        return { pecas: (await r.json())?.imported ?? planilha.pecas.length };
-      }
-      await apiRequest("POST", "/api/kit/remessas", { eventId, ...remessa });
-      return { pecas: 0 };
+      if (!planilha || planilha.pecas.length === 0) throw new Error("Envie a planilha do Kit");
+      // A importação põe as peças no Kit do evento (cria a inclusão na
+      // primeira planilha; nas seguintes, acrescenta).
+      const r = await apiRequest("POST", `/api/events/${eventId}/confirm-import`, {
+        items: planilha.pecas.map(({ _chave, ...p }) => ({ ...p, suggestedSponsorIds: [] })),
+        fileName: planilha.nome,
+        kit: { solicitante: planilha.solicitante, departamento: planilha.departamento },
+      });
+      return { pecas: (await r.json())?.imported ?? planilha.pecas.length };
     },
     onSuccess: (r) => {
       toast({
-        title: r.pecas > 0 ? `Remessa ${form.versao.trim()} criada com ${r.pecas} ${r.pecas === 1 ? "peça" : "peças"}` : "Remessa do Kit criada",
-        // As peças nascem em RASCUNHO: sem dizer, quem importou achava que a
-        // remessa já tinha seguido para a vinculação.
-        description: r.pecas > 0 ? "As peças entraram em Rascunho com o selo KIT — envie para a vinculação no card “Peças em Rascunho”." : "Adicione as peças escolhendo esta remessa, ou crie outra com a planilha.",
+        title: `${pecas1(r.pecas)} ${r.pecas === 1 ? "incluída" : "incluídas"} no Kit`,
+        // As peças nascem em RASCUNHO: sem dizer, quem importou achava que o
+        // Kit já tinha seguido para a vinculação.
+        description: "Entraram em Rascunho com o selo KIT — envie para a vinculação no card “Peças em Rascunho”.",
         variant: "success",
       });
       queryClient.invalidateQueries({ queryKey: [chaveDasRemessas(eventId)] });
@@ -226,86 +158,39 @@ export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, podeCriar
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setAberto(false);
     },
-    onError: (e) => toast({ title: "Não deu para criar a remessa", description: String(e?.message ?? "").replace(/^\d{3}:\s*/, ""), variant: "destructive" }),
+    onError: (e) => toast({ title: "Não deu para incluir as peças do Kit", description: String(e?.message ?? "").replace(/^\d{3}:\s*/, "").replace(/^\{"error":"(.*)"\}$/, "$1"), variant: "destructive" }),
   });
 
-  const salvar = useMutation({
-    mutationFn: async (): Promise<RemessaDoKit & { pecasAtualizadas?: number; prazosMudaram?: boolean }> => {
-      if (!editando) throw new Error("Nenhuma remessa em edição");
-      // Campo de data vazio é null (apagar a data); a entrega do material é
-      // obrigatória e o botão já trava sem ela.
-      return (await apiRequest("PATCH", `/api/kit/remessas/${editando.id}`, {
-        versao: form.versao.trim(),
-        solicitante: form.solicitante.trim() || null,
-        entregaMaterial: form.entregaMaterial,
-        dataEvento: form.dataEvento || null,
-        cargaCaminhao: form.cargaCaminhao || null,
-        saidaCaminhao: form.saidaCaminhao || null,
-      })).json();
-    },
-    onSuccess: (r) => {
-      const n = r?.pecasAtualizadas ?? 0;
-      toast({
-        title: `Remessa KIT ${r?.versao ?? form.versao.trim()} atualizada`,
-        description: n > 0 && r?.prazosMudaram
-          ? `Os prazos ${n === 1 ? "da peça" : `das ${n} peças`} desta remessa já seguem as datas novas.`
-          : undefined,
-        variant: "success",
-      });
-      queryClient.invalidateQueries({ queryKey: [chaveDasRemessas(eventId)] });
-      queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0] ?? "").startsWith("/api/kit/remessas") });
-      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/prazos"] });
-      setAberto(false);
-    },
-    onError: (e) => toast({ title: "Não deu para salvar a remessa", description: String(e?.message ?? "").replace(/^\d{3}:\s*/, "").replace(/^\{"error":"(.*)"\}$/, "$1"), variant: "destructive" }),
-  });
-  const ocupado = criar.isPending || salvar.isPending;
+  const doKit = pecas
+    .filter((p) => !!p.kitRemessaId && !p.deletedAt)
+    .sort((a, b) => String(a.displayId ?? "").localeCompare(String(b.displayId ?? ""), "pt-BR", { numeric: true }));
+  const n = doKit.length;
+  if (n === 0 && !inclusao && !podeCriar) return null;
 
-  if (remessas.length === 0 && !podeCriar) return null;
-  const pecasDe = (id: string) => pecas.filter((p) => p.kitRemessaId === id && !p.deletedAt).length;
-  const mexeu = JSON.stringify(form) !== formInicialRef.current;
-  const faltando = !form.versao.trim() ? "Informe a versão" : !form.entregaMaterial ? "Informe a data de entrega do material" : lendoPlanilha ? "Aguarde a leitura da planilha"
-    : editando && !mexeu ? "Nenhuma alteração ainda" : null;
   const nPecas = planilha?.pecas.length ?? 0;
+  const faltando = lendoPlanilha ? "Aguarde a leitura da planilha" : !planilha ? "Envie a planilha do Kit" : nPecas === 0 ? "A planilha não tem peças" : null;
   const tirarPeca = (i: number) => setPlanilha((p) => (p ? { ...p, pecas: p.pecas.filter((_, j) => j !== i) } : p));
-  const temAlgoAPerder = !!planilha || mexeu;
-  // As peças da remessa em edição: são os prazos delas que a data nova move.
-  const pecasEmEdicao = editando ? pecasDe(editando.id) : 0;
-  const abrirNova = () => { setEditando(null); setAberto(true); };
-  const abrirEdicao = (r: RemessaDoKit) => { setEditando(r); setAberto(true); };
-  // Toda saída que não é "Criar" passa por aqui: X, Cancelar, Esc e clique fora.
+  // Toda saída que não é "Incluir" passa por aqui: X, Cancelar, Esc e clique fora.
   const pedirParaFechar = () => {
-    if (ocupado) return;
+    if (incluir.isPending) return;
     if (confirmandoDescarte) { setConfirmandoDescarte(false); return; }
-    if (temAlgoAPerder) { setConfirmandoDescarte(true); return; }
+    if (planilha) { setConfirmandoDescarte(true); return; }
     setAberto(false);
   };
+  const motivoFinalizado = eventoFinalizado ? "Evento finalizado — não recebe peças." : undefined;
+  const quem = [inclusao?.solicitante ?? inclusao?.criadoPor, inclusao?.arquivo].filter(Boolean).join(" · ");
 
-  const campo = (id: string, rotulo: string, chave: keyof typeof form, tipo: "text" | "date" = "text") => (
-    <div>
-      <label htmlFor={`remessa-${id}`} style={ROTULO}>{rotulo}</label>
-      <input id={`remessa-${id}`} data-testid={`input-remessa-${id}`} type={tipo} value={form[chave]}
-        onChange={(e) => setForm((f) => ({ ...f, [chave]: e.target.value }))} style={CAMPO} />
-    </div>
-  );
-
-  // OCIOSO: o painel aparece em TODO evento para quem pode criar remessa, e
-  // a imensa maioria dos eventos não tem Kit. Sem remessa (e para quem não é
-  // do Kit) ele vira uma linha discreta — tracejada, sem a faixa roxa — para
-  // não disputar com a lista algo que quase nunca se usa. Com remessa, ou para
-  // o usuário do Kit, volta a ser o painel cheio.
-  const ocioso = remessas.length === 0 && !usuarioDoKit;
+  // OCIOSO: o painel aparece em TODO evento para quem pode incluir, e a imensa
+  // maioria dos eventos não tem Kit. Sem peça do Kit (e para quem não é do Kit)
+  // ele vira uma linha discreta — tracejada, sem o roxo — para não disputar
+  // com a lista algo que quase nunca se usa.
+  const ocioso = n === 0 && !usuarioDoKit;
   return (
     <section data-testid="painel-do-kit" aria-labelledby="titulo-painel-do-kit"
       style={ocioso
         ? { backgroundColor: "transparent", border: `1px dashed ${T.bdark}`, borderRadius: R.lg, padding: isMobile ? "10px 12px" : "8px 10px 8px 16px", marginBottom: isMobile ? 24 : 32, display: "flex", flexDirection: "column", gap: 10 }
         // Cheio: o MESMO desenho dos cards de rascunhos e de solicitações
-        // (borda inteira na tinta da família, ladrilho do ícone, título em
-        // display) — a faixa lateral de 3px era um terceiro jeito de dizer
-        // "card com assunto".
+        // (borda inteira na tinta da família, ladrilho do ícone, título em display).
         : { backgroundColor: T.surface, border: `1px solid ${TOM.roxo.border}`, borderRadius: R.lg, boxShadow: SHADOW.sm, padding: isMobile ? "16px" : "18px 24px 20px", marginBottom: isMobile ? 24 : 32, display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "flex", alignItems: "center", gap: ocioso ? 10 : 12, flexWrap: "wrap" }}>
         {ocioso
@@ -317,132 +202,80 @@ export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, podeCriar
           )}
         <h2 id="titulo-painel-do-kit" style={ocioso
           ? { margin: 0, fontSize: FS.body, fontWeight: FW.rotulo, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.04em" }
-          : { margin: 0, fontFamily: FONT.display, fontSize: FS.title, fontWeight: FW.forte, letterSpacing: "-0.02em", color: T.text }}>Kit</h2>
-        {/* Sem remessa, o painel aparece em TODO evento para quem pode criar:
-            a frase diz para que ele serve, e que ignorá-lo é normal quando o
-            evento não tem Kit. */}
+          : { margin: 0, fontFamily: FONT.display, fontSize: FS.title, fontWeight: FW.forte, letterSpacing: "-0.02em", color: T.text }}>
+          {ocioso ? "Kit" : `Kit · ${pecas1(n)}`}
+        </h2>
         <span style={{ fontSize: ocioso ? FS.meta : FS.body, color: ocioso ? T.second : T.apoio, flex: "1 1 240px", minWidth: 0 }}>
-          {remessas.length === 0
-            ? (usuarioDoKit ? "Nenhuma remessa do Kit neste evento." : "Nenhuma remessa. Só é usado se o evento tiver Kit, com datas próprias de entrega e caminhão.")
-            : `${remessas.length} ${remessas.length === 1 ? "remessa" : "remessas"} — datas próprias do Kit`}
+          {n === 0
+            ? (usuarioDoKit ? "Nenhuma peça do Kit neste evento ainda." : "Nenhuma peça do Kit. Só é usado se o evento tiver Kit.")
+            : FRASE_DOS_PRAZOS_DO_KIT}
         </span>
         {podeCriar && (
           /* Secundário no roxo do Kit (a identidade do painel). O motivo do
              desabilitado deixa o `title` e fica VISÍVEL embaixo do botão. */
-          <span style={{ marginLeft: "auto" }}>
-            <Botao variante={ocioso ? "fantasma" : "secundario"} icone={Plus} data-testid="button-nova-remessa-kit" disabled={eventoFinalizado} onClick={abrirNova}
-              title={eventoFinalizado ? "Evento finalizado — não recebe peças" : undefined}
-              motivo={eventoFinalizado ? "Evento finalizado — não recebe peças." : undefined} alinharMotivo="end"
+          // No celular os dois botões dividem a linha inteira (lado a lado, mesmo
+          // peso de toque); no desktop ficam à direita do título.
+          <span style={isMobile && !ocioso
+            ? { display: "grid", gridTemplateColumns: onAdicionarPeca ? "1fr 1fr" : "1fr", gap: 8, width: "100%" }
+            : { marginLeft: "auto", display: "inline-flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            {onAdicionarPeca && !ocioso && (
+              <Botao variante="fantasma" icone={Plus} data-testid="button-adicionar-peca-kit" disabled={eventoFinalizado} onClick={onAdicionarPeca}
+                title={motivoFinalizado ?? "Uma peça do Kit pelo formulário"}
+                style={{ minHeight: alvo(34, dedo), padding: "0 12px", color: TOM.roxo.text, fontSize: FS.meta, fontWeight: FW.rotulo, ...(isMobile ? { border: `1px solid ${TOM.roxo.border}`, justifyContent: "center" } : null) }}>
+                Adicionar peça
+              </Botao>
+            )}
+            <Botao variante={ocioso ? "fantasma" : "secundario"} icone={FileSpreadsheet} data-testid="button-incluir-pecas-kit" disabled={eventoFinalizado} onClick={() => setAberto(true)}
+              title={motivoFinalizado}
+              motivo={motivoFinalizado} alinharMotivo="end"
               style={ocioso
                 ? { minHeight: alvo(32, dedo), padding: "0 12px", color: TOM.roxo.text, fontSize: FS.meta, fontWeight: FW.forte }
                 : { minHeight: alvo(34, dedo), padding: "0 14px", borderColor: TOM.roxo.border, background: TOM.roxo.bg, color: TOM.roxo.text, fontSize: FS.meta, fontWeight: FW.rotulo }}>
-              Nova remessa do Kit
+              {isMobile && !ocioso ? "Incluir planilha" : "Incluir peças do Kit (planilha)"}
             </Botao>
           </span>
         )}
       </div>
-      {usuarioDoKit && remessas.length === 0 && (
-        <p style={{ margin: 0, fontSize: FS.body, color: TOM.alerta.text }}>Crie a remessa do Kit — com a planilha, as datas e as peças entram juntas.</p>
-      )}
-      {remessas.length > 0 && (
-        <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {remessas.map((r) => (
-            <li key={r.id} data-testid={`remessa-kit-${r.id}`}
-              style={{ display: "flex", flexDirection: "column", gap: 2, padding: "8px 12px", borderRadius: R.md, border: `1px solid ${TOM.roxo.border}`, background: TOM.roxo.bg, minWidth: 200 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <button type="button" aria-expanded={remessaAberta === r.id} data-testid={`button-abrir-remessa-${r.id}`}
-                  onClick={() => { setRemessaAberta((a) => (a === r.id ? null : r.id)); setConfirmandoExclusao(null); }}
-                  style={{ display: "flex", alignItems: "center", gap: 6, padding: 0, border: "none", background: "none", cursor: "pointer", textAlign: "left", fontSize: FS.body, fontWeight: FW.rotulo, color: TOM.roxo.text, minHeight: isMobile ? 44 : undefined }}>
-                  KIT {r.versao} · {pecasDe(r.id)} {pecasDe(r.id) === 1 ? "peça" : "peças"}
-                  <ChevronDown size={14} aria-hidden="true" style={{ transform: remessaAberta === r.id ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
-                </button>
-                {/* Corrigir a remessa (datas, versão, solicitante) sem excluir
-                    e recriar — as peças ficam e os prazos seguem a data nova. */}
-                {podeCriar && (
-                  <Botao variante="fantasma" tamanho="sm" icone={Pencil} data-testid={`button-editar-remessa-${r.id}`}
-                    disabled={eventoFinalizado} onClick={() => abrirEdicao(r)}
-                    aria-label={`Editar a remessa KIT ${r.versao}`}
-                    title={eventoFinalizado ? "Evento finalizado — a remessa não muda mais" : `Mudar versão, solicitante e datas da KIT ${r.versao}`}
-                    style={{ marginLeft: "auto", minHeight: alvo(28, dedo), padding: "0 8px", color: TOM.roxo.text, fontSize: FS.meta, fontWeight: FW.rotulo }}>
-                    Editar
-                  </Botao>
-                )}
-              </div>
-              <span style={{ fontSize: FS.small, color: T.strong }}>
-                Entrega do material <strong>{diaMesDoKit(r.entregaMaterial) ?? "—"}</strong>
-                {r.saidaCaminhao ? <> · saída do caminhão <strong>{diaMesDoKit(r.saidaCaminhao)}</strong></> : null}
-                {r.saidaCaminhao && saidaDoEvento && diaMesDoKit(r.saidaCaminhao) !== diaMesDoKit(saidaDoEvento) ? ` (Arena: ${diaMesDoKit(saidaDoEvento)})` : ""}
-              </span>
-              <span style={{ fontSize: FS.small, color: T.apoio }}>{r.solicitante ?? r.criadoPor ?? "—"}{r.arquivo ? ` · ${r.arquivo}` : ""}</span>
-            </li>
-          ))}
-        </ul>
+
+      {usuarioDoKit && n === 0 && podeCriar && (
+        <p style={{ margin: 0, fontSize: FS.body, color: TOM.alerta.text }}>Inclua as peças do Kit pela planilha — ou uma a uma em “Adicionar Peça”.</p>
       )}
 
-      {/* AS PEÇAS DA REMESSA ABERTA, com o status de cada uma — a mesma leitura
-          da lista da Arena. Clicar abre o detalhe da peça. */}
-      {(() => {
-        const r = remessas.find((x) => x.id === remessaAberta);
-        if (!r) return null;
-        const daRemessa = pecas
-          .filter((p) => p.kitRemessaId === r.id && !p.deletedAt)
-          .sort((a, b) => String(a.displayId ?? "").localeCompare(String(b.displayId ?? ""), "pt-BR", { numeric: true }));
-        return (
-          <div data-testid={`pecas-remessa-${r.id}`} style={{ border: `1px solid ${TOM.roxo.border}`, borderRadius: R.lg, overflow: "hidden" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "8px 12px", background: TOM.roxo.bg, borderBottom: `1px solid ${TOM.roxo.bg}` }}>
-              <span style={{ fontSize: FS.small, fontWeight: FW.rotulo, color: TOM.roxo.text, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                Peças do KIT {r.versao} · entrega {diaMesDoKit(r.entregaMaterial) ?? "—"}
-              </span>
-              {podeCriar && onAdicionarPeca && confirmandoExclusao !== r.id && (
-                <span style={{ marginLeft: "auto" }}>
-                  <Botao variante="primario" tamanho="sm" icone={Plus} data-testid={`button-adicionar-peca-remessa-${r.id}`} disabled={eventoFinalizado}
-                    onClick={() => onAdicionarPeca(r.id)}
-                    title={eventoFinalizado ? "Evento finalizado — não recebe peças" : `Adicionar uma peça à KIT ${r.versao}`}
-                    motivo={eventoFinalizado ? "Evento finalizado — não recebe peças." : undefined} alinharMotivo="end"
-                    style={{ minHeight: alvo(32, dedo), padding: "0 12px" }}>
-                    Adicionar peça ao KIT {r.versao}
-                  </Botao>
-                </span>
-              )}
-              {podeCriar && (confirmandoExclusao === r.id ? (
-                <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  {/* A frase diz o tamanho real do estrago — "e as 1 peças" e
-                      "e as 0 peças" liam como erro de digitação justo na hora
-                      de confirmar uma exclusão. */}
-                  <span role="alert" style={{ fontSize: FS.body, color: TOM.perigo.text, fontWeight: FW.forte }}>
-                    {daRemessa.length === 0
-                      ? `Excluir a KIT ${r.versao}? Ela não tem peças.`
-                      : `Excluir a KIT ${r.versao} e ${daRemessa.length === 1 ? "a peça dela" : `as ${daRemessa.length} peças dela`}?`}
-                  </span>
-                  {/* A REGRA À VISTA antes do clique — ela morava só no `title`
-                      do botão, e a recusa do servidor chegava como surpresa. */}
-                  {daRemessa.length > 0 && (
-                    <span style={{ fontSize: FS.small, color: T.apoio, flexBasis: "100%" }}>
-                      Vão para Peças Excluídas. Só é possível enquanto nenhuma peça saiu do rascunho.
-                    </span>
-                  )}
-                  <Botao variante="perigo" tamanho="sm" data-testid={`button-confirmar-excluir-remessa-${r.id}`} carregando={excluir.isPending} onClick={() => excluir.mutate(r.id)}
-                    style={{ minHeight: alvo(32, dedo), padding: "0 12px" }}>
-                    {excluir.isPending ? "Excluindo…" : "Excluir"}
-                  </Botao>
-                  <Botao variante="fantasma" tamanho="sm" onClick={() => setConfirmandoExclusao(null)} disabled={excluir.isPending}
-                    style={{ minHeight: alvo(32, dedo), padding: "0 8px" }}>
-                    Voltar
-                  </Botao>
-                </span>
+      {/* AS PEÇAS DO KIT, com o status de cada uma — a mesma leitura da lista
+          do evento. Clicar abre o detalhe da peça. */}
+      {n > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <button type="button" aria-expanded={listaAberta} aria-controls="pecas-do-kit" data-testid="button-abrir-pecas-kit"
+              onClick={() => setListaAberta((a) => !a)}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", minHeight: alvo(32, dedo), borderRadius: R.md, border: `1px solid ${TOM.roxo.border}`, background: TOM.roxo.bg, cursor: "pointer", fontSize: FS.body, fontWeight: FW.rotulo, color: TOM.roxo.text }}>
+              {listaAberta ? "Esconder as peças do Kit" : `Ver as ${pecas1(n)} do Kit`}
+              <ChevronDown size={14} aria-hidden="true" style={{ transform: listaAberta ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+            </button>
+            {quem && <span data-testid="kit-quem-incluiu" style={{ fontSize: FS.small, color: T.apoio, minWidth: 0, overflowWrap: "anywhere" }}>{quem}</span>}
+          </div>
+          {listaAberta && (
+            <div id="pecas-do-kit" data-testid="pecas-do-kit" style={{ border: `1px solid ${TOM.roxo.border}`, borderRadius: R.lg, overflow: "hidden" }}>
+              {isMobile ? (
+                // CELULAR: uma linha por peça (código, peça, status) — a tabela de
+                // 5 colunas rolava de lado e cortava o material.
+                <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+                  {doKit.map((p) => (
+                    <li key={p.id} data-testid={`peca-kit-${p.id}`} style={{ borderBottom: `1px solid ${N.n3}` }}>
+                      <button type="button" onClick={() => onAbrirPeca?.(p)} aria-label={`Ver detalhes da peça ${p.displayId}`}
+                        style={{ width: "100%", display: "flex", flexDirection: "column", gap: 4, padding: "10px 12px", minHeight: 44, border: "none", background: "none", textAlign: "left", cursor: "pointer" }}>
+                        <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          <span style={{ fontFamily: FONT.mono, fontWeight: 700, color: T.accentText, fontSize: 13 }}>{p.displayId}</span>
+                          <span style={{ color: T.text, fontWeight: 600, fontSize: 13 }}>{p.type}</span>
+                          <span style={{ color: T.apoio, fontSize: 12, fontVariantNumeric: "tabular-nums" }}>× {p.quantity}</span>
+                        </span>
+                        {p.description ? <span style={{ color: T.apoio, fontSize: 12 }}>{p.description}</span> : null}
+                        <span style={{ alignSelf: "flex-start" }}><StatusBadge status={p.status} /></span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               ) : (
-                /* Perigo SECUNDÁRIO (contorno): este clique só ABRE a pergunta;
-                   o perigo cheio fica para o "Excluir" que de fato apaga. */
-                <Botao variante="perigoSecundario" tamanho="sm" icone={Trash2} data-testid={`button-excluir-remessa-${r.id}`} onClick={() => setConfirmandoExclusao(r.id)}
-                  title="Excluir a remessa e as peças dela — só enquanto nenhuma peça foi enviada"
-                  style={{ marginLeft: onAdicionarPeca ? 0 : "auto", minHeight: alvo(32, dedo), padding: "0 10px" }}>
-                  Excluir remessa
-                </Botao>
-              ))}
-            </div>
-            {daRemessa.length === 0 ? (
-              <p style={{ margin: 0, padding: "14px 12px", fontSize: FS.body, color: T.apoio }}>Nenhuma peça nesta remessa ainda — use “Adicionar peça ao KIT {r.versao}”.</p>
-            ) : (
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", minWidth: 560, borderCollapse: "collapse", fontSize: 13 }}>
                   <thead>
@@ -453,8 +286,8 @@ export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, podeCriar
                     </tr>
                   </thead>
                   <tbody>
-                    {daRemessa.map((p) => (
-                      <tr key={p.id} data-testid={`peca-remessa-${p.id}`} onClick={() => onAbrirPeca?.(p)}
+                    {doKit.map((p) => (
+                      <tr key={p.id} data-testid={`peca-kit-${p.id}`} onClick={() => onAbrirPeca?.(p)}
                         style={{ borderBottom: `1px solid ${N.n3}`, cursor: onAbrirPeca ? "pointer" : "default" }}>
                         <td style={{ padding: "8px 12px", whiteSpace: "nowrap" }}>
                           <button type="button" onClick={(e) => { e.stopPropagation(); onAbrirPeca?.(p); }} aria-label={`Ver detalhes da peça ${p.displayId}`}
@@ -473,62 +306,46 @@ export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, podeCriar
                   </tbody>
                 </table>
               </div>
-            )}
-          </div>
-        );
-      })()}
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <Dialog open={aberto} onOpenChange={(o) => { if (!o) pedirParaFechar(); }}>
-        <DialogContent data-testid="dialog-nova-remessa-kit" className={HIDE_NATIVE_CLOSE} style={modalSurface(nPecas > 0 ? 1100 : 600)}>
-          <DialogTitle className="sr-only">{editando ? `Editar a remessa KIT ${editando.versao}` : "Nova remessa do Kit"}</DialogTitle>
-          <DialogDescription className="sr-only">{editando ? "Versão, solicitante e datas da remessa." : "Planilha do Kit, datas da remessa e peças numa tela só."}</DialogDescription>
-          <ModalHeader icon={editando ? Pencil : Package} tint={TOM.roxo.text} title={editando ? `Editar remessa KIT ${editando.versao}` : "Nova remessa do Kit"}
-            subtitle={editando
-              ? `${pecasEmEdicao} ${pecasEmEdicao === 1 ? "peça" : "peças"} nesta remessa${editando.arquivo ? ` · ${editando.arquivo}` : ""}`
-              : remessas.length > 0 ? `Começa com os dados da ${remessas[0].versao} — a planilha, se tiver, substitui.` : "Envie a planilha do Kit: as datas e as peças entram juntas."}
-            onClose={ocupado ? undefined : pedirParaFechar} />
+        <DialogContent data-testid="dialog-incluir-pecas-kit" className={HIDE_NATIVE_CLOSE} style={modalSurface(nPecas > 0 ? 1100 : 600)}>
+          <DialogTitle className="sr-only">Incluir peças do Kit</DialogTitle>
+          <DialogDescription className="sr-only">Planilha do Kit: prévia das peças e inclusão no Kit do evento.</DialogDescription>
+          <ModalHeader icon={Package} tint={TOM.roxo.text} title="Incluir peças do Kit"
+            subtitle={n > 0 ? `O Kit deste evento já tem ${pecas1(n)} — as peças da planilha entram junto.` : "Primeira inclusão do Kit neste evento."}
+            onClose={incluir.isPending ? undefined : pedirParaFechar} />
 
           <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", padding: isMobile ? 16 : "16px 24px", display: "grid", gap: 16,
-            gridTemplateColumns: !isMobile && nPecas > 0 ? "minmax(0, 360px) minmax(0, 1fr)" : "minmax(0, 1fr)", alignItems: "start" }}>
+            gridTemplateColumns: !isMobile && nPecas > 0 ? "minmax(0, 340px) minmax(0, 1fr)" : "minmax(0, 1fr)", alignItems: "start" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
-              {/* O input era `hidden`: invisível E fora da ordem de Tab — sem
-                  mouse não havia como enviar a planilha. `sr-only` mantém o
-                  campo focável, e o anel no rótulo mostra onde o foco está.
-                  Na EDIÇÃO não há planilha: as peças já entraram (mais peças
-                  vão por "Adicionar peça" ou por uma remessa nova). */}
-              {editando ? (
-                <p data-testid="aviso-edicao-remessa-kit" style={{ margin: 0, fontSize: FS.body, color: TOM.roxo.text, background: TOM.roxo.bg, border: `1px solid ${TOM.roxo.border}`, borderRadius: R.md, padding: "8px 12px", lineHeight: 1.45 }}>
-                  {pecasEmEdicao > 0
-                    ? `A entrega do material é o prazo ${pecasEmEdicao === 1 ? "da peça" : `das ${pecasEmEdicao} peças`} desta remessa: mudou aqui, muda na Arte, na Gráfica e na Gestão de Prazos.`
-                    : "A entrega do material é o prazo das peças desta remessa: mudou aqui, muda na Arte, na Gráfica e na Gestão de Prazos."}
-                </p>
-              ) : (
-              <label data-testid="button-planilha-remessa-kit"
+              {/* O input é `sr-only`, não `hidden`: fica focável pelo Tab, e o
+                  anel no rótulo mostra onde o foco está. */}
+              <label data-testid="button-planilha-kit"
                 className="focus-within:ring-2 focus-within:ring-violet-600 focus-within:ring-offset-2"
-                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "12px 10px", borderRadius: R.md, border: `1.5px dashed ${planilha ? TOM.sucesso.text : TOM.roxo.dot}`, background: planilha ? TOM.sucesso.bg : TOM.roxo.bg, color: planilha ? TOM.sucesso.text : TOM.roxo.text, cursor: lendoPlanilha ? "wait" : "pointer", textAlign: "center" }}>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: FS.read, fontWeight: FW.rotulo }}>
+                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "14px 10px", borderRadius: R.md, border: `1.5px dashed ${planilha ? TOM.sucesso.text : TOM.roxo.dot}`, background: planilha ? TOM.sucesso.bg : TOM.roxo.bg, color: planilha ? TOM.sucesso.text : TOM.roxo.text, cursor: lendoPlanilha ? "wait" : "pointer", textAlign: "center" }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: FS.read, fontWeight: FW.rotulo, overflowWrap: "anywhere" }}>
                   <FileSpreadsheet size={16} aria-hidden="true" />
                   {lendoPlanilha ? "Lendo a planilha…" : planilha ? planilha.nome : "Enviar a planilha do Kit (.xlsx)"}
                 </span>
                 <span style={{ fontSize: FS.small, color: T.apoio }}>
-                  {planilha ? `${nPecas} ${nPecas === 1 ? "peça" : "peças"} · clique para trocar` : "Preenche as datas e traz as peças. Opcional."}
+                  {planilha ? `${pecas1(nPecas)} · clique para trocar` : "A aba KIT da planilha de inclusão. Sem datas: o Kit segue o evento."}
                 </span>
                 <input type="file" accept=".xlsx" className="sr-only" disabled={lendoPlanilha}
                   aria-label="Enviar a planilha do Kit (.xlsx)"
                   onChange={(e) => { void lerPlanilha(e.target.files?.[0]); e.target.value = ""; }} />
               </label>
-              )}
-              {!editando && planilha && (
+              {planilha && (
                 <SeletorDeAbas abas={planilha.abas} pendente={lendoPlanilha} onEscolher={(nome) => { void lerPlanilha(arquivoRef.current, nome); }} />
               )}
-              <div style={{ display: "grid", gap: 10, gridTemplateColumns: "1fr 1fr" }}>
-                {campo("versao", "Versão", "versao")}
-                {campo("solicitante", "Solicitante", "solicitante")}
-                {campo("entrega", "Entrega do material", "entregaMaterial", "date")}
-                {campo("evento", "Data do evento", "dataEvento", "date")}
-                {campo("carga", "Carga do caminhão", "cargaCaminhao", "date")}
-                {campo("saida", "Saída do caminhão", "saidaCaminhao", "date")}
-              </div>
+              <p data-testid="aviso-prazos-kit" style={{ margin: 0, fontSize: FS.body, color: TOM.roxo.text, background: TOM.roxo.bg, border: `1px solid ${TOM.roxo.border}`, borderRadius: R.md, padding: "8px 12px", lineHeight: 1.45 }}>
+                As peças entram em Rascunho com o selo KIT. {FRASE_DOS_PRAZOS_DO_KIT}
+                {planilha?.solicitante ? ` Solicitante: ${planilha.solicitante}.` : ""}
+              </p>
             </div>
 
             {nPecas > 0 && planilha && (
@@ -536,8 +353,26 @@ export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, podeCriar
                 <div style={{ padding: "8px 12px", background: T.bg, borderBottom: `1px solid ${T.border}`, fontSize: FS.small, fontWeight: FW.rotulo, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                   Peças da planilha · {nPecas}
                 </div>
-                <div style={{ overflowX: "auto", maxHeight: isMobile ? 320 : "52vh" }}>
-                  <table data-testid="tabela-pecas-remessa-kit" style={{ width: "100%", minWidth: 560, borderCollapse: "collapse", fontSize: 13 }}>
+                {isMobile ? (
+                  <ul data-testid="tabela-pecas-kit" style={{ margin: 0, padding: 0, listStyle: "none" }}>
+                    {planilha.pecas.map((p, i) => (
+                      <li key={p._chave} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 4px 8px 12px", borderBottom: `1px solid ${N.n3}` }}>
+                        <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+                          <span style={{ color: T.text, fontWeight: 600, fontSize: 13, overflowWrap: "anywhere" }}>{p.description || p.type}</span>
+                          <span style={{ color: T.apoio, fontSize: 12, fontVariantNumeric: "tabular-nums" }}>
+                            {[`${p.quantity} un.`, [p.material, p.finish].filter(Boolean).join(" · "), p.fileWidth && p.fileHeight ? `${p.fileWidth} × ${p.fileHeight} m` : null, `${Number(p.calculatedM2 || 0).toFixed(2)} m²`].filter(Boolean).join(" · ")}
+                          </span>
+                        </span>
+                        <button type="button" aria-label={`Tirar ${p.description || p.type} da inclusão`} onClick={() => tirarPeca(i)}
+                          style={{ width: 44, height: 44, flexShrink: 0, borderRadius: R.md, border: "none", background: "transparent", color: T.second, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <X size={16} aria-hidden="true" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                <div style={{ overflowX: "auto", maxHeight: "52vh" }}>
+                  <table data-testid="tabela-pecas-kit" style={{ width: "100%", minWidth: 560, borderCollapse: "collapse", fontSize: 13 }}>
                     <thead>
                       <tr style={{ background: T.surface, position: "sticky", top: 0 }}>
                         {["Peça", "Qtd", "Material · Acab.", "Arquivo (m)", "m²", ""].map((h) => (
@@ -554,7 +389,7 @@ export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, podeCriar
                           <td style={{ padding: "7px 10px", fontVariantNumeric: "tabular-nums", color: T.strong }}>{p.fileWidth && p.fileHeight ? `${p.fileWidth} × ${p.fileHeight}` : "—"}</td>
                           <td style={{ padding: "7px 10px", fontVariantNumeric: "tabular-nums", fontWeight: 700 }}>{Number(p.calculatedM2 || 0).toFixed(2)}</td>
                           <td style={{ padding: "4px 6px" }}>
-                            <button type="button" aria-label={`Tirar ${p.description || p.type} da remessa`} title="Tirar esta peça da remessa" onClick={() => tirarPeca(i)}
+                            <button type="button" aria-label={`Tirar ${p.description || p.type} da inclusão`} title="Tirar esta peça da inclusão" onClick={() => tirarPeca(i)}
                               style={{ width: isMobile ? 44 : 28, height: isMobile ? 44 : 28, borderRadius: R.md, border: "none", background: "transparent", color: T.second, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                               <X size={14} aria-hidden="true" />
                             </button>
@@ -564,49 +399,38 @@ export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, podeCriar
                     </tbody>
                   </table>
                 </div>
+                )}
               </div>
             )}
           </div>
 
           {confirmandoDescarte ? (
-            // A pergunta mora NO rodapé, no lugar dos botões — o mesmo padrão
-            // da exclusão de remessa neste painel. Um segundo modal por cima
-            // deste esconderia justamente o que a pessoa está decidindo perder.
-            <div data-testid="confirmar-descarte-remessa-kit" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, flexWrap: "wrap", padding: isMobile ? "12px 16px" : "14px 24px", borderTop: `1px solid ${TOM.perigo.border}`, background: TOM.perigo.bg, flexShrink: 0 }}>
+            // A pergunta mora NO rodapé, no lugar dos botões: um segundo modal
+            // por cima esconderia justamente o que a pessoa está decidindo perder.
+            <div data-testid="confirmar-descarte-kit" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, flexWrap: "wrap", padding: isMobile ? "12px 16px" : "14px 24px", borderTop: `1px solid ${TOM.perigo.border}`, background: TOM.perigo.bg, flexShrink: 0 }}>
               <span role="alert" style={{ fontSize: FS.body, color: TOM.perigo.text, fontWeight: FW.forte, marginRight: "auto" }}>
-                {editando
-                  ? `Descartar as alterações da KIT ${editando.versao}?`
-                  : planilha
-                  ? `Descartar a planilha lida${nPecas > 0 ? ` (${nPecas} ${nPecas === 1 ? "peça" : "peças"})` : ""} e os dados da remessa?`
-                  : "Descartar os dados da remessa que você preencheu?"}
+                {`Descartar a planilha lida${nPecas > 0 ? ` (${pecas1(nPecas)})` : ""}?`}
               </span>
               <Botao variante="secundario" tamanho="toque" ref={continuarRef} onClick={() => setConfirmandoDescarte(false)}>
-                Continuar editando
+                Continuar
               </Botao>
-              <Botao variante="perigo" tamanho="toque" data-testid="button-descartar-remessa-kit" onClick={() => { setConfirmandoDescarte(false); setAberto(false); }}>
+              <Botao variante="perigo" tamanho="toque" data-testid="button-descartar-kit" onClick={() => { setConfirmandoDescarte(false); setAberto(false); }}>
                 Descartar
               </Botao>
             </div>
           ) : (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, flexWrap: "wrap", padding: isMobile ? "12px 16px" : "14px 24px", borderTop: `1px solid ${T.border}`, flexShrink: 0 }}>
-            {faltando && <span aria-live="polite" style={{ fontSize: FS.body, color: TOM.alerta.text, marginRight: "auto" }}>{faltando}.</span>}
-            {/* O motivo do desabilitado já está VISÍVEL à esquerda (`faltando`),
-                por isso o Botao não repete `motivo`. */}
-            <Botao variante="secundario" tamanho="toque" onClick={pedirParaFechar} disabled={ocupado}>
-              Cancelar
-            </Botao>
-            {editando ? (
-              <Botao variante="primario" tamanho="toque" data-testid="button-salvar-remessa-kit" disabled={!!faltando} carregando={salvar.isPending} onClick={() => salvar.mutate()}
-                style={{ padding: "0 22px" }}>
-                {salvar.isPending ? "Salvando…" : "Salvar alterações"}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, flexWrap: "wrap", padding: isMobile ? "12px 16px" : "14px 24px", borderTop: `1px solid ${T.border}`, flexShrink: 0 }}>
+              {faltando && <span aria-live="polite" style={{ fontSize: FS.body, color: T.apoio, marginRight: "auto" }}>{faltando}.</span>}
+              {/* O motivo do desabilitado já está VISÍVEL à esquerda (`faltando`),
+                  por isso o Botao não repete `motivo`. */}
+              <Botao variante="secundario" tamanho="toque" onClick={pedirParaFechar} disabled={incluir.isPending}>
+                Cancelar
               </Botao>
-            ) : (
-            <Botao variante="primario" tamanho="toque" data-testid="button-criar-remessa-kit" disabled={!!faltando} carregando={criar.isPending} onClick={() => criar.mutate()}
-              style={{ padding: "0 22px" }}>
-              {criar.isPending ? "Criando…" : nPecas > 0 ? `Criar remessa e importar ${nPecas} ${nPecas === 1 ? "peça" : "peças"}` : "Criar remessa"}
-            </Botao>
-            )}
-          </div>
+              <Botao variante="primario" tamanho="toque" data-testid="button-incluir-no-kit" disabled={!!faltando} carregando={incluir.isPending} onClick={() => incluir.mutate()}
+                style={{ padding: "0 22px" }}>
+                {incluir.isPending ? "Incluindo…" : nPecas > 0 ? `Incluir ${pecas1(nPecas)} no Kit` : "Incluir no Kit"}
+              </Botao>
+            </div>
           )}
         </DialogContent>
       </Dialog>

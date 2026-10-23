@@ -234,27 +234,23 @@ export function useFilaDaRevisao({
         const ra = estoqueRespondeu(estoquePorPeca.get(a.id)) ? 0 : 1, rb = estoqueRespondeu(estoquePorPeca.get(b.id)) ? 0 : 1;
         if (ra !== rb) return ra - rb;
       }
+      // KIT EM CIMA dentro do evento (o Kit é peça do evento desde 23/10).
+      const ka = a.kitRemessaId ? 0 : 1, kb = b.kitRemessaId ? 0 : 1;
+      if (ka !== kb) return ka - kb;
       const ga = typeToGroup[a.type] || '', gb = typeToGroup[b.type] || '';
       // type pode vir null do banco — sem o fallback o localeCompare lançava.
       return ga.localeCompare(gb) || (a.type || '').localeCompare(b.type || '');
     });
     sorted.forEach(item => {
-      // KIT: as peças de uma remessa formam bloco próprio, com as datas do Kit
-      // no cabeçalho (ver getEventInfo).
-      const key = item.kitRemessaId ? `${item.eventId}#kit-${item.kitRemessaId}` : (item.eventId || "__none__");
+      // KIT (23/10): a peça do Kit fica no bloco do PRÓPRIO evento (com o selo KIT).
+      const key = item.eventId || "__none__";
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(item);
     });
     // Grupos na ordem da urgência real: saída do caminhão ascendente (quem
     // sai primeiro aparece primeiro), sem data por último, nome desempata.
-    // O Kit vem sempre em cima.
     const byId = new Map<string, EventoDaPeca>(events.map((e) => [e.id, e]));
-    for (const [key, lista] of Array.from(map.entries())) {
-      if (key.includes("#kit-") && lista[0]?.event) byId.set(key, lista[0].event);
-    }
     const entries = Array.from(map.entries()).sort(([idA], [idB]) => {
-      const kitA = idA.includes("#kit-"), kitB = idB.includes("#kit-");
-      if (kitA !== kitB) return kitA ? -1 : 1;
       const ea = byId.get(idA), eb = byId.get(idB);
       const ta = ea?.truckDepartureDate ? new Date(ea.truckDepartureDate).getTime() : Infinity;
       const tb = eb?.truckDepartureDate ? new Date(eb.truckDepartureDate).getTime() : Infinity;
@@ -333,15 +329,7 @@ export function useFilaDaRevisao({
       + ` (${partes.join(" e ")}): em evento finalizado, nenhuma ação que faça o trabalho andar é aceita.`;
   };
 
-  // Bloco do Kit ("<evento>#kit-<remessa>"): o evento da peça já vem com as
-  // datas do Kit (servidor); o nome ganha "· KIT".
-  const getEventInfo = (eventId: string): EventoDaPeca | undefined => {
-    if (eventId.includes("#kit-")) {
-      const peca = filteredItems.find((i) => `${i.eventId}#kit-${i.kitRemessaId}` === eventId);
-      return peca?.event ? { ...peca.event, name: `${peca.event.name} · KIT` } : undefined;
-    }
-    return events.find(e => e.id === eventId);
-  };
+  const getEventInfo = (eventId: string): EventoDaPeca | undefined => events.find(e => e.id === eventId);
 
   return {
     itensDoServidor, items, itemsLoading, itemsError, refetchItems,

@@ -18,7 +18,7 @@ try {
        OR (table_name='sponsors' AND column_name IN ('arquivado_em','arquivado_por'))
        OR (table_name='global_quota_rules' AND column_name IN ('quota','item_types'))
        OR (table_name='items' AND column_name IN ('pedido_de_peca_linha_id','kit_remessa_id','criado_por_id','maquina_prevista','impressao_por_maquina','reserva_por_maquina','embalada_qty','travada_em','travada_por','travada_por_id','travada_motivo','motivo_cancelamento'))
-       OR (table_name='kit_remessas' AND column_name='entrega_material')
+       OR (table_name='kit_remessas' AND column_name='entrega_material' AND is_nullable='YES')
        OR (table_name='pedidos_de_peca_linhas' AND column_name='sponsor_ids')
        OR (table_name='tubos' AND column_name IN ('fotos_fechamento','fechado_em','fechado_por','conteudo_alterado_em','avulso'))
        OR (table_name='tubo_itens' AND column_name IN ('tubo_id','item_id','quantidade','entregue_em'))

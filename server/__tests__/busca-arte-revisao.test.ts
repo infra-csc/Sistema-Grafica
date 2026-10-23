@@ -165,9 +165,9 @@ describe("7 · a Arte no celular", () => {
     // alvo(): 44 com ponteiro grosso (dedo = usePonteiroGrosso() || isMobile).
     expect(arte).toContain("const lado = alvo(28, dedo);");
     expect(arte).toContain("const dedo = usePonteiroGrosso() || isMobile;");
-    // A saída/entrega, o evento e os marcos da fase estão no popover.
+    // A saída, o evento e os marcos da fase estão no popover (o Kit segue o evento desde 23/10).
     const trecho = arte.slice(arte.indexOf("const datas: Array<[string, string]> = [];"), arte.indexOf('data-testid="popover-datas-da-faixa"'));
-    for (const t of ['"Entrega do material"', '"Saída"', '"Evento"', "ARTE_MARCOS_FAIXA"]) expect(trecho).toContain(t);
+    for (const t of ['"Saída"', '"Evento"', "ARTE_MARCOS_FAIXA"]) expect(trecho).toContain(t);
   });
 
   it("Prazo, Prioridade, Thumb e Arquivo final: cada botão com 44×44 no celular", () => {

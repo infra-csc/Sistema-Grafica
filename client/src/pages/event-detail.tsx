@@ -98,7 +98,7 @@ export default function EventDetail() {
   // Confirmação do app (no lugar do window.confirm): hoje, só o X do modo lote.
   const { confirmar, dialogo } = useConfirmar();
 
-  const { event, loadingEvent, eventError, refetchEvent, rawItems, loadingItems, isFetching, itemsError, refetchItems, remessasDoKit } = useDadosDoEvento(eventId);
+  const { event, loadingEvent, eventError, refetchEvent, rawItems, loadingItems, isFetching, itemsError, refetchItems, inclusaoDoKit } = useDadosDoEvento(eventId);
 
   // Consome o deep-link ?item= assim que a query resolve (ver pendingDeepLinkItem).
   // Consumir também com lista VAZIA: antes o ?item= ficava preso na URL de um
@@ -118,6 +118,10 @@ export default function EventDetail() {
     items, draftItems, mainItems, rascunhosQueEuEnvio, statusChips, pecasNaConta, canceladasForaDaConta,
     totalM2, complementCount, marcosDoEvento, atrasDoMarco, fases, entregues, fraseResolucao, openWork,
   } = useContagensDoEvento(rawItems, event, user);
+  // KIT DO EVENTO (23/10): uma inclusão só. O evento "tem Kit" quando a
+  // inclusão existe ou já há peça do Kit (o que a pessoa vê).
+  const pecasNoKit = items.filter((i) => !!i.kitRemessaId && !i.deletedAt).length;
+  const eventoTemKit = !!inclusaoDoKit || pecasNoKit > 0;
 
   // Leva a pessoa até o card de rascunhos. Ele mora abaixo da agenda, do Kit e
   // das solicitações — num evento com tudo isso, ficava fora da primeira tela
@@ -384,7 +388,7 @@ export default function EventDetail() {
               items={items}
               materialOptions={materialOptions}
               finishOptions={finishOptions}
-              remessasDoKit={remessasDoKit}
+              eventoTemKit={eventoTemKit}
               acoes={{ createBulkItemsMutation, createItemMutation, updateItemMutation }}
               confirmar={confirmar}
               handleSubmit={handleSubmit}
@@ -434,18 +438,16 @@ export default function EventDetail() {
         />
       </section>
 
-      {/* Kit: remessas com as datas do Kit. */}
+      {/* Kit do evento: um bloco só, com as peças do Kit (23/10). */}
       <PainelDoKit
         eventId={eventId!}
         pecas={items}
+        inclusao={inclusaoDoKit}
         podeCriar={(user?.role === 'admin' || user?.role === 'solicitacao') && canEditLists}
         usuarioDoKit={!!user?.kit}
-        nomeDoUsuario={user?.name ?? ""}
-        dataDoEvento={event?.startDate ?? null}
-        saidaDoEvento={event?.truckDepartureDate ?? null}
         onAbrirPeca={(peca) => setSelectedItemForDetails(peca)}
-        // Inclusão individual do Kit: o formulário de sempre, já na remessa.
-        onAdicionarPeca={(remessaId) => form.abrirNaRemessaDoKit(remessaId)}
+        // Inclusão individual do Kit: o formulário de sempre, já no Kit.
+        onAdicionarPeca={() => form.abrirNoKit()}
         eventoFinalizado={!!eventoFinalizado}
       />
 
@@ -754,9 +756,9 @@ export default function EventDetail() {
         onPreview={(file) => previewXlsxMutation.mutate({ file })}
         confirmImportPending={confirmImportMutation.isPending}
         onConfirmImport={(items, fileName, destino) => confirmImportMutation.mutate({ items, fileName, destino })}
-        // Arena ou Kit: o modal antes de importar usa as remessas do
-        // evento e o cabeçalho da planilha do Kit, quando ela tem.
-        kitRemessas={remessasDoKit}
+        // Arena ou Kit: o modal antes de importar diz quantas peças o Kit
+        // do evento já tem e usa o cabeçalho da planilha do Kit, quando há.
+        pecasNoKit={pecasNoKit}
         kitCabecalho={importKit}
         somenteKit={!!user?.kit}
         // As peças que o evento JÁ tem — sem elas o diálogo não teria contra

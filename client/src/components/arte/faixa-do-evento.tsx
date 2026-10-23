@@ -3,10 +3,10 @@ import { Info, Truck } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Selo } from "@/components/ui/selo";
 import { alvo } from "@/hooks/use-mobile";
-import { ARTE_MARCOS_FAIXA, phaseDeadline } from "@/lib/arte-rules";
+import { ARTE_MARCOS_FAIXA, faseDoPrazo, phaseDeadline } from "@/lib/arte-rules";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { P } from "@/lib/status";
-import { T, N, FS, FONT } from "@/lib/theme";
+import { T, N, FS, FONT, TOM } from "@/lib/theme";
 import { fsToque, semaforoPrazo } from "./constantes";
 import type { EventoDaPeca } from "./tipos";
 
@@ -14,7 +14,7 @@ import type { EventoDaPeca } from "./tipos";
  * A faixa no topo de cada bloco de evento: o nome, o que falta nesta fase, a
  * saída, o marco DESTA fase e as datas do evento num popover.
  */
-export function FaixaDoEvento({ bloco, prog, evTotal, noBloco, prioritarias = false, tabId, hoje, emCartoes, dedo }: {
+export function FaixaDoEvento({ bloco, prog, evTotal, noBloco, prioritarias = false, doKit = false, tabId, hoje, emCartoes, dedo }: {
   bloco: { eventName: string; eventObj: EventoDaPeca | null };
   prog: { semThumb: number; semFinal: number } | undefined;
   evTotal: number;
@@ -22,12 +22,16 @@ export function FaixaDoEvento({ bloco, prog, evTotal, noBloco, prioritarias = fa
   noBloco?: number;
   /** O bloco inteiro é de peças prioritárias. */
   prioritarias?: boolean;
+  /** O bloco inteiro é de peças do Kit (sobem para o topo; o marco começa na Aprovação). */
+  doKit?: boolean;
   tabId: string;
   hoje: Date;
   emCartoes: boolean;
   dedo: boolean;
 }) {
-  const prazo = phaseDeadline(bloco.eventObj, tabId, hoje);
+  // Bloco só do Kit: o marco desta fase é o que cobra o Kit (Aprovação de
+  // layout em diante — "Enviar thumb" do Kit vence na Aprovação, 23/10).
+  const prazo = phaseDeadline(bloco.eventObj, doKit ? faseDoPrazo(tabId, { kitRemessaId: "kit" }) : tabId, hoje);
   // O evento partido em dois blocos (Kit e prioritárias furam a fila): este
   // bloco diz quantas peças TEM do total — "1 de 17", não "17" duas vezes.
   const parcial = noBloco !== undefined && noBloco > 0 && noBloco < evTotal;
@@ -68,7 +72,12 @@ export function FaixaDoEvento({ bloco, prog, evTotal, noBloco, prioritarias = fa
         </span>
         {/* POR QUE ESTE BLOCO VEIO ANTES: só peças prioritárias de um
             evento que tem mais peças abaixo. */}
-        {parcial && prioritarias && (
+        {parcial && doKit && (
+          <Selo data-testid="faixa-kit" title="As peças do Kit sobem para o topo da fila; as demais deste evento vêm mais abaixo. O Kit segue os prazos do evento a partir da Aprovação de layout." cores={TOM.roxo} forma="retangulo" style={{ padding: '1px 7px', fontSize: fsToque(11, dedo), fontWeight: 700, flexShrink: 0 }}>
+            Kit
+          </Selo>
+        )}
+        {parcial && prioritarias && !doKit && (
           <Selo data-testid="faixa-prioritarias" title="Peças marcadas como prioritárias pela Solicitação sobem para o topo da fila; as demais deste evento vêm mais abaixo" cores={{ bg: P.pink.bg, text: P.pink.text, border: P.pink.border }} forma="retangulo" style={{ padding: '1px 7px', fontSize: fsToque(11, dedo), fontWeight: 700, flexShrink: 0 }}>
             {noBloco === 1 ? 'Prioritária' : 'Prioritárias'}
           </Selo>
@@ -91,10 +100,7 @@ export function FaixaDoEvento({ bloco, prog, evTotal, noBloco, prioritarias = fa
         {!emCartoes && bloco.eventObj?.truckDepartureDate && (
           <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: T.apoio, fontSize: fsToque(11, dedo), fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
             <Truck aria-hidden="true" style={{ width: 12, height: 12 }} />
-            {/* Bloco do Kit: a data que manda é a entrega do material (15/09). */}
-            {bloco.eventObj.datasDoKit
-              ? <>Entrega do material: {new Date(bloco.eventObj.truckDepartureDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</>
-              : <>Saída: {toUTCDisplayDate(bloco.eventObj.truckDepartureDate).toLocaleDateString('pt-BR')} às {toUTCDisplayDate(bloco.eventObj.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</>}
+            Saída: {toUTCDisplayDate(bloco.eventObj.truckDepartureDate).toLocaleDateString('pt-BR')} às {toUTCDisplayDate(bloco.eventObj.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
           </span>
         )}
         {/* Os marcos saem de `phaseDeadline` (ARTE_MARCOS_FAIXA),
@@ -129,9 +135,7 @@ export function FaixaDoEvento({ bloco, prog, evTotal, noBloco, prioritarias = fa
           if (!ev) return null;
           const datas: Array<[string, string]> = [];
           if (ev.truckDepartureDate) {
-            datas.push(ev.datasDoKit
-              ? ["Entrega do material", new Date(ev.truckDepartureDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })]
-              : ["Saída", `${toUTCDisplayDate(ev.truckDepartureDate).toLocaleDateString('pt-BR')} às ${toUTCDisplayDate(ev.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`]);
+            datas.push(["Saída", `${toUTCDisplayDate(ev.truckDepartureDate).toLocaleDateString('pt-BR')} às ${toUTCDisplayDate(ev.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`]);
           }
           if (ev.startDate) datas.push(["Evento", parseDateLocal(ev.startDate).toLocaleDateString('pt-BR')]);
           if (ev.truckDepartureDate) {

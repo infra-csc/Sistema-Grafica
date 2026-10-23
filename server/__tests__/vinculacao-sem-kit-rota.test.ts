@@ -21,10 +21,6 @@ vi.mock("../routes/shared", async () => {
   const real = await vi.importActual<any>("../routes/shared");
   return { ...real, requireAuth: (_req: any, _res: any, next: any) => next(), broadcast: () => {}, createAuditLog: async () => {}, updateEventStatus: async () => {} };
 });
-vi.mock("../services/kitRemessas", async () => {
-  const real = await vi.importActual<any>("../services/kitRemessas");
-  return { ...real, remessasPorIds: async () => new Map() };
-});
 vi.mock("../services/tubosDaPeca", async () => {
   const real = await vi.importActual<any>("../services/tubosDaPeca");
   return { ...real, resumosDeTuboPorIds: async () => new Map() };

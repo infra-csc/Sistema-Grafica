@@ -162,11 +162,13 @@ export const FilaAgrupada = memo(function FilaAgrupada({
   type Bloco = { key: string; chave: string; eventName: string; eventKey: string; eventObj: EventoDaPeca | null; grupos: { nome: string; items: PecaDaArte[] }[] };
   const blocos: Bloco[] = [];
   shownItems.forEach(item => {
-    // KIT (14/09): as peças de uma remessa do Kit formam bloco próprio —
-    // o cabeçalho mostra as datas e os marcos do Kit, não os da Arena.
-    const eventName = (item.event?.name || 'Sem Evento') + (item.kitRemessaId ? ' · KIT' : '');
+    // KIT (23/10): a peça do Kit é peça do EVENTO — mesmo nome, mesmas datas,
+    // mesmos marcos. Ela sobe para o topo da fila (use-fila-da-arte), então o
+    // evento pode aparecer em dois blocos, como com as prioritárias: o do Kit
+    // em cima, o resto abaixo — a faixa diz "Kit" e quantas são do total.
+    const eventName = item.event?.name || 'Sem Evento';
     const eventKey = item.eventId || eventName;
-    const chave = item.kitRemessaId ? `${eventKey}#kit-${item.kitRemessaId}` : eventKey;
+    const chave = eventKey;
     const grupoNome = groupOf(item.type) || '';
     let bloco = blocos[blocos.length - 1];
     if (!bloco || bloco.chave !== chave) {
@@ -392,6 +394,7 @@ export const FilaAgrupada = memo(function FilaAgrupada({
             // dizendo "17 peças".
             const noBloco = bloco.grupos.reduce((n, g) => n + g.items.length, 0);
             const todasPrioritarias = bloco.grupos.every((g) => g.items.every((i) => i.isPriority));
+            const todasDoKit = bloco.grupos.every((g) => g.items.every((i) => !!i.kitRemessaId));
             return (
               <div key={bloco.key} style={{ borderRadius: 12, overflow: 'hidden', backgroundColor: T.surface, border: `1px solid ${T.border}` }}>
                 <FaixaDoEvento
@@ -400,6 +403,7 @@ export const FilaAgrupada = memo(function FilaAgrupada({
                   evTotal={evSumMap.get(bloco.eventKey)?.count ?? 0}
                   noBloco={noBloco}
                   prioritarias={todasPrioritarias}
+                  doKit={todasDoKit}
                   tabId={tabId}
                   hoje={hoje}
                   emCartoes={emCartoes}

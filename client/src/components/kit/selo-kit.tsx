@@ -3,11 +3,10 @@
 // peça é do Kit, e o prazo de entrega". Um componente só, usado em toda linha
 // ou cartão de peça: some quando a peça é da Arena.
 //
-// UMA LINHA, CURTA (15/09): "KIT · 14/09". A versão longa ("KIT · entrega
-// 14/09") cortava nas colunas de ID, e a de duas linhas ficou pesada. O
-// detalhe completo (versão, entrega, caminhão) está no title.
+// SÓ "KIT" (dono, 23/10): o Kit deixou de ter datas próprias — segue os
+// prazos do evento a partir da Aprovação de layout, que é o que o title diz.
 // ─────────────────────────────────────────────────────────────────────────────
-import { detalheDaRemessa, diaMesDoKit, type RemessaDoKit } from "@shared/kit";
+import { DETALHE_DO_SELO_KIT, TEXTO_DO_SELO_KIT } from "@shared/kit";
 import { ehMolde } from "@shared/molde";
 
 import { T, N, TOM, FS, FW } from "@/lib/theme";
@@ -42,7 +41,7 @@ export function SeloMolde({ peca, style }: { peca: { id: string; type?: string |
 }
 
 export function SeloKit({ peca, style }: {
-  peca: { id: string; type?: string | null; kitRemessaId?: string | null; kitRemessa?: Partial<RemessaDoKit> | null };
+  peca: { id: string; type?: string | null; kitRemessaId?: string | null };
   style?: React.CSSProperties;
 }) {
   // O molde se declara junto (ver SeloMolde): peça do Kit que é molde mostra os dois.
@@ -52,20 +51,19 @@ export function SeloKit({ peca, style }: {
 }
 
 function SeloKitSo({ peca, style }: {
-  peca: { id: string; kitRemessaId?: string | null; kitRemessa?: Partial<RemessaDoKit> | null };
+  peca: { id: string };
   style?: React.CSSProperties;
 }) {
-  const entrega = diaMesDoKit(peca.kitRemessa?.entregaMaterial);
   return (
     <Selo
       data-testid={`selo-kit-${peca.id}`}
       className="selo-kit"
-      title={detalheDaRemessa(peca.kitRemessa)}
-      aria-label={`Peça do Kit${entrega ? `, entrega ${entrega}` : ""}`}
+      title={DETALHE_DO_SELO_KIT}
+      aria-label="Peça do Kit"
       cores={TOM.roxo}
-      style={{ ...MEDIDA_DO_SELO, gap: 4, fontVariantNumeric: "tabular-nums", ...style }}
+      style={{ ...MEDIDA_DO_SELO, ...style }}
     >
-      KIT{entrega ? <span style={{ fontWeight: FW.forte, color: TOM.roxo.text }}>· {entrega}</span> : null}
+      {TEXTO_DO_SELO_KIT}
     </Selo>
   );
 }

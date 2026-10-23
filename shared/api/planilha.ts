@@ -58,7 +58,7 @@ export interface AbaComPecasDaPlanilha { nome: string; pecas: number; doKit: boo
 export interface RespostaDaImportacao {
   imported: number;
   items: PecaJson[];
-  /** Presente quando a importação criou uma remessa do Kit nova. */
+  /** Planilha do Kit: a inclusão do Kit do evento em que as peças entraram (23/10). */
   kitRemessaId?: string;
 }
 

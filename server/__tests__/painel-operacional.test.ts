@@ -69,7 +69,6 @@ function montar(pecas = PECAS): PainelOperacional {
   return montarPainelOperacional({
     pecas, prazos, kpis: computeKpis(prazos), hoje: HOJE, geradoEm: em(0).toISOString(),
     nomeDoEvento: new Map([["e1", "Copa Norte"], ["e2", "Abertura Sul"], ["e3", "Maratona Antiga"]]),
-    remessasConhecidas: new Set(),
   });
 }
 const P = montar();

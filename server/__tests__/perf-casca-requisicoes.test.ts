@@ -30,6 +30,7 @@ function responder(url: string, papel: string) {
   if (url.startsWith("/api/notifications")) return [];
   if (url.startsWith("/api/pedidos-de-peca/pendentes")) return { total: 0 };
   if (url.startsWith("/api/auditorias-do-book")) return { auditorias: [] };
+  if (url.startsWith("/api/items/revisao-final/contagem")) return { total: 0 };
   return [];
 }
 
@@ -75,11 +76,13 @@ describe("a casca pede o mínimo ao montar", () => {
     expect(contar("/api/pedidos-de-peca/pendentes")).toBe(1);
     // "Deixa um número no Eventos" (dono, 19/10): peças do book a revisar.
     expect(contar("/api/auditorias-do-book")).toBe(1);
+    // "Número de itens a revisar na Revisão Final" (dono, 26/10): só o total.
+    expect(contar("/api/items/revisao-final/contagem")).toBe(1);
     for (const pesado of ["/api/events", "/api/sponsors", "/api/standard-items", "/api/items"]) {
       expect(contar(pesado), pesado).toBe(0);
     }
     // Orçamento total da casca: se crescer, que seja de propósito.
-    expect(pedidos.length, pedidos.join(", ")).toBe(4);
+    expect(pedidos.length, pedidos.join(", ")).toBe(5);
   }, 20_000);
 
   it("gráfica: não pede o badge de pedidos (não é dela)", async () => {
@@ -89,6 +92,7 @@ describe("a casca pede o mínimo ao montar", () => {
     // menu não é pedido por ninguém.
     expect(contar("/api/consultas-de-estoque/abertas")).toBe(0);
     expect(contar("/api/auditorias-do-book")).toBe(0);
+    expect(contar("/api/items/revisao-final/contagem")).toBe(0);
     expect(pedidos.length, pedidos.join(", ")).toBe(2);
   }, 20_000);
 });

@@ -196,6 +196,8 @@ const sectionLabelStyle: React.CSSProperties = {
 const rotuloDoNumero = (url: string, n: number): string =>
   url === "/eventos"
     ? rotuloDoContadorDoBook(n)
+    : url === "/solicitacao"
+    ? `${n} ${n === 1 ? "peça esperando" : "peças esperando"} a revisão final`
     : url === "/grafica/solicitacoes-ao-estoque"
     ? `${n} ${n === 1 ? "solicitação ao estoque esperando" : "solicitações ao estoque esperando"} resposta`
     : `${n} ${n === 1 ? "solicitação esperando" : "solicitações esperando"} ação`;
@@ -488,7 +490,17 @@ export function AppSidebar() {
   // e admin; a chave /api/auditorias-do-book é a mesma da tela de Eventos, e
   // o tempo real e o "Já cadastrei" a atualizam.
   const auditoriasDoBook = useResumoDasAuditorias(user);
+  // Peças esperando a Revisão Final (dono, 26/10: "assim como fica aparecendo o
+  // de solicitações"). Só o NÚMERO, contado no servidor pela mesma régua da
+  // tela (@shared/revisao-final) — a casca não baixa lista de peças. A chave
+  // começa com /api/items, então o tempo real das peças a atualiza.
+  const revisaFinal = role === "solicitacao" || role === "admin";
+  const { data: revisao } = useQuery<{ total: number }>({
+    queryKey: ["/api/items", "revisao-final/contagem"],
+    enabled: revisaFinal,
+  });
   const badges = {
+    "/solicitacao": revisaFinal ? revisao?.total : undefined,
     "/eventos": auditoriasDoBook.habilitado ? auditoriasDoBook.resumo.pecas : undefined,
     "/pedidos-de-peca": resolvePedidos ? pendentes?.total : undefined,
     "/grafica/solicitacoes-ao-estoque": respondeConsultas ? consultasAbertas?.total : undefined,

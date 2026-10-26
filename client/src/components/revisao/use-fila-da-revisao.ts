@@ -17,6 +17,7 @@ import { aguardandoEstoque, estoqueRespondeu } from "@/components/consulta-de-es
 import type { EstoqueDaLinha } from "@/components/consulta-de-estoque/na-revisao";
 import { SOLICITACAO_AO_ESTOQUE_ATIVA, propostaDaLiberacao } from "@shared/consultas-de-estoque";
 import { CHAVE_DA_REVISAO, REVIEW_STATUS, prontaParaLiberar, reaproveitamentoTotal } from "./regras";
+import { pecasParaRevisar } from "./contagem";
 import type { EventoDaApi, EventoDaPeca, FiltroDoEstoque, ItemPadrao, OpcaoDeFaceta, PecaDaRevisao, RegistroDoHistorico } from "./tipos";
 
 /** A dimensão que cada faceta exclui do próprio pool (ver `casaRecorte`). */
@@ -82,8 +83,8 @@ export function useFilaDaRevisao({
   const pendingItems = useMemo(
     // KIT: a Solicitação da Arena não revisa peça do Kit — ela nem aparece
     // aqui. O usuário do Kit só recebe as do Kit; o admin vê tudo.
-    () => items.filter(item => item.status === REVIEW_STATUS
-      && !(user?.role === "solicitacao" && !user?.kit && item.kitRemessaId)),
+    // (A régua mora em ./contagem — a mesma do número no menu lateral.)
+    () => pecasParaRevisar(items, user),
     [items, user?.role, user?.kit],
   );
 

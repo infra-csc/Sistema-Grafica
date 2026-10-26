@@ -15,6 +15,7 @@ import { ehBookCompleto, STATUS_CONHECIDOS as STATUS_DA_REGUA } from "@shared/fl
 import { requireAuth } from "../shared";
 import { COMPLEMENT_ALLOWED_STATUSES, quemVe } from "./comum";
 import { responderFalha, camposDoErro } from "../../erros";
+import { STATUS_DA_REVISAO, pecasParaRevisar } from "@shared/revisao-final";
 
 /** Patrocinador na peça, com o status da aprovação dele NESTA peça. */
 type PatrocinadorNaPeca = Sponsor & { approvalStatus: string | null };
@@ -706,6 +707,23 @@ export function registrarFilasEPorEvento(app: Express): void {
   // Batch: retorna sponsors + approvals de todos os itens aguardando aprovação
   // em 3 queries totais, evitando o N*2 de chamadas individuais da página de atendimento.
   // DEVE ficar ANTES de /:eventId — senão Express captura "batch-approval-data" como eventId.
+  // QUANTAS PEÇAS ESPERAM A REVISÃO FINAL — o número ao lado de "Revisão Final"
+  // no menu (dono, 26/10). Só o total, pela mesma régua da tela
+  // (@shared/revisao-final) e com a mesma visibilidade da lista (o usuário do
+  // Kit conta só o que enxerga). Antes de /api/items/:eventId.
+  app.get("/api/items/revisao-final/contagem", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "solicitacao" && req.userRole !== "admin") return res.json({ total: 0 });
+      const usuario = quemVe(req);
+      const naFila = (await storage.getItemsByStatuses([STATUS_DA_REVISAO]))
+        .filter((i) => !i.deletedAt && pecaVisivelPara(usuario, i));
+      res.json({ total: pecasParaRevisar(naFila, { role: req.userRole, kit: (req as any).userKit === true }).length });
+    } catch (error) {
+      console.error("[items] contagem da revisão final:", error);
+      res.status(500).json({ error: "Não foi possível contar a Revisão Final" });
+    }
+  });
+
   app.get("/api/items/batch-approval-data", requireAuth, async (req, res) => {
     try {
       // Devolve TODOS os vínculos e aprovações do sistema — restrito aos

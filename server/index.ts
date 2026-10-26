@@ -10,6 +10,7 @@ import { cacheDeOperadores } from "./routes/operadores";
 import { sessionMiddleware, SESSION_SECRET } from "./session";
 import { criarTrocaDeSso, verificarJwtDoPortal } from "./sso-troca";
 import { cabecalhosDeSeguranca } from "./cabecalhos-de-seguranca";
+import { registerMicrosoftAuth } from "./microsoft-auth";
 
 // SESSION_SECRET é validado (fail-fast) em ./session. Reutilizado aqui como
 // fallback do segredo de SSO quando SSO_SECRET não é definido — mantido para
@@ -61,11 +62,11 @@ async function seedUsers() {
 // ── Rede de segurança do processo ────────────────────────────────────────────
 // Sem estes handlers, uma Promise rejeitada sem catch (ou uma exceção lançada
 // fora do ciclo de request) derruba o processo Node SILENCIOSAMENTE — o servidor
-// some e o único rastro é o restart do Replit, sem log da causa. Aqui logamos a
+// some e o único rastro é o reinício do processo, sem log da causa. Aqui logamos a
 // causa e mantemos o servidor de pé. (Compromisso conhecido: continuar após um
 // uncaughtException pode deixar estado inconsistente; para um app interno,
 // priorizamos disponibilidade + visibilidade. Se preferir reinício limpo,
-// troque por process.exit(1) e deixe o Replit reiniciar.)
+// troque por process.exit(1) e deixe o gerenciador de processos reiniciar.)
 process.on("unhandledRejection", (reason) => {
   console.error("[unhandledRejection]", reason);
 });
@@ -74,7 +75,7 @@ process.on("uncaughtException", (err) => {
 });
 
 const app = express();
-app.set("trust proxy", 1); // Replit sits behind a reverse proxy — needed for secure cookies
+app.set("trust proxy", 1); // Um proxy reverso confiável fica à frente do app para HTTPS e cookies seguros
 // Sem ETag nas respostas da API (res.json/res.send): o Express hasheava o
 // corpo INTEIRO de cada lista (MBs) só para, quase sempre, não bater — as
 // listas vivem de delta (?since=) e o cliente não manda If-None-Match. Os
@@ -144,6 +145,15 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 // ── Portal SSO ───────────────────────────────────────────────────────────────
 // Tokens de troca de uso único, em tabela (ver ./sso-troca).
 const trocaDeSso = criarTrocaDeSso((texto, params) => pool.query(texto, params));
+registerMicrosoftAuth(app, {
+  findUser: async (email) => {
+    const { rows } = await pool.query<{ id: string }>(
+      "SELECT id FROM users WHERE lower(email) = lower($1) ORDER BY (email = $1) DESC LIMIT 1", [email],
+    );
+    return rows[0]?.id ?? null;
+  },
+  issueExchange: (userId) => trocaDeSso.emitir(userId),
+});
 
 // Step 1 — Portal redirects here with ?portal_sso=<JWT>&portal_return=<URL>
 // We validate the JWT, create a one-time token, and redirect to /?sso_exchange=TOKEN
@@ -313,15 +323,12 @@ async function runStartupMaintenance() {
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
+  // Porta configurável para o backend e o frontend.
   const port = parseInt(process.env.PORT || '5000', 10);
   server.listen({
     port,
     host: "0.0.0.0",
-    reusePort: true,
+    ...(process.platform === "linux" ? { reusePort: true } : {}),
   }, () => {
     log(`serving on port ${port}`);
      // O Autoscale exige que GET / responda logo após o processo iniciar.

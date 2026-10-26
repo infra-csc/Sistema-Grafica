@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // TEMPO REAL ENTRE CÓPIAS DO SERVIDOR.
 //
-// O deploy é autoscale: o Replit sobe várias cópias do processo, e cada
+// O deploy é autoscale: o hospedagem anterior sobe várias cópias do processo, e cada
 // navegador fica conectado (WebSocket) a UMA delas. Antes, broadcast() só
 // falava com os sockets da própria cópia — a conferência feita por quem caiu
 // na cópia A não chegava à Gráfica de quem estava na cópia B, e o cache de
@@ -175,10 +175,8 @@ async function conectar(): Promise<void> {
   if (!ativo) return;
   const url = process.env.TEMPO_REAL_DATABASE_URL || urlDiretaDoBanco(process.env.DATABASE_URL!);
   try {
-    const { Client, neonConfig } = await import("@neondatabase/serverless");
-    const ws = (await import("ws")).default;
-    neonConfig.webSocketConstructor = ws;
-    const novo = new Client({ connectionString: url }) as unknown as ClienteDoCanal & { connect: () => Promise<void> };
+    const { default: pg } = await import("pg");
+    const novo = new pg.Client({ connectionString: url, connectionTimeoutMillis: 10_000 }) as unknown as ClienteDoCanal & { connect: () => Promise<void> };
     novo.on("notification", (n: { channel: string; payload?: string }) => {
       if (n.channel === CANAL_DO_TEMPO_REAL && n.payload) receberDoCanal(n.payload);
     });

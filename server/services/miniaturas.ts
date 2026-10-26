@@ -17,7 +17,7 @@ let sharp: typeof import("sharp") | null = null;
 try {
   sharp = require("sharp");
 } catch {
-  console.log("[miniaturas] sharp não instalado — servindo originais. Para ligar: npm install sharp (no Replit) e republicar.");
+  console.log("[miniaturas] sharp não instalado — servindo originais. Para ligar: npm install sharp (no hospedagem anterior) e republicar.");
 }
 
 export const miniaturasDisponiveis = (): boolean => !!sharp;

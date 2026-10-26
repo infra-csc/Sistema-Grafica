@@ -54,7 +54,7 @@ async function throwIfResNotOk(res: Response, url?: string) {
   }
 
   const raw = (await res.text()) || res.statusText;
-  // Se a resposta for uma página HTML (ex: página 404 do Replit), não exibir
+  // Se a resposta for uma página HTML (ex: página 404 do hospedagem anterior), não exibir
   // o HTML bruto — substituir por mensagem genérica legível.
   const isHtml = raw.trimStart().startsWith("<");
   if (isHtml) {
@@ -99,7 +99,7 @@ export function getCurrentUserName(): string {
  * QUEDA DE REDE FALA PORTUGUÊS.
  *
  * Quando o fetch nem chega ao servidor (Wi-Fi caiu, servidor reiniciando no
- * Replit), o navegador rejeita com `TypeError: Failed to fetch` — e era essa
+ * hospedagem anterior), o navegador rejeita com `TypeError: Failed to fetch` — e era essa
  * frase, em inglês, que aparecia no toast de "Erro ao salvar". O usuário não
  * sabia o que tinha acontecido. A mensagem nova diz o que houve e o que fazer
  * — sem prometer "nada foi salvo": a conexão pode cair DEPOIS de o pedido

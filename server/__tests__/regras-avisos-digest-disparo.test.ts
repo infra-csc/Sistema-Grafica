@@ -116,7 +116,7 @@ const { destinatariosDoCanal } = await import("../services/destinatarios");
 const AS_10H = new Date("2026-08-24T13:05:00.000Z");
 const AS_15H = new Date("2026-08-24T18:05:00.000Z");
 const PROD = {
-  REPLIT_DEPLOYMENT: "1",
+  NODE_ENV: "production",
   BOOK_EMAIL_FROM: "sistemagrafica@nortemkt.com",
   BOOK_EMAIL_APP_URL: "https://app.nortemkt.com",
 };
@@ -188,7 +188,7 @@ describe.each(AVISOS)("aviso da $nome", (A) => {
   it("SÓ PRODUÇÃO ENVIA — nem o manual, porque dev compartilha segredos e conector com o deploy", async () => {
     // Caso real (24/08): dois avisos às 18h, "1 peça" (dev) e "48" (produção).
     A.encher();
-    for (const env of [{}, { NODE_ENV: "development" }, { ...PROD, REPLIT_DEPLOYMENT: undefined }]) {
+    for (const env of [{}, { NODE_ENV: "development" }, { ...PROD, NODE_ENV: undefined }]) {
       const r = await A.enviar(AS_10H, env, { manual: true });
       expect(r.status).toBe("desligado");
       expect(r.motivo).toContain("Fora de produção");
@@ -198,9 +198,9 @@ describe.each(AVISOS)("aviso da $nome", (A) => {
     expect(H.trilha).toHaveLength(0);
   });
 
-  it("produção é o carimbo do deploy OU NODE_ENV=production", async () => {
+  it("produção é definida por NODE_ENV=production", async () => {
     A.encher();
-    const { REPLIT_DEPLOYMENT: _, ...semCarimbo } = PROD;
+    const { NODE_ENV: _, ...semCarimbo } = PROD;
     expect((await A.enviar(AS_10H, PROD, { manual: true })).status).toBe("enviado");
     expect((await A.enviar(AS_10H, { ...semCarimbo, NODE_ENV: "production" }, { manual: true })).status).toBe("enviado");
     expect(H.emails).toHaveLength(2);

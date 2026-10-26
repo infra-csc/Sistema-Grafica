@@ -2,7 +2,7 @@
 // AVISO DE BOOK POR E-MAIL
 //
 // Quando a Arte publica o book de aprovação de um evento, quem cuida daquele
-// evento recebe um e-mail. Entrega pelo conector do Replit (Resend).
+// evento recebe um e-mail. Entrega direta pela API do Resend.
 //
 // ── A REVISÃO DE 24/08 (o que mudou e por quê) ───────────────────────────────
 // A primeira versão funcionava e era cuidadosa — escapava HTML, validava
@@ -37,7 +37,6 @@
 //  · "Peças vinculadas: 56" não tinha denominador. Se o book saiu com metade
 //    do evento, ninguém percebia. Agora é "56 de 60 peças do evento".
 // ─────────────────────────────────────────────────────────────────────────────
-import { ReplitConnectors } from "@replit/connectors-sdk";
 
 type Env = Record<string, string | undefined>;
 
@@ -343,11 +342,13 @@ export function buildBookEmailMessage(
  * seriam dois lugares para configurar, testar e quebrar.
  */
 export async function entregarEmail(message: BookEmailMessage): Promise<void> {
-  const connectors = new ReplitConnectors();
-  const response = await connectors.proxy("resend", "/emails", {
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  if (!apiKey) throw new Error("RESEND_API_KEY não configurada para envio de e-mail.");
+  const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify(message),
+    signal: AbortSignal.timeout(15_000),
   });
   if (!response.ok) {
     const corpo = await response.text().catch(() => "");
@@ -372,11 +373,7 @@ export async function entregarEmail(message: BookEmailMessage): Promise<void> {
       }
     }
     const detalheSeguro = detalhe.replace(/\s+/g, " ").slice(0, 240);
-    // Diagnóstico 09/09: um 401 sem corpo (detalheSeguro vazio) é a marca de
-    // um proxy/gateway recusando a IDENTIDADE antes de chegar ao Resend — o
-    // Resend, quando recusa a chave, sempre devolve um JSON com `message`.
-    // Sem os cabeçalhos abaixo não dava para distinguir "Resend recusou a
-    // chave" de "o proxy da Replit recusou o token do deployment".
+    // Cabeçalhos ajudam a correlacionar falhas do provedor sem registrar a chave.
     const contentType = response.headers.get("content-type") ?? "(ausente)";
     const contentLength = response.headers.get("content-length") ?? "(ausente)";
     const requestId =

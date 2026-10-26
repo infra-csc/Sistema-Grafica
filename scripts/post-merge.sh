@@ -1,5 +1,5 @@
 #!/bin/bash
-# Roda a cada merge no Replit. NÃO mexe mais no banco: o `db:push` automático
+# Roda a cada merge no hospedagem anterior. NÃO mexe mais no banco: o `db:push` automático
 # derrubava o que o schema não declara (sequência, índices de busca, sessões)
 # e podia pedir confirmação de perda de dado no meio do merge. Mudança de
 # banco agora é migração versionada (migrations/), rodada à mão, conferida antes.

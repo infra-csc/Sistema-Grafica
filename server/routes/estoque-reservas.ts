@@ -22,7 +22,7 @@
 import type { Express } from "express";
 import { and, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import type { PgDatabase } from "drizzle-orm/pg-core";
-import type { NeonQueryResultHKT } from "drizzle-orm/neon-serverless";
+import type { NodePgQueryResultHKT } from "drizzle-orm/node-postgres";
 import type * as schema from "@shared/schema";
 import { EVENTO_ARQUIVADO_ERRO } from "../services/arquivamento";
 import { db } from "../db";
@@ -88,7 +88,7 @@ const ehErroHttp = (e: unknown): e is { httpStatus: number; message?: string } =
   typeof e === "object" && e !== null && !!(e as { httpStatus?: unknown }).httpStatus;
 
 /** O `db` ou a transação em curso (a base comum dos dois). */
-type Exec = PgDatabase<NeonQueryResultHKT, typeof schema>;
+type Exec = PgDatabase<NodePgQueryResultHKT, typeof schema>;
 
 const COLUNAS_DO_ATIVO = {
   id: inventoryAssets.id,

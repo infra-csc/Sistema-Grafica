@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // RESERVA DE DISPARO — a trava que faltava quando o servidor virou N servidores.
 //
-// O deploy é autoscale: o Replit sobe réplicas do processo conforme a carga, e
+// O deploy é autoscale: o hospedagem anterior sobe réplicas do processo conforme a carga, e
 // cada uma roda o próprio relógio dos avisos. A trava existente ("olhe a trilha
 // antes de mandar") funcionava com UM servidor e falhava com três, porque a
 // trilha só é gravada DEPOIS do envio e mandar e-mail leva segundos:

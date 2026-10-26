@@ -54,7 +54,7 @@
 import type { Express, Request, Response } from "express";
 import { and, asc, eq, gte, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
 import type { PgDatabase } from "drizzle-orm/pg-core";
-import type { NeonQueryResultHKT } from "drizzle-orm/neon-serverless";
+import type { NodePgQueryResultHKT } from "drizzle-orm/node-postgres";
 import type * as schema from "@shared/schema";
 import { db } from "../db";
 import { storage } from "../storage";
@@ -184,7 +184,7 @@ const quandoBR = (d: Date): string =>
 // mesmo volume ficam em fila — entregar e mexer ao mesmo tempo não deixa linha
 // aberta dentro de volume entregue, e duas pessoas embalando a mesma peça não
 // passam do conferido. `Ex` é o `db` ou a transação em curso (a base comum dos dois).
-type Ex = PgDatabase<NeonQueryResultHKT, typeof schema>;
+type Ex = PgDatabase<NodePgQueryResultHKT, typeof schema>;
 
 /** Recusa de negócio lançada de dentro da transação (desfaz tudo) — vira a resposta HTTP. */
 class Recusa extends Error {

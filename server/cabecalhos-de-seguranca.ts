@@ -9,7 +9,7 @@
 // herda esta CSP). Assim um HTML injetado não executa.
 //
 // Em desenvolvimento o Vite injeta scripts inline no index.html (preâmbulo do
-// React Refresh, overlay de erro do Replit); sem 'unsafe-inline' a tela não
+// React Refresh); sem 'unsafe-inline' a tela não
 // sobe. Só no dev.
 //
 // style-src segue com 'unsafe-inline': o app usa `style={…}` em toda tela.
@@ -26,8 +26,8 @@ export function politicaDeConteudo(emProducao: boolean): string {
     "connect-src 'self' wss:",
     // Sem <base> de fora: um HTML injetado não redireciona os caminhos relativos.
     "base-uri 'self'",
-    // Dev: o painel de preview do Replit embute o app. Produção: ninguém embute.
-    emProducao ? "frame-ancestors 'none'" : "frame-ancestors 'self' https://*.replit.dev https://*.replit.app https://*.repl.co",
+    // Somente a própria origem pode embutir o app durante o desenvolvimento.
+    emProducao ? "frame-ancestors 'none'" : "frame-ancestors 'self'",
   ].join("; ");
 }
 

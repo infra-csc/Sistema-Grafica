@@ -46,7 +46,7 @@ const montado = buildBookEmailMessage(
     dryRun: true,
     from: "no-reply@nortemkt.com",
     recipients: [],
-    appUrl: "https://print-flow-manager-infraestrutura2.replit.app",
+    appUrl: "https://grafica.appsnorte.com",
   },
 );
 

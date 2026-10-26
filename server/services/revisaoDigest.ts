@@ -238,26 +238,9 @@ async function jaAvisou(dia: string, hora: number): Promise<boolean> {
   return linhas.length > 0;
 }
 
-/**
- * SÓ PRODUÇÃO ENVIA (24/08, caso real: o aviso das 18h chegou em dobro).
- *
- * O workspace de desenvolvimento do Replit compartilha os SEGREDOS e o
- * CONECTOR de e-mail com o deploy — então, sempre que ele está acordado no
- * horário, o mesmo relógio dispara lá também, com os dados do banco de dev:
- * chegaram dois avisos às 18h, "1 peça" (dev) e "48 peças" (produção).
- *
- * A trava não é o interruptor REVISAO_DIGEST_ENABLED (segredo compartilhado —
- * desligar num ambiente desliga no outro): é o que SÓ o deploy tem.
- * `REPLIT_DEPLOYMENT` é carimbado pelo próprio Replit no ambiente publicado;
- * NODE_ENV=production é como o `npm start` do deploy roda. O workspace roda
- * `npm run dev` e não tem nenhum dos dois.
- *
- * Vale para o automático E para o manual: o botão apertado em dev mandaria
- * dados de dev para gente de verdade — que é exatamente o e-mail duplicado
- * de novo, só que a pedido.
- */
+/** Apenas NODE_ENV=production autoriza envio; homologação deve manter os digests desligados. */
 export function ehProducao(env: Record<string, string | undefined> = process.env): boolean {
-  return env.REPLIT_DEPLOYMENT === "1" || env.NODE_ENV === "production";
+  return env.NODE_ENV === "production";
 }
 
 export async function enviarAvisoDaRevisao(

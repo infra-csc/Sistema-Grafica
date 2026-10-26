@@ -1,10 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // UM "OBJECT STORAGE" DE MENTIRA — só para o ambiente local.
 //
-// No Replit, os uploads vão para um bucket do Google Cloud Storage, com
-// credencial entregue pelo "sidecar" do Replit (127.0.0.1:1106), que não
-// existe fora dele. A biblioteca @google-cloud/storage aceita um emulador pela
-// variável STORAGE_EMULATOR_HOST — e, com ela, não pede credencial nenhuma.
+// A biblioteca @google-cloud/storage aceita um emulador por
+// STORAGE_EMULATOR_HOST, sem credenciais externas.
 // Este arquivo é esse emulador, com o MÍNIMO que o servidor usa
 // (server/objectStorage.ts, objectAcl.ts, services/miniaturas.ts):
 //

@@ -1,6 +1,7 @@
-// Replit Object Storage Service
-// Reference: blueprint:javascript_object_storage
-import { Storage, File } from "@google-cloud/storage";
+// Armazenamento privado: R2 na VPS e GCS/emulador para compatibilidade local.
+import { Storage } from "@google-cloud/storage";
+import type { ObjectFile, ObjectStorageClient } from "./objectStorageTypes";
+import { createR2Storage } from "./r2Storage";
 import { Response } from "express";
 import { randomUUID } from "crypto";
 import {
@@ -11,25 +12,12 @@ import {
 } from "./objectAcl";
 import { cabecalhosDoObjeto } from "./upload-seguro";
 
-const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
-
-// The object storage client is used to interact with the object storage service.
-export const objectStorageClient = new Storage({
-  credentials: {
-    audience: "replit",
-    subject_token_type: "access_token",
-    token_url: `${REPLIT_SIDECAR_ENDPOINT}/token`,
-    type: "external_account",
-    credential_source: {
-      url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
-      format: {
-        type: "json",
-        subject_token_field_name: "access_token",
-      },
-    },
-    universe_domain: "googleapis.com",
-  },
-  projectId: "",
+// GOOGLE_APPLICATION_CREDENTIALS aponta para credenciais administradas pela empresa.
+// STORAGE_EMULATOR_HOST é usado somente no desenvolvimento local.
+export const storageProvider = process.env.STORAGE_PROVIDER || "gcs";
+if (!["gcs", "r2"].includes(storageProvider)) throw new Error("STORAGE_PROVIDER deve ser gcs ou r2.");
+export const objectStorageClient: ObjectStorageClient = storageProvider === "r2" ? createR2Storage() : new Storage({
+  projectId: process.env.GOOGLE_CLOUD_PROJECT || (process.env.STORAGE_EMULATOR_HOST ? "local" : undefined),
 });
 
 export class ObjectNotFoundError extends Error {
@@ -57,8 +45,8 @@ export class ObjectStorageService {
     );
     if (paths.length === 0) {
       throw new Error(
-        "PUBLIC_OBJECT_SEARCH_PATHS not set. Create a bucket in 'Object Storage' " +
-          "tool and set PUBLIC_OBJECT_SEARCH_PATHS env var (comma-separated paths)."
+        "PUBLIC_OBJECT_SEARCH_PATHS not set. Configure o bucket e " +
+          "defina PUBLIC_OBJECT_SEARCH_PATHS env var (comma-separated paths)."
       );
     }
     return paths;
@@ -69,15 +57,15 @@ export class ObjectStorageService {
     const dir = process.env.PRIVATE_OBJECT_DIR || "";
     if (!dir) {
       throw new Error(
-        "PRIVATE_OBJECT_DIR not set. Create a bucket in 'Object Storage' " +
-          "tool and set PRIVATE_OBJECT_DIR env var."
+        "PRIVATE_OBJECT_DIR not set. Configure o bucket e " +
+          "defina PRIVATE_OBJECT_DIR env var."
       );
     }
     return dir;
   }
 
   // Search for a public object from the search paths.
-  async searchPublicObject(filePath: string): Promise<File | null> {
+  async searchPublicObject(filePath: string): Promise<ObjectFile | null> {
     for (const searchPath of this.getPublicObjectSearchPaths()) {
       const fullPath = `${searchPath}/${filePath}`;
 
@@ -104,7 +92,7 @@ export class ObjectStorageService {
   // página aparecer — era a lentidão relatada ao abrir o book. O visualizador
   // de PDF do navegador e o pdf.js sabem pedir só os trechos de que precisam,
   // mas só fazem isso quando o servidor anuncia `Accept-Ranges`.
-  async downloadObject(file: File, res: Response, cacheTtlSec: number = 3600) {
+  async downloadObject(file: ObjectFile, res: Response, cacheTtlSec: number = 3600) {
     try {
       // Get file metadata
       const [metadata] = await file.getMetadata();
@@ -188,8 +176,8 @@ export class ObjectStorageService {
     const privateObjectDir = this.getPrivateObjectDir();
     if (!privateObjectDir) {
       throw new Error(
-        "PRIVATE_OBJECT_DIR not set. Create a bucket in 'Object Storage' " +
-          "tool and set PRIVATE_OBJECT_DIR env var."
+        "PRIVATE_OBJECT_DIR not set. Configure o bucket e " +
+          "defina PRIVATE_OBJECT_DIR env var."
       );
     }
 
@@ -219,11 +207,13 @@ export class ObjectStorageService {
     const { bucketName, objectName } = parseObjectPath(fullPath);
     const file = objectStorageClient.bucket(bucketName).file(objectName);
     await file.save(buf, { contentType, resumable: false });
-    return `https://storage.googleapis.com/${bucketName}/${objectName}`;
+    return storageProvider === "r2"
+      ? `/objects/uploads/${objectId}`
+      : `https://storage.googleapis.com/${bucketName}/${objectName}`;
   }
 
   // Gets the object entity file from the object path.
-  async getObjectEntityFile(objectPath: string): Promise<File> {
+  async getObjectEntityFile(objectPath: string): Promise<ObjectFile> {
     if (!objectPath.startsWith("/objects/")) {
       throw new ObjectNotFoundError();
     }
@@ -252,7 +242,9 @@ export class ObjectStorageService {
   normalizeObjectEntityPath(
     rawPath: string,
   ): string {
-    if (!rawPath.startsWith("https://storage.googleapis.com/")) {
+    const r2Origin = `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+    if (!rawPath.startsWith("https://storage.googleapis.com/") &&
+        !(storageProvider === "r2" && rawPath.startsWith(`${r2Origin}/`))) {
       return rawPath;
     }
   
@@ -260,18 +252,15 @@ export class ObjectStorageService {
     const url = new URL(rawPath);
     const rawObjectPath = url.pathname;
   
-    let objectEntityDir = this.getPrivateObjectDir();
-    if (!objectEntityDir.endsWith("/")) {
-      objectEntityDir = `${objectEntityDir}/`;
+    // Só normalizamos o bucket atual e origens legadas declaradas pelo operador.
+    const entityDirs = [this.getPrivateObjectDir(), ...(process.env.LEGACY_PRIVATE_OBJECT_DIRS || "").split(",")]
+      .map(dir => dir.trim()).filter(Boolean).map(dir => dir.endsWith("/") ? dir : `${dir}/`);
+    for (const objectEntityDir of entityDirs) {
+      if (rawObjectPath.startsWith(objectEntityDir)) {
+        return `/objects/${rawObjectPath.slice(objectEntityDir.length)}`;
+      }
     }
-  
-    if (!rawObjectPath.startsWith(objectEntityDir)) {
-      return rawObjectPath;
-    }
-  
-    // Extract the entity ID from the path
-    const entityId = rawObjectPath.slice(objectEntityDir.length);
-    return `/objects/${entityId}`;
+    return rawObjectPath;
   }
 
   // Tries to set the ACL policy for the object entity and return the normalized path.
@@ -296,7 +285,7 @@ export class ObjectStorageService {
     requestedPermission,
   }: {
     userId?: string;
-    objectFile: File;
+    objectFile: ObjectFile;
     requestedPermission?: ObjectPermission;
   }): Promise<boolean> {
     return canAccessObject({
@@ -339,29 +328,14 @@ async function signObjectURL({
   method: "GET" | "PUT" | "DELETE" | "HEAD";
   ttlSec: number;
 }): Promise<string> {
-  const request = {
-    bucket_name: bucketName,
-    object_name: objectName,
-    method,
-    expires_at: new Date(Date.now() + ttlSec * 1000).toISOString(),
-  };
-  const response = await fetch(
-    `${REPLIT_SIDECAR_ENDPOINT}/object-storage/signed-object-url`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(request),
-    }
-  );
-  if (!response.ok) {
-    throw new Error(
-      `Failed to sign object URL, errorcode: ${response.status}, ` +
-        `make sure you're running on Replit`
-    );
+  if (process.env.STORAGE_EMULATOR_HOST) {
+    throw new Error("O emulador local não assina URLs. Use o upload via servidor.");
   }
-
-  const { signed_url: signedURL } = await response.json();
+  if (method === "HEAD") throw new Error("Assinatura HEAD não suportada.");
+  const [signedURL] = await objectStorageClient.bucket(bucketName).file(objectName).getSignedUrl({
+    version: "v4",
+    action: method === "PUT" ? "write" : method === "DELETE" ? "delete" : "read",
+    expires: Date.now() + ttlSec * 1000,
+  });
   return signedURL;
 }

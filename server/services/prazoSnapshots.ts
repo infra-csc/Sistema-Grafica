@@ -126,7 +126,7 @@ export function startPrazoSnapshots(): void {
       // Tabelas ainda não migradas (npm run db:push pendente) não podem
       // derrubar o processo — o job simplesmente não grava e a tendência não
       // aparece, exatamente como o GET já degrada.
-      console.error("[prazoSnapshots] falhou (rode npm run db:push no Replit):", (e as Error).message);
+      console.error("[prazoSnapshots] falhou (rode npm run db:push no hospedagem anterior):", (e as Error).message);
     }
   };
 

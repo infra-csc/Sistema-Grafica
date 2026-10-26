@@ -61,7 +61,7 @@ import { startDeadlineAlerts } from "../services/deadlineAlerts";
 const real = await vi.importActual<typeof import("../services/reservaDeDisparo")>("../services/reservaDeDisparo");
 
 let b: Banco;
-const PRODUCAO = { REPLIT_DEPLOYMENT: "1" };
+const PRODUCAO = { NODE_ENV: "production" };
 const AGORA = new Date("2026-09-23T13:00:00Z"); // 10h em Brasília
 const { dia, hora } = agoraNoFuso(AGORA);
 

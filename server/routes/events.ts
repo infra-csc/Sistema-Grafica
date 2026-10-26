@@ -128,7 +128,7 @@ function describeEventChanges(before: any, after: any): string[] {
 // O cliente envia "YYYY-MM-DDTHH:MM" SEM sufixo de fuso e a convenção de toda
 // a UI é que esse valor É a hora de parede pretendida (as telas formatam com
 // timeZone:'UTC'). `new Date("2026-03-10T08:00")` interpreta no fuso do
-// PROCESSO: hoje o Replit roda em UTC e o round-trip fecha por sorte de
+// PROCESSO: hoje o hospedagem anterior roda em UTC e o round-trip fecha por sorte de
 // infraestrutura — no dia em que o container subir com TZ=America/Sao_Paulo,
 // TODO evento passa a ser gravado 3h deslocado, sem lançar um único erro.
 // Carimbar o "Z" aqui torna a gravação independente do fuso do servidor.

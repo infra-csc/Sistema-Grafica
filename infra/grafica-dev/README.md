@@ -47,7 +47,30 @@ docker compose -p grafica-dev up -d app
 O bloco do Caddy está em `Caddyfile.dev` (acrescentado ao `/etc/caddy/Caddyfile`;
 validar com `caddy validate` e aplicar com `systemctl reload caddy`).
 
-## Atualizar o DEV com uma alteração de código
+## Deploy automático (GitHub Actions)
+
+Todo push na branch `dev` dispara `.github/workflows/deploy-dev.yml`: `npm ci`,
+`npm run check`, `npm run build`, empacota o release e o envia por SSH
+(porta 2222) para a VPS. Lá, `deploy-ci.sh` (cópia em `~/grafica-dev/`):
+
+1. extrai o release em `~/grafica-dev/releases/<sha>`;
+2. monta `grafica-dev:<sha>` com o `Dockerfile.ci` (dependências do lock do commit);
+3. roda as migrações só no `grafica_dev` (simulação; aplica se houver pendência);
+4. troca `GRAFICA_DEV_IMAGE` no `.env` e sobe o app;
+5. espera o health e `127.0.0.1:5001 → 200`; se falhar, volta para a imagem anterior;
+6. mantém as 5 últimas releases e imagens.
+
+A chave do CI (secret `DEV_SSH_PRIVATE_KEY`) entra no `~/.ssh/authorized_keys`
+com comando forçado, e só consegue rodar esse deploy:
+
+```
+restrict,command="/home/marcosvinicius/grafica-dev/deploy-ci.sh" ssh-ed25519 AAAA… grafica-dev-ci
+```
+
+Rodar à mão na VPS: `./deploy-ci.sh deploy <sha> < release.tar.gz`.
+Também dá para disparar pela aba Actions ("Run workflow").
+
+## Atualizar o DEV com uma alteração de código (manual)
 
 Nada disso toca a produção.
 

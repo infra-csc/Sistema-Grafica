@@ -6,7 +6,7 @@
 // entram no KIT DO EVENTO — uma inclusão só (dono, 23/10: "seria tudo a mesma
 // inclusão, e ele não precisaria colocar as datas"): a primeira planilha cria o
 // Kit, as seguintes acrescentam peças a ele. Sem formulário de datas: o Kit
-// segue os prazos do evento a partir da Aprovação de layout. O usuário do Kit
+// segue os prazos do evento a partir da Entrega de layouts. O usuário do Kit
 // só importa peça do Kit.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useState } from "react";
@@ -107,7 +107,7 @@ export function DestinoDaImportacaoDialog({ aberto, quantidade, arquivo, pecasNo
           <div role="radiogroup" aria-label="Destino das peças" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {cartao({ valor: "arena", titulo: "Arena", texto: "Lista do evento.", icone: Warehouse, cor: T.accentText,
               bloqueio: somenteKit ? "Usuário do Kit importa só peças do Kit." : undefined })}
-            {cartao({ valor: "kit", titulo: "Kit", texto: "Entram no Kit do evento, com o selo KIT. Seguem os prazos do evento a partir da Aprovação de layout.", icone: Package, cor: TOM.roxo.text })}
+            {cartao({ valor: "kit", titulo: "Kit", texto: "Entram no Kit do evento, com o selo KIT. Seguem os prazos do evento a partir da Entrega de layouts.", icone: Package, cor: TOM.roxo.text })}
           </div>
 
           {/* PASTA COM AS ABAS "KIT" E "ARENA" (New Balance BSB, 21/10): as

@@ -48,7 +48,7 @@ export interface PecaDaArte {
   finalFileUrl?: string | null;
   event?: EventoDaArte | null;
   sponsors?: ReadonlyArray<{ id: string }> | null;
-  /** Peça do Kit: o marco que a cobra começa na Aprovação (`faseDoPrazo`). */
+  /** Peça do Kit (a marca). Desde 26/10 é cobrada como as outras (`faseDoPrazo`). */
   kitRemessaId?: string | null;
 }
 
@@ -484,14 +484,14 @@ export const PHASE_DEADLINE: Record<
 };
 
 /**
- * A FASE CUJO MARCO COBRA A PEÇA nesta aba. A da Arena, a própria aba. A do
- * KIT (dono, 23/10: "ele entra nessa aprovação pra frente") não é cobrada pela
- * Entrega de Layouts — em "Enviar thumb" e na correção ela vence na Aprovação
- * de Layout, o mesmo marco que a Gestão de Prazos usa para ela
- * (`marcoIndexFor` em server/services/prazo-domain.ts).
+ * A FASE CUJO MARCO COBRA A PEÇA nesta aba: a própria aba, para a Arena e
+ * para o Kit. De 23 a 26/10 o Kit em "Enviar thumb" e na correção vencia na
+ * Aprovação de Layout; a Arte pediu a Entrega de Layouts ("ele classifica pela
+ * entrega de layout, a ordem"), e é o marco em que o Kit entra na Gestão de
+ * Prazos (`MARCO_EM_QUE_O_KIT_ENTRA`). Fica a função — é o ponto único caso o
+ * Kit volte a ter marco próprio.
  */
-export function faseDoPrazo(tab: string, peca: { kitRemessaId?: string | null } | null | undefined): string {
-  if (peca?.kitRemessaId && (tab === "criar-aprovacoes" || tab === "correcao")) return "aguardando-patrocinador";
+export function faseDoPrazo(tab: string, _peca?: { kitRemessaId?: string | null } | null): string {
   return tab;
 }
 

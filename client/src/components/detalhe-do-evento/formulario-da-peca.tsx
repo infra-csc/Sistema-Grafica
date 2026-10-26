@@ -98,7 +98,7 @@ export function ItemForm({
             Kit (o campo vira um aviso fixo). */}
         {!isEdit && kitObrigatorio && (
           <p data-testid="aviso-item-kit" style={{ margin: 0, fontSize: FS.body, color: TOM.roxo.text, background: TOM.roxo.bg, border: `1px solid ${TOM.roxo.border}`, borderRadius: 8, padding: "8px 12px", lineHeight: 1.45 }}>
-            Peça do Kit deste evento — segue os prazos do evento a partir da Aprovação de layout.
+            Peça do Kit deste evento — segue os prazos do evento a partir da Entrega de layouts.
           </p>
         )}
         {!isEdit && !kitObrigatorio && (eventoTemKit || formData.doKit) && (

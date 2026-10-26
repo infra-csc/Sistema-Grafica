@@ -294,7 +294,9 @@ describe("contadores", () => {
   });
 
   it("Revisão Final: 'Aguardando' volta a contar tudo, com o contrapeso ao lado", () => {
-    expect(REVISAO).toContain("item.status === REVIEW_STATUS");
+    // A régua da fila mora em @shared/revisao-final desde 26/10 (a mesma do número no menu).
+    expect(REVISAO).toContain("pecasParaRevisar(items, user)");
+    expect(ler("shared/revisao-final.ts")).toContain("&& item.status === STATUS_DA_REVISAO");
     expect(REVISAO).toContain("chip-evento-finalizado");
     expect(REVISAO).toContain("Evento finalizado:");
   });

@@ -4,7 +4,7 @@
 // ou cartão de peça: some quando a peça é da Arena.
 //
 // SÓ "KIT" (dono, 23/10): o Kit deixou de ter datas próprias — segue os
-// prazos do evento a partir da Aprovação de layout, que é o que o title diz.
+// prazos do evento a partir da Entrega de layouts, que é o que o title diz.
 // ─────────────────────────────────────────────────────────────────────────────
 import { DETALHE_DO_SELO_KIT, TEXTO_DO_SELO_KIT } from "@shared/kit";
 import { ehMolde } from "@shared/molde";

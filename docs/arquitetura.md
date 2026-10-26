@@ -174,7 +174,7 @@ e as sem tubo (`tubos: []`).
 
 ## Tempo real: LISTEN/NOTIFY
 
-O deploy é **autoscale**: o Replit sobe várias cópias do processo, e cada
+O servidor suporta várias cópias do processo, e cada
 navegador fica conectado por WebSocket a **uma** delas. Antes, `broadcast()` só
 falava com os sockets da própria cópia — a conferência feita por quem caiu na
 cópia A não chegava à Gráfica de quem estava na cópia B, e o cache da B seguia
@@ -338,7 +338,7 @@ Em `server/index.ts`, antes de qualquer rota:
 
 * `nosniff`, `Referrer-Policy: same-origin`, `X-Robots-Tag: noindex`, CSP; em
   produção, HSTS de um ano, `X-Frame-Options: DENY` e `frame-ancestors 'none'`
-  (em dev, o preview do Replit é liberado);
+  (em dev, somente a própria origem pode embutir o app);
 * **CSRF**: em requisição que muda estado, o `Origin` tem de bater com o `host`.
   É a segunda camada — `sameSite: 'lax'` já barra a maior parte. A troca de SSO
   é isenta (é AJAX de mesma origem);
@@ -351,7 +351,7 @@ Em `server/index.ts`, antes de qualquer rota:
 
 O processo instala `unhandledRejection`/`uncaughtException` e **segue de pé**,
 com a causa no log: sem isso, uma Promise rejeitada derrubava o Node em silêncio
-e o único rastro era o restart do Replit. É um compromisso consciente —
+e o único rastro era o reinício do processo. É um compromisso consciente —
 disponibilidade e visibilidade acima de reinício limpo, para um app interno.
 
 ---

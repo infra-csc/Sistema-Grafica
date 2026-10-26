@@ -1,0 +1,6 @@
+.env
+app.env
+dumps/
+*.dump
+*.list
+release-*/

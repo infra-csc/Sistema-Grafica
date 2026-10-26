@@ -885,7 +885,7 @@ export default function Modelos() {
           exceção que o próprio token documenta. */}
       <style>{`
         .modelos-page input::placeholder, .modelos-page textarea::placeholder { color: ${T.apoio}; opacity: 1; }
-        .modelos-page tr.linha-modelo:hover { background-color: ${T.bg}; }
+        .modelos-page tr.linha-modelo:hover { background-color: var(--n2); }
       `}</style>
 
       {/* ── Cabeçalho da casa ── o subtítulo diz o ESTADO do catálogo; a

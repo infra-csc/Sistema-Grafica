@@ -43,7 +43,7 @@ export const motivoBloqueio = (selo: SeloDeBloqueio, acao: string, p?: { travada
   selo.motivo === "travada" ? `Não dá para ${acao}: ${p ? fraseDaTrava(p) : selo.label}` : motivoAcaoBloqueada(selo.motivo, acao);
 
 /**
- * Servidor ainda na versão anterior (Pull sem Stop/Run no Replit): a rota
+ * Servidor ainda na versão anterior (deploy sem reiniciar o serviço): a rota
  * nova não existe e o catch-all do SPA devolve o index.html com 200. O
  * queryFn já converte isso num erro com frase própria; aqui a tela reconhece
  * esse erro (e o JSON inválido que vazaria se a guarda falhasse) para dizer
@@ -57,7 +57,7 @@ export function ehServidorNaVersaoAnterior(error: unknown): boolean {
 export function mensagemDoErro(error: unknown): unknown {
   return typeof error === "object" && error !== null && "message" in error ? (error as { message?: unknown }).message : undefined;
 }
-export const AVISO_SERVIDOR_ANTIGO = "O servidor ainda está na versão anterior — no Replit, faça Stop e Run e recarregue a página.";
+export const AVISO_SERVIDOR_ANTIGO = "O servidor ainda está na versão anterior — atualize e reinicie o serviço e recarregue a página.";
 
 // ─── Helpers puros ────────────────────────────────────────────────────────────
 export function somarDias(dia: string, n: number): string {

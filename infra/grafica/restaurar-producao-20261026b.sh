@@ -10,6 +10,8 @@ test -s "$dump"
 existe=$(docker exec "$container" psql -U postgres -Atc "select 1 from pg_database where datname='$database'")
 test -z "$existe" || { echo "Banco $database já existe; abortando."; exit 1; }
 docker exec "$container" createdb -U postgres -O grafica_app "$database"
+# O app grava e lê horários assumindo UTC (como no Neon): fixa o fuso do banco novo.
+docker exec "$container" psql -U postgres -v ON_ERROR_STOP=1 -c "ALTER DATABASE \"$database\" SET timezone TO 'UTC'"
 docker exec -i "$container" pg_restore --list < "$dump" | \
   sed '/ SCHEMA - public /d; / COMMENT - SCHEMA public /d' > "$base/migration/producao-20261026b.list"
 docker cp "$base/migration/producao-20261026b.list" "$container:/tmp/grafica-producao-20261026b.list"

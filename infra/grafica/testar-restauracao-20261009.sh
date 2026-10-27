@@ -8,6 +8,8 @@ database=grafica_restorecheck_20261009_151610
 test -s "$dump"
 sha256sum -c "$dump.sha256"
 docker exec "$container" createdb -U postgres -O grafica_app "$database"
+# O app grava e lê horários assumindo UTC (como no Neon): fixa o fuso do banco novo.
+docker exec "$container" psql -U postgres -v ON_ERROR_STOP=1 -c "ALTER DATABASE \"$database\" SET timezone TO 'UTC'"
 docker exec -i "$container" pg_restore --list < "$dump" | \
   sed '/ SCHEMA - public /d; / COMMENT - SCHEMA public /d' > "$base/backups/restorecheck-20261009.list"
 docker cp "$base/backups/restorecheck-20261009.list" "$container:/tmp/grafica-restorecheck-20261009.list"

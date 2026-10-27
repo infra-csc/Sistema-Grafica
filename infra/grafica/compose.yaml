@@ -15,15 +15,15 @@ services:
     command:
       - postgres
       - -c
+      - timezone=UTC
+      - -c
+      - log_timezone=UTC
+      - -c
       - max_connections=30
       - -c
       - shared_buffers=256MB
       - -c
       - log_min_duration_statement=1000
-      - -c
-      - timezone=UTC
-      - -c
-      - log_timezone=UTC
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init:/docker-entrypoint-initdb.d:ro

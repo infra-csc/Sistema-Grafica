@@ -468,7 +468,8 @@ describe("segunda passada: nada cortado, trocar direto, resumo e Excel", () => {
 
   it("EXPORTAR Excel baixa o .xlsx do mesmo período, com o nome do dia", async () => {
     await montar(1280, retrato(), { url: "/grafica/maquinas?aba=resumo" });
-    const fetchMock = vi.fn(async () => new Response(new Blob(["xlsx"]), { status: 200, headers: { "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" } }));
+    // Corpo em texto: o Blob do jsdom não é aceito pelo Response nativo do Node.
+    const fetchMock = vi.fn(async () => new Response("xlsx", { status: 200, headers: { "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" } }));
     vi.stubGlobal("fetch", fetchMock);
     (URL as any).createObjectURL = () => "blob:x";
     (URL as any).revokeObjectURL = () => {};

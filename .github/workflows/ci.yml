@@ -94,11 +94,13 @@ jobs:
     name: migrações reproduzem o schema
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
+    steps:
       # O PGlite mora FORA do projeto (instalado dentro, duplicaria o
       # drizzle-orm e quebraria os tipos) — ver scripts/local/ferramentas.mjs.
-      NORTE_FERRAMENTAS: ${{ runner.temp }}/ferramentas
-    steps:
+      # `runner.temp` não existe no `env` do job (o GitHub recusa o arquivo
+      # inteiro e nenhum job roda); por isso a variável é definida num passo.
+      - name: Pasta das ferramentas
+        run: echo "NORTE_FERRAMENTAS=$RUNNER_TEMP/ferramentas" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
@@ -127,9 +129,9 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    env:
-      NORTE_FERRAMENTAS: ${{ runner.temp }}/ferramentas
     steps:
+      - name: Pasta das ferramentas
+        run: echo "NORTE_FERRAMENTAS=$RUNNER_TEMP/ferramentas" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:

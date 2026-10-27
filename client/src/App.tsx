@@ -245,6 +245,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "/logs-sistema": "Logs do Sistema",
   "/notificacoes": "Notificações",
   "/reparo-motivos": "Correção de textos",
+  "/configuracoes": "Configurações",
   "/reparo-vinculos-evento": "Reparo de vínculos",
   "/inferir-executivos": "Inferir executivos",
   "/change-password": "Alterar Senha",

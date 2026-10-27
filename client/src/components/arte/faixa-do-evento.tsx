@@ -22,15 +22,15 @@ export function FaixaDoEvento({ bloco, prog, evTotal, noBloco, prioritarias = fa
   noBloco?: number;
   /** O bloco inteiro é de peças prioritárias. */
   prioritarias?: boolean;
-  /** O bloco inteiro é de peças do Kit (sobem para o topo; o marco começa na Aprovação). */
+  /** O bloco inteiro é de peças do Kit (mesmo marco das outras desde 26/10). */
   doKit?: boolean;
   tabId: string;
   hoje: Date;
   emCartoes: boolean;
   dedo: boolean;
 }) {
-  // Bloco só do Kit: o marco desta fase é o que cobra o Kit (Aprovação de
-  // layout em diante — "Enviar thumb" do Kit vence na Aprovação, 23/10).
+  // Bloco só do Kit: o marco desta fase é o que cobra o Kit — desde 26/10 o
+  // mesmo das outras peças (`faseDoPrazo`).
   const prazo = phaseDeadline(bloco.eventObj, doKit ? faseDoPrazo(tabId, { kitRemessaId: "kit" }) : tabId, hoje);
   // O evento partido em dois blocos (Kit e prioritárias furam a fila): este
   // bloco diz quantas peças TEM do total — "1 de 17", não "17" duas vezes.
@@ -73,7 +73,7 @@ export function FaixaDoEvento({ bloco, prog, evTotal, noBloco, prioritarias = fa
         {/* POR QUE ESTE BLOCO VEIO ANTES: só peças prioritárias de um
             evento que tem mais peças abaixo. */}
         {parcial && doKit && (
-          <Selo data-testid="faixa-kit" title="As peças do Kit sobem para o topo da fila; as demais deste evento vêm mais abaixo. O Kit segue os prazos do evento a partir da Aprovação de layout." cores={TOM.roxo} forma="retangulo" style={{ padding: '1px 7px', fontSize: fsToque(11, dedo), fontWeight: 700, flexShrink: 0 }}>
+          <Selo data-testid="faixa-kit" title="Peças do Kit deste evento. O Kit segue os prazos do evento a partir da Entrega de layouts." cores={TOM.roxo} forma="retangulo" style={{ padding: '1px 7px', fontSize: fsToque(11, dedo), fontWeight: 700, flexShrink: 0 }}>
             Kit
           </Selo>
         )}

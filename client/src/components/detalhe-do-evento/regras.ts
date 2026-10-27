@@ -32,8 +32,8 @@ const ETAPA_CUMPRIDA: Record<string, number> = {
 const etapaCumprida = (status: string) => ETAPA_CUMPRIDA[status] ?? 0;
 /**
  * A peça ainda não passou pelo marco `i` — e esse marco a COBRA? A peça do
- * Kit (dono, 23/10) só é cobrada da Aprovação de Layout em diante: Lista de
- * Imagens e Entrega de Layouts não a contam (`kitCobradoNoMarco`).
+ * Kit só é cobrada da Entrega de Layouts em diante (26/10; era a Aprovação):
+ * a Lista de Imagens não a conta (`kitCobradoNoMarco`).
  */
 export const estaAtrasDoMarco = (status: string, i: number, doKit = false) =>
   etapaCumprida(status) < i + 1 && (!doKit || kitCobradoNoMarco(MARCOS_DO_EVENTO[i]?.key ?? ""));

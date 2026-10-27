@@ -163,9 +163,8 @@ export const FilaAgrupada = memo(function FilaAgrupada({
   const blocos: Bloco[] = [];
   shownItems.forEach(item => {
     // KIT (23/10): a peça do Kit é peça do EVENTO — mesmo nome, mesmas datas,
-    // mesmos marcos. Ela sobe para o topo da fila (use-fila-da-arte), então o
-    // evento pode aparecer em dois blocos, como com as prioritárias: o do Kit
-    // em cima, o resto abaixo — a faixa diz "Kit" e quantas são do total.
+    // mesmos marcos e, desde 26/10, a mesma ordem (use-fila-da-arte): fica no
+    // bloco do próprio evento, com o selo KIT na linha.
     const eventName = item.event?.name || 'Sem Evento';
     const eventKey = item.eventId || eventName;
     const chave = eventKey;

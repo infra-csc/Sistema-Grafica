@@ -99,7 +99,7 @@ export const APROVACAO_STAGE_INDEX = STAGE_DEFS.findIndex((s) => s.key === "apro
 /** Índice da Finalização — o marco que cobra a peça isenta de aprovação. */
 export const FINALIZACAO_STAGE_INDEX = STAGE_DEFS.findIndex((s) => s.key === "finalizacao");
 
-/** Índice do primeiro marco que cobra a peça do Kit (a Aprovação de Layout). */
+/** Índice do primeiro marco que cobra a peça do Kit (a Entrega de Layouts, 26/10). */
 export const KIT_STAGE_INDEX = STAGE_DEFS.findIndex((s) => s.key === MARCO_EM_QUE_O_KIT_ENTRA);
 
 /**
@@ -128,10 +128,10 @@ export function marcoIndexFor(status: string, skipApproval?: boolean | null, doK
   const rank = STATUS_STAGE_RANK[status];
   if (rank === undefined) return undefined;
   if (skipApproval && rank < FINALIZACAO_STAGE_INDEX) return FINALIZACAO_STAGE_INDEX;
-  // PEÇA DO KIT (dono, 23/10: "ele entra nessa aprovação pra frente"): Lista
-  // de Imagens e Entrega de Layouts não cobram o Kit — a peça do Kit que ainda
-  // está nessas etapas é medida pelo prazo da Aprovação de Layout, como a
-  // isenta de aprovação é medida pela Finalização (mesma folga aceita acima).
+  // PEÇA DO KIT (26/10; era a Aprovação desde 23/10): a Lista de Imagens não
+  // cobra o Kit — a peça do Kit que ainda está nela é medida pelo prazo da
+  // Entrega de Layouts, como a isenta de aprovação é medida pela Finalização
+  // (mesma folga aceita acima).
   if (doKit && rank < KIT_STAGE_INDEX) return KIT_STAGE_INDEX;
   return rank;
 }

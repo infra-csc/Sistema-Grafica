@@ -9,11 +9,12 @@
 // O que vale desde 23/10:
 //   · a peça do Kit é PEÇA DO EVENTO, com o selo KIT — mesmas datas, mesmos
 //     marcos, mesmo evento em toda tela (nada de "Evento · KIT" à parte);
-//   · PRAZOS: o Kit é cobrado pelos marcos do evento a partir da APROVAÇÃO DE
-//     LAYOUT (Aprovação → Finalização → Revisão de lista → Produção gráfica).
-//     Lista de imagens e Entrega de layouts NÃO cobram o Kit (ver
-//     `kitCobradoNoMarco`) — a peça do Kit que ainda está nessas etapas é
-//     medida pelo prazo da Aprovação;
+//   · PRAZOS: o Kit é cobrado pelos marcos do evento a partir da ENTREGA DE
+//     LAYOUTS (Layouts → Aprovação → Finalização → Revisão de lista → Produção
+//     gráfica). Só a Lista de imagens NÃO cobra o Kit (ver `kitCobradoNoMarco`)
+//     — a peça do Kit que ainda está nela é medida pela Entrega de layouts.
+//     Era "da Aprovação em diante" até 26/10; a Arte pediu a Entrega de
+//     layouts, que é a data pela qual ela ordena a fila;
 //   · UMA INCLUSÃO POR EVENTO: a linha de `kit_remessas` virou "a inclusão do
 //     Kit do evento" (UNIQUE em event_id, migração 0009). Subir outra planilha
 //     do Kit só ACRESCENTA peças a ela. As datas da antiga remessa (entrega do
@@ -120,7 +121,7 @@ export const fraseDasPecasDoKitQueFicaram = (n: number): string =>
 export const TEXTO_DO_SELO_KIT = "KIT";
 
 /** O que o selo explica ao passar o mouse (title/tooltip). */
-export const DETALHE_DO_SELO_KIT = "Peça do Kit — segue os prazos do evento a partir da Aprovação de layout";
+export const DETALHE_DO_SELO_KIT = "Peça do Kit — segue os prazos do evento a partir da Entrega de layouts";
 
 /** O texto do selo: sempre "KIT" (a data própria do Kit deixou de existir em 23/10). */
 export const textoDoSeloKit = (): string => TEXTO_DO_SELO_KIT;
@@ -131,15 +132,20 @@ export function grupoDoKit(peca: { kitRemessaId?: string | null }): string | nul
   return peca.kitRemessaId ? TEXTO_DO_SELO_KIT : null;
 }
 
-// ─── Prazos: o Kit entra no funil na Aprovação de layout (dono, 23/10) ───────
+// ─── Prazos: o Kit entra no funil na Entrega de layouts (Arte/dono, 26/10) ───
+//
+// 23/10 o Kit entrava na Aprovação de layout; 26/10 a Arte pediu: "as peças de
+// retirada de kit estão sem prazo de entrega de layout… ele classifica pela
+// entrega de layout, a ordem". O dono escolheu: Kit cobrado pela Entrega de
+// layouts e na mesma ordem das outras peças (sem "Kit sempre no topo").
 
 /** Os marcos do funil que NÃO cobram a peça do Kit (chaves de FUNIL_DE_PRAZOS). */
-export const MARCOS_QUE_NAO_COBRAM_O_KIT: ReadonlySet<string> = new Set(["listaImagens", "layouts"]);
+export const MARCOS_QUE_NAO_COBRAM_O_KIT: ReadonlySet<string> = new Set(["listaImagens"]);
 
 /** O primeiro marco que cobra a peça do Kit. */
-export const MARCO_EM_QUE_O_KIT_ENTRA = "aprovacao" as const;
+export const MARCO_EM_QUE_O_KIT_ENTRA = "layouts" as const;
 
-/** O marco (pela chave) cobra a peça do Kit? Da Aprovação em diante, sim. */
+/** O marco (pela chave) cobra a peça do Kit? Da Entrega de layouts em diante, sim. */
 export const kitCobradoNoMarco = (chaveDoMarco: string): boolean => !MARCOS_QUE_NAO_COBRAM_O_KIT.has(chaveDoMarco);
 
 // ─── A planilha do Kit ───────────────────────────────────────────────────────

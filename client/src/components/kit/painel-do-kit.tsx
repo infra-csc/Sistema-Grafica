@@ -6,7 +6,7 @@
 // datas, mas seguiremos com a planilha de inclusão do kit." (dono, 23/10)
 //
 // UM BLOCO SÓ: "Kit · N peças". As peças do Kit são peças do evento, com o selo
-// KIT, e seguem os prazos do evento a partir da Aprovação de layout. Nada de
+// KIT, e seguem os prazos do evento a partir da Entrega de layouts. Nada de
 // V1/V2, de datas próprias, de "Editar remessa" ou "Nova remessa".
 //
 // "INCLUIR PEÇAS DO KIT" É A PLANILHA: subir a planilha do Kit (aba KIT, com o
@@ -33,7 +33,7 @@ import type { AbaComPecasDaPlanilha } from "@shared/api";
 export const chaveDasRemessas = (eventId: string) => `/api/kit/remessas?eventId=${eventId}`;
 
 /** A frase dos prazos do Kit, a mesma em toda tela do evento. */
-export const FRASE_DOS_PRAZOS_DO_KIT = "Seguem os prazos do evento a partir da Aprovação de layout.";
+export const FRASE_DOS_PRAZOS_DO_KIT = "Seguem os prazos do evento a partir da Entrega de layouts.";
 
 type PecaDaPlanilha = {
   type: string; description: string; quantity: number;

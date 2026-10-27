@@ -269,7 +269,7 @@ export function BotaoPrimario({ item, tabId, largura, podeEditar, dedo, enviando
 export function PrazoDaPeca({ item, tabId, hoje, dedo = false, emLinha = false }: { item: PecaDaArte; tabId: string; hoje: Date; dedo?: boolean; emLinha?: boolean }) {
   // PRAZO DO MOLDE (22/09): no molde de evento com prazo do molde, é ele
   // que a coluna mostra; sem ele (ou peça comum), o marco da fase de sempre.
-  // Peça do Kit: em "Enviar thumb" vence na Aprovação de Layout (faseDoPrazo).
+  // Peça do Kit: o mesmo marco das outras desde 26/10 (faseDoPrazo).
   const p = prazoDoMolde(item, item.event, hoje) ?? phaseDeadline(item.event, faseDoPrazo(tabId, item), hoje);
   // A IDADE NA FASE, abaixo da data. O prazo diz o marco (futuro); isto diz
   // há quanto tempo a peça está parada onde está — numa fila que espera

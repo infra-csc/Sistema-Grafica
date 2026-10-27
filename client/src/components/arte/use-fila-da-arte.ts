@@ -386,9 +386,9 @@ export function useFilaDaArte({
       // PEÇA PRIORITÁRIA fura a fila (dono, 27/08): vem antes de qualquer
       // régua — inclusive do prazo. É a peça que a Solicitação marcou para a
       // Arte atacar primeiro.
-      // KIT SEMPRE EM CIMA (dono, 15/09): as peças do Kit antes das da Arena.
-      const kit = Number(!!b.kitRemessaId) - Number(!!a.kitRemessaId);
-      if (kit !== 0) return kit;
+      // O KIT NÃO FURA MAIS A FILA (26/10, era "Kit sempre em cima" desde
+      // 15/09): a Arte ordena pela Entrega de Layouts e o Kit entra na mesma
+      // ordem das outras peças, pelo prazo do evento.
       const prio = Number(!!b.isPriority) - Number(!!a.isPriority);
       if (prio !== 0) return prio;
       // Ordenar por PRAZO reordena os blocos inteiros (a lista é agrupada por

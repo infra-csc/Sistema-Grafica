@@ -2,7 +2,7 @@
 // KIT — usuário do Kit, peça do Kit com quem criou, e o filtro "o usuário do
 // Kit só vê as dele" (14/09); SIMPLIFICADO em 23/10: uma inclusão só por
 // evento, sem datas próprias — o Kit segue os prazos do evento a partir da
-// Aprovação de layout.
+// Entrega de layouts (era a Aprovação até 26/10).
 //
 // O SERVIDOR (schema, login, inclusão do Kit, recorte das listas, criação,
 // Entrada Rápida, importação, eventos, prazos, busca, trilha, sino, fotos e
@@ -69,7 +69,7 @@ describe("regras puras do Kit", () => {
     expect(textoDoSeloKit()).toBe("KIT");
     expect(grupoDoKit({ kitRemessaId: "r1" })).toBe("KIT");
     expect(grupoDoKit({ kitRemessaId: null })).toBeNull();
-    expect(DETALHE_DO_SELO_KIT).toContain("Aprovação de layout");
+    expect(DETALHE_DO_SELO_KIT).toContain("Entrega de layouts");
     // As funções das datas e das remessas sumiram do módulo.
     for (const nome of ["eventoComDatasDoKit", "ancoraDoKit", "diaMesDoKit", "rotuloDaRemessa", "detalheDaRemessa"]) {
       expect(nome in kit, nome).toBe(false);
@@ -81,7 +81,7 @@ describe("regras puras do Kit", () => {
   });
 });
 
-// ─── PRAZOS DO KIT: os marcos do evento, da Aprovação de layout em diante ────
+// ─── PRAZOS DO KIT: os marcos do evento, da Entrega de layouts em diante (26/10) ─
 
 const HOJE = "2026-10-23";
 const HOJE_MS = businessDayStrToMs(HOJE);
@@ -92,21 +92,21 @@ const pecaD = (id: string, status: string, kitRemessaId: string | null = null, o
 });
 
 describe("prazos do Kit pelos marcos do evento (dono, 23/10)", () => {
-  it("Lista de imagens e Entrega de layouts não cobram o Kit; da Aprovação em diante, sim", () => {
-    expect(Array.from(MARCOS_QUE_NAO_COBRAM_O_KIT).sort()).toEqual(["layouts", "listaImagens"]);
+  it("só a Lista de imagens não cobra o Kit; da Entrega de layouts em diante, sim (26/10)", () => {
+    expect(Array.from(MARCOS_QUE_NAO_COBRAM_O_KIT)).toEqual(["listaImagens"]);
     for (const def of STAGE_DEFS) {
-      expect(kitCobradoNoMarco(def.key), def.key).toBe(def.key !== "listaImagens" && def.key !== "layouts");
+      expect(kitCobradoNoMarco(def.key), def.key).toBe(def.key !== "listaImagens");
     }
-    expect(KIT_STAGE_INDEX).toBe(APROVACAO_STAGE_INDEX);
+    expect(KIT_STAGE_INDEX).toBe(STAGE_DEFS.findIndex((s) => s.key === "layouts"));
   });
 
-  it("marcoIndexFor: a peça do Kit em Lista/Layouts é medida pela Aprovação; a da Arena, pela própria etapa", () => {
+  it("marcoIndexFor: a peça do Kit na Lista é medida pela Entrega de layouts; nos Layouts, pelos Layouts", () => {
     const LISTA = STAGE_DEFS.findIndex((s) => s.key === "listaImagens");
     const LAYOUTS = STAGE_DEFS.findIndex((s) => s.key === "layouts");
     expect(marcoIndexFor("requested")).toBe(LISTA);
-    expect(marcoIndexFor("requested", false, true)).toBe(APROVACAO_STAGE_INDEX);
+    expect(marcoIndexFor("requested", false, true)).toBe(LAYOUTS);
     expect(marcoIndexFor("awaiting_submission")).toBe(LAYOUTS);
-    expect(marcoIndexFor("awaiting_submission", false, true)).toBe(APROVACAO_STAGE_INDEX);
+    expect(marcoIndexFor("awaiting_submission", false, true)).toBe(LAYOUTS);
     // Da Aprovação em diante a peça do Kit é cobrada como qualquer outra.
     expect(marcoIndexFor("awaiting_sponsor_approval", false, true)).toBe(APROVACAO_STAGE_INDEX);
     expect(marcoIndexFor("ready_for_production", false, true)).toBe(marcoIndexFor("ready_for_production"));
@@ -114,17 +114,20 @@ describe("prazos do Kit pelos marcos do evento (dono, 23/10)", () => {
     expect(marcoIndexFor("awaiting_submission", true, true)).toBe(FINALIZACAO_STAGE_INDEX);
   });
 
-  it("Gestão de Prazos: UMA linha por evento; o Kit atrasado na Lista/Layouts não deixa o evento vermelho", () => {
-    // Só peças do Kit em Lista e Layouts: as duas etapas já venceram, mas não as cobram.
+  it("Gestão de Prazos: UMA linha por evento; o Kit é cobrado pela Entrega de layouts, não pela Lista", () => {
+    // Só peças do Kit em Lista e Layouts: as duas já venceram; a Lista não cobra
+    // o Kit, a Entrega de layouts sim (26/10) — o evento fica vermelho nela.
     const soKit = buildEventPrazo(EVENTO_E1, [pecaD("k1", "requested", "inc"), pecaD("k2", "awaiting_submission", "inc")], { today: HOJE_MS })!;
     expect(soKit.id).toBe("e1");
     expect(soKit.name).toBe("Copa Norte");
     expect(soKit.truckDepartureDate).toBe("2026-11-05T08:00:00.000Z");
-    expect(soKit.categoria).toBe("emDia");
+    expect(soKit.categoria).toBe("atrasado");
     expect(soKit.stages.find((s) => s.key === "listaImagens")!.directCount).toBe(0);
-    expect(soKit.stages.find((s) => s.key === "layouts")!.directCount).toBe(0);
-    expect(soKit.stages.find((s) => s.key === "aprovacao")!.directCount).toBe(2);
-    expect(soKit.pendingItems.every((p) => p.marcoIndex === APROVACAO_STAGE_INDEX)).toBe(true);
+    expect(soKit.stages.find((s) => s.key === "listaImagens")!.state).not.toBe("overdue");
+    expect(soKit.stages.find((s) => s.key === "layouts")!.directCount).toBe(2);
+    expect(soKit.stages.find((s) => s.key === "layouts")!.state).toBe("overdue");
+    expect(soKit.stages.find((s) => s.key === "aprovacao")!.directCount).toBe(0);
+    expect(soKit.pendingItems.every((p) => p.marcoIndex === KIT_STAGE_INDEX)).toBe(true);
     // A mesma peça da Arena acende a Lista de imagens vencida.
     const arena = buildEventPrazo(EVENTO_E1, [pecaD("a1", "requested")], { today: HOJE_MS })!;
     expect(arena.categoria).toBe("atrasado");
@@ -153,9 +156,9 @@ describe("prazos do Kit pelos marcos do evento (dono, 23/10)", () => {
     expect(ALERTAS).not.toContain("· KIT");
   });
 
-  it("Arte: 'Enviar thumb' e a correção do Kit vencem na Aprovação de Layout", () => {
-    expect(faseDoPrazo("criar-aprovacoes", { kitRemessaId: "inc" })).toBe("aguardando-patrocinador");
-    expect(faseDoPrazo("correcao", { kitRemessaId: "inc" })).toBe("aguardando-patrocinador");
+  it("Arte: 'Enviar thumb' e a correção do Kit vencem na Entrega de Layouts, como as outras (26/10)", () => {
+    expect(faseDoPrazo("criar-aprovacoes", { kitRemessaId: "inc" })).toBe("criar-aprovacoes");
+    expect(faseDoPrazo("correcao", { kitRemessaId: "inc" })).toBe("correcao");
     expect(faseDoPrazo("finalizar-layouts", { kitRemessaId: "inc" })).toBe("finalizar-layouts");
     expect(faseDoPrazo("criar-aprovacoes", { kitRemessaId: null })).toBe("criar-aprovacoes");
     // Saída 05/11: Layouts vence 16/10 (já foi), Aprovação 24/10 (amanhã).
@@ -163,13 +166,13 @@ describe("prazos do Kit pelos marcos do evento (dono, 23/10)", () => {
     const hoje = new Date(2026, 9, 23);
     expect(phaseDeadline(evento, "criar-aprovacoes", hoje)!.label).toBe("Entrega de Layouts");
     expect(isAtrasadaNaFase({ event: evento, kitRemessaId: null }, "criar-aprovacoes", hoje)).toBe(true);
-    expect(isAtrasadaNaFase({ event: evento, kitRemessaId: "inc" }, "criar-aprovacoes", hoje)).toBe(false);
+    expect(isAtrasadaNaFase({ event: evento, kitRemessaId: "inc" }, "criar-aprovacoes", hoje)).toBe(true);
   });
 
-  it("Detalhe do Evento: a agenda não conta o Kit atrás da Lista nem dos Layouts", () => {
+  it("Detalhe do Evento: a agenda não conta o Kit atrás da Lista; dos Layouts em diante, conta", () => {
     expect(estaAtrasDoMarco("requested", 0)).toBe(true);
     expect(estaAtrasDoMarco("requested", 0, true)).toBe(false);
-    expect(estaAtrasDoMarco("awaiting_submission", 1, true)).toBe(false);
+    expect(estaAtrasDoMarco("awaiting_submission", 1, true)).toBe(true);
     expect(estaAtrasDoMarco("awaiting_submission", 2, true)).toBe(true);
     expect(estaAtrasDoMarco("ready_for_production", 5, true)).toBe(true);
   });
@@ -281,14 +284,13 @@ describe("a peça do Kit enxerga o MESMO evento (23/10)", () => {
     expect(depois.event).toEqual(renomeado);
   });
 
-  it("Arte e Revisão: o Kit fica no bloco do evento (sem '· KIT' nem chave '#kit-'); o Kit continua em cima", () => {
+  it("Arte e Revisão: o Kit fica no bloco do evento (sem '· KIT' nem chave '#kit-'), na mesma ordem das outras (26/10)", () => {
     const ARTE = ler("client/src/pages/arte.tsx");
     expect(ARTE).toContain("const chave = eventKey;");
     expect(ARTE).not.toContain("#kit-");
     expect(ARTE).not.toContain("datasDoKit");
-    const kitEmCima = ARTE.indexOf("const kit = Number(!!b.kitRemessaId) - Number(!!a.kitRemessaId);");
-    expect(kitEmCima).toBeGreaterThan(-1);
-    expect(kitEmCima).toBeLessThan(ARTE.indexOf("const prio = Number(!!b.isPriority) - Number(!!a.isPriority);"));
+    // A Arte ordena pela Entrega de Layouts: o Kit não fura mais a fila.
+    expect(ARTE).not.toContain("Number(!!b.kitRemessaId) - Number(!!a.kitRemessaId)");
     expect(ARTE).toContain('data-testid="faixa-kit"');
     const REVISAO = ler("client/src/pages/solicitacao.tsx");
     expect(REVISAO).toContain('const key = item.eventId || "__none__";');
@@ -303,7 +305,9 @@ describe("a peça do Kit enxerga o MESMO evento (23/10)", () => {
 describe("Solicitação da Arena e o Kit (15/09)", () => {
   it("Revisão sem Kit para a Solicitação da Arena e sem rolagem; Gráfica só visualiza; servidor barra a escrita", () => {
     const REVISAO = ler("client/src/pages/solicitacao.tsx");
-    expect(REVISAO).toContain('&& !(user?.role === "solicitacao" && !user?.kit && item.kitRemessaId)),');
+    // A régua mora em @shared/revisao-final desde 26/10 (a mesma do número no menu).
+    expect(REVISAO).toContain("pecasParaRevisar(items, user)");
+    expect(ler("shared/revisao-final.ts")).toContain('&& !(user?.role === "solicitacao" && !user?.kit && item.kitRemessaId));');
     expect(REVISAO).toContain('<table style={{ width: "100%", tableLayout: "fixed", textAlign: "left", borderCollapse: "collapse" }}>');
     const pecaDoKit = { id: "p", kitRemessaId: "k1", status: "produced", quantity: 2, quantityProduced: 2, conferredQty: 0 } as never;
     const semKit = { id: "p", kitRemessaId: null, status: "produced", quantity: 2, quantityProduced: 2, conferredQty: 0 } as never;

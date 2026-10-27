@@ -466,7 +466,8 @@ describe("theme.ts e index.css carregam os mesmos valores", () => {
     expect(html).toContain('name="theme-color"');
     const manifest = JSON.parse(readFileSync(path.resolve(__dirname, "../../client/public/manifest.webmanifest"), "utf8"));
     expect(manifest.display).toBe("standalone");
-    expect(manifest.icons.map((i: any) => i.sizes).sort()).toEqual(["192x192", "512x512"]);
+    // 512 aparece duas vezes de propósito: "any" e "maskable".
+    expect([...new Set(manifest.icons.map((i: any) => i.sizes))].sort()).toEqual(["192x192", "512x512"]);
   });
 });
 

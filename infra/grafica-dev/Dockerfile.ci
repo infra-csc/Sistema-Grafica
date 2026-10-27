@@ -1,0 +1,17 @@
+# Imagem do DEV gerada pelo deploy automático (deploy-ci.sh).
+# Igual ao infra/grafica/Dockerfile: dependências do package-lock do próprio
+# commit (camada em cache enquanto o lock não muda) + o build do CI.
+FROM node:24.15.0-bookworm-slim
+WORKDIR /app
+# O bundle atual importa Vite estaticamente: devDependencies ficam na imagem.
+COPY package.json package-lock.json ./
+RUN npm ci --include=dev --no-audit --no-fund && npm cache clean --force
+COPY dist ./dist
+COPY migrations ./migrations
+COPY scripts/migrar.mjs ./scripts/migrar.mjs
+COPY shared ./shared
+COPY global-quota-rules.json ./global-quota-rules.json
+ENV NODE_ENV=production PORT=5000
+USER node
+EXPOSE 5000
+CMD ["node", "dist/index.js"]

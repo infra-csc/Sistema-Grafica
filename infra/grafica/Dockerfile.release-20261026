@@ -1,0 +1,9 @@
+FROM grafica-homolog:20261009-favicon-transparent
+USER root
+COPY dist /app/dist
+COPY migrations /app/migrations
+COPY scripts/migrar.mjs /app/scripts/migrar.mjs
+COPY shared /app/shared
+LABEL grafica.upstream.commit="71746f5b8e61df52ea402c8321e1a5957ee0ea25"
+LABEL grafica.upstream.base="d90b5f6216935b1ed375effef84f8325d46f19f9"
+USER node

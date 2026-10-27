@@ -1,0 +1,14 @@
+[Unit]
+Description=Backup PostgreSQL da Grafica e envio verificado ao R2 quando configurado
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/marcosvinicius/grafica-homolog/infra
+ExecStart=/bin/sh /home/marcosvinicius/grafica-homolog/infra/backup-completo.sh
+TimeoutStartSec=15min
+UMask=0077
+Nice=10
+

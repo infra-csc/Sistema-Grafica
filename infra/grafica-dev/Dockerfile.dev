@@ -1,0 +1,9 @@
+# Imagem do DEV: o runtime e as dependências da imagem em produção + o build novo.
+ARG BASE=grafica-homolog:20261026-integrada
+FROM ${BASE}
+USER root
+COPY dist /app/dist
+COPY migrations /app/migrations
+COPY scripts/migrar.mjs /app/scripts/migrar.mjs
+COPY shared /app/shared
+USER node

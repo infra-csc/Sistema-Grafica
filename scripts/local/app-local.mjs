@@ -9,7 +9,6 @@
 import { spawn, spawnSync } from "child_process";
 import { createRequire } from "module";
 import { delimiter, resolve } from "path";
-import { pathToFileURL } from "url";
 import pg from "pg";
 import bcrypt from "bcryptjs";
 import { subirBancoLocal } from "./banco-local.mjs";
@@ -94,13 +93,10 @@ export async function subirInfra({ pasta, log = console.log } = {}) {
 
 /** Variáveis do servidor local: tudo o que manda mensagem ou fala com a nuvem, desligado. */
 export function ambienteDoServidor(infra, porta) {
-  const preload = pathToFileURL(resolve(RAIZ_DO_REPO, "scripts/local/neon-local.mjs")).href;
   return {
     NODE_ENV: "development",
     PORT: String(porta),
     DATABASE_URL: infra.banco.url,
-    NEON_WS_LOCAL: infra.banco.ws,
-    NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ""} --import=${preload}`.trim(),
     // Plano B de resolução: o Node só consulta NODE_PATH quando o node_modules
     // do projeto NÃO tem o pacote. Numa instalação sã, não muda nada; numa
     // instalação interrompida (pacote sem package.json), o que estiver na
@@ -110,7 +106,8 @@ export function ambienteDoServidor(infra, porta) {
     SSO_SECRET: "sso-local-nao-e-segredo-de-ninguem-0123456789",
     // Object storage de mentira (scripts/local/gcs-local.mjs).
     STORAGE_EMULATOR_HOST: infra.gcs.endereco,
-    // `.private` é o nome que o Replit usa, e o servidor conta com ele
+    STORAGE_PROVIDER: "gcs",
+    // O prefixo legado `.private` é preservado para compatibilidade dos arquivos
     // (server/routes/thumb-url.ts reconhece o objeto por "/.private/").
     PRIVATE_OBJECT_DIR: `/${BUCKET_LOCAL}/.private`,
     PUBLIC_OBJECT_SEARCH_PATHS: `/${BUCKET_LOCAL}/public`,
@@ -128,22 +125,12 @@ export function ambienteDoServidor(infra, porta) {
   };
 }
 
-/**
- * Nada de Replit: com REPL_ID definida (mesmo vazia) o vite.config.ts liga os
- * plugins do editor do Replit, e REPLIT_DEPLOYMENT faria o servidor se achar
- * publicado.
- */
-function semReplit(env) {
-  for (const k of Object.keys(env)) if (k.startsWith("REPL")) delete env[k];
-  return env;
-}
-
 /** Sobe o servidor do app (tsx server/index.ts) e espera ele responder. */
 export async function subirServidor(infra, { porta = 5000, log = console.log, saida = "herdar" } = {}) {
   const tsx = exigir.resolve("tsx/cli");
   const filho = spawn(process.execPath, [tsx, "server/index.ts"], {
     cwd: RAIZ_DO_REPO,
-    env: semReplit({ ...process.env, ...ambienteDoServidor(infra, porta) }),
+    env: { ...process.env, ...ambienteDoServidor(infra, porta) },
     stdio: saida === "herdar" ? ["ignore", "inherit", "inherit"] : ["ignore", "pipe", "pipe"],
   });
   let log2 = "";

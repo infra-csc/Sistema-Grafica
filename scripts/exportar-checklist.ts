@@ -34,10 +34,10 @@
  */
 import { writeFileSync } from "fs";
 import path from "path";
-import { Pool, neonConfig, type PoolClient } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-serverless";
+import pg, { type PoolClient } from "pg";
+const { Pool } = pg;
+import { drizzle } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
-import ws from "ws";
 import * as schema from "../shared/schema";
 import {
   listarEventosDoChecklist,
@@ -46,7 +46,6 @@ import {
   type RespostaDasEntregues,
 } from "../server/services/checklist-entregues";
 
-neonConfig.webSocketConstructor = ws;
 
 const ULTIMOS_PADRAO = 3;
 const SAIDA_PADRAO = "checklist-eventos.json";

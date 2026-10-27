@@ -1,0 +1,99 @@
+# Ambiente DEV/staging da Gráfica — projeto Compose separado (grafica-dev).
+# Isolado da produção: rede, volume, banco e segredos próprios; sem e-mail.
+name: grafica-dev
+
+services:
+  postgres:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: grafica_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Defina POSTGRES_ADMIN_PASSWORD no .env}
+      GRAFICA_DB_USER: grafica_app
+      GRAFICA_DB_PASSWORD: ${GRAFICA_DB_PASSWORD:?Defina GRAFICA_DB_PASSWORD no .env}
+      # O app grava e lê horários assumindo UTC (como no Neon).
+      TZ: UTC
+    command:
+      - postgres
+      - -c
+      - max_connections=20
+      - -c
+      - shared_buffers=64MB
+      - -c
+      - work_mem=4MB
+      - -c
+      - maintenance_work_mem=32MB
+      - -c
+      - effective_cache_size=192MB
+      - -c
+      - timezone=UTC
+      - -c
+      - log_timezone=UTC
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d:ro
+    # Só loopback (túnel SSH/pgAdmin); a produção usa a 5432.
+    ports:
+      - '127.0.0.1:5433:5432'
+    networks:
+      - backend
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    mem_limit: 384m
+    cpus: 0.5
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: '2'
+
+  app:
+    image: ${GRAFICA_DEV_IMAGE:?Defina GRAFICA_DEV_IMAGE no .env}
+    restart: unless-stopped
+    init: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - ./app.env
+    environment:
+      NODE_ENV: production
+      PORT: '5000'
+      TZ: America/Sao_Paulo
+      NODE_OPTIONS: --max-old-space-size=512
+    ports:
+      - '127.0.0.1:5001:5000'
+    networks:
+      - backend
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 768m
+    cpus: 1.0
+    healthcheck:
+      test: [CMD, node, -e, 'fetch("http://127.0.0.1:5000/").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: '2'
+
+volumes:
+  postgres_data:
+
+networks:
+  backend:
+    driver: bridge

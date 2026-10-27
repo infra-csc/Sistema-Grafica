@@ -1,0 +1,10 @@
+# DEV/staging — ambiente isolado (projeto Compose grafica-dev).
+devgrafica.appsnorte.com {
+    encode zstd gzip
+    request_body {
+        max_size 50MB
+    }
+    reverse_proxy 127.0.0.1:5001 {
+        header_up X-Forwarded-For {client_ip}
+    }
+}

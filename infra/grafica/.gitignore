@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+backups/
+*.dump
+*.sql.gz
+.services-*
+services.env
+app.env
+.app-env-*
+migration/

@@ -5,7 +5,7 @@ que controlava, de ponta a ponta, o caminho de cada peça impressa: da
 solicitação até a entrega no caminhão.
 
 **Stack:** React + Vite + TypeScript no cliente · Express + Drizzle no servidor ·
-PostgreSQL (Neon) · WebSocket para tempo real · publicado no Replit (autoscale).
+PostgreSQL por TCP · WebSocket para tempo real · execução independente da hospedagem.
 
 * [Arquitetura](docs/arquitetura.md) — camadas, `shared/`, tempo real, caches,
   agendadores, uploads
@@ -65,7 +65,7 @@ ser **cancelada** (e descancelada, só pelo admin). Detalhes e exceções em
 
 ## Rodando local
 
-### O jeito rápido: `npm run dev:local` (sem banco, sem Replit)
+### O jeito rápido: `npm run dev:local` (com banco local descartável)
 
 Sobe o app inteiro na sua máquina com um **banco de teste** — nada a
 configurar, nada que encoste em produção:
@@ -100,7 +100,7 @@ O que ele faz (`scripts/dev-local.mjs`):
 dados entre execuções), `--limpar`, `--sem-exemplos`, `--porta=5000`.
 
 **Uploads funcionam**: um object storage de mentira (`scripts/local/gcs-local.mjs`)
-faz o papel do bucket do Replit. O que **não** existe no local: o login pelo
+faz o papel do bucket de arquivos. O que **não** existe no local: o login pelo
 portal (SSO), e-mail de verdade e a URL assinada do caminho legado de upload
 (`POST /api/objects/upload` — as telas usam o `/upload-direct`, que funciona).
 
@@ -133,7 +133,7 @@ Preencha as três obrigatórias (as outras têm padrão ou desligam o recurso):
 | --- | --- |
 | `DATABASE_URL` | O servidor **lança no import** de `server/db.ts` — não sobe pela metade |
 | `SESSION_SECRET` | Fail-fast em `server/session.ts`. Gere com `openssl rand -base64 48` |
-| `PRIVATE_OBJECT_DIR` | Upload não grava (Object Storage do Replit) |
+| `PRIVATE_OBJECT_DIR` | Upload não grava (bucket de arquivos) |
 
 E uma que **precisa** ser definida em produção, embora o app suba sem ela:
 
@@ -172,19 +172,15 @@ deploy viraram scripts em `scripts/`, rodados uma vez por quem opera.
 
 ---
 
-## Publicando no Replit
+## Execução independente da hospedagem
 
-```
-Pull  →  Stop  →  Run  →  (se veio migração) npm run db:migrate -- --aplicar  →  Republish
-```
+Use Node conforme `.nvmrc`, instale com `npm ci`, configure `.env` e execute
+`npm run dev`. Para produção: `npm run build` e `npm start`. Os comandos
+funcionam também no Windows. Nunca aplique migrações automaticamente no boot.
 
-1. **Pull** — traz a `main` para o Repl.
-2. **Stop** e **Run** — reinicia o processo. Sem isso, o Repl segue servindo o
-   build anterior.
-3. **Migração** — se o Pull trouxe arquivo novo em `migrations/`, rode na Shell
-   (primeiro sem `--aplicar`, que só mostra o que faria). Ver abaixo.
-4. **Republish** — publica o deployment (autoscale). Só o Republish troca o que
-   o usuário final enxerga.
+A migração para a VPS é feita em etapas: [estado e configurações](docs/desvinculacao-replit.md).
+O armazenamento ainda mantém o contrato GCS, com credenciais próprias ou
+emulador local; R2 e transferência de arquivos fazem parte da próxima etapa.
 
 ---
 
@@ -196,7 +192,7 @@ antes de culpar o código por um "column does not exist", confira o drift.
 ### O fluxo, a cada mudança de schema
 
 ```
-muda shared/schema.ts → npm run db:generate → revisa o SQL → commit → no Replit: npm run db:migrate -- --aplicar
+muda shared/schema.ts → npm run db:generate → revisa o SQL → commit → no servidor: npm run db:migrate -- --aplicar
 ```
 
 1. **Mudou `shared/schema.ts`** (tabela, coluna, índice).
@@ -209,7 +205,7 @@ muda shared/schema.ts → npm run db:generate → revisa o SQL → commit → no
    sabe declarar (extensão, índice GIN) vai numa migração escrita à mão:
    `npm run db:generate -- --custom --name <nome>` cria o arquivo vazio.
 4. **Commit** do `.sql` **e** de `migrations/meta/` juntos.
-5. **No Replit** (dev e, depois, produção), na Shell:
+5. **No servidor** (dev e, depois, produção), na Shell:
 
    ```bash
    npm run db:migrate                 # SIMULAÇÃO: lista o que está pendente
@@ -243,7 +239,7 @@ como aplicada, **sem executá-la**; depois aplica as seguintes (hoje, a
 índices GIN do Histórico, que produção já tem). Ela **não altera nenhum dado** —
 só cria o schema `drizzle` com a tabela de controle.
 
-Na Shell do Replit **de dev** e, depois, na **de produção** (cada uma com o seu
+Na terminal do servidor **de dev** e, depois, na **de produção** (cada uma com o seu
 `DATABASE_URL`):
 
 ```bash
@@ -266,7 +262,7 @@ sentidos**: o que existe lá e o schema não declara, ele derruba — os índice
 busca do Histórico, por exemplo — e em produção já apagou tabela e índices. O
 `db:drift` lista o que sobra **separando** o que foi criado por script.
 
-O hook de merge do Replit (`scripts/post-merge.sh`) **não mexe no banco**: a
+O hook de merge do projeto (`scripts/post-merge.sh`) **não mexe no banco**: a
 migração é um passo que alguém roda e confere.
 
 ---
@@ -318,7 +314,7 @@ Todos leem `DATABASE_URL` do ambiente. Rode com `npx tsx scripts/<arquivo>`.
 | `motivos-sem-s.ts` | Motivos que perderam a letra "s" (o `s+` sem a barra invertida) |
 | `corrigir-senha-placeholder.mjs` | Contas criadas sem senha que ganharam uma senha fixa conhecida |
 
-`post-merge.sh` roda sozinho a cada merge no Replit e **não toca no banco**.
+`post-merge.sh` roda sozinho a cada merge no servidor e **não toca no banco**.
 
 ### Ambiente local (`dev-local.mjs`, `e2e.mjs`, `scripts/local/`)
 
@@ -368,7 +364,7 @@ npm run e2e -- e2e/05-grafica-imprime-confere-embala-entrega.spec.ts
 ```
 
 **Nunca rodam contra produção**: com `E2E_BASE_URL` definida, a suíte vai
-contra aquele endereço (o Replit de dev, por exemplo), e `e2e/apoio.ts` recusa
+contra aquele endereço (o ambiente de dev, por exemplo), e `e2e/apoio.ts` recusa
 qualquer hospedeiro de produção. Detalhes, o que a suíte **não** cobre e os
 defeitos conhecidos: [e2e/README.md](e2e/README.md).
 

@@ -468,7 +468,8 @@ describe("segunda passada: nada cortado, trocar direto, resumo e Excel", () => {
 
   it("EXPORTAR Excel baixa o .xlsx do mesmo período, com o nome do dia", async () => {
     await montar(1280, retrato(), { url: "/grafica/maquinas?aba=resumo" });
-    const fetchMock = vi.fn(async () => new Response(new Blob(["xlsx"]), { status: 200, headers: { "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" } }));
+    // Corpo em texto: o Blob do jsdom não é aceito pelo Response nativo do Node.
+    const fetchMock = vi.fn(async () => new Response("xlsx", { status: 200, headers: { "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" } }));
     vi.stubGlobal("fetch", fetchMock);
     (URL as any).createObjectURL = () => "blob:x";
     (URL as any).revokeObjectURL = () => {};
@@ -719,7 +720,7 @@ describe("peça dividida, fila sempre visível e servidor antigo", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("<!DOCTYPE html><html></html>", { status: 200, headers: { "content-type": "text/html" } })));
     await act(async () => { fireEvent.click($('[data-testid="periodo-semana"]')!); });
     for (let i = 0; i < 40 && !$('[data-testid="resumo-erro"]'); i++) await tick(50);
-    expect($('[data-testid="resumo-erro"]')!.textContent).toContain("O servidor ainda está na versão anterior — no Replit, faça Stop e Run e recarregue a página.");
+    expect($('[data-testid="resumo-erro"]')!.textContent).toContain("O servidor ainda está na versão anterior — atualize e reinicie o serviço e recarregue a página.");
   }, 20_000);
 });
 

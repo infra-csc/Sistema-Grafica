@@ -1,4 +1,4 @@
-// Generic File Uploader Component for Replit Object Storage
+// Generic File Uploader Component for Object Storage
 import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, Loader2, RotateCcw, X } from "lucide-react";
@@ -145,7 +145,7 @@ export function ProgressoDoEnvio({ envio, falha, onCancelar, onTentarDeNovo, onD
 }
 
 /**
- * Componente de upload de arquivos para o Replit Object Storage
+ * Componente de upload de arquivos para o Object Storage
  * Aceita qualquer tipo de arquivo (imagens, PDFs, etc.)
  */
 export function FileUploader({

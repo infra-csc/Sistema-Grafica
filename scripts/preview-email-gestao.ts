@@ -58,7 +58,7 @@ const resumo: ResumoDaGestao = {
 
 const montado = construirEmailDaGestao(
   resumo,
-  { from: "no-reply@nortemkt.com", appUrl: "https://print-flow-manager-infraestrutura2.replit.app" },
+  { from: "no-reply@nortemkt.com", appUrl: "https://grafica.appsnorte.com" },
   DESTINATARIOS_DA_GESTAO,
 );
 

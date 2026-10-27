@@ -7,7 +7,7 @@
 // o drizzle-kit não cria (CREATE EXTENSION não é schema declarativo) — por
 // isso este script, no padrão da casa:
 //
-//   npx tsx scripts/criar-indices-de-busca.ts            ← DEV (Shell do Replit)
+//   npx tsx scripts/criar-indices-de-busca.ts            ← DEV (Shell do hospedagem anterior)
 //   DATABASE_URL="<produção>" npx tsx scripts/criar-indices-de-busca.ts
 //
 // Idempotente (IF NOT EXISTS em tudo); rodar duas vezes não faz nada.

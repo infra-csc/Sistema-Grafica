@@ -12,7 +12,7 @@
 //     reiniciado: os limitadores de login e de escrita são por processo, e as
 //     três larguras seguidas estourariam a cota de um admin só.
 //
-//   · COM E2E_BASE_URL (Replit de dev, por exemplo): só roda a suíte contra
+//   · COM E2E_BASE_URL (hospedagem anterior de dev, por exemplo): só roda a suíte contra
 //     aquele endereço, com as variáveis E2E_* do ambiente (e2e/README.md).
 //
 // Os argumentos passam direto para o Playwright:

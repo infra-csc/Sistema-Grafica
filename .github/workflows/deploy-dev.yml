@@ -1,0 +1,91 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# DEPLOY DO DEV — a cada push na branch `dev`, atualiza https://devgrafica.appsnorte.com.
+#
+# Build aqui (tipos + vite/esbuild) e o release segue por SSH para a VPS, onde
+# infra/grafica-dev/deploy-ci.sh monta a imagem, migra só o grafica_dev e troca
+# o app do dev. A chave do secret DEV_SSH_PRIVATE_KEY é RESTRITA na VPS
+# (command= forçado): ela só consegue rodar esse deploy. A produção não é
+# alcançável por este workflow.
+#
+# Secret necessário (Settings → Secrets and variables → Actions):
+#   DEV_SSH_PRIVATE_KEY — chave privada ed25519 do CI do dev.
+# ─────────────────────────────────────────────────────────────────────────────
+name: Deploy DEV
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+# Um deploy por vez; um push novo não derruba o deploy que já está na VPS.
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: build e deploy no dev
+    runs-on: ubuntu-latest
+    environment: dev
+    timeout-minutes: 30
+    env:
+      VPS_HOST: 5.161.234.21
+      VPS_PORT: "2222"
+      VPS_USER: marcosvinicius
+      # Chave pública do host (ssh-keyscan conferido em 26/10/2026): sem TOFU.
+      VPS_HOST_KEY: "[5.161.234.21]:2222 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIwZp4ZFT9WYGpYEa1b6Ru0L+AYeshjsrqvCtNnJfVoI"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # O mesmo Node da imagem (infra/grafica-dev/Dockerfile.ci).
+          node-version: 24.15.0
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Tipos
+        run: npm run check
+
+      # A suíte completa já roda no CI (ci.yml). Aqui ela não bloqueia o
+      # deploy do dev: há 3 falhas herdadas da main (kit, design-system,
+      # evento-finalizado-telas) e o dev existe justamente para testar.
+      - name: Build
+        run: npm run build
+
+      - name: Empacotar release
+        run: |
+          tar -czf release.tar.gz package.json package-lock.json dist migrations scripts/migrar.mjs shared global-quota-rules.json
+          ls -lh release.tar.gz
+
+      - name: Enviar para a VPS e atualizar o dev
+        env:
+          DEV_SSH_PRIVATE_KEY: ${{ secrets.DEV_SSH_PRIVATE_KEY }}
+        run: |
+          test -n "$DEV_SSH_PRIVATE_KEY" || { echo "::error::Secret DEV_SSH_PRIVATE_KEY não configurado."; exit 1; }
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEV_SSH_PRIVATE_KEY" > ~/.ssh/deploy_dev
+          chmod 600 ~/.ssh/deploy_dev
+          printf '%s\n' "$VPS_HOST_KEY" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy_dev -p "$VPS_PORT" \
+            -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o BatchMode=yes \
+            -o ServerAliveInterval=30 -o ConnectTimeout=20 \
+            "$VPS_USER@$VPS_HOST" "deploy $GITHUB_SHA" < release.tar.gz
+
+      - name: Conferir https://devgrafica.appsnorte.com
+        run: |
+          for i in $(seq 1 10); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' https://devgrafica.appsnorte.com/)
+            [ "$code" = 200 ] && { echo "dev → 200"; exit 0; }
+            sleep 6
+          done
+          echo "::error::devgrafica.appsnorte.com respondeu $code"; exit 1
+
+      - name: Apagar a chave do runner
+        if: always()
+        run: rm -f ~/.ssh/deploy_dev

@@ -15,6 +15,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { AppSidebar } from "@/components/app-sidebar";
+import { ColorModeToggle } from "@/components/color-mode-toggle";
 import { NotificationBell, type Notification } from "@/components/notification-bell";
 import { BuscaGlobal, abrirBuscaGlobal } from "@/components/busca-global";
 import { FullPageLoader } from "@/components/full-page-loader";
@@ -321,7 +322,7 @@ async function verComo(role: string, kit = false): Promise<void> {
     variant: "destructive",
     title: "Não deu para trocar o perfil",
     description: json?.error
-      ?? "O servidor ainda está na versão anterior. No Replit, pare e rode o app de novo (Stop/Run) e tente outra vez.",
+      ?? "O servidor ainda está na versão anterior. Atualize e reinicie o serviço e tente outra vez.",
   });
 }
 
@@ -787,7 +788,7 @@ function AuthenticatedLayout() {
   // (planilha na frente) via o aviso só quando voltava por outro motivo.
   const naoLidas = notifications.filter((n) => !n.isRead).length;
   useEffect(() => {
-    const base = pageLabel ? `${pageLabel} · Produção Gráfica` : "Produção Gráfica";
+    const base = pageLabel ? `Gráfica — ${pageLabel}` : "Gráfica";
     document.title = naoLidas > 0 ? `(${naoLidas > 99 ? "99+" : naoLidas}) ${base}` : base;
   }, [pageLabel, naoLidas]);
 
@@ -914,6 +915,7 @@ function AuthenticatedLayout() {
                 {IS_MAC ? "⌘K" : "Ctrl K"}
               </kbd>
             </button>
+            <ColorModeToggle />
             <NotificationBell
               notifications={notifications}
               isLoading={notificationsLoading}

@@ -1,4 +1,4 @@
-// Lógica compartilhada de upload de arquivos para o Replit Object Storage
+// Lógica compartilhada de upload de arquivos para o Object Storage
 // Usada por ObjectUploader.tsx, FileUploader.tsx e pelo formulário de
 // solicitação de peças.
 import { useRef, useState } from "react";

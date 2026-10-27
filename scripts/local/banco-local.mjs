@@ -1,13 +1,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // UM POSTGRES DE MENTIRA, NA MÁQUINA — PGlite (o Postgres 17 compilado para
-// WebAssembly) servido em duas portas:
+// WebAssembly) servido por protocolo PostgreSQL:
 //
 //   · TCP  (protocolo do Postgres) — para `pg`, drizzle-kit, checar-drift,
 //     migrar.mjs e qualquer psql/DBeaver;
-//   · WebSocket — para o driver serverless do Neon, que é o que o servidor usa
-//     (server/db.ts). O Neon fala Postgres DENTRO de um WebSocket; aqui cada
-//     conexão WebSocket vira uma conexão de banco, sem proxy intermediário.
-//     O preload scripts/local/neon-local.mjs aponta o driver para cá.
+//   · WebSocket opcional — transporte auxiliar para testes de protocolo.
+//     O app usa TCP, assim como a VPS.
 //
 // POR QUE NÃO O PGLiteSocketServer PRONTO (@electric-sql/pglite-socket): o
 // PGlite é UMA sessão só, e o servidor do pacote enfileira mensagem a
@@ -286,7 +284,7 @@ export async function subirBancoLocal({ pasta, portaTcp = 0, portaWs = 0, host =
   });
   await new Promise((ok, falha) => { tcp.once("error", falha); tcp.listen(portaTcp, host, ok); });
 
-  // ── Transporte WebSocket (driver do Neon) ───────────────────────────────
+  // ── Transporte WebSocket opcional de teste ───────────────────────────────
   const wss = new WebSocketServer({ host, port: portaWs });
   await new Promise((ok, falha) => { wss.once("error", falha); wss.once("listening", ok); });
   wss.on("connection", (ws) => {
@@ -307,7 +305,7 @@ export async function subirBancoLocal({ pasta, portaTcp = 0, portaWs = 0, host =
     portaWs: pWs,
     /** URL de conexão para `pg` / drizzle-kit / scripts (TCP, sem senha, sem SSL). */
     url: `postgres://postgres:local@${host}:${pTcp}/postgres`,
-    /** Endereço do WebSocket que o preload do Neon usa. */
+    /** Endereço do transporte auxiliar WebSocket. */
     ws: `${host}:${pWs}`,
     async parar() {
       parando = true;

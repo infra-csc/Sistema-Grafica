@@ -556,44 +556,27 @@ export function AppSidebar() {
     // com respiro (index.css, bloco csc-).
     <Sidebar collapsible="icon" className="csc-sidebar bg-white border-r border-[#e7e5e4]">
       {/* ── Header ── */}
-      {/* O cabeçalho da marca fecha com hairline em vez de flutuar sobre a
-          lista, e devolve ~14px de altura útil para os 18 itens. A marca é a
-          MESMA da tela de entrada: o selo da NORTE. */}
+      {/* Logo da Gráfica; no trilho recolhido aparece somente o símbolo. */}
       <SidebarHeader style={{ height: 64, flexShrink: 0, padding: recolhida ? 0 : "0 12px 0 16px", borderBottom: `1px solid ${N.n3}`, justifyContent: "center", alignItems: recolhida ? "center" : "stretch" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {/* Identidade do app (16/10): o selo da NORTE — quadrado branco
-              arredondado com o N da Produção no meio, legível em fundo claro
-              e escuro. */}
-          <img src="/selo-app.svg" alt="" aria-hidden="true" width={30} height={30} style={{ width: 30, height: 30, flexShrink: 0, display: "block" }} />
-          {!recolhida && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 0, flex: 1, minWidth: 0 }}>
-              <span style={{
-                fontFamily: FONT.display,
-                fontSize: 16,
-                fontWeight: 800,
-                letterSpacing: "-0.04em",
-                textTransform: "uppercase",
-                color: T.text,
-                lineHeight: 1,
-              }}>
-                NORTE
-              </span>
-              {/* 10px (FS.micro), não 9: abaixo do piso de leitura da casa. */}
-              <span style={{
-                fontFamily: FONT.display,
-                fontSize: FS.micro,
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "0.2em",
-                color: T.second,
-                lineHeight: 1,
-                marginTop: 4,
-                whiteSpace: "nowrap",
-              }}>
-                Marketing Esportivo
-              </span>
-            </div>
-          )}
+          <div style={{
+            width: recolhida ? 32 : 188,
+            height: recolhida ? 36 : 56,
+            overflow: "hidden", flexShrink: recolhida ? 0 : 1,
+            display: "flex", alignItems: "center", minWidth: 0,
+          }}>
+            <img
+              className="grafica-logo"
+              src="/brand/logo-grafica-20261009.png"
+              alt="Gráfica"
+              width={2172}
+              height={724}
+              style={{
+                width: recolhida ? 108 : "100%", height: "auto",
+                maxWidth: recolhida ? "none" : "100%", flexShrink: 0,
+              }}
+            />
+          </div>
           {/* NO CELULAR A FOLHA TEM UM "FECHAR". Antes só tocar no escuro ao
               lado fechava o menu — gesto que ninguém adivinha de primeira. */}
           {barraEmFolha && (

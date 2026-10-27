@@ -4,10 +4,8 @@
 // dev:local` (scripts/local/banco-local.mjs), com as migrações de migrations/
 // aplicadas do zero.
 //
-// Por que pelo servidor de protocolo e não o PGlite direto no drizzle: o app
-// fala com o banco pelo driver do Neon (server/db.ts, Pool sobre WebSocket).
-// Apontando esse driver para o WebSocket local, o teste roda o server/db.ts
-// REAL — o mesmo Pool, as mesmas transações, o mesmo SQL que produção.
+// Pelo servidor de protocolo, o app usa o mesmo driver TCP de produção.
+// Isso exercita o Pool, as transações e o SQL do server/db.ts real.
 //
 // O PGlite mora FORA do repositório (pasta de ferramentas, ver
 // scripts/local/ferramentas.mjs). Sem ele instalado, os testes que usam este
@@ -70,7 +68,7 @@ export interface BancoDeTeste {
 }
 
 /**
- * Sobe o banco, aplica TODAS as migrações e aponta o driver do Neon para ele.
+ * Sobe o banco, aplica TODAS as migrações e aponta o driver TCP para ele.
  * Chame ANTES de importar qualquer módulo que importe server/db.ts (ele lê
  * DATABASE_URL ao carregar): nos testes, os módulos do app entram por
  * `await import(...)` depois disto.
@@ -87,13 +85,7 @@ export async function subirBancoDeTeste(): Promise<BancoDeTeste> {
     for (const instrucao of m.sql) if (instrucao.trim()) await banco.db.exec(instrucao);
   }
 
-  // O mesmo desvio do preload scripts/local/neon-local.mjs: o driver do Neon
-  // passa a abrir o WebSocket do banco local, sem TLS.
-  const { neonConfig } = await import("@neondatabase/serverless");
-  neonConfig.wsProxy = () => `${banco.ws}/v2`;
-  neonConfig.useSecureWebSocket = false;
-  neonConfig.pipelineTLS = false;
-  neonConfig.pipelineConnect = false;
+  // O app usa o protocolo TCP padrão do PostgreSQL, também servido pelo banco local.
   process.env.DATABASE_URL = banco.url;
 
   return {

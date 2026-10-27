@@ -156,13 +156,13 @@
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
 
-  --background: 220 15% 10%;
+  --background: 220 10% 18%;
 
   --foreground: 0 0% 95%;
 
   --border: 220 10% 25%;
 
-  --card: 220 12% 14%;
+  --card: 220 10% 19%;
 
   --card-foreground: 0 0% 95%;
 
@@ -184,7 +184,7 @@
 
   --sidebar-ring: 217 91% 60%;
 
-  --popover: 220 10% 16%;
+  --popover: 220 10% 20%;
 
   --popover-foreground: 0 0% 95%;
 
@@ -641,13 +641,13 @@
    revisar as ~60 cores inline que não passam por var nenhuma. */
 .dark {
   color-scheme: dark;
-  --n0:  #1c1917;
-  --n1:  #16130f;
-  --n2:  #292524;
-  --n3:  #332e2b;
-  --n4:  #44403c;
-  --n5:  #57534e;
-  --n6:  #746e69;
+  --n0:  #2c2f35;
+  --n1:  #292c32;
+  --n2:  #32353b;
+  --n3:  #3b3e45;
+  --n4:  #484c54;
+  --n5:  #60656e;
+  --n6:  #8c919b;
   --n7:  #a8a29e;
   --n8:  #d6d3d1;
   --n9:  #e7e5e4;
@@ -656,8 +656,8 @@
   --alerta-bg: #451a03;  --alerta-text: #fcd34d;  --alerta-border: #92400e;
   --perigo-bg: #450a0a;  --perigo-text: #fca5a5;  --perigo-border: #991b1b;
   --info-bg:   #172554;  --info-text:   #93c5fd;  --info-border:   #1e40af;
-  --escuro-fundo:      #0c0a09;
-  --escuro-fundo-alto: #1c1917;
+  --escuro-fundo:      #292c32;
+  --escuro-fundo-alto: #32353b;
   --sh-sm: 0 1px 2px rgba(0,0,0,0.35);
   --sh-md: 0 4px 12px -2px rgba(0,0,0,0.45);
   --sh-lg: 0 16px 32px -12px rgba(0,0,0,0.55);

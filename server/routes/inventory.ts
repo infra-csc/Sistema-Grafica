@@ -4,7 +4,7 @@ import type { Express } from "express";
 import { z } from "zod";
 import { and, desc, eq, getTableColumns, inArray, like } from "drizzle-orm";
 import type { PgDatabase } from "drizzle-orm/pg-core";
-import type { NeonQueryResultHKT } from "drizzle-orm/neon-serverless";
+import type { NodePgQueryResultHKT } from "drizzle-orm/node-postgres";
 import type * as schema from "@shared/schema";
 import { db } from "../db";
 import { storage } from "../storage";
@@ -97,7 +97,7 @@ const unicos = (xs: (string | null | undefined)[]) => Array.from(new Set(xs.filt
  *  Chamada com a linha do ativo JÁ travada (FOR UPDATE): a rota de reservar
  *  trava a mesma linha, então as duas não se cruzam. */
 /** O `db` ou a transação em curso (a base comum dos dois). */
-type Exec = PgDatabase<NeonQueryResultHKT, typeof schema>;
+type Exec = PgDatabase<NodePgQueryResultHKT, typeof schema>;
 
 export async function reservaVigenteDoAtivo(exec: Exec, assetId: string, agora = new Date()) {
   const linhas: {

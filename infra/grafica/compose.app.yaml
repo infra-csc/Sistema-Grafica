@@ -1,0 +1,46 @@
+services:
+  app:
+    image: grafica-homolog:${GRAFICA_RELEASE:-20261026-integrada}
+    build:
+      context: ../release-integrada-20261026
+      dockerfile: infra/grafica/Dockerfile.release-20261026
+    restart: unless-stopped
+    init: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - ./services.env
+      - ./app.env
+    environment:
+      NODE_ENV: production
+      PORT: '5000'
+      TZ: America/Sao_Paulo
+      BOOK_EMAIL_NOTIFICATIONS_ENABLED: 'true'
+      BOOK_EMAIL_DRY_RUN: 'false'
+      REVISAO_DIGEST_ENABLED: 'true'
+      GESTAO_DIGEST_ENABLED: 'true'
+    ports:
+      - '127.0.0.1:5000:5000'
+    networks:
+      - backend
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1536m
+    cpus: 2.0
+    healthcheck:
+      test: [CMD, node, -e, 'fetch("http://127.0.0.1:5000/").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'

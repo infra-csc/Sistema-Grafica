@@ -1,4 +1,4 @@
-// Replit Object Storage Uploader Component
+// Object Storage Uploader Component
 // Reference: blueprint:javascript_object_storage
 import { useEffect, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,7 @@ interface ObjectUploaderProps {
 }
 
 /**
- * Componente de upload de arquivos para o Replit Object Storage
+ * Componente de upload de arquivos para o Object Storage
  *
  * Upload simplificado via input file com upload automático ao selecionar arquivo
  */

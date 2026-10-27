@@ -1,29 +1,9 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
-import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
 export default defineConfig({
-  plugins: [
-    react(),
-    runtimeErrorOverlay(),
-    // Só no `serve`: o build do deploy roda no Replit (REPL_ID definido) e
-    // nem sempre com NODE_ENV=production — o cartographer injetaria um
-    // <script> inline no index.html de produção, que a CSP não executa.
-    ...(process.env.NODE_ENV !== "production" &&
-    process.env.REPL_ID !== undefined
-      ? [
-          await import("@replit/vite-plugin-cartographer").then((m) => ({
-            ...m.cartographer(),
-            apply: "serve" as const,
-          })),
-          await import("@replit/vite-plugin-dev-banner").then((m) => ({
-            ...m.devBanner(),
-            apply: "serve" as const,
-          })),
-        ]
-      : []),
-  ],
+  plugins: [react()],
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),

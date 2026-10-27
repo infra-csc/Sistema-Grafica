@@ -16,8 +16,8 @@ const H = vi.hoisted(() => ({
   storage: {} as Record<string, any>,
   criar: vi.fn(),
   broadcast: vi.fn(),
-  audit: vi.fn(async () => {}),
-  updateEventStatus: vi.fn(async () => {}),
+  audit: vi.fn(async (..._a: any[]) => {}),
+  updateEventStatus: vi.fn(async (..._a: any[]) => {}),
 }));
 
 vi.mock("../db", () => ({ db: {}, pool: {} }));

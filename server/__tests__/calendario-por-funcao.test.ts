@@ -41,8 +41,10 @@ describe("calendário: cada função vê o que precisa", () => {
     // legenda mostra só o que a grade desenha
     expect(CAL).toContain("{tiposVisiveis.map(dt => (");
     // e os memos reagem à troca (sem isso o toggle não redesenharia)
-    expect(CAL).toContain("}, [events, tiposVisiveis]);");
-    expect(CAL).toContain("}, [events, year, month, tiposVisiveis]);");
+    // Pedro/dono 26/10: os dois memos também dependem do Layout ajustado das
+    // peças sem aprovação (vindo de /api/prazos) — `tiposVisiveis` continua lá.
+    expect(CAL).toMatch(/\}, \[events, tiposVisiveis(, [\w, ]+)?\]\);/);
+    expect(CAL).toMatch(/\}, \[events, year, month, tiposVisiveis(, [\w, ]+)?\]\);/);
   });
 });
 

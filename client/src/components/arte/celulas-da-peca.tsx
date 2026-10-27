@@ -13,7 +13,10 @@ import { alvo } from "@/hooks/use-mobile";
 import { diasNaFase, tomDaIdade } from "@/lib/idade-na-fase";
 import { P } from "@/lib/status";
 import { T, TOM, N, R, FS } from "@/lib/theme";
-import { DISPENSAVEIS_STATUSES, faseDoPrazo, formatQuantity, phaseDeadline } from "@/lib/arte-rules";
+import { DISPENSAVEIS_STATUSES, formatQuantity, prazoDaPecaNaFase } from "@/lib/arte-rules";
+import { SelosSemAprovacao, PrazoDeLayoutAjustado, COR_DO_ATRASO_DO_CLIENTE, DICA_DO_SELO_ATRASO_DO_CLIENTE } from "@/components/selo-sem-aprovacao";
+import { useDiasDaAprovacao } from "@/hooks/use-configuracoes";
+import { ROTULO_ATRASO_DO_CLIENTE, aguardandoArteDoCliente, arteDoCliente, pulaAprovacao } from "@shared/prazo-sem-aprovacao";
 import { naoDevolvivel } from "@shared/fluxo-peca";
 import { ehMolde, statusDeExibicao } from "@shared/molde";
 import { prazoDoMolde } from "@shared/prazo-molde";
@@ -29,7 +32,16 @@ export const acaoPrimaria = (item: PecaDaArte, tabId: string, podeEditar: boolea
   if (!podeEditar) return null;
   if (tabId !== "criar-aprovacoes" && tabId !== "finalizar-layouts") return null;
   // Molde não é "sem aprovação → finalização": ele envia direto para a Revisão Final.
-  const isSkip = tabId === "criar-aprovacoes" && item.skipApproval && !ehMolde(item);
+  // PEÇAS SEM APROVAÇÃO (Pedro/dono, 26/10): "Sem patrocínio" OU "Arte do
+  // cliente" — as duas pulam a Aprovação (pulaAprovacao, @shared/prazo-sem-aprovacao).
+  const isSkip = tabId === "criar-aprovacoes" && pulaAprovacao(item) && !ehMolde(item);
+  // ARTE DO CLIENTE na mesa da Arte: quem anda com a peça é o "Arte recebida"
+  // (POST /api/items/:id/arte-recebida) — ele a manda DIRETO para a
+  // Finalização, sem thumb e sem Aprovação. Enquanto o arquivo não chegou, o
+  // envio por thumb é recusado pelo servidor (409 AGUARDANDO_ARTE_DO_CLIENTE);
+  // com o arquivo já registrado, o mesmo diálogo leva a peça adiante.
+  const arteRecebida = isSkip && arteDoCliente(item);
+  const aguardaArte = arteRecebida && aguardandoArteDoCliente(item);
   return {
     // TINTA, uma cor só.
     //
@@ -53,6 +65,7 @@ export const acaoPrimaria = (item: PecaDaArte, tabId: string, podeEditar: boolea
     // passo que falta ("Subir thumb"); "Enviar" fica só para o clique que
     // envia de fato.
     label: tabId === "finalizar-layouts" ? "Finalizar"
+      : aguardaArte ? "Arte recebida"
       : isSkip ? "Enviar direto"
       : item.approvalThumbUrl ? "Enviar" : "Subir thumb",
     // Um clique para enviar: se a peça já tem thumb salvo (rascunho), o botão
@@ -61,6 +74,9 @@ export const acaoPrimaria = (item: PecaDaArte, tabId: string, podeEditar: boolea
     // acrescentaria atrito. O olho no menu "⋯" continua abrindo os detalhes.
     canSendDirect: tabId === "criar-aprovacoes" && !isSkip && !!item.approvalThumbUrl,
     isSkip,
+    /** Abre o diálogo "Arte recebida" (arte do cliente) em vez da ficha. */
+    arteRecebida,
+    aguardaArte,
   };
 };
 
@@ -225,12 +241,20 @@ export function BotaoPrimario({ item, tabId, largura, podeEditar, dedo, enviando
           acoes.enviarDireto(item);
           return;
         }
+        if (acao.arteRecebida) {
+          acoes.arteRecebida(item);
+          return;
+        }
         acoes.verDetalhes(item);
       }}
       disabled={travado}
       data-testid={`button-action-${item.id}`}
-      title={acao.isSkip
-        ? "Sem aprovação de patrocinador — abre a peça para enviar direto à finalização (arquivo final)"
+      title={acao.aguardaArte
+        ? "Arte do cliente: quando o arquivo chegar, registre “Arte recebida” — a peça vai direto para a Finalização"
+        : acao.arteRecebida
+          ? "Arte do cliente já recebida — abre o envio direto para a Finalização (pula a Arte/layout e a Aprovação)"
+        : acao.isSkip
+        ? "Sem patrocínio — a peça não passa pela Aprovação: abre a peça para enviar direto à Finalização (arquivo final)"
         : acao.canSendDirect
           ? (ehMolde(item) ? "Molde: envia AGORA o thumb salvo direto para a Revisão Final, sem abrir a peça" : "Envia AGORA o thumb salvo para a aprovação do patrocinador, sem abrir a peça")
           : tabId === "finalizar-layouts"
@@ -270,7 +294,14 @@ export function PrazoDaPeca({ item, tabId, hoje, dedo = false, emLinha = false }
   // PRAZO DO MOLDE (22/09): no molde de evento com prazo do molde, é ele
   // que a coluna mostra; sem ele (ou peça comum), o marco da fase de sempre.
   // Peça do Kit: o mesmo marco das outras desde 26/10 (faseDoPrazo).
-  const p = prazoDoMolde(item, item.event, hoje) ?? phaseDeadline(item.event, faseDoPrazo(tabId, item), hoje);
+  // PEÇA SEM APROVAÇÃO em Layout (26/10): o prazo de Layout AJUSTADO — o do
+  // evento + a duração da Aprovação (configuração, nunca um 7 escrito aqui).
+  const diasDaAprovacao = useDiasDaAprovacao();
+  const p = prazoDoMolde(item, item.event, hoje) ?? prazoDaPecaNaFase(item, tabId, hoje, diasDaAprovacao);
+  const ajustado = !!p && (p as { ajustado?: boolean }).ajustado === true;
+  // RN09: a arte do cliente que não chegou depois do prazo ajustado é atraso
+  // DO CLIENTE — dito na linha, para a Arte não carregar um atraso que não é dela.
+  const atrasoDoCliente = ajustado && !!p && p.diff < 0 && aguardandoArteDoCliente(item);
   // A IDADE NA FASE, abaixo da data. O prazo diz o marco (futuro); isto diz
   // há quanto tempo a peça está parada onde está — numa fila que espera
   // terceiros, é a pergunta. Sem `statusChangedAt`, sem idade (ver
@@ -286,6 +317,12 @@ export function PrazoDaPeca({ item, tabId, hoje, dedo = false, emLinha = false }
         testId={`cell-prazo-${item.id}`}
         fonte={fsToque(11, dedo)}
       />
+      {ajustado && <PrazoDeLayoutAjustado peca={item} evento={item.event} rotulo={false} style={{ fontSize: fsToque(11, dedo) }} />}
+      {atrasoDoCliente && (
+        <span data-testid={`cell-atraso-do-cliente-${item.id}`} title={DICA_DO_SELO_ATRASO_DO_CLIENTE} style={{ fontSize: fsToque(11, dedo), fontWeight: 600, color: COR_DO_ATRASO_DO_CLIENTE.text, whiteSpace: "nowrap" }}>
+          {ROTULO_ATRASO_DO_CLIENTE}
+        </span>
+      )}
       {dias !== null && tom && (
         <span
           data-testid={`cell-idade-${item.id}`}
@@ -369,7 +406,8 @@ export function TagsDaPeca({ item, eventoTemBook, dedo = false }: {
  * SELO NOVO entra NA LISTA `estados`, na posição da gravidade dele — não
  * como mais um <span> solto na célula.
  */
-export function SelosDaPeca({ item, tabId, dedo = false }: { item: PecaDaArte; tabId: string; dedo?: boolean }) {
+/** `semMarcas`: a linha da tabela mostra "Sem patrocínio"/"Arte cliente" na coluna Peça (a do ID é estreita demais e os cortava). */
+export function SelosDaPeca({ item, tabId, dedo = false, semMarcas = false }: { item: PecaDaArte; tabId: string; dedo?: boolean; semMarcas?: boolean }) {
   type Estado = { chave: string; rotulo: string; titulo: string; testId: string; cor: { bg: string; borda: string; texto: string } };
   const estados = ([
     tabId === "criar-aprovacoes" && item.rejectedBySponsor && {
@@ -392,6 +430,10 @@ export function SelosDaPeca({ item, tabId, dedo = false }: { item: PecaDaArte; t
     <>
       {tabId === "finalizados" && <StatusBadge status={statusDeExibicao(item)} className={dedo ? "!text-[12px]" : undefined} />}
       <SeloKit peca={item} style={dedo ? { fontSize: 12 } : undefined} />
+      {/* PEÇAS SEM APROVAÇÃO (26/10): "Sem patrocínio" / "Arte cliente" (e
+          "Aguardando arte do cliente" enquanto o arquivo não chega). Como o
+          KIT, é identidade da peça — não entra na lista de estados. */}
+      {!semMarcas && <SelosSemAprovacao peca={item} tamanho={dedo ? "md" : "sm"} />}
       {estados.map((e, i) => i === 0 && tabId !== "finalizados" ? (
         <Selo key={e.chave} title={e.titulo} data-testid={e.testId} forma="retangulo"
           cores={{ bg: e.cor.bg, text: e.cor.texto, border: e.cor.borda }}

@@ -6,6 +6,20 @@ import { broadcast, EVENT_CLOSED_STATUS } from "../routes/shared";
 import { reservarDisparo } from "./reservaDeDisparo";
 import { executarComoLider } from "./lideranca";
 import { deslocamentoDeFimDeSemana, FIM_DE_SEMANA_DO_CAMPO, type MarcoDoEvento } from "@shared/prazo-dates";
+import { aguardandoArteDoCliente, medidaPeloLayoutAjustado, prazoDeLayoutAjustado } from "@shared/prazo-sem-aprovacao";
+import { statusParaContagem } from "@shared/molde";
+import { prazoDeLayoutDoEvento } from "./marcas-de-aprovacao";
+import { lerDiasDaAprovacao } from "./configuracoes";
+
+/** Fim do dia de um prazo "YYYY-MM-DD" (mesma convenção de `fimDoDiaDoPrazo`). */
+function fimDoDia(dia: string): Date {
+  const d = new Date(`${dia}T00:00:00Z`);
+  d.setHours(23, 59, 59, 0);
+  return d;
+}
+
+/** Está numa das janelas de aviso (48h / 24h antes)? */
+const naJanelaDeAviso = (horas: number) => (horas <= 48 && horas > 47.5) || (horas <= 24 && horas > 23.5);
 
 /**
  * Fim do dia do prazo: âncora + offset, com o ajuste de fim de semana do marco
@@ -46,6 +60,8 @@ export function startDeadlineAlerts(): void {
       const allEvents = await storage.getAllEvents();
       const now = new Date();
 
+      // A duração da Aprovação (configuração) — o N do Layout ajustado.
+      const diasDaAprovacao = await lerDiasDaAprovacao();
       for (const event of allEvents) {
         // Encerrado à mão sai do alerta pela MESMA porta do concluído: um
         // evento que alguém fechou não pode continuar disparando "faltam 12h
@@ -112,6 +128,39 @@ export function startDeadlineAlerts(): void {
                 message: `Prazo "${label}" em ${hours}h — ${event.name}`,
                 eventId: event.id,
                 targetRoles: roles,
+              });
+              broadcast({ type: "prazo_alert", event, label, hoursRemaining: hours });
+              broadcast({ type: "notification_created", notification });
+            }
+          }
+        }
+
+        // ── Layout AJUSTADO das peças "Sem patrocínio" (Pedro/dono, 26/10) ──
+        // A peça sem aprovação vence o Layout no prazo ajustado (Layout + dias
+        // da Aprovação): o aviso de 48h/24h do Layout do evento não fala dela.
+        // É o MESMO aviso de 48h/24h do Layout, na data ajustada, para as peças
+        // sem aprovação ainda em Layout ("Sem patrocínio" e "Arte do cliente" já
+        // recebida). A "Arte do cliente" que espera o arquivo NÃO entra — decisão
+        // validada: sem alerta automático para a arte do cliente que não chegou.
+        const prazoDeLayout = prazoDeLayoutDoEvento(event);
+        if (prazoDeLayout) {
+          const ajustado = prazoDeLayoutAjustado(prazoDeLayout, diasDaAprovacao);
+          const horas = (fimDoDia(ajustado).getTime() - now.getTime()) / (1000 * 60 * 60);
+          if (naJanelaDeAviso(horas)) {
+            const pecas = await storage.getItemsParaPrazos([event.id]);
+            const semAprovacao = pecas.filter((it) => {
+              const p = { ...it, status: statusParaContagem(it) };
+              return medidaPeloLayoutAjustado(p) && !aguardandoArteDoCliente(p);
+            });
+            const hours = Math.round(horas);
+            const alertKey = `${event.id}-layout-ajustado-${hours}h`;
+            if (semAprovacao.length > 0 && await podeAlertar(alertKey)) {
+              const label = "Entrega de Layouts (sem aprovação)";
+              const notification = await storage.createNotification({
+                type: "prazoAlert",
+                message: `Prazo "${label}" em ${hours}h — ${semAprovacao.length} ${semAprovacao.length === 1 ? "peça sem aprovação" : "peças sem aprovação"} — ${event.name}`,
+                eventId: event.id,
+                targetRoles: ["arte", "admin"],
               });
               broadcast({ type: "prazo_alert", event, label, hoursRemaining: hours });
               broadcast({ type: "notification_created", notification });

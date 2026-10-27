@@ -11,6 +11,7 @@
 // O contrato do payload é `@shared/prazos-contract` e é o MESMO arquivo que o
 // cliente importa: um campo esquecido aqui vira erro de tsc, não um número
 // errado na cara do diretor.
+import { lerDiasDaAprovacao } from "../services/configuracoes";
 import type { Express } from "express";
 import { eq, lt, desc } from "drizzle-orm";
 import { db } from "../db";
@@ -68,6 +69,8 @@ export function registerPrazoRoutes(app: Express): void {
     try {
       const today = todayBusinessMs();
       const todayStr = todayBusinessStr();
+      // A duração da Aprovação (configuração geral, 26/10) — o N do Layout ajustado.
+      const diasDaAprovacao = await lerDiasDaAprovacao();
 
       // Recorte ANTES do banco: só as peças dos eventos que ainda interessam.
       // `getAllItems()` trazia a história completa da empresa para descartar a
@@ -157,6 +160,7 @@ export function registerPrazoRoutes(app: Express): void {
         // funil a cobra da Aprovação de Layout em diante (marcoIndexFor).
         .map((event) => buildEventPrazo(event, itemsByEvent.get(event.id) ?? [], {
           today,
+          diasDaAprovacao,
           sponsorNameById,
           openApprovalsByItem,
           userNameById,

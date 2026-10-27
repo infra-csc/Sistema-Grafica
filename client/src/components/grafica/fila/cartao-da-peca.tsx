@@ -12,6 +12,7 @@ import { Botao } from "@/components/ui/botao";
 import { Selo } from "@/components/ui/selo";
 import { StatusPill } from "@/components/status-pill";
 import { SeloMolde } from "@/components/kit/selo-kit";
+import { SelosSemAprovacao } from "@/components/selo-sem-aprovacao";
 import { SeloProducaoInterna, InstrucoesParaAGrafica } from "@/components/selo-producao-interna";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { miniatura } from "@/lib/miniatura";
@@ -288,6 +289,8 @@ export function CartaoDaPeca({ ctx, item, index, showEvHeader, corte, prioritari
             <SeloMolde peca={item} />
             {/* Produção interna (02/10): veio direto da Solicitação, sem Arte. */}
             <SeloProducaoInterna peca={item} />
+            {/* Arte do cliente (26/10) — só esta marca na Gráfica (ver linha-da-tabela). */}
+            <SelosSemAprovacao peca={item.arteDoCliente ? { ...item, skipApproval: false } : null} semAguardando />
             {(() => {
               const d = diasNaFase(item, new Date());
               if (d === null || d < 1) return null;

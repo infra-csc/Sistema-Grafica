@@ -106,4 +106,6 @@ export interface AcoesDaLinha {
   exportarProva: (item: PecaDaArte) => void;
   dispensar: (item: PecaDaArte) => void;
   devolver: (item: PecaDaArte) => void;
+  /** Arte do cliente (26/10): abre o diálogo "Arte recebida" — a peça vai direto para a Finalização. */
+  arteRecebida: (item: PecaDaArte) => void;
 }

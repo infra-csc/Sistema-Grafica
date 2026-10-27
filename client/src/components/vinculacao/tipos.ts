@@ -24,6 +24,8 @@ export type PecaDaVinculacao = Pick<
   ComoJson<Item>,
   | "id" | "displayId" | "eventId" | "type" | "description" | "status"
   | "skipApproval" | "isReuse" | "quantity" | "calculatedM2" | "referenceUrl" | "kitRemessaId"
+  // Peças sem aprovação (Pedro/dono, 26/10): a marca "Arte do cliente" e a chegada do arquivo.
+  | "arteDoCliente" | "arteRecebidaEm" | "arteRecebidaPor"
 > & {
   sponsors?: Pick<Sponsor, "id">[] | null;
 };
@@ -32,6 +34,8 @@ export type PecaDaVinculacao = Pick<
 export type EventoDaVinculacao = Pick<
   ComoJson<Event>,
   "id" | "name" | "priority" | "status" | "startDate" | "truckDepartureDate" | "reopenedAt"
+  // O prazo de Layout do evento — base do prazo ajustado no lote das marcas (26/10).
+  | "deadlineEntregaLayouts"
 > & {
   sponsors?: Pick<EventSponsor, "sponsorId">[] | null;
 };

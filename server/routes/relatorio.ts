@@ -15,6 +15,7 @@
 //    fingir um funil vivo para um evento que é história.
 //  · Leitura para qualquer logado, como o Detalhe do Evento que o alimenta.
 // ─────────────────────────────────────────────────────────────────────────────
+import { lerDiasDaAprovacao } from "../services/configuracoes";
 import type { Express } from "express";
 import { storage, type RegistroDeFoto } from "../storage";
 import {
@@ -64,6 +65,7 @@ export function registerRelatorioRoutes(app: Express): void {
       // A mesma montagem da Gestão de Prazos — null quando o evento saiu dela.
       const prazo = buildEventPrazo(event, itens, {
         today: todayBusinessMs(),
+        diasDaAprovacao: await lerDiasDaAprovacao(),
         sponsorNameById,
         openApprovalsByItem,
         userNameById,

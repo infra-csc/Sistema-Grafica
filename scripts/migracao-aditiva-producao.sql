@@ -469,3 +469,18 @@ USING "ordem" o
 WHERE r."id" = o."id" AND o."posicao" > 1
   AND NOT EXISTS (SELECT 1 FROM "items" i WHERE i."kit_remessa_id" = r."id");
 CREATE UNIQUE INDEX IF NOT EXISTS "UQ_kit_remessas_event" ON "kit_remessas" USING btree ("event_id");
+
+-- 0010 (26/10): prazos para peças sem aprovação — mesma DDL de migrations/0010_prazos-sem-aprovacao.sql
+-- (tabela configuracoes com dias_da_aprovacao = 7; na peça, a marca Arte do cliente e a Arte recebida).
+CREATE TABLE IF NOT EXISTS "configuracoes" (
+	"chave" text PRIMARY KEY NOT NULL,
+	"valor" jsonb NOT NULL,
+	"atualizado_em" timestamp DEFAULT now() NOT NULL,
+	"atualizado_por" text
+);
+INSERT INTO "configuracoes" ("chave", "valor", "atualizado_por") VALUES ('dias_da_aprovacao', '7'::jsonb, 'Sistema (migração 0010)') ON CONFLICT ("chave") DO NOTHING;
+ALTER TABLE "items" ADD COLUMN IF NOT EXISTS "arte_do_cliente" boolean DEFAULT false NOT NULL;
+ALTER TABLE "items" ADD COLUMN IF NOT EXISTS "arte_do_cliente_marcada_em" timestamp;
+ALTER TABLE "items" ADD COLUMN IF NOT EXISTS "arte_do_cliente_marcada_por" text;
+ALTER TABLE "items" ADD COLUMN IF NOT EXISTS "arte_recebida_em" date;
+ALTER TABLE "items" ADD COLUMN IF NOT EXISTS "arte_recebida_por" text;

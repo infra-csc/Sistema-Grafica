@@ -490,20 +490,21 @@ describe("GET /api/prazos — payload e placar", () => {
     expect(p.stageMeta.map((m) => m.key)).toEqual(ev.stages.map((s) => s.key));
   });
 
-  it("peça isenta de aprovação viaja com marcoIndex no marco de Finalização", async () => {
-    // Marco de layouts (−20 → 10/08) já vencido hoje (13/08); o de finalização
-    // (−10 → 20/08) não. A isenta é cobrada pelo segundo — o evento não entra
-    // no placar de atrasados por causa dela. A aprovação não a conta: é a
-    // etapa por onde ela não passa, e cobrá-la ali era medir por um marco que
-    // ela nunca cumpre.
+  it("peça Sem patrocínio viaja com o prazo de Layout AJUSTADO (Pedro/dono 26/10)", async () => {
+    // Marco de layouts (−20 → 10/08) já vencido hoje (13/08). A peça "Sem
+    // patrocínio" (skipApproval) vence o Layout no ajustado: 10/08 + 7 dias
+    // corridos = 17/08 — o evento não entra no placar de atrasados por causa
+    // dela. REGRA ANTIGA (24/08, trocada em 26/10): ela era cobrada pelo marco
+    // da Finalização (marcoIndex = finalização) e o Layout aparecia "done".
     cadastrar(evento({ id: "ISENTA" }), [{ status: "awaiting_submission", skipApproval: true }]);
     const p = await pegarPayload();
 
     const ev = p.events.find((e) => e.id === "ISENTA")!;
     const idx = (k: string) => ev.stages.findIndex((s) => s.key === k);
     expect(ev.pendingItems[0].stageIndex).toBe(idx("layouts"));
-    expect(ev.pendingItems[0].marcoIndex).toBe(idx("finalizacao"));
-    expect(ev.stages[idx("layouts")].state).toBe("done");
+    expect(ev.pendingItems[0].marcoIndex).toBe(idx("layouts"));
+    expect(ev.pendingItems[0].prazo).toBe("2026-08-17");
+    expect(ev.stages[idx("layouts")]).toMatchObject({ deadline: "2026-08-10", prazoEfetivo: "2026-08-17", state: "upcoming", atrasadas: 0 });
     expect(ev.stages[idx("aprovacao")].directCount).toBe(0);
     expect(ev.categoria).toBe("emDia");
   });
@@ -773,6 +774,7 @@ describe("T19 — as tabelas ausentes", () => {
     expect(p.events).toHaveLength(2);
     expect(p.events.find((e) => e.id === "A")!.categoria).toBe("atrasado");
     expect(p.kpis).toEqual({
+      pecasAtrasoDoCliente: 0,
       atrasados: 1, saidas7d: 0, pecasAtrasadas: 2, emDia: 0, invalidCount: 0, semPecas: 1,
     });
     expect(p.today).toBe(HOJE);

@@ -30,6 +30,18 @@ import type { EventoFinalizadoMotivo, RegraDeFimDeSemana } from "@shared/prazo-d
 import { FUNIL_DE_PRAZOS, STATUS_ENTREGUES, STATUS_FORA_DO_FUNIL, statusDoFunil } from "@shared/fluxo-peca";
 import { comStatusDeContagem } from "@shared/molde";
 import { MARCO_EM_QUE_O_KIT_ENTRA } from "@shared/kit";
+import {
+  DIAS_DA_APROVACAO_PADRAO,
+  aguardandoArteDoCliente,
+  marcoQueCobra,
+  prazoDaPeca,
+  prazoNoMarco,
+  prazosDeLayoutDaPeca,
+  pulaAprovacao,
+  responsavelPeloAtraso,
+  semPatrocinio,
+  INDICE_LAYOUT,
+} from "@shared/prazo-sem-aprovacao";
 import type {
   PrazoCategoria,
   PrazoEvent,
@@ -96,7 +108,7 @@ STAGE_DEFS.forEach((s, i) => s.pendingStatuses.forEach((st) => { STATUS_STAGE_RA
 /** Índice da Aprovação de Layout. */
 export const APROVACAO_STAGE_INDEX = STAGE_DEFS.findIndex((s) => s.key === "aprovacao");
 
-/** Índice da Finalização — o marco que cobra a peça isenta de aprovação. */
+/** Índice da Finalização (até 26/10 era o marco que cobrava a peça isenta de aprovação). */
 export const FINALIZACAO_STAGE_INDEX = STAGE_DEFS.findIndex((s) => s.key === "finalizacao");
 
 /** Índice do primeiro marco que cobra a peça do Kit (a Entrega de Layouts, 26/10). */
@@ -105,35 +117,34 @@ export const KIT_STAGE_INDEX = STAGE_DEFS.findIndex((s) => s.key === MARCO_EM_QU
 /**
  * Marco que MEDE o prazo de uma peça — nem sempre é a etapa em que ela está.
  *
- * REGRA DO DONO (revista em 24/08): peça marcada para pular a aprovação do
- * patrocinador (`items.skipApproval`) é cobrada pelo prazo de FINALIZAÇÃO.
- * Ela não passa pela etapa de aprovação — o fluxo manda `awaiting_submission`
- * direto para `awaiting_creator_review` (server/routes/items.ts:1891) —, e a
- * Finalização é a primeira etapa por onde ela REALMENTE passa. Cobrá-la pela
- * Aprovação de Layout, como antes, era medi-la por um marco que ela nunca
- * cumpre: a peça aparecia atrasada dois dias antes de existir trabalho
- * atrasado, e o vermelho não correspondia a nada que alguém pudesse resolver.
+ * A REGRA MUDOU (Pedro/dono, 26/10 — "Prazos para peças sem aprovação"). Até
+ * aqui a peça isenta de aprovação (`items.skipApproval`) era cobrada pela
+ * FINALIZAÇÃO (regra de 24/08). Agora a peça com "Sem patrocínio"
+ * (skipApproval) ou "Arte do cliente" é medida pelo prazo de LAYOUT AJUSTADO
+ * (Layout + duração da Aprovação, em dias corridos) — a regra única mora em
+ * @shared/prazo-sem-aprovacao (`marcoQueCobra` / `prazoDaPeca`), lida também
+ * pelo card do evento, pelo Detalhe, pelo Calendário, pela Arte e pelas Análises.
  *
- * CONSEQUÊNCIA ACEITA: enquanto está numa etapa ANTERIOR à Finalização, a peça
- * isenta sai da contagem daquelas etapas — nem a Lista de Imagens nem a
- * Aprovação ficam vermelhas por causa dela; a Finalização fica. É a folga que
- * o dono escolheu dar em troca de um único marco cobrando essas peças, e ela
- * ficou dois dias maior que na regra anterior.
+ *   · com marca, em Lista de Imagens ou Entrega de Layouts → o marco de Layout
+ *     (com o piso do prazo ajustado — ver `buildEventPrazo`);
+ *   · PEÇA DO KIT (dono, 23/10: "ele entra nessa aprovação pra frente"): Lista
+ *     de Imagens e Entrega de Layouts não cobram o Kit — a peça do Kit nessas
+ *     etapas é medida pela Aprovação de Layout. A regra do Kit vence a da marca;
+ *   · o resto → a própria etapa.
  *
  * `stageIndex` (onde a peça ESTÁ, e portanto de quem é a bola) continua o de
  * `STATUS_STAGE_RANK`: quem atribui setor no resumo de gargalos precisa da
  * etapa real, não do marco.
  */
-export function marcoIndexFor(status: string, skipApproval?: boolean | null, doKit?: boolean | null): number | undefined {
-  const rank = STATUS_STAGE_RANK[status];
-  if (rank === undefined) return undefined;
-  if (skipApproval && rank < FINALIZACAO_STAGE_INDEX) return FINALIZACAO_STAGE_INDEX;
-  // PEÇA DO KIT (26/10; era a Aprovação desde 23/10): a Lista de Imagens não
-  // cobra o Kit — a peça do Kit que ainda está nela é medida pelo prazo da
-  // Entrega de Layouts, como a isenta de aprovação é medida pela Finalização
-  // (mesma folga aceita acima).
-  if (doKit && rank < KIT_STAGE_INDEX) return KIT_STAGE_INDEX;
-  return rank;
+export function marcoIndexFor(
+  status: string,
+  skipApproval?: boolean | null,
+  doKit?: boolean | null,
+  arteDoCliente?: boolean | null,
+  /** Produção interna: o skipApproval dela não é "Sem patrocínio" (shared/prazo-sem-aprovacao). */
+  producaoInterna?: boolean | null,
+): number | undefined {
+  return marcoQueCobra({ status, skipApproval, arteDoCliente, producaoInterna, kitRemessaId: doKit ? "kit" : null });
 }
 
 // Cancelada/excluída/arquivada não conta como pendência nem como total.
@@ -209,8 +220,17 @@ export interface DomainItem {
   type: string;
   description?: string | null;
   quantity: number;
-  /** Peça isenta da aprovação do patrocinador — muda o marco que a cobra. */
+  /** "Sem patrocínio" (pula a Aprovação) — o prazo de Layout é o ajustado. */
   skipApproval?: boolean | null;
+  /**
+   * Produção interna (vai direto para a Gráfica): grava skipApproval por
+   * dentro, mas NÃO é "Sem patrocínio" — a regra única a ignora (27/10).
+   */
+  producaoInterna?: boolean | null;
+  /** "Arte do cliente" (pula a Aprovação; espera o arquivo em Layout). */
+  arteDoCliente?: boolean | null;
+  /** O dia em que a arte do cliente chegou — sem ele a peça está "Aguardando arte do cliente". */
+  arteRecebidaEm?: string | Date | null;
   /** Peça do Kit (a marca): cobrada só da Aprovação de Layout em diante. */
   kitRemessaId?: string | null;
   updatedAt?: Date | string | null;
@@ -233,6 +253,12 @@ export interface DomainApproval {
 export interface BuildEventDeps {
   /** "Hoje" do negócio em ms (UTC-meia-noite) — ver `todayBusinessMs`. */
   today: number;
+  /**
+   * Duração da etapa de Aprovação em dias corridos (configuração geral, padrão
+   * 7) — estende o prazo de Layout das peças sem aprovação. Quem chama lê da
+   * configuração (services/configuracoes.ts); ausente = o padrão.
+   */
+  diasDaAprovacao?: number;
   /** id → nome do patrocinador (o "Patrocinador removido" é o fallback). */
   sponsorNameById?: Map<string, string>;
   /** itemId → aprovações em aberto daquela peça. */
@@ -315,13 +341,24 @@ export function buildEventPrazo(
   // A faixa mora em @shared/prazo-dates (fonte única, ver o arquivo).
   const invalidDate = !isPlausibleEventYear(truckDay.getUTCFullYear());
 
+  // Os seis prazos do evento ("YYYY-MM-DD", com o fim de semana de cada marco)
+  // — o calendário do evento, igual para toda peça.
+  const prazosDoEvento = STAGE_DEFS.map((def) => {
+    const offset = (event[def.offsetField] as number | null | undefined) ?? def.defaultOffset;
+    return stageDeadline(truckDay, offset, def.fimDeSemana).toISOString().slice(0, 10);
+  });
+  const hojeStr = new Date(today).toISOString().slice(0, 10);
+  const diasDaAprovacao = deps.diasDaAprovacao ?? DIAS_DA_APROVACAO_PADRAO;
+
+  // O prazo de CADA peça (a regra única, @shared/prazo-sem-aprovacao): o marco
+  // que a cobra e o piso (o prazo de Layout ajustado da peça sem aprovação).
+  const prazoDe = new Map(eventItems.map((it) => [it.id, prazoDaPeca(it, prazosDoEvento, diasDaAprovacao)]));
+
   // Contagem por etapa: direta (cobradas AQUI) e acumulada (aqui ou antes).
-  // O índice é o do MARCO que mede a peça (`marcoIndexFor`), não o da etapa em
-  // que ela está: é assim que a peça isenta de aprovação passa a ser cobrada
-  // pelo prazo de Aprovação de Layout em vez do prazo da etapa anterior.
+  // O índice é o do MARCO que mede a peça, não o da etapa em que ela está.
   const directCounts = new Array(STAGE_DEFS.length).fill(0);
   for (const it of eventItems) {
-    const marco = marcoIndexFor(it.status, it.skipApproval, !!it.kitRemessaId);
+    const marco = prazoDe.get(it.id)?.marco;
     if (marco !== undefined) directCounts[marco] += 1;
   }
   // Evento sem NENHUMA peça: runningPending 0 deixaria todas as etapas
@@ -329,16 +366,44 @@ export function buildEventPrazo(
   // ficam neutras e o front sinaliza "sem peças cadastradas".
   const noItems = eventItems.length === 0;
 
+  // O PRAZO EFETIVO DE CADA ETAPA (26/10). O gate da etapa i são as peças
+  // cobradas em i ou antes; cada uma vence em i no prazo do marco — ou no piso
+  // dela, quando é mais tarde (a peça sem aprovação em Layout só está atrasada
+  // depois do Layout ajustado). O semáforo da etapa olha o MENOR desses
+  // prazos: só peça sem aprovação no gate → a etapa vence no ajustado; uma
+  // peça comum basta para valer o prazo do evento. Sem peça com piso, o
+  // efetivo é o próprio prazo do marco — o comportamento de sempre.
+  // A PEÇA SEM APROVAÇÃO não passa pela Aprovação (RN04): ela não segura essa
+  // etapa — o gate da Aprovação não a conta, como a agenda do Detalhe e a
+  // trilha da ficha (a Aprovação aparece "pulada" para ela).
+  const gate = eventItems
+    .map((it) => { const pd = prazoDe.get(it.id); return pd ? { ...pd, pula: pulaAprovacao(it) } : null; })
+    .filter((pd): pd is NonNullable<typeof pd> => !!pd);
+  const pulamAAprovacao = gate.filter((pd) => pd.pula && pd.marco < APROVACAO_STAGE_INDEX).length;
+
   let runningPending = 0;
   const stages: PrazoStage[] = STAGE_DEFS.map((def, i) => {
     runningPending += directCounts[i];
-    const offset = (event[def.offsetField] as number | null | undefined) ?? def.defaultOffset;
-    const deadline = stageDeadline(truckDay, offset, def.fimDeSemana);
-    const diffDays = Math.round((deadline.getTime() - today) / 86400000);
+    const pendentesAqui = i === APROVACAO_STAGE_INDEX ? runningPending - pulamAAprovacao : runningPending;
+    const deadline = prazosDoEvento[i];
+    let efetivo: string | null = null;
+    let atrasadas = 0;
+    for (const pd of gate) {
+      if (pd.marco > i) continue;
+      if (i === APROVACAO_STAGE_INDEX && pd.pula && pd.marco < i) continue;
+      const p = prazoNoMarco(i, prazosDoEvento, pd.piso);
+      if (efetivo === null || p < efetivo) efetivo = p;
+      if (p < hojeStr) atrasadas += 1;
+    }
+    const prazoEfetivo = efetivo ?? deadline;
+    const diffDays = Math.round((Date.parse(`${prazoEfetivo}T00:00:00Z`) - today) / 86400000);
 
     let state: StageState;
     if (noItems) state = "upcoming";
-    else if (runningPending === 0) state = "done";
+    // Só peças sem aprovação antes dela: a Aprovação não foi CUMPRIDA, foi
+    // pulada — neutra ("upcoming"), nunca o ✓ de "feita".
+    else if (pendentesAqui === 0 && i === APROVACAO_STAGE_INDEX && pulamAAprovacao > 0) state = "upcoming";
+    else if (pendentesAqui === 0) state = "done";
     else if (invalidDate) state = "upcoming"; // sem data confiável não há atraso confiável
     else if (diffDays < 0) state = "overdue";
     else if (diffDays <= 3) state = "warning";
@@ -347,10 +412,12 @@ export function buildEventPrazo(
     return {
       key: def.key,
       label: def.label,
-      deadline: deadline.toISOString().slice(0, 10),
+      deadline,
+      prazoEfetivo,
       diffDays,
-      pendingCount: runningPending,   // cobradas aqui OU antes (o gate real)
+      pendingCount: pendentesAqui,    // cobradas aqui OU antes (o gate real)
       directCount: directCounts[i],   // cobradas exatamente por este marco
+      atrasadas: invalidDate ? 0 : atrasadas,
       state,
     };
   });
@@ -390,6 +457,8 @@ export function buildEventPrazo(
       const waitingDays = it.statusChangedAt
         ? daysSince(it.statusChangedAt, today)
         : null;
+      const pd = prazoDe.get(it.id) ?? null;
+      const aguarda = aguardandoArteDoCliente(it);
       let sponsors: PrazoPendingSponsor[] | undefined;
       if (AWAITING_SPONSOR.has(it.status)) {
         const open = deps.openApprovalsByItem?.get(it.id) ?? [];
@@ -423,8 +492,16 @@ export function buildEventPrazo(
         // um espelho do mapa status→etapa que podia divergir.
         stageIndex: STATUS_STAGE_RANK[it.status],
         // Marco que MEDE esta peça. Igual a `stageIndex` no caso normal;
-        // diferente na peça isenta de aprovação e na do Kit — ver `marcoIndexFor`.
-        marcoIndex: marcoIndexFor(it.status, it.skipApproval, !!it.kitRemessaId) as number,
+        // diferente na peça sem aprovação e na do Kit — ver `marcoIndexFor`.
+        marcoIndex: pd?.marco as number,
+        // O prazo que mede a peça agora — o do marco, ou o Layout ajustado
+        // (26/10). É por ele que a peça está (ou não) atrasada.
+        prazo: pd?.prazo ?? null,
+        semPatrocinio: semPatrocinio(it),
+        arteDoCliente: !!it.arteDoCliente,
+        aguardandoArteDoCliente: aguarda,
+        atrasoDoCliente: !invalidDate && responsavelPeloAtraso(it, pd, hojeStr) === "cliente",
+        prazoDeLayout: prazosDeLayoutDaPeca(it, prazosDoEvento[INDICE_LAYOUT], diasDaAprovacao),
         type: it.type,
         description: it.description ?? null,
         quantity: it.quantity,
@@ -466,13 +543,24 @@ export function buildEventPrazo(
     ? Math.abs(Math.min(...overdueStages.map((s) => s.diffDays)))
     : 0;
 
-  // Peças em atraso DESTE evento: a pendência acumulada da etapa vencida mais
-  // AVANÇADA (peça presa antes também está atrasada para aquele marco). É
-  // exatamente a parcela deste evento em `kpis.pecasAtrasadas` — expor por
-  // evento é o que reconcilia o card com o placar.
-  const pecasEmAtraso = overdueStages.length
-    ? overdueStages[overdueStages.length - 1].pendingCount
+  // Peças em atraso DESTE evento: as atrasadas da etapa vencida mais AVANÇADA
+  // (peça presa antes também está atrasada para aquele marco). É exatamente a
+  // parcela deste evento em `kpis.pecasAtrasadas` — expor por evento é o que
+  // reconcilia o card com o placar. `atrasadas` (e não `pendingCount`, 26/10):
+  // a peça sem aprovação no gate que ainda não passou do Layout ajustado está
+  // pendente, mas não atrasada. Sem ela, os dois números são iguais.
+  // A peça sem aprovação não entra no gate da Aprovação (acima): quando a
+  // Aprovação é a etapa vencida mais avançada, a que já passou do Layout
+  // ajustado dela soma aqui — atrasada uma vez, no marco que a cobra.
+  const ultimaVencida = overdueStages.length ? overdueStages[overdueStages.length - 1] : null;
+  const semAprovacaoAtrasadas = ultimaVencida?.key === STAGE_DEFS[APROVACAO_STAGE_INDEX].key && !invalidDate
+    ? gate.filter((pd) => pd.pula && pd.marco < APROVACAO_STAGE_INDEX && pd.prazo < hojeStr).length
     : 0;
+  const pecasEmAtraso = ultimaVencida ? ultimaVencida.atrasadas + semAprovacaoAtrasadas : 0;
+  // RN09: das atrasadas, quantas o são por conta do CLIENTE (arte do cliente
+  // não recebida depois do Layout ajustado) — o resto é atraso interno.
+  const pecasAtrasoDoCliente = pendingItems.filter((it) => it.atrasoDoCliente).length;
+  const aguardandoArteDoClienteCount = pendingItems.filter((it) => it.aguardandoArteDoCliente).length;
 
   // Separa o evento atrasado mas FERVENDO do evento atrasado e ABANDONADO —
   // são duas cobranças completamente diferentes.
@@ -506,6 +594,8 @@ export function buildEventPrazo(
     piorAtrasoDias,
     pecasEmAtraso,
     piorEsperaDias,
+    pecasAtrasoDoCliente,
+    aguardandoArteDoCliente: aguardandoArteDoClienteCount,
     solicitante: (event.createdBy && deps.userNameById?.get(event.createdBy)) || null,
   };
 }
@@ -535,5 +625,7 @@ export function computeKpis(events: PrazoEvent[]): PrazoKpis {
     emDia: byCategoria("emDia"),
     invalidCount: byCategoria("dataInvalida"),
     semPecas: byCategoria("semPecas"),
+    // RN09 (26/10): das peças atrasadas, as que o são por conta do cliente.
+    pecasAtrasoDoCliente: events.reduce((acc, ev) => acc + (ev.pecasAtrasoDoCliente ?? 0), 0),
   };
 }

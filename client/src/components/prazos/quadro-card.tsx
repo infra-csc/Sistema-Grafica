@@ -15,7 +15,7 @@ import { memo } from "react";
 import { Truck } from "lucide-react";
 import { getPriorityMeta } from "@/lib/status";
 import { Selo } from "@/components/ui/selo";
-import { FONT, MOTION } from "@/lib/theme";
+import { FONT, MOTION, TOM } from "@/lib/theme";
 import type { PrazoEvent, PrazoStage } from "@shared/prazos-contract";
 import { PrioridadeChip, PrioridadePonto } from "./prioridade";
 import { SeloRisco } from "./selo-risco";
@@ -23,6 +23,10 @@ import {
   dayColor, diasTexto, fmtDayMonth, fmtDiaCurto, pecasTexto, R, RISCO_TITLE,
   saidaChip, SHADOW, STAGE_SHORT, STAGE_STYLE, TI,
 } from "./tokens";
+import {
+  atrasadasDaEtapa, atrasoDoClienteNaEtapa, DICA_ATRASO_DO_CLIENTE, dicaDoPrazoAjustado,
+  etapaComPrazoAjustado, prazoDaEtapa, sufixoDoCliente,
+} from "./sem-aprovacao";
 
 interface QuadroCardProps {
   ev: PrazoEvent;
@@ -54,6 +58,10 @@ export const QuadroCard = memo(function QuadroCard({ ev, stage, onOpen, onFocusC
   const prio = getPriorityMeta(ev.priority);
   const semPecas = ev.categoria === "semPecas" || ev.totalItems === 0;
   const overdue = stage?.state === "overdue";
+  // Peças sem aprovação (Pedro/dono, 26/10): o prazo da coluna é o EFETIVO —
+  // o Layout ajustado quando no gate só restam peças sem aprovação.
+  const ajustado = !!stage && !ev.invalidDate && etapaComPrazoAjustado(stage);
+  const prazoAqui = stage ? prazoDaEtapa(stage) : "";
 
   // Ordem dos ramos: MESMA precedência da `categoria` do domínio
   // (semPecas > dataInvalida > ...). O evento sem peça E com data quebrada
@@ -66,20 +74,34 @@ export const QuadroCard = memo(function QuadroCard({ ev, stage, onOpen, onFocusC
   //
   // O "há N dias" saiu do texto do vencido porque o contador do cabeçalho
   // agora diz exatamente isso, dois centímetros acima e em corpo maior.
-  const gate: { texto: string; cor: string; solido: boolean } | null =
+  //
+  // Vencido conta as peças JÁ ATRASADAS (`atrasadas`, 26/10): a peça sem
+  // aprovação no mesmo gate pode estar no prazo dela. RN09: a fatia do cliente
+  // ("· 1 do cliente") é a desta coluna, não a do evento inteiro.
+  const doClienteAqui = stage ? atrasoDoClienteNaEtapa(ev, stage.key) : 0;
+  const gate: { texto: string; cor: string; solido: boolean; dica?: string } | null =
     semPecas ? { texto: "Nenhuma peça cadastrada", cor: TI.red, solido: true }
     : ev.invalidDate ? { texto: "Sem data confiável — corrija a saída", cor: TI.red, solido: true }
     : !stage ? null
     : stage.state === "overdue"
-      ? { texto: `Prazo vencido · ${pecasTexto(stage.pendingCount)}`, cor: TI.red, solido: false }
+      ? {
+          texto: `Prazo vencido · ${pecasTexto(atrasadasDaEtapa(stage))}${sufixoDoCliente(doClienteAqui)}`,
+          cor: TI.red, solido: false,
+          dica: doClienteAqui > 0 ? DICA_ATRASO_DO_CLIENTE : ajustado ? dicaDoPrazoAjustado(stage) : undefined,
+        }
     : stage.state === "warning"
       ? {
           texto: stage.diffDays === 0
-            ? `Vence hoje · ${pecasTexto(stage.pendingCount)}`
-            : `Vence em ${diasTexto(stage.diffDays)} · ${pecasTexto(stage.pendingCount)}`,
+            ? `Vence hoje${ajustado ? " (ajustado)" : ""} · ${pecasTexto(stage.pendingCount)}`
+            : `Vence em ${diasTexto(stage.diffDays)}${ajustado ? " (ajustado)" : ""} · ${pecasTexto(stage.pendingCount)}`,
           cor: TI.amber, solido: false,
+          dica: ajustado ? dicaDoPrazoAjustado(stage) : undefined,
         }
-    : { texto: `Prazo em ${fmtDayMonth(stage.deadline)} · ${pecasTexto(stage.pendingCount)}`, cor: TI.secondary, solido: false };
+    : {
+        texto: `Prazo${ajustado ? " ajustado" : ""} em ${fmtDayMonth(prazoAqui)} · ${pecasTexto(stage.pendingCount)}`,
+        cor: TI.secondary, solido: false,
+        dica: ajustado ? dicaDoPrazoAjustado(stage) : undefined,
+      };
 
   // O CONTADOR do cabeçalho: o número que o diretor procura primeiro.
   //
@@ -90,7 +112,7 @@ export const QuadroCard = memo(function QuadroCard({ ev, stage, onOpen, onFocusC
   const contador = !stage || semPecas || ev.invalidDate ? null
     : stage.state === "overdue" ? { texto: `${Math.abs(stage.diffDays)}d`, cor: STAGE_STYLE.overdue.text }
     : stage.state === "warning" && stage.diffDays === 0 ? { texto: "hoje", cor: STAGE_STYLE.warning.text }
-    : { texto: fmtDayMonth(stage.deadline), cor: STAGE_STYLE[stage.state].text };
+    : { texto: fmtDayMonth(prazoAqui), cor: STAGE_STYLE[stage.state].text };
 
   // "1 de 40 travada aqui": a coluna é decidida pela peça MAIS ATRASADA, e o
   // card comunicava posição de EVENTO. Um evento com 39 peças já na Produção e
@@ -112,7 +134,7 @@ export const QuadroCard = memo(function QuadroCard({ ev, stage, onOpen, onFocusC
     .map((s) => `${STAGE_SHORT[s.key] ?? s.label}: ${
       s.state === "done" ? "concluída"
       : s.state === "overdue" ? `vencida há ${diasTexto(Math.abs(s.diffDays))}`
-      : s.state === "warning" ? "vence agora" : "prevista"}`)
+      : s.state === "warning" ? "vence agora" : "prevista"}${!ev.invalidDate && etapaComPrazoAjustado(s) ? ` (ajustado ${fmtDayMonth(prazoDaEtapa(s))})` : ""}`)
     .join(" · ");
 
   // O `aria-label` do botão SUBSTITUI todo o texto interno para o leitor de
@@ -218,7 +240,7 @@ export const QuadroCard = memo(function QuadroCard({ ev, stage, onOpen, onFocusC
       </span>
 
       {gate && (
-        <span style={{
+        <span title={gate.dica} style={{
           display: "inline-block", marginTop: 7,
           padding: gate.solido ? "3px 9px" : 0,
           borderRadius: gate.solido ? R.sm : 0,

@@ -29,6 +29,9 @@ const ORDEM_ORIGINAL = [
   "GET /api/items/:eventId",
   "POST /api/items",
   "POST /api/items/bulk",
+  // 26/10 (Pedro/dono): peças sem aprovação — Arte recebida e as marcas em lote.
+  "POST /api/items/:id/arte-recebida",
+  "POST /api/items/marcas-sem-aprovacao",
   "GET /api/events/:id/export-items",
   "POST /api/items/export-xlsx",
   "POST /api/events/:id/preview-xlsx",

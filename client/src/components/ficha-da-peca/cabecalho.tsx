@@ -14,6 +14,8 @@ import { DIA_MS, STATUS_STEP, TIMELINE_STEPS } from "./estilos";
 import { haQuantoTempo } from "./formatos";
 import { SubTrilhaDaProducao } from "./sub-trilha-da-producao";
 import type { ItemDaFicha } from "./tipos";
+import { SelosSemAprovacao, PrazoDeLayoutAjustado } from "@/components/selo-sem-aprovacao";
+import { pulaAprovacao } from "@shared/prazo-sem-aprovacao";
 
 export function CabecalhoDaFicha({ item, isMobile, onTransferir, onOpenChange }: {
   item: ItemDaFicha;
@@ -180,15 +182,18 @@ export function CabecalhoDaFicha({ item, isMobile, onTransferir, onOpenChange }:
         // lista direto para a Gráfica). Marcar essas etapas com ✓ diria que
         // alguém as fez. Elas ficam vazadas, com traço — e só nesta peça.
         const pulouAteAProducao = !ehMolde(item) && !!item.producaoInterna && step >= 5;
+        // PEÇA SEM APROVAÇÃO (Pedro/dono, 26/10 — RN04): a Aprovação não existe
+        // para ela; a etapa fica vazada, com traço, como a da produção interna.
+        const semAprovacao = !ehMolde(item) && !item.producaoInterna && pulaAprovacao(item);
         return (
           <>
             <div aria-hidden="true" style={{ display: "flex", gap: 6, margin: isMobile ? "16px 0 0" : "20px 0 0" }} data-testid="trilha-da-ficha">
               {etapas.map(s => {
-                const pulada  = pulouAteAProducao && s.idx < 5;
+                const pulada  = (pulouAteAProducao && s.idx < 5) || (semAprovacao && s.idx === 2);
                 const done    = s.idx < step && !pulada;
                 const current = s.idx === step;
                 return (
-                  <div key={s.idx} style={{ flex: "1 1 0", minWidth: 0 }} title={pulada ? `${s.label}: pulada — produção interna` : undefined} data-pulada={pulada ? "sim" : undefined}>
+                  <div key={s.idx} style={{ flex: "1 1 0", minWidth: 0 }} title={pulada ? `${s.label}: pulada — ${pulouAteAProducao ? "produção interna" : "peça sem aprovação"}` : undefined} data-pulada={pulada ? "sim" : undefined}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: isMobile ? "center" : undefined, gap: 6, marginBottom: 7, minWidth: 0 }}>
                       <span style={{
                         width: isMobile ? 22 : 18, height: isMobile ? 22 : 18, borderRadius: "50%", flexShrink: 0,
@@ -252,6 +257,15 @@ export function CabecalhoDaFicha({ item, isMobile, onTransferir, onOpenChange }:
       {/* Travada pela Solicitação (21/09): texto discreto, com o motivo e quem travou. */}
       {pecaTravada(item) && (
         <div data-testid="selo-travada-ficha" title={fraseDaTrava(item)} style={{ marginTop: 8, fontSize: 12, fontWeight: 700, color: TOM.perigo.border, overflowWrap: "anywhere" }}>{seloDaTrava(item)}</div>
+      )}
+      {/* PEÇA SEM APROVAÇÃO (Pedro/dono, 26/10 — RF06/RF12): os selos e o
+          prazo de Layout normal × ajustado, calculado na hora. A data fica
+          numa pílula clara: o texto dela é escuro e o cabeçalho é escuro. */}
+      {pulaAprovacao(item) && (
+        <div data-testid="marcas-da-ficha" style={{ marginTop: 8, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
+          <SelosSemAprovacao peca={item} />
+          <PrazoDeLayoutAjustado peca={item} evento={item.event} style={{ background: T.surface, borderRadius: 999, padding: "2px 8px" }} />
+        </div>
       )}
       {/* PRAZO DO MOLDE (22/09): só no molde de evento que tem o prazo; não entra na Gestão de Prazos. */}
       {prazoDoMolde(item, item.event, new Date()) && (

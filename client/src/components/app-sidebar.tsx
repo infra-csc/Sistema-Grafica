@@ -1,7 +1,7 @@
 import {
   Calendar, CalendarRange, Palette, Printer, Layers, LayoutDashboard,
   Activity, BarChart3, Users, Building2, UserCheck, ClipboardCheck,
-  Link2, LogOut, ScrollText, Archive, ScanSearch, Settings2, Camera, Wand2,
+  Link2, LogOut, ScrollText, Archive, ScanSearch, Settings2, SlidersHorizontal, Camera, Wand2,
   Timer, GitBranch, Bell, Inbox, Cog, PackageSearch, X,
 } from "lucide-react";
 import { useEffect, useId, useState } from "react";
@@ -126,6 +126,8 @@ const stockItems: MenuItem[] = [
 // Administração: apenas admin (filtrado via hasPermission no componente)
 const adminItems: MenuItem[] = [
   { title: "Usuários",        url: "/usuarios",     icon: Users },
+  // 26/10: regras gerais do app — hoje, a duração da etapa de Aprovação.
+  { title: "Configurações",   url: "/configuracoes", icon: SlidersHorizontal },
   { title: "Correção de textos", url: "/reparo-motivos", icon: Wand2 },
   { title: "Notificações",    url: "/notificacoes", icon: Bell },
   { title: "Reparar vínculos", url: "/reparo-vinculos-evento", icon: Link2 },
@@ -169,6 +171,7 @@ const DESCRICAO_DA_TELA: Record<string, string> = {
   "/triagem-retorno": "Peças que voltaram de evento: avaliar a condição e decidir o destino",
   "/estoque": "Peças guardadas que podem ser reaproveitadas",
   "/usuarios": "Quem acessa o sistema e com qual perfil",
+  "/configuracoes": "Regras gerais do app, como os dias a mais no Layout das peças sem aprovação",
   "/reparo-motivos": "Corrigir mensagens gravadas com letras trocadas por espaços",
   "/notificacoes": "O que o sistema manda por e-mail, para quem, e o que saiu",
   "/logs-sistema": "Rastreamento técnico das operações do sistema",

@@ -41,7 +41,8 @@ describe("o chip 'Sem patrocinador' na linha", () => {
     expect(bloco).toContain("aria-pressed={semPatrocinador}");
     expect(bloco).toContain("onClick={() => toggleItemSkipApproval(item)}");
     expect(bloco).toContain('<EyeOff aria-hidden="true"');
-    expect(bloco).toContain("Sem patrocinador");
+    // Pedro/dono 26/10: rótulo padronizado — a marca chama-se "Sem patrocínio" em todo o app.
+    expect(bloco).toContain("Sem patrocínio");
   });
 
   it("tem a casca dos chips de marca e borda tracejada quando desligado", () => {

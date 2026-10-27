@@ -1,7 +1,7 @@
 // O PATCH genérico da peça — edição de dados, nunca de status.
 import type { Express } from "express";
 import { storage } from "../../storage";
-import { trocaDeMoldeProibida, ERRO_TROCA_DE_MOLDE, tipoCanonico } from "@shared/molde";
+import { ehMolde, trocaDeMoldeProibida, ERRO_TROCA_DE_MOLDE, tipoCanonico } from "@shared/molde";
 import { requireAuth, broadcast, createAuditLog, updateEventStatus } from "../shared";
 import { responderErro } from "../../erros";
 // Régua do thumb (só objeto do nosso storage): ./thumb-url.ts.
@@ -13,6 +13,8 @@ import { pecaTravada, fraseDaTrava, CODIGO_PECA_TRAVADA } from "@shared/trava-da
 import type { Item } from "@shared/schema";
 import { avisarBuscarNoEstoque } from "../../services/aviso-buscar-no-estoque";
 import { recalcularEventoEAvisar } from "../../services/evento-concluido";
+import { marcasEditaveis, recusaAoMarcar, FRASE_MARCA_TRAVADA } from "@shared/prazo-sem-aprovacao";
+import { colunasDaArteDoCliente, frasesDasMarcasDaPeca } from "../../services/marcas-de-aprovacao";
 import {
   updateItemSchema, normalizarReferencias, planejarEdicao, descreverEdicao, avisarDepoisDaEdicao,
 } from "../../services/edicao-da-peca";
@@ -90,14 +92,36 @@ export function registrarEdicao(app: Express): void {
       // como a prioridade. Arte e Atendimento editam thumb/referência por
       // aqui e mandam o form inteiro: o gate só dispara quando o valor MUDA.
       const mudaDispensa = validatedData.skipApproval !== undefined && !!validatedData.skipApproval !== !!currentItem.skipApproval;
+      const mudaArteDoCliente = validatedData.arteDoCliente !== undefined && !!validatedData.arteDoCliente !== !!currentItem.arteDoCliente;
       const mudaReuso = validatedData.isReuse !== undefined && !!validatedData.isReuse !== !!currentItem.isReuse;
-      if ((mudaDispensa || mudaReuso) && !PAPEIS_DO_CAMINHO_DA_PECA.includes(role)) {
+      if ((mudaDispensa || mudaArteDoCliente || mudaReuso) && !PAPEIS_DO_CAMINHO_DA_PECA.includes(role)) {
         return res.status(403).json({
-          error: mudaDispensa
-            ? "Dispensar a aprovação do patrocinador é do admin e da Solicitação."
+          error: mudaDispensa || mudaArteDoCliente
+            ? "Marcar “Sem patrocínio” ou “Arte do cliente” é do admin e da Solicitação."
             : "Marcar reaproveitamento é do admin e da Solicitação.",
         });
       }
+      // RN07 (Pedro/dono, 26/10): as marcas sem aprovação mudam enquanto a peça
+      // está em Layout; depois, só o admin. O gate dispara na MUDANÇA (o
+      // formulário manda o form inteiro).
+      if ((mudaDispensa || mudaArteDoCliente) && !marcasEditaveis(currentItem.status, role)) {
+        return res.status(409).json({ error: FRASE_MARCA_TRAVADA, code: "MARCA_FORA_DO_LAYOUT" });
+      }
+      // Ligar uma marca (revisão 27/10): não em molde, produção interna, peça
+      // NA Aprovação nem peça com patrocinador vinculado (recusaAoMarcar).
+      const ligaMarca = (mudaDispensa && !!validatedData.skipApproval) || (mudaArteDoCliente && !!validatedData.arteDoCliente);
+      if (ligaMarca) {
+        const recusa = recusaAoMarcar({
+          status: currentItem.status,
+          temPatrocinador: (await storage.getItemSponsors(currentItem.id)).length > 0,
+          producaoInterna: currentItem.producaoInterna || validatedData.producaoInterna === true,
+          molde: ehMolde({ ...currentItem, ...validatedData }),
+        }, role, true);
+        if (recusa) return res.status(409).json({ error: recusa, code: "MARCA_RECUSADA" });
+      }
+      // Quem marcou a Arte do cliente (e, ao desmarcar, a chegada sai junto).
+      if (mudaArteDoCliente) Object.assign(validatedData, colunasDaArteDoCliente(!!validatedData.arteDoCliente, req.userName ?? null));
+      else delete validatedData.arteDoCliente;
       // DE ONDE VEM O REAPROVEITAMENTO (16/10): o formulário manda junto da
       // marcação. A mesma régua das outras portas (lerOrigemDoCorpo: "em
       // trânsito" pede a observação); quem muda é quem marca reaproveitamento.
@@ -202,10 +226,14 @@ export function registrarEdicao(app: Express): void {
 
       const mudouAOrigem = (item.origemReaproveitamento ?? null) !== (currentItem.origemReaproveitamento ?? null)
         || (item.obsReaproveitamento ?? null) !== (currentItem.obsReaproveitamento ?? null);
-      const auditDetails = descreverEdicao(currentItem, item, validatedData, { mudaReuso, mudouQtd, promoveuParaProduzido, fechouEmTransito })
-        + (mudouAOrigem && (item.origemReaproveitamento || currentItem.origemReaproveitamento)
-          ? ` · ${fraseDaTrilhaDaOrigem(origemDe(item), item.obsReaproveitamento)}`
-          : "");
+      const frasesDasMarcas = await frasesDasMarcasDaPeca(currentItem, item);
+      const auditDetails = [
+        descreverEdicao(currentItem, item, validatedData, { mudaReuso, mudouQtd, promoveuParaProduzido, fechouEmTransito })
+          + (mudouAOrigem && (item.origemReaproveitamento || currentItem.origemReaproveitamento)
+            ? ` · ${fraseDaTrilhaDaOrigem(origemDe(item), item.obsReaproveitamento)}`
+            : ""),
+        ...frasesDasMarcas,
+      ].filter(Boolean).join(" · ");
 
       await createAuditLog(
         req,

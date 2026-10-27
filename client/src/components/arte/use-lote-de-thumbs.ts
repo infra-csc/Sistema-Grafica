@@ -9,6 +9,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { erroDeTamanhoDoUpload, matchFileToItem } from "@/lib/arte-rules";
 import { runInBatches } from "@/lib/utils";
 import { ehMolde } from "@shared/molde";
+import { aguardandoArteDoCliente } from "@shared/prazo-sem-aprovacao";
 import { mensagemDeErro } from "./constantes";
 import type { BulkThumbEntry, PecaDaArte, PecaDaCorrecao } from "./tipos";
 
@@ -133,7 +134,9 @@ export function useLoteDeThumbs({ allItems, correcaoItems, podeEditar, toast, co
         // demais (ex.: em correção) o thumb é apenas salvo — antes a tela tentava
         // enviar mesmo assim e o servidor recusava com erro de status.
         const alvo = [...allItems, ...correcaoItems].find((i) => i.id === entry.matchedItemId);
-        const podeEnviar = send && alvo?.status === 'awaiting_submission';
+        // A peça que espera a ARTE DO CLIENTE (26/10) não se envia por thumb —
+        // o servidor recusa (409) até o "Arte recebida"; o thumb só é salvo.
+        const podeEnviar = send && alvo?.status === 'awaiting_submission' && !aguardandoArteDoCliente(alvo);
         // Peça em correção usa o fluxo formal de reenvio: o PATCH genérico
         // trocava a arte em avaliação sem resetar as aprovações recusadas
         // nem notificar o Atendimento.

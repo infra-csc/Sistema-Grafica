@@ -1,9 +1,11 @@
 // Sponsor, quota-rule, event-sponsor, and item-sponsor routes. Extracted from server/routes.ts.
 import type { Express } from "express";
 import { storage } from "../storage";
+import { marcasEditaveis, pulaAprovacao } from "@shared/prazo-sem-aprovacao";
+import { colunasDaArteDoCliente, frasesDasMarcasDaPeca } from "../services/marcas-de-aprovacao";
 import { db, pool } from "../db";
 import { and, eq, inArray, isNull } from "drizzle-orm";
-import { insertSponsorSchema, insertEventSponsorSchema, insertItemSponsorSchema, items as itemsTable, itemSponsors as itemSponsorsTable } from "@shared/schema";
+import { insertSponsorSchema, insertEventSponsorSchema, insertItemSponsorSchema, items as itemsTable, itemSponsors as itemSponsorsTable, type InsertItem } from "@shared/schema";
 import {
   requireAuth,
   requireAdmin,
@@ -836,17 +838,37 @@ export function registerSponsorRoutes(app: Express): void {
       // Update item with skipApproval only (status NOT changed here - user must click "Enviar para Arte").
       // skipApproval só muda se veio no body — antes `skipApproval || false`
       // zerava a flag "sem aprovação" em qualquer sync que não a mencionasse.
-      let item = currentItem;
-      if ('skipApproval' in req.body) {
-        item = (await storage.updateItem(itemId, { skipApproval: !!skipApproval })) ?? currentItem;
+      //
+      // VINCULAR PATROCINADOR NUMA PEÇA MARCADA (27/10 — a mesma regra do
+      // "Acrescentar patrocinador", bulk-add-sponsor): com ≥1 patrocinador a
+      // peça deixa de pular a Aprovação. Desmarca "Arte do cliente" e "Sem
+      // patrocínio" — salvo quando o próprio corpo pede skipApproval:true junto
+      // (aí vale o que o corpo pediu). Antes o sync mantinha "Arte do cliente":
+      // a peça ficava com patrocinador e continuava pulando a Aprovação. O sync
+      // só roda na vinculação (vemDeOrigemValida acima), dentro do Layout — RN07
+      // não barra.
+      const updates: Partial<InsertItem> = {};
+      if ('skipApproval' in req.body) updates.skipApproval = !!skipApproval;
+      const vinculou = validSponsorIds.length > 0;
+      if (vinculou) {
+        if (skipApproval !== true && currentItem.skipApproval) updates.skipApproval = false;
+        if (currentItem.arteDoCliente) Object.assign(updates, colunasDaArteDoCliente(false, req.userName ?? null));
       }
-      
+      let item = currentItem;
+      if (Object.keys(updates).length > 0) {
+        item = (await storage.updateItem(itemId, updates)) ?? currentItem;
+      }
+
+      // RN10 (26/10): marcar/desmarcar "Sem patrocínio" / "Arte do cliente"
+      // aqui também deixa na trilha os prazos de Layout normal × ajustado.
+      const frasesDaMarca = await frasesDasMarcasDaPeca(currentItem, item, vinculou ? "patrocinador vinculado" : "na Vinculação");
       await createAuditLog(
         req,
         'updated',
         'item',
         itemId,
-        `Patrocinadores atualizados - ${validSponsorIds.length} ${validSponsorIds.length === 1 ? 'patrocinador vinculado' : 'patrocinadores vinculados'}${skipApproval ? ' (sem aprovação)' : ''}`
+        `Patrocinadores atualizados - ${validSponsorIds.length} ${validSponsorIds.length === 1 ? 'patrocinador vinculado' : 'patrocinadores vinculados'}${item.skipApproval ? ' (sem patrocínio)' : ''}`
+          + (frasesDaMarca.length ? ` · ${frasesDaMarca.join(" · ")}` : "")
       );
       
       broadcast({ type: "item_updated", item });
@@ -982,6 +1004,14 @@ export function registerSponsorRoutes(app: Express): void {
             recusadas.push({ displayId: rotulo, motivo: "é um molde — molde não recebe patrocinador (não passa por Vincular nem por aprovação)" });
             return;
           }
+          // PEÇA SEM APROVAÇÃO (Pedro/dono, 26/10): ganhar patrocinador desmarca
+          // "Sem patrocínio" e "Arte do cliente" (RN08 — a Aprovação volta). Fora
+          // do Layout a marca só muda pelo admin (RN07).
+          const temMarca = pulaAprovacao(item);
+          if (temMarca && !marcasEditaveis(item.status, req.userRole)) {
+            recusadas.push({ displayId: rotulo, motivo: `está marcada “Sem patrocínio”/“Arte do cliente” e já saiu do Layout — acrescentar patrocinador desmarca, e isso só um admin faz` });
+            return;
+          }
           // Produção interna (02/10): vai direto para a Gráfica, sem patrocinador.
           if (item.producaoInterna) {
             recusadas.push({ displayId: rotulo, motivo: "é de produção interna (vai direto para a Gráfica) — não leva patrocinador" });
@@ -1015,9 +1045,11 @@ export function registerSponsorRoutes(app: Express): void {
 
           // Peça ISENTA deixa de ser isenta (caso Mandala): com patrocinador a
           // aprovar, a isenção faria a rodada nascer fechada. Só limpa, nunca marca.
-          const eraIsenta = !!item.skipApproval;
+          // Vale para as duas marcas (26/10): "Arte do cliente" também pularia a Aprovação.
+          const eraIsenta = temMarca;
+          const semAsMarcas = { skipApproval: false, ...(item.arteDoCliente ? colunasDaArteDoCliente(false, req.userName ?? null) : {}) };
           if (eraIsenta && !jaPassou) {
-            const normalizada = await storage.updateItem(itemId, { skipApproval: false });
+            const normalizada = await storage.updateItem(itemId, semAsMarcas);
             // a tela precisa ver a flag cair sem F5 — mesmo quando o vínculo
             // já existia e nada mais nesta peça mudou
             if (normalizada) broadcast({ type: "item_updated", item: normalizada });
@@ -1039,14 +1071,22 @@ export function registerSponsorRoutes(app: Express): void {
           // sem linha nova): não há o que auditar nem reabrir.
           if (jaNaPeca && !eraIsenta && !criouLinhaAgora) return;
 
+          // A frase das marcas (RN10) só quando elas caem DE FATO: em Layout/na
+          // rodada (a limpeza acima) ou na reabertura abaixo — que leva a peça
+          // de volta à Aprovação (o status de depois diz isso à frase).
+          const reabre = jaPassou && (!jaNaPeca || criouLinhaAgora);
+          const frasesDaMarca = temMarca && (!jaPassou || reabre)
+            ? await frasesDasMarcasDaPeca(item, { ...item, status: reabre ? "awaiting_sponsor_approval" : item.status, skipApproval: false, arteDoCliente: false }, "patrocinador acrescentado")
+            : [];
+
           // REABRIR PARA QUE SÓ O NOVO DECIDA: a mesma reabertura da revogação —
           // o arquivo final e a arte FICAM; quem já aprovou não decide de novo.
           // Vale também para o vínculo pré-existente cuja PENDÊNCIA nasceu só
           // agora: o patrocinador nunca decidiu, a peça não pode seguir fechada.
-          if (jaPassou && (!jaNaPeca || criouLinhaAgora)) {
+          if (reabre) {
             const reaberta = await storage.updateItem(itemId, {
               status: "awaiting_sponsor_approval",
-              skipApproval: false,
+              ...semAsMarcas,
               sponsorApprovedBy: null,
               sponsorApprovedAt: null,
               rejectedBySponsor: false,
@@ -1069,12 +1109,12 @@ export function registerSponsorRoutes(app: Express): void {
             (jaNaPeca
               ? `Patrocinador "${sponsor.name}" já estava na peça ${rotulo}; o estado foi normalizado`
               : `Patrocinador "${sponsor.name}" acrescentado à peça ${rotulo} depois do envio`)
-              + (jaPassou && (!jaNaPeca || criouLinhaAgora)
+              + (reabre
                 ? ` — a peça já tinha passado (${translateStatus(item.status)}) e voltou para a aprovação; só ele decide, os demais seguem aprovados`
                 : EM_APROVACAO.includes(item.status)
                   ? " — entra na rodada de aprovação em curso"
                   : jaNaPeca ? "" : " — entrará na aprovação quando a Arte enviar o layout")
-              + (eraIsenta ? '; a peça deixou de ser "sem aprovação" — com patrocinador vinculado, a isenção não faz mais sentido' : ""),
+              + (frasesDaMarca.length ? ` · ${frasesDaMarca.join(" · ")}` : ""),
           );
           broadcast({ type: "item_sponsor_added", itemSponsor: { itemId, sponsorId } });
         } catch (e: any) {
@@ -1118,11 +1158,14 @@ export function registerSponsorRoutes(app: Express): void {
       }
 
       const prevStatus = item.status;
-      // Só status, "sem aprovação" e vínculos mudam: o thumb rascunho
-      // (approvalThumbUrl) FICA na peça. A resposta diz as duas coisas para
-      // que a tela que um dia oferecer a ação confirme com números reais.
+      // Só status e vínculos mudam: o thumb rascunho (approvalThumbUrl) FICA na
+      // peça. A resposta diz as duas coisas para que a tela que um dia oferecer
+      // a ação confirme com números reais. As marcas "Sem patrocínio" e "Arte
+      // do cliente" também FICAM (Pedro/dono, 26/10): a peça continua em Layout,
+      // onde a Solicitação pode desmarcá-las — apagar aqui mudaria o prazo de
+      // Layout dela em silêncio, sem a linha da trilha (RN10).
       const vinculosRemovidos = (await storage.getItemSponsors(id)).length;
-      await storage.updateItem(id, { status: 'draft', skipApproval: false });
+      await storage.updateItem(id, { status: 'draft' });
       await storage.bulkSyncItemSponsors(id, []);
 
       await createAuditLog(
@@ -1212,9 +1255,10 @@ export function registerSponsorRoutes(app: Express): void {
           // Check if item has sponsors, skipApproval, or isReuse
           const itemSponsors = await storage.getItemSponsors(itemId);
           // MOLDE (22/09) não exige patrocinador (shared/molde).
-          if (itemSponsors.length === 0 && !item.skipApproval && !item.isReuse && !ehMolde(item)) {
-            falhou(itemId, `Item ${item.displayId} precisa ter patrocinadores vinculados ou "Sem aprovação" marcado`,
-              'Precisa de patrocinador vinculado ou da marca "Sem patrocinador".');
+          // "Arte do cliente" (26/10) também dispensa o patrocinador: pula a Aprovação.
+          if (itemSponsors.length === 0 && !pulaAprovacao(item) && !item.isReuse && !ehMolde(item)) {
+            falhou(itemId, `Item ${item.displayId} precisa ter patrocinadores vinculados ou "Sem patrocínio" marcado`,
+              'Precisa de patrocinador vinculado ou da marca "Sem patrocínio" (ou "Arte do cliente").');
             continue;
           }
           

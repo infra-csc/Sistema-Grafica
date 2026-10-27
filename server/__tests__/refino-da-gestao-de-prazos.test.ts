@@ -156,6 +156,9 @@ describe("5. o que mudou de canal continua no canal novo", () => {
     // O contador do cabeçalho usa a forma curta ("13d"); a linha de
     // diagnóstico usa a longa ("há 5 dias"). O gate perdeu o "há N dias"
     // justamente para não ser a terceira grafia do mesmo número.
-    expect(quadroCard).toContain("`Prazo vencido · ${pecasTexto(stage.pendingCount)}`");
+    // Pedro/dono 26/10: o vencido conta as ATRASADAS da etapa (peça sem
+    // aprovação no gate pode estar no prazo dela) e diz a fatia do cliente.
+    expect(quadroCard).toContain("`Prazo vencido · ${pecasTexto(atrasadasDaEtapa(stage))}${sufixoDoCliente(doClienteAqui)}`");
+    expect(quadroCard).not.toMatch(/Prazo vencido há/);
   });
 });

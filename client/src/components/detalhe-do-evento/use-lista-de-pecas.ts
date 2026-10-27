@@ -8,6 +8,7 @@ import { grupoDoKit } from "@shared/kit";
 import { chaveDoTipo } from "@shared/tipo-da-peca";
 import { statusDeExibicao, statusParaContagem } from "@shared/molde";
 import { ORDEM_DO_FLUXO, estaAtrasDoMarco } from "./regras";
+import { pulaAprovacao } from "@shared/prazo-sem-aprovacao";
 import type { PecaDoEvento } from "./tipos";
 
 export type Agrupamento = 'tipo' | 'status';
@@ -53,7 +54,7 @@ export function usePecasDaLista(mainItems: PecaDoEvento[], filtros: FiltrosDaLis
     let base = mainItems;
     if (statusFilter.length > 0) base = base.filter(item => statusFilter.includes(item.status));
     // O gargalo clicado na timeline: as peças que AINDA NÃO passaram por ele.
-    if (marcoFiltro !== null) base = base.filter(item => estaAtrasDoMarco(statusParaContagem(item), marcoFiltro, !!item.kitRemessaId));
+    if (marcoFiltro !== null) base = base.filter(item => estaAtrasDoMarco(statusParaContagem(item), marcoFiltro, !!item.kitRemessaId, pulaAprovacao(item)));
     if (itemSearchLower) {
       base = base.filter((item) =>
         (item.displayId || "").toLowerCase().includes(itemSearchLower) ||

@@ -31,6 +31,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Eye, Truck } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { SeloKit } from "@/components/kit/selo-kit";
+import { SelosSemAprovacao } from "@/components/selo-sem-aprovacao";
 import { Selo } from "@/components/ui/selo";
 import { Botao } from "@/components/ui/botao";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
@@ -214,6 +215,9 @@ export function ModalDeDecisao(p: ModalDeDecisaoProps) {
           trailing={
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
               {selectedItem && <SeloKit peca={selectedItem} style={{ flexShrink: 0 }} />}
+              {/* Peças sem aprovação (26/10): a marca, pequena — "Arte cliente"
+                  diz que o arquivo veio do cliente (medida conferida na Finalização). */}
+              <SelosSemAprovacao peca={selectedItem} semAguardando style={{ flexShrink: 0 }} />
               {/* No celular o selo sai: o aviso verde do corpo diz o mesmo, e
                   aqui ele roubava a largura do título. */}
               {selectedItem?.isReuse && !isMobile && (

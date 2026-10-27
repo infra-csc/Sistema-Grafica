@@ -1,6 +1,7 @@
 import { DISPENSAVEIS } from "@shared/fluxo-peca";
 import { deslocamentoDeFimDeSemana, FIM_DE_SEMANA_DO_CAMPO, type RegraDeFimDeSemana } from "@shared/prazo-dates";
 import { MOTIVO_TROCA_MIN, type RegraDoThumb, type RegraDaTroca } from "@shared/troca-de-material";
+import { DIAS_DA_APROVACAO_PADRAO, medidaPeloLayoutAjustado, prazoDeLayoutAjustado } from "@shared/prazo-sem-aprovacao";
 // ─────────────────────────────────────────────────────────────────────────────
 // Regras PURAS da tela de Arte.
 //
@@ -50,6 +51,15 @@ export interface PecaDaArte {
   sponsors?: ReadonlyArray<{ id: string }> | null;
   /** Peça do Kit (a marca). Desde 26/10 é cobrada como as outras (`faseDoPrazo`). */
   kitRemessaId?: string | null;
+  /**
+   * PEÇAS SEM APROVAÇÃO (Pedro/dono, 26/10): o status e as duas marcas —
+   * "Sem patrocínio" (`skipApproval`) e "Arte do cliente" — decidem se a peça
+   * em Layout é medida pelo prazo de Layout AJUSTADO (`prazoDaPecaNaFase`).
+   */
+  status?: string | null;
+  skipApproval?: boolean | null;
+  arteDoCliente?: boolean | null;
+  arteRecebidaEm?: string | null;
 }
 
 /** `lista.includes(v)` sem exigir que `v` já seja texto (id ausente não casa). */
@@ -569,6 +579,59 @@ export function phaseDeadline(
   };
 }
 
+// ── Prazo da PEÇA: as peças sem aprovação (Pedro/dono, 26/10) ───────────────
+
+export interface PrazoDaPecaNaFase extends PhaseDeadline {
+  /** Veio da regra das peças sem aprovação (Layout do evento + N dias corridos). */
+  ajustado: boolean;
+  /** O prazo do mesmo marco sem a marca (o do evento), quando ajustado. */
+  normal: Date | null;
+}
+
+const diaLocal = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const deDiaLocal = (s: string) => {
+  const [y, m, d] = s.split("-").map(Number);
+  return new Date(y, m - 1, d);
+};
+
+/**
+ * O PRAZO QUE MEDE A PEÇA nesta aba — o marco da fase (`phaseDeadline` com
+ * `faseDoPrazo`) e, para a peça com "Sem patrocínio" ou "Arte do cliente"
+ * ainda em Layout (do Kit ou não, desde 26/10), o prazo de Layout AJUSTADO: o Layout
+ * do evento + `diasDaAprovacao` dias corridos, com a regra de fim de semana
+ * do marco. É a MESMA conta de `prazoDaPeca` (@shared/prazo-sem-aprovacao),
+ * a da Gestão de Prazos: `medidaPeloLayoutAjustado` decide quando vale e
+ * `prazoDeLayoutAjustado` faz a soma — aqui só se aplica no horário local da
+ * tela, como em `phaseDeadline`.
+ *
+ * `diasDaAprovacao` é a configuração (useDiasDaAprovacao) — a tela SEMPRE
+ * passa a dela; o padrão só existe para as chamadas puras (testes).
+ */
+export function prazoDaPecaNaFase(
+  item: PecaDaArte | null | undefined,
+  tab: string,
+  today: Date = makeDateBounds().today,
+  diasDaAprovacao: number = DIAS_DA_APROVACAO_PADRAO,
+): PrazoDaPecaNaFase | null {
+  const base = phaseDeadline(item?.event, faseDoPrazo(tab, item), today);
+  if (!base) return null;
+  const normal: PrazoDaPecaNaFase = { ...base, ajustado: false, normal: null };
+  if (tab === "finalizados" || !item?.status || !medidaPeloLayoutAjustado({ ...item, status: item.status })) return normal;
+  const layout = phaseDeadline(item.event, "criar-aprovacoes", today);
+  if (!layout) return normal;
+  const piso = prazoDeLayoutAjustado(diaLocal(layout.date), diasDaAprovacao);
+  if (piso <= diaLocal(base.date)) return normal;
+  const date = deDiaLocal(piso);
+  return {
+    label: "Layout ajustado (sem aprovação)",
+    date,
+    diff: Math.ceil((date.getTime() - today.getTime()) / 86400000),
+    ajustado: true,
+    normal: base.date,
+  };
+}
+
 /**
  * Ordena os eventos de uma aba por urgência do marco da fase. Evento sem saída
  * marcada vai para o fim: sem âncora não dá para dizer que é urgente.
@@ -607,16 +670,27 @@ export function compareEventUrgency(a: EventoDaArte | null | undefined, b: Event
  * do caminhão, que para uma peça já pronta costuma ter passado — chamar isso
  * de atraso acenderia alarme falso na lista inteira. Lá nada é atrasado.
  */
-export function isAtrasadaNaFase(item: PecaDaArte | null | undefined, tab: string, today: Date): boolean {
+export function isAtrasadaNaFase(
+  item: PecaDaArte | null | undefined,
+  tab: string,
+  today: Date,
+  diasDaAprovacao: number = DIAS_DA_APROVACAO_PADRAO,
+): boolean {
   if (tab === "finalizados") return false;
-  const p = phaseDeadline(item?.event, faseDoPrazo(tab, item), today);
+  // A peça sem aprovação em Layout é medida pelo prazo AJUSTADO (26/10).
+  const p = prazoDaPecaNaFase(item, tab, today, diasDaAprovacao);
   return !!p && p.diff < 0;
 }
 
 /** Recorte "só atrasadas" de um balde já filtrado, com a fase daquele balde. */
-export function filtrarAtrasadasDaFase<P extends PecaDaArte>(items: P[], tab: string, today: Date): P[] {
+export function filtrarAtrasadasDaFase<P extends PecaDaArte>(
+  items: P[],
+  tab: string,
+  today: Date,
+  diasDaAprovacao: number = DIAS_DA_APROVACAO_PADRAO,
+): P[] {
   if (tab === "finalizados") return [];
-  return items.filter((i) => isAtrasadaNaFase(i, tab, today));
+  return items.filter((i) => isAtrasadaNaFase(i, tab, today, diasDaAprovacao));
 }
 
 // ── Recorte temporal padrão da aba Finalizados ──────────────────────────────

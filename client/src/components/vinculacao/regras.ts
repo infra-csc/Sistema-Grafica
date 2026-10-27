@@ -2,6 +2,7 @@
 // REGRAS PURAS DA VINCULAÇÃO — sem estado nem React, testáveis por fora.
 // ─────────────────────────────────────────────────────────────────────────────
 import { grupoDoKit } from "@shared/kit";
+import { pulaAprovacao } from "@shared/prazo-sem-aprovacao";
 import { compareDisplayId } from "@/lib/displayId";
 import { COLLATOR_PTBR, DOWNSTREAM_STATUSES, LINKING_STATUSES } from "./constantes";
 import type { ItemChanges, PecaDaVinculacao, SugestaoDaPeca, SugestoesDosEventos, UIStatus, VinculoAutomatico } from "./tipos";
@@ -29,7 +30,10 @@ export const getItemUIStatus = (
   const canSendStatuses = LINKING_STATUSES;
   if (canSendStatuses.includes(item.status)) {
     const hasSponsors = originalSponsors.length > 0;
-    const hasSkipApproval = item.skipApproval === true;
+    // "Sem patrocínio" OU "Arte do cliente" (Pedro/dono, 26/10): a peça não
+    // passa pela Aprovação, então segue para a Arte sem patrocinador — o envio
+    // do servidor aceita as duas marcas.
+    const hasSkipApproval = pulaAprovacao(item);
     const isReuse = item.isReuse === true;
     if (hasSponsors || hasSkipApproval || isReuse) {
       return 'PRONTO';

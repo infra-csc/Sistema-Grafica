@@ -1,10 +1,13 @@
 // REVISÃO DO LOTE — o que será criado, o que já existe no evento e as repetições.
-import { ArrowRight, Factory, RotateCcw } from "lucide-react";
+import { ArrowRight, CalendarClock, Factory, RotateCcw } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { T, N, TOM, FONT } from "@/lib/theme";
 import { Botao } from "@/components/ui/botao";
 import { SeloProducaoInterna } from "@/components/selo-producao-interna";
+import { SelosSemAprovacao } from "@/components/selo-sem-aprovacao";
+import { useDiasDaAprovacao } from "@/hooks/use-configuracoes";
 import { faltamInstrucoes } from "@shared/producao-interna";
+import { pulaAprovacao } from "@shared/prazo-sem-aprovacao";
 import { isSameItem } from "./regras";
 import type { ConfirmacaoDoLote, ExistingItem, PecaDoLote, StandardItem } from "./tipos";
 
@@ -26,6 +29,11 @@ export function RevisaoDoLote({
   // peça fica no rascunho — a revisão avisa ANTES de gravar.
   const diretas = duplicateConfirm?.valid.filter(p => p.producaoInterna) ?? [];
   const diretasSemInstrucao = diretas.filter(p => faltamInstrucoes(p.instrucoesGrafica, !!p.finalFileUrl)).length;
+  // PEÇA SEM APROVAÇÃO (26/10): as linhas com "Sem patrocínio" e/ou "Arte do
+  // cliente" — o selo vai em cada uma e o resumo diz o efeito no prazo.
+  const diasDaAprovacao = useDiasDaAprovacao();
+  const semAprovacao = duplicateConfirm?.valid.filter(p => !p.producaoInterna && pulaAprovacao(p)) ?? [];
+  const comArteDoCliente = semAprovacao.filter(p => p.arteDoCliente).length;
 
   // ── RESUMO / CONFIRMAÇÃO DE LOTE ──
   // Era um overlay montado à mão: sem Esc, sem armadilha de foco (o Tab
@@ -107,6 +115,29 @@ export function RevisaoDoLote({
                     {diretasSemInstrucao > 0 && (
                       <span data-testid="revisao-lote-diretas-sem-instrucao" style={{ display: 'block', color: TOM.alerta.text, marginTop: 2 }}>
                         {diretasSemInstrucao === 1 ? '1 está' : `${diretasSemInstrucao} estão`} sem arquivo e sem instruções: {diretasSemInstrucao === 1 ? 'fica' : 'ficam'} no rascunho até você escrever o que a Gráfica deve fazer.
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+              {semAprovacao.length > 0 && (
+                <div
+                  data-testid="revisao-lote-sem-aprovacao"
+                  style={{
+                    display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 10,
+                    backgroundColor: TOM.alerta.bg, borderLeft: `4px solid ${TOM.alerta.dot}`, borderRadius: 8,
+                    padding: '8px 12px', color: TOM.alerta.text, fontSize: 13, fontFamily: FONT.corpo, lineHeight: 1.4,
+                  }}
+                >
+                  <CalendarClock aria-hidden="true" style={{ width: 16, height: 16, flexShrink: 0, marginTop: 1 }} />
+                  <div style={{ minWidth: 0 }}>
+                    <strong style={{ fontWeight: 700 }}>
+                      {semAprovacao.length === 1 ? '1 peça sem aprovação' : `${semAprovacao.length} peças sem aprovação`}
+                    </strong>
+                    {' '}— não {semAprovacao.length === 1 ? 'passa' : 'passam'} pela Aprovação; o prazo de Layout ganha {diasDaAprovacao} {diasDaAprovacao === 1 ? 'dia corrido' : 'dias corridos'}.
+                    {comArteDoCliente > 0 && (
+                      <span style={{ display: 'block', marginTop: 2 }}>
+                        {comArteDoCliente === 1 ? 'A de “Arte do cliente” espera' : `As ${comArteDoCliente} de “Arte do cliente” esperam`} o arquivo em Layout até alguém registrar “Arte recebida”.
                       </span>
                     )}
                   </div>
@@ -218,6 +249,11 @@ export function RevisaoDoLote({
                                 {item.quantity}x
                               </span>
                             </div>
+                            {!item.producaoInterna && pulaAprovacao(item) && (
+                              <div style={{ flexBasis: '100%', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
+                                <SelosSemAprovacao peca={item} semAguardando />
+                              </div>
+                            )}
                             {item.producaoInterna && (
                               <div style={{ flexBasis: '100%', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
                                 <SeloProducaoInterna peca={item} onde="lista" style={{ flexShrink: 0 }} />

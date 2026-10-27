@@ -32,6 +32,9 @@ import { FONT } from "@/lib/theme";
 import { FilterChip } from "./filter-chip";
 import { PrioridadeChip, PrioridadePonto, temChipDePrioridade } from "./prioridade";
 import type { PecaAtrasada } from "./atrasadas";
+import { COR_DO_ATRASO_DO_CLIENTE, SelosSemAprovacao, SeloAtrasoDoCliente } from "@/components/selo-sem-aprovacao";
+import { PrazoDeLayoutDaPeca } from "./marcas-da-peca";
+import { DICA_ATRASO_DO_CLIENTE } from "./sem-aprovacao";
 import {
   dayColor, diasTexto, fmtDayMonth, fmtDiaCurto, pecasTexto,
   R, SCROLLPORT_MAX_H, TH_STICKY, TI,
@@ -135,14 +138,43 @@ function textoPeca(p: PecaAtrasada): string {
  * que a tela erra a conta. É a mesma regra que o drill já respeita ao agrupar
  * por `stageIndex` e contar por `marcoIndex`.
  */
-function NotaMarco({ p }: { p: PecaAtrasada }) {
-  if (!p.cobradaPorOutraEtapa) return null;
+/** Selos "Sem patrocínio" / "Arte cliente" + o Layout normal × ajustado (nada na peça sem marca). */
+function MarcasDaLinha({ p }: { p: PecaAtrasada }) {
+  if (!p.item.semPatrocinio && !p.item.arteDoCliente) return null;
   return (
-    <span
-      style={{ display: "block", fontSize: 10, color: TI.secondary, marginTop: 1 }}
-      title={`Esta peça é isenta da aprovação do patrocinador, então vale para ela o prazo de ${p.marco.label}.`}
-    >
-      vale o prazo de {p.marco.label}
+    <span style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "3px 6px", marginTop: 3 }}>
+      <SelosSemAprovacao peca={p.item} />
+      <PrazoDeLayoutDaPeca it={p.item} />
+    </span>
+  );
+}
+
+function NotaMarco({ p }: { p: PecaAtrasada }) {
+  const doCliente = p.item.atrasoDoCliente;
+  if (!p.cobradaPorOutraEtapa && !doCliente) return null;
+  // Peça sem aprovação (26/10): o Layout dela é o AJUSTADO (Layout + dias da
+  // Aprovação). A do Kit é cobrada da Entrega de Layouts em diante.
+  const pl = p.item.prazoDeLayout;
+  return (
+    <span style={{ display: "block", fontSize: 10, color: TI.secondary, marginTop: 1 }}>
+      {p.cobradaPorOutraEtapa && (
+        <span
+          style={{ display: "block" }}
+          title={p.prazoAjustado && pl
+            ? `Peça sem aprovação (${[p.item.semPatrocinio && "Sem patrocínio", p.item.arteDoCliente && "Arte do cliente"].filter(Boolean).join(" e ")}): prazo de Layout normal ${fmtDayMonth(pl.normal)} × ajustado ${fmtDayMonth(pl.ajustado)}.`
+            : `Para esta peça vale o prazo de ${p.marco.label}.`}
+        >
+          {p.prazoAjustado ? "Layout ajustado (sem aprovação)" : `vale o prazo de ${p.marco.label}`}
+        </span>
+      )}
+      {/* Revisão 27/10: o selo da casa (céu), não o laranja de link da tabela. */}
+      {doCliente && (
+        <SeloAtrasoDoCliente
+          testId={`atraso-do-cliente-${p.item.id}`}
+          title={DICA_ATRASO_DO_CLIENTE}
+          style={{ marginTop: 2 }}
+        />
+      )}
     </span>
   );
 }
@@ -277,7 +309,7 @@ const CartaoPeca = memo(function CartaoPeca({ p, onAbrirEvento }: {
       </button>
       <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 11, color: TI.secondary }}>
         {temChipDePrioridade(p.eventPriority) && <PrioridadeChip priority={p.eventPriority} />}
-        <span>Saída {fmtDiaCurto(p.truckDepartureDate)} · prazo de {p.marco.label} venceu em {fmtDayMonth(p.marco.deadline)}</span>
+        <span>Saída {fmtDiaCurto(p.truckDepartureDate)} · prazo de {p.prazoAjustado ? "Layout (ajustado)" : p.marco.label} venceu em {fmtDayMonth(p.prazo)}</span>
       </span>
       {/* Sem reticência no cartão: aqui a descrição pode ocupar duas linhas,
           que é mais barato que esconder texto numa tela sem mouse para
@@ -288,6 +320,9 @@ const CartaoPeca = memo(function CartaoPeca({ p, onAbrirEvento }: {
       }}>
         {textoPeca(p)}
       </span>
+      {/* Peças sem aprovação (26/10): os selos e o Layout normal × ajustado.
+          O "Atraso do cliente" mora na NotaMarco, logo abaixo. */}
+      <MarcasDaLinha p={p} />
       <span style={{ display: "block", fontSize: 11, color: TI.secondary, marginTop: 3 }}>
         {/* A etapa só se repete quando é OUTRA que a do prazo da linha de
             cima ("prazo de Aprovação de Layout venceu…" seguido de
@@ -387,6 +422,7 @@ const LinhaPeca = memo(function LinhaPeca({ p, comEtapa, onAbrirEvento }: {
         >
           {textoPeca(p)}
         </span>
+        <MarcasDaLinha p={p} />
         <span style={{
           display: "block", fontSize: 10, marginTop: 2,
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
@@ -423,7 +459,7 @@ const LinhaPeca = memo(function LinhaPeca({ p, comEtapa, onAbrirEvento }: {
           {p.diasAtraso}d
         </span>
         <span style={{ display: "block", fontSize: 10, color: TI.label, whiteSpace: "nowrap" }}>
-          venceu {fmtDayMonth(p.marco.deadline)}
+          venceu {fmtDayMonth(p.prazo)}
         </span>
         <span className="sr-only">Atrasada há {diasTexto(p.diasAtraso)}</span>
       </td>
@@ -520,6 +556,7 @@ export function PecasAtrasadas({
   // ordem num evento), a diferença é dita, e não deixada para o diretor
   // descobrir sozinho que clicou num 437 e recebeu 435.
   const diferencaPlacar = kpiPecasAtrasadas - totalNoApp;
+  const doCliente = pecas.filter((x) => x.item.atrasoDoCliente).length;
 
   return (
     <div ref={caixaRef} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -532,6 +569,8 @@ export function PecasAtrasadas({
               está falando E de quantas existem. Sem esta metade, um recorte de
               12 linhas parece o problema inteiro. */}
           {pecas.length !== totalNoApp && ` · ${totalNoApp} no total, sem filtros`}
+          {/* RN09 (26/10): a fatia do atraso que é do CLIENTE. */}
+          {doCliente > 0 && <span title={DICA_ATRASO_DO_CLIENTE} style={{ color: COR_DO_ATRASO_DO_CLIENTE.text }}>{` (${doCliente} do cliente)`}</span>}
         </span>
         {/* A legenda da visão — antes uma terceira linha solta na barra de
             filtros, longe da lista que ela explica. */}

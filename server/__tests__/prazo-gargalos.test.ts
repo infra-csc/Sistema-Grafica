@@ -42,6 +42,7 @@ const STAGE_META = [
 function stage(key: string, label: string, pendingCount: number): PrazoStage {
   return {
     key, label, deadline: "2026-08-20", diffDays: 7,
+    prazoEfetivo: "2026-08-20", atrasadas: 0,
     pendingCount, directCount: 0, state: pendingCount > 0 ? "upcoming" : "done",
   };
 }
@@ -51,7 +52,9 @@ function item(over: Partial<PrazoPendingItem> = {}): PrazoPendingItem {
   seq += 1;
   return {
     id: `it-${seq}`, displayId: `#${1000 + seq}`, status: "draft",
-    stageIndex: 0, marcoIndex: 0, type: "2x1", description: null, quantity: 1,
+    stageIndex: 0, marcoIndex: 0, prazo: null, semPatrocinio: false, arteDoCliente: false,
+    aguardandoArteDoCliente: false, atrasoDoCliente: false, prazoDeLayout: null,
+    type: "2x1", description: null, quantity: 1,
     waitingDays: 0, ...over,
   };
 }
@@ -80,6 +83,8 @@ function evento(over: Partial<PrazoEvent> = {}): PrazoEvent {
     diasParaSaida: 17,
     piorAtrasoDias: 0,
     pecasEmAtraso: 0,
+    pecasAtrasoDoCliente: 0,
+    aguardandoArteDoCliente: 0,
     piorEsperaDias: 0,
     solicitante: null,
     ...over,
@@ -230,7 +235,7 @@ describe("eventoNaEtapa — o evento aparece onde há trabalho, não só no garg
     return {
       ...base,
       stages: STAGE_META.map((m, i) => ({
-        key: m.key, label: m.label, deadline: "2026-08-20", diffDays: 7,
+        key: m.key, label: m.label, deadline: "2026-08-20", diffDays: 7, prazoEfetivo: "2026-08-20", atrasadas: 0,
         // pendingCount acumulado da direita para a esquerda não importa aqui:
         // o predicado lê directCount. Mantido coerente para não confundir.
         pendingCount: diretas.slice(i).reduce((a, b) => a + b, 0),

@@ -113,8 +113,8 @@ patrocinador, o reaproveitamento) e a peça não muda de status.
 
 | Ação | De | Para | Quem | Condições |
 | --- | --- | --- | --- | --- |
-| enviar-para-aprovacao | `awaiting_submission` | `awaiting_sponsor_approval` | arte, admin | evento aberto (nem encerrado nem já realizado); thumb enviado pelo app; tem patrocinador vinculado e não é isenta de aprovação |
-| enviar-direto-para-finalizacao | `awaiting_submission` | `awaiting_creator_review` | arte, admin | evento aberto (nem encerrado nem já realizado); thumb enviado pelo app; sem patrocinador vinculado, ou isenta de aprovação |
+| enviar-para-aprovacao | `awaiting_submission` | `awaiting_sponsor_approval` | arte, admin | evento aberto (nem encerrado nem já realizado); thumb enviado pelo app; tem patrocinador vinculado e não é "Sem patrocínio" nem "Arte do cliente" |
+| enviar-direto-para-finalizacao | `awaiting_submission` | `awaiting_creator_review` | arte, admin | evento aberto (nem encerrado nem já realizado); thumb enviado pelo app; sem patrocinador vinculado, "Sem patrocínio" ou "Arte do cliente" (já recebida) |
 | enviar-molde-para-revisao | `awaiting_submission` | `awaiting_final_review` | arte, admin | evento aberto (nem encerrado nem já realizado); thumb enviado pelo app; molde: sem aprovação nem finalização |
 
 ### PATCH /api/items/:id/sponsor-approve
@@ -163,6 +163,13 @@ patrocinador, o reaproveitamento) e a peça não muda de status.
 | --- | --- | --- | --- | --- |
 | cancelar-ao-tirar-o-ultimo-patrocinador | qualquer status, menos `ready_for_production`, `approved`, `inProduction`, `produced`, `conferred`, `packed`, `delivered`, `canceled`, `archived` | `canceled` | admin, arte, atendimento, solicitacao | o patrocinador desvinculado era o único da peça |
 | fechar-rodada-ao-tirar-patrocinador-pendente | `awaiting_sponsor_approval`, `awaiting_approval` | `sponsor_approved` | admin, arte, atendimento, solicitacao | o patrocinador desvinculado estava pendente e os que restam já aprovaram |
+
+### POST /api/items/:id/arte-recebida
+
+| Ação | De | Para | Quem | Condições |
+| --- | --- | --- | --- | --- |
+| receber-arte-do-cliente | `awaiting_submission` | `awaiting_creator_review` | admin, solicitacao, arte | evento aberto (nem encerrado nem já realizado); marcada "Arte do cliente"; dia da chegada da arte (padrão hoje, nunca no futuro); pula a Aprovação: a medida do arquivo é conferida na Finalização |
+| registrar-arte-do-cliente-recebida | `draft`, `requested`, `rascunho`, `solicitado`, `awaiting_linking` | fica onde está | admin, solicitacao, arte | evento aberto (nem encerrado nem já realizado); marcada "Arte do cliente"; dia da chegada da arte (padrão hoje, nunca no futuro); a peça segue o fluxo; na mesa da Arte vai direto para a Finalização |
 
 ### PATCH /api/items/:id/dispense
 

@@ -13,6 +13,7 @@ import type { AuditLog } from "@shared/schema";
 import { ehMolde } from "@shared/molde";
 import { pecaNaVinculacaoDe } from "@shared/kit";
 import { useAuth } from "@/contexts/auth-context";
+import { pulaAprovacao } from "@shared/prazo-sem-aprovacao";
 import { TOM, T } from "@/lib/theme";
 import { isEventoFinalizado, todayBusinessMs } from "@/lib/status";
 import { CHAVE_DA_VINCULACAO, LINKING_STATUSES, VAZIO, VINCULACAO_VISIBLE_STATUSES } from "./constantes";
@@ -599,8 +600,8 @@ export function useVinculacao() {
   // não pelo rascunho local — rascunho é o selo "Rascunho", não progresso.
   const getItemStatus = (item: PecaDaVinculacao) => {
     const savedSponsors = originalSponsorsMap[item.id] || [];
-    const savedSkipApproval = item.skipApproval || false;
-    if (savedSkipApproval) return 'skip';
+    // "Sem patrocínio" ou "Arte do cliente" (26/10): as duas dispensam o vínculo.
+    if (pulaAprovacao(item)) return 'skip';
     if (savedSponsors.length > 0) return 'linked';
     return 'pending';
   };

@@ -118,35 +118,42 @@ describe("computePecasAtrasadas — o que entra na lista", () => {
   });
 });
 
-describe("peça isenta da aprovação do patrocinador", () => {
-  // As duas estão em RASCUNHO (etapa 0, prazo vencido há 15 dias). A isenta é
-  // cobrada pelo prazo da FINALIZAÇÃO (20/08): é a folga que o dono escolheu
-  // dar. Se a lista medisse pela etapa, as duas apareceriam com 15 dias e a
-  // regra do dono sumiria da tela mais visível do assunto.
+describe("peça sem aprovação (Sem patrocínio) — Pedro/dono 26/10", () => {
+  // As duas estão em RASCUNHO (Lista de Imagens, 05/08, vencida há 15 dias).
+  // A "Sem patrocínio" é cobrada pelo prazo de Layout AJUSTADO: Entrega de
+  // Layouts 10/08 + 7 dias corridos = 17/08. REGRA ANTIGA (trocada em 26/10):
+  // ela era cobrada pela Finalização (20/08).
   const ev = montar(evento(), [
     peca({ id: "normal", displayId: "#N1", status: "draft" }),
     peca({ id: "isenta", displayId: "#I1", status: "draft", skipApproval: true }),
   ]);
   const lista = computePecasAtrasadas([ev]);
 
-  it("no dia do marco ela NÃO está atrasada — e a normal, ao lado, está", () => {
-    // Hoje é 20/08, o dia da finalização: vence hoje não é vencido. A isenta
-    // simplesmente não é linha de cobrança ainda, e essa é a folga.
-    expect(lista.find((p) => p.item.id === "isenta")).toBeUndefined();
-
+  it("em 20/08 as duas estão atrasadas, cada uma pelo SEU prazo", () => {
     const normal = lista.find((p) => p.item.id === "normal");
     expect(normal?.diasAtraso).toBe(15);
     expect(normal?.cobradaPorOutraEtapa).toBe(false);
+    const isenta = lista.find((p) => p.item.id === "isenta");
+    expect(isenta).toMatchObject({ diasAtraso: 3, prazo: "2026-08-17", prazoAjustado: true, cobradaPorOutraEtapa: true });
+    expect(isenta?.marco.key).toBe("layouts");
   });
 
-  it("um dia depois ela entra, cobrada pela Finalização e não pela etapa em que está", () => {
-    const depois = montar(evento(), [
-      peca({ id: "isenta2", displayId: "#I2", status: "draft", skipApproval: true }),
-    ], dia("2026-08-21"));
-    const isenta = computePecasAtrasadas([depois]).find((p) => p.item.id === "isenta2");
+  it("no dia do Layout ajustado ela NÃO está atrasada; no seguinte, entra", () => {
+    const em17 = montar(evento(), [peca({ id: "isenta2", displayId: "#I2", status: "draft", skipApproval: true })], dia("2026-08-17"));
+    expect(computePecasAtrasadas([em17])).toEqual([]);
+    const em18 = montar(evento(), [peca({ id: "isenta2", displayId: "#I2", status: "draft", skipApproval: true })], dia("2026-08-18"));
+    const isenta = computePecasAtrasadas([em18]).find((p) => p.item.id === "isenta2");
     expect(isenta?.diasAtraso).toBe(1);
-    expect(isenta?.marco.key).toBe("finalizacao");
     expect(isenta?.cobradaPorOutraEtapa).toBe(true);
+  });
+
+  it("no gate de um marco vencido pela peça comum, a sem aprovação ainda no prazo dela NÃO entra", () => {
+    const ev12 = montar(evento(), [
+      peca({ id: "comum", displayId: "#C1", status: "awaiting_submission" }),
+      peca({ id: "sem", displayId: "#S1", status: "awaiting_submission", skipApproval: true }),
+    ], dia("2026-08-12"));
+    expect(computePecasAtrasadas([ev12]).map((p) => p.item.id)).toEqual(["comum"]);
+    expect(computeKpis([ev12]).pecasAtrasadas).toBe(1);
   });
 
   it("continua atribuída ao setor da etapa em que ESTÁ (de quem é a bola)", () => {
@@ -234,9 +241,10 @@ describe("a lista fecha com o placar", () => {
       montar(evento({ id: "ev-4" }), [peca({ status: "in_review" })]),
     ];
     const kpis = computeKpis(eventos);
-    // DUAS, não três: a isenta em rascunho passou a ser cobrada pela
-    // Finalização (20/08), que vence hoje e portanto ainda não é atraso.
-    expect(kpis.pecasAtrasadas).toBe(2);
+    // TRÊS (Pedro/dono 26/10): a "Sem patrocínio" em rascunho é cobrada pelo
+    // Layout ajustado (10/08 + 7 = 17/08), já vencido hoje (20/08). Até 26/10
+    // eram duas — ela era cobrada pela Finalização, que vence hoje.
+    expect(kpis.pecasAtrasadas).toBe(3);
     expect(computePecasAtrasadas(eventos)).toHaveLength(kpis.pecasAtrasadas);
   });
 

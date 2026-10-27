@@ -36,14 +36,26 @@ export type StageState = "done" | "upcoming" | "warning" | "overdue";
 export interface PrazoStage {
   key: string;
   label: string;
-  /** Data-calendário do marco, "YYYY-MM-DD". */
+  /** Data-calendário do marco no calendário do evento, "YYYY-MM-DD". */
   deadline: string;
-  /** Dias até o marco a partir do `today` do NEGÓCIO (negativo = vencido). */
+  /**
+   * O prazo que vale para as peças que ainda estão neste gate (26/10): o menor
+   * prazo entre elas. Igual a `deadline`, a não ser quando o gate só tem peças
+   * sem aprovação (Sem patrocínio / Arte do cliente) ainda em Layout — aí é o
+   * prazo de Layout ajustado delas. O semáforo e `diffDays` contam DESTE dia.
+   */
+  prazoEfetivo: string;
+  /** Dias até `prazoEfetivo` a partir do `today` do NEGÓCIO (negativo = vencido). */
   diffDays: number;
   /** Peças travadas AQUI ou em etapa anterior — é o gate real da etapa. */
   pendingCount: number;
   /** Peças travadas exatamente nesta etapa. */
   directCount: number;
+  /**
+   * Das peças do gate, as que já passaram do prazo DELAS nesta etapa (26/10).
+   * Igual a `pendingCount` na etapa vencida sem peça sem aprovação no gate.
+   */
+  atrasadas: number;
   state: StageState;
 }
 
@@ -66,12 +78,28 @@ export interface PrazoPendingItem {
    * Índice do MARCO que mede o prazo desta peça — o que decide se ela está
    * atrasada. Igual a `stageIndex` no caso normal.
    *
-   * Difere na peça isenta da aprovação do patrocinador (`items.skipApproval`):
-   * ela não passa pela etapa de aprovação, então o marco que vale para ela é a
-   * FINALIZAÇÃO — a primeira etapa por onde ela realmente passa. É por
-   * `marcoIndex` que `stages[].pendingCount` conta.
+   * Difere na peça do Kit (cobrada da Entrega de Layouts em diante) e na peça sem
+   * aprovação em Lista de Imagens (cobrada no Layout — Pedro/dono, 26/10; até
+   * aí a isenta era cobrada pela Finalização). É por `marcoIndex` que
+   * `stages[].pendingCount` conta.
    */
   marcoIndex: number;
+  /**
+   * O prazo que MEDE a peça agora ("YYYY-MM-DD"): o do marco, ou — na peça sem
+   * aprovação ainda em Layout — o prazo de Layout ajustado (Layout + dias da
+   * Aprovação). A peça está atrasada quando ele é anterior a `today`.
+   */
+  prazo: string | null;
+  /** "Sem patrocínio" (items.skipApproval). */
+  semPatrocinio: boolean;
+  /** "Arte do cliente". */
+  arteDoCliente: boolean;
+  /** "Layout — Aguardando arte do cliente": a marca, sem "Arte recebida", em Layout. */
+  aguardandoArteDoCliente: boolean;
+  /** RN09: atrasada por conta do cliente (arte não recebida depois do Layout ajustado). */
+  atrasoDoCliente: boolean;
+  /** RF12: o prazo de Layout normal × ajustado, na peça com marca (não Kit). */
+  prazoDeLayout: { normal: string; ajustado: string } | null;
   type: string;
   description: string | null;
   quantity: number;
@@ -159,6 +187,10 @@ export interface PrazoEvent {
   pecasEmAtraso: number;
   /** max(pendingItems[].waitingDays), 0 quando não há pendência. */
   piorEsperaDias: number;
+  /** RN09: das `pecasEmAtraso`, as atrasadas por conta do cliente (o resto é interno). */
+  pecasAtrasoDoCliente: number;
+  /** Peças em "Layout — Aguardando arte do cliente". */
+  aguardandoArteDoCliente: number;
   /** users.name via events.createdBy — "Solicitante: Fulano". */
   solicitante: string | null;
 }
@@ -207,6 +239,8 @@ export interface PrazoKpis {
   invalidCount: number;
   /** count(categoria === "semPecas") — o pior caso do negócio, com lugar próprio. */
   semPecas: number;
+  /** RN09 (26/10): das `pecasAtrasadas`, as atrasadas por conta do cliente (arte do cliente não recebida). */
+  pecasAtrasoDoCliente?: number;
 }
 
 /**

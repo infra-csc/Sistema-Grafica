@@ -131,6 +131,13 @@ export const REGUA_DE_PAPEIS: RegraDeRota[] = [
   { metodo: "POST", rota: "/api/items/:id/correct-reuse", papeis: ["admin", "grafica", "solicitacao"] },
   { metodo: "PATCH", rota: "/api/items/:id/creator-review", papeis: ["admin", "solicitacao"] },
   { metodo: "PATCH", rota: "/api/items/:id/dispense", papeis: ["admin", "arte"] },
+  // Peças sem aprovação (Pedro/dono, 26/10): "Arte recebida" é de quem recebe
+  // (Solicitação), de quem confere o arquivo (Arte) e do admin; as marcas em
+  // lote, de quem monta a lista (o mesmo do PATCH da peça).
+  { metodo: "POST", rota: "/api/items/:id/arte-recebida", papeis: ["admin", "arte", "solicitacao"] },
+  { metodo: "POST", rota: "/api/items/marcas-sem-aprovacao", papeis: ["admin", "solicitacao"] },
+  // A duração da etapa de Aprovação (Configurações) — só o admin.
+  { metodo: "PUT", rota: "/api/configuracoes/prazos", papeis: ["admin"] },
   // Produção interna — direto para a Gráfica, por peça e em lote (dono, 02/10).
   { metodo: "POST", rota: "/api/items/:id/direto-para-grafica", papeis: ["admin", "solicitacao"] },
   { metodo: "POST", rota: "/api/items/direto-para-grafica", papeis: ["admin", "solicitacao"] },

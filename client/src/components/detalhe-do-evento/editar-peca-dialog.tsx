@@ -24,8 +24,10 @@ import type { AcoesDasPecas } from "./use-detalhe-do-evento-acoes";
 import type { ModeloDePeca, UsuarioLogado } from "./tipos";
 
 export function EditarPecaDialog({
-  form, user, isMobile, standardItems, materialOptions, finishOptions, updateItemMutation, getUploadUrl,
+  form, user, isMobile, standardItems, materialOptions, finishOptions, updateItemMutation, getUploadUrl, evento,
 }: {
+  /** O evento — o prazo de Layout ajustado das peças sem aprovação (26/10). */
+  evento?: { truckDepartureDate?: Date | string | null; deadlineEntregaLayouts?: number | null } | null;
   form: FormularioDaPeca;
   user: UsuarioLogado;
   isMobile: boolean;
@@ -84,6 +86,8 @@ export function EditarPecaDialog({
           statusDaPeca={editingItem?.status}
           temPatrocinador={(editingItem?.sponsors?.length ?? 0) > 0}
           jaTemArquivo={!!editingItem?.finalFileUrl}
+          evento={evento}
+          papel={user?.role}
           isPending={updateItemMutation.isPending}
           onSubmit={(e) => {
             e.preventDefault();

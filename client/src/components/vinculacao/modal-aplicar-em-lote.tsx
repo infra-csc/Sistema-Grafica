@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // APLICAR PATROCINADORES EM LOTE — soma os escolhidos aos vínculos de cada
-// peça selecionada (ou marca "sem patrocinador", que os remove). Só oferece
+// peça selecionada (ou marca "Sem patrocínio", que os remove). Só oferece
 // patrocinadores dos eventos das peças selecionadas.
 // ─────────────────────────────────────────────────────────────────────────────
 import { EyeOff, Info, Search, Users } from "lucide-react";
@@ -65,7 +65,7 @@ export function ModalAplicarEmLote({
               <div style={{ padding: '10px 12px', backgroundColor: TOM.alerta.bg, borderRadius: R.md, display: 'flex', gap: 9, alignItems: 'flex-start', border: `1px solid ${TOM.alerta.border}` }}>
                 <Info aria-hidden="true" style={{ width: 14, height: 14, color: TOM.alerta.text, flexShrink: 0, marginTop: 2 }} />
                 <p style={{ fontSize: FS.meta, lineHeight: 1.5, color: TOM.alerta.text, fontWeight: FW.corpo, margin: 0 }}>
-                  {exemptCount} {exemptCount === 1 ? 'peça marcada' : 'peças marcadas'} como sem patrocinador não {exemptCount === 1 ? 'receberá' : 'receberão'} as marcas selecionadas.
+                  {exemptCount} {exemptCount === 1 ? 'peça marcada' : 'peças marcadas'} “Sem patrocínio” não {exemptCount === 1 ? 'receberá' : 'receberão'} os patrocinadores escolhidos.
                 </p>
               </div>
             );
@@ -111,8 +111,8 @@ export function ModalAplicarEmLote({
           >
             <EyeOff aria-hidden="true" style={{ width: 14, height: 14, color: bulkSkipApproval ? TOM.alerta.text : T.apoio, flexShrink: 0 }} />
             <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
-              <span style={{ fontSize: FS.body, fontWeight: bulkSkipApproval ? FW.forte : FW.medio, color: bulkSkipApproval ? TOM.alerta.text : T.text }}>Sem patrocinador</span>
-              <span style={{ fontSize: FS.meta, color: bulkSkipApproval ? TOM.alerta.text : T.apoio }}>Remove os vínculos e dispensa a aprovação de marca</span>
+              <span style={{ fontSize: FS.body, fontWeight: bulkSkipApproval ? FW.forte : FW.medio, color: bulkSkipApproval ? TOM.alerta.text : T.text }}>Sem patrocínio</span>
+              <span style={{ fontSize: FS.meta, color: bulkSkipApproval ? TOM.alerta.text : T.apoio }}>Remove os patrocinadores vinculados e dispensa a Aprovação</span>
             </span>
             <Marcador marcado={bulkSkipApproval} />
           </div>
@@ -239,11 +239,11 @@ export function ModalAplicarEmLote({
                 larguraCheia={isMobile}
                 onClick={handleApplyBulkSponsors}
                 disabled={bulkSelectedSponsors.length === 0 && !bulkSkipApproval}
-                motivo="Escolha um patrocinador ou “Sem patrocinador”"
+                motivo="Escolha um patrocinador ou “Sem patrocínio”"
                 alinharMotivo="end"
                 data-testid="button-confirm-bulk-apply"
               >
-                {bulkSkipApproval ? `Marcar ${selectedItemIds.size} sem patrocinador` : 'Aplicar em lote'}
+                {bulkSkipApproval ? `Marcar ${selectedItemIds.size} sem patrocínio` : 'Aplicar em lote'}
               </Botao>
             </div>
           </div>

@@ -47,6 +47,7 @@ export type AcaoDaPeca =
   | "reprovar-por-patrocinador" | "reenviar-nova-versao" | "revogar-aprovacao"
   | "reabrir-ao-acrescentar-patrocinador" | "cancelar-ao-tirar-o-ultimo-patrocinador"
   | "fechar-rodada-ao-tirar-patrocinador-pendente"
+  | "receber-arte-do-cliente" | "registrar-arte-do-cliente-recebida"
   | "dispensar-aprovacao" | "enviar-arquivo-final" | "trocar-thumb-aprovado" | "trocar-arquivo-final-liberado"
   | "liberar-para-producao" | "liberar-com-reaproveitamento-total" | "liberar-o-que-ja-foi-liberado"
   | "devolver-para-a-arte" | "devolver-para-a-finalizacao" | "devolver-para-a-aprovacao"
@@ -127,6 +128,8 @@ const NAO_TRAVADA = "peça não travada pela Solicitação";
 const MOTIVO = "motivo com pelo menos 10 caracteres";
 const SEM_PATROCINADOR = "sem patrocinador vinculado";
 const INSTRUCOES_SEM_ARQUIVO = "instruções para a Gráfica obrigatórias se não houver arquivo";
+const ARTE_DO_CLIENTE = "marcada \"Arte do cliente\"";
+const DIA_DA_CHEGADA = "dia da chegada da arte (padrão hoje, nunca no futuro)";
 
 const ROTA = {
   submitLista: "POST /api/events/:id/items/submit",
@@ -171,6 +174,7 @@ const ROTA = {
   diretoParaGrafica: "POST /api/items/:id/direto-para-grafica",
   diretoParaGraficaLote: "POST /api/items/direto-para-grafica",
   origemDoReaproveitamento: "PATCH /api/items/:id/origem-reaproveitamento",
+  arteRecebida: "POST /api/items/:id/arte-recebida",
 } as const;
 
 export const TRANSICOES: readonly Transicao[] = [
@@ -198,9 +202,9 @@ export const TRANSICOES: readonly Transicao[] = [
 
   // ── Arte e aprovação do patrocinador ─────────────────────────────────────
   { acao: "enviar-para-aprovacao", de: ["awaiting_submission"], para: "awaiting_sponsor_approval", papeis: ["arte", "admin"],
-    condicoes: [EVENTO_ABERTO, "thumb enviado pelo app", "tem patrocinador vinculado e não é isenta de aprovação"], rotas: [ROTA.submit] },
+    condicoes: [EVENTO_ABERTO, "thumb enviado pelo app", "tem patrocinador vinculado e não é \"Sem patrocínio\" nem \"Arte do cliente\""], rotas: [ROTA.submit] },
   { acao: "enviar-direto-para-finalizacao", de: ["awaiting_submission"], para: "awaiting_creator_review", papeis: ["arte", "admin"],
-    condicoes: [EVENTO_ABERTO, "thumb enviado pelo app", "sem patrocinador vinculado, ou isenta de aprovação"], rotas: [ROTA.submit] },
+    condicoes: [EVENTO_ABERTO, "thumb enviado pelo app", "sem patrocinador vinculado, \"Sem patrocínio\" ou \"Arte do cliente\" (já recebida)"], rotas: [ROTA.submit] },
   { acao: "enviar-molde-para-revisao", de: ["awaiting_submission"], para: DESTINO_DO_ENVIO_DO_MOLDE, papeis: ["arte", "admin"],
     condicoes: [EVENTO_ABERTO, "thumb enviado pelo app", "molde: sem aprovação nem finalização"], rotas: [ROTA.submit] },
   { acao: "aprovar-peca-inteira", de: EM_APROVACAO, para: "sponsor_approved", papeis: ["atendimento", "admin"],
@@ -229,6 +233,16 @@ export const TRANSICOES: readonly Transicao[] = [
   { acao: "fechar-rodada-ao-tirar-patrocinador-pendente", de: ["awaiting_sponsor_approval", "awaiting_approval"], para: "sponsor_approved",
     papeis: ["admin", "arte", "atendimento", "solicitacao"],
     condicoes: ["o patrocinador desvinculado estava pendente e os que restam já aprovaram"], rotas: [ROTA.tirarDaPeca, ROTA.tirarDoEvento] },
+  // ARTE DO CLIENTE (Pedro/dono, 26/10): "Arte recebida" encerra o subestado
+  // "Layout — Aguardando arte do cliente" (uma MARCA, não um status). Na mesa da
+  // Arte a peça vai direto para a Finalização — pula a Arte/layout e a
+  // Aprovação; a medida do arquivo do cliente é conferida lá. Antes da Arte a
+  // chegada só fica registrada e a peça segue o fluxo (shared/prazo-sem-aprovacao).
+  { acao: "receber-arte-do-cliente", de: ["awaiting_submission"], para: DESTINO_DA_DISPENSA, papeis: ["admin", "solicitacao", "arte"],
+    condicoes: [EVENTO_ABERTO, ARTE_DO_CLIENTE, DIA_DA_CHEGADA, "pula a Aprovação: a medida do arquivo é conferida na Finalização"], rotas: [ROTA.arteRecebida] },
+  { acao: "registrar-arte-do-cliente-recebida", de: ["draft", "requested", "rascunho", "solicitado", "awaiting_linking"], para: FICA_ONDE_ESTA,
+    papeis: ["admin", "solicitacao", "arte"],
+    condicoes: [EVENTO_ABERTO, ARTE_DO_CLIENTE, DIA_DA_CHEGADA, "a peça segue o fluxo; na mesa da Arte vai direto para a Finalização"], rotas: [ROTA.arteRecebida] },
   { acao: "dispensar-aprovacao", de: DISPENSAVEIS, para: DESTINO_DA_DISPENSA, papeis: ["arte", "admin"],
     condicoes: [EVENTO_ABERTO, MOTIVO, "molde não passa por aprovação"], rotas: [ROTA.dispensar] },
   { acao: "enviar-arquivo-final", de: ["sponsor_approved", "awaiting_creator_review"], para: "awaiting_final_review", papeis: ["arte", "admin"],

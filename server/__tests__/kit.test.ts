@@ -107,11 +107,13 @@ describe("prazos do Kit pelos marcos do evento (dono, 23/10)", () => {
     expect(marcoIndexFor("requested", false, true)).toBe(LAYOUTS);
     expect(marcoIndexFor("awaiting_submission")).toBe(LAYOUTS);
     expect(marcoIndexFor("awaiting_submission", false, true)).toBe(LAYOUTS);
-    // Da Aprovação em diante a peça do Kit é cobrada como qualquer outra.
+    // Da Entrega de Layouts em diante a peça do Kit é cobrada como qualquer outra.
     expect(marcoIndexFor("awaiting_sponsor_approval", false, true)).toBe(APROVACAO_STAGE_INDEX);
     expect(marcoIndexFor("ready_for_production", false, true)).toBe(marcoIndexFor("ready_for_production"));
-    // Kit isento de aprovação: vale a regra mais adiante (Finalização).
-    expect(marcoIndexFor("awaiting_submission", true, true)).toBe(FINALIZACAO_STAGE_INDEX);
+    // Kit com "Sem patrocínio" (Pedro/dono 26/10): medida pelo Layout (ajustado),
+    // como qualquer peça com marca (até 26/10 a isenta ia para a Finalização).
+    expect(marcoIndexFor("awaiting_submission", true, true)).toBe(LAYOUTS);
+    expect(FINALIZACAO_STAGE_INDEX).toBe(APROVACAO_STAGE_INDEX + 1);
   });
 
   it("Gestão de Prazos: UMA linha por evento; o Kit é cobrado pela Entrega de layouts, não pela Lista", () => {
@@ -149,7 +151,8 @@ describe("prazos do Kit pelos marcos do evento (dono, 23/10)", () => {
       expect(fonte, arquivo).not.toContain("kitRemessas");
     }
     // O próximo marco do card do evento usa a mesma regra.
-    expect(ler("server/routes/events.ts")).toContain("const marco = marcoIndexFor(statusParaContagem(it), it.skipApproval, !!it.kitRemessaId);");
+    // (26/10: a regra única de @shared/prazo-sem-aprovacao, com o status de contagem.)
+    expect(ler("server/routes/events.ts")).toContain("const pd = prazoDaPeca({ ...it, status: statusParaContagem(it) }, prazosDoEvento, diasDaAprovacao);");
     // Os alertas de prazo do Kit pela entrega do material deixaram de existir.
     const ALERTAS = ler("server/services/deadlineAlerts.ts");
     expect(ALERTAS).not.toContain("kitRemessas");
@@ -175,6 +178,11 @@ describe("prazos do Kit pelos marcos do evento (dono, 23/10)", () => {
     expect(estaAtrasDoMarco("awaiting_submission", 1, true)).toBe(true);
     expect(estaAtrasDoMarco("awaiting_submission", 2, true)).toBe(true);
     expect(estaAtrasDoMarco("ready_for_production", 5, true)).toBe(true);
+    // Peça sem aprovação (Pedro/dono 26/10): fora da Lista e da Aprovação; nos Layouts e da Finalização em diante, conta.
+    expect(estaAtrasDoMarco("awaiting_submission", 0, false, true)).toBe(false);
+    expect(estaAtrasDoMarco("awaiting_submission", 1, false, true)).toBe(true);
+    expect(estaAtrasDoMarco("awaiting_submission", 2, false, true)).toBe(false);
+    expect(estaAtrasDoMarco("awaiting_submission", 3, false, true)).toBe(true);
   });
 });
 

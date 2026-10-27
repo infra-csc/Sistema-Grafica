@@ -8,6 +8,7 @@ import { hrefSeguro } from "@shared/url-segura";
 import { ThumbPreview } from "./thumb-preview";
 import { fsToque } from "./constantes";
 import { BotaoPrimario, MenuDeAcoes, MetaDaPeca, PrazoDaPeca, SelosDaPeca, TagsDaPeca } from "./celulas-da-peca";
+import { SelosSemAprovacao } from "@/components/selo-sem-aprovacao";
 import type { AcoesDaLinha, PecaDaArte } from "./tipos";
 
 export interface PropsDaLinha {
@@ -69,7 +70,7 @@ export const LinhaDaArte = memo(function LinhaDaArte({
           <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 12, color: T.apoio, fontWeight: 600 }} data-testid={`text-display-id-${item.id}`}>
             {item.displayId}
           </span>
-          <SelosDaPeca item={item} tabId={tabId} dedo={dedo} />
+          <SelosDaPeca item={item} tabId={tabId} dedo={dedo} semMarcas />
         </div>
       </td>
       {/* Qtd — formatQuantity: `String(q || '—').padStart(2,'0')` transformava
@@ -86,6 +87,9 @@ export const LinhaDaArte = memo(function LinhaDaArte({
           {item.type && item.description && (
             <span style={{ fontSize: 12, color: T.apoio, wordBreak: 'break-word' }}>{item.description}</span>
           )}
+          {/* "Sem patrocínio" / "Arte cliente" / "Aguardando arte do cliente"
+              (26/10) aqui e não na coluna ID: lá, estreita, o selo era cortado. */}
+          <SelosSemAprovacao peca={item} tamanho={dedo ? "md" : "sm"} />
           <MetaDaPeca item={item} dedo={dedo} />
           {/* A observação é instrução de quem pediu a peça para quem faz a
               arte — fica à vista, na única cor de aviso da célula.

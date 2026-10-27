@@ -10,6 +10,7 @@
 //      realizado (60 dias) — o realizado de um evento que já saiu dos prazos
 //      ainda é produção da gráfica no período. Nada de N+1; ~7 mil peças no
 //      pior caso, em colunas estreitas.
+import { lerDiasDaAprovacao } from "./configuracoes";
 import { and, gte, inArray, isNull, or, eq } from "drizzle-orm";
 import { items } from "@shared/schema";
 import { ehBookCompleto } from "@shared/fluxo-peca";
@@ -49,6 +50,12 @@ const COLUNAS = {
   visualHeight: items.visualHeight,
   quantityProduced: items.quantityProduced,
   skipApproval: items.skipApproval,
+  // Peças sem aprovação (26/10): a marca, a chegada da arte e desde quando espera.
+  arteDoCliente: items.arteDoCliente,
+  arteRecebidaEm: items.arteRecebidaEm,
+  arteDoClienteMarcadaEm: items.arteDoClienteMarcadaEm,
+  // Produção interna (27/10): grava skipApproval, mas não é "Sem patrocínio".
+  producaoInterna: items.producaoInterna,
   isPriority: items.isPriority,
   parentItemId: items.parentItemId,
   complementReason: items.complementReason,
@@ -96,6 +103,7 @@ export async function carregarPainelOperacional(db: Db, agora: number = Date.now
   // BOOK COMPLETO não é peça — nem para os prazos (como em /api/prazos), nem para o painel.
   const pecas = linhas.filter((l) => !ehBookCompleto(l));
 
+  const diasDaAprovacao = await lerDiasDaAprovacao();
   const candidatosSet = new Set(idsCandidatos);
   const porEvento = new Map<string, typeof pecas>();
   for (const p of pecas) {
@@ -106,7 +114,7 @@ export async function carregarPainelOperacional(db: Db, agora: number = Date.now
 
   // A MESMA montagem de /api/prazos (server/routes/prazos.ts).
   const prazos: PrazoEvent[] = candidatos
-    .map((ev) => buildEventPrazo(ev, (porEvento.get(ev.id) ?? []) as DomainItem[], { today }))
+    .map((ev) => buildEventPrazo(ev, (porEvento.get(ev.id) ?? []) as DomainItem[], { today, diasDaAprovacao }))
     .filter((e): e is PrazoEvent => e !== null)
     .sort((a, b) => new Date(a.truckDepartureDate).getTime() - new Date(b.truckDepartureDate).getTime());
 
@@ -117,5 +125,6 @@ export async function carregarPainelOperacional(db: Db, agora: number = Date.now
     hoje,
     geradoEm: new Date(agora).toISOString(),
     nomeDoEvento: new Map(todosOsEventos.map((ev) => [ev.id, ev.name])),
+    diasDaAprovacao,
   });
 }

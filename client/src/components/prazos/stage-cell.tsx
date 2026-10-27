@@ -9,27 +9,40 @@
 // leitores, o `title` como descrição. Três vezes por célula, uma célula por
 // etapa em cada linha de tabela. Agora o `sr-only` é a ÚNICA fonte falada e o
 // `title` volta a ser o que sempre foi: tooltip de mouse.
-import { FONT } from "@/lib/theme";
+import { FONT, T, TOM } from "@/lib/theme";
 import { diasTexto, fmtDayMonth, pecasTexto, R, STAGE_STYLE, TI } from "./tokens";
+import { atrasadasDaEtapa, dicaDoPrazoAjustado, etapaComPrazoAjustado, prazoDaEtapa } from "./sem-aprovacao";
 import type { PrazoStage } from "@shared/prazos-contract";
 
 export function StageCell({ stage, invalidDate }: { stage: PrazoStage; invalidDate?: boolean }) {
   const st = STAGE_STYLE[stage.state];
   const pendentes = `${stage.pendingCount} pendente${stage.pendingCount !== 1 ? "s" : ""}`;
+  // PEÇAS SEM APROVAÇÃO (Pedro/dono, 26/10). O semáforo (`state`, `diffDays`)
+  // conta do PRAZO EFETIVO: quando no gate só restam peças "Sem patrocínio" /
+  // "Arte do cliente" ainda em Layout, é o Layout ajustado delas, não o dia do
+  // calendário. A data mostrada é a que o semáforo usa — e diz que é ajustada,
+  // senão "17/11" ao lado de um Layout que o evento marca para 10/11 parece erro.
+  const ajustado = !invalidDate && etapaComPrazoAjustado(stage);
+  const prazo = prazoDaEtapa(stage);
+  // Vencida: conta as peças JÁ ATRASADAS (a peça sem aprovação no mesmo gate
+  // pode ainda estar no prazo dela) — o mesmo número do placar.
+  const atrasadas = atrasadasDaEtapa(stage);
   const statusText =
     invalidDate ? "sem data confiável — corrija a saída do evento"
     : stage.state === "done" ? "concluída"
     // Por extenso na frase falada: "vencida há 5d" é abreviação de tabela, e
     // aqui o texto não disputa pixel nenhum.
-    : stage.state === "overdue" ? `vencida há ${diasTexto(Math.abs(stage.diffDays))} com ${pecasTexto(stage.pendingCount)} pendente${stage.pendingCount !== 1 ? "s" : ""}`
+    : stage.state === "overdue" ? `vencida há ${diasTexto(Math.abs(stage.diffDays))} com ${pecasTexto(atrasadas)} em atraso${stage.pendingCount > atrasadas ? ` (${stage.pendingCount} pendentes)` : ""}`
     : stage.state === "warning" ? (stage.diffDays === 0 ? `vence hoje com ${pendentes}` : `vence em ${diasTexto(stage.diffDays)} com ${pendentes}`)
-    : `prevista para ${fmtDayMonth(stage.deadline)}`;
+    : `prevista para ${fmtDayMonth(prazo)}`;
+  const fraseAjuste = ajustado ? ` · ${dicaDoPrazoAjustado(stage)}` : "";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "2px 0", minWidth: 0 }}>
       <span
         aria-hidden="true"
-        title={`${stage.label}: ${statusText}`}
+        title={`${stage.label}: ${statusText}${fraseAjuste}`}
+        data-prazo-ajustado={ajustado ? "1" : undefined}
         // `maxWidth: 100%` (com o `minWidth: 0` acima): num flex column com
         // `align-items: center` o item ganha largura de CONTEÚDO e transborda
         // centralizado, sem cortar. Numa trilha de coluna estreita isso é
@@ -63,7 +76,7 @@ export function StageCell({ stage, invalidDate }: { stage: PrazoStage; invalidDa
             do invólucro e no `sr-only` ao lado. */}
         <span style={{
           fontSize: 10, color: stage.state === "overdue" ? TI.red : TI.label,
-          fontWeight: stage.state === "overdue" ? 700 : 500, whiteSpace: "nowrap",
+          fontWeight: stage.state === "overdue" || ajustado ? 700 : 500, whiteSpace: "nowrap",
           maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis",
         }}>
           {invalidDate ? "—"
@@ -71,11 +84,26 @@ export function StageCell({ stage, invalidDate }: { stage: PrazoStage; invalidDa
             // que já passou — o par "dias + peças" responde a cobrança na
             // célula. "pç" era a única abreviação de "peça" da tela inteira e
             // cabe por extenso até em coluna de 50px.
-            : stage.state === "overdue" ? pecasTexto(stage.pendingCount)
-            : fmtDayMonth(stage.deadline)}
+            : stage.state === "overdue" ? pecasTexto(atrasadas)
+            : fmtDayMonth(prazo)}
         </span>
+        {/* Revisão 27/10: "17/11 aj." era críptico. A data fica na linha
+            dela e, embaixo, a palavra inteira em texto miúdo — "ajustado"
+            (~42px a 10px) cabe na coluna de ~49px do celular. A frase inteira
+            continua no `title` e no `sr-only`. */}
+        {ajustado && stage.state !== "overdue" && (
+          <span
+            data-testid="etapa-prazo-ajustado"
+            style={{
+              fontSize: 10, lineHeight: 1, color: T.second, fontWeight: 600,
+              whiteSpace: "nowrap", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis",
+            }}
+          >
+            ajustado
+          </span>
+        )}
       </span>
-      <span className="sr-only">{stage.label}: {statusText}</span>
+      <span className="sr-only">{stage.label}: {statusText}{ajustado ? ` · prazo ajustado ${fmtDayMonth(prazo)} (prazo do evento ${fmtDayMonth(stage.deadline)}; só restam peças sem aprovação)` : ""}</span>
     </div>
   );
 }

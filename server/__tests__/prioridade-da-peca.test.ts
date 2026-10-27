@@ -64,7 +64,7 @@ describe("a fila da Arte", () => {
     expect(selos).toContain("PRIORITÁRIA");
     // Linha E card continuam usando o mesmo componente; desde 24/09 ele
     // recebe `dedo` (piso de 12px no toque) — a regra do selo não mudou.
-    expect((ARTE.match(/<SelosDaPeca item=\{item\} tabId=\{tabId\}(?: dedo=\{dedo\})? \/>/g) ?? []).length).toBe(2);
+    expect((ARTE.match(/<SelosDaPeca item=\{item\} tabId=\{tabId\}(?: dedo=\{dedo\})?(?: semMarcas)? \/>/g) ?? []).length).toBe(2);
   });
 
   it("na lista do evento (quem marcou), o selo também aparece", () => {

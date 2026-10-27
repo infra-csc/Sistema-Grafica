@@ -25,6 +25,7 @@ import { TOM, T, N, R, FS, FW, FONT, darkenToContrast } from "@/lib/theme";
 import { UI_STATUS_LABEL, UI_STATUS_SIGNIFICADO } from "./constantes";
 import { gruposDaSugestao, hexToRgba, safeRefUrl } from "./regras";
 import { CaixaDeToque } from "./pecas-de-escolha";
+import { SelosSemAprovacao } from "@/components/selo-sem-aprovacao";
 import type { ItemChanges, PatrocinadorDaVinculacao, PecaDaVinculacao, SugestaoDaPeca, UIStatus, VinculoAutomatico } from "./tipos";
 
 /**
@@ -210,12 +211,23 @@ function LinhaDaPecaSemMemo(props: PropsDaLinha) {
               <Paperclip style={{ width: 13, height: 13 }} />
             </button>
           )}
+          {/* PEÇAS SEM APROVAÇÃO (26/10): o selo "Arte cliente" (ou "Aguardando
+              arte do cliente"). O "Sem patrocínio" já mora na coluna do
+              vínculo — o chip da linha —, então aqui não se repete.
+              No CARTÃO (celular) o selo desce para a linha de baixo
+              (revisão 27/10): "Aguardando arte do cliente" mede ~185px e,
+              nesta linha que não quebra, com o ID e um tipo comprido,
+              estourava os 390px. */}
+          {!emCartoes && <SelosSemAprovacao peca={item.arteDoCliente ? { ...item, skipApproval: false } : null} style={{ flexShrink: 0 }} />}
           {item.isReuse && (
             <span title="Reaproveitamento" aria-label="Reaproveitamento" style={{ display: 'inline-flex', color: TOM.esmeralda.text, flexShrink: 0 }}>
               <Recycle aria-hidden="true" style={{ width: 13, height: 13 }} />
             </span>
           )}
         </div>
+        {emCartoes && item.arteDoCliente && (
+          <SelosSemAprovacao peca={{ ...item, skipApproval: false }} style={{ marginTop: 4 }} />
+        )}
         {falha && (
           <div role="alert" data-testid={`falha-linha-${item.id}`} style={{ display: 'flex', alignItems: 'flex-start', gap: 5, marginTop: 4, fontSize: FS.meta, lineHeight: 1.4, color: TOM.perigo.text }}>
             <AlertTriangle aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0, marginTop: 2 }} />
@@ -246,7 +258,7 @@ function LinhaDaPecaSemMemo(props: PropsDaLinha) {
             do Ministério vinculado é pior que mostrar os dois. */}
         {semPatrocinador && vinculados.length === 0 ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <Selo tom="alerta" icone={EyeOff}>Sem patrocinador</Selo>
+            <Selo tom="alerta" icone={EyeOff} title="Sem patrocínio — a peça não passa pela Aprovação; o prazo de Layout é o ajustado (Layout + dias da Aprovação).">Sem patrocínio</Selo>
             {editavel && (
               <Botao
                 variante="secundario"
@@ -272,10 +284,14 @@ function LinhaDaPecaSemMemo(props: PropsDaLinha) {
                 peca ja saiu, e saiu sem patrocinador nenhum. E cobranca que
                 nao vai acontecer, e o unico lugar onde isso aparece. */}
             {estado === 'ENVIADO' && vinculados.length === 0 && (
+              // Revisão 27/10: na "Arte do cliente" ir sem patrocinador é o
+              // esperado — o mesmo selo, em tom neutro (não é alerta).
               <Selo
-                tom="alerta"
+                tom={item.arteDoCliente ? "neutro" : "alerta"}
                 data-testid={`sem-vinculo-enviada-${item.id}`}
-                title="Esta peça foi enviada à Arte sem nenhum patrocinador vinculado — não vai passar por aprovação."
+                title={item.arteDoCliente
+                  ? "Arte do cliente: a peça não passa pela Aprovação — ir sem patrocinador é o esperado."
+                  : "Esta peça foi enviada à Arte sem nenhum patrocinador vinculado — não vai passar por aprovação."}
               >
                 Enviada sem patrocinador
               </Selo>
@@ -440,7 +456,7 @@ function LinhaDaPecaSemMemo(props: PropsDaLinha) {
                 type="button"
                 onClick={() => toggleItemSkipApproval(item)}
                 aria-pressed={semPatrocinador}
-                title={semPatrocinador ? 'Desmarcar "sem patrocinador" — a peça volta a exigir vínculo' : 'Marcar sem patrocinador — a peça segue sem aprovação de marca'}
+                title={semPatrocinador ? 'Desmarcar “Sem patrocínio” — a peça volta a exigir vínculo e a passar pela Aprovação' : 'Marcar “Sem patrocínio” — a peça não passa pela Aprovação e o prazo de Layout passa a ser o ajustado'}
                 data-testid={`btn-skip-sponsor-${item.id}`}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -454,7 +470,7 @@ function LinhaDaPecaSemMemo(props: PropsDaLinha) {
                 className="vinc-chip"
               >
                 <EyeOff aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0 }} />
-                Sem patrocinador
+                Sem patrocínio
               </button>
             )}
           </div>

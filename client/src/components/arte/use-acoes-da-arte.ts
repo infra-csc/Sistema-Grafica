@@ -10,6 +10,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { useMutation } from "@tanstack/react-query";
 import type { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { pulaAprovacao, ROTULO_ARTE_DO_CLIENTE, ROTULO_SEM_PATROCINIO } from "@shared/prazo-sem-aprovacao";
 import { runInBatches } from "@/lib/utils";
 import { ehMolde } from "@shared/molde";
 import { mensagemDeErro } from "./constantes";
@@ -94,10 +95,12 @@ export function useAcoesDaArte({
         toast({ title: id ? `${id} enviado` : "Molde enviado", description: `Molde: foi direto para a Revisão Final (sem aprovação de patrocinador nem arquivo final).${seguindo}`, variant: "success" });
         return;
       }
-      if (peca?.skipApproval) {
+      // "Sem patrocínio" OU "Arte do cliente" (26/10): o mesmo destino.
+      if (pulaAprovacao(peca)) {
         toast({
           title: id ? `${id} enviada` : "Peça enviada",
-          description: `Sem aprovação de patrocinador — foi direto para a finalização: falta subir o arquivo final (aba Finalizar arte).${seguindo}`,
+          // Revisão 27/10: o nome da marca, não "sem aprovação de patrocinador".
+          description: `${peca?.arteDoCliente ? ROTULO_ARTE_DO_CLIENTE : ROTULO_SEM_PATROCINIO}: foi direto para a Finalização, sem passar pela Aprovação — falta subir o arquivo final (aba Finalizar arte).${seguindo}`,
           variant: "success",
         });
         return;

@@ -18,6 +18,7 @@ import { mostraCampoProducaoInterna } from "@shared/producao-interna";
 import { EscolhaDaOrigem } from "@/components/reaproveitamento/escolha-da-origem";
 import { ehOrigemDoReaproveitamento, OBS_EM_TRANSITO_MIN } from "@shared/origem-do-reaproveitamento";
 import { ehMolde } from "@shared/molde";
+import { CampoSemAprovacao } from "./campo-sem-aprovacao";
 
 // Tipografia e controles do formulário de peça — a MESMA cara nos dois fluxos.
 const FIELD_LABEL: React.CSSProperties = { fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: T.second };
@@ -63,6 +64,10 @@ interface ItemFormProps {
   temPatrocinador?: boolean;
   /** Edição: a peça já tem arquivo final — a instrução deixa de ser exigida. */
   jaTemArquivo?: boolean;
+  /** O evento (saída e offset de Layout) — o prazo ajustado das peças sem aprovação. */
+  evento?: { truckDepartureDate?: Date | string | null; deadlineEntregaLayouts?: number | null } | null;
+  /** Papel de quem edita — RN07: fora do Layout só o admin muda as marcas. */
+  papel?: string | null;
 }
 
 // Formulário de peça unificado. Antes eram DUAS implementações independentes
@@ -79,7 +84,7 @@ export function ItemForm({
   localRefPreview, setLocalRefPreview, getUploadUrl,
   quantityLocked = false, quantityFloor = 0, quantityCeiling = Number.MAX_SAFE_INTEGER,
   onAumentarQuantidade, podePriorizar = false, statusDaPeca, temPatrocinador = false, jaTemArquivo = false,
-  eventoTemKit = false, kitObrigatorio = false,
+  eventoTemKit = false, kitObrigatorio = false, evento, papel,
 }: ItemFormProps) {
   const isEdit = mode === "edit";
   // "Digitar novo tipo" só existe no criar — no editar o tipo já é texto livre.
@@ -607,21 +612,24 @@ export function ItemForm({
           />
         )}
 
-        {/* Pular Aprovação — apenas Admin, só na edição */}
-        {isEdit && isAdmin && (
-          <div style={{ backgroundColor: TOM.alerta.bg, borderLeft: `4px solid ${TOM.alerta.dot}`, padding: "14px 16px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <AlertTriangle style={{ width: 20, height: 20, color: TOM.alerta.text, flexShrink: 0 }} />
-              <label htmlFor="skip-approval-edit" style={{ fontSize: "15px", fontWeight: 500, color: TOM.alerta.text, cursor: "pointer" }}>Pular aprovação técnica <span style={{ fontSize: "13px", color: TOM.alerta.text }}>(Apenas Administrativo)</span></label>
-            </div>
-            <Checkbox
-              id="skip-approval-edit"
-              checked={formData.skipApproval}
-              onCheckedChange={(checked) => setFormData({ ...formData, skipApproval: !!checked })}
-              data-testid="checkbox-skip-approval"
-              style={{ width: "20px", height: "20px", accentColor: TOM.alerta.text }}
-            />
-          </div>
+        {/* PEÇA SEM APROVAÇÃO (Pedro/dono, 26/10 — RF01): "Sem patrocínio"
+            (a marca skipApproval, que antes só o admin via aqui como "Pular
+            aprovação técnica") e "Arte do cliente", na criação E na edição,
+            para quem monta a lista (admin|Solicitação). Fora do Layout, só o
+            admin muda (RN07) — o campo aparece travado com o porquê. */}
+        {/* Molde e produção interna não passam por aprovação nenhuma: o
+            bloco não aparece (a produção interna grava skipApproval por
+            dentro — mostrar "Sem patrocínio" marcado ali seria mentira). */}
+        {(podePriorizar || isAdmin) && !ehMolde(formData) && !formData.producaoInterna && (
+          <CampoSemAprovacao
+            valor={{ skipApproval: !!formData.skipApproval, arteDoCliente: !!formData.arteDoCliente }}
+            onChange={(v) => setFormData((f) => ({ ...f, ...v }))}
+            statusDaPeca={isEdit ? statusDaPeca : undefined}
+            papel={papel ?? (isAdmin ? "admin" : "solicitacao")}
+            evento={evento}
+            temPatrocinador={isEdit && temPatrocinador}
+            idBase={isEdit ? "sa-edit" : "sa-create"}
+          />
         )}
       </div>
 

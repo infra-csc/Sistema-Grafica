@@ -31,12 +31,25 @@ const ETAPA_CUMPRIDA: Record<string, number> = {
 };
 const etapaCumprida = (status: string) => ETAPA_CUMPRIDA[status] ?? 0;
 /**
+ * Os marcos que a peça SEM APROVAÇÃO ("Sem patrocínio" / "Arte do cliente",
+ * Pedro/dono 26/10) não tem: a Lista de Imagens (o Layout dela é um só, medido
+ * pelo prazo ajustado) e a Aprovação (pulada, RN04) — o mesmo `marcoQueCobra`
+ * da Gestão de Prazos (@shared/prazo-sem-aprovacao).
+ */
+const MARCOS_QUE_A_PECA_SEM_APROVACAO_NAO_TEM: ReadonlySet<string> = new Set(["listaImagens", "aprovacao"]);
+
+/**
  * A peça ainda não passou pelo marco `i` — e esse marco a COBRA? A peça do
  * Kit só é cobrada da Entrega de Layouts em diante (26/10; era a Aprovação):
- * a Lista de Imagens não a conta (`kitCobradoNoMarco`).
+ * a Lista de Imagens não a conta (`kitCobradoNoMarco`). A peça sem aprovação
+ * não conta na Lista nem na Aprovação.
  */
-export const estaAtrasDoMarco = (status: string, i: number, doKit = false) =>
-  etapaCumprida(status) < i + 1 && (!doKit || kitCobradoNoMarco(MARCOS_DO_EVENTO[i]?.key ?? ""));
+export const estaAtrasDoMarco = (status: string, i: number, doKit = false, semAprovacao = false) => {
+  const chave = MARCOS_DO_EVENTO[i]?.key ?? "";
+  return etapaCumprida(status) < i + 1
+    && (!doKit || kitCobradoNoMarco(chave))
+    && (!semAprovacao || !MARCOS_QUE_A_PECA_SEM_APROVACAO_NAO_TEM.has(chave));
+};
 
 /** A ordem do fluxo, para as seções do modo Status: a ordem das chaves de STATUS em lib/status. */
 export const ORDEM_DO_FLUXO = new Map(Object.keys(STATUS).map((k, i) => [k, i]));
@@ -126,6 +139,7 @@ export const EMPTY_ITEM_FORM: ItemFormData = {
   measurement: "",
   observations: "",
   skipApproval: false,
+  arteDoCliente: false,
   // Peça PRIORITÁRIA: fura a fila da Arte e a avisa na hora.
   // Só admin|solicitacao mudam (gate no PATCH dispara na MUDANÇA de valor).
   isPriority: false,

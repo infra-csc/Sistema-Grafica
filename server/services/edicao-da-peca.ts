@@ -44,6 +44,8 @@ export const updateItemSchema = insertItemSchema
     calculatedM2: true,
     observations: true,
     skipApproval: true,
+    // "Arte do cliente" (26/10): quem pode e quando (RN07) — a rota.
+    arteDoCliente: true,
     isPriority: true,
     isReuse: true,
     approvalThumbUrl: true,
@@ -412,9 +414,8 @@ export function descreverEdicao(
   if ('referenceUrl' in validatedData && item.referenceUrl !== currentItem.referenceUrl) {
     changedParts.push("Referência de arte atualizada");
   }
-  if ('skipApproval' in validatedData && item.skipApproval !== currentItem.skipApproval) {
-    changedParts.push(item.skipApproval ? "Aprovação de patrocinador dispensada" : "Aprovação de patrocinador reativada");
-  }
+  // "Sem patrocínio" e "Arte do cliente" (26/10): a frase, com os prazos de
+  // Layout normal × ajustado, é montada pela rota (services/marcas-de-aprovacao).
   if ('producaoInterna' in validatedData && !!item.producaoInterna !== !!currentItem.producaoInterna) {
     changedParts.push(item.producaoInterna
       ? "Marcada para ir DIRETO PARA A GRÁFICA (produção interna — pula Vinculação, Arte, Aprovação e Revisão Final no envio da lista)"

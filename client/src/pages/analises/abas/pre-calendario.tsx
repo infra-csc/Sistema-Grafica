@@ -12,10 +12,15 @@
 // ordenação) mora em @shared/painel-operacional (`eventosProcessoPrazo`,
 // `pecasDaFaseDoEvento`) — aqui só se desenha. O estado vive na página (e na
 // URL: cal_so_atr, cal_ev, cal_fase, cal_ord, cal_dir).
+//
+// PEÇAS SEM APROVAÇÃO (Pedro/dono, 26/10): a célula em que só há peça sem
+// aprovação vence no Layout ajustado (`prazoEfetivo`, o menor prazo entre as
+// peças que estão nela). A célula mostra ESSA data, marcada como ajustada, e
+// a dica diz o prazo do evento e a regra (Layout + N dias corridos).
 import * as React from "react";
-import { Check, X } from "lucide-react";
+import { CalendarClock, Check, X } from "lucide-react";
 import {
-  FASES_DO_CALENDARIO, diaDaSemana, eventosProcessoPrazo, pecasDaFaseDoEvento, diasEntre,
+  FASES_DO_CALENDARIO, diaDaSemana, eventosProcessoPrazo, pecasDaFaseDoEvento, diasEntre, prazoNaFase,
   type CelulaDoCalendario, type ColunaDoCalendario, type LinhaDoCalendario, type SituacaoNoCalendario,
 } from "@shared/painel-operacional";
 import { Botao } from "@/components/ui/botao";
@@ -24,6 +29,7 @@ import { SecaoDaAnalise } from "../blocos";
 import { Marcador, Vazio, dm, dma, fmt0 } from "../comum";
 import type { ContextoDoPainel } from "../contexto";
 import { TabelaDePecas } from "./tabela-de-pecas";
+import { useDiasDaAprovacao } from "@/hooks/use-configuracoes";
 
 const TABULAR: React.CSSProperties = { fontVariantNumeric: "tabular-nums" };
 
@@ -58,6 +64,7 @@ const plural = (n: number, um: string, varios: string) => (n === 1 ? um : varios
 
 export default function CalendarioDeFases({ ctx }: { ctx: ContextoDoPainel }) {
   const { painel, isMobile, calendario: cal, mudarCalendario } = ctx;
+  const diasDaAprovacao = useDiasDaAprovacao();
   const quadroRef = React.useRef<HTMLDivElement>(null);
   const gradeRef = React.useRef<HTMLDivElement>(null);
 
@@ -70,6 +77,18 @@ export default function CalendarioDeFases({ ctx }: { ctx: ContextoDoPainel }) {
   const pecas = React.useMemo(
     () => (eventoSel && faseSel ? pecasDaFaseDoEvento(painel, eventoSel.chave, faseSel.n) : []),
     [painel, eventoSel, faseSel]);
+  // O prazo que vale no quadro: o mesmo da célula (o menor prazo entre as peças
+  // dela — o Layout ajustado quando só há peça sem aprovação).
+  const prazoDoQuadro = React.useMemo(() => {
+    if (!eventoSel || !faseSel) return null;
+    const prazosDaFase = eventoSel.fases.map((f) => f.prazo);
+    let menor: string | null = null;
+    for (const p of pecas) {
+      const pp = prazoNaFase(p, prazosDaFase, faseSel.n);
+      if (pp && (menor === null || pp < menor)) menor = pp;
+    }
+    return menor ?? (eventoSel.fases[faseSel.n]?.prazo || null);
+  }, [eventoSel, faseSel, pecas]);
 
   const ordenarPor = (col: ColunaDoCalendario) => {
     if (cal.ord === col) mudarCalendario({ dir: cal.dir === "desc" ? "asc" : "desc" });
@@ -140,7 +159,7 @@ export default function CalendarioDeFases({ ctx }: { ctx: ContextoDoPainel }) {
             style={{ overflow: "auto", maxHeight: isMobile ? "72vh" : "min(880px, 78vh)", border: `1px solid ${T.border}`, borderRadius: R.md, ...TABULAR }}
           >
             <Grade linhas={dados.linhas} hoje={dados.hoje} isMobile={isMobile} ordem={cal.ord} direcao={cal.dir}
-              aoOrdenar={ordenarPor} aoAbrir={abrir} selEv={cal.ev} selFase={cal.fase} />
+              aoOrdenar={ordenarPor} aoAbrir={abrir} selEv={cal.ev} selFase={cal.fase} diasDaAprovacao={diasDaAprovacao} />
           </div>
         )}
       </SecaoDaAnalise>
@@ -150,7 +169,8 @@ export default function CalendarioDeFases({ ctx }: { ctx: ContextoDoPainel }) {
           <QuadroDePecas
             nome={eventoSel.nome}
             fase={faseSel.nome}
-            prazo={eventoSel.fases[faseSel.n]?.prazo || null}
+            prazo={prazoDoQuadro}
+            prazoDoEvento={eventoSel.fases[faseSel.n]?.prazo || null}
             hoje={painel.hoje}
             pecas={pecas}
             nomes={painel.nomes}
@@ -165,7 +185,7 @@ export default function CalendarioDeFases({ ctx }: { ctx: ContextoDoPainel }) {
 
 // ─── A grade ────────────────────────────────────────────────────────────────
 
-function Grade({ linhas, hoje, isMobile, ordem, direcao, aoOrdenar, aoAbrir, selEv, selFase }: {
+function Grade({ linhas, hoje, isMobile, ordem, direcao, aoOrdenar, aoAbrir, selEv, selFase, diasDaAprovacao }: {
   linhas: LinhaDoCalendario[];
   hoje: string;
   isMobile: boolean;
@@ -175,6 +195,7 @@ function Grade({ linhas, hoje, isMobile, ordem, direcao, aoOrdenar, aoAbrir, sel
   aoAbrir: (l: LinhaDoCalendario, f: CelulaDoCalendario) => void;
   selEv: string | null;
   selFase: number | null;
+  diasDaAprovacao: number;
 }) {
   const larguraDoEvento = isMobile ? 128 : 172;
   const th: React.CSSProperties = {
@@ -255,7 +276,7 @@ function Grade({ linhas, hoje, isMobile, ordem, direcao, aoOrdenar, aoAbrir, sel
               </td>
               {l.fases.map((f) => (
                 <td key={f.n} style={td}>
-                  <Celula linha={l} fase={f} hoje={hoje} isMobile={isMobile} selecionada={selEv === l.evento.chave && selFase === f.n} aoAbrir={aoAbrir} />
+                  <Celula linha={l} fase={f} hoje={hoje} isMobile={isMobile} selecionada={selEv === l.evento.chave && selFase === f.n} aoAbrir={aoAbrir} diasDaAprovacao={diasDaAprovacao} />
                 </td>
               ))}
             </tr>
@@ -266,9 +287,10 @@ function Grade({ linhas, hoje, isMobile, ordem, direcao, aoOrdenar, aoAbrir, sel
   );
 }
 
-function Celula({ linha, fase: f, hoje, isMobile, selecionada, aoAbrir }: {
+function Celula({ linha, fase: f, hoje, isMobile, selecionada, aoAbrir, diasDaAprovacao }: {
   linha: LinhaDoCalendario; fase: CelulaDoCalendario; hoje: string; isMobile: boolean; selecionada: boolean;
   aoAbrir: (l: LinhaDoCalendario, f: CelulaDoCalendario) => void;
+  diasDaAprovacao: number;
 }) {
   const testId = `op-cal-celula-f${f.n}`;
   if (f.situacao === "semPrazo" || !f.prazo) {
@@ -301,6 +323,11 @@ function Celula({ linha, fase: f, hoje, isMobile, selecionada, aoAbrir }: {
     );
   }
 
+  // O prazo que vale para as peças desta célula: o ajustado quando só há peça
+  // sem aprovação nela (26/10). A situação e os dias de atraso já usam ele.
+  const vale = f.prazoEfetivo ?? f.prazo;
+  const ajustada = vale !== f.prazo;
+  const regra = `Prazo do evento ${dm(f.prazo)} — só há peças sem aprovação nesta fase (Layout + ${diasDaAprovacao} ${plural(diasDaAprovacao, "dia corrido", "dias corridos")})`;
   const atrasada = f.situacao === "atrasada";
   const info = atrasada
     ? `${fmt0(f.pendentes)} pç · ${f.diasAtraso}d atraso`
@@ -310,7 +337,7 @@ function Celula({ linha, fase: f, hoje, isMobile, selecionada, aoAbrir }: {
   // briga com o anel de foco do teclado nem com o contorno laranja da caixa.
   const anel = selecionada ? `0 0 0 2px ${T.surface}, 0 0 0 4px ${T.text}` : "";
   const sombra = [pintura.boxShadow, anel].filter(Boolean).join(", ") || undefined;
-  const rotulo = `${linha.evento.nome} — ${f.nome}: prazo ${diaDaSemana(f.prazo)} ${dma(f.prazo)}. ${fmt0(f.pendentes)} ${plural(f.pendentes, "peça pendente", "peças pendentes")}${atrasada ? `, ${f.diasAtraso} ${plural(f.diasAtraso, "dia", "dias")} de atraso` : ""}. ${selecionada ? "Fechar a lista de peças." : "Ver as peças."}`;
+  const rotulo = `${linha.evento.nome} — ${f.nome}: prazo ${diaDaSemana(vale)} ${dma(vale)}${ajustada ? ` (ajustado; ${regra.charAt(0).toLowerCase()}${regra.slice(1)})` : ""}. ${fmt0(f.pendentes)} ${plural(f.pendentes, "peça pendente", "peças pendentes")}${atrasada ? `, ${f.diasAtraso} ${plural(f.diasAtraso, "dia", "dias")} de atraso` : ""}. ${selecionada ? "Fechar a lista de peças." : "Ver as peças."}`;
   return (
     <button
       type="button"
@@ -321,11 +348,18 @@ function Celula({ linha, fase: f, hoje, isMobile, selecionada, aoAbrir }: {
       aria-pressed={selecionada}
       aria-controls={selecionada ? "op-cal-quadro" : undefined}
       aria-label={rotulo}
-      title={`${f.nome} · prazo ${dma(f.prazo)} · ${f.pendentes} ${plural(f.pendentes, "peça pendente", "peças pendentes")}${atrasada ? ` · vencido há ${diasEntre(hoje, f.prazo)} ${plural(diasEntre(hoje, f.prazo), "dia", "dias")}` : ""}`}
+      data-ajustado={ajustada ? "1" : undefined}
+      title={`${f.nome} · prazo ${dma(vale)}${ajustada ? " (ajustado)" : ""} · ${f.pendentes} ${plural(f.pendentes, "peça pendente", "peças pendentes")}${atrasada ? ` · vencido há ${diasEntre(hoje, vale)} ${plural(diasEntre(hoje, vale), "dia", "dias")}` : ""}${ajustada ? `\n${regra}` : ""}`}
       onClick={() => aoAbrir(linha, f)}
       style={{ ...caixa, ...pintura, boxShadow: sombra, cursor: "pointer" }}
     >
-      {data}
+      {ajustada ? (
+        <span data-testid="op-cal-celula-ajustada" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontWeight: FW.forte }}>
+          {diaDaSemana(vale)} {dm(vale)}
+          <CalendarClock aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0, color: atrasada ? PINTURA.atrasada.color : TOM.turquesa.text }} />
+          <span style={{ fontSize: FS.micro, fontWeight: FW.medio, letterSpacing: "0.04em" }}>ajustado</span>
+        </span>
+      ) : data}
       <span data-testid="op-cal-celula-info" style={{ fontSize: FS.small, fontWeight: atrasada ? FW.medio : FW.corpo, color: atrasada ? "#ffffff" : T.apoio }}>{info}</span>
     </button>
   );
@@ -333,15 +367,20 @@ function Celula({ linha, fase: f, hoje, isMobile, selecionada, aoAbrir }: {
 
 // ─── O quadro peça a peça ───────────────────────────────────────────────────
 
-function QuadroDePecas({ nome, fase, prazo, hoje, pecas, nomes, isMobile, aoFechar }: {
-  nome: string; fase: string; prazo: string | null; hoje: string; pecas: Parameters<typeof TabelaDePecas>[0]["pecas"];
+function QuadroDePecas({ nome, fase, prazo, prazoDoEvento, hoje, pecas, nomes, isMobile, aoFechar }: {
+  nome: string; fase: string;
+  /** O prazo que vale para as peças do quadro (o ajustado quando só há peça sem aprovação). */
+  prazo: string | null;
+  prazoDoEvento: string | null;
+  hoje: string; pecas: Parameters<typeof TabelaDePecas>[0]["pecas"];
   nomes: Record<string, string>; isMobile: boolean; aoFechar: () => void;
 }) {
   const vencida = !!prazo && prazo < hoje;
   const dias = vencida ? diasEntre(hoje, prazo!) : 0;
   const n = pecas.length;
+  const ajustado = !!prazo && !!prazoDoEvento && prazo !== prazoDoEvento;
   const resumo = `${fmt0(n)} ${plural(n, "peça", "peças")} ${vencida ? plural(n, "atrasada", "atrasadas") : plural(n, "pendente", "pendentes")} nesta fase · `
-    + (prazo ? `prazo da fase ${dma(prazo)}${vencida ? ` (vencido há ${dias} ${plural(dias, "dia", "dias")})` : ""}` : "fase sem prazo");
+    + (prazo ? `prazo da fase ${dma(prazo)}${ajustado ? ` (ajustado; prazo do evento ${dma(prazoDoEvento)})` : ""}${vencida ? ` (vencido há ${dias} ${plural(dias, "dia", "dias")})` : ""}` : "fase sem prazo");
   return (
     <SecaoDaAnalise
       id="h-op-cal-pecas"

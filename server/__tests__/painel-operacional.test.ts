@@ -253,8 +253,11 @@ describe("Pré-produção", () => {
 
   it("planejado: no prazo da fase; o vencido vai para hoje em 'atrasado'", () => {
     const r = prePlanejadoPorDia(P, "e2", null);
-    // vencidos hoje: b1 layout (09/10), b2 layout (09/10) — a aprovação de b2 vence 19/10
-    expect(r[0]).toMatchObject({ dia: HOJE, atrasado: 2 });
+    // vencido hoje: b2 layout (09/10) — a aprovação de b2 vence 19/10.
+    // b1 é "Sem patrocínio": o Layout dela é o AJUSTADO, 09/10 + 7 dias corridos
+    // = 16/10 (hoje) — vence hoje, não está vencida (Pedro/dono 26/10; antes as
+    // Análises a cobravam pelo Layout normal e ela aparecia atrasada).
+    expect(r[0]).toMatchObject({ dia: HOJE, atrasado: 1, layout: 1 });
     expect(r.find((d) => d.dia === "2026-10-19")!.aprovacao).toBe(2); // b2 e b6
     expect(r.find((d) => d.dia === "2026-10-20")!.finalizacao).toBe(3); // b1 b2 b6
   });
@@ -264,10 +267,11 @@ describe("Pré-produção", () => {
     expect(e2.pendentes).toEqual({ layout: 2, aprovacao: 1, finalizacao: 0, revisao: 1 });
     // a soma das colunas = número de peças pendentes (nenhuma peça aparece em duas colunas)
     expect(Object.values(e2.pendentes).reduce((a, b) => a + b, 0)).toBe(pecasDaPendencia(P, "e2", null, false).length);
-    expect(e2.atrasados).toEqual({ layout: 2, aprovacao: 0, finalizacao: 0, revisao: 0 });
-    expect(e2.totalAtrasados).toBe(2);
+    // Pedro/dono 26/10: b1 (Sem patrocínio) vence o Layout no ajustado (16/10 = hoje) — não está atrasada.
+    expect(e2.atrasados).toEqual({ layout: 1, aprovacao: 0, finalizacao: 0, revisao: 0 });
+    expect(e2.totalAtrasados).toBe(1);
     expect(pecasDaPendencia(P, "e2", "aprovacao", false).map((p) => p.id).sort()).toEqual(["b6"]);
-    expect(pecasDaPendencia(P, "e2", "atrasados", false).map((p) => p.id).sort()).toEqual(["b1", "b2"]);
+    expect(pecasDaPendencia(P, "e2", "atrasados", false).map((p) => p.id).sort()).toEqual(["b2"]);
     expect(pecasDaPendencia(P, "e2", null, false)).toHaveLength(4);
   });
 });
@@ -278,7 +282,10 @@ describe("Problemas operacionais", () => {
     expect(P.resumo.refacoesAbertas).toBe(1); // a6
     expect(P.resumo.reprovadasAbertas).toBe(1); // b1
     expect(P.resumo.atrasadasAbertas).toBe(P.pecas.filter((p) => p.fase < 6 && p.diasAtraso > 0).length);
-    expect(peca$("b1").diasAtraso).toBe(0); // isenta: cobrada pela finalização (20/10)
+    // Sem patrocínio: cobrada pelo Layout AJUSTADO (09/10 + 7 = 16/10, hoje) — Pedro/dono 26/10
+    // (até aqui: pela finalização, 20/10).
+    expect(peca$("b1").diasAtraso).toBe(0);
+    expect(peca$("b1").prazoFase).toBe("2026-10-16");
     expect(peca$("b2").diasAtraso).toBe(11); // Lista de imagens venceu 05/10
   });
 

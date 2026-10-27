@@ -1,5 +1,6 @@
 // Revisão Final: liberar para produção e as devoluções (Arte, solicitante, Gráfica).
 import type { Express } from "express";
+import { pulaAprovacao } from "@shared/prazo-sem-aprovacao";
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
 import { storage } from "../../storage";
@@ -78,12 +79,13 @@ function camposDoDestino(destino: DestinoDevolucao, rodadaAprovada: boolean, pec
 
 /**
  * A rodada de aprovação desta peça está fechada? (todas as linhas aprovadas;
- * peça isenta ou sem patrocinador conta como fechada — não há quem aprovar.)
+ * peça sem aprovação — "Sem patrocínio" ou "Arte do cliente", 26/10 — ou sem
+ * patrocinador conta como fechada: não há quem aprovar.)
  * É o que decide se a devolução para "finalizacao" pode pousar em
  * `sponsor_approved` ou se a peça tem de voltar à fila do Atendimento.
  */
-async function rodadaDeAprovacaoFechada(item: { id: string; skipApproval?: boolean | null }): Promise<boolean> {
-  if (item.skipApproval) return true;
+async function rodadaDeAprovacaoFechada(item: { id: string; skipApproval?: boolean | null; arteDoCliente?: boolean | null }): Promise<boolean> {
+  if (pulaAprovacao(item)) return true;
   const linhas = await storage.getItemSponsorApprovals(item.id);
   if (linhas.length === 0) return true;
   return linhas.every((l) => l.status === "approved");

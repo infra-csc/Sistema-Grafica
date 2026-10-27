@@ -116,7 +116,7 @@ export function CabecalhoDaVinculacao({
         display: 'grid', gridTemplateColumns: empilhar ? '1fr' : 'repeat(3, minmax(0, 1fr))', gap: empilhar ? 6 : 20,
       }}>
         {([
-          ['Marque', <>quem aprova a arte de cada peça — ou <strong style={{ color: T.strong, fontWeight: FW.medio }}>Sem patrocinador</strong></>],
+          ['Marque', <>quem aprova a arte de cada peça — ou <strong style={{ color: T.strong, fontWeight: FW.medio }}>Sem patrocínio</strong></>],
           ['Salve', <>marcar sem salvar é rascunho</>],
           ['Envie para a Arte', <>ela faz o layout e os patrocinadores aprovam; a peça fica aqui como Enviado</>],
         ] as const).map(([verbo, detalhe], i) => (

@@ -207,6 +207,11 @@ const CENARIOS: Cenario[] = [
     preparar: () => { patrocinadores = ["sp1"]; aprovacoes = [{ id: "ap-1", itemId: "p1", sponsorId: "sp1", status: "approved" }]; },
   })),
   { acao: "dispensar-aprovacao", papel: "arte", rota: "PATCH /api/items/:id/dispense", body: { reason: MOTIVO } },
+  // ARTE DO CLIENTE (26/10): a mesma rota registra a chegada (Layout antes da Arte) ou leva à Finalização (na mesa da Arte).
+  ...(["arte", "solicitacao", "admin"] as const).flatMap((papel): Cenario[] => [
+    { acao: "receber-arte-do-cliente", papel, rota: "POST /api/items/:id/arte-recebida", peca: { arteDoCliente: true }, tambem: ["registrar-arte-do-cliente-recebida"] },
+    { acao: "registrar-arte-do-cliente-recebida", papel, rota: "POST /api/items/:id/arte-recebida", peca: { arteDoCliente: true }, tambem: ["receber-arte-do-cliente"] },
+  ]),
   { acao: "enviar-arquivo-final", papel: "arte", rota: "PATCH /api/items/:id/submit-final-file", body: { finalFileUrl: "/objects/uploads/final-2.pdf" } },
   { acao: "trocar-arquivo-final-liberado", papel: "arte", rota: "PATCH /api/items/:id/update-final-file", body: { finalFileUrl: "/objects/uploads/final-2.pdf" }, foraDaOrigem: "nao-muda" },
   { acao: "trocar-thumb-aprovado", papel: "arte", rota: "PATCH /api/items/:id/update-thumb", body: { approvalThumbUrl: "/objects/uploads/v3.png", motivo: MOTIVO }, foraDaOrigem: "nao-muda",

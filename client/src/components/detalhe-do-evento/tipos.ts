@@ -70,6 +70,8 @@ export interface ItemFormData extends CamposDaProducaoInterna {
   measurement: string;
   observations: string;
   skipApproval: boolean;
+  /** "Arte do cliente" (26/10): pula a Aprovação e espera o arquivo do cliente em Layout. */
+  arteDoCliente: boolean;
   isPriority: boolean;
   isReuse: boolean;
   /** De onde vem o reaproveitamento (16/10): "estoque" | "em_transito" | "" (sem origem). */

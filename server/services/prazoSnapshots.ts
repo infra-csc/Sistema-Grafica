@@ -12,6 +12,7 @@
 // Agora o GET só lê e este job escreve, no boot e de hora em hora, usando o
 // MESMO cálculo da rota (`prazo-domain`) — não há segunda implementação da
 // regra para divergir.
+import { lerDiasDaAprovacao } from "./configuracoes";
 import { sql } from "drizzle-orm";
 import { db } from "../db";
 import { prazoSnapshots, prazoEventSnapshots } from "@shared/schema";
@@ -44,6 +45,9 @@ async function agregarDiaCorrente(): Promise<{ day: string; events: PrazoEvent[]
   // processo que atende as telas; decodificar as 66 colunas de cada peça aqui
   // travava as requisições que chegassem naquele instante.
   const candidateItems = await storage.getItemsParaPrazos(candidates.map((ev) => ev.id));
+  // A duração da Aprovação (configuração): o fecho diário mede a peça sem
+  // aprovação pelo Layout ajustado, como a tela (26/10).
+  const diasDaAprovacao = await lerDiasDaAprovacao();
 
   const itemsByEvent = new Map<string, ItemParaPrazo[]>();
   for (const it of candidateItems) {
@@ -53,7 +57,7 @@ async function agregarDiaCorrente(): Promise<{ day: string; events: PrazoEvent[]
 
   // KIT (23/10): peça do Kit é peça do evento — a mesma montagem da rota.
   const events = candidates
-    .map((ev) => buildEventPrazo(ev, itemsByEvent.get(ev.id) ?? [], { today }))
+    .map((ev) => buildEventPrazo(ev, itemsByEvent.get(ev.id) ?? [], { today, diasDaAprovacao }))
     .filter((e): e is PrazoEvent => e !== null);
 
   return { day, events };

@@ -4,6 +4,7 @@ import { Botao } from "@/components/ui/botao";
 import { Checkbox } from "@/components/ui/checkbox";
 import { isAtrasadaNaFase, isUrgente } from "@/lib/arte-rules";
 import { T, TOM, N } from "@/lib/theme";
+import { useDiasDaAprovacao } from "@/hooks/use-configuracoes";
 import { arquivoFinalOk } from "@shared/molde";
 import { ARTE_CHECKBOX_WIDTH, DICA_DA_COLUNA, colunasDaAba, tableMinWidth } from "./colunas";
 import { ARTE_PAGE_SIZE, PARADA_HA_MAIS_DE, estaParada, fsToque } from "./constantes";
@@ -76,6 +77,8 @@ export const FilaAgrupada = memo(function FilaAgrupada({
   finalizadosForaDaJanela, finalizadosTudo, setFinalizadosTudo, groupOf,
   selectedItemIds, setSelectedItemIds, sendingId, eventosComBook, acoes, larguraUtil = 0,
 }: PropsDaFila) {
+  // Peças sem aprovação (26/10): o atraso delas em Layout é contra o prazo AJUSTADO.
+  const diasDaAprovacao = useDiasDaAprovacao();
   // A coluna de seleção só existe nestas duas abas — nas outras a tabela não
   // deve pagar os 44px dela.
   const comSelecao = tabId === "criar-aprovacoes" || tabId === "finalizados";
@@ -143,7 +146,7 @@ export const FilaAgrupada = memo(function FilaAgrupada({
   // A regra de atraso é UMA (`isAtrasadaNaFase`), compartilhada com o filtro
   // "Prazo: atrasados" e com a coluna Prazo — a exceção de Finalizados mora
   // lá dentro, não em cada chamador.
-  const atrasadas = items.filter(i => isAtrasadaNaFase(i, tabId, hoje)).length;
+  const atrasadas = items.filter(i => isAtrasadaNaFase(i, tabId, hoje, diasDaAprovacao)).length;
   const urgentes = items.filter(i => isUrgente(i.event?.priority)).length;
   // Paradas há mais de 7d: a contagem vem da camada SEM o próprio recorte
   // (paradasNaAba), para o número do chip ser o de linhas que o clique

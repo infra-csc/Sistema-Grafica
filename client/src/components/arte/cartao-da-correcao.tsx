@@ -4,7 +4,8 @@ import { SeloKit } from "@/components/kit/selo-kit";
 import { TextoComLinks } from "@/components/texto-com-links";
 import { Botao } from "@/components/ui/botao";
 import { PrazoInline } from "@/components/prazo-inline";
-import { faseDoPrazo, phaseDeadline } from "@/lib/arte-rules";
+import { prazoDaPecaNaFase } from "@/lib/arte-rules";
+import { useDiasDaAprovacao } from "@/hooks/use-configuracoes";
 import { miniatura } from "@/lib/miniatura";
 import { toUTCDisplayDate } from "@/lib/utils";
 import { T, TOM, N, R, FS, FONT } from "@/lib/theme";
@@ -26,6 +27,8 @@ export function CartaoDaCorrecao({ item, correcaoSponsorFilter, emCartoes, hoje,
     : item.awaitingArteApprovals.filter((a) => a.sponsorId === correcaoSponsorFilter);
   const isImage = item.approvalThumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(item.approvalThumbUrl) || item.approvalThumbUrl.startsWith('/objects/'));
   const groupLabel = groupOf(item.type);
+  // Peças sem aprovação (26/10): em Layout, o prazo AJUSTADO (prazoDaPecaNaFase).
+  const diasDaAprovacao = useDiasDaAprovacao();
   return (
     <div
       data-testid={`card-correcao-${item.id}`}
@@ -93,10 +96,10 @@ export function CartaoDaCorrecao({ item, correcaoSponsorFilter, emCartoes, hoje,
           O card dizia o que foi recusado e por quem, e não dizia de
           qual evento é nem quando sai — que é justamente o que decide
           a ORDEM do trabalho numa fila de correções. O prazo vem do
-          mesmo `phaseDeadline` da coluna Prazo e do filtro
+          mesmo `prazoDaPecaNaFase` da coluna Prazo e do filtro
           "atrasados"; nada de conta nova. */}
       {(() => {
-        const pr = phaseDeadline(item.event, faseDoPrazo("correcao", item), hoje);
+        const pr = prazoDaPecaNaFase(item, "correcao", hoje, diasDaAprovacao);
         const saida = item.event?.truckDepartureDate ? toUTCDisplayDate(item.event.truckDepartureDate) : null;
         if (!item.event?.name && !saida && !pr) return null;
         // A MESMA LÍNGUA DA FILA. Era "06/10" sem rótulo ao lado de um selo

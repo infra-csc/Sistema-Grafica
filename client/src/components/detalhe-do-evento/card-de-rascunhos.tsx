@@ -3,12 +3,17 @@
 // principal exclui draft/requested), agrupados por grupo e tipo, com o envio
 // para a vinculação e o porquê de ele estar travado.
 // ─────────────────────────────────────────────────────────────────────────────
-import { Package, Pencil, Trash2, Check, Lock, Send, Factory } from "lucide-react";
+import { useState } from "react";
+import { Package, Pencil, Trash2, Check, Lock, Send, Factory, Tags } from "lucide-react";
 import { Botao } from "@/components/ui/botao";
 import { Selo } from "@/components/ui/selo";
+import { Checkbox } from "@/components/ui/checkbox";
 import { SeloKit } from "@/components/kit/selo-kit";
 import { SeloProducaoInterna } from "@/components/selo-producao-interna";
+import { SelosSemAprovacao } from "@/components/selo-sem-aprovacao";
+import { MarcarSemAprovacaoDialog } from "@/components/sem-aprovacao-acoes";
 import { dividirEnvioDaLista, podeEnviarDiretoParaGrafica } from "@shared/producao-interna";
+import { PAPEIS_QUE_MARCAM, estaEmLayout } from "@shared/prazo-sem-aprovacao";
 import type { UserRole } from "@/contexts/auth-context";
 import type { useEventReference } from "@/hooks/use-event-reference";
 import { FINAL_STATUSES } from "@/lib/status";
@@ -23,7 +28,7 @@ export function CardDeRascunhos({
   draftItems, rascunhosQueEuEnvio, showAllDrafts, setShowAllDrafts, groupOf, user, hasPermission, isMobile,
   canUploadReference, canEditLists, canDeleteAny, eventoFinalizado, avisoEventoFim, isEditBlocked,
   motivoEdicaoBloqueada, handleEditItem, setDeletingItem, salvarReferenciasMutation, getUploadUrl,
-  enviando, setSubmitConfirmOpen, abrirEnvioDireto,
+  enviando, setSubmitConfirmOpen, abrirEnvioDireto, evento,
 }: {
   draftItems: PecaDoEvento[];
   rascunhosQueEuEnvio: PecaDoEvento[];
@@ -49,7 +54,30 @@ export function CardDeRascunhos({
   setSubmitConfirmOpen: (v: boolean) => void;
   /** Produção interna (02/10): abre "Enviar direto para a Gráfica" com estas peças. */
   abrirEnvioDireto?: (pecas: PecaDoEvento[]) => void;
+  /** O evento (saída e offset de Layout): o diálogo das marcas mostra o prazo normal → ajustado. */
+  evento?: { id: string; truckDepartureDate?: Date | string | null; deadlineEntregaLayouts?: number | null } | null;
 }) {
+  // PEÇAS SEM APROVAÇÃO EM LOTE (Pedro/dono, 26/10 — RF02): "Sem patrocínio"
+  // e "Arte do cliente" em vários rascunhos de uma vez, o mesmo diálogo da
+  // Vinculação. A escolha é LEVE: uma caixinha por rascunho; sem nenhuma
+  // escolhida, o lote vale para todos os rascunhos marcáveis (o diálogo diz
+  // quantos antes do clique). Só quem marca (PAPEIS_QUE_MARCAM); a linha
+  // "Gráfica" (produção interna) fica de fora — vai direto para a Gráfica.
+  const [escolhidas, setEscolhidas] = useState<Set<string>>(() => new Set());
+  const [marcasAbertas, setMarcasAbertas] = useState(false);
+  // O diálogo só monta depois do 1º clique (e fica montado, para o fade de
+  // saída): até lá o card não paga a consulta da configuração nem a mutação.
+  const [marcasMontadas, setMarcasMontadas] = useState(false);
+  const podeMarcar = PAPEIS_QUE_MARCAM.includes(String(user?.role ?? "")) && canEditLists && !eventoFinalizado;
+  const marcavel = (p: PecaDoEvento) => !p.producaoInterna && estaEmLayout(p.status);
+  const marcaveis = podeMarcar ? draftItems.filter(marcavel) : [];
+  const escolhidasValidas = marcaveis.filter((p) => escolhidas.has(p.id));
+  const pecasDoLote = escolhidasValidas.length > 0 ? escolhidasValidas : marcaveis;
+  const alternarEscolha = (id: string, v: boolean) => setEscolhidas((prev) => {
+    const prox = new Set(prev);
+    if (v) prox.add(id); else prox.delete(id);
+    return prox;
+  });
   // O padrão da casa: cap de 50 (centenas de rascunhos travavam o DOM).
   const DRAFT_CAP = 50;
   const visibleDrafts = showAllDrafts || draftItems.length <= DRAFT_CAP
@@ -158,12 +186,32 @@ export function CardDeRascunhos({
                             data-testid={`draft-item-${item.id}`}
                             style={{ display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', gap: 12, flexWrap: isMobile ? 'wrap' : 'nowrap', padding: isMobile ? '12px' : '10px 12px 10px 14px', borderTop: idx === 0 ? 'none' : `1px solid ${T.border}`, backgroundColor: T.surface }}
                           >
+                            {/* A escolha para "Marcar sem aprovação" — só para quem
+                                marca. A linha "Gráfica" mostra a caixa travada com
+                                o porquê (alinhamento e explicação, não um buraco). */}
+                            {podeMarcar && (
+                              <label
+                                title={marcavel(item) ? `Escolher ${item.displayId ?? 'a peça'} para “Marcar sem aprovação”` : 'Vai direto para a Gráfica (produção interna): as marcas de peça sem aprovação não se aplicam'}
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: alvo, height: alvo, marginLeft: -6, flexShrink: 0, cursor: marcavel(item) ? 'pointer' : 'not-allowed' }}
+                              >
+                                <Checkbox
+                                  checked={escolhidas.has(item.id) && marcavel(item)}
+                                  disabled={!marcavel(item)}
+                                  onCheckedChange={(v) => alternarEscolha(item.id, !!v)}
+                                  aria-label={`Escolher a peça ${item.displayId ?? ''} para marcar sem aprovação`}
+                                  data-testid={`checkbox-escolher-rascunho-${item.id}`}
+                                  data-alvo-natural=""
+                                  style={{ width: 18, height: 18 }}
+                                />
+                              </label>
+                            )}
                             <div style={{ flex: '1 1 220px', minWidth: 0 }}>
                               {/* O CÓDIGO da peça — o que se usa para falar dela com a Arte. */}
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap' }}>
                                 {item.displayId && <span style={{ fontFamily: FONT.mono, fontWeight: FW.forte, fontSize: FS.meta, color: T.accentText, flexShrink: 0 }}>{item.displayId}</span>}
                                 <SeloKit peca={item} />
                                 <SeloProducaoInterna peca={item} onde="lista" />
+                                <SelosSemAprovacao peca={item} />
                                 {item.description
                                   ? <span style={{ fontSize: FS.body, fontWeight: FW.medio, color: T.text, minWidth: 0, overflowWrap: 'anywhere' }}>{item.description}</span>
                                   : <span style={{ fontSize: FS.body, color: T.second }}>sem descrição</span>}
@@ -277,6 +325,38 @@ export function CardDeRascunhos({
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end', width: isMobile ? '100%' : undefined, flexDirection: isMobile ? 'column-reverse' : 'row' }}>
+        {/* PEÇAS SEM APROVAÇÃO EM LOTE (26/10): as escolhidas — ou, sem
+            escolha, todos os rascunhos marcáveis. O diálogo diz quantas e o
+            prazo de Layout normal → ajustado antes do clique. */}
+        {podeMarcar && marcaveis.length > 0 && (
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center', width: isMobile ? '100%' : undefined }}>
+            {escolhidasValidas.length > 0 && (
+              <Botao
+                variante="fantasma"
+                tamanho={isMobile ? "toque" : "md"}
+                onClick={() => setEscolhidas(new Set())}
+                data-testid="button-limpar-escolha-rascunhos"
+              >
+                Limpar
+              </Botao>
+            )}
+            <Botao
+              variante="secundario"
+              tamanho={isMobile ? "toque" : "md"}
+              icone={Tags}
+              onClick={() => { setMarcasMontadas(true); setMarcasAbertas(true); }}
+              data-testid="button-marcar-sem-aprovacao-rascunhos"
+              title={escolhidasValidas.length > 0
+                ? `“Sem patrocínio” e “Arte do cliente” nas ${escolhidasValidas.length === 1 ? 'peça escolhida' : `${escolhidasValidas.length} peças escolhidas`}`
+                : `“Sem patrocínio” e “Arte do cliente” em ${marcaveis.length === 1 ? 'o rascunho' : `todos os ${marcaveis.length} rascunhos`} — para só algumas, marque a caixa delas na lista`}
+              style={isMobile ? { flex: 1 } : undefined}
+            >
+              {escolhidasValidas.length > 0
+                ? `Marcar sem aprovação (${escolhidasValidas.length})`
+                : marcaveis.length === 1 ? 'Marcar sem aprovação' : `Marcar sem aprovação (todos os ${marcaveis.length})`}
+            </Botao>
+          </div>
+        )}
         {/* EM LOTE (02/10): as marcadas que já podem ir, sem esperar o resto
             da lista — o mesmo diálogo da ação por peça. */}
         {!motivoTravado && marcadasProntas.length > 0 && (
@@ -316,6 +396,19 @@ export function CardDeRascunhos({
         </Botao>
         </div>
       </div>
+      {podeMarcar && marcasMontadas && (
+        <MarcarSemAprovacaoDialog
+          aberto={marcasAbertas}
+          aoFechar={() => setMarcasAbertas(false)}
+          pecas={pecasDoLote.map((p) => ({
+            id: p.id, displayId: p.displayId ?? "", eventId: p.eventId, status: p.status,
+            skipApproval: p.skipApproval, arteDoCliente: p.arteDoCliente, kitRemessaId: p.kitRemessaId,
+          }))}
+          papel={user?.role}
+          evento={evento}
+          aoConcluir={() => setEscolhidas(new Set())}
+        />
+      )}
     </section>
   );
 }

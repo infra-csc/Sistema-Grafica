@@ -1,4 +1,6 @@
 // Event CRUD + item submission routes. Extracted from server/routes.ts.
+import { DIAS_DA_APROVACAO_PADRAO, prazoDaPeca, prazoNoMarco } from "@shared/prazo-sem-aprovacao";
+import { lerDiasDaAprovacao } from "../services/configuracoes";
 import type { Express } from "express";
 import { podeGerirEvento } from "@shared/permissoes";
 import { storage } from "../storage";
@@ -303,26 +305,12 @@ const MARCO_DEFS: MarcoDef[] = [
   },
 ];
 
-// status → índice do marco em que a peça está travada.
-const STATUS_MARCO_RANK: Record<string, number> = {};
-MARCO_DEFS.forEach((m, i) => m.pendingStatuses.forEach((st) => { STATUS_MARCO_RANK[st] = i; }));
-
-const APROVACAO_MARCO_INDEX = MARCO_DEFS.findIndex((m) => m.key === "aprovacao");
-
-// Gêmeo de `marcoIndexFor` (services/prazo-domain.ts): peça isenta da aprovação
-// do patrocinador é cobrada pelo prazo de APROVAÇÃO DE LAYOUT — ela não passa
-// pela etapa de aprovação, então é esse o marco que vale para ela. Sem isto o
-// card do evento apontaria um "próximo marco" diferente do que a Gestão de
-// Prazos cobra para a mesma peça.
-// PEÇA DO KIT (dono, 23/10): mesma regra do domínio — Lista de Imagens e
-// Entrega de Layouts não cobram o Kit; a peça do Kit nessas etapas é medida
-// pela Aprovação de Layout.
-function marcoIndexFor(status: string, skipApproval?: boolean | null, doKit?: boolean | null): number | undefined {
-  const rank = STATUS_MARCO_RANK[status];
-  if (rank === undefined) return undefined;
-  if ((skipApproval || doKit) && rank < APROVACAO_MARCO_INDEX) return APROVACAO_MARCO_INDEX;
-  return rank;
-}
+// O MARCO E O PRAZO DE CADA PEÇA vêm da regra única (@shared/prazo-sem-aprovacao,
+// Pedro/dono 26/10) — a mesma da Gestão de Prazos. Até aqui este arquivo tinha
+// um gêmeo que cobrava a peça isenta pela APROVAÇÃO, enquanto a Gestão de
+// Prazos a cobrava pela FINALIZAÇÃO: o card e a tela de prazos apontavam
+// marcos diferentes para a mesma peça. Agora: a peça sem aprovação em Layout
+// vence no Layout AJUSTADO; a do Kit é medida da Entrega de Layouts em diante.
 
 // Marco da etapa: saída do caminhão + offset, com o ajuste de fim de semana
 // da regra do marco (seg–sex; Produção Gráfica seg–sáb — mesma do event-detail e de
@@ -354,18 +342,29 @@ export interface NextMilestone {
 // resolver a seguir. Devolve null quando não há mais nada pendente no funil.
 function nextMilestoneFor(
   event: Record<string, any>,
-  eventItems: { status: string; skipApproval?: boolean | null; kitRemessaId?: string | null }[],
+  eventItems: { status: string; type?: string | null; skipApproval?: boolean | null; arteDoCliente?: boolean | null; arteRecebidaEm?: string | Date | null; kitRemessaId?: string | null }[],
   todayMs: number,
+  diasDaAprovacao: number = DIAS_DA_APROVACAO_PADRAO,
 ): NextMilestone | null {
   const funnelItems = eventItems.filter((it) => !OUT_OF_FUNNEL.has(it.status));
 
+  const truckDay = dayUTC(event.truckDepartureDate);
+  // Os seis prazos do evento — o calendário igual para toda peça.
+  const prazosDoEvento = MARCO_DEFS.map((def) => {
+    const offset = (event[def.offsetField] as number | null | undefined) ?? def.defaultOffset;
+    const d = marcoDeadline(truckDay, offset, FIM_DE_SEMANA_DO_CAMPO[def.offsetField]);
+    return Number.isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
+  });
+
   const direct = new Array(MARCO_DEFS.length).fill(0);
+  const prazosDasPecas: { marco: number; piso: string | null }[] = [];
   for (const it of funnelItems) {
-    const marco = marcoIndexFor(statusParaContagem(it), it.skipApproval, !!it.kitRemessaId);
-    if (marco !== undefined) direct[marco] += 1;
+    const pd = prazoDaPeca({ ...it, status: statusParaContagem(it) }, prazosDoEvento, diasDaAprovacao);
+    if (!pd) continue;
+    direct[pd.marco] += 1;
+    prazosDasPecas.push({ marco: pd.marco, piso: pd.piso });
   }
 
-  const truckDay = dayUTC(event.truckDepartureDate);
   // Mesma fonte única da validação de escrita logo acima e da Gestão de
   // Prazos: a faixa 2000-2100 estava datilografada de novo AQUI, dentro do
   // mesmo arquivo que já importa o helper. Quem afrouxar a regra num lugar
@@ -384,8 +383,15 @@ function nextMilestoneFor(
     if (!isNext) continue;
 
     const def = MARCO_DEFS[i];
-    const offset = (event[def.offsetField] as number | null | undefined) ?? def.defaultOffset;
-    const deadline = marcoDeadline(truckDay, offset, FIM_DE_SEMANA_DO_CAMPO[def.offsetField]);
+    // O prazo que vale para as peças no gate: o menor entre elas — o Layout
+    // ajustado quando só restam peças sem aprovação (26/10).
+    let efetivo: string | null = null;
+    for (const pp of prazosDasPecas) {
+      if (pp.marco > i) continue;
+      const d = prazoNoMarco(i, prazosDoEvento, pp.piso);
+      if (efetivo === null || d < efetivo) efetivo = d;
+    }
+    const deadline = new Date(`${efetivo ?? prazosDoEvento[i]}T00:00:00Z`);
     const daysRemaining = Math.round((deadline.getTime() - todayMs) / 86400000);
 
     // Sem data confiável não há atraso confiável: nunca pintamos de vermelho
@@ -442,6 +448,8 @@ export function enrichEvent(
   eventItems: any[],
   eventSponsors: any[],
   todayMs: number,
+  /** Duração da Aprovação (configuração, 26/10) — o N do Layout ajustado no próximo marco. */
+  diasDaAprovacao: number = DIAS_DA_APROVACAO_PADRAO,
 ) {
   const itemCount = eventItems.length;
   let deliveredCount = 0;
@@ -519,7 +527,7 @@ export function enrichEvent(
     openCount,
     // Só faz sentido perguntar "o que vence primeiro" para evento em jogo.
     // Encerrado/concluído, o sinal certo é o lifecycle, não um marco vencido.
-    nextMilestone: lifecycle === "active" ? nextMilestoneFor(event, eventItems, todayMs) : null,
+    nextMilestone: lifecycle === "active" ? nextMilestoneFor(event, eventItems, todayMs, diasDaAprovacao) : null,
     items: eventItems,
     sponsors: eventSponsors,
   };
@@ -536,6 +544,7 @@ export function montarListaDeEventos(
   allItems: Array<{ eventId: string; status: string; skipApproval?: boolean | null }>,
   allEventSponsors: Array<{ eventId: string }>,
   todayMs: number,
+  diasDaAprovacao: number = DIAS_DA_APROVACAO_PADRAO,
 ) {
   // getAllEventSponsors já vem ordenado por createdAt desc — agrupar preserva
   // a mesma ordem que getEventSponsors daria.
@@ -555,6 +564,7 @@ export function montarListaDeEventos(
       itemsByEvent.get(event.id) ?? [],
       sponsorsByEvent.get(event.id) ?? [],
       todayMs,
+      diasDaAprovacao,
     ),
   );
 }
@@ -608,10 +618,11 @@ function listaDeEventosJson(variante: VarianteDaLista = "completa"): Promise<str
     // só CONTA e classifica por status — e o `items` embutido na resposta,
     // que os consumidores (Eventos, funil de fases) leem só por status,
     // deixa de carregar o acervo dentro da lista de eventos.
-    const [allEvents, allItems, allEventSponsors] = await Promise.all([
+    const [allEvents, allItems, allEventSponsors, diasDaAprovacao] = await Promise.all([
       storage.getAllEvents(),
       storage.getItemsSlimForEvents(),
       storage.getAllEventSponsors(),
+      lerDiasDaAprovacao(),
     ]);
     // Um único "hoje" para toda a página: dois eventos nunca podem ser
     // avaliados contra dias diferentes por causa da virada durante o loop.
@@ -620,6 +631,7 @@ function listaDeEventosJson(variante: VarianteDaLista = "completa"): Promise<str
       allItems,
       allEventSponsors,
       todayBusinessMs(),
+      diasDaAprovacao,
     );
     // Só vira cache se nenhuma escrita invalidou no meio da montagem.
     if (variante === "resumo") {
@@ -682,11 +694,13 @@ export function registerEventRoutes(app: Express): void {
           if (arr) arr.push(es); else patrocinadoresKit.set(es.eventId, [es]);
         }
         const hojeKit = todayBusinessMs();
+        const diasKit = await lerDiasDaAprovacao();
         const listaKit = eventosKit.map((event) => enrichEvent(
           event as unknown as Record<string, any>,
           porEventoKit.get(event.id) ?? [],
           patrocinadoresKit.get(event.id) ?? [],
           hojeKit,
+          diasKit,
         ));
         return res.json(resumo ? resumirItensDosEventos(listaKit) : listaKit);
       }
@@ -760,6 +774,7 @@ export function registerEventRoutes(app: Express): void {
           eventItems,
           eventSponsors,
           todayBusinessMs(),
+          await lerDiasDaAprovacao(),
         ),
       );
     } catch (error: any) {

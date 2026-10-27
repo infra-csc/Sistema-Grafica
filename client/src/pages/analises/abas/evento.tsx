@@ -2,8 +2,13 @@
 // o alerta das fases vencidas, as fases com prazo e pendências, as peças por
 // fase e a lista de peças. Abre pelo seletor ou pelo clique no evento das
 // outras abas.
+//
+// PEÇAS SEM APROVAÇÃO (Pedro/dono, 26/10): a fase mostra o prazo que vale (o
+// Layout ajustado quando só restam peças sem aprovação — `prazoEfetivo`); o
+// subestado "Layout — Aguardando arte do cliente" (RF07) vem contado em
+// "Peças por fase"; a lista traz os selos e o "Layout normal → ajustado".
 import * as React from "react";
-import { AlertTriangle, ArrowRight, Calendar, CheckCircle2, Clock } from "lucide-react";
+import { AlertTriangle, ArrowRight, Calendar, CalendarClock, CheckCircle2, Clock, Hourglass } from "lucide-react";
 import {
   FASE_ENTREGUE, FASES_DO_PAINEL, eventoPadrao, pecasPorFase, rotuloDaEtapaNoPainel,
   type FaseDoEvento, type PecaDaLinha,
@@ -12,9 +17,11 @@ import { FilterSelect } from "@/components/filter-select";
 import { BotaoLink } from "@/components/ui/botao";
 import { EstadoVazio } from "@/components/ui/estados";
 import { T, TOM, FS, FW, R, FONT } from "@/lib/theme";
+import { COR_DO_ATRASO_DO_CLIENTE } from "@/components/selo-sem-aprovacao";
 import { urlPecaNoEvento } from "@/components/prazos/tokens";
 import { SecaoDaAnalise, TabelaCompacta, idDaPeca } from "../blocos";
-import { BarrasEmpilhadas, COR, DiasDeAtraso, SeloDaSituacao, dm, dma, fmt0, fmt1 } from "../comum";
+import { AtrasoDaLinha, BarrasEmpilhadas, COR, PrazoDaLinha, SeloDaSituacao, StatusDaLinha, dm, dma, fmt0, fmt1 } from "../comum";
+import { SUBESTADO_AGUARDANDO_ARTE } from "@shared/prazo-sem-aprovacao";
 import type { ContextoDoPainel } from "../contexto";
 
 export default function AbaEvento({ ctx, trocarEvento }: { ctx: ContextoDoPainel; trocarEvento: (chave: string | null) => void }) {
@@ -24,6 +31,9 @@ export default function AbaEvento({ ctx, trocarEvento }: { ctx: ContextoDoPainel
   const ev = eventos.find((e) => e.chave === chave) ?? null;
   const pecas = React.useMemo(() => (ev ? painel.pecas.filter((p) => p.evento === ev.chave) : []), [painel.pecas, ev]);
   const porFase = React.useMemo(() => (ev ? pecasPorFase(painel.pecas, ev.chave) : []), [painel.pecas, ev]);
+  // RF07: o subestado do Layout — as do evento que esperam a arte do cliente.
+  const aguardandoArte = pecas.filter((p) => p.aguardandoArteCliente && p.fase < FASE_ENTREGUE);
+  const aguardandoComAtraso = aguardandoArte.filter((p) => p.atrasoDoCliente).length;
 
   if (!ev) {
     return <EstadoVazio icone={Calendar} titulo="Nenhum evento ativo" descricao="Quando houver evento na Gestão de Prazos, o status dele aparece aqui." testId="op-evento-vazio" />;
@@ -90,12 +100,12 @@ export default function AbaEvento({ ctx, trocarEvento }: { ctx: ContextoDoPainel
             <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: FS.body, lineHeight: 1.6 }}>
               {vencidas.map((f) => (
                 <li key={f.ordem} style={{ color: TOM.perigo.text }}>
-                  <strong>{f.etapa}</strong>: venceu em {dma(f.prazo)} ({diasAtras(f.prazo)} {diasAtras(f.prazo) === 1 ? "dia" : "dias"}) · {fmt0(f.pendentes)} {f.pendentes === 1 ? "peça pendente" : "peças pendentes"}
+                  <strong>{f.etapa}</strong>: venceu em {dma(f.prazoEfetivo)}{f.prazoEfetivo !== f.prazo ? " (prazo ajustado)" : ""} ({diasAtras(f.prazoEfetivo)} {diasAtras(f.prazoEfetivo) === 1 ? "dia" : "dias"}) · {fmt0(f.pendentes)} {f.pendentes === 1 ? "peça pendente" : "peças pendentes"}
                 </li>
               ))}
               {proximas.map((f) => (
                 <li key={f.ordem} style={{ color: TOM.alerta.text }}>
-                  <strong>{f.etapa}</strong>: {f.prazo === painel.hoje ? "vence hoje" : `vence em ${dma(f.prazo)}`} · {fmt0(f.pendentes)} {f.pendentes === 1 ? "peça pendente" : "peças pendentes"}
+                  <strong>{f.etapa}</strong>: {f.prazoEfetivo === painel.hoje ? "vence hoje" : `vence em ${dma(f.prazoEfetivo)}`}{f.prazoEfetivo !== f.prazo ? " (prazo ajustado)" : ""} · {fmt0(f.pendentes)} {f.pendentes === 1 ? "peça pendente" : "peças pendentes"}
                 </li>
               ))}
             </ul>
@@ -121,7 +131,24 @@ export default function AbaEvento({ ctx, trocarEvento }: { ctx: ContextoDoPainel
                 render: (f) => (isMobile
                   ? <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4 }}>{f.etapa}<SeloDaSituacao situacao={f.situacao} /></span>
                   : f.etapa) },
-              { id: "prazo", rotulo: "Prazo", ordenavel: true, valor: (f) => f.prazo, render: (f) => (isMobile ? dm(f.prazo) : dma(f.prazo)) },
+              { id: "prazo", rotulo: "Prazo", ordenavel: true, valor: (f) => f.prazoEfetivo,
+                render: (f) => {
+                  const data = isMobile ? dm(f.prazoEfetivo) : dma(f.prazoEfetivo);
+                  if (f.prazoEfetivo === f.prazo) return data;
+                  // Só restam peças sem aprovação nesta fase: vale o Layout ajustado.
+                  return (
+                    <span
+                      data-testid={`op-fase-prazo-ajustado-${f.ordem}`}
+                      title={`Prazo do evento ${dm(f.prazo)} — só há peças sem aprovação nesta fase (Layout + dias da Aprovação, corridos).`}
+                      style={{ display: "flex", flexDirection: "column", gap: 2 }}
+                    >
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        {data}<CalendarClock aria-hidden="true" style={{ width: 12, height: 12, color: TOM.turquesa.text, flexShrink: 0 }} />
+                      </span>
+                      <span style={{ fontSize: FS.meta, color: T.second, whiteSpace: "nowrap" }}>ajustado · evento {dm(f.prazo)}</span>
+                    </span>
+                  );
+                } },
               { id: "pendentes", rotulo: "Pendentes", titulo: "Peças nesta fase ou em fase anterior", alinhar: "direita", ordenavel: true, valor: (f) => f.pendentes },
               { id: "situacao", rotulo: "Situação", ordenavel: true, ocultarNoCelular: true, valor: (f) => f.situacao, render: (f) => <SeloDaSituacao situacao={f.situacao} /> },
             ]}
@@ -140,6 +167,25 @@ export default function AbaEvento({ ctx, trocarEvento }: { ctx: ContextoDoPainel
             formato={fmt0}
             vazio="Evento sem peças cadastradas."
           />
+          {aguardandoArte.length > 0 && (
+            <p
+              data-testid="op-evento-aguardando-arte"
+              style={{
+                display: "flex", alignItems: "flex-start", gap: 8, margin: "12px 0 0", padding: "8px 10px", borderRadius: R.md,
+                backgroundColor: TOM.turquesa.bg, border: `1px solid ${TOM.turquesa.border}`, fontSize: FS.body, color: T.text, lineHeight: 1.5,
+              }}
+            >
+              <Hourglass aria-hidden="true" style={{ width: 14, height: 14, color: TOM.turquesa.text, flexShrink: 0, marginTop: 3 }} />
+              <span>
+                <strong>{SUBESTADO_AGUARDANDO_ARTE}:</strong>{" "}
+                <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmt0(aguardandoArte.length)}</span> {aguardandoArte.length === 1 ? "peça" : "peças"}
+                {aguardandoComAtraso > 0 && (
+                  <span style={{ color: COR_DO_ATRASO_DO_CLIENTE.text, fontWeight: FW.medio }}> · {fmt0(aguardandoComAtraso)} com atraso do cliente</span>
+                )}
+                <span style={{ color: T.second }}> — contam na fase de Layout; esperam o arquivo do cliente.</span>
+              </span>
+            </p>
+          )}
         </SecaoDaAnalise>
       </div>
 
@@ -169,11 +215,11 @@ export default function AbaEvento({ ctx, trocarEvento }: { ctx: ContextoDoPainel
             { id: "medida", rotulo: "Medida", ordenavel: true, ocultarNoCelular: true, valor: (p) => p.medida || null },
             { id: "qtd", rotulo: "Qtd", alinhar: "direita", ordenavel: true, valor: (p) => p.quantidade },
             { id: "m2", rotulo: "m²", alinhar: "direita", ordenavel: true, ocultarNoCelular: true, valor: (p) => p.m2, render: (p) => fmt1(p.m2) },
-            { id: "status", rotulo: "Status", ordenavel: true, valor: (p) => rotuloDaEtapaNoPainel(p.etapa) },
+            { id: "status", rotulo: "Status", ordenavel: true, valor: (p) => rotuloDaEtapaNoPainel(p.etapa), render: (p) => <StatusDaLinha p={p} /> },
             { id: "fase", rotulo: "Fase", ordenavel: true, ocultarNoCelular: true, valor: (p) => FASES_DO_PAINEL[p.fase] ?? "—" },
             { id: "prazo", rotulo: "Prazo da fase", ordenavel: true, ocultarNoCelular: true, valor: (p) => (p.fase === FASE_ENTREGUE ? null : p.prazoFase),
-              render: (p) => <span style={{ color: p.diasAtraso > 0 ? TOM.perigo.text : undefined, fontWeight: p.diasAtraso > 0 ? FW.forte : undefined }}>{p.fase === FASE_ENTREGUE ? "—" : dma(p.prazoFase)}</span> },
-            { id: "atraso", rotulo: "Atraso (dias)", alinhar: "direita", ordenavel: true, valor: (p) => p.diasAtraso, render: (p) => <DiasDeAtraso dias={p.diasAtraso} /> },
+              render: (p) => <PrazoDaLinha p={p} entregue={p.fase === FASE_ENTREGUE} /> },
+            { id: "atraso", rotulo: "Atraso (dias)", alinhar: "direita", ordenavel: true, valor: (p) => p.diasAtraso, render: (p) => <AtrasoDaLinha p={p} /> },
           ]}
         />
       </SecaoDaAnalise>

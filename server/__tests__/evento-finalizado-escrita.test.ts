@@ -628,6 +628,8 @@ const FORA_DO_RECORTE: Record<string, string> = {
   "server/routes/reparo-vinculos-evento.ts": "reparo de admin", "server/routes/shared.ts": "apoio",
   "server/routes/standard-items.ts": "catálogo", "server/routes/thumb-url.ts": "apoio", "server/routes/trava.ts": "trava da Solicitação",
   "server/routes/tubos.ts": "tubos", "server/routes/versoes.ts": "leitura",
+  // 26/10: a duração da etapa de Aprovação (configuração geral) — não mexe em peça.
+  "server/routes/configuracoes.ts": "configuração geral (admin)",
 };
 const FONTES = arquivosDeRota().filter(NA_REDE);
 

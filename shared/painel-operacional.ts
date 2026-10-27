@@ -44,6 +44,11 @@ import { SP_DAY_FMT, DIAS_DA_GRAFICA, venceNoDia } from "./prazo-dates";
 import { FUNIL_DE_PRAZOS, ehBookCompleto, etapaDaPeca, type EtapaDaPeca } from "./fluxo-peca";
 import { comStatusDeContagem } from "./molde";
 import type { PrazoCategoria, PrazoEvent, PrazoKpis, StageState } from "./prazos-contract";
+import {
+  DIAS_DA_APROVACAO_PADRAO, aguardandoArteDoCliente, diasAguardandoArte,
+  prazoDaPeca, prazoNoMarco, prazosDeLayoutDaPeca, pulaAprovacao, responsavelPeloAtraso, semPatrocinio,
+  INDICE_LAYOUT,
+} from "./prazo-sem-aprovacao";
 
 // ─── Entrada ─────────────────────────────────────────────────────────────────
 
@@ -69,6 +74,12 @@ export interface PecaDoPainel {
   visualHeight?: string | number | null;
   quantityProduced?: number | null;
   skipApproval?: boolean | null;
+  /** "Arte do cliente" (26/10) e a chegada da arte; desde quando a marca existe. */
+  arteDoCliente?: boolean | null;
+  arteRecebidaEm?: string | Date | null;
+  arteDoClienteMarcadaEm?: Instante;
+  /** Produção interna: o skipApproval dela não é "Sem patrocínio" (shared/prazo-sem-aprovacao). */
+  producaoInterna?: boolean | null;
   isPriority?: boolean | null;
   parentItemId?: string | null;
   complementReason?: string | null;
@@ -96,6 +107,8 @@ export interface EntradaDoPainel {
   geradoEm: string;
   /** id do evento → nome (para o realizado de evento que já saiu dos prazos). */
   nomeDoEvento: ReadonlyMap<string, string>;
+  /** Duração da etapa de Aprovação em dias corridos (configuração; padrão 7). */
+  diasDaAprovacao?: number;
 }
 
 // ─── Saída (o contrato de GET /api/analises/painel-operacional) ─────────────
@@ -118,7 +131,10 @@ export const FASE_PRODUCAO = 5;
 export interface FaseDoEvento {
   ordem: number; // 0..5
   etapa: string;
+  /** O prazo do marco no calendário do evento. */
   prazo: string;
+  /** O que vale para as peças que restam (o Layout ajustado quando só sobram peças sem aprovação). */
+  prazoEfetivo: string;
   pendentes: number;
   dias: number;
   situacao: SituacaoDaFase;
@@ -181,12 +197,35 @@ export interface PecaDaLinha {
   refacao: boolean;
   motivoRefacao: string;
   reprovada: boolean;
+  /** Pula a Aprovação: "Sem patrocínio" OU "Arte do cliente" (26/10). */
   semAprovacao: boolean;
+  /** "Sem patrocínio" (items.skipApproval). */
+  semPatrocinio: boolean;
+  /** "Arte do cliente". */
+  arteDoCliente: boolean;
+  /** "Layout — Aguardando arte do cliente". */
+  aguardandoArteCliente: boolean;
+  /** Dias de espera da arte do cliente (desde a marcação); null sem carimbo ou sem espera. */
+  diasAguardandoArte: number | null;
+  /** RN09: atrasada por conta do cliente (o resto das atrasadas é atraso interno). */
+  atrasoDoCliente: boolean;
+  /**
+   * O piso do prazo: o Layout ajustado, quando ele mede a peça agora (com marca,
+   * não Kit, em Layout). Em toda fase de Layout em diante ela só está atrasada
+   * depois dele — ver `prazoNaFase`.
+   */
+  piso: string | null;
+  /** RF12: prazo de Layout normal × ajustado (peça com marca, não Kit). */
+  prazoDeLayout: { normal: string; ajustado: string } | null;
 }
 
 export interface ResumoDoPainel {
   pecasAbertas: number;
   atrasadasAbertas: number;
+  /** Das atrasadas, as por conta do cliente (RN09). */
+  atrasoClienteAbertas: number;
+  /** Peças em "Aguardando arte do cliente". */
+  aguardandoArteAbertas: number;
   furaFilaAbertas: number;
   refacoesAbertas: number;
   reprovadasAbertas: number;
@@ -304,12 +343,9 @@ export function montarPainelOperacional(e: EntradaDoPainel): PainelOperacional {
   const { hoje } = e;
   const desde = somarDias(hoje, -JANELA_DO_REALIZADO_DIAS);
 
+  const dias = e.diasDaAprovacao ?? DIAS_DA_APROVACAO_PADRAO;
   const prazoPorChave = new Map<string, PrazoEvent>();
-  const marcoDaPeca = new Map<string, number>();
-  for (const ev of e.prazos) {
-    prazoPorChave.set(ev.eventId ?? ev.id, ev);
-    for (const it of ev.pendingItems ?? []) marcoDaPeca.set(it.id, it.marcoIndex);
-  }
+  for (const ev of e.prazos) prazoPorChave.set(ev.eventId ?? ev.id, ev);
   const nomes: Record<string, string> = {};
   const eventos: EventoDoPainel[] = e.prazos.map((ev) => {
     nomes[ev.id] = ev.name;
@@ -326,7 +362,8 @@ export function montarPainelOperacional(e: EntradaDoPainel): PainelOperacional {
       pecasEmAtraso: ev.pecasEmAtraso,
       piorAtrasoDias: ev.piorAtrasoDias,
       fases: ev.stages.map((s, i) => ({
-        ordem: i, etapa: FASES_DO_PAINEL[i] ?? s.label, prazo: s.deadline, pendentes: s.pendingCount, dias: s.diffDays,
+        ordem: i, etapa: FASES_DO_PAINEL[i] ?? s.label, prazo: s.deadline, prazoEfetivo: s.prazoEfetivo ?? s.deadline,
+        pendentes: s.pendingCount, dias: s.diffDays,
         situacao: SITUACAO_DA_FASE[s.state],
       })),
     };
@@ -413,17 +450,28 @@ export function montarPainelOperacional(e: EntradaDoPainel): PainelOperacional {
     // A peça atrasada conta UMA vez em "Atrasado" (no processo em que está) — os
     // processos seguintes, também vencidos por causa dela, não repetem a peça
     // (dono, 19/10: "a mesma peça atrasada em layout aparece nos demais, fica confuso").
+    // O PRAZO DA PEÇA (26/10): a regra única de @shared/prazo-sem-aprovacao —
+    // a mesma que a Gestão de Prazos usa. A peça sem aprovação em Layout tem
+    // um piso (o Layout ajustado): em cada passo ela vence no prazo do passo ou
+    // no piso, o que for mais tarde.
+    const statusDeContagem = comStatusDeContagem({ status: p.status, type: p.type ?? null }).status;
+    const daPeca = { ...p, status: statusDeContagem };
+    const pd = aberta ? prazoDaPeca(daPeca, dl, dias) : null;
+    const piso = pd?.piso ?? null;
+    const semAprovacao = pulaAprovacao(p);
     let jaContouAtraso = false;
-    for (const s of passosPendentes(fase, !!p.skipApproval)) {
-      const atrasado = dl[s] < hoje;
+    for (const s of passosPendentes(fase, semAprovacao)) {
+      const prazoDoPasso = prazoNoMarco(s, dl, piso);
+      const atrasado = prazoDoPasso < hoje;
       if (atrasado) { if (jaContouAtraso) continue; jaContouAtraso = true; }
-      const d = atrasado ? hoje : dl[s];
+      const d = atrasado ? hoje : prazoDoPasso;
       const proc = PROCESSO_DO_PASSO[s];
       juntar(pl, `${d}|${chave}|${proc}|${atrasado}`, { dia: d, evento: chave, processo: proc, atrasado }, { itens: 1, unidades: qtd });
     }
 
-    const marco = aberta ? (marcoDaPeca.get(p.id) ?? fase) : null;
-    const prazoFase = marco != null ? dl[marco] ?? null : null;
+    const prazoFase = pd?.prazo ?? (aberta ? dl[fase] ?? null : null);
+    const diasAtraso = prazoFase && prazoFase < hoje ? diasEntre(hoje, prazoFase) : 0;
+    const aguarda = aguardandoArteDoCliente(daPeca);
     const impresso = !!etapa && IMPRESSAS.has(etapa);
     const acabado = !!etapa && ACABADAS.has(etapa);
     pecas.push({
@@ -444,7 +492,7 @@ export function montarPainelOperacional(e: EntradaDoPainel): PainelOperacional {
       etapa,
       fase,
       prazoFase,
-      diasAtraso: prazoFase && prazoFase < hoje ? diasEntre(hoje, prazoFase) : 0,
+      diasAtraso,
       prazoProducao: dl[FASE_PRODUCAO],
       impresso,
       impressoEm: impresso ? diaDoNegocio(p.producedAt) : null,
@@ -454,7 +502,14 @@ export function montarPainelOperacional(e: EntradaDoPainel): PainelOperacional {
       refacao: !!p.parentItemId,
       motivoRefacao: String(p.complementReason ?? "").trim(),
       reprovada: !!(p.rejectedBySponsor || p.rejectedByCreator),
-      semAprovacao: !!p.skipApproval,
+      semAprovacao,
+      semPatrocinio: semPatrocinio(p),
+      arteDoCliente: !!p.arteDoCliente,
+      aguardandoArteCliente: aguarda,
+      diasAguardandoArte: aguarda ? diasAguardandoArte(p.arteDoClienteMarcadaEm ?? null, hoje) : null,
+      atrasoDoCliente: diasAtraso > 0 && responsavelPeloAtraso(daPeca, pd, hoje) === "cliente",
+      piso,
+      prazoDeLayout: prazosDeLayoutDaPeca(p, dl[INDICE_LAYOUT], dias),
     });
   }
 
@@ -479,6 +534,8 @@ export function montarPainelOperacional(e: EntradaDoPainel): PainelOperacional {
     resumo: {
       pecasAbertas: abertas.length,
       atrasadasAbertas: abertas.filter((p) => p.diasAtraso > 0).length,
+      atrasoClienteAbertas: abertas.filter((p) => p.atrasoDoCliente).length,
+      aguardandoArteAbertas: abertas.filter((p) => p.aguardandoArteCliente).length,
       furaFilaAbertas: abertas.filter((p) => p.furaFila).length,
       refacoesAbertas: abertas.filter((p) => p.refacao).length,
       reprovadasAbertas: abertas.filter((p) => p.reprovada).length,
@@ -807,6 +864,17 @@ const prazosDoEvento = (painel: Pick<PainelOperacional, "eventos">) =>
   new Map(painel.eventos.map((e) => [e.chave, e.fases.map((f) => f.prazo)]));
 
 /**
+ * O prazo da peça na fase N (26/10): o da fase no calendário do evento — ou o
+ * piso da peça (o Layout ajustado da peça sem aprovação), se for mais tarde.
+ * `null` quando a fase não tem data.
+ */
+export function prazoNaFase(p: Pick<PecaDaLinha, "piso">, prazosDaFase: readonly (string | null | undefined)[], n: number): string | null {
+  const dl = prazosDaFase[n];
+  if (!dl) return null;
+  return prazoNoMarco(n, prazosDaFase as readonly string[], p.piso);
+}
+
+/**
  * "Pendências de pré-produção por evento": cada peça conta UMA vez, na coluna
  * do processo em que ela está agora (dono, 19/10 — antes a peça parada no
  * layout aparecia também em aprovação, finalização e revisão).
@@ -829,7 +897,8 @@ export function pendenciasPorEvento(painel: Pick<PainelOperacional, "hoje" | "pe
     for (const s of passos) {
       const c = PROCESSO_DO_PASSO[s];
       x.pendentes[c]++;
-      if (dl[s] && dl[s] < painel.hoje) { x.atrasados[c]++; x.totalAtrasados++; }
+      const prazo = prazoNaFase(p, dl, s);
+      if (prazo && prazo < painel.hoje) { x.atrasados[c]++; x.totalAtrasados++; }
     }
   }
   return Array.from(m.values());
@@ -850,7 +919,7 @@ export function pecasDaPendencia(
     const atual = passoAtual(p.fase, p.semAprovacao);
     const passos = (atual == null ? [] : [atual]).filter((s) => alvo == null || s === alvo);
     if (!passos.length) return false;
-    return so ? passos.some((s) => !!dl[s] && dl[s] < painel.hoje) : true;
+    return so ? passos.some((s) => { const prazo = prazoNaFase(p, dl, s); return !!prazo && prazo < painel.hoje; }) : true;
   });
 }
 
@@ -904,6 +973,12 @@ export interface CelulaDoCalendario {
   n: number;
   nome: string;
   prazo: string | null;
+  /**
+   * O prazo que vale para as peças que estão nesta fase (26/10): o menor entre
+   * elas — o Layout ajustado quando só há peça sem aprovação. Igual a `prazo`
+   * no caso comum; `null` sem peça na fase.
+   */
+  prazoEfetivo: string | null;
   /** Peças que estão AGORA nesta fase (cada peça conta uma vez). */
   pendentes: number;
   /** Peças ainda em fases anteriores (vão chegar aqui; não contam na célula). */
@@ -1008,15 +1083,25 @@ export function eventosProcessoPrazo(
   for (const evento of painel.eventos) {
     if (!evento.dataEvento || evento.dataEvento < hoje) continue;
     const pcs = porEvento.get(evento.chave) ?? [];
+    const prazosDaFase = evento.fases.map((f) => f.prazo);
     const fases = FASES_DO_CALENDARIO.map(({ n, nome }): CelulaDoCalendario => {
       const prazo = evento.fases[n]?.prazo || null;
-      const pendentes = pcs.filter((p) => pendeNaFase(p, n)).length;
+      const naFase = pcs.filter((p) => pendeNaFase(p, n));
+      const pendentes = naFase.length;
       const aCaminho = pcs.filter((p) => antesDaFase(p, n)).length;
-      const situacao: SituacaoNoCalendario = !prazo ? "semPrazo"
+      // O prazo efetivo da célula: o menor prazo entre as peças que estão nela
+      // (a peça sem aprovação em Layout vence no Layout ajustado — 26/10).
+      let prazoEfetivo: string | null = null;
+      for (const p of naFase) {
+        const pp = prazoNaFase(p, prazosDaFase, n);
+        if (pp && (prazoEfetivo === null || pp < prazoEfetivo)) prazoEfetivo = pp;
+      }
+      const vale = prazoEfetivo ?? prazo;
+      const situacao: SituacaoNoCalendario = !prazo || !vale ? "semPrazo"
         : pendentes === 0 ? (aCaminho > 0 ? "aguardando" : "concluida")
-          : prazo < hoje ? "atrasada"
-            : prazo <= fim ? "proxima" : "depois";
-      return { n, nome, prazo, pendentes, aCaminho, situacao, diasAtraso: situacao === "atrasada" ? diasEntre(hoje, prazo!) : 0 };
+          : vale < hoje ? "atrasada"
+            : vale <= fim ? "proxima" : "depois";
+      return { n, nome, prazo, prazoEfetivo, pendentes, aCaminho, situacao, diasAtraso: situacao === "atrasada" && vale ? diasEntre(hoje, vale) : 0 };
     });
     const fasesAtrasadas = fases.filter((f) => f.situacao === "atrasada").length;
     if (fasesAtrasadas === 0 && !fases.some((f) => naJanela(f.prazo)) && !naJanela(evento.dataEvento)) continue;
@@ -1036,23 +1121,39 @@ export function eventosProcessoPrazo(
 
 // ─── Problemas operacionais ──────────────────────────────────────────────────
 
-export type TipoDeProblema = "todos" | "atraso" | "fura" | "refacao" | "reprovada";
+export type TipoDeProblema = "todos" | "atraso" | "atrasoInterno" | "atrasoCliente" | "fura" | "refacao" | "reprovada";
 
 const TESTE_DO_PROBLEMA: Record<TipoDeProblema, (p: PecaDaLinha) => boolean> = {
   todos: (p) => p.diasAtraso > 0 || p.furaFila || p.refacao || p.reprovada,
   atraso: (p) => p.diasAtraso > 0,
+  // RN09/RF09 (26/10): o atraso separado por responsável.
+  atrasoInterno: (p) => p.diasAtraso > 0 && !p.atrasoDoCliente,
+  atrasoCliente: (p) => p.diasAtraso > 0 && p.atrasoDoCliente,
   fura: (p) => p.furaFila,
   refacao: (p) => p.refacao,
   reprovada: (p) => p.reprovada,
 };
 
-export function problemasPorEvento(pecas: ReadonlyArray<PecaDaLinha>): { evento: string; atrasadas: number; furaFila: number; refacoes: number; reprovadas: number; total: number }[] {
-  const m = new Map<string, { evento: string; atrasadas: number; furaFila: number; refacoes: number; reprovadas: number; total: number }>();
+export interface ProblemasDoEvento {
+  evento: string;
+  /** Todas as atrasadas (interno + cliente). */
+  atrasadas: number;
+  /** RN09/RF09: atraso interno × atraso do cliente (somam `atrasadas`). */
+  atrasoInterno: number;
+  atrasoCliente: number;
+  furaFila: number;
+  refacoes: number;
+  reprovadas: number;
+  total: number;
+}
+
+export function problemasPorEvento(pecas: ReadonlyArray<PecaDaLinha>): ProblemasDoEvento[] {
+  const m = new Map<string, ProblemasDoEvento>();
   for (const p of pecas) {
     if (p.fase >= FASE_ENTREGUE) continue;
     let x = m.get(p.evento);
-    if (!x) m.set(p.evento, (x = { evento: p.evento, atrasadas: 0, furaFila: 0, refacoes: 0, reprovadas: 0, total: 0 }));
-    if (p.diasAtraso > 0) x.atrasadas++;
+    if (!x) m.set(p.evento, (x = { evento: p.evento, atrasadas: 0, atrasoInterno: 0, atrasoCliente: 0, furaFila: 0, refacoes: 0, reprovadas: 0, total: 0 }));
+    if (p.diasAtraso > 0) { x.atrasadas++; if (p.atrasoDoCliente) x.atrasoCliente++; else x.atrasoInterno++; }
     if (p.furaFila) x.furaFila++;
     if (p.refacao) x.refacoes++;
     if (p.reprovada) x.reprovadas++;
@@ -1066,6 +1167,63 @@ export function problemasPorEvento(pecas: ReadonlyArray<PecaDaLinha>): { evento:
 export function pecasComProblema(pecas: ReadonlyArray<PecaDaLinha>, tipo: TipoDeProblema, evento: string | null): PecaDaLinha[] {
   const teste = TESTE_DO_PROBLEMA[tipo] ?? TESTE_DO_PROBLEMA.todos;
   return pecas.filter((p) => p.fase < FASE_ENTREGUE && teste(p) && (!evento || p.evento === evento));
+}
+
+// ─── Aguardando arte do cliente (RF10, 26/10) ────────────────────────────────
+
+export interface AguardandoArteDoEvento {
+  evento: string;
+  /** Peças em "Layout — Aguardando arte do cliente". */
+  pecas: number;
+  /** Média dos dias de espera (desde a marcação) das que têm o carimbo; null sem nenhuma. */
+  diasMedios: number | null;
+  /** Das que esperam, as que já passaram do Layout ajustado (atraso do cliente). */
+  atrasadas: number;
+}
+
+/** O indicador "Aguardando arte do cliente": quantidade e dias médios de espera, por evento. */
+export function aguardandoArtePorEvento(pecas: ReadonlyArray<PecaDaLinha>): AguardandoArteDoEvento[] {
+  const m = new Map<string, { pecas: number; soma: number; comDias: number; atrasadas: number }>();
+  for (const p of pecas) {
+    if (!p.aguardandoArteCliente || p.fase >= FASE_ENTREGUE) continue;
+    const x = m.get(p.evento) ?? { pecas: 0, soma: 0, comDias: 0, atrasadas: 0 };
+    x.pecas++;
+    if (p.diasAguardandoArte != null) { x.soma += p.diasAguardandoArte; x.comDias++; }
+    if (p.atrasoDoCliente) x.atrasadas++;
+    m.set(p.evento, x);
+  }
+  return Array.from(m.entries())
+    .map(([evento, x]) => ({ evento, pecas: x.pecas, diasMedios: x.comDias ? Math.round((x.soma / x.comDias) * 10) / 10 : null, atrasadas: x.atrasadas }))
+    .sort((a, b) => b.pecas - a.pecas || (b.diasMedios ?? 0) - (a.diasMedios ?? 0));
+}
+
+// ─── Filtro pelas marcas (RF11, 26/10) ───────────────────────────────────────
+
+export type FiltroDeMarca = "todas" | "semAprovacao" | "semPatrocinio" | "arteDoCliente" | "aguardandoArte" | "atrasoDoCliente" | "comAprovacao";
+
+export const OPCOES_DO_FILTRO_DE_MARCA: ReadonlyArray<{ id: FiltroDeMarca; rotulo: string }> = [
+  { id: "todas", rotulo: "Todas as peças" },
+  { id: "semAprovacao", rotulo: "Sem aprovação (Sem patrocínio ou Arte do cliente)" },
+  { id: "semPatrocinio", rotulo: "Sem patrocínio" },
+  { id: "arteDoCliente", rotulo: "Arte do cliente" },
+  { id: "aguardandoArte", rotulo: "Aguardando arte do cliente" },
+  { id: "atrasoDoCliente", rotulo: "Atraso do cliente" },
+  { id: "comAprovacao", rotulo: "Com aprovação" },
+];
+
+export function passaNoFiltroDeMarca(
+  p: Pick<PecaDaLinha, "semPatrocinio" | "arteDoCliente" | "aguardandoArteCliente" | "atrasoDoCliente">,
+  filtro: FiltroDeMarca,
+): boolean {
+  switch (filtro) {
+    case "semAprovacao": return p.semPatrocinio || p.arteDoCliente;
+    case "semPatrocinio": return p.semPatrocinio;
+    case "arteDoCliente": return p.arteDoCliente;
+    case "aguardandoArte": return p.aguardandoArteCliente;
+    case "atrasoDoCliente": return p.atrasoDoCliente;
+    case "comAprovacao": return !p.semPatrocinio && !p.arteDoCliente;
+    default: return true;
+  }
 }
 
 // ─── Status por evento ───────────────────────────────────────────────────────

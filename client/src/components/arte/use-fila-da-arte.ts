@@ -21,8 +21,7 @@ import {
   filtrarAtrasadasDaFase,
   isUrgente,
   matchesArteFilters,
-  phaseDeadline,
-  faseDoPrazo,
+  prazoDaPecaNaFase,
   type ArteFilters,
   type ArteSortMode,
   type DateBounds,
@@ -30,6 +29,7 @@ import {
 import { ehBookCompleto } from "@shared/fluxo-peca";
 import { prazoDoMolde } from "@shared/prazo-molde";
 import { spDayMs } from "@shared/prazo-dates";
+import { useDiasDaAprovacao } from "@/hooks/use-configuracoes";
 import { CHAVE_DAS_FILAS_DA_ARTE, CHAVE_DOS_FINALIZADOS, SEM_DADOS, estaParada, months } from "./constantes";
 import type {
   EventoDaPeca, ModeloDoCatalogo, OpcaoDeFiltro, PatrocinadorDaPeca, PecaDaArte, PecaDaCorrecao, RegistroDeAuditoria,
@@ -57,6 +57,10 @@ export function useFilaDaArte({
   selectedItemId: string | null;
 }) {
   const hoje = dateBounds.today;
+  // PEÇAS SEM APROVAÇÃO (26/10): a duração da Aprovação (configuração) é o que
+  // a peça com "Sem patrocínio"/"Arte do cliente" ganha no prazo de Layout —
+  // o atraso, o filtro e a ordem por prazo leem o MESMO número.
+  const diasDaAprovacao = useDiasDaAprovacao();
 
   // A lista de eventos vem PRIMEIRO porque é dela que sai o recorte por evento
   // das duas listas de peças.
@@ -340,9 +344,9 @@ export function useFilaDaArte({
   const itemsByTabSemParadas = useMemo(() => {
     if (!filters.atrasado) return itemsByTabBase;
     const out: Record<string, PecaDaArte[]> = {};
-    for (const tab in itemsByTabBase) out[tab] = filtrarAtrasadasDaFase(itemsByTabBase[tab], tab, hoje);
+    for (const tab in itemsByTabBase) out[tab] = filtrarAtrasadasDaFase(itemsByTabBase[tab], tab, hoje, diasDaAprovacao);
     return out;
-  }, [itemsByTabBase, filters.atrasado, hoje]);
+  }, [itemsByTabBase, filters.atrasado, hoje, diasDaAprovacao]);
   // O recorte "paradas" entra por último, e a contagem do chip que o liga sai
   // da camada ANTERIOR — é o que faz o número do chip ser exatamente o de
   // linhas que o clique entrega (invariante das facetas).
@@ -397,10 +401,15 @@ export function useFilaDaArte({
       if (sortMode === "prazo") {
         // O molde com prazo do molde entra na fila pelo PRÓPRIO prazo (22/09);
         // as demais peças, pelo marco da fase do evento — como sempre.
-        const pa = prazoDoMolde(a, a.event, hoje), pb = prazoDoMolde(b, b.event, hoje);
+        // A peça sem aprovação em Layout (26/10), pelo prazo AJUSTADO dela.
+        const ajustado = (x: PecaDaArte) => {
+          const p = prazoDaPecaNaFase(x, activeTab, hoje, diasDaAprovacao);
+          return p?.ajustado ? p : null;
+        };
+        const pa = prazoDoMolde(a, a.event, hoje) ?? ajustado(a), pb = prazoDoMolde(b, b.event, hoje) ?? ajustado(b);
         if (pa || pb) {
-          const da = pa ?? phaseDeadline(a.event, faseDoPrazo(activeTab, a), hoje);
-          const db = pb ?? phaseDeadline(b.event, faseDoPrazo(activeTab, b), hoje);
+          const da = pa ?? prazoDaPecaNaFase(a, activeTab, hoje, diasDaAprovacao);
+          const db = pb ?? prazoDaPecaNaFase(b, activeTab, hoje, diasDaAprovacao);
           if (da && db && da.date.getTime() !== db.date.getTime()) return da.date.getTime() - db.date.getTime();
           if (da && !db) return -1;
           if (!da && db) return 1;
@@ -416,7 +425,7 @@ export function useFilaDaArte({
       // virava 621 e caía a centenas de linhas da peça de que ele nasceu.
       return compareDisplayId(a.displayId, b.displayId);
     });
-  }, [itemsByTab, activeTab, groupMaps, sortMode, hoje]);
+  }, [itemsByTab, activeTab, groupMaps, sortMode, hoje, diasDaAprovacao]);
 
   const pendingCount = itemsByTab["criar-aprovacoes"].length;
   const aguardandoCount = itemsByTab["aguardando-patrocinador"].length;
@@ -430,8 +439,8 @@ export function useFilaDaArte({
     [correcaoItems, filters, dateBounds],
   );
   const correcaoFiltrados = useMemo(
-    () => (filters.atrasado ? filtrarAtrasadasDaFase(correcaoBase, "correcao", hoje) : correcaoBase),
-    [correcaoBase, filters.atrasado, hoje],
+    () => (filters.atrasado ? filtrarAtrasadasDaFase(correcaoBase, "correcao", hoje, diasDaAprovacao) : correcaoBase),
+    [correcaoBase, filters.atrasado, hoje, diasDaAprovacao],
   );
   const correcaoCount = correcaoFiltrados.length;
 
@@ -441,8 +450,8 @@ export function useFilaDaArte({
   // a âncora estável de "hoje" — nada disso é recalculado por linha da tabela.
   const atrasadasNaAba = useMemo(() => {
     const base = activeTab === "correcao" ? correcaoBase : (itemsByTabBase[activeTab] ?? []);
-    return filtrarAtrasadasDaFase(base, activeTab, hoje).length;
-  }, [itemsByTabBase, correcaoBase, activeTab, hoje]);
+    return filtrarAtrasadasDaFase(base, activeTab, hoje, diasDaAprovacao).length;
+  }, [itemsByTabBase, correcaoBase, activeTab, hoje, diasDaAprovacao]);
 
   // ── OPÇÕES DOS RECORTES DE UMA DIMENSÃO SÓ ────────────────────────────────
   // Período, mês, prazo, prioridade, thumb e arquivo final eram faixa de botões
@@ -476,10 +485,10 @@ export function useFilaDaArte({
     if (activeTab === "finalizados" && !finalizadosTudo) {
       lista = lista.filter((i) => dentroDaJanelaFinalizados(i, hoje));
     }
-    if (f.atrasado) lista = filtrarAtrasadasDaFase(lista, activeTab, hoje);
+    if (f.atrasado) lista = filtrarAtrasadasDaFase(lista, activeTab, hoje, diasDaAprovacao);
     if (paradasFilter) lista = lista.filter((i) => estaParada(i, hoje));
     return lista;
-  }, [filters, baseDasDimensoes, dateBounds, activeTab, finalizadosTudo, hoje, paradasFilter]);
+  }, [filters, baseDasDimensoes, dateBounds, activeTab, finalizadosTudo, hoje, paradasFilter, diasDaAprovacao]);
 
   // Uma passada POR JANELA, e não um agrupamento único: as janelas são
   // cumulativas e se contêm ("7 dias" inclui "Hoje"), então não existe balde

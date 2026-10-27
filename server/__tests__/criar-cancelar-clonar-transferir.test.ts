@@ -203,7 +203,8 @@ describe("3 · dispensar aprovação e reaproveitar pelo PATCH", () => {
       mundo.itens.p1 = peca();
       const a = await chamar("PATCH /api/items/:id", { params: { id: "p1" }, userRole: papel, body: { skipApproval: true } });
       expect(a.status, papel).toBe(403);
-      expect(a.body.error).toBe("Dispensar a aprovação do patrocinador é do admin e da Solicitação.");
+      // Pedro/dono 26/10: a marca é "Sem patrocínio" (e a irmã, "Arte do cliente") — a frase nomeia as duas.
+      expect(a.body.error).toBe("Marcar “Sem patrocínio” ou “Arte do cliente” é do admin e da Solicitação.");
       const b = await chamar("PATCH /api/items/:id", { params: { id: "p1" }, userRole: papel, body: { isReuse: true, reuseQty: 10 } });
       expect(b.status, papel).toBe(403);
       expect(b.body.error).toBe("Marcar reaproveitamento é do admin e da Solicitação.");

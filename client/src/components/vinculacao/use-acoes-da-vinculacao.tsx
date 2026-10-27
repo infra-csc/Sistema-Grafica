@@ -244,6 +244,17 @@ export function useAcoesDaVinculacao(v: Vinculacao) {
       // Audit-logs sim: o sync gera registro e o histórico do dialog de
       // detalhes ficava stale sem isto.
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
+      // VINCULAR DESMARCA A "ARTE DO CLIENTE" (revisão 27/10): com patrocinador a
+      // peça passa pela Aprovação (sponsors.ts). Dito no aviso — o selo sumir
+      // sozinho deixava a pessoa sem saber por quê — e a lista relida, para o
+      // selo cair já.
+      const perderamArte = _vars
+        .filter(p => savedIds.includes(p.itemId) && p.sponsorIds.length > 0 && !!items.find((i) => i.id === p.itemId)?.arteDoCliente)
+        .map(p => items.find((i) => i.id === p.itemId)?.displayId ?? "");
+      if (perderamArte.length > 0) queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      const fraseDaArte = perderamArte.length === 0 ? "" : perderamArte.length === 1
+        ? ` “Arte do cliente” saiu de ${perderamArte[0]}: com patrocinador, a peça passa pela Aprovação.`
+        : ` “Arte do cliente” saiu de ${perderamArte.length} peças (${perderamArte.slice(0, 5).join(", ")}${perderamArte.length > 5 ? "…" : ""}): com patrocinador, elas passam pela Aprovação.`;
       registrarFalhas(savedIds, failed);
       manterSelecionadas(failed.map(f => f.itemId));
       if (failed.length === 0) {
@@ -257,11 +268,12 @@ export function useAcoesDaVinculacao(v: Vinculacao) {
         const pecas = (n: number) => `${n} ${n === 1 ? 'peça' : 'peças'}`;
         toast({
           title: "Vinculação salva",
-          description: prontas === savedIds.length
+          description: (prontas === savedIds.length
             ? `Vínculo salvo em ${pecas(savedIds.length)}. Falta só o envio à Arte.`
             : prontas > 0
               ? `Vínculo salvo em ${pecas(savedIds.length)}. ${pecas(prontas)} ${prontas === 1 ? 'pode' : 'podem'} ir para a Arte; as sem patrocinador continuam pendentes.`
-              : `Salvo em ${pecas(savedIds.length)}, ainda sem patrocinador — ${savedIds.length === 1 ? 'ela continua pendente' : 'elas continuam pendentes'}.`,
+              : `Salvo em ${pecas(savedIds.length)}, ainda sem patrocinador — ${savedIds.length === 1 ? 'ela continua pendente' : 'elas continuam pendentes'}.`)
+            + fraseDaArte,
           variant: "success",
         });
       } else {
@@ -450,7 +462,7 @@ export function useAcoesDaVinculacao(v: Vinculacao) {
       toast({
         title: "Nenhuma alteração",
         description: skippedItems.length > 0
-          ? `${skippedItems.length} ${skippedItems.length !== 1 ? 'peças marcadas' : 'peça marcada'} sem patrocinador ${skippedItems.length !== 1 ? 'ficaram' : 'ficou'} de fora. Nas demais, os patrocinadores já estavam vinculados.`
+          ? `${skippedItems.length} ${skippedItems.length !== 1 ? 'peças marcadas' : 'peça marcada'} “Sem patrocínio” ${skippedItems.length !== 1 ? 'ficaram' : 'ficou'} de fora. Nas demais, os patrocinadores já estavam vinculados.`
           : "Os patrocinadores selecionados já estavam vinculados",
         variant: "warning",
       });

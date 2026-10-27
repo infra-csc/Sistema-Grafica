@@ -9,6 +9,8 @@ import { MARCOS_DO_EVENTO } from "@shared/prazo-dates";
 import { statusParaContagem } from "@shared/molde";
 import { compareDisplayId } from "@/lib/displayId";
 import { calcularMarcos, contarTrabalhoAberto, estaAtrasDoMarco, fraseDeResolucao } from "./regras";
+import { prazoDeLayoutAjustado, prazoDeLayoutDoEvento, pulaAprovacao } from "@shared/prazo-sem-aprovacao";
+import { useDiasDaAprovacao } from "@/hooks/use-configuracoes";
 import type { EventoDoDetalhe, PecaDoEvento, UsuarioLogado } from "./tipos";
 
 export function useContagensDoEvento(rawItems: PecaDoEvento[], event: EventoDoDetalhe | undefined, user: UsuarioLogado) {
@@ -86,9 +88,26 @@ export function useContagensDoEvento(rawItems: PecaDoEvento[], event: EventoDoDe
     () => (event?.truckDepartureDate ? calcularMarcos(event, hoje) : null),
     [event, hoje],
   );
+  // PEÇA SEM APROVAÇÃO (Pedro/dono, 26/10): não conta na Lista nem na
+  // Aprovação (estaAtrasDoMarco) e, na Entrega de Layouts já vencida, só
+  // conta depois do prazo de Layout AJUSTADO dela (Layout + dias da
+  // Aprovação) — antes disso ela não está atrasada, e a frase "marco já
+  // venceu com N peças atrás" não pode contá-la.
+  const diasDaAprovacao = useDiasDaAprovacao();
+  const layoutAjustadoAindaVale = useMemo(() => {
+    const layout = prazoDeLayoutDoEvento(event);
+    if (!layout) return false;
+    const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(hoje.getDate()).padStart(2, "0")}`;
+    return hojeStr <= prazoDeLayoutAjustado(layout, diasDaAprovacao);
+  }, [event, hoje, diasDaAprovacao]);
   const atrasDoMarco = useMemo(
-    () => MARCOS_DO_EVENTO.map((_, i) => pecasNaConta.filter(it => estaAtrasDoMarco(statusParaContagem(it), i, !!it.kitRemessaId)).length),
-    [pecasNaConta],
+    () => MARCOS_DO_EVENTO.map((m, i) => pecasNaConta.filter((it) => {
+      const sem = pulaAprovacao(it);
+      if (!estaAtrasDoMarco(statusParaContagem(it), i, !!it.kitRemessaId, sem)) return false;
+      const layoutVencido = m.key === "layouts" && !!marcosDoEvento?.marcos[i]?.isPast;
+      return !(sem && layoutVencido && layoutAjustadoAindaVale);
+    }).length),
+    [pecasNaConta, marcosDoEvento, layoutAjustadoAindaVale],
   );
   // Fases de produção — a MESMA contagem do cartão de Eventos (lib/fases).
   const fases = useMemo(() => contarPorFase(pecasNaConta), [pecasNaConta]);

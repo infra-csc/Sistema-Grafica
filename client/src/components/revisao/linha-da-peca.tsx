@@ -6,6 +6,7 @@
 import { Fragment, memo } from "react";
 import { Check, Clock, Paperclip, Recycle, Trash2, Undo2 } from "lucide-react";
 import { SeloKit } from "@/components/kit/selo-kit";
+import { SelosSemAprovacao } from "@/components/selo-sem-aprovacao";
 import { SeloPrazoMolde } from "@/components/prazo-do-molde";
 import { SeloDoEstoqueNaLinha } from "@/components/consulta-de-estoque/na-revisao";
 import type { EstoqueDaLinha } from "@/components/consulta-de-estoque/na-revisao";
@@ -109,6 +110,9 @@ export const LinhaDaPeca = memo(function LinhaDaPeca({
             {item.displayId}
           </span>
           <SeloKit peca={item} style={{ flexShrink: 0 }} />
+          {/* Peças sem aprovação (26/10): "Sem patrocínio" / "Arte cliente" — a
+              arte do cliente teve a medida conferida na Finalização. */}
+          <SelosSemAprovacao peca={item} semAguardando style={{ flexShrink: 0 }} />
           <span style={{ fontSize: FS.body, fontWeight: 700, color: TI.text, minWidth: 0, overflowWrap: "anywhere" }}>
             {item.type}
           </span>

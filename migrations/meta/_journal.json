@@ -71,6 +71,13 @@
       "when": 1792769415741,
       "tag": "0009_juntar-remessas-do-kit",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793042776424,
+      "tag": "0010_prazos-sem-aprovacao",
+      "breakpoints": true
     }
   ]
 }

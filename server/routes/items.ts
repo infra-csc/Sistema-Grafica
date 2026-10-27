@@ -29,6 +29,7 @@ import { registrarOrigemDoReaproveitamento } from "./itens/origem-do-reaproveita
 import { registrarConferencia } from "./itens/conferencia";
 import { registrarBook } from "./itens/book";
 import { registrarAvisos } from "./itens/avisos";
+import { registrarSemAprovacao } from "./itens/sem-aprovacao";
 
 // A guarda "evento finalizado não recebe trabalho" (constantes de erro,
 // motivoEventoFechado/erroEventoFechado, motivoEventoDaPeca,
@@ -65,6 +66,7 @@ export function registerItemRoutes(app: Express): void {
   registrarEtiquetasImpressas(app); // POST /api/items/labels-printed
   registrarFilasEPorEvento(app); // GET pending, resubmission-needed, approved, batch-approval-data e :eventId (este por último)
   registrarCriacao(app); // POST /api/items, POST /api/items/bulk
+  registrarSemAprovacao(app); // Arte recebida e as marcas sem aprovação em lote (26/10)
   registrarPlanilha(app); // exportar e importar planilha
   registrarClonagem(app); // POST /api/events/:id/clone-items
   registrarEdicao(app); // PATCH /api/items/:id (desvia bulk-* com next)

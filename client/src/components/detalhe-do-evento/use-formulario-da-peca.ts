@@ -105,6 +105,7 @@ export function useFormularioDaPeca() {
       measurement: item.measurement || "",
       observations: item.observations || "",
       skipApproval: item.skipApproval || false,
+      arteDoCliente: item.arteDoCliente || false,
       isPriority: item.isPriority || false,
       isReuse: item.isReuse || false,
       origemReaproveitamento: item.origemReaproveitamento || "",

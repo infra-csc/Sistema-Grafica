@@ -8,6 +8,8 @@ import { EstadoVazio } from "@/components/ui/estados";
 import { LegendaDoCalendario } from "@/components/calendario/legenda-do-calendario";
 import { EsqueletoDaGrade, EsqueletoDeLinhas } from "@/components/calendario/esqueletos";
 import { diaDoMarcoNoCalendario } from "@/components/calendario/dia-do-marco";
+import { diaLocal, diaMes, layoutSemAprovacaoPorEvento } from "@/components/calendario/layout-sem-aprovacao";
+import type { PrazosPayload } from "@shared/prazos-contract";
 import {
   NOMES_DOS_MESES, DIAS_DA_SEMANA, horasEMinutos, horasCurtas, horaMinuto, diaCurto, mesCurto,
   faixaDaSemana, diaPorExtenso, plural,
@@ -86,6 +88,30 @@ function prioMeta(ev: EventoDaLista): { label: string; bg: string; text: string;
 const DEADLINE_TYPES = MARCOS_DO_EVENTO.map(m => ({
   key: m.campo, label: m.label, short: m.curto, color: m.cor, text: m.texto, fimDeSemana: m.fimDeSemana,
 }));
+
+// ── PEÇAS SEM APROVAÇÃO (Pedro/dono, 26/10) ────────────────────────────────
+// A peça "Sem patrocínio" / "Arte do cliente" não passa pela Aprovação e o
+// Layout dela vence no prazo AJUSTADO (Layout do evento + dias da Aprovação).
+// O Calendário segue a mesma régua da Gestão de Prazos: lê o ajustado pronto
+// de /api/prazos (components/calendario/layout-sem-aprovacao) e desenha uma
+// marcação a mais — "Entrega de Layouts (sem aprovação)" — no dia ajustado,
+// com quantas peças vencem nele. O marco normal continua no dia do evento.
+const CAMPO_LAYOUT = "deadlineEntregaLayouts";
+const ROTULO_LAYOUT_SEM_APROVACAO = "Entrega de Layouts (sem aprovação)";
+const CURTO_LAYOUT_SEM_APROVACAO = "Layout s/ aprov.";
+
+/** Um prazo na grade: o marco do evento, ou o Layout ajustado das peças sem aprovação. */
+type PrazoNaGrade = {
+  event: EventoDaLista;
+  dtype: typeof DEADLINE_TYPES[number];
+  /** É a marcação do Layout AJUSTADO: quantas peças sem aprovação vencem neste dia e o prazo do evento. */
+  semAprovacao?: { pecas: number; normal: string };
+  /**
+   * É o Layout NORMAL de um evento em que só restam peças sem aprovação no
+   * gate: o dia (ajustado) em que elas vencem. Este marco não cobra ninguém.
+   */
+  soSemAprovacao?: string;
+};
 
 /** Frase de ajuda de cada marco (legenda): o que é e quando vence, por padrão. */
 const DICA_DO_MARCO: Record<string, string> = Object.fromEntries(MARCOS_DO_EVENTO.map(m => {
@@ -217,6 +243,18 @@ export default function Calendario() {
 
   const { data: events = [], isLoading, isError, refetch } = useQuery<EventoDaLista[]>({ queryKey: ["/api/events"] });
 
+  // Peças sem aprovação (26/10): o Layout ajustado vem da Gestão de Prazos —
+  // MESMA chave de cache da tela de prazos, invalidada pelo WebSocket a cada
+  // mudança de peça/evento. Só busca quando a grade desenha o marco de Layout
+  // (o recorte da Gráfica e do Atendimento não o mostra). Erro ou demora aqui
+  // não seguram a grade: sem o payload, o calendário fica como sempre foi.
+  const desenhaLayout = tiposVisiveis.some(dt => dt.key === CAMPO_LAYOUT);
+  const { data: prazos } = useQuery<PrazosPayload>({ queryKey: ["/api/prazos"], enabled: desenhaLayout });
+  const layoutSemAprovacao = useMemo(
+    () => layoutSemAprovacaoPorEvento(desenhaLayout ? prazos?.events : undefined),
+    [prazos, desenhaLayout],
+  );
+
   // Tick de 1 min: as contagens regressivas usam "agora", e a tela fica aberta
   // por horas (TV do galpão). Sem o tick, os valores congelavam no instante do
   // primeiro render — um "2h 10min" podia estar exibido com o caminhão já na rua.
@@ -254,7 +292,7 @@ export default function Calendario() {
   const byDay = useMemo(() => {
     const map = new Map<string, {
       events: EventoNaGrade[];
-      deadlines: Array<{ event: EventoDaLista; dtype: typeof DEADLINE_TYPES[number] }>;
+      deadlines: PrazoNaGrade[];
     }>();
     const bucket = (ds: string) => {
       let b = map.get(ds);
@@ -272,14 +310,23 @@ export default function Calendario() {
       // Antes era saída + offset CRU, e as duas telas discordavam do dia.
       for (const dt of tiposVisiveis) {
         const d = diaDoMarcoNoCalendario(ev.truckDepartureDate, offsetDoMarco(ev, dt.key), dt.fimDeSemana);
-        bucket(d.toDateString()).deadlines.push({ event: ev, dtype: dt });
+        // Peças sem aprovação (26/10): no marco de Layout, o dia ajustado
+        // ganha marcação própria; e o marco normal, quando só restam essas
+        // peças no gate, leva junto o dia em que elas vencem.
+        const sa = dt.key === CAMPO_LAYOUT ? layoutSemAprovacao.get(String(ev.id)) : undefined;
+        bucket(d.toDateString()).deadlines.push(sa?.soSemAprovacao && sa.ajustados.length > 0
+          ? { event: ev, dtype: dt, soSemAprovacao: sa.ajustados[0].dia }
+          : { event: ev, dtype: dt });
+        for (const a of sa?.ajustados ?? []) {
+          bucket(diaLocal(a.dia).toDateString()).deadlines.push({ event: ev, dtype: dt, semAprovacao: { pecas: a.pecas, normal: sa!.normal } });
+        }
       }
     }
     // Dentro da célula, inícios antes de saídas (ordem que a varredura
     // antiga produzia) — sort estável preserva a ordem dos eventos.
     map.forEach(b => b.events.sort((a, c) => (a._type === c._type ? 0 : a._type === "start" ? -1 : 1)));
     return map;
-  }, [events, tiposVisiveis]);
+  }, [events, tiposVisiveis, layoutSemAprovacao]);
 
   // ═══════════════════════════════════════════════════════════════════════
   // A ORDEM DE URGÊNCIA DA CÉLULA
@@ -297,8 +344,12 @@ export default function Calendario() {
   const MS_DIA = 86_400_000;
 
   /** Menor número = mais urgente = aparece primeiro e nunca é o cortado. */
-  function pesoDaUrgencia(item: { kind: string; ev?: EventoNaGrade }, diaMs: number, agoraMs: number): number {
+  function pesoDaUrgencia(item: { kind: string; ev?: EventoNaGrade; soSemAprovacao?: string }, diaMs: number, agoraMs: number): number {
     if (item.kind === "deadline") {
+      // O Layout normal de um evento em que só restam peças sem aprovação não
+      // cobra ninguém neste dia (elas vencem no ajustado): vai com os futuros,
+      // e não à frente como "vence hoje"/"já passou" (26/10).
+      if (item.soSemAprovacao) return 4;
       const hoje = new Date(agoraMs); hoje.setHours(0, 0, 0, 0);
       if (diaMs === hoje.getTime()) return 0;   // vence hoje
       if (diaMs < hoje.getTime()) return 1;     // já passou
@@ -395,11 +446,13 @@ export default function Calendario() {
       // Um marco de domingo 1º que anda para segunda 2 continua no mesmo mês;
       // um de sábado 1º que volta para sexta 31 muda de mês, e o Resumo vai
       // junto com a grade.
+      // O Layout ajustado das peças sem aprovação (26/10) também é marcação.
+      if (desenhaLayout && layoutSemAprovacao.get(String(ev.id))?.ajustados.some(a => noMes(diaLocal(a.dia)))) return true;
       return tiposVisiveis.some(dt => {
         return noMes(diaDoMarcoNoCalendario(ev.truckDepartureDate, offsetDoMarco(ev, dt.key), dt.fimDeSemana));
       });
     });
-  }, [events, year, month, tiposVisiveis]);
+  }, [events, year, month, tiposVisiveis, desenhaLayout, layoutSemAprovacao]);
   const completedCount = monthEvents.filter(e => e.status === "completed").length;
   // Encerrado à mão precisa de linha PRÓPRIA. Somado a "Concluídos" ele diria
   // "deu tudo certo" num evento fechado com peça em aberto; sem linha nenhuma
@@ -707,6 +760,17 @@ export default function Calendario() {
             {tiposVisiveis.map(dt => (
               <MarcoDaLegenda key={dt.key} marco={dt} dica={DICA_DO_MARCO[dt.key]} comDica={carregado} />
             ))}
+            {/* Só quando há peça sem aprovação em Layout em algum evento. */}
+            {desenhaLayout && layoutSemAprovacao.size > 0 && (() => {
+              const dt = DEADLINE_TYPES.find(x => x.key === CAMPO_LAYOUT);
+              return dt ? (
+                <MarcoDaLegenda
+                  marco={{ key: "layoutSemAprovacao", short: CURTO_LAYOUT_SEM_APROVACAO, color: dt.color }}
+                  dica={`${ROTULO_LAYOUT_SEM_APROVACAO}: o prazo de Layout das peças “Sem patrocínio” e “Arte do cliente”, que não passam pela Aprovação — o prazo de Layout do evento mais os dias da Aprovação (configuração geral). A Finalização e os prazos seguintes não mudam.`}
+                  comDica={carregado}
+                />
+              ) : null;
+            })()}
             {marcosDoPapel && (
               <button
                 type="button"
@@ -778,7 +842,7 @@ export default function Calendario() {
               const b = byDay.get(date.toDateString());
               const itens = [
                 ...(b?.events ?? []).filter(e => casa(e.name)).map(ev => ({ kind: "event" as const, ev })),
-                ...(b?.deadlines ?? []).filter(x => casa(x.event.name)).map(d => ({ kind: "deadline" as const, event: d.event, dtype: d.dtype })),
+                ...(b?.deadlines ?? []).filter(x => casa(x.event.name)).map(d => ({ kind: "deadline" as const, ...d })),
               ]
                 // MESMA ORDEM da célula: as três leituras contam a mesma
                 // história ou não contam nenhuma.
@@ -816,7 +880,11 @@ export default function Calendario() {
                       const isStart = item.kind === "event" && item.ev._type === "start";
                       const Icone = item.kind === "deadline" ? Flag : isStart ? Calendar : Truck;
                       const tipo = item.kind === "deadline"
-                        ? `prazo · ${item.dtype.label}`
+                        ? item.semAprovacao
+                          ? `prazo · ${ROTULO_LAYOUT_SEM_APROVACAO} · ${plural(item.semAprovacao.pecas, "peça", "peças")} (prazo do evento ${diaMes(item.semAprovacao.normal)})`
+                          : item.soSemAprovacao
+                            ? `prazo · ${item.dtype.label} · só restam peças sem aprovação (vencem ${diaMes(item.soSemAprovacao)})`
+                            : `prazo · ${item.dtype.label}`
                         : isStart ? "início do evento" : "saída do caminhão";
                       const saida = item.kind === "event" && !isStart ? toUTCDisplayDate(ev.truckDepartureDate) : null;
                       const restante = saida ? saida.getTime() - now : null;
@@ -917,10 +985,10 @@ export default function Calendario() {
               );
               const allCellItems: Array<
                 | { kind: "event"; ev: (typeof dayEvs)[number] }
-                | { kind: "deadline"; event: EventoDaLista; dtype: typeof DEADLINE_TYPES[number] }
+                | ({ kind: "deadline" } & PrazoNaGrade)
               > = [
                 ...dayEvs.map(ev => ({ kind: "event" as const, ev })),
-                ...dayDeadlines.map(d => ({ kind: "deadline" as const, event: d.event, dtype: d.dtype })),
+                ...dayDeadlines.map(d => ({ kind: "deadline" as const, ...d })),
               ]
                 // POR URGENCIA, antes do corte em 2: um prazo que vence HOJE
                 // nunca some atras de dois inicios de evento.
@@ -1053,14 +1121,21 @@ export default function Calendario() {
                             </button>
                           );
                         } else {
-                          const { event, dtype } = item;
+                          const { event, dtype, semAprovacao, soSemAprovacao } = item;
+                          // Layout ajustado (26/10): rótulo próprio e quantas
+                          // peças sem aprovação vencem no dia.
+                          const nomeDoPrazo = semAprovacao ? ROTULO_LAYOUT_SEM_APROVACAO : dtype.label;
+                          const detalhe = semAprovacao
+                            ? ` — ${plural(semAprovacao.pecas, "peça", "peças")} sem aprovação (Sem patrocínio / Arte do cliente); prazo do evento ${diaMes(semAprovacao.normal)}`
+                            : soSemAprovacao ? ` — só restam peças sem aprovação, que vencem em ${diaMes(soSemAprovacao)}` : "";
                           return (
                             <button
                               key={`dl-${event.id}-${dtype.key}-${i}`}
                               type="button"
+                              data-testid={semAprovacao ? `layout-sem-aprovacao-${event.id}` : undefined}
                               onClick={e => { e.stopPropagation(); abrirEvento(event.id); }}
-                              title={`${event.name} — prazo de ${dtype.label}`}
-                              aria-label={`Abrir evento ${event.name} — prazo de ${dtype.label}`}
+                              title={`${event.name} — prazo de ${nomeDoPrazo}${detalhe}`}
+                              aria-label={`Abrir evento ${event.name} — prazo de ${nomeDoPrazo}${detalhe}`}
                               className="cal-pilula"
                               style={{
                                 display: "flex", alignItems: "center", gap: 5, height: 22, flexShrink: 0,
@@ -1077,7 +1152,9 @@ export default function Calendario() {
                               {/* O marco E o evento: só "Lista Img" na célula não
                                   dizia de quem era o prazo. */}
                               <span style={{ flex: 1, minWidth: 0, fontSize: FS.small, overflow: "hidden", textOverflow: "ellipsis" }}>
-                                <span style={{ fontWeight: FW.forte, color: dtype.text }}>{dtype.short}</span>
+                                <span style={{ fontWeight: FW.forte, color: dtype.text }}>
+                                  {semAprovacao ? `${CURTO_LAYOUT_SEM_APROVACAO} (${semAprovacao.pecas})` : dtype.short}
+                                </span>
                                 <span style={{ fontWeight: FW.corpo, color: T.apoio }}> · {event.name}</span>
                               </span>
                             </button>
@@ -1349,9 +1426,9 @@ export default function Calendario() {
               <section aria-label="Prazos">
                 <TituloDaSecao rotulo="Prazos" n={prazosDoDia.length} />
                 <div style={{ border: `1px solid ${T.border}`, borderRadius: R.lg, overflow: "hidden" }}>
-                  {prazosDoDia.map(({ event, dtype }, i) => (
-                    <div key={`${event.id}-${dtype.key}`}
-                      data-testid={`dialog-deadline-${event.id}-${dtype.key}`}
+                  {prazosDoDia.map(({ event, dtype, semAprovacao, soSemAprovacao }, i) => (
+                    <div key={`${event.id}-${dtype.key}${semAprovacao ? "-sem-aprovacao" : ""}`}
+                      data-testid={`dialog-deadline-${event.id}-${dtype.key}${semAprovacao ? "-sem-aprovacao" : ""}`}
                       role="link"
                       tabIndex={0}
                       aria-label={`Abrir evento ${event.name}`}
@@ -1366,7 +1443,23 @@ export default function Calendario() {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ fontSize: FS.read, fontWeight: FW.forte, color: P.text, margin: 0, lineHeight: 1.35, overflowWrap: "anywhere" }}>{event.name}</p>
                         <p style={{ fontSize: FS.meta, color: P.secondary, margin: "3px 0 0" }}>
-                          Prazo de <strong style={{ color: dtype.text, fontWeight: FW.forte }}>{dtype.label}</strong>
+                          Prazo de <strong style={{ color: dtype.text, fontWeight: FW.forte }}>{semAprovacao ? ROTULO_LAYOUT_SEM_APROVACAO : dtype.label}</strong>
+                          {/* Peças sem aprovação (26/10): o Layout ajustado diz
+                              quantas peças vencem e de onde ele vem; o normal
+                              diz que só elas restam e quando vencem. */}
+                          {semAprovacao && (
+                            <>
+                              {` · ${plural(semAprovacao.pecas, "peça", "peças")} sem aprovação (Sem patrocínio / Arte do cliente)`}
+                              <span style={{ display: "block" }}>
+                                Prazo do evento {diaMes(semAprovacao.normal)} + os dias da Aprovação — essas peças não passam por ela.
+                              </span>
+                            </>
+                          )}
+                          {soSemAprovacao && (
+                            <span style={{ display: "block" }}>
+                              Só restam peças sem aprovação neste marco — elas vencem em {diaMes(soSemAprovacao)}.
+                            </span>
+                          )}
                           {/* Marco que ANDOU por cair no fim de semana diz
                               de onde veio (06/10): quem conta "saída − 12"
                               na mão chega no sábado e acharia a grade errada.
@@ -1374,7 +1467,9 @@ export default function Calendario() {
                               a frase é a da regra do marco (Produção Gráfica:
                               domingo vence no sábado — dono, 19/10). */}
                           {(() => {
-                            if (!selectedDate) return null;
+                            // O ajustado já vem com o fim de semana aplicado
+                            // (@shared/prazo-sem-aprovacao) e não é saída − offset.
+                            if (!selectedDate || semAprovacao) return null;
                             const cru = diaDoMarcoNoCalendario(event.truckDepartureDate, offsetDoMarco(event, dtype.key), "todos");
                             if (cru.toDateString() === selectedDate.toDateString()) return null;
                             const ajuste = ajusteDeFimDeSemana(cru.getDay(), dtype.fimDeSemana);
@@ -1384,7 +1479,7 @@ export default function Calendario() {
                       </div>
                       {/* O mesmo "hoje" da régua de urgência (vence hoje vem
                           primeiro): o dialog diz isso com palavra. */}
-                      {diaAbertoEhHoje && (
+                      {diaAbertoEhHoje && !soSemAprovacao && (
                         <Selo tom="alerta" ponto style={{ flexShrink: 0 }}>Vence hoje</Selo>
                       )}
                       <ChevronRight aria-hidden="true" className="cal-seta" style={{ width: 16, height: 16, color: T.second, flexShrink: 0, marginLeft: -4 }} />

@@ -7,11 +7,13 @@ import { abertasPorStatus, impressaoRealizadoXPlanejado, type EventoDoPainel } f
 import { CartaoKpi } from "@/components/ui/cartao-kpi";
 import { T, FS, FW } from "@/lib/theme";
 import { GradeDeNumeros, SecaoDaAnalise, TabelaCompacta } from "../blocos";
-import { BarrasEmpilhadas, COR, DiasDeAtraso, GraficoDeDias, NomeDoEvento, SeloDaSituacao, dm, dma, fmt0, fmtM2 } from "../comum";
+import { BarrasEmpilhadas, COR, DiasDeAtraso, GraficoDeDias, NomeDoEvento, SeloDaSituacao, dm, dma, fmt0, fmtM2, naoSegueAMarca } from "../comum";
 import type { ContextoDoPainel } from "../contexto";
 
 export default function AbaGeral({ ctx }: { ctx: ContextoDoPainel }) {
-  const { painel, abrirEvento, isMobile } = ctx;
+  const { painel, abrirEvento, isMobile, marca } = ctx;
+  // RF11: com filtro de marca, os números que vêm do evento inteiro dizem isso.
+  const doEvento = marca === "todas" ? "" : " · todas as peças, sem o filtro";
   const { kpis, resumo } = painel;
   const status = React.useMemo(() => abertasPorStatus(painel.pecas), [painel.pecas]);
   const serie = React.useMemo(() => impressaoRealizadoXPlanejado(painel), [painel]);
@@ -21,12 +23,12 @@ export default function AbaGeral({ ctx }: { ctx: ContextoDoPainel }) {
       <section aria-labelledby="h-op-kpis">
         <h2 id="h-op-kpis" className="sr-only">Resumo da operação</h2>
         <GradeDeNumeros minimo={isMobile ? 150 : 190} rotulo="Resumo da operação">
-          <CartaoKpi data-testid="op-kpi-eventos-atrasados" rotulo="Eventos atrasados" icone={AlertTriangle} valor={fmt0(kpis.atrasados)} tom={kpis.atrasados > 0 ? "perigo" : "neutro"} sub="Alguma fase vencida com peça pendente" />
-          <CartaoKpi data-testid="op-kpi-pecas-fora" rotulo="Peças fora do prazo" icone={CalendarClock} valor={fmt0(kpis.pecasAtrasadas)} tom={kpis.pecasAtrasadas > 0 ? "perigo" : "neutro"} sub="Pendentes da fase vencida mais avançada" />
-          <CartaoKpi data-testid="op-kpi-saidas" rotulo="Saídas em 7 dias" icone={Truck} valor={fmt0(kpis.saidas7d)} sub="Caminhões de hoje a hoje + 7" />
+          <CartaoKpi data-testid="op-kpi-eventos-atrasados" rotulo="Eventos atrasados" icone={AlertTriangle} valor={fmt0(kpis.atrasados)} tom={kpis.atrasados > 0 ? "perigo" : "neutro"} sub={`Alguma fase vencida com peça pendente${doEvento}`} />
+          <CartaoKpi data-testid="op-kpi-pecas-fora" rotulo="Peças fora do prazo" icone={CalendarClock} valor={fmt0(kpis.pecasAtrasadas)} tom={kpis.pecasAtrasadas > 0 ? "perigo" : "neutro"} sub={`Pendentes da fase vencida mais avançada${doEvento}`} />
+          <CartaoKpi data-testid="op-kpi-saidas" rotulo="Saídas em 7 dias" icone={Truck} valor={fmt0(kpis.saidas7d)} sub={`Caminhões de hoje a hoje + 7${doEvento}`} />
           <CartaoKpi data-testid="op-kpi-abertas" rotulo="Peças em aberto" icone={Layers} valor={fmt0(resumo.pecasAbertas)} sub="Não entregues, eventos ativos" />
-          <CartaoKpi data-testid="op-kpi-m2-7d" rotulo="m² impressos · 7 dias" icone={Printer} valor={fmt0(resumo.m2Impresso7d)} sub="Pelo fim da impressão" />
-          <CartaoKpi data-testid="op-kpi-m2-falta" rotulo="m² ainda a imprimir" icone={Ruler} valor={fmt0(resumo.m2AImprimir)} sub="Saldo dos eventos ativos" />
+          <CartaoKpi data-testid="op-kpi-m2-7d" rotulo="m² impressos · 7 dias" icone={Printer} valor={fmt0(resumo.m2Impresso7d)} sub={`Pelo fim da impressão${doEvento}`} />
+          <CartaoKpi data-testid="op-kpi-m2-falta" rotulo="m² ainda a imprimir" icone={Ruler} valor={fmt0(resumo.m2AImprimir)} sub={`Saldo dos eventos ativos${doEvento}`} />
         </GradeDeNumeros>
       </section>
 
@@ -46,7 +48,7 @@ export default function AbaGeral({ ctx }: { ctx: ContextoDoPainel }) {
           id="h-op-impressao"
           testId="op-impressao"
           titulo="Impressão: realizado × planejado (m² por dia)"
-          descricao="Últimas 3 semanas e próximas 3 (dias úteis). O planejado distribui o que falta imprimir até o prazo de produção de cada evento; o que já venceu aparece hoje como atrasado."
+          descricao={`Últimas 3 semanas e próximas 3 (dias úteis). O planejado distribui o que falta imprimir até o prazo de produção de cada evento; o que já venceu aparece hoje como atrasado.${naoSegueAMarca(marca)}`}
         >
           <GraficoDeDias
             testId="op-grafico-impressao"

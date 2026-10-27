@@ -28,6 +28,13 @@ export interface BulkItemRow extends CamposDaProducaoInterna {
   isPriority: boolean;
   /** O modelo de que a linha nasceu — gravado na peça para o catálogo contar o uso. */
   standardItemId: string;
+  /**
+   * PEÇA SEM APROVAÇÃO (Pedro/dono, 26/10) — as duas marcas do formulário de
+   * uma peça, por linha: "Sem patrocínio" (= `items.skipApproval`) e "Arte do
+   * cliente" (`items.arteDoCliente`). Só admin|Solicitação (PAPEIS_QUE_MARCAM).
+   */
+  skipApproval: boolean;
+  arteDoCliente: boolean;
 }
 
 export interface StandardItem {
@@ -95,6 +102,9 @@ export interface PecaDoLote {
   instrucoesGrafica?: string | null;
   finalFileUrl?: string;
   finalFileName?: string;
+  /** Peça sem aprovação (26/10) — só vai no corpo de quem pode marcar. */
+  skipApproval?: boolean;
+  arteDoCliente?: boolean;
 }
 
 /** Uma repetição achada antes de gravar: dentro do lote ou contra o evento. */

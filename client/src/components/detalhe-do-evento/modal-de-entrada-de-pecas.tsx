@@ -7,6 +7,7 @@ import { Plus, List } from "lucide-react";
 import type { Sponsor } from "@shared/schema";
 import { patrocinadoresDaLinha } from "@shared/pedidos-de-peca";
 import { mostraCampoProducaoInterna } from "@shared/producao-interna";
+import { PAPEIS_QUE_MARCAM } from "@shared/prazo-sem-aprovacao";
 import {
   Dialog,
   DialogContent,
@@ -153,6 +154,9 @@ export function ModalDeEntradaDePecas({
             podePriorizar={user?.role === 'admin' || user?.role === 'solicitacao'}
             // A coluna "Gráfica" (07/10): o mesmo gate do bloco do formulário.
             podeProducaoInterna={mostraCampoProducaoInterna(user?.role)}
+            // "Sem patrocínio" e "Arte do cliente" por linha (26/10): o mesmo
+            // gate do bloco "Peça sem aprovação" do formulário e do servidor.
+            podeMarcarSemAprovacao={PAPEIS_QUE_MARCAM.includes(String(user?.role ?? ""))}
             onConteudoChange={(tem) => { bulkTemConteudoRef.current = tem; }}
           />
           </div>
@@ -174,6 +178,8 @@ export function ModalDeEntradaDePecas({
             podePriorizar={user?.role === 'admin' || user?.role === 'solicitacao'}
             eventoTemKit={eventoTemKit}
             kitObrigatorio={!!user?.kit}
+            evento={event}
+            papel={user?.role}
             isPending={createItemMutation.isPending || updateItemMutation.isPending}
             onSubmit={handleSubmit}
             onCancel={handleCloseDialog}

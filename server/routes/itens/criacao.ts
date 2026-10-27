@@ -4,6 +4,9 @@ import { z } from "zod";
 import { storage } from "../../storage";
 import { db } from "../../db";
 import { insertItemSchema, publicInsertItemSchema, type InsertItem } from "@shared/schema";
+import { colunasDaArteDoCliente, contextoDosPrazos, frasesDasMarcas, frasesDasMarcasDaPeca } from "../../services/marcas-de-aprovacao";
+import { PAPEIS_QUE_MARCAM, pulaAprovacao, recusaDaMarca } from "@shared/prazo-sem-aprovacao";
+import { ehMolde } from "@shared/molde";
 import { podeIncluirNoKit } from "@shared/kit";
 import { obterOuCriarInclusaoDoKit } from "../../services/kitRemessas";
 import { requireAuth, broadcast, createAuditLog, createAuditLogsEmLote, updateEventStatus } from "../shared";
@@ -48,6 +51,15 @@ export function registrarCriacao(app: Express): void {
       if (validatedData.isPriority && !["admin", "solicitacao"].includes(req.userRole ?? "")) {
         return res.status(403).json({ error: "Marcar peça como prioritária é do admin e da Solicitação." });
       }
+      // Nascer "Sem patrocínio" / "Arte do cliente" (26/10): o mesmo gate do PATCH e do lote.
+      if ((validatedData.skipApproval || validatedData.arteDoCliente) && !PAPEIS_QUE_MARCAM.includes(req.userRole ?? "")) {
+        return res.status(403).json({ error: recusaDaMarca("draft", req.userRole) });
+      }
+      // Molde e produção interna não passam por aprovação nenhuma: a "Arte do
+      // cliente" não se aplica a eles e sai em silêncio (a tela nem oferece).
+      // O skipApproval deles fica como veio — é o "sem aprovação" interno
+      // desses fluxos, não a marca "Sem patrocínio" (semPatrocinio o ignora).
+      if (ehMolde(validatedData) || validatedData.producaoInterna) validatedData.arteDoCliente = false;
       // PRODUÇÃO INTERNA (dono, 02/10): nascer marcada "vai direto para a
       // Gráfica" é do admin e da Solicitação (shared/producao-interna.ts). O
       // arquivo é opcional e entra só na peça marcada — é o MESMO campo que a
@@ -111,7 +123,13 @@ export function registrarCriacao(app: Express): void {
         if (criada) broadcast({ type: "kit_remessas", eventId: event.id });
       }
 
+      // ARTE DO CLIENTE (26/10): quem marcou e quando, já no nascimento (RN10).
+      if (validatedData.arteDoCliente) Object.assign(validatedData, colunasDaArteDoCliente(true, req.userName ?? null));
+
       const item = await storage.createItem(validatedData);
+      // RN10: nascer com "Sem patrocínio" / "Arte do cliente" também é marcar
+      // — a trilha leva os prazos de Layout normal × ajustado do momento.
+      const frasesDasMarcas = await frasesDasMarcasDaPeca({ eventId: item.eventId, skipApproval: false, arteDoCliente: false }, item, "na criação");
       
       // Create audit log
       await createAuditLog(
@@ -123,6 +141,7 @@ export function registrarCriacao(app: Express): void {
         + (item.isPriority ? " — PRIORITÁRIA" : "")
         + (item.kitRemessaId ? " — KIT" : "")
         + (item.producaoInterna ? " — DIRETO PARA A GRÁFICA (produção interna)" : "")
+        + (frasesDasMarcas.length ? ` · ${frasesDasMarcas.join(" · ")}` : "")
       );
 
       // Novo item adicionado - notifica Arte + Gráfica
@@ -205,6 +224,13 @@ export function registrarCriacao(app: Express): void {
           // Tipada como InsertItem: o arquivo da produção interna (abaixo) é
           // campo que o schema público não aceita do corpo — o servidor o põe.
           const parsed: InsertItem = publicInsertItemSchema.omit({ kitRemessaId: true }).parse(item);
+          if ((parsed.skipApproval || parsed.arteDoCliente) && !PAPEIS_QUE_MARCAM.includes(req.userRole ?? "")) {
+            throw erroPublico(403, `Linha ${index + 1}: ${recusaDaMarca("draft", req.userRole)}`);
+          }
+          // Molde e produção interna: sem "Arte do cliente" (como no POST unitário).
+          if (ehMolde(parsed) || parsed.producaoInterna) parsed.arteDoCliente = false;
+          // Arte do cliente (26/10): quem marcou, já no nascimento.
+          if (parsed.arteDoCliente) Object.assign(parsed, colunasDaArteDoCliente(true, req.userName ?? null));
           // Produção interna na Entrada Rápida (dono, 07/10: a coluna
           // "Gráfica" da grade): a MESMA régua do POST unitário — papel,
           // molde, reaproveitamento total, instrução normalizada. A peça nasce
@@ -249,11 +275,16 @@ export function registrarCriacao(app: Express): void {
 
       // AUDITORIA 27/08: a trilha do lote sai em UM INSERT — era um por peça,
       // em série, logo depois de createBulkItems ter inserido tudo de uma vez.
+      // RN10 (26/10): a peça que nasce com marca leva os dois prazos na linha.
+      const ctxDasMarcas = createdItems.some(pulaAprovacao) ? await contextoDosPrazos(createdItems[0].eventId) : null;
+      const frasesDaPeca = (item: (typeof createdItems)[number]) =>
+        ctxDasMarcas ? frasesDasMarcas({ skipApproval: false, arteDoCliente: false }, item, ctxDasMarcas, "na criação") : [];
       await createAuditLogsEmLote(req, createdItems.map((item) => ({
         action: 'created', entityType: 'item', entityId: item.id,
         details: `Item "${item.type}" criado - Qtd: ${item.quantity}, ${item.calculatedM2}m²`
           + (item.isPriority ? " — PRIORITÁRIA" : "")
-          + (item.producaoInterna ? " — DIRETO PARA A GRÁFICA (produção interna)" : ""),
+          + (item.producaoInterna ? " — DIRETO PARA A GRÁFICA (produção interna)" : "")
+          + frasesDaPeca(item).map((f) => ` · ${f}`).join(""),
       })));
       
       // Get event for notification

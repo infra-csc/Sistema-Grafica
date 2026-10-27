@@ -136,6 +136,7 @@ const TriagemRetorno = lazyPage(() => import("@/pages/triagem-retorno"));
 const ConfigurarCotas = lazyPage(() => import("@/pages/configurar-cotas"));
 const GestaoPrazos = lazyPage(() => import("@/pages/gestao-prazos"));
 const ReparoMotivos = lazyPage(() => import("@/pages/reparo-motivos"));
+const Configuracoes = lazyPage(() => import("@/pages/configuracoes"));
 const ReparoVinculosEvento = lazyPage(() => import("@/pages/reparo-vinculos-evento"));
 const InferirExecutivos = lazyPage(() => import("@/pages/inferir-executivos"));
 
@@ -559,6 +560,9 @@ function Router() {
       </Route>
       <Route path="/reparo-motivos">
         {() => <RoleProtectedRoute component={ReparoMotivos} allowedRoles={ROLES_ADMIN} />}
+      </Route>
+      <Route path="/configuracoes">
+        {() => <RoleProtectedRoute component={Configuracoes} allowedRoles={ROLES_ADMIN} />}
       </Route>
       <Route path="/reparo-vinculos-evento">
         {() => <RoleProtectedRoute component={ReparoVinculosEvento} allowedRoles={ROLES_ADMIN} />}

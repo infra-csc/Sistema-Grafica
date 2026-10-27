@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, pgSequence, text, varchar, timestamp, integer, decimal, boolean, json, jsonb, index, uniqueIndex, check } from "drizzle-orm/pg-core";
+import { pgTable, pgSequence, text, varchar, timestamp, date, integer, decimal, boolean, json, jsonb, index, uniqueIndex, check } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -422,6 +422,20 @@ export const items = pgTable("items", {
   // obrigatória (mín. 10 caracteres) no envio sem arquivo final, e aparece em
   // destaque na fila da Gráfica. NULL = peça comum, ou marcada sem instrução.
   instrucoesGrafica: text("instrucoes_grafica"),
+  // ARTE DO CLIENTE (Pedro/dono, 26/10 — "Prazos para peças sem aprovação"):
+  // a peça cuja arte vem pronta do cliente. Pula a Aprovação (como a "Sem
+  // patrocínio", que é `skipApproval`) e espera o arquivo em Layout. O
+  // subestado "Layout — Aguardando arte do cliente" é ESTA marca sem
+  // `arteRecebidaEm` — não um status da máquina (shared/prazo-sem-aprovacao.ts).
+  // Marcação sempre manual. Quem e quando marcou por último ficam aqui; todas
+  // as marcações e desmarcações, na trilha (com os prazos normal × ajustado).
+  arteDoCliente: boolean("arte_do_cliente").notNull().default(false),
+  arteDoClienteMarcadaEm: timestamp("arte_do_cliente_marcada_em"),
+  arteDoClienteMarcadaPor: text("arte_do_cliente_marcada_por"),
+  // "Arte recebida": o DIA (do negócio, "YYYY-MM-DD") em que o arquivo do
+  // cliente chegou — informado por quem marca (padrão hoje). NULL = aguardando.
+  arteRecebidaEm: date("arte_recebida_em", { mode: "string" }),
+  arteRecebidaPor: text("arte_recebida_por"),
   // DE ONDE VEM O REAPROVEITAMENTO (dono, 16/10: caminhões "conjugados" que
   // seguem de uma etapa para outra sem voltar a SP). "estoque" = a peça sai do
   // galpão (a Gráfica busca); "em_transito" = já está no caminhão, vinda de
@@ -746,6 +760,19 @@ export const prazoCobrancas = pgTable("prazo_cobrancas", {
   // scripts/indices-performance.sql.
   index("IDX_prazo_cobrancas_target_id_created").on(table.targetId, table.createdAt.desc()),
 ]);
+
+// CONFIGURAÇÕES GERAIS DO APP (26/10) — uma linha por chave, editadas pelo
+// admin na tela Configurações. Nasceu com a duração da etapa de Aprovação
+// ("dias_da_aprovacao", padrão 7, em dias corridos), que estende o prazo de
+// Layout das peças sem aprovação (shared/prazo-sem-aprovacao.ts). Valor em
+// jsonb para a próxima configuração não precisar de coluna nova; quem lê
+// valida (a leitura cai no padrão quando a linha falta ou está fora da faixa).
+export const configuracoes = pgTable("configuracoes", {
+  chave: text("chave").primaryKey(),
+  valor: jsonb("valor").notNull(),
+  atualizadoEm: timestamp("atualizado_em").notNull().default(sql`now()`),
+  atualizadoPor: text("atualizado_por"),
+});
 
 // Gestão de Prazos: snapshot diário dos KPIs (1 linha por dia de negócio) —
 // alimenta a tendência ▲▼ contra o último registro nos cards. Escrito pelo job
@@ -1366,6 +1393,12 @@ export const publicInsertItemSchema = insertItemSchema.omit({
   labelPrintedAt: true,
   bookUrl: true,
   deletedAt: true,
+  // Arte do cliente (26/10): a MARCA vem do formulário; quem marcou e a
+  // chegada da arte, só o servidor grava (a chegada pela rota "Arte recebida").
+  arteDoClienteMarcadaEm: true,
+  arteDoClienteMarcadaPor: true,
+  arteRecebidaEm: true,
+  arteRecebidaPor: true,
 });
 
 export const insertStandardItemSchema = createInsertSchema(standardItems).omit({

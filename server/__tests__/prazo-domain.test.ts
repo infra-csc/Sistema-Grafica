@@ -429,6 +429,7 @@ describe("computeKpis", () => {
 
   it("placar vazio não quebra", () => {
     expect(computeKpis([])).toEqual({
+      pecasAtrasoDoCliente: 0,
       atrasados: 0, saidas7d: 0, pecasAtrasadas: 0, emDia: 0, invalidCount: 0, semPecas: 0,
     });
   });

@@ -15,19 +15,21 @@
 // carrega a resposta em dois campos:
 //
 //   • `item.marcoIndex` — o índice da etapa cujo PRAZO mede aquela peça. É
-//     igual a `stageIndex` no caso normal e aponta para a Aprovação de Layout
-//     na peça isenta de aprovação (`items.skipApproval`) — ver `marcoIndexFor`
-//     em `server/services/prazo-domain.ts`.
-//   • `stages[marcoIndex].state` — "overdue" quando aquele prazo já venceu.
-//     O estado é calculado no servidor e já embute as duas exceções que
-//     importam: evento com data de saída inválida nunca fica "overdue" (sem
-//     data confiável não há atraso confiável) e evento sem peça nenhuma
-//     também não.
+//     igual a `stageIndex` no caso normal; difere na peça do Kit e na peça sem
+//     aprovação em Lista de Imagens — ver `marcoIndexFor` em
+//     `server/services/prazo-domain.ts`.
+//   • `item.prazo` (26/10) — o prazo DA PEÇA naquele marco: o do evento, ou o
+//     prazo de Layout AJUSTADO na peça "Sem patrocínio" / "Arte do cliente"
+//     ainda em Layout (Layout + dias da Aprovação — @shared/prazo-sem-aprovacao).
+//   • `stages[marcoIndex].state` — "overdue" quando algum prazo das peças do
+//     gate venceu. Já embute as duas exceções: evento com data de saída
+//     inválida nunca fica "overdue" e evento sem peça nenhuma também não.
 //
-// Então: PEÇA ATRASADA = `stages[item.marcoIndex].state === "overdue"`, e os
-// dias de atraso são `|stages[marcoIndex].diffDays|`. Uma peça só entra na
-// lista quando o prazo que a mede venceu — é o que permite escrever "atrasada
-// há 12 dias" em cada linha sem mentir.
+// Então: PEÇA ATRASADA = marco "overdue" E `item.prazo` antes de hoje (a peça
+// sem aprovação pode estar no gate de um marco vencido pela peça comum ao lado
+// sem estar atrasada ela mesma); os dias de atraso contam do `item.prazo`.
+// Uma peça só entra na lista quando o prazo que a mede venceu — é o que permite
+// escrever "atrasada há 12 dias" em cada linha sem mentir.
 //
 // RELAÇÃO COM O PLACAR (`kpis.pecasAtrasadas`): o KPI soma `pecasEmAtraso` de
 // cada evento, que é a pendência ACUMULADA da etapa vencida mais avançada —
@@ -40,6 +42,7 @@
 // tela diz isso em uma linha em vez de deixar dois números se contradizerem.
 import type { PrazoEvent, PrazoPendingItem, PrazoStage } from "@shared/prazos-contract";
 import { normalize, STAGE_SECTOR, urlPecaNoEvento, urlSetorDaPeca } from "./tokens";
+import { contarPorMarca, itemPassaNaMarca, type FiltroDeMarcaPrazos } from "./sem-aprovacao";
 
 /** Uma peça atrasada, já resolvida: evento, etapa, prazo, setor e destino. */
 export interface PecaAtrasada {
@@ -53,15 +56,19 @@ export interface PecaAtrasada {
   item: PrazoPendingItem;
   /** Etapa em que a peça ESTÁ — é dela que sai "de quem é a bola". */
   stage: PrazoStage;
-  /** Etapa cujo PRAZO mede a peça. Igual a `stage`, exceto na peça isenta. */
+  /** Etapa cujo PRAZO mede a peça. Igual a `stage`, exceto no Kit e na peça sem aprovação em Lista de Imagens. */
   marco: PrazoStage;
   /**
-   * `true` quando o marco não é a etapa em que a peça está: a peça é isenta da
-   * aprovação do patrocinador e por isso é cobrada pelo prazo da Aprovação de
-   * Layout. Sem esta marca, a linha diria "Entrega de Layouts · atrasada há 6
-   * dias" citando um prazo que não é o daquela etapa.
+   * `true` quando o prazo que mede a peça não é o da etapa em que ela está: a
+   * peça do Kit (cobrada pela Aprovação) ou a peça sem aprovação (cobrada pelo
+   * Layout ajustado). Sem esta marca, a linha diria "Entrega de Layouts ·
+   * atrasada há 6 dias" citando um prazo que não é o daquela etapa.
    */
   cobradaPorOutraEtapa: boolean;
+  /** O prazo que mede a peça ("YYYY-MM-DD") — o do marco ou o Layout ajustado. */
+  prazo: string;
+  /** O prazo veio da regra das peças sem aprovação (Layout ajustado). */
+  prazoAjustado: boolean;
   /** Dias-calendário desde o vencimento do marco (sempre ≥ 1). */
   diasAtraso: number;
   /** Setor que destrava — mesma fonte do drill (`STAGE_SECTOR`). */
@@ -83,6 +90,20 @@ export interface PecaAtrasada {
  * código — determinismo total, para a lista não dançar entre dois renders com
  * o mesmo dado.
  */
+/** Dias de `b` até `a` ("YYYY-MM-DD"). */
+const diasEntre = (a: string, b: string) => Math.round((Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`)) / 86_400_000);
+
+/**
+ * O "hoje" do servidor, reconstituído do marco (`prazoEfetivo` − `diffDays`):
+ * a lista não lê o relógio do navegador para decidir regra (ver o contrato).
+ */
+function hojeDoPayload(s: PrazoStage): string {
+  const base = s.prazoEfetivo ?? s.deadline;
+  const d = new Date(`${base}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - s.diffDays);
+  return d.toISOString().slice(0, 10);
+}
+
 export function computePecasAtrasadas(events: PrazoEvent[]): PecaAtrasada[] {
   const out: PecaAtrasada[] = [];
   for (const ev of events) {
@@ -96,6 +117,11 @@ export function computePecasAtrasadas(events: PrazoEvent[]): PecaAtrasada[] {
       const stage = ev.stages[item.stageIndex];
       if (!marco || !stage) continue;
       if (marco.state !== "overdue") continue;
+      // O prazo DA PEÇA (26/10). `prazo` e `prazoEfetivo` podem faltar num
+      // payload de Express antigo: cai no prazo do marco, a regra de antes.
+      const prazo = item.prazo ?? marco.deadline;
+      const hoje = hojeDoPayload(marco);
+      if (!(prazo < hoje)) continue;
       const alvo = STAGE_SECTOR[stage.key];
       out.push({
         key: item.id,
@@ -106,8 +132,10 @@ export function computePecasAtrasadas(events: PrazoEvent[]): PecaAtrasada[] {
         item,
         stage,
         marco,
-        cobradaPorOutraEtapa: marcoIdx !== item.stageIndex,
-        diasAtraso: Math.abs(marco.diffDays),
+        cobradaPorOutraEtapa: marcoIdx !== item.stageIndex || prazo !== marco.deadline,
+        prazo,
+        prazoAjustado: prazo !== marco.deadline,
+        diasAtraso: diasEntre(hoje, prazo),
         setor: alvo?.sector ?? stage.label,
         // Toda peça desta lista está atrasada por definição (o `continue`
         // acima), então o recorte de atrasados do destino pode ir ligado.
@@ -165,6 +193,11 @@ export interface FiltroPecasAtrasadas {
   prioridade?: string;
   /** "YYYY-MM-DD" ou "" — o prazo que mede a peça vence neste dia. */
   dia?: string;
+  /**
+   * As marcas da peça (RF11, Pedro/dono 26/10): "Sem patrocínio", "Arte do
+   * cliente", "Aguardando arte do cliente", "Atraso do cliente" — ou "all".
+   */
+  marca?: FiltroDeMarcaPrazos;
 }
 
 /**
@@ -190,14 +223,15 @@ function alvoDaBusca(p: PecaAtrasada): string {
 
 export function filtrarPecasAtrasadas(
   lista: PecaAtrasada[],
-  { busca = "", eventoId = "all", etapaKey = "all", prioridade = "all", dia = "" }: FiltroPecasAtrasadas,
+  { busca = "", eventoId = "all", etapaKey = "all", prioridade = "all", dia = "", marca = "all" }: FiltroPecasAtrasadas,
 ): PecaAtrasada[] {
   const q = normalize(busca.trim());
   return lista.filter((p) => {
     if (eventoId !== "all" && p.eventId !== eventoId) return false;
     if (etapaKey !== "all" && p.stage.key !== etapaKey) return false;
     if (prioridade !== "all" && p.eventPriority !== prioridade) return false;
-    if (dia && p.marco.deadline !== dia) return false;
+    if (dia && p.prazo !== dia) return false;
+    if (marca !== "all" && !itemPassaNaMarca(p.item, marca)) return false;
     if (q && !alvoDaBusca(p).includes(q)) return false;
     return true;
   });
@@ -227,6 +261,8 @@ export interface ContagensPecasAtrasadas {
   porPrioridade: Map<string, number>;
   /** dia do prazo que mede a peça ("YYYY-MM-DD") → peças. */
   porDia: Map<string, number>;
+  /** marca da peça → peças (as opções se sobrepõem: "Sem aprovação" contém as outras). */
+  porMarca: Map<FiltroDeMarcaPrazos, number>;
 }
 
 /**
@@ -254,6 +290,7 @@ export function contarPecasAtrasadas(
     porEvento: agrupar(filtrarPecasAtrasadas(base, { ...semBusca, eventoId: "all" }), (p) => p.eventId),
     porEtapa: agrupar(filtrarPecasAtrasadas(base, { ...semBusca, etapaKey: "all" }), (p) => p.stage.key),
     porPrioridade: agrupar(filtrarPecasAtrasadas(base, { ...semBusca, prioridade: "all" }), (p) => p.eventPriority),
-    porDia: agrupar(filtrarPecasAtrasadas(base, { ...semBusca, dia: "" }), (p) => p.marco.deadline),
+    porDia: agrupar(filtrarPecasAtrasadas(base, { ...semBusca, dia: "" }), (p) => p.prazo),
+    porMarca: contarPorMarca(filtrarPecasAtrasadas(base, { ...semBusca, marca: "all" }), (p) => p.item),
   };
 }

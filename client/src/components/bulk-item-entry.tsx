@@ -15,6 +15,8 @@ import { LinhaDaGrafica } from "@/components/entrada-rapida/linha-da-grafica";
 import { calculateM2FromStrings } from "@/lib/calculateM2";
 import { useToast } from "@/hooks/use-toast";
 import { T, N, TOM, FONT } from "@/lib/theme";
+import { useDiasDaAprovacao } from "@/hooks/use-configuracoes";
+import { ROTULO_ARTE_DO_CLIENTE, ROTULO_SEM_PATROCINIO } from "@shared/prazo-sem-aprovacao";
 import { Botao } from "@/components/ui/botao";
 import { useConfirmar } from "@/components/ui/usar-confirmar";
 import { fieldStyle, makeFocusHandlers } from "@/components/entrada-rapida/estilos";
@@ -24,7 +26,7 @@ import { ExistingItemsPanel } from "@/components/entrada-rapida/painel-pecas-lan
 import { RevisaoDoLote } from "@/components/entrada-rapida/revisao-do-lote";
 import {
   materials, finishes, FIELDS_PER_ROW, opcoesDeCampo, isRowComplete, createEmptyRow, isSameItem,
-  motivoDaLinhaNaoIrParaGrafica, corpoDaProducaoInternaDaLinha,
+  motivoDaLinhaNaoIrParaGrafica, corpoDaProducaoInternaDaLinha, motivoDaLinhaSemMarcas, corpoDasMarcasDaLinha,
 } from "@/components/entrada-rapida/regras";
 import type {
   BulkItemRow, StandardItem, Sponsor, ExistingItem, PecaDoLote, DuplicataDoLote, ConfirmacaoDoLote,
@@ -55,6 +57,12 @@ interface BulkItemEntryProps {
    */
   podeProducaoInterna?: boolean;
   /**
+   * admin|solicitacao (PAPEIS_QUE_MARCAM): mostra as colunas "Sem patrocínio"
+   * e "Arte do cliente" — as marcas da peça sem aprovação por linha (Pedro/
+   * dono, 26/10), as mesmas do formulário de uma peça.
+   */
+  podeMarcarSemAprovacao?: boolean;
+  /**
    * Avisa o pai se a grade tem algo digitado. É o que deixa o X do modal
    * perguntar "descartar?" SÓ quando há o que perder — antes perguntava
    * sempre, até com a grade vazia.
@@ -65,8 +73,9 @@ interface BulkItemEntryProps {
 /* ── Main Component ─────────────────────────────────────────────────── */
 export function BulkItemEntry({
   eventId, standardItems = [], sponsors = [], existingItems = [],
-  onSubmit, onCancel, isPending, savedTick = 0, podePriorizar = false, podeProducaoInterna = false, onConteudoChange,
+  onSubmit, onCancel, isPending, savedTick = 0, podePriorizar = false, podeProducaoInterna = false, podeMarcarSemAprovacao = false, onConteudoChange,
 }: BulkItemEntryProps) {
+  const diasDaAprovacao = useDiasDaAprovacao();
   const [rows, setRows] = useState<BulkItemRow[]>([createEmptyRow()]);
   const [replicateCounts, setReplicateCounts] = useState<Record<string, number>>({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -125,7 +134,15 @@ export function BulkItemEntry({
 
   /** Os campos da produção interna da linha (a caixinha e o bloco de baixo). */
   function updateProducaoInterna(id: string, parcial: Partial<Pick<BulkItemRow, "producaoInterna" | "instrucoesGrafica" | "arquivoGrafica" | "arquivoGraficaNome">>) {
-    setRows(prev => prev.map(row => (row.id === id ? { ...row, ...parcial } : row)));
+    // Marcar "Gráfica" limpa as marcas de peça sem aprovação da linha: a peça
+    // vai direto para a Gráfica e elas deixam de valer (motivoDaLinhaSemMarcas).
+    const limpaMarcas = parcial.producaoInterna === true ? { skipApproval: false, arteDoCliente: false } : {};
+    setRows(prev => prev.map(row => (row.id === id ? { ...row, ...parcial, ...limpaMarcas } : row)));
+  }
+
+  /** As marcas da peça sem aprovação da linha (26/10). */
+  function updateMarca(id: string, campo: "skipApproval" | "arteDoCliente", valor: boolean) {
+    setRows(prev => prev.map(row => (row.id === id ? { ...row, [campo]: valor } : row)));
   }
 
   const addRow = useCallback(() => {
@@ -232,6 +249,9 @@ export function BulkItemEntry({
         // uma peça. Só quem vê a coluna manda a marca — sem ela, a linha
         // segue o caminho de sempre.
         ...(podeProducaoInterna ? corpoDaProducaoInternaDaLinha(r) : {}),
+        // Peça sem aprovação (26/10): "Sem patrocínio" e "Arte do cliente" —
+        // só quem vê as colunas manda; a linha "Gráfica" não manda (não se aplicam).
+        ...(podeMarcarSemAprovacao ? corpoDasMarcasDaLinha({ ...r, producaoInterna: podeProducaoInterna && r.producaoInterna }) : {}),
       }));
     if (valid.length === 0) {
       setSubmitAttempted(true);
@@ -337,6 +357,11 @@ export function BulkItemEntry({
     [standardItems, catalogOptions],
   );
 
+  const efeitoDaMarca = `não passa pela Aprovação; prazo de Layout + ${diasDaAprovacao} ${diasDaAprovacao === 1 ? 'dia' : 'dias'} da Aprovação`;
+  const marcasDaGrade = [
+    { label: 'Sem patroc.', w: '66px', orange: false, tinta: TOM.alerta.text, campo: 'skipApproval' as const, nome: ROTULO_SEM_PATROCINIO, efeito: efeitoDaMarca, testid: 'checkbox-sem-patrocinio' },
+    { label: 'Arte cliente', w: '66px', orange: false, tinta: TOM.turquesa.text, campo: 'arteDoCliente' as const, nome: ROTULO_ARTE_DO_CLIENTE, efeito: `a arte vem pronta do cliente; ${efeitoDaMarca}`, testid: 'checkbox-arte-do-cliente' },
+  ];
   const cols = [
     { label: 'Tipo',       w: '134px', orange: false },
     { label: 'Descrição',  w: '126px', orange: false },
@@ -349,6 +374,11 @@ export function BulkItemEntry({
     { label: 'Material',   w: '84px',  orange: false },
     { label: 'Acab.',      w: '84px',  orange: false },
     { label: 'Obs',        w: '80px',  orange: false },
+    // PEÇA SEM APROVAÇÃO (Pedro/dono, 26/10): as duas marcas do formulário de
+    // uma peça, por linha — só para quem marca (PAPEIS_QUE_MARCAM). O
+    // cabeçalho é curto (duas linhas de 10px); o nome inteiro e o efeito vão
+    // no title e no texto para leitor de tela.
+    ...(podeMarcarSemAprovacao ? marcasDaGrade : []),
     // GRÁFICA (dono, 07/10): a caixinha "vai direto para a Gráfica" — só para
     // quem pode marcar (admin|Solicitação), como no formulário de uma peça.
     ...(podeProducaoInterna ? [{ label: 'Gráfica', w: '62px', orange: false, ceu: true }] : []),
@@ -390,7 +420,7 @@ export function BulkItemEntry({
         className="scrollbar-visible"
         style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', minWidth: 0 }}
       >
-        <div style={{ minWidth: podeProducaoInterna ? '1032px' : '970px', padding: '16px 20px 24px' }}>
+        <div style={{ minWidth: `${970 + (podeProducaoInterna ? 62 : 0) + (podeMarcarSemAprovacao ? 132 : 0)}px`, padding: '16px 20px 24px' }}>
 
           {/* ══ SEÇÃO: PEÇAS JÁ LANÇADAS ══ */}
           {existingItems.length > 0 && (
@@ -401,20 +431,29 @@ export function BulkItemEntry({
           <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 4px' }}>
             <thead>
               <tr style={{ textAlign: 'left' }}>
-                {cols.map((col, i) => (
-                  <th key={i} style={{
+                {cols.map((col, i) => {
+                  const marca = 'nome' in col ? col : null;
+                  return (
+                  <th key={i} title={marca ? `${marca.nome} — ${marca.efeito}` : undefined} style={{
                     paddingBottom: '10px', paddingLeft: '5px', paddingRight: '5px',
                     fontSize: '10px', fontWeight: '800',
                     textTransform: 'uppercase', letterSpacing: '0.1em',
                     // O laranja marca as colunas de MEDIDA; em texto de 10px ele
                     // precisa ser o escuro (#c2410c) para ser lido.
-                    color: col.orange ? T.accentText : 'ceu' in col ? TOM.ceu.text : T.second,
-                    whiteSpace: 'nowrap', fontFamily: FONT.display,
+                    color: col.orange ? T.accentText : 'ceu' in col ? TOM.ceu.text : marca ? marca.tinta : T.second,
+                    // As marcas quebram em duas linhas ("Sem / patroc.") para
+                    // caber em 66px; o resto do cabeçalho desce junto (bottom).
+                    whiteSpace: marca ? 'normal' : 'nowrap', lineHeight: marca ? 1.2 : undefined,
+                    verticalAlign: 'bottom', textAlign: marca ? 'center' : undefined,
+                    fontFamily: FONT.display,
                     width: col.w || undefined,
                   }}>
-                    {col.label}
+                    {marca
+                      ? <><span aria-hidden="true">{marca.label}</span><span className="sr-only">{marca.nome}</span></>
+                      : col.label}
                   </th>
-                ))}
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -425,6 +464,8 @@ export function BulkItemEntry({
                 const marcada = podeProducaoInterna && row.producaoInterna;
                 const fundo = marcada ? TOM.ceu.bg : 'transparent';
                 const motivoGrafica = podeProducaoInterna ? motivoDaLinhaNaoIrParaGrafica(row) : null;
+                // As marcas de peça sem aprovação travam na linha "Gráfica", com o porquê.
+                const motivoMarcas = podeMarcarSemAprovacao ? motivoDaLinhaSemMarcas({ producaoInterna: marcada }) : null;
                 return (
                 <Fragment key={row.id}>
                 <tr
@@ -592,6 +633,35 @@ export function BulkItemEntry({
                     />
                   </td>
 
+                  {/* Sem patrocínio · Arte do cliente (26/10) — as caixinhas no
+                      MESMO padrão da "Gráfica": fora da navegação do Enter, o
+                      Tab passa por elas (Obs → marcas → Gráfica → ações) e o
+                      espaço marca. Na linha "Gráfica" ficam travadas com o
+                      porquê no title. */}
+                  {podeMarcarSemAprovacao && marcasDaGrade.map(c => {
+                    const marcado = !motivoMarcas && row[c.campo];
+                    return (
+                      <td key={c.campo} style={{ padding: '2px 4px', textAlign: 'center' }}>
+                        <label
+                          title={motivoMarcas ?? (marcado ? `${c.nome} — ${c.efeito}. Clique para desmarcar.` : `${c.nome} — ${c.efeito}`)}
+                          className="erp-pi-alvo"
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 30, cursor: motivoMarcas ? 'not-allowed' : 'pointer' }}
+                        >
+                          <Checkbox
+                            checked={marcado}
+                            disabled={!!motivoMarcas}
+                            onCheckedChange={v => updateMarca(row.id, c.campo, !!v)}
+                            aria-label={`${c.nome}, linha ${ri + 1}`}
+                            aria-description={motivoMarcas ?? c.efeito}
+                            data-testid={`${c.testid}-${ri}`}
+                            className="erp-pi-caixinha"
+                            data-alvo-natural=""
+                          />
+                        </label>
+                      </td>
+                    );
+                  })}
+
                   {/* Gráfica — a caixinha "vai direto para a Gráfica" (07/10).
                       Fora da navegação do Enter (é um clique, não um campo);
                       o Tab passa por ela. Molde e reaproveitamento total não
@@ -713,10 +783,17 @@ export function BulkItemEntry({
           </table>
 
           {/* ── ADICIONAR LINHA ── */}
-          <div style={{ marginTop: '10px' }}>
+          <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
             <Botao variante="secundario" tamanho="sm" icone={Plus} onClick={addRow} data-testid="button-add-row">
               Adicionar Linha
             </Botao>
+            {/* O QUE AS DUAS COLUNAS FAZEM, à vista (revisão 27/10): o cabeçalho
+                é curto e o `title` não aparece no toque. */}
+            {podeMarcarSemAprovacao && (
+              <span data-testid="legenda-marcas-da-grade" style={{ fontSize: 12, color: T.second, lineHeight: 1.45 }}>
+                <strong style={{ color: T.text, fontWeight: 600 }}>Sem patroc.</strong> e <strong style={{ color: T.text, fontWeight: 600 }}>Arte cliente</strong>: a peça não passa pela Aprovação e o prazo de Layout ganha {diasDaAprovacao} {diasDaAprovacao === 1 ? 'dia corrido' : 'dias corridos'}.
+              </span>
+            )}
           </div>
 
         </div>

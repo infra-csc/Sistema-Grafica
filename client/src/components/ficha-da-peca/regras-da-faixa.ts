@@ -10,6 +10,7 @@ import { DIA_MS, type NomeDoTom } from "./estilos";
 import { dataDoValor, haQuantoTempo } from "./formatos";
 import type { AprovacaoDaFicha, EventoDoPercurso, ItemDaFicha } from "./tipos";
 import { quantidadeFisicaDe } from "@shared/origem-do-reaproveitamento";
+import { aguardandoArteDoCliente, arteDoCliente, pulaAprovacao, SUBESTADO_AGUARDANDO_ARTE } from "@shared/prazo-sem-aprovacao";
 
 export function resolverFaixa({ item, rawStatus, approvalsList, eventosPercurso }: {
   item: ItemDaFicha;
@@ -106,6 +107,17 @@ export function resolverFaixa({ item, rawStatus, approvalsList, eventosPercurso 
           : (pendentes.length > 1 ? `Aguardando: ${nomes(pendentes)}` : "Nenhum patrocinador respondeu até agora"),
       };
     }
+    // PEÇA SEM APROVAÇÃO (Pedro/dono, 26/10 — RN06/RF07): a que espera a arte
+    // do cliente diz o subestado, em qualquer etapa do Layout; a que pula a
+    // Aprovação não diz "enviar para aprovação" nem "aprovada".
+    if (aguardandoArteDoCliente({ ...item, status: rawStatus })) {
+      return { tom: "espera", frase: `${SUBESTADO_AGUARDANDO_ARTE}${desdeQuando}`, detalhe: "A arte vem pronta do cliente. Quando o arquivo chegar, registre “Arte recebida” — a peça vai direto para a Finalização, sem passar pela Aprovação." };
+    }
+    if (rawStatus === "awaiting_submission" && pulaAprovacao(item) && !ehMolde(item)) {
+      return arteDoCliente(item)
+        ? { tom: "espera", frase: `Arte do cliente recebida — falta enviar para a Finalização${desdeQuando}`, detalhe: "A peça não passa pela Aprovação: na Arte, “Enviar direto” leva o arquivo do cliente para a Finalização." }
+        : { tom: "espera", frase: `Aguardando a Arte — sem Aprovação${desdeQuando}`, detalhe: "Sem patrocínio: a Arte faz o layout e envia direto para a Finalização, sem passar pelos patrocinadores." };
+    }
     if (rawStatus === "awaiting_linking") {
       return { tom: "espera", frase: `Sem patrocinador vinculado${desdeQuando}`, detalhe: "A peça só entra em aprovação depois de vincular as marcas que aparecem nela." };
     }
@@ -120,7 +132,9 @@ export function resolverFaixa({ item, rawStatus, approvalsList, eventosPercurso 
         tom: "ok",
         frase: linhasPatrocinador.length
           ? `Aprovada por todos os ${linhasPatrocinador.length} patrocinadores — falta finalizar a arte`
-          : "Aprovada — falta finalizar a arte",
+          : pulaAprovacao(item)
+            ? "Sem aprovação — falta finalizar a arte"
+            : "Aprovada — falta finalizar a arte",
         detalhe: `A Arte precisa subir o arquivo final${desdeQuando ? ` · sem movimento${desdeQuando}` : ""}`,
       };
     }
@@ -170,6 +184,7 @@ export function resolverFaixa({ item, rawStatus, approvalsList, eventosPercurso 
   // botão, só o endereço de onde a ação mora. Fonte: lib/status (STATUS_GUIA).
   const vezDeQuem: string | null = (() => {
     if (bloqueio.tom === "reprovado") return proximoPassoDaAprovacao("awaiting_arte");
+    if (aguardandoArteDoCliente({ ...item, status: rawStatus })) return "Quem age agora: o cliente envia o arquivo; quem recebe (Solicitação, Arte ou admin) registra “Arte recebida” — na tela Arte ou no Detalhe do Evento.";
     const g = guiaDoStatus(statusDeExibicao(item));
     if (!g?.quemAge) return null;
     return `Quem age agora: ${g.quemAge}${g.onde ? ` — ${g.onde}` : ""}.`;

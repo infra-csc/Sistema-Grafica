@@ -5,7 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState } from "react";
 import { Link } from "wouter";
-import { Plus, Pencil, Trash2, Lock, Recycle, AlertTriangle, Factory } from "lucide-react";
+import { Plus, Pencil, Trash2, Lock, Recycle, AlertTriangle, Factory, FileInput } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { DetalheProducao } from "@/components/detalhe-producao";
 import { faseDaArte } from "@/components/prazos/tokens";
@@ -17,6 +17,8 @@ import { PrioridadeNaImpressaoIcone } from "@/components/prioridade-na-impressao
 import { Botao } from "@/components/ui/botao";
 import { Selo } from "@/components/ui/selo";
 import type { useToast } from "@/hooks/use-toast";
+import { SelosSemAprovacao } from "@/components/selo-sem-aprovacao";
+import { PAPEIS_DA_ARTE_RECEBIDA, aguardandoArteDoCliente, pulaAprovacao } from "@shared/prazo-sem-aprovacao";
 import type { useEventReference } from "@/hooks/use-event-reference";
 import type { useEventItemFlags } from "@/hooks/use-event-item-flags";
 import { FINAL_STATUSES, PRODUCTION_STATUSES } from "@/lib/status";
@@ -55,7 +57,13 @@ export interface PropsDaPeca {
   papel?: string | null;
   eventoFinalizado?: boolean;
   abrirEnvioDireto?: (pecas: PecaDoEvento[]) => void;
+  /** "Arte recebida" (26/10): abre o registro da chegada da arte do cliente. */
+  abrirArteRecebida?: (peca: PecaDoEvento) => void;
 }
+
+/** "Arte recebida" vale para esta peça agora? Espera a arte do cliente e quem vê registra. */
+const podeArteRecebida = (p: Pick<PropsDaPeca, "papel" | "eventoFinalizado" | "abrirArteRecebida">, item: PecaDoEvento) =>
+  !p.eventoFinalizado && !!p.abrirArteRecebida && PAPEIS_DA_ARTE_RECEBIDA.includes(p.papel ?? "") && aguardandoArteDoCliente(item);
 
 /** "Enviar direto para a Gráfica" vale para esta peça agora? (shared/producao-interna) */
 const podeDireto = (p: Pick<PropsDaPeca, "papel" | "eventoFinalizado" | "abrirEnvioDireto">, item: PecaDoEvento) =>
@@ -106,13 +114,40 @@ function Medidas({ item, comM2 }: { item: PecaDoEvento; comM2?: boolean }) {
  * do estoque — que chega pronto de quem chama (`estoque`), escrito nas DUAS
  * montagens (cartão e linha).
  */
-function SelosDaPeca({ item, estoque }: { item: PecaDoEvento; estoque: React.ReactNode }) {
+function SelosDaPeca({ item, estoque, aoRegistrarArte }: {
+  item: PecaDoEvento;
+  estoque: React.ReactNode;
+  /** "Arte recebida" (26/10): o botão vai AO LADO do selo "Aguardando arte do cliente". */
+  aoRegistrarArte?: () => void;
+}) {
   const temSelo = !!item.parentItemId || (item.complements?.length ?? 0) > 0
     || (item.isReuse && !(PRODUCTION_STATUSES as readonly string[]).includes(item.status)) || !!estoque
-    || !!origemDe(item);
+    || !!origemDe(item) || pulaAprovacao(item);
   if (!temSelo) return null;
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+      {/* PEÇA SEM APROVAÇÃO (Pedro/dono, 26/10 — RF06): "Sem patrocínio" /
+          "Arte cliente" e, enquanto o arquivo não chega, "Aguardando arte do cliente". */}
+      <SelosSemAprovacao peca={item} />
+      {aoRegistrarArte && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); aoRegistrarArte(); }}
+          data-testid={`button-arte-recebida-${item.id}`}
+          aria-label={`Arte recebida — registrar a chegada da arte do cliente da peça ${item.displayId ?? ""}`}
+          // Botão de verdade (fundo cheio, texto branco) — com a cara de selo
+          // ele se perdia entre os selos da linha (revisão 27/10).
+          className="evd-arte-recebida"
+          style={{
+            display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 28, padding: "4px 12px",
+            borderRadius: 8, border: "none", background: TOM.turquesa.text,
+            color: T.surface, fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
+          }}
+        >
+          <FileInput aria-hidden="true" style={{ width: 13, height: 13 }} />
+          Arte recebida
+        </button>
+      )}
       {/* Parentesco do complemento. Badge OUTLINE e sem tingir a linha: aqui
           ninguém precisa de alarme (o alarme é da fila da Gráfica), só de
           entender por que #0062-C1 existe. O motivo vai no title. */}
@@ -168,7 +203,7 @@ function SelosDaPeca({ item, estoque }: { item: PecaDoEvento; estoque: React.Rea
 export function CartaoDaPeca({
   item, event, canEditLists, canDeleteAny, isEditBlocked, motivoEdicaoBloqueada, canDeleteItem,
   setSelectedItemForDetails, handleEditItem, handleDeleteItem, estoqueResumo, setEstoqueDaPeca,
-  papel, eventoFinalizado, abrirEnvioDireto,
+  papel, eventoFinalizado, abrirEnvioDireto, abrirArteRecebida,
 }: PropsDaPeca & { item: PecaDoEvento }) {
   const refs = refsDaPeca(item);
   const { arq, vis } = medidas(item);
@@ -246,7 +281,8 @@ export function CartaoDaPeca({
           )}
           <SeloPrazoMolde item={item} evento={event} />
           <DetalheProducao item={item} style={{ marginTop: 4, marginBottom: 0 }} />
-          <SelosDaPeca item={item} estoque={estoqueResumo[item.id] ? <SeloDoEstoque item={item} est={estoqueResumo[item.id]} onAbrir={setEstoqueDaPeca} /> : null} />
+          <SelosDaPeca item={item} estoque={estoqueResumo[item.id] ? <SeloDoEstoque item={item} est={estoqueResumo[item.id]} onAbrir={setEstoqueDaPeca} /> : null}
+            aoRegistrarArte={podeArteRecebida({ papel, eventoFinalizado, abrirArteRecebida }, item) ? () => abrirArteRecebida!(item) : undefined} />
         </div>
       </div>
       {canEditLists && (
@@ -308,7 +344,7 @@ export function LinhaDaPeca({
   item, event, compacto, canEditLists, canDeleteAny, canUploadReference, isEditBlocked, motivoEdicaoBloqueada,
   canDeleteItem, setSelectedItemForDetails, handleEditItem, handleDeleteItem, estoqueResumo, setEstoqueDaPeca,
   salvarReferenciasMutation, updateItemIsReuseMutation, getUploadUrl, toast,
-  papel, eventoFinalizado, abrirEnvioDireto,
+  papel, eventoFinalizado, abrirEnvioDireto, abrirArteRecebida,
 }: PropsDaPeca & { item: PecaDoEvento; compacto: boolean }) {
   const celula: React.CSSProperties = { padding: '12px 10px', verticalAlign: 'middle' };
   // O ♻ de MARCAR abre "De onde vem?" (16/10) antes de gravar.
@@ -395,7 +431,8 @@ export function LinhaDaPeca({
           </Selo>
         )}
         <SeloProducaoInterna peca={item} style={{ marginTop: 6 }} />
-        <SelosDaPeca item={item} estoque={estoqueResumo[item.id] ? <SeloDoEstoque item={item} est={estoqueResumo[item.id]} onAbrir={setEstoqueDaPeca} /> : null} />
+        <SelosDaPeca item={item} estoque={estoqueResumo[item.id] ? <SeloDoEstoque item={item} est={estoqueResumo[item.id]} onAbrir={setEstoqueDaPeca} /> : null}
+            aoRegistrarArte={podeArteRecebida({ papel, eventoFinalizado, abrirArteRecebida }, item) ? () => abrirArteRecebida!(item) : undefined} />
       </td>
       {/* Qtd — sem padStart: "05" parecia código, não quantidade. */}
       <td style={{ ...celula, fontSize: FS.body, fontWeight: FW.medio, color: T.text, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>

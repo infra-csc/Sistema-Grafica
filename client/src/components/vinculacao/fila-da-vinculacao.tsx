@@ -22,6 +22,7 @@ import { TOM, T, N, R, FS, FW, FONT, onColor } from "@/lib/theme";
 import { MontaQuandoPerto } from "@/components/monta-quando-perto";
 import { ITEM_RENDER_CAP, LINHAS_DE_SAIDA, THC } from "./constantes";
 import { secaoDaPeca } from "./regras";
+import { pulaAprovacao } from "@shared/prazo-sem-aprovacao";
 import { CaixaDeToque } from "./pecas-de-escolha";
 import type {
   Agrupamento, EventoDaVinculacao, GrupoDaLista, PatrocinadorDaVinculacao, PecaDaVinculacao, UIStatus,
@@ -348,7 +349,10 @@ export function FilaDaVinculacao({
                         const doTipo = itens.filter(i => secaoDaPeca(i) === secaoDaPeca(item));
                         const semPatrocinador = doTipo.filter(i => {
                           const s = itemUIStates[i.id] || 'PENDENTE';
-                          return s === 'PENDENTE';
+                          // Revisão 27/10: a peça "Sem patrocínio" / "Arte do
+                          // cliente" fica sem patrocinador de propósito — não
+                          // entra no alerta.
+                          return s === 'PENDENTE' && !pulaAprovacao(i);
                         }).length;
                         const enviadas = doTipo.filter(i => (itemUIStates[i.id] || 'PENDENTE') === 'ENVIADO').length;
                         // Calculado uma vez por cabeçalho: repetido inline no Checkbox

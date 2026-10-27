@@ -18,6 +18,8 @@ type Decimal = string | number | null;
 export interface EventoDaFicha extends EventoFinalizavel {
   name?: string | null;
   truckDepartureDate?: Data;
+  /** Offset da Entrega de Layouts — base do prazo de Layout ajustado (peças sem aprovação). */
+  deadlineEntregaLayouts?: number | null;
   prazoMolde?: Data;
 }
 
@@ -73,6 +75,12 @@ export interface ItemDaFicha extends PecaComProducao, PecaTravavel, PecaDividive
   displayId?: string | null;
   eventId?: string | null;
   event?: EventoDaFicha | null;
+  /** "Sem patrocínio" / "Arte do cliente" (peças sem aprovação, Pedro/dono 26/10). */
+  skipApproval?: boolean | null;
+  arteDoCliente?: boolean | null;
+  arteRecebidaEm?: string | Date | null;
+  arteRecebidaPor?: string | null;
+  kitRemessaId?: string | null;
   description?: string | null;
   type?: string | null;
   material?: string | null;

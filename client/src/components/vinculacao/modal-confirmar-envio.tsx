@@ -4,8 +4,10 @@
 // recorte "Ver só essas"). Depois do envio o vínculo só se acrescenta.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Dispatch, SetStateAction } from "react";
-import { AlertTriangle, CheckCircle2, Send } from "lucide-react";
+import { AlertTriangle, CheckCircle2, EyeOff, Send } from "lucide-react";
 import { SeloKit } from "@/components/kit/selo-kit";
+import { SelosSemAprovacao } from "@/components/selo-sem-aprovacao";
+import { pulaAprovacao } from "@shared/prazo-sem-aprovacao";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { Botao } from "@/components/ui/botao";
@@ -37,6 +39,8 @@ export function ModalConfirmarEnvio({
 }: Props) {
   const isMobile = useIsMobile();
   const lado = isMobile ? 16 : 24;
+  const temPatrocinador = (itemId: string) =>
+    (originalSponsorsMap[itemId] || []).length > 0 || (sendConfirmModal?.pendingByItem[itemId]?.size ?? 0) > 0;
   return (
     <Dialog open={!!sendConfirmModal} onOpenChange={(open) => { if (!open && !isSending) setSendConfirmModal(null); }}>
       <DialogContent className={HIDE_NATIVE_CLOSE} style={{ ...modalSurface(680), gap: 0 }}>
@@ -65,15 +69,28 @@ export function ModalConfirmarEnvio({
 
         {/* Contadores: quantas levam marca e quantas vão sem. */}
         {sendConfirmModal && (() => {
-          const withSponsors = sendConfirmModal.items.filter(item => {
-            const confirmed = originalSponsorsMap[item.id] || [];
-            const newOnes = Array.from(sendConfirmModal.pendingByItem[item.id] || []);
-            return [...confirmed, ...newOnes].length > 0;
-          }).length;
-          const withoutSponsors = sendConfirmModal.items.length - withSponsors;
+          const items = sendConfirmModal.items;
+          const withSponsors = items.filter(item => temPatrocinador(item.id)).length;
+          // Revisão 27/10: a peça "Sem patrocínio" / "Arte do cliente" vai
+          // sem patrocinador DE PROPÓSITO — não é alerta. Conta à parte, em
+          // tom neutro; o âmbar fica só para a que falta vincular.
+          const semAprovacao = items.filter(item => !temPatrocinador(item.id) && pulaAprovacao(item)).length;
+          const withoutSponsors = items.length - withSponsors - semAprovacao;
           return (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: `12px ${lado}px`, borderBottom: `1px solid ${T.border}`, backgroundColor: T.bg, flexShrink: 0 }}>
-              <Selo tom="sucesso" icone={CheckCircle2}>{withSponsors} com patrocinador</Selo>
+              {(withSponsors > 0 || (withoutSponsors === 0 && semAprovacao === 0)) && (
+                <Selo tom="sucesso" icone={CheckCircle2}>{withSponsors} com patrocinador</Selo>
+              )}
+              {semAprovacao > 0 && (
+                <Selo
+                  tom="neutro"
+                  icone={EyeOff}
+                  data-testid="envio-contagem-sem-aprovacao"
+                  title="Sem patrocínio ou Arte do cliente: estas peças não passam pela Aprovação — ir sem patrocinador é o esperado."
+                >
+                  {semAprovacao} sem aprovação
+                </Selo>
+              )}
               {withoutSponsors > 0 && (
                 <>
                   <Selo tom="alerta" icone={AlertTriangle}>{withoutSponsors} sem patrocinador</Selo>
@@ -121,9 +138,8 @@ export function ModalConfirmarEnvio({
               // vista. O rodapé continua contando a lista inteira.
               .filter(item => {
                 if (!soSemPatrocinador) return true;
-                const confirmed = originalSponsorsMap[item.id] || [];
-                const newOnes = Array.from(sendConfirmModal?.pendingByItem[item.id] || []);
-                return [...confirmed, ...newOnes].length === 0;
+                // "Ver só essas" = as do alerta: a peça sem aprovação não entra.
+                return !temPatrocinador(item.id) && !pulaAprovacao(item);
               })
               .map((item, idx) => {
               const confirmed = (originalSponsorsMap[item.id] || []);
@@ -186,7 +202,12 @@ export function ModalConfirmarEnvio({
                           {isNew && <span style={{ color: T.accentText, fontWeight: FW.forte, letterSpacing: '0.04em', fontSize: FS.micro }}>NOVO</span>}
                         </Selo>
                       );
-                    }) : (
+                    }) : pulaAprovacao(item) ? (
+                      // "Sem patrocínio" / "Arte do cliente" (26/10): sem
+                      // patrocinador é o esperado — a peça não passa pela
+                      // Aprovação. O selo da marca no lugar do alerta.
+                      <SelosSemAprovacao peca={item} />
+                    ) : (
                       <Selo tom="alerta" icone={AlertTriangle}>Sem patrocinadores vinculados</Selo>
                     )}
                   </div>
@@ -202,7 +223,8 @@ export function ModalConfirmarEnvio({
               Enviado, travadas. A frase agora diz o que acontece de fato e
               quem age a seguir. */}
           <p style={{ margin: 0, fontSize: FS.meta, color: T.apoio, lineHeight: 1.45, maxWidth: isMobile ? undefined : 320 }}>
-            As peças entram na fila da Arte, que faz o layout para os patrocinadores aprovarem. Aqui elas ficam como Enviado.
+            As peças entram na fila da Arte, que faz o layout para os patrocinadores aprovarem
+            {(sendConfirmModal?.items ?? []).some(pulaAprovacao) ? ' (as sem aprovação pulam essa etapa)' : ''}. Aqui elas ficam como Enviado.
           </p>
           <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
             <Botao

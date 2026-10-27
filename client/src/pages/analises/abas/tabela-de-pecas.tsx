@@ -1,11 +1,16 @@
 // A lista de peças das Análises (o quadro de "Realizado e pendências" e o de
 // "Eventos × processo × prazo" usam a mesma régua de colunas). Mora num
 // arquivo próprio para os dois submenus da Pré-produção a importarem sem ciclo.
+//
+// PEÇAS SEM APROVAÇÃO (Pedro/dono, 26/10 — RF06/RF12): o status traz os selos
+// das marcas ("Sem patrocínio", "Arte cliente" / "Aguardando arte do
+// cliente"); o prazo traz o "Layout normal → ajustado"; o atraso do cliente
+// vem marcado à parte do interno.
 import * as React from "react";
 import { rotuloDaEtapaNoPainel, FASES_DO_PAINEL, type PecaDaLinha } from "@shared/painel-operacional";
-import { TOM, FS, FW, FONT } from "@/lib/theme";
+import { FS, FONT } from "@/lib/theme";
 import { TabelaCompacta, idDaPeca } from "../blocos";
-import { DiasDeAtraso, SimNao, dma } from "../comum";
+import { AtrasoDaLinha, PrazoDaLinha, SimNao, StatusDaLinha } from "../comum";
 
 /** A lista de peças (pré-produção e problemas usam a mesma régua de colunas). */
 export function TabelaDePecas({ pecas, nomes, testId, vazio, mostrarEvento = true, mostrarFuraFila = false }: {
@@ -22,7 +27,7 @@ export function TabelaDePecas({ pecas, nomes, testId, vazio, mostrarEvento = tru
       linhas={pecas}
       chave={(p) => p.id}
       limite={15}
-      minLargura={860}
+      minLargura={900}
       alturaMaxima={560}
       ordemInicial={{ coluna: "atraso", direcao: "desc" }}
       vazio={vazio}
@@ -33,11 +38,10 @@ export function TabelaDePecas({ pecas, nomes, testId, vazio, mostrarEvento = tru
         { id: "descricao", rotulo: "Descrição", ordenavel: true, valor: (p) => p.descricao || null,
           render: (p) => <span className="pop-texto-longo" title={p.descricao} style={{ fontSize: FS.body }}>{p.descricao || "—"}</span> },
         { id: "qtd", rotulo: "Qtd", alinhar: "direita", ordenavel: true, valor: (p) => p.quantidade },
-        { id: "status", rotulo: "Status", ordenavel: true, valor: (p) => rotuloDaEtapaNoPainel(p.etapa) },
+        { id: "status", rotulo: "Status", ordenavel: true, valor: (p) => rotuloDaEtapaNoPainel(p.etapa), render: (p) => <StatusDaLinha p={p} /> },
         { id: "fase", rotulo: "Fase atual", ordenavel: true, ocultarNoCelular: true, valor: (p) => FASES_DO_PAINEL[p.fase] ?? "—" },
-        { id: "prazo", rotulo: "Prazo da fase", ordenavel: true, valor: (p) => p.prazoFase,
-          render: (p) => <span style={{ color: p.diasAtraso > 0 ? TOM.perigo.text : undefined, fontWeight: p.diasAtraso > 0 ? FW.forte : undefined }}>{dma(p.prazoFase)}</span> },
-        { id: "atraso", rotulo: "Atraso (dias)", alinhar: "direita", ordenavel: true, valor: (p) => p.diasAtraso, render: (p) => <DiasDeAtraso dias={p.diasAtraso} /> },
+        { id: "prazo", rotulo: "Prazo da fase", ordenavel: true, valor: (p) => p.prazoFase, render: (p) => <PrazoDaLinha p={p} /> },
+        { id: "atraso", rotulo: "Atraso (dias)", alinhar: "direita", ordenavel: true, valor: (p) => p.diasAtraso, render: (p) => <AtrasoDaLinha p={p} /> },
         ...(mostrarFuraFila ? [{ id: "fura", rotulo: "Fura-fila", ordenavel: true, valor: (p: PecaDaLinha) => (p.furaFila ? "Sim" : "Não"), render: (p: PecaDaLinha) => <SimNao sim={p.furaFila} /> }] : []),
       ]}
     />

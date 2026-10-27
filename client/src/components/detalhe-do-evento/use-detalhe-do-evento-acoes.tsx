@@ -139,6 +139,7 @@ export function useAcoesDasPecas({
         calculatedM2,
         measurement: data.measurement || `${fileWidth} × ${fileHeight}`,
         skipApproval: data.skipApproval || false,
+        arteDoCliente: data.arteDoCliente || false,
         isReuse: data.isReuse || false,
         // Criada a partir de um pedido do Atendimento: o servidor liga a peça
         // ao pedido na mesma requisição.

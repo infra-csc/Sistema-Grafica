@@ -6,6 +6,7 @@
 import { memo } from "react";
 import { Check, ChevronRight, Clock, Recycle, Trash2, Undo2 } from "lucide-react";
 import { SeloKit } from "@/components/kit/selo-kit";
+import { SelosSemAprovacao } from "@/components/selo-sem-aprovacao";
 import { SeloPrazoMolde } from "@/components/prazo-do-molde";
 import { SeloDoEstoqueNaLinha } from "@/components/consulta-de-estoque/na-revisao";
 import type { EstoqueDaLinha } from "@/components/consulta-de-estoque/na-revisao";
@@ -76,6 +77,7 @@ export const CartaoDaPeca = memo(function CartaoDaPeca({
         <div style={{display:"flex",justifyContent:"flex-start",alignItems:"center",gap:6,flexWrap:"wrap",paddingRight:44}}>
           <span style={{fontFamily:FONT.mono,fontWeight:700,color:T.accentText,fontSize:FS.body}}>{item.displayId}</span>
           <SeloKit peca={item} />
+          <SelosSemAprovacao peca={item} semAguardando />
           <SeloDoEstoqueNaLinha linha={estoque} />
           {/* EVENTO FINALIZADO — a peça continua na fila, então tem de se
               declarar. Aqui quase nada funciona: só excluir. */}

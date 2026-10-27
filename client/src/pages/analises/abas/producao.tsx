@@ -14,7 +14,7 @@ import { T, TOM, FS, FW, R, FONT } from "@/lib/theme";
 import { SecaoDaAnalise, TabelaCompacta, idDaPeca } from "../blocos";
 import {
   BarrasEmpilhadas, COR, Campo, CelulaDaPeca, FaixaDeControles, FiltroDeEvento, opcoesDeEvento, GraficoDeDias, Marcador, Seletor, SimNao,
-  dm, dma, fmt0, fmt1, fmtM2, formatoDaMedida, type MedidaDaTela,
+  SelosDaLinha, dm, dma, fmt0, fmt1, fmtM2, formatoDaMedida, naoSegueAMarca, type MedidaDaTela,
 } from "../comum";
 import type { ContextoDoPainel } from "../contexto";
 
@@ -80,7 +80,7 @@ function Realizado({ ctx }: { ctx: ContextoDoPainel }) {
 
       <SecaoDaAnalise
         id="h-op-prod-real" testId="op-prod-real" titulo="Realizado por dia — impressão e acabamento"
-        descricao="Últimos 30 dias. Impressão = dia em que a peça saiu toda da impressora (Impresso/acabamento). Acabamento = dia da conferência (acabamento concluído e conferido). Peças de reuso não entram."
+        descricao={`Últimos 30 dias. Impressão = dia em que a peça saiu toda da impressora (Impresso/acabamento). Acabamento = dia da conferência (acabamento concluído e conferido). Peças de reuso não entram.${naoSegueAMarca(ctx.marca)}`}
       >
         <GraficoDeDias
           testId="op-grafico-prod-real"
@@ -93,15 +93,15 @@ function Realizado({ ctx }: { ctx: ContextoDoPainel }) {
       </SecaoDaAnalise>
 
       <div className="pop-grade-2">
-        <SecaoDaAnalise id="h-op-plan-imp" testId="op-plan-imp" titulo="Planejado por dia — impressão" descricao="O que falta imprimir, dividido pelos dias úteis (seg–sáb) até o prazo de produção gráfica do evento.">
+        <SecaoDaAnalise id="h-op-plan-imp" testId="op-plan-imp" titulo="Planejado por dia — impressão" descricao={`O que falta imprimir, dividido pelos dias úteis (seg–sáb) até o prazo de produção gráfica do evento.${naoSegueAMarca(ctx.marca)}`}>
           <GraficoDeDias testId="op-grafico-plan-imp" legenda="Impressão planejada por dia" dados={planImp} series={serieDoPlano("impressao")} formato={formato} empilhado hoje={painel.hoje} vazio="Nada a imprimir para este filtro." />
         </SecaoDaAnalise>
-        <SecaoDaAnalise id="h-op-plan-acab" testId="op-plan-acab" titulo="Planejado por dia — acabamento" descricao="O que falta acabar e conferir, no mesmo critério de prazo.">
+        <SecaoDaAnalise id="h-op-plan-acab" testId="op-plan-acab" titulo="Planejado por dia — acabamento" descricao={`O que falta acabar e conferir, no mesmo critério de prazo.${naoSegueAMarca(ctx.marca)}`}>
           <GraficoDeDias testId="op-grafico-plan-acab" legenda="Acabamento planejado por dia" dados={planAcab} series={serieDoPlano("acabamento")} formato={formato} empilhado hoje={painel.hoje} vazio="Nada a acabar para este filtro." />
         </SecaoDaAnalise>
       </div>
 
-      <SecaoDaAnalise id="h-op-prod-ev" testId="op-prod-evento" titulo="Produção por evento" descricao="Realizado nos últimos 30 dias e o saldo que ainda falta produzir.">
+      <SecaoDaAnalise id="h-op-prod-ev" testId="op-prod-evento" titulo="Produção por evento" descricao={`Realizado nos últimos 30 dias e o saldo que ainda falta produzir.${naoSegueAMarca(ctx.marca)}`}>
         <TabelaCompacta
           testId="op-tabela-prod-evento"
           legenda="Produção por evento: impresso e acabado em 30 dias, a imprimir e a acabar"
@@ -272,7 +272,10 @@ function Projecao({ ctx }: { ctx: ContextoDoPainel }) {
             { id: "m2", rotulo: "m²", alinhar: "direita", ordenavel: true, valor: (p) => p.m2, render: (p) => fmt1(p.m2) },
             { id: "impresso", rotulo: "Impresso", ordenavel: true, ocultarNoCelular: true, valor: (p) => (p.impresso ? "Sim" : "Não"), render: (p) => <SimNao sim={p.impresso} tom="sucesso" /> },
             { id: "acabado", rotulo: "Acabado", ordenavel: true, ocultarNoCelular: true, valor: (p) => (p.acabado ? "Sim" : "Não"), render: (p) => <SimNao sim={p.acabado} tom="sucesso" /> },
-            { id: "situacao", rotulo: "Situação", ordenavel: true, ocultarNoCelular: true, valor: (p) => (p.fase < 5 ? "Em pré-produção" : "Liberado") },
+            { id: "situacao", rotulo: "Situação", ordenavel: true, ocultarNoCelular: true, valor: (p) => (p.fase < 5 ? "Em pré-produção" : "Liberado"),
+              render: (p) => (p.semAprovacao
+                ? <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4 }}>{p.fase < 5 ? "Em pré-produção" : "Liberado"}<SelosDaLinha p={p} /></span>
+                : (p.fase < 5 ? "Em pré-produção" : "Liberado")) },
           ]}
         />
       </SecaoDaAnalise>

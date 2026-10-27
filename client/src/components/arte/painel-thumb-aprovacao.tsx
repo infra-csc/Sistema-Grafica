@@ -1,11 +1,12 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import { CheckCircle, FileImage, Send, Upload } from "lucide-react";
+import { CheckCircle, FileImage, FileInput, Send, Upload } from "lucide-react";
 import { FileUploader } from "@/components/FileUploader";
 import { Botao } from "@/components/ui/botao";
 import type { useToast } from "@/hooks/use-toast";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
-import { T, TOM, N, FS, FONT } from "@/lib/theme";
+import { T, TOM, N, FS, FONT, R } from "@/lib/theme";
 import { ehMolde } from "@shared/molde";
+import { ROTULO_AGUARDANDO_ARTE, aguardandoArteDoCliente, arteDoCliente, pulaAprovacao } from "@shared/prazo-sem-aprovacao";
 import { BotaoBuscarArte } from "./botao-buscar-arte";
 import { KBD } from "./constantes";
 
@@ -25,6 +26,7 @@ export function PainelDoThumbDeAprovacao({
   thumbEnviando, isPasteUploading, isDragOver, setIsDragOver, iniciarEnvioDoThumb, concluirEnvioDoThumb, desfazerEnvioDoThumb,
   uploadFileDirect, getUploadUrl, focarEnvioParaAprovacao, toast, setBuscaDeArte,
   submitForApprovalMutation, saveThumbDraftMutation, handleSubmitForApproval, handleSaveThumbDraft, isMobile, dedo,
+  abrirArteRecebida,
 }: {
   selectedItem: PecaDaArte;
   zonaDoThumbRef: MutableRefObject<HTMLElement | null>;
@@ -50,7 +52,48 @@ export function PainelDoThumbDeAprovacao({
   handleSaveThumbDraft: () => void;
   isMobile: boolean;
   dedo: boolean;
+  /** Arte do cliente (26/10): abre o diálogo "Arte recebida". */
+  abrirArteRecebida: () => void;
 }) {
+  // ARTE DO CLIENTE (Pedro/dono, 26/10). A arte vem pronta do cliente: não há
+  // thumb para subir nem patrocinador para aprovar. O gesto da Arte é
+  // registrar a chegada do arquivo — "Arte recebida" — e a peça vai DIRETO
+  // para a Finalização, onde a medida do arquivo do cliente é conferida.
+  // Enquanto ele não chega, o servidor recusa o envio por thumb (409
+  // AGUARDANDO_ARTE_DO_CLIENTE); por isso o bloco do thumb some.
+  if (arteDoCliente(selectedItem) && !ehMolde(selectedItem)) {
+    const aguarda = aguardandoArteDoCliente(selectedItem);
+    const recebidaEm = selectedItem.arteRecebidaEm ? String(selectedItem.arteRecebidaEm).slice(0, 10) : null;
+    return (
+      <section ref={zonaDoThumbRef} data-testid="painel-arte-do-cliente" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <h3 style={{ fontFamily: FONT.display, fontWeight: 700, fontSize: FS.title, letterSpacing: '-0.02em', color: T.text, margin: 0 }}>
+            Arte do cliente
+          </h3>
+          <span style={{ fontSize: FS.meta, color: aguarda ? TOM.turquesa.text : T.second, fontWeight: 600 }}>
+            {aguarda ? ROTULO_AGUARDANDO_ARTE : recebidaEm ? `recebida em ${recebidaEm.slice(8, 10)}/${recebidaEm.slice(5, 7)}/${recebidaEm.slice(0, 4)}` : 'arquivo recebido'}
+          </span>
+        </div>
+        <p data-testid="arte-do-cliente-explica" style={{ margin: 0, padding: '10px 14px', borderRadius: R.md, background: TOM.turquesa.bg, border: `1px solid ${TOM.turquesa.border}`, fontSize: FS.body, color: T.text, lineHeight: 1.5 }}>
+          {aguarda
+            ? <>Peça com arte do cliente: quando o arquivo chegar, registre “Arte recebida” — ela vai <strong>direto para a Finalização</strong>, sem thumb e sem Aprovação. Lá, confira a medida do arquivo do cliente.</>
+            : <>O arquivo do cliente já chegou. Envie a peça <strong>direto para a Finalização</strong> — ela pula a Arte/layout e a Aprovação; lá, confira a medida e anexe o arquivo final.</>}
+        </p>
+        <Botao
+          variante="primario"
+          tom="turquesa"
+          tamanho="toque"
+          larguraCheia
+          icone={FileInput}
+          onClick={abrirArteRecebida}
+          data-testid="button-arte-recebida"
+          style={{ fontFamily: FONT.display, fontSize: FS.read }}
+        >
+          {aguarda ? 'Arte recebida' : 'Enviar para a Finalização'}
+        </Botao>
+      </section>
+    );
+  }
   return (
     <section ref={zonaDoThumbRef} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Section header */}
@@ -173,7 +216,7 @@ export function PainelDoThumbDeAprovacao({
           >
             {submitForApprovalMutation.isPending
               ? 'Enviando…'
-              : ehMolde(selectedItem) ? 'Enviar para a Revisão Final' : selectedItem.skipApproval ? 'Enviar direto para a finalização (arquivo final)' : 'Enviar para aprovação do patrocinador'}
+              : ehMolde(selectedItem) ? 'Enviar para a Revisão Final' : pulaAprovacao(selectedItem) ? 'Enviar direto para a finalização (arquivo final)' : 'Enviar para aprovação do patrocinador'}
           </Botao>
           {/* "ENVIOU PARA QUEM?" respondido antes do clique (rodada
               4). Os nomes já vêm na peça; peça sem aprovação de
@@ -187,7 +230,7 @@ export function PainelDoThumbDeAprovacao({
                 </p>
               );
             }
-            if (selectedItem.skipApproval) {
+            if (pulaAprovacao(selectedItem)) {
               return (
                 <p style={{ margin: '-4px 0 0', fontSize: 12, color: T.apoio, textAlign: 'center', lineHeight: 1.45 }}>
                   Esta peça não passa por aprovação de patrocinador.

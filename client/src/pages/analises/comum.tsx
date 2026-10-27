@@ -7,6 +7,12 @@
 //   azul = no prazo / realizado / impressão / liberado · turquesa = planejado /
 //   acabamento · vermelho = atrasado · cinza = já feito / ainda em pré-produção.
 // O cinza não é série: é o "fora da conta" de cada gráfico.
+//
+// PEÇAS SEM APROVAÇÃO (Pedro/dono, 26/10): céu = atraso DO CLIENTE (RN09) — a
+// cor da casa (`TOM_DO_ATRASO_DO_CLIENTE`, components/selo-sem-aprovacao), a
+// mesma da Gestão de Prazos e da Arte (revisão 27/10). É o
+// atraso da peça com "Arte do cliente" cujo arquivo não chegou até o Layout
+// ajustado. Fica fora do vermelho de propósito: não é atraso da casa.
 // ─────────────────────────────────────────────────────────────────────────────
 import * as React from "react";
 import {
@@ -19,13 +25,18 @@ import { Selo } from "@/components/ui/selo";
 import { FilterSelect } from "@/components/filter-select";
 import { P } from "@/lib/status";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { diaDaSemana } from "@shared/painel-operacional";
+import { diaDaSemana, rotuloDaEtapaNoPainel, type FiltroDeMarca, type PecaDaLinha } from "@shared/painel-operacional";
+import {
+  COR_DO_ATRASO_DO_CLIENTE, SelosSemAprovacao, SeloAtrasoDoCliente, fraseDoPrazoAjustado,
+} from "@/components/selo-sem-aprovacao";
 
 export const COR = {
   prazo: TOM.info.dot,
   planejado: TOM.turquesa.dot,
   acabamento: TOM.turquesa.dot,
   atrasado: TOM.perigo.dot,
+  /** RN09 (26/10): o atraso por conta do cliente — separado do atraso interno. */
+  atrasoCliente: COR_DO_ATRASO_DO_CLIENTE.dot,
   neutro: N.n6,
   // Os processos de pré-produção, na ordem do fluxo.
   cadastro: TOM.turquesa.dot,
@@ -452,3 +463,83 @@ export function CelulaDaPeca({ id, evento, isMobile }: { id: string; evento?: st
     </span>
   );
 }
+
+// ─── Peças sem aprovação (Pedro/dono, 26/10 — RF06, RF09, RF11, RF12) ───────
+
+/** A cor do texto do atraso: vermelho = interno; céu = do cliente (RN09). */
+export const corDoAtraso = (p: Pick<PecaDaLinha, "diasAtraso" | "atrasoDoCliente">): string | undefined =>
+  p.diasAtraso > 0 ? (p.atrasoDoCliente ? COR_DO_ATRASO_DO_CLIENTE.text : TOM.perigo.text) : undefined;
+
+/**
+ * Os selos "Sem patrocínio" / "Arte cliente" (ou "Aguardando arte do cliente")
+ * de uma linha do painel — o componente da casa, com o nome do campo que ele lê.
+ */
+export function SelosDaLinha({ p }: { p: PecaDaLinha }) {
+  if (!p.semAprovacao) return null;
+  return (
+    <SelosSemAprovacao
+      peca={{ id: p.id, status: p.status, semPatrocinio: p.semPatrocinio, arteDoCliente: p.arteDoCliente, aguardandoArteDoCliente: p.aguardandoArteCliente }}
+    />
+  );
+}
+
+/** A célula de status da lista de peças: o status e, embaixo, os selos das marcas. */
+export function StatusDaLinha({ p }: { p: PecaDaLinha }) {
+  if (!p.semAprovacao) return <>{rotuloDaEtapaNoPainel(p.etapa)}</>;
+  return (
+    <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
+      <span>{rotuloDaEtapaNoPainel(p.etapa)}</span>
+      <SelosDaLinha p={p} />
+    </span>
+  );
+}
+
+/**
+ * RF12 — o prazo da fase e, na peça com marca (não Kit), o "Layout normal →
+ * ajustado" logo embaixo. O prazo da fase já é o que mede a peça (o ajustado,
+ * quando vale); o par é a história de como o Layout dela foi medido.
+ */
+export function PrazoDaLinha({ p, entregue = false }: { p: PecaDaLinha; entregue?: boolean }) {
+  const cor = entregue ? undefined : corDoAtraso(p);
+  const data = <span style={{ color: cor, fontWeight: cor ? FW.forte : undefined }}>{entregue ? "—" : dma(p.prazoFase)}</span>;
+  if (!p.prazoDeLayout) return data;
+  const { normal, ajustado } = p.prazoDeLayout;
+  return (
+    <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      {data}
+      <span
+        data-testid={`op-prazo-layout-${p.id}`}
+        title={`Prazo de Layout normal ${dma(normal)} × ajustado ${dma(ajustado)}: a peça sem aprovação ganha a duração da Aprovação (dias corridos). A Finalização e o prazo final não mudam.`}
+        style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: FS.meta, color: T.second, whiteSpace: "nowrap", ...TABULAR }}
+      >
+        {/* Revisão 27/10: o desenho é aria-hidden e o leitor ouve a frase
+            da casa; o tachado saiu do T.muted (n6, não é cor de texto). */}
+        <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+          <span>Layout</span>
+          <span style={{ textDecoration: "line-through", color: T.second }}>{dm(normal)}</span>
+          <span>→</span>
+          <span style={{ fontWeight: FW.forte, color: T.text }}>{dm(ajustado)}</span>
+        </span>
+        <span className="sr-only">{fraseDoPrazoAjustado(normal, ajustado, 0)}</span>
+      </span>
+    </span>
+  );
+}
+
+/** Os dias de atraso da linha; o atraso do cliente (RN09) vem em céu, com o selo. */
+export function AtrasoDaLinha({ p }: { p: PecaDaLinha }) {
+  if (!(p.diasAtraso > 0 && p.atrasoDoCliente)) return <DiasDeAtraso dias={p.diasAtraso} />;
+  return (
+    <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
+      <span style={{ ...TABULAR, color: COR_DO_ATRASO_DO_CLIENTE.text, fontWeight: FW.forte }}>{fmt0(p.diasAtraso)}</span>
+      <SeloAtrasoDoCliente testId={`op-atraso-cliente-${p.id}`} />
+    </span>
+  );
+}
+
+/**
+ * RF11: a frase das partes da tela que NÃO seguem o filtro de marca (as séries
+ * de m² e de processos chegam somadas do servidor, sem a peça). Vazia sem filtro.
+ */
+export const naoSegueAMarca = (marca: FiltroDeMarca): string =>
+  marca === "todas" ? "" : " Este bloco não segue o filtro de peças sem aprovação: é a soma do evento inteiro.";

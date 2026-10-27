@@ -17,6 +17,7 @@ import { barraEventoFinalizado } from "../eventoFinalizado";
 import { MOTIVO_MIN, lerMotivoDevolucao, lerDestinoDevolucao, revogarAprovacoesEstritas } from "./comum";
 import { responderFalha } from "../../erros";
 import { vemDeOrigemValida, podeTransicionar } from "@shared/maquina-de-estados";
+import { aguardandoArteDoCliente, pulaAprovacao } from "@shared/prazo-sem-aprovacao";
 
 /** envio para aprovação, aprovação, dispensa e aprovações por patrocinador. */
 export function registrarAprovacao(app: Express): void {
@@ -61,15 +62,26 @@ export function registrarAprovacao(app: Express): void {
       // thumb vai direto para a Revisão Final (server/routes/molde.ts).
       if (ehMolde(currentItem)) return await enviarMoldeParaRevisao(req, res, currentItem, thumbNormalizado);
 
+      // ARTE DO CLIENTE (26/10): enquanto o arquivo do cliente não chega, a
+      // peça está "Aguardando arte do cliente" — quem encerra a espera é o
+      // "Arte recebida" (que já manda a peça para a Finalização). Enviar daqui
+      // seria afirmar uma chegada que ninguém registrou.
+      if (aguardandoArteDoCliente(currentItem)) {
+        return res.status(409).json({
+          error: "Esta peça espera a arte do cliente — registre “Arte recebida” (ela vai direto para a Finalização).",
+          code: "AGUARDANDO_ARTE_DO_CLIENTE",
+        });
+      }
+
       // Check if item has sponsors linked
       const itemSponsors = await storage.getItemSponsors(req.params.id);
       const hasSponsors = itemSponsors.length > 0;
       
       // Determine next status:
-      // 1. If skipApproval is true → awaiting_creator_review
+      // 1. "Sem patrocínio" (skipApproval) ou "Arte do cliente" → awaiting_creator_review
       // 2. If has sponsors → awaiting_sponsor_approval
       // 3. If no sponsors → awaiting_creator_review (skip sponsor approval)
-      const shouldSkipApproval = currentItem.skipApproval === true || !hasSponsors;
+      const shouldSkipApproval = pulaAprovacao(currentItem) || !hasSponsors;
       const nextStatus = shouldSkipApproval ? "awaiting_creator_review" : "awaiting_sponsor_approval";
       
       // If resubmitting after rejection (awaiting_submission) and going to sponsor approval,
@@ -279,6 +291,15 @@ export function registrarAprovacao(app: Express): void {
       // direto para a Revisão Final.
       if (ehMolde(currentItem)) {
         return res.status(409).json({ error: "Molde não passa por aprovação nem finalização — use \"Enviar para a Revisão Final\"." });
+      }
+      // ARTE DO CLIENTE (26/10, RN06): a peça que espera o arquivo do cliente
+      // sai do Layout pelo "Arte recebida" (com a data) — dispensar aqui a
+      // tiraria da espera sem registrar a chegada.
+      if (aguardandoArteDoCliente(currentItem)) {
+        return res.status(409).json({
+          error: "Esta peça espera a arte do cliente — registre “Arte recebida” (ela vai direto para a Finalização).",
+          code: "AGUARDANDO_ARTE_DO_CLIENTE",
+        });
       }
       // O MOTIVO É OBRIGATÓRIO: pular a aprovação some com a peça da mesa do
       // Atendimento e ela chega à Revisão sem o "sim" do patrocinador — quem

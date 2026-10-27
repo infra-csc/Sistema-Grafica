@@ -63,8 +63,37 @@ export function createEmptyRow(): BulkItemRow {
     visualWidth: "", visualHeight: "", fileWidth: "", fileHeight: "",
     material: "", finish: "", measurement: "", observations: "",
     calculatedM2: 0, sponsorId: "", isReuse: false, isPriority: false, standardItemId: "",
+    skipApproval: false, arteDoCliente: false,
     ...CAMPOS_VAZIOS_DA_PRODUCAO_INTERNA,
   };
+}
+
+/* ── Peça sem aprovação na grade (Pedro/dono, 26/10) ─────────────────── */
+// As duas marcas do formulário de uma peça — "Sem patrocínio" e "Arte do
+// cliente" — por linha. A regra (o prazo ajustado, quem marca) é a de
+// @shared/prazo-sem-aprovacao; a grade só a aplica linha a linha.
+
+/**
+ * Por que ESTA linha não aceita as marcas — null = aceita. A linha marcada
+ * "Gráfica" vai direto para a Gráfica no envio da lista: não passa pela Arte
+ * nem pela Aprovação, e já grava `skipApproval` por dentro. "Sem patrocínio"
+ * nela seria redundante e "Arte do cliente" (que espera o arquivo em Layout e
+ * vai para a Finalização) contradiria o caminho.
+ */
+export function motivoDaLinhaSemMarcas(r: Pick<BulkItemRow, "producaoInterna">): string | null {
+  return r.producaoInterna
+    ? "Marcada “Gráfica”: vai direto para a Gráfica, sem Arte nem Aprovação — as marcas de peça sem aprovação não se aplicam. Desmarque “Gráfica” para usá-las."
+    : null;
+}
+
+/**
+ * O pedaço do corpo da peça que as marcas levam. A linha "Gráfica" não manda
+ * marca (o envio direto já cuida do `skipApproval`); as outras mandam as duas,
+ * marcadas ou não — o mesmo que o formulário de uma peça manda.
+ */
+export function corpoDasMarcasDaLinha(r: Pick<BulkItemRow, "producaoInterna" | "skipApproval" | "arteDoCliente">): Pick<PecaDoLote, "skipApproval" | "arteDoCliente"> {
+  if (motivoDaLinhaSemMarcas(r)) return {};
+  return { skipApproval: !!r.skipApproval, arteDoCliente: !!r.arteDoCliente };
 }
 
 /* ── Produção interna na grade (dono, 07/10) ─────────────────────────── */

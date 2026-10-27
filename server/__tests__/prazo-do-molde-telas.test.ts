@@ -76,8 +76,10 @@ describe("as telas (fonte)", () => {
 
   it("Arte: a coluna e a ordenação 'prazo' usam o prazo do molde só no molde", () => {
     const a = ler("client/src/pages/arte.tsx");
-    expect(a).toContain("const p = prazoDoMolde(item, item.event, hoje) ?? phaseDeadline(item.event, faseDoPrazo(tabId, item), hoje);");
-    expect(a).toContain("const pa = prazoDoMolde(a, a.event, hoje), pb = prazoDoMolde(b, b.event, hoje);");
+    // Pedro/dono 26/10: as peças sem aprovação em Layout entram pelo prazo AJUSTADO
+    // (prazoDaPecaNaFase, que já embute faseDoPrazo) — o molde continua na frente.
+    expect(a).toContain("const p = prazoDoMolde(item, item.event, hoje) ?? prazoDaPecaNaFase(item, tabId, hoje, diasDaAprovacao);");
+    expect(a).toContain("const pa = prazoDoMolde(a, a.event, hoje) ?? ajustado(a), pb = prazoDoMolde(b, b.event, hoje) ?? ajustado(b);");
   });
 
   it("Revisão Final, ficha e Detalhe do evento usam o mesmo selo; o evento avisa molde sem prazo", () => {

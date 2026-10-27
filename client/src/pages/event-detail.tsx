@@ -55,6 +55,7 @@ import type { PropsDaPeca } from "@/components/detalhe-do-evento/linha-da-peca";
 import { ExcluirPecaDialog } from "@/components/detalhe-do-evento/excluir-peca-dialog";
 import { EditarPecaDialog } from "@/components/detalhe-do-evento/editar-peca-dialog";
 import { EnviarDiretoGraficaDialog } from "@/components/enviar-direto-grafica-dialog";
+import { ArteRecebidaDialog } from "@/components/sem-aprovacao-acoes";
 
 export default function EventDetail() {
   const { hasPermission, user } = useAuth();
@@ -88,6 +89,9 @@ export default function EventDetail() {
   // PRODUÇÃO INTERNA (dono, 02/10): as peças do "Enviar direto para a
   // Gráfica" aberto agora (uma, pela linha; várias, pelo lote das marcadas).
   const [envioDireto, setEnvioDireto] = useState<PecaDoEvento[] | null>(null);
+  // "Arte recebida" (Pedro/dono 26/10, RF03): a Solicitação registra a chegada
+  // da arte do cliente aqui, antes de a peça chegar à mesa da Arte.
+  const [arteRecebida, setArteRecebida] = useState<PecaDoEvento | null>(null);
   // Régua única (use-mobile.tsx): a lista de peças escolhe tabela ou cartões
   // pela ÁREA ÚTIL medida, e o alvo de toque segue o PONTEIRO.
   const isMobile = useIsMobile();
@@ -305,7 +309,7 @@ export default function EventDetail() {
     event, canEditLists, canDeleteAny, canUploadReference, isEditBlocked, motivoEdicaoBloqueada, canDeleteItem,
     setSelectedItemForDetails, handleEditItem, handleDeleteItem, estoqueResumo, setEstoqueDaPeca,
     salvarReferenciasMutation, updateItemIsReuseMutation, getUploadUrl, toast,
-    papel: user?.role, eventoFinalizado, abrirEnvioDireto: setEnvioDireto,
+    papel: user?.role, eventoFinalizado, abrirEnvioDireto: setEnvioDireto, abrirArteRecebida: setArteRecebida,
   };
 
   return (
@@ -490,6 +494,8 @@ export default function EventDetail() {
           enviando={submitDraftsMutation.isPending}
           setSubmitConfirmOpen={setSubmitConfirmOpen}
           abrirEnvioDireto={setEnvioDireto}
+          // "Marcar sem aprovação" em lote (26/10): o prazo normal → ajustado no diálogo.
+          evento={event}
         />
 
         {/* ── Modal de confirmação de envio com lista de itens ── */}
@@ -715,6 +721,12 @@ export default function EventDetail() {
         eventId={eventId}
       />
 
+      <ArteRecebidaDialog
+        aberto={!!arteRecebida}
+        aoFechar={() => setArteRecebida(null)}
+        peca={arteRecebida ? { id: arteRecebida.id, displayId: arteRecebida.displayId ?? "", eventId: arteRecebida.eventId, status: arteRecebida.status, arteRecebidaEm: arteRecebida.arteRecebidaEm ? String(arteRecebida.arteRecebidaEm) : null } : null}
+      />
+
       <ExcluirPecaDialog
         deletingItem={deletingItem}
         setDeletingItem={setDeletingItem}
@@ -732,6 +744,7 @@ export default function EventDetail() {
         finishOptions={finishOptions}
         updateItemMutation={updateItemMutation}
         getUploadUrl={getUploadUrl}
+        evento={event}
       />
 
       {/* ── Dialog: Importar Excel (split-panel) ───────────────────────────── */}

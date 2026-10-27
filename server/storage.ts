@@ -184,7 +184,14 @@ export type ItemParaUsoDeModelo = Pick<Item,
 export type ItemParaPrazo = Pick<Item,
   | "id" | "eventId" | "displayId" | "status" | "type" | "description" | "quantity"
   | "skipApproval" | "updatedAt" | "createdAt" | "statusChangedAt"
-  | "kitRemessaId" | "criadoPorId">;
+  | "kitRemessaId" | "criadoPorId"
+  // Peças sem aprovação (26/10): a marca "Arte do cliente" e a chegada da arte.
+  | "arteDoCliente" | "arteRecebidaEm" | "arteDoClienteMarcadaEm"
+  // Produção interna (27/10): o skipApproval dela não é "Sem patrocínio".
+  | "producaoInterna">;
+
+/** A peça como a lista de eventos a conta (status, fases, próximo marco). */
+export type ItemSlimDoEvento = Pick<Item, "id" | "eventId" | "status" | "skipApproval" | "arteDoCliente" | "arteRecebidaEm" | "kitRemessaId" | "producaoInterna">;
 
 /** Aprovação reduzida ao que o enriquecimento de peças usa para colorir os chips. */
 export type AprovacaoResumida = Pick<ItemSponsorApproval, "itemId" | "sponsorId" | "status">;
@@ -426,7 +433,7 @@ export interface IStorage {
   getCatalogOptions(kind?: string): Promise<CatalogOption[]>;
   createCatalogOption(option: InsertCatalogOption): Promise<CatalogOption>;
   deleteCatalogOption(kind: string, value: string): Promise<boolean>;
-  getItemsSlimForEvents(): Promise<Array<{ id: string; eventId: string; status: string; skipApproval: boolean }>>;
+  getItemsSlimForEvents(): Promise<ItemSlimDoEvento[]>;
   getItemsDoKitDoCriador(userId: string | null): Promise<Item[]>;
   getIdsDasPecasDoKitDoCriador(userId: string | null): Promise<string[]>;
   getItemsParaUsoDeModelos(): Promise<ItemParaUsoDeModelo[]>;
@@ -971,6 +978,39 @@ export class DatabaseStorage implements IStorage {
       updateData.skipApproval = sql`CASE WHEN ${statusAlvo} IN ('awaiting_sponsor_approval', 'awaiting_approval') THEN false ELSE ${isencaoAlvo} END`;
     }
 
+    // ── "ARTE DO CLIENTE" TAMBÉM NÃO COEXISTE COM A ESPERA (27/10) ──
+    //
+    // A outra marca que pula a Aprovação (shared/prazo-sem-aprovacao,
+    // pulaAprovacao) tem o mesmo par proibido: a peça esperando o patrocinador
+    // não pode dizer que a arte é do cliente (o prazo a mediria pelo Layout
+    // ajustado e a Revisão daria a rodada por fechada). As colunas zeradas são
+    // as de colunasDaArteDoCliente(false, …) em server/services/marcas-de-aprovacao.ts
+    // — escritas à mão aqui porque aquele módulo importa este (ciclo).
+    // Status conhecido no update: decide aqui mesmo. Status da COLUNA (o update
+    // só mexe na marca): CASE no SQL, sem SELECT antes, pelo motivo do carimbo.
+    // O valor "zerado" de cada coluna leva o TIPO (NULL sozinho no CASE vira
+    // text, e text não entra em coluna timestamp/date sem cast explícito).
+    const ARTE_DO_CLIENTE_ZERADA = {
+      arteDoCliente: sql`false`,
+      arteDoClienteMarcadaEm: sql`NULL::timestamp`,
+      arteDoClienteMarcadaPor: sql`NULL::text`,
+      arteRecebidaEm: sql`NULL::date`,
+      arteRecebidaPor: sql`NULL::text`,
+    } as const;
+    const COLUNAS_DA_ARTE_DO_CLIENTE = Object.keys(ARTE_DO_CLIENTE_ZERADA) as Array<keyof typeof ARTE_DO_CLIENTE_ZERADA>;
+    if (data.status !== undefined) {
+      if (data.status === "awaiting_sponsor_approval" || data.status === "awaiting_approval") {
+        Object.assign(updateData, { arteDoCliente: false, arteDoClienteMarcadaEm: null, arteDoClienteMarcadaPor: null, arteRecebidaEm: null, arteRecebidaPor: null });
+      }
+    } else if (COLUNAS_DA_ARTE_DO_CLIENTE.some((c) => data[c] !== undefined)) {
+      for (const c of COLUNAS_DA_ARTE_DO_CLIENTE) {
+        const novo = data[c];
+        // o valor novo passa pelo codificador da coluna (Date → timestamp, como o drizzle grava)
+        const alvo = novo === undefined ? sql`${items[c]}` : novo === null ? ARTE_DO_CLIENTE_ZERADA[c] : sql.param(novo, items[c]);
+        updateData[c] = sql`CASE WHEN ${items.status} IN ('awaiting_sponsor_approval', 'awaiting_approval') THEN ${ARTE_DO_CLIENTE_ZERADA[c]} ELSE ${alvo} END`;
+      }
+    }
+
     const [item] = await db
       .update(items)
       .set(updateData)
@@ -1173,6 +1213,13 @@ export class DatabaseStorage implements IStorage {
         bookUrl: parent.bookUrl,
         referenceUrl: parent.referenceUrl,
         skipApproval: parent.skipApproval,
+        // As marcas das peças sem aprovação (26/10) vêm junto: a arte do
+        // complemento é a mesma da mãe — se veio do cliente, veio do cliente.
+        arteDoCliente: parent.arteDoCliente,
+        arteDoClienteMarcadaEm: parent.arteDoClienteMarcadaEm,
+        arteDoClienteMarcadaPor: parent.arteDoClienteMarcadaPor,
+        arteRecebidaEm: parent.arteRecebidaEm,
+        arteRecebidaPor: parent.arteRecebidaPor,
         // ── Próprio do complemento ──
         quantity: fields.quantity,
         calculatedM2: fields.calculatedM2,
@@ -1752,13 +1799,20 @@ export class DatabaseStorage implements IStorage {
   // por evento, funil de fases, próximo marco) — mas lia as 66 colunas do
   // acervo inteiro a cada request do endpoint mais chamado do app. Esta
   // projeção traz só o que a conta usa: ~95% menos bytes lidos e trafegados.
-  async getItemsSlimForEvents(): Promise<Array<{ id: string; eventId: string; status: string; skipApproval: boolean }>> {
+  async getItemsSlimForEvents(): Promise<ItemSlimDoEvento[]> {
     return await db
       .select({
         id: items.id,
         eventId: items.eventId,
         status: items.status,
         skipApproval: items.skipApproval,
+        // O próximo marco do card segue a regra única de prazos (26/10): a peça
+        // sem aprovação mede o Layout ajustado; a do Kit, da Aprovação em diante.
+        arteDoCliente: items.arteDoCliente,
+        arteRecebidaEm: items.arteRecebidaEm,
+        kitRemessaId: items.kitRemessaId,
+        // Produção interna (27/10): o skipApproval que ela grava não é "Sem patrocínio".
+        producaoInterna: items.producaoInterna,
         type: items.type,
       })
       .from(items)
@@ -1842,6 +1896,10 @@ export class DatabaseStorage implements IStorage {
         statusChangedAt: items.statusChangedAt,
         kitRemessaId: items.kitRemessaId,
         criadoPorId: items.criadoPorId,
+        arteDoCliente: items.arteDoCliente,
+        arteRecebidaEm: items.arteRecebidaEm,
+        arteDoClienteMarcadaEm: items.arteDoClienteMarcadaEm,
+        producaoInterna: items.producaoInterna,
       })
       .from(items)
       .where(and(inArray(items.eventId, eventIds), isNull(items.deletedAt), doEventoNaoArquivado(items.eventId)))

@@ -31,6 +31,11 @@ import {
   resumoAprovacoes, STAGE_SECTOR, STAGE_STYLE, TI,
   urlPecaNoEvento, urlSetorDaPeca, urlSetorDoEvento,
 } from "./tokens";
+import { MarcasDaPecaPendente } from "./marcas-da-peca";
+import { COR_DO_ATRASO_DO_CLIENTE } from "@/components/selo-sem-aprovacao";
+import {
+  DICA_ATRASO_DO_CLIENTE, dicaDoPrazoAjustado, etapaComPrazoAjustado, prazoDaEtapa,
+} from "./sem-aprovacao";
 
 const ROW_CAP = 15;
 
@@ -155,6 +160,9 @@ function PecaCartao({ eventId, it, isAprovacao }: {
       }}>
         {textoPeca(it)}
       </span>
+      {/* Peças sem aprovação (26/10): selos, Layout normal × ajustado e o
+          atraso do cliente (RN09) — nada na peça sem marca. */}
+      <MarcasDaPecaPendente it={it} />
       {isAprovacao && (
         <span style={{ display: "block", fontSize: 12, marginTop: 4 }}>
           <span style={{ color: TI.label }}>Aprovação com: </span>
@@ -184,23 +192,23 @@ export const EventDrilldown = memo(function EventDrilldown({ ev }: {
   // para o caso oposto, o evento com peça parada em quatro etapas, em que
   // achar a que interessa custava rolagem. Vive no componente e não na URL
   // de propósito: é arrumação de leitura, não recorte compartilhável.
-  const [recolhidas, setRecolhidas] = useState<Set<string>>(new Set());
-
-  /**
-   * Etapas cuja lista está ABERTA POR INTEIRO.
-   *
-   * O corte em `ROW_CAP` existe para o modal não virar uma tabela de 50
-   * linhas assim que abre. Mas o rodapé mandava as restantes para a tela do
-   * evento — trocava a pergunta ("quais são as 44?") por uma mudança de tela,
-   * perdendo o recorte da etapa e o lugar na rolagem. Quem clica ali quer ver
-   * as peças, não sair daqui.
-   */
-  const [abertas, setAbertas] = useState<Set<string>>(new Set());
-  const alternarTodas = (key: string) =>
-    setAbertas((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
-      return next;
+  const [recolhidas, setRecolhidas] = useState<Set<string>>(new Set());
+
+  /**
+   * Etapas cuja lista está ABERTA POR INTEIRO.
+   *
+   * O corte em `ROW_CAP` existe para o modal não virar uma tabela de 50
+   * linhas assim que abre. Mas o rodapé mandava as restantes para a tela do
+   * evento — trocava a pergunta ("quais são as 44?") por uma mudança de tela,
+   * perdendo o recorte da etapa e o lugar na rolagem. Quem clica ali quer ver
+   * as peças, não sair daqui.
+   */
+  const [abertas, setAbertas] = useState<Set<string>>(new Set());
+  const alternarTodas = (key: string) =>
+    setAbertas((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
     });
   const alternarEtapa = (chave: string) =>
     setRecolhidas((antes) => {
@@ -283,14 +291,34 @@ export const EventDrilldown = memo(function EventDrilldown({ ev }: {
 
   return (
     <div ref={caixaRef} style={{ display: "flex", flexDirection: "column", gap: 14, padding: "4px 0 8px" }}>
+      {/* RN09 (26/10): o atraso do CLIENTE separado do interno, e quantas
+          peças ainda esperam a arte do cliente. Só aparece quando há. */}
+      {((ev.pecasAtrasoDoCliente ?? 0) > 0 || (ev.aguardandoArteDoCliente ?? 0) > 0) && (
+        <p data-testid={`drill-cliente-${ev.id}`} style={{ margin: 0, fontSize: 12, color: TI.secondary }}>
+          {ev.pecasEmAtraso > 0 && (
+            <span style={{ color: TI.red, fontWeight: 700 }}>{ev.pecasEmAtraso} em atraso</span>
+          )}
+          {(ev.pecasAtrasoDoCliente ?? 0) > 0 && (
+            <span title={DICA_ATRASO_DO_CLIENTE} style={{ color: COR_DO_ATRASO_DO_CLIENTE.text, fontWeight: 700 }}>
+              {ev.pecasEmAtraso > 0 ? " · " : ""}{ev.pecasAtrasoDoCliente} do cliente
+            </span>
+          )}
+          {(ev.aguardandoArteDoCliente ?? 0) > 0 && (
+            <span>
+              {ev.pecasEmAtraso > 0 || (ev.pecasAtrasoDoCliente ?? 0) > 0 ? " · " : ""}
+              {pecasTexto(ev.aguardandoArteDoCliente)} aguardando arte do cliente
+            </span>
+          )}
+        </p>
+      )}
       {groups.map(({ stage, items }) => {
         const sector = STAGE_SECTOR[stage.key];
         const st = STAGE_STYLE[stage.state];
         const recolhida = recolhidas.has(stage.key);
         // Já vem ordenada (pior espera primeiro) do `useMemo` acima.
         const sorted = items;
-        const tudoAberto = abertas.has(stage.key);
-        const shown = tudoAberto ? sorted : sorted.slice(0, ROW_CAP);
+        const tudoAberto = abertas.has(stage.key);
+        const shown = tudoAberto ? sorted : sorted.slice(0, ROW_CAP);
         const acimaDoCorte = sorted.length - ROW_CAP;
         // O grão do link segue o grão do grupo. Grupo com VÁRIAS peças é um
         // recorte de evento + etapa (e é isso que a URL carrega); grupo com
@@ -349,7 +377,10 @@ export const EventDrilldown = memo(function EventDrilldown({ ev }: {
                 <span style={{ fontSize: 12, fontWeight: 700, color: TI.title }}>
                   {stage.label}
                 </span>
-                <span style={{ fontSize: 12, color: stage.state === "overdue" ? TI.red : TI.secondary, fontWeight: stage.state === "overdue" ? 700 : 500, whiteSpace: "nowrap" }}>
+                <span
+                  title={!ev.invalidDate && etapaComPrazoAjustado(stage) ? dicaDoPrazoAjustado(stage) : undefined}
+                  style={{ fontSize: 12, color: stage.state === "overdue" ? TI.red : TI.secondary, fontWeight: stage.state === "overdue" ? 700 : 500, whiteSpace: "nowrap" }}
+                >
                 {/* "peças" por extenso ao lado de "5d" abreviado era a mesma
                     unidade escrita de duas formas na mesma linha. */}
                 {pecasTexto(items.length)}
@@ -357,7 +388,10 @@ export const EventDrilldown = memo(function EventDrilldown({ ev }: {
                   ? " · sem data confiável"
                   : stage.state === "overdue" ? ` · vencida há ${diasTexto(Math.abs(stage.diffDays))}`
                   : stage.state === "warning" ? (stage.diffDays === 0 ? " · vence hoje" : ` · vence em ${diasTexto(stage.diffDays)}`)
-                  : ` · vence em ${fmtDayMonth(stage.deadline)}`}
+                  // O prazo EFETIVO (26/10): quando só restam peças sem
+                  // aprovação, o Layout ajustado delas — e diz que é ajustado.
+                  : ` · vence em ${fmtDayMonth(prazoDaEtapa(stage))}`}
+                {!ev.invalidDate && etapaComPrazoAjustado(stage) && " (ajustado)"}
                 </span>
               </button>
               {/* Links de navegação em peso 600 e cor secundária: antes seis
@@ -467,6 +501,7 @@ export const EventDrilldown = memo(function EventDrilldown({ ev }: {
                           >
                             {textoPeca(it)}
                           </span>
+                          <MarcasDaPecaPendente it={it} />
                         </td>
                         <td style={{ padding: "6px 10px", fontSize: 12, color: TI.strong, textAlign: "center" }}>
                           {it.quantity}
@@ -492,42 +527,42 @@ export const EventDrilldown = memo(function EventDrilldown({ ev }: {
               </div>
             )}
 
-            {acimaDoCorte > 0 && (
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 6, flexWrap: "wrap" }}>
-                {/* AÇÃO PRIMÁRIA: abrir aqui. Botão, não link — não navega. */}
+            {acimaDoCorte > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 6, flexWrap: "wrap" }}>
+                {/* AÇÃO PRIMÁRIA: abrir aqui. Botão, não link — não navega. */}
                 {/* 30 era o único controle do drill abaixo da régua; o
                     tamanho do <Botao> dá 36 no ponteiro e 44 no toque. */}
                 <Botao
-                  type="button"
+                  type="button"
                   variante="secundario"
                   tamanho={isMobile ? "toque" : "md"}
-                  onClick={() => alternarTodas(stage.key)}
-                  aria-expanded={tudoAberto}
-                  aria-controls={`drill-tabela-${ev.id}-${stage.key}`}
-                  data-testid={`ver-todas-${ev.id}-${stage.key}`}
+                  onClick={() => alternarTodas(stage.key)}
+                  aria-expanded={tudoAberto}
+                  aria-controls={`drill-tabela-${ev.id}-${stage.key}`}
+                  data-testid={`ver-todas-${ev.id}-${stage.key}`}
                   style={{ fontSize: FS.small }}
-                >
-                  <ChevronDown
-                    aria-hidden="true"
-                    style={{
-                      width: 13, height: 13, flexShrink: 0,
-                      transform: tudoAberto ? "rotate(180deg)" : "none",
-                      transition: "transform 0.15s",
-                    }}
-                  />
-                  {tudoAberto
-                    ? `Mostrar só as primeiras ${ROW_CAP}`
-                    : `Ver as ${acimaDoCorte} restantes aqui`}
+                >
+                  <ChevronDown
+                    aria-hidden="true"
+                    style={{
+                      width: 13, height: 13, flexShrink: 0,
+                      transform: tudoAberto ? "rotate(180deg)" : "none",
+                      transition: "transform 0.15s",
+                    }}
+                  />
+                  {tudoAberto
+                    ? `Mostrar só as primeiras ${ROW_CAP}`
+                    : `Ver as ${acimaDoCorte} restantes aqui`}
                 </Botao>
-                {/* A saída para o evento continua, agora como o que ela é: o
-                    caminho para EDITAR as peças, não para vê-las. */}
-                <Link
-                  href={`/eventos/${ev.eventId ?? ev.id}`}
-                  style={{ display: "inline-flex", alignItems: "center", minHeight: isMobile ? 44 : 36, fontSize: 11, fontWeight: 600, color: TI.secondary, textDecoration: "none" }}
-                >
-                  Abrir no evento →
-                </Link>
-              </div>
+                {/* A saída para o evento continua, agora como o que ela é: o
+                    caminho para EDITAR as peças, não para vê-las. */}
+                <Link
+                  href={`/eventos/${ev.eventId ?? ev.id}`}
+                  style={{ display: "inline-flex", alignItems: "center", minHeight: isMobile ? 44 : 36, fontSize: 11, fontWeight: 600, color: TI.secondary, textDecoration: "none" }}
+                >
+                  Abrir no evento →
+                </Link>
+              </div>
             )}
             </div>
           </div>
@@ -565,7 +600,8 @@ export const EventDrilldown = memo(function EventDrilldown({ ev }: {
                       ? " · sem data confiável"
                       : stage.state === "overdue"
                       ? ` · venceu há ${diasTexto(Math.abs(stage.diffDays))}`
-                      : ` · vence em ${fmtDayMonth(stage.deadline)}`}
+                      : ` · vence em ${fmtDayMonth(prazoDaEtapa(stage))}`}
+                    {!ev.invalidDate && etapaComPrazoAjustado(stage) && " (ajustado)"}
                   </span>
                 </li>
               );

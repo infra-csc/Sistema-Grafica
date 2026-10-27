@@ -31,7 +31,7 @@ const FILA = lerDaRaiz("client/src/components/vinculacao/fila-da-vinculacao.tsx"
 const peca = (displayId: string, type: string, kit?: string): PecaDaVinculacao => ({
   id: displayId, displayId, eventId: "e1", type, description: null, status: "awaiting_linking",
   skipApproval: false, isReuse: false, quantity: 1, calculatedM2: "1.00", referenceUrl: null,
-  kitRemessaId: kit ?? null,
+  kitRemessaId: kit ?? null, arteDoCliente: false, arteRecebidaEm: null, arteRecebidaPor: null,
 });
 
 describe("a ordem de leitura da produção: grupo pai → tipo → ID", () => {

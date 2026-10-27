@@ -54,10 +54,16 @@ import {
   computePecasAtrasadas, contarPecasAtrasadas, filtrarPecasAtrasadas,
 } from "@/components/prazos/atrasadas";
 import { computeEventosPorEtapa, computeSectorSummary, eventoNaEtapa } from "@/components/prazos/gargalos";
+import {
+  atrasadasDaEtapa, contarPorMarca, DICA_ATRASO_DO_CLIENTE, eventoPassaNaMarca, lerFiltroDeMarca,
+  OPCOES_DE_MARCA_PRAZOS, prazoDaEtapa, ROTULO_DO_FILTRO_SEM_APROVACAO, ROTULO_TODAS_AS_PECAS, rotuloDaMarca, sufixoDoCliente,
+  type FiltroDeMarcaPrazos,
+} from "@/components/prazos/sem-aprovacao";
 import { Botao } from "@/components/ui/botao";
 import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
 import { EstadoErro, EstadoVazio } from "@/components/ui/estados";
 import { FONT, FS, FW, MOTION } from "@/lib/theme";
+import { COR_DO_ATRASO_DO_CLIENTE } from "@/components/selo-sem-aprovacao";
 
 /**
  * As três visões do MESMO conjunto filtrado.
@@ -210,6 +216,8 @@ export default function GestaoPrazos() {
       // e duas coisas diferentes no mesmo parâmetro fariam um link colado abrir
       // o drill de um evento que a tela acabou de filtrar para fora.
       eventoFiltro: p.get("ev") ?? "all",
+      // RF11 (Pedro/dono, 26/10): as marcas das peças sem aprovação.
+      marca: lerFiltroDeMarca(p.get("marca")),
       // "Mais atrasado" é o padrão: a tela existe para cobrar atraso — o
       // pior evento tem que ser a primeira linha, não estar no meio da lista.
       ordem: p.get("ordem") === "saida" ? "saida" : "atraso",
@@ -228,6 +236,7 @@ export default function GestaoPrazos() {
   const [etapaFoco, setEtapaFoco] = useState(initial.etapa);
   const [diaFoco, setDiaFoco] = useState(initial.dia);
   const [eventoFiltro, setEventoFiltro] = useState(initial.eventoFiltro);
+  const [marca, setMarca] = useState<FiltroDeMarcaPrazos>(initial.marca);
   const [ordem, setOrdem] = useState<"saida" | "atraso">(initial.ordem as "saida" | "atraso");
   const [visao, setVisao] = useState<Visao>(initial.visao);
   // Card do quadro abre o drill num modal (o detalhe "por cima") — a tabela
@@ -275,6 +284,7 @@ export default function GestaoPrazos() {
       if (etapaFoco !== "all") p.set("etapa", etapaFoco);
       if (diaFoco) p.set("dia", diaFoco);
       if (eventoFiltro !== "all") p.set("ev", eventoFiltro);
+      if (marca !== "all") p.set("marca", marca);
       if (ordem !== "atraso") p.set("ordem", ordem);
       if (visao !== "quadro") p.set("visao", visao);
       if (detailId) p.set("evento", detailId);
@@ -282,7 +292,7 @@ export default function GestaoPrazos() {
       window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}${window.location.hash}`);
     }, 300);
     return () => clearTimeout(timer);
-  }, [soAtrasados, soSaidas7d, soSemPecas, soInvalidos, busca, prioridade, etapaFoco, diaFoco, eventoFiltro, ordem, visao, detailId]);
+  }, [soAtrasados, soSaidas7d, soSemPecas, soInvalidos, busca, prioridade, etapaFoco, diaFoco, eventoFiltro, marca, ordem, visao, detailId]);
 
   // Navegação do histórico (voltar/avançar entre telas) sincroniza o estado —
   // sem isto a URL e a tela discordavam depois de um Voltar.
@@ -298,6 +308,7 @@ export default function GestaoPrazos() {
       setEtapaFoco(p.get("etapa") ?? "all");
       setDiaFoco(p.get("dia") ?? "");
       setEventoFiltro(p.get("ev") ?? "all");
+      setMarca(lerFiltroDeMarca(p.get("marca")));
       setOrdem(p.get("ordem") === "saida" ? "saida" : "atraso");
       setVisao(parseVisao(p.get("visao")));
       setDetailId(p.get("evento"));
@@ -332,11 +343,15 @@ export default function GestaoPrazos() {
       saidas7d: 0,
       pecasAtrasadas: events.reduce((acc, ev) => {
         const overdue = ev.stages.filter((s) => s.state === "overdue");
-        return acc + (overdue.length ? overdue[overdue.length - 1].pendingCount : 0);
+        // `atrasadas` (26/10), não `pendingCount`: a peça sem aprovação no
+        // gate que ainda está no prazo dela não é atraso — é o critério do
+        // `pecasEmAtraso` do servidor, e o fallback tem de reconciliar com ele.
+        return acc + (overdue.length ? atrasadasDaEtapa(overdue[overdue.length - 1]) : 0);
       }, 0),
       emDia: Math.max(0, events.length - atrasados - invalidCount - semPecas),
       invalidCount,
       semPecas,
+      pecasAtrasoDoCliente: events.reduce((acc, ev) => acc + (ev.pecasAtrasoDoCliente ?? 0), 0),
     };
   }, [data, events]);
   const kpisDoServidor = !!data?.kpis;
@@ -416,8 +431,12 @@ export default function GestaoPrazos() {
     if (!passaRecorteDeEvento(ev)) return false;
     if (eventoFiltro !== "all" && ev.id !== eventoFiltro) return false;
     if (prioridade !== "all" && ev.priority !== prioridade) return false;
+    // RF11 (26/10): o evento passa quando ALGUMA peça pendente dele tem a
+    // marca. Na lista de peças a mesma marca filtra no grão da PEÇA
+    // (`filtroPecas.marca`) — a mesma divisão de evento/prioridade acima.
+    if (!eventoPassaNaMarca(ev, marca)) return false;
     return true;
-  }, [passaRecorteDeEvento, eventoFiltro, prioridade]);
+  }, [passaRecorteDeEvento, eventoFiltro, prioridade, marca]);
 
   // A busca que FILTRA é adiada (`useDeferredValue`): o campo mostra a tecla
   // na hora e o refiltro — que na lista de peças são cinco passadas sobre
@@ -438,7 +457,9 @@ export default function GestaoPrazos() {
       // prometeu". Hoje um prazo derivado de ano-lixo (0206) nunca cairia num
       // dos próximos 15 dias, então a linha não muda resultado nenhum — ela
       // impede que a divergência nasça na próxima mexida na barra.
-      if (diaFoco && (ev.invalidDate || !ev.stages.some((s) => s.deadline === diaFoco && s.state !== "done"))) return false;
+      // O prazo EFETIVO da etapa (26/10) — o mesmo que a barra conta e que o
+      // semáforo usa (o Layout ajustado quando só restam peças sem aprovação).
+      if (diaFoco && (ev.invalidDate || !ev.stages.some((s) => prazoDaEtapa(s) === diaFoco && s.state !== "done"))) return false;
       if (q && !normalize(ev.name).includes(q)) return false;
       return true;
     });
@@ -472,8 +493,8 @@ export default function GestaoPrazos() {
     [events, passaRecorteDeEvento],
   );
   const filtroPecas = useMemo(
-    () => ({ busca: buscaFiltro, eventoId: eventoFiltro, etapaKey: etapaFoco, prioridade, dia: diaFoco }),
-    [buscaFiltro, eventoFiltro, etapaFoco, prioridade, diaFoco],
+    () => ({ busca: buscaFiltro, eventoId: eventoFiltro, etapaKey: etapaFoco, prioridade, dia: diaFoco, marca }),
+    [buscaFiltro, eventoFiltro, etapaFoco, prioridade, diaFoco, marca],
   );
   const pecasAtrasadas = useMemo(
     () => filtrarPecasAtrasadas(pecasBase, filtroPecas),
@@ -488,7 +509,7 @@ export default function GestaoPrazos() {
   );
   // Assinatura dos filtros: a paginação da lista volta ao começo quando ELA
   // muda, e não a cada revalidação de 60s (que troca a identidade do array).
-  const filtroKey = `${soAtrasados}|${soSaidas7d}|${soSemPecas}|${soInvalidos}|${prioridade}|${etapaFoco}|${diaFoco}|${eventoFiltro}|${buscaFiltro}`;
+  const filtroKey = `${soAtrasados}|${soSaidas7d}|${soSemPecas}|${soInvalidos}|${prioridade}|${etapaFoco}|${diaFoco}|${eventoFiltro}|${marca}|${buscaFiltro}`;
 
   // ── Opções dos filtros da lista de peças ─────────────────────────────────
   //
@@ -559,6 +580,20 @@ export default function GestaoPrazos() {
     }));
   }, [contagensPecas, diaFoco]);
 
+  // RF11 — o filtro pelas marcas das peças sem aprovação. Mesmas três regras
+  // dos menus acima: só a opção que tem peça (ou a escolhida); com contagem
+  // só na lista de peças — nas visões de evento o número seria de EVENTOS e o
+  // menu mudaria de unidade conforme a aba (a mesma razão da prioridade).
+  const marcasNosEventos = useMemo(() => contarPorMarca(events, (ev) => ev.pendingItems), [events]);
+  const opcoesMarca = useMemo(() => OPCOES_DE_MARCA_PRAZOS
+    .filter((o) => (visao === "atrasadas" ? contagensPecas.porMarca.has(o.id) : marcasNosEventos.has(o.id)) || o.id === marca)
+    .map((o) => ({
+      value: o.id,
+      label: o.rotulo,
+      count: visao === "atrasadas" ? (contagensPecas.porMarca.get(o.id) ?? 0) : undefined,
+      pinned: true,
+    })), [visao, contagensPecas, marcasNosEventos, marca]);
+
   // "Primeiro focar no evento com peças em atraso": na primeira carga, o
   // pior evento atrasado já chega expandido — o caminho evento→peça começa
   // aberto, sem clique. Só uma vez; depois o controle é do usuário.
@@ -583,11 +618,11 @@ export default function GestaoPrazos() {
 
   const hasActiveFilters = soAtrasados || soSaidas7d || soSemPecas || soInvalidos
     || busca.trim() !== "" || prioridade !== "all" || etapaFoco !== "all" || diaFoco !== ""
-    || eventoFiltro !== "all";
+    || eventoFiltro !== "all" || marca !== "all";
   const clearFilters = useCallback(() => {
     setSoAtrasados(false); setSoSaidas7d(false); setSoSemPecas(false); setSoInvalidos(false);
     setBusca(""); setPrioridade("all"); setEtapaFoco("all"); setDiaFoco("");
-    setEventoFiltro("all");
+    setEventoFiltro("all"); setMarca("all");
   }, []);
 
   // Esc "no vazio" limpa tudo — mas uma combinação de 3-4 filtros é trabalho
@@ -596,7 +631,7 @@ export default function GestaoPrazos() {
   const limparComDesfazer = useCallback(() => {
     const anterior = {
       soAtrasados, soSaidas7d, soSemPecas, soInvalidos,
-      busca, prioridade, etapaFoco, diaFoco, eventoFiltro,
+      busca, prioridade, etapaFoco, diaFoco, eventoFiltro, marca,
     };
     clearFilters();
     toast({
@@ -615,6 +650,7 @@ export default function GestaoPrazos() {
             setEtapaFoco(anterior.etapaFoco);
             setDiaFoco(anterior.diaFoco);
             setEventoFiltro(anterior.eventoFiltro);
+            setMarca(anterior.marca);
           }}
         >
           Desfazer
@@ -622,7 +658,7 @@ export default function GestaoPrazos() {
       ),
     });
   }, [soAtrasados, soSaidas7d, soSemPecas, soInvalidos, busca, prioridade,
-    etapaFoco, diaFoco, eventoFiltro, clearFilters, toast]);
+    etapaFoco, diaFoco, eventoFiltro, marca, clearFilters, toast]);
 
   // Um chip por filtro ativo, removível — inclusive o "Saídas em 7 dias", que
   // só existia como um anel de 1,5px num KPI fora da barra de filtros.
@@ -657,6 +693,17 @@ export default function GestaoPrazos() {
       key: "prioridade",
       label: `Prioridade: ${getPriorityMeta(prioridade)?.label ?? prioridade}`,
       onRemove: () => setPrioridade("all"),
+    });
+  }
+  if (marca !== "all") {
+    // Nas visões de EVENTO o filtro escolhe os eventos que têm essas peças —
+    // os números do cartão continuam os do evento inteiro; o chip diz isso.
+    chipsAtivos.push({
+      key: "marca",
+      label: visao === "atrasadas"
+        ? `${ROTULO_DO_FILTRO_SEM_APROVACAO}: ${rotuloDaMarca(marca)}`
+        : `${ROTULO_DO_FILTRO_SEM_APROVACAO}: eventos com “${rotuloDaMarca(marca)}”`,
+      onRemove: () => setMarca("all"),
     });
   }
   if (busca.trim() !== "") chipsAtivos.push({ key: "q", label: `Busca: ${busca.trim()}`, onRemove: () => setBusca("") });
@@ -858,7 +905,7 @@ export default function GestaoPrazos() {
   const focarEtapaDaAnalise = useCallback((k: string) => {
     setSoAtrasados(false); setSoSaidas7d(false); setSoSemPecas(false);
     setSoInvalidos(false); setBusca(""); setPrioridade("all"); setDiaFoco("");
-    setEventoFiltro("all");
+    setEventoFiltro("all"); setMarca("all");
     setEtapaFoco(k);
     window.scrollTo({ top: 0, behavior: rolagem() });
   }, []);
@@ -1329,6 +1376,12 @@ export default function GestaoPrazos() {
                     prazo vencido há {diasTexto(ev.piorAtrasoDias)}
                   </strong>
                   {ev.pecasEmAtraso > 0 && ` · ${pecasTexto(ev.pecasEmAtraso)} parada${ev.pecasEmAtraso !== 1 ? "s" : ""}`}
+                  {/* RN09 (26/10): a fatia que é atraso do CLIENTE. */}
+                  {ev.pecasEmAtraso > 0 && (ev.pecasAtrasoDoCliente ?? 0) > 0 && (
+                    <span title={DICA_ATRASO_DO_CLIENTE} style={{ color: COR_DO_ATRASO_DO_CLIENTE.text, fontWeight: 700 }}>
+                      {sufixoDoCliente(ev.pecasAtrasoDoCliente)}
+                    </span>
+                  )}
                 </span>
               </div>
               {emCards && <span aria-hidden="true" style={{ flexBasis: "100%", height: 0 }} />}
@@ -1458,7 +1511,8 @@ export default function GestaoPrazos() {
       for (const ev of events) {
         if (ev.invalidDate) continue;
         for (const s of ev.stages) {
-          if (s.deadline === dia && s.state !== "done") total += 1;
+          // Prazo EFETIVO (26/10): o mesmo dia do semáforo e do filtro por dia.
+          if (prazoDaEtapa(s) === dia && s.state !== "done") total += 1;
         }
       }
       out.push({ dia, total });
@@ -1677,6 +1731,13 @@ export default function GestaoPrazos() {
                 <strong style={{ color: TI.title }}>Fim de semana</strong> — prazo que cairia no sábado vence na sexta; no domingo, na segunda.
                 {" "}A Produção Gráfica é a exceção: a gráfica trabalha no sábado — o prazo dela vale no sábado e, se cair no domingo, é antecipado para o sábado. O Calendário mostra o mesmo dia.
               </p>
+              {/* Pedro/dono, 26/10: a regra das peças sem aprovação, na mesma
+                  voz das outras — é a pergunta de quem vê "17/11 · ajustado" numa
+                  etapa que o evento marca para 10/11. */}
+              <p style={{ margin: 0 }} data-testid="guia-sem-aprovacao">
+                <strong style={{ color: TI.title }}>Prazo de Layout ajustado</strong> — a peça “Sem patrocínio” ou “Arte do cliente” não passa pela Aprovação: o prazo de Layout dela é o do evento mais os dias da Aprovação. A etapa em que só restam essas peças mostra o prazo ajustado, marcado “ajustado”.
+                {" "}<strong style={{ color: COR_DO_ATRASO_DO_CLIENTE.text }}>Atraso do cliente</strong> — a peça “Arte do cliente” cuja arte não chegou até o fim do prazo ajustado; o resto é atraso interno.
+              </p>
               <p style={{ margin: 0, color: TI.secondary }}>
                 Evento que já começou ou com todas as peças entregues sai desta tela. A tela se atualiza sozinha.
               </p>
@@ -1774,8 +1835,12 @@ export default function GestaoPrazos() {
                 label="Peças em etapa vencida" value={kpis.pecasAtrasadas} tone="red"
                 active={visao === "atrasadas"}
                 onClick={alternarListaDePecas}
-                hint="já deveriam ter passado pela etapa mais atrasada do evento"
-                title="Clique para ver TODAS as peças atrasadas numa lista só, de todos os eventos."
+                // RN09 (26/10): "· 3 do cliente" — a fatia do atraso que é da
+                // arte do cliente que não chegou; o resto é atraso interno.
+                hint={`já deveriam ter passado pela etapa mais atrasada do evento${sufixoDoCliente(kpis.pecasAtrasoDoCliente)}`}
+                title={(kpis.pecasAtrasoDoCliente ?? 0) > 0
+                  ? `Clique para ver TODAS as peças atrasadas numa lista só, de todos os eventos. ${kpis.pecasAtrasoDoCliente} delas são atraso do cliente — ${DICA_ATRASO_DO_CLIENTE}`
+                  : "Clique para ver TODAS as peças atrasadas numa lista só, de todos os eventos."}
                 trend={trend?.pecasAtrasadas} goodWhenUp={false}
                 testId="kpi-pecas-atrasadas"
               />
@@ -1985,6 +2050,21 @@ export default function GestaoPrazos() {
               triggerStyle={RAIO_FILTRO}
               testId="select-prioridade-prazos"
               options={opcoesPrioridade}
+            />
+            {/* RF11 (Pedro/dono, 26/10): as peças sem aprovação. Nas visões
+                de evento, o evento entra quando alguma peça pendente dele tem
+                a marca; na lista de peças, filtra a própria peça. Some quando
+                nenhuma peça do app tem marca (e nada está escolhido). */}
+            <FilterSelect
+              label={ROTULO_DO_FILTRO_SEM_APROVACAO}
+              allLabel={ROTULO_TODAS_AS_PECAS}
+              value={marca}
+              onChange={(v) => setMarca(lerFiltroDeMarca(v))}
+              hideSearch
+              panelWidth={280}
+              triggerStyle={RAIO_FILTRO}
+              testId="select-marca-prazos"
+              options={opcoesMarca}
             />
             {/* Mesma razão do "Só com atraso": a lista de peças tem uma ordem
                 só (pior atraso primeiro) e ordenar por "próxima saída" um

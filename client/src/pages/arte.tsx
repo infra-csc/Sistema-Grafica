@@ -52,6 +52,9 @@ import { DialogoPdfCompartilhado } from "@/components/arte/dialogo-pdf-compartil
 import { DialogoBook } from "@/components/arte/dialogo-book";
 import { DialogoThumbsEmLote } from "@/components/arte/dialogo-thumbs-em-lote";
 import type { AcoesDaLinha, BuscaDeArte, PecaDaArte, PecaDaCorrecao } from "@/components/arte/tipos";
+// PEÇAS SEM APROVAÇÃO (Pedro/dono, 26/10): o "Arte recebida" da arte do cliente.
+import { ArteRecebidaDialog } from "@/components/sem-aprovacao-acoes";
+import { aguardandoArteDoCliente } from "@shared/prazo-sem-aprovacao";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // A TELA DA ARTE — composição. O estado dos modais e da seleção mora aqui; as
@@ -511,7 +514,9 @@ export default function Arte() {
     // A seleção persiste entre abas: só peças aguardando envio aceitam
     // submit-for-approval — as demais devolveriam 409 no meio do lote.
     const ids = Array.from(selectedItemIds);
-    const elegiveis = ids.filter(id => itemPorId.get(id)?.status === 'awaiting_submission');
+    // A peça que espera a ARTE DO CLIENTE (26/10) também fica de fora: o
+    // servidor recusa o envio dela (409) até alguém registrar "Arte recebida".
+    const elegiveis = ids.filter(id => itemPorId.get(id)?.status === 'awaiting_submission' && !aguardandoArteDoCliente(itemPorId.get(id)));
     const foraDoLote = ids.length - elegiveis.length;
     if (elegiveis.length === 0) {
       toast({ title: "Nenhuma peça elegível", description: "Só peças aguardando envio podem receber o PDF compartilhado.", variant: "warning" });
@@ -529,6 +534,8 @@ export default function Arte() {
   // redesenharia a fila inteira. O objeto nasce uma vez e cada gesto chama a
   // versão do render ATUAL pelo ref — nunca um valor velho.
   const gestosDaLinha = useRef<AcoesDaLinha | null>(null);
+  // "Arte recebida" (arte do cliente, 26/10): a peça do diálogo.
+  const [arteRecebidaItem, setArteRecebidaItem] = useState<PecaDaArte | null>(null);
   gestosDaLinha.current = {
     verDetalhes: handleViewDetails,
     alternarSelecao: toggleItemSelection,
@@ -539,6 +546,7 @@ export default function Arte() {
     exportarProva: handleExportItemPDF,
     dispensar: (item) => { setDispenseItem(item); setDispenseReason(""); },
     devolver: (item) => { setDevolverItem(item); setDevolverMotivo(""); },
+    arteRecebida: (item) => { if (!bloqueadoPorPapel()) setArteRecebidaItem(item); },
   };
   const acoesDaLinha = useMemo<AcoesDaLinha>(() => ({
     verDetalhes: (item) => gestosDaLinha.current?.verDetalhes(item),
@@ -547,6 +555,7 @@ export default function Arte() {
     exportarProva: (item) => gestosDaLinha.current?.exportarProva(item),
     dispensar: (item) => gestosDaLinha.current?.dispensar(item),
     devolver: (item) => gestosDaLinha.current?.devolver(item),
+    arteRecebida: (item) => gestosDaLinha.current?.arteRecebida(item),
   }), []);
   // "Enviar nova arte" na Correção: só setters, então estável de nascença.
   const abrirCorrecao = useCallback((item: PecaDaCorrecao) => {
@@ -786,6 +795,17 @@ export default function Arte() {
         dedo={dedo}
       />
 
+      {/* Montado só com uma peça: fechado, não pesa na tela. */}
+      {arteRecebidaItem && (
+      <ArteRecebidaDialog
+        aberto
+        // A ficha aberta FICA: com a chegada registrada a peça vai para a
+        // Finalização e a ficha troca sozinha para o bloco do arquivo final.
+        aoFechar={() => setArteRecebidaItem(null)}
+        peca={arteRecebidaItem}
+      />
+      )}
+
       <DialogoDevolver
         devolverItem={devolverItem}
         setDevolverItem={setDevolverItem}
@@ -869,6 +889,7 @@ export default function Arte() {
             handleSaveThumbDraft={handleSaveThumbDraft}
             isMobile={isMobile}
             dedo={dedo}
+            abrirArteRecebida={() => acoesDaLinha.arteRecebida(selectedItem)}
           />
         ) : trocaTodaNegada ? (
           <p data-testid="material-troca-bloqueada" style={{ display: 'flex', alignItems: 'flex-start', gap: 8, margin: 0, padding: '10px 14px', borderRadius: 10, background: N.n2, border: `1px solid ${T.border}`, fontSize: isMobile ? 13 : 12.5, color: T.strong, lineHeight: 1.5 }}>

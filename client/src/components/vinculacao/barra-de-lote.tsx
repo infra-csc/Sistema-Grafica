@@ -7,7 +7,7 @@
 // passavam dos 390px e cortavam justamente o botão da ação principal.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Dispatch, SetStateAction } from "react";
-import { PlusCircle, Save, Users } from "lucide-react";
+import { PlusCircle, Save, Tags, Users } from "lucide-react";
 import { Botao } from "@/components/ui/botao";
 import { T, R, FS, FW, FONT, SHADOW } from "@/lib/theme";
 import type { UIStatus } from "./tipos";
@@ -22,13 +22,21 @@ type Props = {
   podeAcrescentar: boolean;
   abrirAcrescentar: () => void;
   handleOpenBulkApplyDialog: () => void;
+  /**
+   * PEÇAS SEM APROVAÇÃO (Pedro/dono, 26/10): abre o lote de "Sem patrocínio"
+   * e "Arte do cliente" (MarcarSemAprovacaoDialog). Ausente = o papel não
+   * marca (só admin e Solicitação — PAPEIS_QUE_MARCAM).
+   */
+  abrirMarcasSemAprovacao?: () => void;
+  /** Por que o lote das marcas não abre agora (ex.: peças de mais de um evento). */
+  motivoSemMarcas?: string | null;
   isMobile: boolean;
   dedo: boolean;
 };
 
 export function BarraDeLote({
   selectedItemIds, setSelectedItemIds, optimisticSentIds, itemUIStates, salvarSelecionadas, salvando,
-  podeAcrescentar, abrirAcrescentar, handleOpenBulkApplyDialog, isMobile, dedo,
+  podeAcrescentar, abrirAcrescentar, handleOpenBulkApplyDialog, abrirMarcasSemAprovacao, motivoSemMarcas, isMobile, dedo,
 }: Props) {
   if (selectedItemIds.size === 0) return null;
   const idsSelecionados = Array.from(selectedItemIds);
@@ -118,6 +126,25 @@ export function BarraDeLote({
           >
             Acrescentar em {idsSelecionados.length}
           </Botao>
+          )}
+          {/* SEM APROVAÇÃO EM LOTE (26/10): "Sem patrocínio" e "Arte do
+              cliente" nas peças escolhidas — o diálogo diz o prazo de Layout
+              normal × ajustado e quantas ficam de fora (fora do Layout só o
+              admin muda). O lote é de um evento só, como no servidor. */}
+          {abrirMarcasSemAprovacao && (
+            <Botao
+              variante="secundario"
+              tamanho={dedo ? "toque" : "md"}
+              icone={Tags}
+              onClick={abrirMarcasSemAprovacao}
+              disabled={!!motivoSemMarcas}
+              motivo={motivoSemMarcas ?? undefined}
+              data-testid="button-marcas-sem-aprovacao"
+              style={acao}
+              title="Marcar ou desmarcar “Sem patrocínio” e “Arte do cliente” nas peças selecionadas"
+            >
+              Marcar sem aprovação
+            </Botao>
           )}
           {/* APLICAR reescreve a lista — por isso só alcança o que ainda
               está na vinculação. Some quando a seleção é toda de enviadas,

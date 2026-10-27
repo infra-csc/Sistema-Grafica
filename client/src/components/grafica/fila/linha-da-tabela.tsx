@@ -13,6 +13,7 @@ import { Botao } from "@/components/ui/botao";
 import { Selo } from "@/components/ui/selo";
 import { StatusPill } from "@/components/status-pill";
 import { SeloKit } from "@/components/kit/selo-kit";
+import { SelosSemAprovacao } from "@/components/selo-sem-aprovacao";
 import { SeloProducaoInterna, InstrucoesParaAGrafica } from "@/components/selo-producao-interna";
 import { AvisoDoEstoqueNaPeca } from "@/components/consulta-de-estoque/aviso-na-grafica";
 import { miniatura } from "@/lib/miniatura";
@@ -221,6 +222,10 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
           </button>
           {/* Kit (14/09): a peça do Kit se declara na fila (o selo KIT, sem data desde 23/10). */}
           <SeloKit peca={item} style={{ display: "flex", width: "fit-content", marginTop: 4 }} />
+          {/* ARTE DO CLIENTE (26/10): o arquivo veio pronto do cliente (a medida
+              foi conferida na Finalização). Só esta marca: "Sem patrocínio" não
+              muda nada para quem imprime. */}
+          <SelosSemAprovacao peca={item.arteDoCliente ? { ...item, skipApproval: false } : null} semAguardando style={{ display: "flex", width: "fit-content", marginTop: 4 }} />
           <AvisoDoEstoqueNaPeca peca={item} style={{ marginTop: 4 }} />
           {seloDoTubo(item) && (
             <button type="button" data-testid={`chip-tubo-${item.id}`} title={tituloDoTubo(item)}

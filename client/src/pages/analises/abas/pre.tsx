@@ -15,7 +15,7 @@ import {
 import { Botao } from "@/components/ui/botao";
 import { T, TOM, FW } from "@/lib/theme";
 import { SecaoDaAnalise, TabelaCompacta, type ColunaDaTabela } from "../blocos";
-import { COR, Campo, Chips, FaixaDeControles, FiltroDeEvento, GraficoDeDias, Marcador, NomeDoEvento, dma, fmt0, opcoesDeEvento } from "../comum";
+import { COR, Campo, Chips, FaixaDeControles, FiltroDeEvento, GraficoDeDias, Marcador, NomeDoEvento, dma, fmt0, naoSegueAMarca, opcoesDeEvento } from "../comum";
 import type { ContextoDoPainel } from "../contexto";
 import { TabelaDePecas } from "./tabela-de-pecas";
 
@@ -136,7 +136,7 @@ function RealizadoEPendencias({ ctx }: { ctx: ContextoDoPainel }) {
         </Campo>
       </FaixaDeControles>
 
-      <SecaoDaAnalise id="h-op-pre-real" testId="op-pre-real" titulo="Realizado por dia — processos de pré-produção" descricao="Últimos 30 dias, em itens (linhas de peça). Cada processo conta no dia em que a peça passou por ele. O envio de layout tem histórico parcial: o app só guarda essa data para parte das peças.">
+      <SecaoDaAnalise id="h-op-pre-real" testId="op-pre-real" titulo="Realizado por dia — processos de pré-produção" descricao={`Últimos 30 dias, em itens (linhas de peça). Cada processo conta no dia em que a peça passou por ele. O envio de layout tem histórico parcial: o app só guarda essa data para parte das peças.${naoSegueAMarca(ctx.marca)}`}>
         <GraficoDeDias
           testId="op-grafico-pre-real"
           legenda="Processos de pré-produção realizados por dia"
@@ -148,7 +148,7 @@ function RealizadoEPendencias({ ctx }: { ctx: ContextoDoPainel }) {
         />
       </SecaoDaAnalise>
 
-      <SecaoDaAnalise id="h-op-pre-plan" testId="op-pre-plan" titulo="Planejado por dia — o que precisa ser feito" descricao="Cada processo pendente cai no prazo da fase do evento. O que já venceu aparece hoje, em vermelho.">
+      <SecaoDaAnalise id="h-op-pre-plan" testId="op-pre-plan" titulo="Planejado por dia — o que precisa ser feito" descricao={`Cada processo pendente cai no prazo da fase do evento (a peça sem aprovação em Layout, no Layout ajustado). O que já venceu aparece hoje, em vermelho.${naoSegueAMarca(ctx.marca)}`}>
         <GraficoDeDias
           testId="op-grafico-pre-plan"
           legenda="Processos de pré-produção planejados por dia"

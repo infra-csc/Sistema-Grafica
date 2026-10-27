@@ -241,7 +241,9 @@ describe("acrescentar · a isenção só CAI, nunca sobe (caso Mandala)", () => 
     await acrescentar(["p1"]);
     expect(mundo.itens.p1.skipApproval).toBe(false);
     expect(H.broadcast).toHaveBeenCalledWith({ type: "item_updated", item: expect.objectContaining({ id: "p1", skipApproval: false }) });
-    expect(trilhaDe("p1")).toContain('a peça deixou de ser "sem aprovação"');
+    // Desde 26/10 a trilha diz a marca que caiu, com os prazos de Layout (RN10).
+    expect(trilhaDe("p1")).toContain("“Sem patrocínio” desmarcada (patrocinador acrescentado)");
+    expect(trilhaDe("p1")).toContain("a Aprovação volta para a peça");
   });
 
   it("o vínculo pré-existente com isenção TAMBÉM é normalizado (2º round, 27/08)", async () => {
@@ -310,7 +312,8 @@ describe("acrescentar · até a aprovação fechar — inclusive em correção",
       mundo.aprovacoes.p1 = [linha("p1", "sp-vale", "approved")];
       notificacoes = [];
       H.trilha = [];
-      const r = await acrescentar(["p1"]);
+      // Peça marcada fora do Layout: desmarcar é do admin (RN07, 26/10).
+      const r = await acrescentar(["p1"], "sp-min", "admin");
       expect(r.body.reabertas, status).toBe(1);
       expect(mundo.itens.p1, status).toMatchObject({
         status: "awaiting_sponsor_approval", skipApproval: false, sponsorApprovedBy: null, sponsorApprovedAt: null, rejectedBySponsor: false,
@@ -320,6 +323,9 @@ describe("acrescentar · até a aprovação fechar — inclusive em correção",
       expect(mundo.aprovacoes.p1.map((a) => [a.sponsorId, a.status]), status).toEqual([["sp-vale", "approved"], ["sp-min", "pending"]]);
       expect(notificacoes, status).toEqual([expect.objectContaining({ targetRoles: ["arte"], message: expect.stringContaining("segure a finalização") })]);
       expect(trilhaDe("p1"), status).toContain("voltou para a aprovação; só ele decide, os demais seguem aprovados");
+      // a reabertura devolve a Aprovação — a frase da marca diz isso (não "segue na etapa")
+      expect(trilhaDe("p1"), status).toContain("“Sem patrocínio” desmarcada (patrocinador acrescentado)");
+      expect(trilhaDe("p1"), status).toContain("a Aprovação volta para a peça");
     }
     expect(H.storage.updateItemSponsorApproval).not.toHaveBeenCalled();
     expect(H.storage.initializeItemSponsorApprovals).not.toHaveBeenCalled();

@@ -9,7 +9,11 @@
 //   · linha-da-peca ............. a linha memoizada (que no celular vira cartão)
 //   · barra-de-* e modal-* ...... cada barra e cada diálogo no próprio arquivo
 // ─────────────────────────────────────────────────────────────────────────────
+import { useState } from "react";
 import { CheckCircle2 } from "lucide-react";
+import { useAuth } from "@/contexts/auth-context";
+import { MarcarSemAprovacaoDialog } from "@/components/sem-aprovacao-acoes";
+import { PAPEIS_QUE_MARCAM } from "@shared/prazo-sem-aprovacao";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { useDensidadeDoConteudo, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { EsqueletoDeFila } from "@/components/esqueleto-de-fila";
@@ -65,6 +69,18 @@ function TelaDaVinculacao({ emCartoes, isMobile }: { emCartoes: boolean; isMobil
     getItemEditability, podeAcrescentar,
   } = v;
   const { optimisticSentIds, falhaPorPeca, saveLinkingMutation, sendToArteMutation } = a;
+
+  // PEÇAS SEM APROVAÇÃO EM LOTE (Pedro/dono, 26/10 — RF02): "Sem patrocínio"
+  // já se marca em lote no "Aplicar"; este diálogo marca também "Arte do
+  // cliente". Só admin e Solicitação (PAPEIS_QUE_MARCAM — a régua do servidor),
+  // e só peças de UM evento (o servidor recusa o lote misto).
+  const { user } = useAuth();
+  const podeMarcarSemAprovacao = PAPEIS_QUE_MARCAM.includes(user?.role ?? "");
+  const [marcasAberto, setMarcasAberto] = useState(false);
+  const pecasDasMarcas = podeMarcarSemAprovacao ? v.items.filter((i) => selectedItemIds.has(i.id)) : [];
+  const eventosDasMarcas = Array.from(new Set(pecasDasMarcas.map((p) => p.eventId)));
+  const eventoDasMarcas = eventosDasMarcas.length === 1 ? v.events.find((e) => e.id === eventosDasMarcas[0]) ?? null : null;
+  const motivoSemMarcas = eventosDasMarcas.length > 1 ? "As marcas vão em peças de um evento só — filtre por evento" : null;
 
   const acoesDaLinha: AcoesDaLinha = {
     setSelectedItemForDetails: v.setSelectedItemForDetails,
@@ -323,10 +339,24 @@ function TelaDaVinculacao({ emCartoes, isMobile }: { emCartoes: boolean; isMobil
         podeAcrescentar={podeAcrescentar}
         abrirAcrescentar={a.abrirAcrescentar}
         handleOpenBulkApplyDialog={a.handleOpenBulkApplyDialog}
+        abrirMarcasSemAprovacao={podeMarcarSemAprovacao && pecasDasMarcas.length > 0 ? () => setMarcasAberto(true) : undefined}
+        motivoSemMarcas={motivoSemMarcas}
         // Caixa estreita (lista em cartões) usa o arranjo empilhado da barra.
         isMobile={isMobile || emCartoes}
         dedo={dedo}
       />
+
+      {/* Montado só quando aberto: fechado, ele não precisa de query nem de mutação na tela inteira. */}
+      {marcasAberto && !motivoSemMarcas && pecasDasMarcas.length > 0 && (
+      <MarcarSemAprovacaoDialog
+        aberto
+        aoFechar={() => setMarcasAberto(false)}
+        pecas={pecasDasMarcas}
+        papel={user?.role}
+        evento={eventoDasMarcas}
+        aoConcluir={() => { setMarcasAberto(false); v.setSelectedItemIds(new Set()); }}
+      />
+      )}
 
       <ModalPatrocinadoresDoEvento
         sponsorDialogOpen={a.sponsorDialogOpen}

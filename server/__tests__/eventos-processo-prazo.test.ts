@@ -34,7 +34,7 @@ function evento(chave: string, dataEvento: string, prazos: (string | null)[], sa
     chave, eventoId: chave, nome: chave.toUpperCase(), dataEvento, saidaCaminhao: saida, situacao: "Em dia",
     diasParaSaida: 0, totalPecas: 0, entregues: 0, pecasEmAtraso: 0, piorAtrasoDias: 0,
     // índice 0 = Lista de imagens (fora da tela); 1..5 = as cinco colunas.
-    fases: [d(-40), ...prazos].map((p, i) => ({ ordem: i, etapa: "", prazo: p ?? "", pendentes: 0, dias: 0, situacao: "No prazo" as const })),
+    fases: [d(-40), ...prazos].map((p, i) => ({ ordem: i, etapa: "", prazo: p ?? "", prazoEfetivo: p ?? "", pendentes: 0, dias: 0, situacao: "No prazo" as const })),
   };
 }
 let seq = 0;
@@ -44,7 +44,8 @@ function peca(ev: string, fase: number, over: Partial<PecaDaLinha> = {}): PecaDa
     id: `x${seq}`, displayId: String(seq), evento: ev, eventoId: ev, tipo: "", descricao: "", medida: "", material: "", acabamento: "",
     quantidade: 1, reuso: 0, unidades: 1, m2: 1, status: "", etapa: null, fase, prazoFase: null, diasAtraso: 0, prazoProducao: d(10),
     impresso: false, impressoEm: null, acabado: false, acabadoEm: null, furaFila: false, refacao: false, motivoRefacao: "",
-    reprovada: false, semAprovacao: false, ...over,
+    reprovada: false, semAprovacao: false, semPatrocinio: false, arteDoCliente: false, aguardandoArteCliente: false,
+    diasAguardandoArte: null, atrasoDoCliente: false, piso: null, prazoDeLayout: null, ...over,
   };
 }
 const painelDe = (eventos: EventoDoPainel[], pecas: PecaDaLinha[]): Pick<PainelOperacional, "hoje" | "eventos" | "pecas"> => ({ hoje: HOJE, eventos, pecas });

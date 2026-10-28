@@ -196,6 +196,9 @@ export function etapaPelaQuantidadeFisica(p: PecaDoFimDoFluxo): "produced" | "co
   return "produced";
 }
 
+/** Liberada para a produção, com a impressão ainda por começar (canônico e legados). */
+const LIBERADA_SEM_IMPRESSAO: ReadonlySet<string> = new Set(["ready_for_production", "pronto_para_producao", "approved", "liberado"]);
+
 const CANONICO: Record<string, string> = {
   produzido: "produced", conferido: "conferred", embalado: "packed", entregue: "delivered",
 };
@@ -207,6 +210,11 @@ const CANONICO: Record<string, string> = {
  */
 export function statusAposMudarAOrigem(p: PecaDoFimDoFluxo): string | null {
   const atual = String(p.status ?? "");
+  // LIBERADA E AINDA NÃO IMPRESSA (28/10 — #8688 e #8683, produção interna
+  // marcada "em trânsito" depois de ir para a Gráfica): toda em trânsito, não
+  // há nada a imprimir nem a passar pelo galpão — fecha como Entregue, como a
+  // liberação teria fechado. Com parte física, a impressão segue como está.
+  if (LIBERADA_SEM_IMPRESSAO.has(atual)) return quantidadeFisicaDe(p) === 0 ? "delivered" : null;
   if (!FIM_DO_FLUXO.has(atual)) return null;
   const nova = etapaPelaQuantidadeFisica(p);
   return (CANONICO[atual] ?? atual) === nova ? null : nova;

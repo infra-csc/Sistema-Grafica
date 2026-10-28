@@ -119,9 +119,20 @@ describe("a conta física", () => {
 });
 
 describe("a etapa refeita quando a origem muda", () => {
-  it("só no fim do fluxo; nada muda antes da produção", () => {
+  it("no fim do fluxo; antes da produção só a peça liberada TODA em trânsito muda", () => {
     expect(statusAposMudarAOrigem(parcial({ status: "ready_for_production" }))).toBeNull();
     expect(statusAposMudarAOrigem(parcial({ status: "inProduction" }))).toBeNull();
+  });
+  it("liberada e toda em trânsito (#8688/#8683, 28/10): fecha como Entregue — não há o que imprimir", () => {
+    const liberada = { quantity: 8, reuseQty: 8, isReuse: true, status: "ready_for_production", origemReaproveitamento: "em_transito" };
+    expect(statusAposMudarAOrigem(liberada)).toBe("delivered");
+    expect(statusAposMudarAOrigem({ ...liberada, status: "pronto_para_producao" })).toBe("delivered");
+    // do estoque, a Gráfica ainda separa e confere: continua liberada
+    expect(statusAposMudarAOrigem({ ...liberada, origemReaproveitamento: "estoque" })).toBeNull();
+    // em trânsito só em parte: ainda há o que imprimir
+    expect(statusAposMudarAOrigem({ ...liberada, reuseQty: 5, isReuse: false })).toBeNull();
+    // em impressão nada muda por aqui
+    expect(statusAposMudarAOrigem({ ...liberada, status: "inProduction" })).toBeNull();
   });
   it("marcar em trânsito: produced → conferred / packed / delivered conforme o físico", () => {
     expect(statusAposMudarAOrigem(parcial({ conferredQty: 6 }))).toBe("conferred");

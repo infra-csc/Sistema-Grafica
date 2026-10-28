@@ -124,6 +124,9 @@ export function registrarOrigemDoReaproveitamento(app: Express): void {
         const [item] = await tx.update(itemsTable).set({
           ...colunas,
           ...(novoStatus ? { status: novoStatus, statusChangedAt: agora, ...carimbosDaEtapa(novoStatus, atual.status) } : {}),
+          // Fechou como Entregue: a reserva e a divisão entre impressoras acabaram
+          // (a peça liberada que vira toda "em trânsito" sai da fila de impressão).
+          ...(novoStatus === "delivered" ? { impressaoPorMaquina: null, reservaPorMaquina: null, maquinaPrevista: null } : {}),
           updatedAt: agora,
         }).where(eq(itemsTable.id, req.params.id)).returning();
         if (!item) return recusa(404, { error: "Peça não encontrada" });

@@ -21,6 +21,8 @@ import { T, FS, R, N, H, FW, FONT, TOM } from "@/lib/theme";
 import { SOLICITACAO_AO_ESTOQUE_ATIVA } from "@shared/consultas-de-estoque";
 import { rotuloDoContadorDoBook } from "@shared/auditoria-do-book";
 import { useResumoDasAuditorias } from "@/components/eventos/use-auditorias-do-book";
+import { rotuloDasDevolvidas } from "@shared/devolvidas-ao-rascunho";
+import { useDevolvidasAoRascunho } from "@/lib/use-devolvidas-ao-rascunho";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import {
   Sidebar,
@@ -197,7 +199,9 @@ const sectionLabelStyle: React.CSSProperties = {
 // ─── Single nav item ─────────────────────────────────────
 /** O que o número ao lado do item está contando — lido em voz alta e no hover. */
 const rotuloDoNumero = (url: string, n: number): string =>
-  url === "/eventos"
+  url === "/"
+    ? rotuloDasDevolvidas(n)
+    : url === "/eventos"
     ? rotuloDoContadorDoBook(n)
     : url === "/solicitacao"
     ? `${n} ${n === 1 ? "peça esperando" : "peças esperando"} a revisão final`
@@ -502,7 +506,12 @@ export function AppSidebar() {
     queryKey: ["/api/items", "revisao-final/contagem"],
     enabled: revisaFinal,
   });
+  // Peças que a Arte (ou a Vinculação) devolveu para o rascunho (dono, 29/10:
+  // "antigamente eu conseguia ver na tela inicial"). O número fica no Painel
+  // Geral, onde o aviso com o motivo e o caminho até o evento as lista.
+  const devolvidas = useDevolvidasAoRascunho(user);
   const badges = {
+    "/": devolvidas.habilitado ? devolvidas.pecas.length : undefined,
     "/solicitacao": revisaFinal ? revisao?.total : undefined,
     "/eventos": auditoriasDoBook.habilitado ? auditoriasDoBook.resumo.pecas : undefined,
     "/pedidos-de-peca": resolvePedidos ? pendentes?.total : undefined,

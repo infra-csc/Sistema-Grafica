@@ -28,6 +28,7 @@ import { barraSeArquivado, estaArquivado, PATROCINADOR_ARQUIVADO_ERRO } from "..
 import { invalidarCacheDeVersoes } from "./versoes";
 import { DEPOIS_DA_ARTE, POS_APROVACAO } from "@shared/fluxo-peca";
 import { ehMolde } from "@shared/molde";
+import { MARCA_DEVOLVIDA_PARA_A_CRIACAO } from "@shared/devolvidas-ao-rascunho";
 import { ERRO_PATROCINADOR_NA_PRODUCAO_INTERNA, CODIGO_COM_PATROCINADOR } from "@shared/producao-interna";
 import { responderFalha } from "../erros";
 import { vemDeOrigemValida } from "@shared/maquina-de-estados";
@@ -1173,7 +1174,8 @@ export function registerSponsorRoutes(app: Express): void {
         'updated',
         'item',
         id,
-        `Item devolvido para Criação (status anterior: ${translateStatus(prevStatus)})`
+        // A marca é a que o aviso de devolvidas lê (@shared/devolvidas-ao-rascunho).
+        `${MARCA_DEVOLVIDA_PARA_A_CRIACAO} (status anterior: ${translateStatus(prevStatus)})`
       );
 
       const updated = await storage.getItem(id);

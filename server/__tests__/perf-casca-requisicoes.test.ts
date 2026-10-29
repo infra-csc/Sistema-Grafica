@@ -13,6 +13,7 @@
 //   • /api/notifications uma vez (a lista do sino é UMA query, da casca);
 //   • o badge de pedidos só para quem resolve pedidos;
 //   • o número do Eventos (auditoria do book, 19/10) só para Solicitação e admin;
+//   • o das devolvidas no Painel Geral (29/10), também só Solicitação e admin;
 //   • nada de acervo pesado — isso é das páginas, não da casca.
 //
 // O WebSocket aqui nunca abre: a revalidação da (re)conexão é assunto do
@@ -31,6 +32,7 @@ function responder(url: string, papel: string) {
   if (url.startsWith("/api/pedidos-de-peca/pendentes")) return { total: 0 };
   if (url.startsWith("/api/auditorias-do-book")) return { auditorias: [] };
   if (url.startsWith("/api/items/revisao-final/contagem")) return { total: 0 };
+  if (url.startsWith("/api/items/devolvidas-ao-rascunho")) return { pecas: [] };
   return [];
 }
 
@@ -78,11 +80,13 @@ describe("a casca pede o mínimo ao montar", () => {
     expect(contar("/api/auditorias-do-book")).toBe(1);
     // "Número de itens a revisar na Revisão Final" (dono, 26/10): só o total.
     expect(contar("/api/items/revisao-final/contagem")).toBe(1);
+    // "Peças que a Arte devolve pra mim" no Painel Geral (dono, 29/10).
+    expect(contar("/api/items/devolvidas-ao-rascunho")).toBe(1);
     for (const pesado of ["/api/events", "/api/sponsors", "/api/standard-items", "/api/items"]) {
       expect(contar(pesado), pesado).toBe(0);
     }
     // Orçamento total da casca: se crescer, que seja de propósito.
-    expect(pedidos.length, pedidos.join(", ")).toBe(5);
+    expect(pedidos.length, pedidos.join(", ")).toBe(6);
   }, 20_000);
 
   it("gráfica: não pede o badge de pedidos (não é dela)", async () => {
@@ -93,6 +97,7 @@ describe("a casca pede o mínimo ao montar", () => {
     expect(contar("/api/consultas-de-estoque/abertas")).toBe(0);
     expect(contar("/api/auditorias-do-book")).toBe(0);
     expect(contar("/api/items/revisao-final/contagem")).toBe(0);
+    expect(contar("/api/items/devolvidas-ao-rascunho")).toBe(0);
     expect(pedidos.length, pedidos.join(", ")).toBe(2);
   }, 20_000);
 });

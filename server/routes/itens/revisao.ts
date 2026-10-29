@@ -31,6 +31,7 @@ import { lerOrigemDoCorpo, colunasDaOrigem, origemDe, fraseDaTrilhaDaOrigem, fra
 import { avisarBuscarNoEstoque } from "../../services/aviso-buscar-no-estoque";
 import { recalcularEventoEAvisar } from "../../services/evento-concluido";
 import { situacaoParaVoltarAArte } from "@shared/devolver-evento-para-arte";
+import { MARCA_DEVOLVIDA_PELA_ARTE } from "@shared/devolvidas-ao-rascunho";
 // Mexe em decisão de patrocinador (nova aprovação): o quadro de Versões é refeito.
 import { invalidarCacheDeVersoes } from "../versoes";
 
@@ -416,7 +417,7 @@ export function registrarRevisao(app: Express): void {
         'rejected',
         'item',
         item.id,
-        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("draft")} (devolvida pela Arte ao solicitante${DEPOIS_DA_ARTE.has(currentItem.status) ? ", JÁ FORA DA ARTE" : ""}). Motivo: ${motivo.motivo}`
+        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("draft")} (${MARCA_DEVOLVIDA_PELA_ARTE}${DEPOIS_DA_ARTE.has(currentItem.status) ? ", JÁ FORA DA ARTE" : ""}). Motivo: ${motivo.motivo}`
       );
 
       const notification = await storage.createNotification({

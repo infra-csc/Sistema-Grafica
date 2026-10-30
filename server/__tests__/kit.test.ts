@@ -26,7 +26,6 @@ import {
   DETALHE_DO_SELO_KIT,
 } from "@shared/kit";
 import * as kit from "@shared/kit";
-import { idDoKitDe } from "@shared/api";
 import {
   buildEventPrazo, marcoIndexFor, KIT_STAGE_INDEX, APROVACAO_STAGE_INDEX, FINALIZACAO_STAGE_INDEX, STAGE_DEFS,
   type DomainEvent, type DomainItem,
@@ -376,8 +375,8 @@ describe("Ver como outro perfil (15/09)", () => {
     expect(ler("server/routes/itens/criacao.ts")).toContain("validatedData.criadoPorId = (req.userKit ? req.idDoKit : undefined) ?? req.userId ?? null;");
     expect(ler("server/services/xlsxImport.ts")).toContain("criadoPorId: (req.userKit ? req.idDoKit : undefined) ?? req.userId ?? null,");
     expect(ler("server/trava-do-kit.ts")).toContain("dono.createdBy !== (req.idDoKit ?? req.userId)");
-    expect(idDoKitDe({ id: "admin", verComoKit: { id: "bruno", nome: "Bruno" } })).toBe("bruno");
-    expect(idDoKitDe({ id: "bruno" })).toBe("bruno");
+    expect(kit.idDoKitDe({ id: "admin", verComoKit: { id: "bruno", nome: "Bruno" } })).toBe("bruno");
+    expect(kit.idDoKitDe({ id: "bruno" })).toBe("bruno");
     const APP = ler("client/src/App.tsx");
     expect(APP).toContain('onSelect={() => { void verComo("solicitacao", true, pessoa.id); }}');
   });

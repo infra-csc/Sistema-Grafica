@@ -34,7 +34,7 @@ import {
   estadoDaPrioridadeNaImpressao, ROTULO_PEDIR_PRIORIDADE, ROTULO_PRIORIDADE_PEDIDA, ROTULO_RETIRAR_PRIORIDADE,
 } from "@shared/prioridade-na-impressao";
 import type { PecaDaPrioridade } from "@shared/prioridade-na-impressao";
-import { idDoKitDe, type PessoaDoKit } from "@shared/api";
+import { idDoKitDe, type PessoaDoKit } from "@shared/kit";
 
 export type PecaComPrioridade = PecaDaPrioridade & { id: string; displayId?: string | null };
 

@@ -36,15 +36,10 @@ export type UsuarioDaSessao = UsuarioSemSenha & {
  */
 export type UsuarioDaLista = UsuarioSemSenha & { operadoresAtivos?: number };
 
-/** Elemento de GET /api/auth/ver-como/kit — quem o admin pode simular no Kit. */
-export interface PessoaDoKit { id: string; nome: string }
-
-/**
- * De quem é o Kit que a tela enxerga: o próprio usuário — ou, no "ver como"
- * do admin, a pessoa do Kit simulada (a mesma régua de `idDoKit` no servidor).
- */
-export const idDoKitDe = (usuario: { id?: string | null; verComoKit?: PessoaDoKit | null } | null | undefined): string | null =>
-  usuario?.verComoKit?.id ?? usuario?.id ?? null;
+// PessoaDoKit e idDoKitDe moram em @shared/kit (módulo leve que o cliente já
+// carrega); aqui só o tipo, para o contrato de /api/auth/me.
+import type { PessoaDoKit } from "../kit";
+export type { PessoaDoKit };
 
 /** Elemento de GET /api/users/basic — o que qualquer sessão pode ver. */
 export interface UsuarioBasico { id: string; name: string; role: string }

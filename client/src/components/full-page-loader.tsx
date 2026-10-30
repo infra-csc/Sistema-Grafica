@@ -1,4 +1,5 @@
-import { T, FS, FW, FONT, R, N } from "@/lib/theme";
+import { T, FS, FW, R, N } from "@/lib/theme";
+import { MarcaMiro } from "@/components/marca-miro";
 
 /**
  * O loader de página inteira (antes vivia dentro do App.tsx).
@@ -11,8 +12,8 @@ import { T, FS, FW, FONT, R, N } from "@/lib/theme";
  * Carregando…" aparecia encostado na borda ESQUERDA — o `justify-center` só
  * centraliza dentro da largura que a própria div tem.
  *
- * O desenho (02/10): o mesmo selo da barra lateral e da tela de entrada
- * (desde 16/10, o "N" da NORTE na cor da Produção), o nome, e uma faixa fina que ANDA —
+ * O desenho (02/10): a mesma marca da barra lateral e da tela de entrada
+ * (desde 30/10, a assinatura da Miró), e uma faixa fina que ANDA —
  * o "piscar" do texto inteiro (animate-pulse) parecia falha de tela, não
  * trabalho em curso. Com movimento reduzido a faixa fica parada (index.css,
  * .csc-faixa) e o texto continua dizendo o que acontece.
@@ -27,11 +28,8 @@ export function FullPageLoader() {
       style={{ backgroundColor: T.bg }}
     >
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-        {/* Identidade do app (16/10): o selo da NORTE (quadrado branco com o N da Produção). */}
-        <img src="/selo-app.svg" alt="" aria-hidden="true" width={44} height={44} style={{ width: 44, height: 44, display: "block" }} />
-        <span aria-hidden="true" style={{ fontFamily: FONT.display, fontSize: FS.title, fontWeight: FW.rotulo, letterSpacing: "-0.04em", color: T.text, lineHeight: 1 }}>
-          NORTE
-        </span>
+        {/* Marca Miró (30/10): o mesmo desenho do menu e da entrada. */}
+        <MarcaMiro altura={36} decorativa />
         <span aria-hidden="true" style={{ position: "relative", width: 120, height: 3, borderRadius: R.pill, backgroundColor: N.n3, overflow: "hidden" }}>
           <span className="csc-faixa" style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: "40%", borderRadius: R.pill, backgroundColor: T.accent }} />
         </span>

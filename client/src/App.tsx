@@ -30,7 +30,7 @@ import { useEstadoDoOperador } from "@/hooks/use-operador";
 import { QuemEstaNaMaquina } from "@/components/operadores/quem-esta-na-maquina";
 import { SeloDoOperador } from "@/components/operadores/selo-do-operador";
 import { useEffect, useState, Component, lazy, Suspense, type ReactNode, type ComponentType } from "react";
-import type { PessoaDoKit } from "@shared/api";
+import type { PessoaDoKit } from "@shared/kit";
 import { T, N, R, FS, FW, FONT, TOM, ESCURO } from "@/lib/theme";
 
 /**
@@ -802,7 +802,8 @@ function AuthenticatedLayout() {
   // (planilha na frente) via o aviso só quando voltava por outro motivo.
   const naoLidas = notifications.filter((n) => !n.isRead).length;
   useEffect(() => {
-    const base = pageLabel ? `Gráfica — ${pageLabel}` : "Gráfica";
+    // Marca Miró (30/10): "Miró — Página" na aba.
+    const base = pageLabel ? `Miró — ${pageLabel}` : "Miró";
     document.title = naoLidas > 0 ? `(${naoLidas > 99 ? "99+" : naoLidas}) ${base}` : base;
   }, [pageLabel, naoLidas]);
 
@@ -1176,7 +1177,7 @@ function AvisoDeVersaoNova() {
       className="norte-surge"
     >
       <RefreshCw aria-hidden="true" style={{ width: 15, height: 15, color: ESCURO.foco, flexShrink: 0 }} />
-      Há uma versão nova do NORTE
+      Há uma versão nova do sistema
       <button
         type="button"
         data-testid="button-recarregar-versao"

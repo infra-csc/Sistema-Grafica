@@ -60,6 +60,7 @@ import type { PgUpdateSetSource } from "drizzle-orm/pg-core";
 import type { SQL } from "drizzle-orm";
 import { eq, and, desc, asc, sql, or, lt, gte, ne, inArray, notInArray, like, ilike, isNull, isNotNull } from "drizzle-orm";
 import { reservaEstaAtiva } from "@shared/estoque";
+import { MARCA_DEVOLVIDA_PELA_ARTE, MARCA_DEVOLVIDA_PARA_A_CRIACAO } from "@shared/devolvidas-ao-rascunho";
 import { problemaNaDataDoEvento, fraseDaDataInvalida } from "@shared/prazo-dates";
 import { doEventoNaoArquivado, daPecaDeEventoNaoArquivado } from "./services/arquivamento";
 import { ehForaDoFunil } from "@shared/fluxo-peca";
@@ -442,6 +443,7 @@ export interface IStorage {
   getItemsChangedSince(since: Date): Promise<Item[]>;
   getIdsQueSairamDaJanelaDeEntregues(since: Date): Promise<string[]>;
   getEventsByIds(ids: string[]): Promise<Event[]>;
+  getUltimasDevolucoesAoRascunho(itemIds: string[]): Promise<Map<string, Pick<AuditLog, "userName" | "createdAt" | "details">>>;
   getItemSponsorsByItemIds(itemIds: string[]): Promise<ItemSponsor[]>;
   getItemSponsorApprovalsByItemIds(itemIds: string[]): Promise<ItemSponsorApproval[]>;
   getItemsParaCorrecao(): Promise<Item[]>;
@@ -1960,6 +1962,28 @@ export class DatabaseStorage implements IStorage {
     // Sem filtro de arquivado de propósito: só enriquece peças que JÁ vieram
     // filtradas, e a ficha aberta por link direto precisa do evento embutido.
     return await db.select().from(events).where(inArray(events.id, ids));
+  }
+
+  // A ÚLTIMA devolução ao rascunho de cada peça (pela Arte ou pela
+  // Vinculação), lida da trilha — @shared/devolvidas-ao-rascunho explica por
+  // que a trilha é o sinal. Só para as peças pedidas (os rascunhos vivos, que
+  // são poucos) e pelo índice de entidade da audit_logs.
+  async getUltimasDevolucoesAoRascunho(itemIds: string[]): Promise<Map<string, Pick<AuditLog, "userName" | "createdAt" | "details">>> {
+    const porPeca = new Map<string, Pick<AuditLog, "userName" | "createdAt" | "details">>();
+    if (itemIds.length === 0) return porPeca;
+    const linhas = await db
+      .select({ entityId: auditLogs.entityId, userName: auditLogs.userName, createdAt: auditLogs.createdAt, details: auditLogs.details })
+      .from(auditLogs)
+      .where(and(
+        eq(auditLogs.entityType, "item"),
+        inArray(auditLogs.entityId, itemIds),
+        or(like(auditLogs.details, `%${MARCA_DEVOLVIDA_PELA_ARTE}%`), like(auditLogs.details, `${MARCA_DEVOLVIDA_PARA_A_CRIACAO}%`)),
+      ))
+      .orderBy(desc(auditLogs.createdAt));
+    for (const l of linhas) {
+      if (!porPeca.has(l.entityId)) porPeca.set(l.entityId, { userName: l.userName, createdAt: l.createdAt, details: l.details });
+    }
+    return porPeca;
   }
 
   async getItemSponsorsByItemIds(itemIds: string[]): Promise<ItemSponsor[]> {

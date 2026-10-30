@@ -34,6 +34,7 @@ import {
   estadoDaPrioridadeNaImpressao, ROTULO_PEDIR_PRIORIDADE, ROTULO_PRIORIDADE_PEDIDA, ROTULO_RETIRAR_PRIORIDADE,
 } from "@shared/prioridade-na-impressao";
 import type { PecaDaPrioridade } from "@shared/prioridade-na-impressao";
+import { idDoKitDe, type PessoaDoKit } from "@shared/api";
 
 export type PecaComPrioridade = PecaDaPrioridade & { id: string; displayId?: string | null };
 
@@ -100,7 +101,7 @@ export function usePrioridadeNaImpressao(item: PecaComPrioridade | null | undefi
   const pecaAgora = item
     ? { ...item, isPriority: respondida && respondida.id === item.id ? respondida.valor : item.isPriority }
     : null;
-  const estado = estadoDaPrioridadeNaImpressao(pecaAgora, { papel: user?.role, kit: user?.kit === true, userId: user?.id ?? null });
+  const estado = estadoDaPrioridadeNaImpressao(pecaAgora, { papel: user?.role, kit: user?.kit === true, userId: idDoKitDe(user) });
   const pendente = mutacao.isPending && mutacao.variables?.itemId === item?.id;
   const pedir = (prioritaria: boolean) => {
     if (!item || mutacao.isPending) return;
@@ -230,9 +231,9 @@ export function PrioridadeNaImpressaoIcone({ item, eventoFinalizado = false, noC
  */
 export function mostraPrioridadeNaImpressao(
   item: PecaComPrioridade | null | undefined,
-  user: { role?: string | null; kit?: boolean | null; id?: string | null } | null | undefined,
+  user: { role?: string | null; kit?: boolean | null; id?: string | null; verComoKit?: PessoaDoKit | null } | null | undefined,
   eventoFinalizado = false,
 ): boolean {
-  const estado = estadoDaPrioridadeNaImpressao(item, { papel: user?.role, kit: user?.kit === true, userId: user?.id ?? null });
+  const estado = estadoDaPrioridadeNaImpressao(item, { papel: user?.role, kit: user?.kit === true, userId: idDoKitDe(user) });
   return estado === "pedida" || (estado === "pedir" && !eventoFinalizado);
 }

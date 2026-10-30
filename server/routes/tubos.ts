@@ -149,7 +149,7 @@ type Tubo = typeof tubos.$inferSelect;
 // O MESMO recorte do Kit que as leituras de peças aplicam (routes/items.ts):
 // o usuário do Kit só enxerga — e só mexe em — peça do Kit que ele criou.
 // Peça fora do recorte é tratada como inexistente, em leitura e em escrita.
-const quemVe = (req: Request) => ({ kit: req.userKit === true, userId: req.userId ?? null });
+const quemVe = (req: Request) => ({ kit: req.userKit === true, userId: req.idDoKit ?? req.userId ?? null });
 
 // "SOLICITAÇÃO SEM KIT SÓ VISUALIZA PEÇA DO KIT" — a trava global de
 // server/routes.ts. Ela só enxerga `/api/items/:id` e `itemIds`, e os tubos

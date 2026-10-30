@@ -25,6 +25,8 @@ const ORDEM_ORIGINAL = [
   "GET /api/items/resubmission-needed",
   "GET /api/items/approved",
   "GET /api/items/revisao-final/contagem",
+  // 29/10 (dono): as peças devolvidas para o rascunho — menu e Painel.
+  "GET /api/items/devolvidas-ao-rascunho",
   "GET /api/items/batch-approval-data",
   "GET /api/items/:eventId",
   "POST /api/items",
@@ -116,7 +118,7 @@ describe("registerItemRoutes — a ordem de sempre", () => {
   it("as leituras fixas vêm antes de GET /api/items/:eventId", () => {
     const ordem = ordemRegistrada();
     const porEvento = ordem.indexOf("GET /api/items/:eventId");
-    for (const fixa of ["pending", "approved", "deleted", "resubmission-needed", "revisao-final/contagem", "batch-approval-data"]) {
+    for (const fixa of ["pending", "approved", "deleted", "resubmission-needed", "revisao-final/contagem", "devolvidas-ao-rascunho", "batch-approval-data"]) {
       expect(ordem.indexOf(`GET /api/items/${fixa}`)).toBeLessThan(porEvento);
     }
   });

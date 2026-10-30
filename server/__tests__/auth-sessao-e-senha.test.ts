@@ -192,7 +192,7 @@ describe("POST /api/auth/ver-como", () => {
     const r = await verComo({ role: "grafica" });
     expect(r.status).toBe(200);
     // 30/09: a resposta leva a marca Cultura (só vale no Atendimento).
-    expect(r.body).toEqual({ role: "grafica", kit: false, cultura: false, papelReal: "admin" });
+    expect(r.body).toEqual({ role: "grafica", kit: false, cultura: false, papelReal: "admin", verComoKit: null });
     expect(r.req.session.userRole).toBe("grafica");
     expect(r.req.session.papelReal).toBe("admin");
   });
@@ -208,7 +208,7 @@ describe("POST /api/auth/ver-como", () => {
 
   it("voltar para admin limpa papelReal e a marca do Kit", async () => {
     const r = await verComo({ role: "admin" }, { userRole: "solicitacao", papelReal: "admin", userKit: true });
-    expect(r.body).toEqual({ role: "admin", kit: false, cultura: false, papelReal: null });
+    expect(r.body).toEqual({ role: "admin", kit: false, cultura: false, papelReal: null, verComoKit: null });
     expect(r.req.session.userCultura).toBe(false);
     expect(r.req.session.papelReal).toBeUndefined();
     expect(r.req.session.userKit).toBe(false);
@@ -229,8 +229,51 @@ describe("POST /api/auth/ver-como", () => {
   });
 
   it("a marca do Kit só existe em Solicitação", async () => {
-    expect((await verComo({ role: "solicitacao", kit: true })).body.kit).toBe(true);
+    H.usuarios.push(await usuario({ id: "u-kit", name: " Bruno Ferreira", role: "solicitacao", kit: true }));
+    expect((await verComo({ role: "solicitacao", kit: true, kitUserId: "u-kit" })).body.kit).toBe(true);
     expect((await verComo({ role: "grafica", kit: true })).body.kit).toBe(false);
+  });
+
+  // 30/10 (dono): "a simulação é para eu ver exatamente o que ele vê". O Kit
+  // só enxerga as peças que a PESSOA criou — simulado com o id do admin, toda
+  // tela vinha vazia. O Kit agora se simula de uma pessoa.
+  describe("Kit de uma pessoa", () => {
+    beforeEach(async () => {
+      H.usuarios.push(await usuario({ id: "u-kit", name: " Bruno Ferreira", role: "solicitacao", kit: true }));
+      H.usuarios.push(await usuario({ id: "u-sol", name: "Sofia", role: "solicitacao", kit: false }));
+    });
+
+    it("guarda na sessão QUEM simular — e a trilha diz de quem é o Kit", async () => {
+      const r = await verComo({ role: "solicitacao", kit: true, kitUserId: "u-kit" });
+      expect(r.status).toBe(200);
+      expect(r.body.verComoKit).toEqual({ id: "u-kit", nome: "Bruno Ferreira" });
+      expect(r.req.session.verComoKit).toEqual({ id: "u-kit", nome: "Bruno Ferreira" });
+      expect(r.req.session.userKit).toBe(true);
+      expect(H.trilha[0].detalhe).toBe("Passou a ver o sistema como solicitacao (Kit de Bruno Ferreira)");
+    });
+
+    it("sem a pessoa, ou com alguém que não é do Kit: 400 e a sessão não muda", async () => {
+      for (const kitUserId of [undefined, "", "u-sol", "u1", "ninguem"]) {
+        const r = await verComo({ role: "solicitacao", kit: true, kitUserId });
+        expect(r.status, String(kitUserId)).toBe(400);
+        expect(r.req.session.userRole).toBe("admin");
+        expect(r.req.session.verComoKit).toBeUndefined();
+      }
+    });
+
+    it("trocar para outro perfil, ou voltar ao admin, esquece a pessoa do Kit", async () => {
+      const kit = { userRole: "solicitacao", userKit: true, papelReal: "admin", verComoKit: { id: "u-kit", nome: "Bruno Ferreira" } };
+      expect((await verComo({ role: "grafica" }, { ...kit })).req.session.verComoKit).toBeUndefined();
+      expect((await verComo({ role: "admin" }, { ...kit })).req.session.verComoKit).toBeUndefined();
+    });
+
+    it("GET /api/auth/ver-como/kit: só os usuários do Kit, pelo nome — e só para o admin de verdade", async () => {
+      const r = await chamar("GET /api/auth/ver-como/kit", {});
+      expect(r.body).toEqual([{ id: "u-kit", nome: "Bruno Ferreira" }]);
+      // Já simulando (o perfil da sessão não é admin): continua liberado.
+      expect((await chamar("GET /api/auth/ver-como/kit", { session: { userRole: "solicitacao", userKit: true, papelReal: "admin" } })).status).toBe(200);
+      expect((await chamar("GET /api/auth/ver-como/kit", { session: { userRole: "solicitacao" } })).status).toBe(403);
+    });
   });
 
   it("a trilha usa o nome puro — trocar de perfil não é ação 'como' o perfil novo", async () => {

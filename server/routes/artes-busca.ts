@@ -155,7 +155,7 @@ export function registerArtesBuscaRoutes(app: Express) {
       const termo = typeof req.query?.q === "string" ? req.query.q : "";
       if (!alvoId) return res.status(400).json({ error: "Informe a peça de destino (item)." });
 
-      const usuario = { kit: req.userKit === true, userId: req.userId ?? null };
+      const usuario = { kit: req.userKit === true, userId: req.idDoKit ?? req.userId ?? null };
 
       const [alvo]: Linha[] = await db.select(COLUNAS).from(itemsTable)
         .leftJoin(events, eq(events.id, itemsTable.eventId))
@@ -379,7 +379,7 @@ export function registerArtesBuscaRoutes(app: Express) {
     try {
       const alvoId = typeof req.query?.item === "string" ? req.query.item : "";
       if (!alvoId) return res.status(400).json({ error: "Informe a peça (item)." });
-      const usuario = { kit: req.userKit === true, userId: req.userId ?? null };
+      const usuario = { kit: req.userKit === true, userId: req.idDoKit ?? req.userId ?? null };
 
       const [alvo]: Linha[] = await db.select(COLUNAS).from(itemsTable)
         .leftJoin(events, eq(events.id, itemsTable.eventId))

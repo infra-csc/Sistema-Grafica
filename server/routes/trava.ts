@@ -20,7 +20,7 @@ const RECADO_SO_VISUALIZA = "Peça do Kit: a Solicitação da Arena só visualiz
 async function pecaDoPedido(req: Request) {
   const peca = await storage.getItem(req.params.id);
   if (!peca || peca.deletedAt) return null;
-  const quemVe = { kit: req.userKit === true, userId: req.userId ?? null };
+  const quemVe = { kit: req.userKit === true, userId: req.idDoKit ?? req.userId ?? null };
   return pecaVisivelPara(quemVe, { kitRemessaId: peca.kitRemessaId, criadoPorId: peca.criadoPorId }) ? peca : null;
 }
 

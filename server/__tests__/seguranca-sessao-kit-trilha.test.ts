@@ -162,6 +162,7 @@ describe("ver como na trilha", () => {
   it("marca o perfil emprestado", () => {
     expect(nomeParaATrilha("Ana", { papelReal: "admin", userRole: "grafica" })).toBe("Ana (como Gráfica)");
     expect(nomeParaATrilha("Ana", { papelReal: "admin", userRole: "solicitacao", userKit: true })).toBe("Ana (como Solicitação · Kit)");
+    expect(nomeParaATrilha("Ana", { papelReal: "admin", userRole: "solicitacao", userKit: true, verComoKit: { nome: " Bruno Ferreira" } })).toBe("Ana (como Solicitação · Kit de Bruno Ferreira)");
     expect(nomeParaATrilha("Ana", { userRole: "admin" })).toBe("Ana");
   });
 });

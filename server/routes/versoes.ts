@@ -179,9 +179,9 @@ export function invalidarCacheDeVersoes(): void {
 registrarCache("versoes", () => { cache = null; });
 
 /** Usuário do Kit (14/09): o cache é de todos; o recorte dele sai aqui. */
-async function doUsuario(req: Pick<Request, "userKit" | "userId">, dados: DadosDeVersoes): Promise<DadosDeVersoes> {
+async function doUsuario(req: Pick<Request, "userKit" | "userId" | "idDoKit">, dados: DadosDeVersoes): Promise<DadosDeVersoes> {
   if (!req.userKit) return dados;
-  const minhas = new Set(await storage.getIdsDasPecasDoKitDoCriador(req.userId ?? null));
+  const minhas = new Set(await storage.getIdsDasPecasDoKitDoCriador(req.idDoKit ?? req.userId ?? null));
   return { ...dados, itens: dados.itens.filter((p) => minhas.has(p.id)) };
 }
 

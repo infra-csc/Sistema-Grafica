@@ -46,7 +46,7 @@ export function registrarPrioridadeNaImpressao(app: Express): void {
 
       const peca = await storage.getItem(req.params.id);
       if (!peca) return res.status(404).json({ error: "Peça não encontrada." });
-      const quem = { papel: req.userRole, kit: req.userKit === true, userId: req.userId ?? null };
+      const quem = { papel: req.userRole, kit: req.userKit === true, userId: req.idDoKit ?? req.userId ?? null };
       const motivo = prioritaria ? motivoParaNaoPedirPrioridade(peca, quem) : motivoParaNaoRetirarPrioridade(peca, quem);
       if (motivo) return res.status(motivo.http).json({ error: motivo.frase, code: motivo.codigo });
       // ANDA: pedir faz a peça passar na frente na impressora — evento

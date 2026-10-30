@@ -16,6 +16,8 @@ import { requireAuth } from "../shared";
 import { COMPLEMENT_ALLOWED_STATUSES, quemVe } from "./comum";
 import { responderFalha, camposDoErro } from "../../erros";
 import { STATUS_DA_REVISAO, pecasParaRevisar } from "@shared/revisao-final";
+import { lerDevolucaoAoRascunho, type PecaDevolvida } from "@shared/devolvidas-ao-rascunho";
+import { motivoEventoFechado } from "../eventoFinalizado";
 
 /** Patrocinador na peça, com o status da aprovação dele NESTA peça. */
 type PatrocinadorNaPeca = Sponsor & { approvalStatus: string | null };
@@ -721,6 +723,43 @@ export function registrarFilasEPorEvento(app: Express): void {
     } catch (error) {
       console.error("[items] contagem da revisão final:", error);
       res.status(500).json({ error: "Não foi possível contar a Revisão Final" });
+    }
+  });
+
+  // PEÇAS DEVOLVIDAS PARA O RASCUNHO — o número no "Painel Geral" do menu, o
+  // aviso no topo do Painel e o motivo na linha do card de rascunhos (dono,
+  // 29/10). Rascunho vivo, que a pessoa enxerga, de evento ainda em jogo
+  // (no fechado nada mais anda — seria um aviso eterno), e que passou por uma
+  // das duas portas de devolução (@shared/devolvidas-ao-rascunho). A mais
+  // recente primeiro. Antes de /api/items/:eventId.
+  app.get("/api/items/devolvidas-ao-rascunho", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "solicitacao" && req.userRole !== "admin") return res.json({ pecas: [] });
+      const usuario = quemVe(req);
+      const rascunhos = (await storage.getItemsByStatuses(["draft"]))
+        .filter((i) => !i.deletedAt && pecaVisivelPara(usuario, i));
+      const devolucoes = await storage.getUltimasDevolucoesAoRascunho(rascunhos.map((i) => i.id));
+      const devolvidas = rascunhos.filter((i) => devolucoes.has(i.id));
+      const eventos = new Map((await storage.getEventsByIds(Array.from(new Set(devolvidas.map((i) => i.eventId))))).map((e) => [e.id, e]));
+      const pecas: PecaDevolvida[] = [];
+      for (const i of devolvidas) {
+        const evento = eventos.get(i.eventId);
+        if (!evento || motivoEventoFechado(evento)) continue;
+        const linha = devolucoes.get(i.id)!;
+        const lida = lerDevolucaoAoRascunho(linha.details);
+        if (!lida) continue;
+        pecas.push({
+          id: i.id, displayId: i.displayId ?? null, type: i.type, description: i.description ?? null,
+          eventId: i.eventId, eventName: evento.name,
+          origem: lida.origem, motivo: lida.motivo, por: linha.userName,
+          em: new Date(linha.createdAt).toISOString(),
+        });
+      }
+      pecas.sort((a, b) => b.em.localeCompare(a.em));
+      res.json({ pecas });
+    } catch (error) {
+      console.error("[items] devolvidas ao rascunho:", error);
+      res.status(500).json({ error: "Não foi possível listar as peças devolvidas" });
     }
   });
 

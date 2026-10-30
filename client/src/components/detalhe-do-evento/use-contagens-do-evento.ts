@@ -7,6 +7,7 @@ import { useMemo } from "react";
 import { contarPorFase, FORA_DO_FUNIL } from "@/lib/fases";
 import { MARCOS_DO_EVENTO } from "@shared/prazo-dates";
 import { statusParaContagem } from "@shared/molde";
+import { idDoKitDe } from "@shared/api";
 import { compareDisplayId } from "@/lib/displayId";
 import { calcularMarcos, contarTrabalhoAberto, estaAtrasDoMarco, fraseDeResolucao } from "./regras";
 import { prazoDeLayoutAjustado, prazoDeLayoutDoEvento, pulaAprovacao } from "@shared/prazo-sem-aprovacao";
@@ -46,7 +47,7 @@ export function useContagensDoEvento(rawItems: PecaDoEvento[], event: EventoDoDe
   // APRESENTAÇÃO (contagem e lista da confirmação); quem decide é o servidor.
   const rascunhosQueEuEnvio = useMemo(() => {
     if (user?.role === 'admin') return draftItems;
-    if (user?.kit) return draftItems.filter((i) => !!i.kitRemessaId && i.criadoPorId === user.id);
+    if (user?.kit) return draftItems.filter((i) => !!i.kitRemessaId && i.criadoPorId === idDoKitDe(user));
     return draftItems;
   }, [draftItems, user]);
 

@@ -250,7 +250,9 @@ export function derivarAreaVisual(
 }
 
 // KIT (14/09): quem está pedindo, na régua de shared/kit.ts.
-export const quemVe = (req: Pick<Request, "userKit" | "userId">) => ({ kit: req.userKit === true, userId: req.userId ?? null });
+// `idDoKit`: de quem é o Kit que esta sessão enxerga (o próprio usuário; no
+// "ver como" do admin, a pessoa do Kit escolhida — server/routes.ts).
+export const quemVe = (req: Pick<Request, "userKit" | "userId" | "idDoKit">) => ({ kit: req.userKit === true, userId: req.idDoKit ?? req.userId ?? null });
 
 // Criação de itens: Solicitação/admin, ou o CRIADOR do evento (qualquer papel)
 // — espelha o gate canEditLists do client. Sem isto, Gráfica/Arte/Atendimento

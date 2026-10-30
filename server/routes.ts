@@ -85,6 +85,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Usuário do Kit (14/09): a marca vem do login; mudar a marca derruba as
       // sessões da pessoa (PATCH /api/users/:id), como mudar o perfil.
       req.userKit = req.session.userKit === true;
+      // VER COMO · Kit (30/10): o admin enxerga o Kit da pessoa escolhida.
+      req.idDoKit = (req.session.papelReal && req.userKit && req.session.verComoKit?.id) || req.session.userId;
       // Atendimento – Cultura (30/09): a marca vem do login, como a do Kit.
       req.userCultura = req.session.userCultura === true;
     } else {

@@ -26,6 +26,7 @@ import {
   DETALHE_DO_SELO_KIT,
 } from "@shared/kit";
 import * as kit from "@shared/kit";
+import { idDoKitDe } from "@shared/api";
 import {
   buildEventPrazo, marcoIndexFor, KIT_STAGE_INDEX, APROVACAO_STAGE_INDEX, FINALIZACAO_STAGE_INDEX, STAGE_DEFS,
   type DomainEvent, type DomainItem,
@@ -354,10 +355,26 @@ describe("Ver como outro perfil (15/09)", () => {
   it("só o admin troca o perfil da sessão, /me devolve o perfil em uso e o menu tem a faixa de volta", () => {
     expect(AUTH).toContain('app.post("/api/auth/ver-como", requireAuth');
     expect(AUTH).toContain('const papelReal = req.session.papelReal ?? req.session.userRole;');
-    expect(AUTH).toContain('? { role: req.session.userRole, kit: req.session.userKit === true, cultura: req.session.userCultura === true, papelReal: req.session.papelReal }');
+    expect(AUTH).toContain('? { role: req.session.userRole, kit: req.session.userKit === true, cultura: req.session.userCultura === true, papelReal: req.session.papelReal, verComoKit: req.session.verComoKit ?? null }');
     const APP = ler("client/src/App.tsx");
     expect(APP).toContain('data-testid="faixa-ver-como"');
     expect(APP).toContain('{ chave: "solicitacao-kit", role: "solicitacao", kit: true, rotulo: "Solicitação · Kit" },');
+  });
+
+  // 30/10 (dono): "a simulação é para eu ver exatamente o que ele vê". O Kit
+  // só enxerga as peças que a pessoa criou — a simulação enxerga o Kit da
+  // pessoa escolhida, por `idDoKit`, em TODO recorte do Kit do servidor.
+  it("Kit de uma pessoa: a sessão simulada enxerga o Kit da pessoa escolhida", () => {
+    expect(ROUTES).toContain("req.idDoKit = (req.session.papelReal && req.userKit && req.session.verComoKit?.id) || req.session.userId;");
+    expect(ler("server/routes/itens/comum.ts")).toContain("({ kit: req.userKit === true, userId: req.idDoKit ?? req.userId ?? null })");
+    // Nenhum recorte do Kit no servidor lê mais o id da SESSÃO direto.
+    for (const arq of ["server/routes/busca.ts", "server/routes/prazos.ts", "server/routes/relatorio.ts", "server/services/fechamentoDoEvento.ts", "server/services/xlsxExport.ts", "server/routes/itens/producao-interna.ts"]) {
+      expect(ler(arq), arq).not.toMatch(/criadoPorId === req\.userId/);
+    }
+    expect(idDoKitDe({ id: "admin", verComoKit: { id: "bruno", nome: "Bruno" } })).toBe("bruno");
+    expect(idDoKitDe({ id: "bruno" })).toBe("bruno");
+    const APP = ler("client/src/App.tsx");
+    expect(APP).toContain('onSelect={() => { void verComo("solicitacao", true, pessoa.id); }}');
   });
 });
 

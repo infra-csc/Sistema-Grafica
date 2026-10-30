@@ -56,6 +56,7 @@ import { ExcluirPecaDialog } from "@/components/detalhe-do-evento/excluir-peca-d
 import { EditarPecaDialog } from "@/components/detalhe-do-evento/editar-peca-dialog";
 import { EnviarDiretoGraficaDialog } from "@/components/enviar-direto-grafica-dialog";
 import { ArteRecebidaDialog } from "@/components/sem-aprovacao-acoes";
+import { useDevolvidasAoRascunho } from "@/lib/use-devolvidas-ao-rascunho";
 
 export default function EventDetail() {
   const { hasPermission, user } = useAuth();
@@ -134,6 +135,18 @@ export default function EventDetail() {
     const reduzir = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     document.getElementById('rascunhos-do-evento')?.scrollIntoView({ behavior: reduzir ? 'auto' : 'smooth', block: 'start' });
   };
+  // Link #rascunhos-do-evento (o aviso de devolvidas do Painel, 29/10): o card
+  // só existe depois que as peças chegam, então o navegador não rola sozinho.
+  // Uma vez só, e sem tirar o hash — recarregar volta ao mesmo lugar.
+  const rolouParaRascunhos = useRef(false);
+  // Quem devolveu cada rascunho que voltou, e por quê (a mesma consulta do menu).
+  const devolvidas = useDevolvidasAoRascunho(user);
+  useEffect(() => {
+    if (rolouParaRascunhos.current || loadingItems || window.location.hash !== '#rascunhos-do-evento') return;
+    if (draftItems.length === 0) return;
+    rolouParaRascunhos.current = true;
+    requestAnimationFrame(irParaRascunhos);
+  }, [loadingItems, draftItems.length]);
 
   const { standardItems, catalogOptions, createCatalogOptionMutation, groupOf, materialOptions, finishOptions } = useCatalogoDePecas();
   const { sponsors, eventQuotaRules, eventSponsorsList } = usePatrocinadoresDoEvento(eventId);
@@ -473,6 +486,7 @@ export default function EventDetail() {
         <>
         <CardDeRascunhos
           draftItems={draftItems}
+          devolvidas={devolvidas.porId}
           rascunhosQueEuEnvio={rascunhosQueEuEnvio}
           showAllDrafts={showAllDrafts}
           setShowAllDrafts={setShowAllDrafts}

@@ -4,7 +4,7 @@
 // para a vinculação e o porquê de ele estar travado.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState } from "react";
-import { Package, Pencil, Trash2, Check, Lock, Send, Factory, Tags } from "lucide-react";
+import { Package, Pencil, Trash2, Check, Lock, Send, Factory, Tags, Undo2 } from "lucide-react";
 import { Botao } from "@/components/ui/botao";
 import { Selo } from "@/components/ui/selo";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -19,6 +19,7 @@ import type { useEventReference } from "@/hooks/use-event-reference";
 import { FINAL_STATUSES } from "@/lib/status";
 import { refsDaPeca } from "@/lib/refs-da-peca";
 import { grupoDoKit } from "@shared/kit";
+import { nomeDaOrigem, type PecaDevolvida } from "@shared/devolvidas-ao-rascunho";
 import { T, TOM, FONT, FS, FW, R, SHADOW } from "@/lib/theme";
 import { MiniaturasDaPeca } from "./miniaturas-da-peca";
 import { formatarM2 } from "./regras";
@@ -28,7 +29,7 @@ export function CardDeRascunhos({
   draftItems, rascunhosQueEuEnvio, showAllDrafts, setShowAllDrafts, groupOf, user, hasPermission, isMobile,
   canUploadReference, canEditLists, canDeleteAny, eventoFinalizado, avisoEventoFim, isEditBlocked,
   motivoEdicaoBloqueada, handleEditItem, setDeletingItem, salvarReferenciasMutation, getUploadUrl,
-  enviando, setSubmitConfirmOpen, abrirEnvioDireto, evento,
+  enviando, setSubmitConfirmOpen, abrirEnvioDireto, evento, devolvidas,
 }: {
   draftItems: PecaDoEvento[];
   rascunhosQueEuEnvio: PecaDoEvento[];
@@ -56,6 +57,8 @@ export function CardDeRascunhos({
   abrirEnvioDireto?: (pecas: PecaDoEvento[]) => void;
   /** O evento (saída e offset de Layout): o diálogo das marcas mostra o prazo normal → ajustado. */
   evento?: { id: string; truckDepartureDate?: Date | string | null; deadlineEntregaLayouts?: number | null } | null;
+  /** Rascunhos que VOLTARAM (dono, 29/10), por id: a linha diz quem devolveu e por quê. */
+  devolvidas?: ReadonlyMap<string, PecaDevolvida>;
 }) {
   // PEÇAS SEM APROVAÇÃO EM LOTE (Pedro/dono, 26/10 — RF02): "Sem patrocínio"
   // e "Arte do cliente" em vários rascunhos de uma vez, o mesmo diálogo da
@@ -216,6 +219,21 @@ export function CardDeRascunhos({
                                   ? <span style={{ fontSize: FS.body, fontWeight: FW.medio, color: T.text, minWidth: 0, overflowWrap: 'anywhere' }}>{item.description}</span>
                                   : <span style={{ fontSize: FS.body, color: T.second }}>sem descrição</span>}
                               </div>
+                              {(() => {
+                                // Rascunho que VOLTOU (dono, 29/10): antes o motivo só existia na
+                                // notificação e no histórico da peça.
+                                const d = devolvidas?.get(item.id);
+                                if (!d) return null;
+                                return (
+                                  <p data-testid={`devolucao-rascunho-${item.id}`} style={{ display: "flex", alignItems: "flex-start", gap: 6, margin: "4px 0 2px", fontSize: FS.small, lineHeight: 1.45, color: TOM.alerta.text, overflowWrap: "anywhere" }}>
+                                    <Undo2 aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0, marginTop: 2 }} />
+                                    <span>
+                                      <strong style={{ fontWeight: FW.forte }}>Devolvida pela {nomeDaOrigem(d.origem)}</strong>
+                                      {" "}({d.por}){d.motivo ? <>: “{d.motivo}”</> : "."}
+                                    </span>
+                                  </p>
+                                );
+                              })()}
                               {/* A linha de detalhe pula campo vazio em vez de mostrar "• •". */}
                               <div style={{ fontSize: FS.small, color: T.second, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
                                 {[`${item.quantity} ${item.quantity === 1 ? 'unidade' : 'unidades'}`, item.material, item.finish, `${formatarM2(parseFloat(item.calculatedM2 || '0'))} m²`].filter(Boolean).join(' · ')}

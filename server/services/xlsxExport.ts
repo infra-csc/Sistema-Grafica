@@ -369,7 +369,7 @@ export async function handleExportItemsXlsx(req: Request, res: Response) {
     // Usuário do Kit (14/09): exporta só as peças do Kit que ele criou.
     const doKit = req.userKit === true;
     const doEvento = (await storage.getItemsByEvent(req.params.id))
-      .filter((i) => !doKit || (!!i.kitRemessaId && i.criadoPorId === req.userId));
+      .filter((i) => !doKit || (!!i.kitRemessaId && i.criadoPorId === (req.idDoKit ?? req.userId)));
     const items = (await withSponsorNames(doEvento)).sort(byDisplayId);
 
     const parts = [
@@ -411,7 +411,7 @@ export async function handleExportSelectedItemsXlsx(req: Request, res: Response)
     // Só as peças pedidas (por id, no banco) — não o acervo inteiro. Mesmo
     // recorte de antes: vivas, e o Kit só com as dele. (A ordem final é a do
     // byDisplayId, abaixo.)
-    const doKit = req.userKit ? new Set(await storage.getIdsDasPecasDoKitDoCriador(req.userId ?? null)) : null;
+    const doKit = req.userKit ? new Set(await storage.getIdsDasPecasDoKitDoCriador(req.idDoKit ?? req.userId ?? null)) : null;
     // O relatório por evento é independente da fila: inclui o histórico e
     // as entregues, sem reabrir evento ou mudar a visibilidade na produção.
     const raw = (eventIds.length

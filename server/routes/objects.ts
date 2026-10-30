@@ -100,7 +100,7 @@ export async function registerObjectRoutes(app: Express): Promise<void> {
   app.get("/objects/:objectPath(*)", requireAuth, async (req, res) => {
     try {
       // Antes de tocar no bucket: o caminho de uma peça alheia não abre para o Kit.
-      if (req.userKit && req.userId && !(await aclDoKit.podeLer(req.userId, req.path))) {
+      if (req.userKit && req.userId && !(await aclDoKit.podeLer(req.idDoKit ?? req.userId, req.path))) {
         return res.status(403).json({ error: MSG_ARQUIVO_FORA_DO_KIT });
       }
       const { ObjectPermission, getObjectAclPolicy } = await import("../objectAcl");

@@ -17,7 +17,7 @@ export function registerPhotoRoutes(app: Express): void {
       const fotos = await storage.getAllDeliveryPhotos();
       // Usuário do Kit (14/09): só os registros das peças do Kit que ele criou.
       if (req.userKit) {
-        const minhas = new Set<string | null>(await storage.getIdsDasPecasDoKitDoCriador(req.userId ?? null));
+        const minhas = new Set<string | null>(await storage.getIdsDasPecasDoKitDoCriador(req.idDoKit ?? req.userId ?? null));
         return res.json(fotos.filter((f) => minhas.has(f.itemId)));
       }
       res.json(fotos);

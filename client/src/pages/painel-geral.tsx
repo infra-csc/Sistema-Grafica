@@ -35,6 +35,8 @@ import { useVisoesDoPainel } from "@/components/painel/use-visoes-do-painel";
 import { CarimboDeFrescor } from "@/components/painel/carimbo-de-frescor";
 import { PorOndeComecar, MenuExportar } from "@/components/painel/cabecalho-do-painel";
 import { FaixaDeAtencao } from "@/components/painel/faixa-de-atencao";
+import { AvisoDeDevolvidas } from "@/components/painel/aviso-de-devolvidas";
+import { useDevolvidasAoRascunho } from "@/lib/use-devolvidas-ao-rascunho";
 import { BarraDoFluxo, ComoLerOPainel } from "@/components/painel/barra-do-fluxo";
 import { CartoesDeStatus, TotalDoPainel } from "@/components/painel/cartoes-de-status";
 import { BarraDeFiltros } from "@/components/painel/barra-de-filtros";
@@ -50,6 +52,7 @@ export default function PainelGeral() {
   const { toast } = useToast();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const devolvidas = useDevolvidasAoRascunho(user);
   // Exclusão: admin e solicitação, em QUALQUER status — decisão do dono, mesma
   // regra do event-detail.tsx.
   //
@@ -401,6 +404,10 @@ export default function PainelGeral() {
         />
         {useCards && <div style={{ marginTop: 8 }}><CarimboDeFrescor /></div>}
       </div>
+
+      {/* Peças que voltaram para o rascunho (dono, 29/10) — antes de tudo:
+          é o trabalho que espera quem lê. Só aparece quando há alguma. */}
+      <AvisoDeDevolvidas pecas={devolvidas.pecas} useCards={useCards} dedo={dedo} />
 
       <FaixaDeAtencao
         isLoading={isLoading}

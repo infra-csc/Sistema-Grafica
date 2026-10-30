@@ -115,7 +115,7 @@ function podeVer(req: Request, res: Response): boolean {
  */
 type ColunasDoKit = { kit_remessa_id: string | null; criado_por_id: string | null };
 function filtroDoKit(req: Request): (l: ColunasDoKit) => boolean {
-  const quemVe = { kit: req.userKit === true, userId: req.userId ?? null };
+  const quemVe = { kit: req.userKit === true, userId: req.idDoKit ?? req.userId ?? null };
   return (l: ColunasDoKit) => pecaVisivelPara(quemVe, { kitRemessaId: l.kit_remessa_id, criadoPorId: l.criado_por_id });
 }
 

@@ -96,6 +96,7 @@ export function registerAuditLogRoutes(app: Express): void {
       const admin = req.userRole === "admin";
       const kit = req.userKit === true;
       const userId = req.userId ?? null;
+      const idDoKit = req.idDoKit ?? userId;
       const tipo = entityType as string | undefined;
       const termo = typeof busca === "string" ? busca : undefined;
       // Pedir só a trilha de usuários sem ser admin: nada a mostrar.
@@ -104,7 +105,7 @@ export function registerAuditLogRoutes(app: Express): void {
         : await storage.getAuditLogs(tipo, entityId as string | undefined, { limit: tamanho, cursor: cursorParsed, busca: termo });
       // Usuário do Kit (14/09): só o que ele fez e o histórico das peças dele.
       const minhas = kit
-        ? new Set(await storage.getIdsDasPecasDoKitDoCriador(userId ?? null))
+        ? new Set(await storage.getIdsDasPecasDoKitDoCriador(idDoKit ?? null))
         : new Set<string>();
       const logs = recortarTrilha(bruto, { admin, kit, userId, minhas });
 

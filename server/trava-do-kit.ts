@@ -99,7 +99,7 @@ export function travaDoKit(deps: DepsDaTrava) {
       if (KIT_EDITA_SO_EVENTO_PROPRIO && doEvento && !ESCRITA_DE_EVENTO_POR_PECA.has(doEvento.resto)) {
         const dono = await deps.buscarCriadorDoEvento(doEvento.eventId);
         // Evento inexistente segue para a rota responder 404.
-        if (dono.existe && dono.createdBy !== req.userId) {
+        if (dono.existe && dono.createdBy !== (req.idDoKit ?? req.userId)) {
           return res.status(403).json({ error: MSG_EVENTO_DE_OUTRO });
         }
       }

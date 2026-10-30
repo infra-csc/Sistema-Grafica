@@ -45,7 +45,9 @@ export function registrarCriacao(app: Express): void {
         return res.status(403).json({ error: "Peça do Kit é do admin e da Solicitação." });
       }
       validatedData.kitRemessaId = null;
-      validatedData.criadoPorId = req.userId ?? null;
+      // Na sessão do Kit, a peça é de quem é o Kit (no "ver como" do admin, a
+      // pessoa simulada — senão a peça nasceria fora da própria simulação).
+      validatedData.criadoPorId = (req.userKit ? req.idDoKit : undefined) ?? req.userId ?? null;
       // Nascer PRIORITÁRIA é decisão de quem gerencia a lista (dono, 27/08) —
       // mesmo gate do PATCH. Criador de evento sem papel cria a peça normal.
       if (validatedData.isPriority && !["admin", "solicitacao"].includes(req.userRole ?? "")) {

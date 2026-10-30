@@ -787,7 +787,8 @@ import { alinharTipo, chaveDoTipo, tipoAntesDoSeparador, tipoPeloTextoDoItem, ty
         status: "requested",
         // A inclusão do Kit é resolvida DENTRO da transação (gravarImportacao).
         kitRemessaId: null,
-        criadoPorId: req.userId ?? null,
+        // Na sessão do Kit, a peça é de quem é o Kit (ver itens/criacao.ts).
+        criadoPorId: (req.userKit ? req.idDoKit : undefined) ?? req.userId ?? null,
       }));
 
       // A mesma régua do preview, agora no servidor: a primeira linha com

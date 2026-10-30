@@ -156,9 +156,10 @@ export interface EventoDoPainel {
   fases: FaseDoEvento[];
 }
 
-export interface LinhaDeProducaoRealizada { dia: string; evento: string; processo: ProcessoDeProducao; itens: number; unidades: number; m2: number }
+/** `material` (30/10, Pedro): o material da peça (normalizarRotulo) — o filtro de material dos relatórios. */
+export interface LinhaDeProducaoRealizada { dia: string; evento: string; processo: ProcessoDeProducao; material: string; itens: number; unidades: number; m2: number }
 export interface LinhaDePreRealizada { dia: string; evento: string; processo: ProcessoDePre; itens: number; unidades: number }
-export interface LinhaDeProducaoPlanejada { dia: string; evento: string; processo: ProcessoDeProducao; situacao: SituacaoDoPlanejado; itens: number; unidades: number; m2: number }
+export interface LinhaDeProducaoPlanejada { dia: string; evento: string; processo: ProcessoDeProducao; situacao: SituacaoDoPlanejado; material: string; itens: number; unidades: number; m2: number }
 export interface LinhaDePrePlanejada { dia: string; evento: string; processo: Exclude<ProcessoDePre, "cadastro">; atrasado: boolean; itens: number; unidades: number }
 
 /** Uma peça de evento ativo. */
@@ -180,6 +181,12 @@ export interface PecaDaLinha {
   unidades: number;
   /** m² a produzir (m² por unidade × unidades a produzir). */
   m2: number;
+  /**
+   * Unidades que ainda faltam sair da impressora — o MESMO saldo do planejado
+   * da impressão (30/10): todas antes de imprimir, o resto da parcial em
+   * impressão, 0 depois de impressa (e na entregue).
+   */
+  aImprimir: number;
   status: string;
   etapa: EtapaDaPeca | null;
   /** 0..5 = fase do funil; 6 = entregue. */
@@ -321,6 +328,9 @@ const IMPRESSAS: ReadonlySet<EtapaDaPeca> = new Set<EtapaDaPeca>(["produced", "c
 /** Acabamento concluído e conferido. */
 const ACABADAS: ReadonlySet<EtapaDaPeca> = new Set<EtapaDaPeca>(["conferred", "packed", "delivered"]);
 
+/** O rótulo da peça sem material cadastrado. */
+export const SEM_MATERIAL = "(sem material)";
+
 /** Material e acabamento são texto livre: caixa alta, espaços únicos e as grafias juntadas. */
 const GRAFIAS: Record<string, string> = { ILHOS: "ILHÓS", DUPLAFACE: "DUPLA FACE", "PLASTICO VERDE": "PLÁSTICO VERDE" };
 export function normalizarRotulo(s: string | null | undefined): string {
@@ -400,13 +410,14 @@ export function montarPainelOperacional(e: EntradaDoPainel): PainelOperacional {
     const u = unidadesAProduzir(p);
     const m2u = m2PorUnidade(p);
     const qtd = num(p.quantity);
+    const material = normalizarRotulo(p.material) || SEM_MATERIAL;
 
     // Realizado (janela de 60 dias): impressão pelo fim da impressão, acabamento pela conferência.
     if (u > 0) {
       const dP = diaDoNegocio(p.producedAt);
-      if (dP && dP >= desde) juntar(pr, `${dP}|${chave}|impressao`, { dia: dP, evento: chave, processo: "impressao" as const }, { itens: 1, unidades: u, m2: u * m2u });
+      if (dP && dP >= desde) juntar(pr, `${dP}|${chave}|impressao|${material}`, { dia: dP, evento: chave, processo: "impressao" as const, material }, { itens: 1, unidades: u, m2: u * m2u });
       const dC = diaDoNegocio(p.conferredAt);
-      if (dC && dC >= desde) juntar(pr, `${dC}|${chave}|acabamento`, { dia: dC, evento: chave, processo: "acabamento" as const }, { itens: 1, unidades: u, m2: u * m2u });
+      if (dC && dC >= desde) juntar(pr, `${dC}|${chave}|acabamento|${material}`, { dia: dC, evento: chave, processo: "acabamento" as const, material }, { itens: 1, unidades: u, m2: u * m2u });
     }
     // Layout enviado: a troca do thumb; sem ela, quando a peça entrou em "aguardando aprovação"
     // (o app não guarda essa data para todas as peças — histórico parcial).
@@ -423,6 +434,10 @@ export function montarPainelOperacional(e: EntradaDoPainel): PainelOperacional {
     if (!ev || fase == null) continue;
     const dl = ev.stages.map((s) => s.deadline);
     const aberta = fase < FASE_ENTREGUE;
+    // O saldo da impressora — o planejado abaixo e a peça (aImprimir) leem o mesmo número.
+    const restaImprimir = !aberta || u <= 0 ? 0
+      : etapa && (etapa === "produced" || etapa === "conferred" || etapa === "packed")
+        ? 0 : Math.max(0, u - (etapa === "inProduction" ? num(p.quantityProduced) : 0));
 
     // Planejado da produção: o saldo dividido pelos dias úteis até o prazo da Produção Gráfica.
     if (aberta && u > 0) {
@@ -435,14 +450,12 @@ export function montarPainelOperacional(e: EntradaDoPainel): PainelOperacional {
       if (inicio > fim) inicio = fim;
       const dias = diasDoIntervalo(inicio, fim);
       if (dias.length === 0) dias.push(fim);
-      const restaImprimir = etapa && (etapa === "produced" || etapa === "conferred" || etapa === "packed")
-        ? 0 : Math.max(0, u - (etapa === "inProduction" ? num(p.quantityProduced) : 0));
       const restaAcabar = etapa === "conferred" || etapa === "packed" ? 0 : u;
       const situacao: SituacaoDoPlanejado = atrasada ? "atrasado" : liberada ? "liberado" : "preProducao";
       const n = dias.length;
       for (const d of dias) {
-        if (restaImprimir > 0) juntar(pp, `${d}|${chave}|impressao|${situacao}`, { dia: d, evento: chave, processo: "impressao" as const, situacao }, { itens: 1 / n, unidades: restaImprimir / n, m2: (restaImprimir * m2u) / n });
-        if (restaAcabar > 0) juntar(pp, `${d}|${chave}|acabamento|${situacao}`, { dia: d, evento: chave, processo: "acabamento" as const, situacao }, { itens: 1 / n, unidades: restaAcabar / n, m2: (restaAcabar * m2u) / n });
+        if (restaImprimir > 0) juntar(pp, `${d}|${chave}|impressao|${situacao}|${material}`, { dia: d, evento: chave, processo: "impressao" as const, situacao, material }, { itens: 1 / n, unidades: restaImprimir / n, m2: (restaImprimir * m2u) / n });
+        if (restaAcabar > 0) juntar(pp, `${d}|${chave}|acabamento|${situacao}|${material}`, { dia: d, evento: chave, processo: "acabamento" as const, situacao, material }, { itens: 1 / n, unidades: restaAcabar / n, m2: (restaAcabar * m2u) / n });
       }
     }
 
@@ -482,12 +495,13 @@ export function montarPainelOperacional(e: EntradaDoPainel): PainelOperacional {
       tipo: String(p.type ?? "").trim(),
       descricao: String(p.description ?? "").trim(),
       medida: String(p.measurement ?? "").trim(),
-      material: normalizarRotulo(p.material) || "(sem material)",
+      material,
       acabamento: normalizarRotulo(p.finish) || "(sem acabamento)",
       quantidade: qtd,
       reuso: num(p.reuseQty),
       unidades: u,
       m2: r2(u * m2u),
+      aImprimir: restaImprimir,
       status: p.status,
       etapa,
       fase,
@@ -674,8 +688,16 @@ export interface ProducaoDoEvento {
   prazoProducao: string | null;
 }
 
-/** "Produção por evento": realizado nos 30 dias (corridos) e o saldo planejado. */
-export function producaoPorEvento(painel: Pick<PainelOperacional, "hoje" | "prodRealizado" | "prodPlanejado" | "eventos">): ProducaoDoEvento[] {
+/**
+ * "Produção por evento": realizado nos 30 dias (corridos) e o saldo planejado.
+ * `doMaterial` (30/10, Pedro): só as linhas dos materiais escolhidos — todas
+ * as colunas se refazem com elas, e o evento sem nada do material sai da lista
+ * (ver @shared/materiais → filtroDeMaterial). Sem ele, os números de sempre.
+ */
+export function producaoPorEvento(
+  painel: Pick<PainelOperacional, "hoje" | "prodRealizado" | "prodPlanejado" | "eventos">,
+  doMaterial: ((material: string) => boolean) | null = null,
+): ProducaoDoEvento[] {
   const inicio = somarDias(painel.hoje, -29);
   const prazo = new Map(painel.eventos.map((e) => [e.chave, e.fases[FASE_PRODUCAO]?.prazo ?? null]));
   const m = new Map<string, ProducaoDoEvento>();
@@ -686,10 +708,12 @@ export function producaoPorEvento(painel: Pick<PainelOperacional, "hoje" | "prod
   };
   for (const r of painel.prodRealizado) {
     if (r.dia < inicio) continue;
+    if (doMaterial && !doMaterial(r.material)) continue;
     const x = g(r.evento);
     if (r.processo === "impressao") x.impressoM2_30d += r.m2; else x.acabadoM2_30d += r.m2;
   }
   for (const r of painel.prodPlanejado) {
+    if (doMaterial && !doMaterial(r.material)) continue;
     const x = g(r.evento);
     if (r.processo === "impressao") { x.aImprimirM2 += r.m2; x.aImprimirUn += r.unidades; } else x.aAcabarUn += r.unidades;
   }
@@ -698,6 +722,94 @@ export function producaoPorEvento(painel: Pick<PainelOperacional, "hoje" | "prod
     impressoM2_30d: Math.round(x.impressoM2_30d), acabadoM2_30d: Math.round(x.acabadoM2_30d),
     aImprimirM2: Math.round(x.aImprimirM2), aImprimirUn: Math.round(x.aImprimirUn), aAcabarUn: Math.round(x.aAcabarUn),
   }));
+}
+
+// ─── Produção do evento por material (30/10, Pedro) ──────────────────────────
+//
+// Uma linha por material, com o m² de cada peça no status em que ela está — os
+// status em colunas, na ordem do fluxo, sem sobreposição (a soma das colunas é
+// o Total da linha):
+//   · Pré-produção: Lista de imagens, Layout, Aprovação, Finalização e Revisão;
+//   · A imprimir: liberada para a Gráfica e ainda sem sair da impressora (da
+//     parcial em impressão, só o que falta);
+//   · A acabar: impressa, acabamento ainda não conferido (e a parte já impressa
+//     da parcial);
+//   · Acabado: conferida, embalada ou entregue — tudo do evento, não 30 dias.
+// O m² é o da peça no painel (m² por unidade × unidades a produzir): a mesma
+// régua do "Produção por evento". Lá, "A imprimir" é o saldo inteiro da
+// impressora (pré-produção + liberado); aqui ele vem separado em duas colunas.
+
+export const STATUS_DO_MATERIAL = ["pre", "aImprimir", "aAcabar", "acabado"] as const;
+export type StatusDoMaterial = (typeof STATUS_DO_MATERIAL)[number];
+export const ROTULO_DO_STATUS_DO_MATERIAL: Record<StatusDoMaterial, string> = {
+  pre: "Pré-produção", aImprimir: "A imprimir", aAcabar: "A acabar", acabado: "Acabado",
+};
+
+export interface LinhaDoMaterial {
+  material: string;
+  /** m² por status, inteiros (o Total da linha é a soma deles). */
+  m2: Record<StatusDoMaterial, number>;
+  total: number;
+  /** Unidades a produzir do material. */
+  unidades: number;
+  /** As peças que compõem cada número (a parcial em impressão está em A imprimir e em A acabar). */
+  pecas: Record<StatusDoMaterial, string[]>;
+}
+
+/** Quanto do m² da peça está em cada status (a soma é o m² da peça). */
+export function m2DaPecaPorStatus(p: Pick<PecaDaLinha, "fase" | "acabado" | "unidades" | "aImprimir" | "m2">): Record<StatusDoMaterial, number> {
+  const r: Record<StatusDoMaterial, number> = { pre: 0, aImprimir: 0, aAcabar: 0, acabado: 0 };
+  if (p.unidades <= 0 || p.m2 <= 0) return r;
+  if (p.fase >= FASE_ENTREGUE || p.acabado) r.acabado = p.m2;
+  else if (p.fase < FASE_PRODUCAO) r.pre = p.m2;
+  else {
+    r.aImprimir = (p.m2 * Math.min(p.aImprimir, p.unidades)) / p.unidades;
+    r.aAcabar = p.m2 - r.aImprimir;
+  }
+  return r;
+}
+
+export function producaoDoEventoPorMaterial(
+  pecas: ReadonlyArray<PecaDaLinha>,
+  evento: string,
+): { linhas: LinhaDoMaterial[]; total: Omit<LinhaDoMaterial, "material" | "pecas"> } {
+  const bruto = new Map<string, { m2: Record<StatusDoMaterial, number>; unidades: number; pecas: Record<StatusDoMaterial, string[]> }>();
+  for (const p of pecas) {
+    if (p.evento !== evento || p.unidades <= 0) continue;
+    let x = bruto.get(p.material);
+    if (!x) bruto.set(p.material, (x = { m2: { pre: 0, aImprimir: 0, aAcabar: 0, acabado: 0 }, unidades: 0, pecas: { pre: [], aImprimir: [], aAcabar: [], acabado: [] } }));
+    const partes = m2DaPecaPorStatus(p);
+    for (const s of STATUS_DO_MATERIAL) {
+      if (partes[s] <= 0) continue;
+      x.m2[s] += partes[s];
+      x.pecas[s].push(p.id);
+    }
+    x.unidades += p.unidades;
+  }
+  // ARREDONDAMENTO PELO MAIOR RESTO, coluna a coluna: cada célula vira inteiro
+  // e a soma da coluna é o total REAL arredondado (arredondar célula a célula
+  // deixava a linha de Total 1–2 m² longe do evento). A coluna Total de cada
+  // linha e a linha de Total somam o que está escrito na tela.
+  const entradas = Array.from(bruto);
+  const inteiros = new Map<string, Record<StatusDoMaterial, number>>(entradas.map(([m]) => [m, { pre: 0, aImprimir: 0, aAcabar: 0, acabado: 0 }]));
+  for (const s of STATUS_DO_MATERIAL) {
+    const alvo = Math.round(entradas.reduce((a, [, x]) => a + x.m2[s], 0));
+    let falta = alvo;
+    for (const [m, x] of entradas) { const v = Math.floor(x.m2[s] + 1e-9); inteiros.get(m)![s] = v; falta -= v; }
+    const porResto = [...entradas].sort((a, b) => (b[1].m2[s] - Math.floor(b[1].m2[s] + 1e-9)) - (a[1].m2[s] - Math.floor(a[1].m2[s] + 1e-9)));
+    for (let i = 0; i < porResto.length && falta > 0; i++, falta--) inteiros.get(porResto[i][0])![s] += 1;
+  }
+  const linhas: LinhaDoMaterial[] = entradas.map(([material, x]) => {
+    const m2 = inteiros.get(material)!;
+    return { material, m2, total: m2.pre + m2.aImprimir + m2.aAcabar + m2.acabado, unidades: Math.round(x.unidades), pecas: x.pecas };
+  }).sort((a, b) => b.m2.aImprimir - a.m2.aImprimir || b.total - a.total || a.material.localeCompare(b.material, "pt-BR"));
+  const total = { m2: { pre: 0, aImprimir: 0, aAcabar: 0, acabado: 0 }, total: 0, unidades: 0 };
+  for (const l of linhas) {
+    for (const s of STATUS_DO_MATERIAL) total.m2[s] += l.m2[s];
+    total.total += l.total;
+    total.unidades += l.unidades;
+  }
+  return { linhas, total };
 }
 
 // ─── Projeção de produção do dia ─────────────────────────────────────────────

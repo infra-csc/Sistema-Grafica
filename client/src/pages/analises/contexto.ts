@@ -13,7 +13,9 @@ export const ABAS_DO_PAINEL = [
   { id: "evento", rotulo: "Status por evento" },
 ] as const;
 export type IdDoPainel = (typeof ABAS_DO_PAINEL)[number]["id"];
-export type SubDaProducao = "realizado" | "projecao";
+/** As sub-abas da Produção; "material" = Produção do evento por material (30/10, Pedro). */
+export const SUBS_DA_PRODUCAO = ["realizado", "projecao", "material"] as const;
+export type SubDaProducao = (typeof SUBS_DA_PRODUCAO)[number];
 /** O submenu da Pré-produção: "Realizado e pendências" | "Eventos × processo × prazo". */
 export type SubDaPre = "pendencias" | "calendario";
 

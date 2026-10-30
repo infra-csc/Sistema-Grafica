@@ -371,6 +371,11 @@ describe("Ver como outro perfil (15/09)", () => {
     for (const arq of ["server/routes/busca.ts", "server/routes/prazos.ts", "server/routes/relatorio.ts", "server/services/fechamentoDoEvento.ts", "server/services/xlsxExport.ts", "server/routes/itens/producao-interna.ts"]) {
       expect(ler(arq), arq).not.toMatch(/criadoPorId === req\.userId/);
     }
+    // Peça criada ou importada simulando o Kit é da pessoa simulada (senão
+    // nasceria fora da própria simulação); a trava do evento próprio, idem.
+    expect(ler("server/routes/itens/criacao.ts")).toContain("validatedData.criadoPorId = (req.userKit ? req.idDoKit : undefined) ?? req.userId ?? null;");
+    expect(ler("server/services/xlsxImport.ts")).toContain("criadoPorId: (req.userKit ? req.idDoKit : undefined) ?? req.userId ?? null,");
+    expect(ler("server/trava-do-kit.ts")).toContain("dono.createdBy !== (req.idDoKit ?? req.userId)");
     expect(idDoKitDe({ id: "admin", verComoKit: { id: "bruno", nome: "Bruno" } })).toBe("bruno");
     expect(idDoKitDe({ id: "bruno" })).toBe("bruno");
     const APP = ler("client/src/App.tsx");

@@ -21,6 +21,11 @@ export type UsuarioSemSenha = Json<Omit<User, "passwordHash">>;
  */
 export type UsuarioDaSessao = UsuarioSemSenha & {
   papelReal: string | null;
+  /**
+   * VER COMO · Kit (30/10): a pessoa do Kit que o admin está simulando — as
+   * telas enxergam o Kit DELA. null fora da simulação do Kit.
+   */
+  verComoKit?: PessoaDoKit | null;
   /** Login compartilhado com operadores ativos (21/10): a tela pergunta "Quem está na máquina?". */
   loginComOperadores?: boolean;
 };
@@ -30,6 +35,16 @@ export type UsuarioDaSessao = UsuarioSemSenha & {
  * operadores o login compartilhado tem (0 para login de uma pessoa só).
  */
 export type UsuarioDaLista = UsuarioSemSenha & { operadoresAtivos?: number };
+
+/** Elemento de GET /api/auth/ver-como/kit — quem o admin pode simular no Kit. */
+export interface PessoaDoKit { id: string; nome: string }
+
+/**
+ * De quem é o Kit que a tela enxerga: o próprio usuário — ou, no "ver como"
+ * do admin, a pessoa do Kit simulada (a mesma régua de `idDoKit` no servidor).
+ */
+export const idDoKitDe = (usuario: { id?: string | null; verComoKit?: PessoaDoKit | null } | null | undefined): string | null =>
+  usuario?.verComoKit?.id ?? usuario?.id ?? null;
 
 /** Elemento de GET /api/users/basic — o que qualquer sessão pode ver. */
 export interface UsuarioBasico { id: string; name: string; role: string }

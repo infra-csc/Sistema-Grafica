@@ -30,6 +30,7 @@ import { useEstadoDoOperador } from "@/hooks/use-operador";
 import { QuemEstaNaMaquina } from "@/components/operadores/quem-esta-na-maquina";
 import { SeloDoOperador } from "@/components/operadores/selo-do-operador";
 import { useEffect, useState, Component, lazy, Suspense, type ReactNode, type ComponentType } from "react";
+import type { PessoaDoKit } from "@shared/api";
 import { T, N, R, FS, FW, FONT, TOM, ESCURO } from "@/lib/theme";
 
 /**
@@ -300,13 +301,16 @@ const PERFIS_VER_COMO: Array<{ chave: string; role: string; kit?: boolean; rotul
   { chave: "grafica", role: "grafica", rotulo: "Gráfica" },
 ];
 
-/** Troca o perfil da sessão e recarrega do início (caches de outro perfil não servem). */
-async function verComo(role: string, kit = false): Promise<void> {
+/**
+ * Troca o perfil da sessão e recarrega do início (caches de outro perfil não
+ * servem). O Kit é de UMA pessoa (30/10): `kitUserId` diz quem simular.
+ */
+async function verComo(role: string, kit = false, kitUserId?: string): Promise<void> {
   const r = await fetch("/api/auth/ver-como", {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ role, kit }),
+    body: JSON.stringify({ role, kit, kitUserId }),
   });
   // Servidor antigo (git pull sem Stop/Run) não conhece a rota: o catch-all do
   // app devolve a página HTML com 200 e parecia ter dado certo.
@@ -675,6 +679,15 @@ function AuthenticatedLayout() {
   const [location, setLocation] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
+  // VER COMO · Kit (30/10): o Kit é de uma pessoa — o menu lista quem simular.
+  // Só busca quando o menu da conta abre: a casca não paga a lista no load.
+  const ehAdminDeVerdade = user?.role === "admin" || user?.papelReal === "admin";
+  const [menuDaContaAberto, setMenuDaContaAberto] = useState(false);
+  const { data: pessoasDoKit = [], isLoading: carregandoPessoasDoKit } = useQuery<PessoaDoKit[]>({
+    queryKey: ["/api/auth/ver-como/kit"],
+    enabled: ehAdminDeVerdade && menuDaContaAberto,
+    staleTime: 5 * 60_000,
+  });
 
   const {
     data: notifications = [],
@@ -938,7 +951,7 @@ function AuthenticatedLayout() {
             />
             {/* Quem está logado agora é um menu: alterar senha e sair deixam
                 de depender da sidebar (que no mobile vive fechada). */}
-            <DropdownMenu>
+            <DropdownMenu onOpenChange={(aberto) => { if (aberto) setMenuDaContaAberto(true); }}>
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
@@ -991,12 +1004,38 @@ function AuthenticatedLayout() {
                 <DropdownMenuSeparator />
                 {/* VER COMO (dono, 15/09): o admin navega como outro perfil
                     para conferir o que cada um vê. */}
-                {(user?.role === "admin" || user?.papelReal === "admin") && (
+                {ehAdminDeVerdade && (
                   <>
                     <DropdownMenuLabel style={{ fontSize: FS.micro, fontWeight: FW.rotulo, textTransform: "uppercase", letterSpacing: "0.08em", color: T.second, padding: "8px 8px 4px" }}>
                       Ver o sistema como
                     </DropdownMenuLabel>
                     {PERFIS_VER_COMO.map((p) => {
+                      // O Kit é uma linha POR PESSOA: só ela vê as peças dela.
+                      if (p.kit) {
+                        if (pessoasDoKit.length === 0) {
+                          return (
+                            <DropdownMenuItem key={p.chave} disabled className="csc-menu-item" data-testid="menu-ver-como-kit-vazio">
+                              <Eye aria-hidden="true" />
+                              <span style={{ flex: 1 }}>{p.rotulo}</span>
+                              <span style={{ fontSize: FS.small, fontWeight: FW.medio, color: T.second }}>{carregandoPessoasDoKit ? "carregando…" : "sem usuário"}</span>
+                            </DropdownMenuItem>
+                          );
+                        }
+                        return pessoasDoKit.map((pessoa) => {
+                          const atual = user?.role === "solicitacao" && !!user?.kit && user?.verComoKit?.id === pessoa.id;
+                          return (
+                            <DropdownMenuItem key={`kit-${pessoa.id}`} data-testid={`menu-ver-como-kit-${pessoa.id}`} disabled={atual}
+                              className="csc-menu-item"
+                              onSelect={() => { void verComo("solicitacao", true, pessoa.id); }}>
+                              {atual ? <Check aria-hidden="true" style={{ color: T.accentText }} /> : <Eye aria-hidden="true" />}
+                              <span style={{ flex: 1, minWidth: 0 }}>
+                                Kit · <span style={{ fontWeight: FW.forte }}>{pessoa.nome}</span>
+                              </span>
+                              {atual && <span style={{ fontSize: FS.small, fontWeight: FW.medio, color: T.second }}>atual</span>}
+                            </DropdownMenuItem>
+                          );
+                        });
+                      }
                       const atual = (user?.role ?? "") === p.role && !!user?.kit === !!p.kit;
                       return (
                         <DropdownMenuItem key={p.chave} data-testid={`menu-ver-como-${p.chave}`} disabled={atual}
@@ -1052,7 +1091,9 @@ function AuthenticatedLayout() {
               style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, flexWrap: "wrap", padding: "7px 16px", backgroundColor: TOM.info.text, color: T.surface, fontSize: FS.body, lineHeight: 1.4 }}>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                 <Eye aria-hidden="true" style={{ width: 15, height: 15, flexShrink: 0 }} />
-                <span>Você está vendo o sistema como <strong>{PERFIS_VER_COMO.find((p) => p.role === user?.role && !!p.kit === !!user?.kit)?.rotulo ?? roleLabel(user?.role)}</strong>.</span>
+                {user?.kit && user.verComoKit
+                  ? <span>Você está vendo o sistema como <strong>{user.verComoKit.nome}</strong> (Solicitação · Kit).</span>
+                  : <span>Você está vendo o sistema como <strong>{PERFIS_VER_COMO.find((p) => p.role === user?.role && !!p.kit === !!user?.kit)?.rotulo ?? roleLabel(user?.role)}</strong>.</span>}
               </span>
               <button type="button" data-testid="button-voltar-admin" onClick={() => { void verComo("admin"); }}
                 className="ds-botao"

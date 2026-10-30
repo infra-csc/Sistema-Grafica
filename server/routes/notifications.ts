@@ -26,7 +26,7 @@ export function registerNotificationRoutes(app: Express): void {
       // todas as peças) era carregado a cada abertura do sino. Mesmo conjunto
       // de ids que o filtro em JS produzia (ver getIdsDasPecasDoKitDoCriador).
       const minhasDoKit = req.session?.userKit === true
-        ? new Set(await storage.getIdsDasPecasDoKitDoCriador(userId))
+        ? new Set(await storage.getIdsDasPecasDoKitDoCriador(req.idDoKit ?? userId))
         : null;
       const doUsuario = (lista: Notification[]) =>
         lista.filter((n) => (!n.targetUserId || n.targetUserId === userId)

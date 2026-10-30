@@ -20,6 +20,13 @@ declare global {
       userRole?: string;
       /** Usuário do Kit: só vê e cria peças do Kit, e só as dele (14/09). */
       userKit?: boolean;
+      /**
+       * De quem é o Kit que esta sessão enxerga: o próprio usuário — ou, no
+       * "ver como" do admin, a pessoa do Kit escolhida (dono, 30/10: "a
+       * simulação é para eu ver exatamente o que ele vê"). Só decide o que se
+       * VÊ; autoria, trilha e notificações continuam de `userId`.
+       */
+      idDoKit?: string;
       /** Atendimento – Cultura: além do Atendimento, cria e edita eventos (30/09). */
       userCultura?: boolean;
     }
@@ -36,6 +43,8 @@ declare module "express-session" {
     userCultura?: boolean;
     /** VER COMO (15/09): o perfil real ("admin") enquanto o admin navega como outro perfil. */
     papelReal?: string;
+    /** VER COMO · Kit (30/10): a pessoa do Kit que o admin está simulando. */
+    verComoKit?: { id: string; nome: string };
   }
 }
 

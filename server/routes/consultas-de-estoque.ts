@@ -61,8 +61,8 @@ async function notificar(dados: { type: string; message: string; eventId: string
  * peças do Kit que ELE criou, e a Solicitação sem Kit não revisa peça do Kit
  * ("Peças do Kit são revisadas pela equipe do Kit").
  */
-function foraDoAlcance(req: Pick<Request, "userKit" | "userId" | "userRole">, peca: { kitRemessaId: string | null; criadoPorId: string | null }): boolean {
-  if (!pecaVisivelPara({ kit: req.userKit === true, userId: req.userId ?? null }, peca)) return true;
+function foraDoAlcance(req: Pick<Request, "userKit" | "userId" | "userRole" | "idDoKit">, peca: { kitRemessaId: string | null; criadoPorId: string | null }): boolean {
+  if (!pecaVisivelPara({ kit: req.userKit === true, userId: req.idDoKit ?? req.userId ?? null }, peca)) return true;
   return req.userRole === "solicitacao" && req.userKit !== true && !!peca.kitRemessaId;
 }
 

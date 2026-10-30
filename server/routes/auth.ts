@@ -158,8 +158,8 @@ export function registerAuthRoutes(app: Express): void {
       // VER COMO (15/09): enquanto o admin navega como outro perfil, a tela
       // recebe o perfil da sessão — e o perfil real, para a faixa "Voltar".
       const verComo = req.session.papelReal
-        ? { role: req.session.userRole, kit: req.session.userKit === true, cultura: req.session.userCultura === true, papelReal: req.session.papelReal }
-        : { papelReal: null };
+        ? { role: req.session.userRole, kit: req.session.userKit === true, cultura: req.session.userCultura === true, papelReal: req.session.papelReal, verComoKit: req.session.verComoKit ?? null }
+        : { papelReal: null, verComoKit: null };
       // Login compartilhado com operadores (21/10): só ele busca o estado da
       // máquina (GET /api/operadores) — os demais não pagam requisição a mais.
       const loginComOperadores = (await cacheDeOperadores.ativos(user.id)).length > 0;
@@ -185,6 +185,19 @@ export function registerAuthRoutes(app: Express): void {
       }
       const kit = perfil === "solicitacao" && req.body?.kit === true;
       const cultura = perfil === "atendimento" && req.body?.cultura === true;
+      // KIT É DE UMA PESSOA (dono, 30/10: "a simulação é para eu ver
+      // exatamente o que ele vê"). O usuário do Kit só enxerga as peças do Kit
+      // que ELE criou; simulado com o id do admin, toda tela vinha vazia. Por
+      // isso o Kit pede QUEM simular — e a sessão passa a enxergar o Kit dela.
+      let pessoaDoKit: { id: string; nome: string } | null = null;
+      if (kit) {
+        const kitUserId = typeof req.body?.kitUserId === "string" ? req.body.kitUserId : "";
+        const pessoa = kitUserId ? await storage.getUser(kitUserId) : undefined;
+        if (!pessoa || pessoa.role !== "solicitacao" || pessoa.kit !== true) {
+          return res.status(400).json({ error: "Escolha qual usuário do Kit você quer simular." });
+        }
+        pessoaDoKit = { id: pessoa.id, nome: pessoa.name.trim() };
+      }
       if (perfil === "admin") {
         req.session.userRole = "admin";
         req.session.userKit = false;
@@ -196,6 +209,8 @@ export function registerAuthRoutes(app: Express): void {
         req.session.userKit = kit;
         req.session.userCultura = cultura;
       }
+      if (pessoaDoKit) req.session.verComoKit = pessoaDoKit;
+      else delete req.session.verComoKit;
       await new Promise<void>((ok, falhou) => req.session.save((e) => (e ? falhou(e) : ok())));
       // Nome puro: a própria troca de perfil não é ação "como" outro perfil.
       await createAuditLog(
@@ -203,11 +218,28 @@ export function registerAuthRoutes(app: Express): void {
         'updated',
         'user',
         req.session.userId!,
-        perfil === "admin" ? "Voltou a ver o sistema como administrador" : `Passou a ver o sistema como ${perfil}${kit ? " (Kit)" : ""}${cultura ? " (Cultura)" : ""}`,
+        perfil === "admin" ? "Voltou a ver o sistema como administrador" : `Passou a ver o sistema como ${perfil}${pessoaDoKit ? ` (Kit de ${pessoaDoKit.nome})` : ""}${cultura ? " (Cultura)" : ""}`,
       );
-      res.json({ role: perfil, kit, cultura, papelReal: perfil === "admin" ? null : "admin" });
+      res.json({ role: perfil, kit, cultura, papelReal: perfil === "admin" ? null : "admin", verComoKit: pessoaDoKit });
     } catch (error: unknown) {
       sendSensitiveError(res, error, "Ver como error", 500);
+    }
+  });
+
+  // Quem o admin pode simular no "ver como · Kit" (30/10). Vale também
+  // durante a simulação (o perfil da sessão já não é admin; o real é).
+  app.get("/api/auth/ver-como/kit", requireAuth, async (req, res) => {
+    try {
+      if ((req.session.papelReal ?? req.session.userRole) !== "admin") {
+        return res.status(403).json({ error: "Só o administrador pode ver o sistema como outro perfil." });
+      }
+      const pessoas = (await storage.getAllUsers())
+        .filter((u) => u.role === "solicitacao" && u.kit === true)
+        .map((u) => ({ id: u.id, nome: u.name.trim() }))
+        .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+      res.json(pessoas);
+    } catch (error: unknown) {
+      sendSensitiveError(res, error, "Ver como kit error", 500);
     }
   });
 

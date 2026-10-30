@@ -118,7 +118,7 @@ export function registerPrazoRoutes(app: Express): void {
       // (mesmas linhas e ordem de getItemsByEvents).
       const doKit = req.userKit === true;
       const candidateItems = (await storage.getItemsParaPrazos(candidates.map((ev) => ev.id)))
-        .filter((i) => !ehBookCompleto(i) && (!doKit || (!!i.kitRemessaId && i.criadoPorId === req.userId)));
+        .filter((i) => !ehBookCompleto(i) && (!doKit || (!!i.kitRemessaId && i.criadoPorId === (req.idDoKit ?? req.userId))));
 
       const itemsByEvent = new Map<string, ItemParaPrazo[]>();
       for (const it of candidateItems) {

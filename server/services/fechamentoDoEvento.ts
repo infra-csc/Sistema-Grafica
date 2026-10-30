@@ -82,7 +82,7 @@ export async function responderFechamento(req: Request, res: Response, idsPedido
     const pecas = (await (eventos.some((e) => e.arquivadoEm)
       ? storage.getItemsByEventsInclusiveArquivados(idsDosEventos)
       : storage.getItemsByEvents(idsDosEventos)))
-      .filter((i) => !ehBookCompleto(i) && (!doKit || (!!i.kitRemessaId && i.criadoPorId === req.userId)));
+      .filter((i) => !ehBookCompleto(i) && (!doKit || (!!i.kitRemessaId && i.criadoPorId === (req.idDoKit ?? req.userId))));
 
     const nomePorEvento = new Map(eventos.map((e) => [e.id, e.name] as const));
     const ordemDoEvento = new Map(eventos.map((e, i) => [e.id, i] as const));

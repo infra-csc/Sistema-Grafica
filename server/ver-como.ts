@@ -11,9 +11,10 @@ const ROTULO: Record<string, string> = {
 
 export function nomeParaATrilha(
   nome: string,
-  sessao: { papelReal?: string; userRole?: string; userKit?: boolean } | undefined,
+  sessao: { papelReal?: string; userRole?: string; userKit?: boolean; verComoKit?: { nome: string } } | undefined,
 ): string {
   if (!sessao?.papelReal || !sessao.userRole) return nome;
   const perfil = ROTULO[sessao.userRole] ?? sessao.userRole;
-  return `${nome} (como ${perfil}${sessao.userKit ? " · Kit" : ""})`;
+  const kit = sessao.userKit ? (sessao.verComoKit ? ` · Kit de ${sessao.verComoKit.nome.trim()}` : " · Kit") : "";
+  return `${nome} (como ${perfil}${kit})`;
 }

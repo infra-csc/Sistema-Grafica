@@ -670,7 +670,7 @@ export function registerEventRoutes(app: Express): void {
       // o Kit), mas as peças embutidas — contagens e fases — são só as
       // peças do Kit dele. Fora do cache compartilhado, que é o de todos.
       if ((req as any).userKit) {
-        const userId = (req as any).userId ?? "";
+        const userId = req.idDoKit ?? req.userId ?? "";
         // PERF (17/09): o recorte "peças do Kit criadas por este usuário" vai
         // para o banco — antes vinha o acervo inteiro (66 colunas × todas as
         // peças) para sobrar meia dúzia. Mesmas linhas, mesma ordem.
@@ -763,7 +763,7 @@ export function registerEventRoutes(app: Express): void {
         return res.status(404).json({ error: "Este evento foi arquivado.", code: "ARCHIVED" });
       }
       // Usuário do Kit: só as peças do Kit dele entram nas contagens (14/09).
-      const userIdKit = (req as any).userId;
+      const userIdKit = req.idDoKit ?? req.userId;
       const eventItems = (req as any).userKit
         ? todasAsPecas.filter((i) => !!i.kitRemessaId && i.criadoPorId === userIdKit)
         : todasAsPecas;
@@ -1323,7 +1323,7 @@ export function registerEventRoutes(app: Express): void {
       const doKit = (req as any).userKit === true;
       const draftItems = allItems.filter(item =>
         (item.status === 'draft' || item.status === 'requested') &&
-        (isAdmin || (doKit ? (!!item.kitRemessaId && item.criadoPorId === userId) : true)));
+        (isAdmin || (doKit ? (!!item.kitRemessaId && item.criadoPorId === (req.idDoKit ?? req.userId)) : true)));
 
       if (draftItems.length === 0) {
         return res.status(400).json({ error: "Nenhum item em rascunho para enviar" });

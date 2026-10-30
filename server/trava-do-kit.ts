@@ -88,7 +88,7 @@ export function travaDoKit(deps: DepsDaTrava) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.userKit || !req.userId) return next();
-      const usuario = { kit: true, userId: req.userId };
+      const usuario = { kit: true, userId: req.idDoKit ?? req.userId };
       const alheia = (pecas: PecaParaTrava[]) => pecas.some((p) => !pecaVisivelPara(usuario, p));
 
       if (req.method === "POST" && /^\/api\/events\/[^/]+\/clone-items\/?$/.test(req.path)) {

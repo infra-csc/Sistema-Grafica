@@ -42,7 +42,7 @@ function peca(ev: string, fase: number, over: Partial<PecaDaLinha> = {}): PecaDa
   seq += 1;
   return {
     id: `x${seq}`, displayId: String(seq), evento: ev, eventoId: ev, tipo: "", descricao: "", medida: "", material: "", acabamento: "",
-    quantidade: 1, reuso: 0, unidades: 1, m2: 1, status: "", etapa: null, fase, prazoFase: null, diasAtraso: 0, prazoProducao: d(10),
+    quantidade: 1, reuso: 0, unidades: 1, m2: 1, aImprimir: 0, status: "", etapa: null, fase, prazoFase: null, diasAtraso: 0, prazoProducao: d(10),
     impresso: false, impressoEm: null, acabado: false, acabadoEm: null, furaFila: false, refacao: false, motivoRefacao: "",
     reprovada: false, semAprovacao: false, semPatrocinio: false, arteDoCliente: false, aguardandoArteCliente: false,
     diasAguardandoArte: null, atrasoDoCliente: false, piso: null, prazoDeLayout: null, ...over,

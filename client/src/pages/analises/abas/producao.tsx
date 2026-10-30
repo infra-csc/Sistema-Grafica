@@ -1,22 +1,32 @@
-// ANÁLISES › PRODUÇÃO — duas sub-abas:
+// ANÁLISES › PRODUÇÃO — três sub-abas:
 //   · Realizado por dia: impressão e acabamento dos últimos 30 dias, o
-//     planejado de cada processo e a produção por evento;
+//     planejado de cada processo e a produção por evento (com o filtro de
+//     tipo de material, 30/10);
 //   · Projeção de produção do dia: a carga de um dia (atrasados + programados
 //     − já produzidos), a fila por data de prazo (clicar num dia projeta o dia)
-//     e as quebras por material, acabamento e evento.
+//     e as quebras por material, acabamento e evento;
+//   · Evento por material (30/10, Pedro): um evento, uma linha por material,
+//     o m² em cada status — clicar num número lista as peças dele.
 import * as React from "react";
+import { useQuery } from "@tanstack/react-query";
+import { X } from "lucide-react";
 import {
-  producaoPlanejadaPorDia, producaoPorEvento, producaoRealizadaPorDia, projetarDia, diaDaSemana,
+  producaoPlanejadaPorDia, producaoPorEvento, producaoRealizadaPorDia, projetarDia, diaDaSemana, normalizarRotulo,
+  producaoDoEventoPorMaterial, m2DaPecaPorStatus, STATUS_DO_MATERIAL, ROTULO_DO_STATUS_DO_MATERIAL, FASE_PRODUCAO,
   type CartaoDaProjecao, type MedidaDaProjecao, type PecaDaLinha, type ProcessoDeProducao, type ClasseDaProjecao,
+  type PainelOperacional, type StatusDoMaterial, type LinhaDoMaterial,
 } from "@shared/painel-operacional";
+import { OUTROS_MATERIAIS, ROTULO_OUTROS_MATERIAIS, filtroDeMaterial, materiaisDoCadastro } from "@shared/materiais";
 import { Segmentado } from "@/components/ui/abas";
+import { Botao } from "@/components/ui/botao";
+import { FilterSelect } from "@/components/filter-select";
 import { T, TOM, FS, FW, R, FONT } from "@/lib/theme";
 import { SecaoDaAnalise, TabelaCompacta, idDaPeca } from "../blocos";
 import {
-  BarrasEmpilhadas, COR, Campo, CelulaDaPeca, FaixaDeControles, FiltroDeEvento, opcoesDeEvento, GraficoDeDias, Marcador, Seletor, SimNao,
-  SelosDaLinha, dm, dma, fmt0, fmt1, fmtM2, formatoDaMedida, naoSegueAMarca, type MedidaDaTela,
+  BarrasEmpilhadas, COR, Campo, CelulaDaPeca, FaixaDeControles, FiltroDeEvento, FiltroDeMaterial, opcoesDeEvento, GraficoDeDias, Marcador, Seletor, SimNao,
+  SelosDaLinha, StatusDaLinha, dm, dma, fmt0, fmt1, fmtM2, formatoDaMedida, naoSegueAMarca, type MedidaDaTela,
 } from "../comum";
-import type { ContextoDoPainel } from "../contexto";
+import type { ContextoDoPainel, SubDaProducao } from "../contexto";
 
 const MEDIDAS: { id: MedidaDaTela; rotulo: string }[] = [
   { id: "m2", rotulo: "m²" }, { id: "unidades", rotulo: "Peças (unidades)" }, { id: "itens", rotulo: "Itens (linhas de peça)" },
@@ -32,9 +42,10 @@ export default function AbaProducao({ ctx }: { ctx: ContextoDoPainel }) {
         itens={[
           { id: "realizado", rotulo: isMobile ? "Realizado" : "Realizado por dia", title: "Realizado por dia", ariaControls: "painel-op-producao-sub" },
           { id: "projecao", rotulo: isMobile ? "Projeção do dia" : "Projeção de produção do dia", title: "Projeção de produção do dia", ariaControls: "painel-op-producao-sub" },
+          { id: "material", rotulo: isMobile ? "Por material" : "Evento por material", title: "Produção do evento por material", ariaControls: "painel-op-producao-sub" },
         ]}
         ativo={sub}
-        aoTrocar={(id) => trocarSub(id as "realizado" | "projecao")}
+        aoTrocar={(id) => trocarSub(id as SubDaProducao)}
         rotuloDaLista="Painéis de produção"
         prefixoDeTestId="op-sub"
         testId="op-subabas"
@@ -43,7 +54,7 @@ export default function AbaProducao({ ctx }: { ctx: ContextoDoPainel }) {
         style={{ alignSelf: isMobile ? "stretch" : "flex-start" }}
       />
       <div id="painel-op-producao-sub" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-        {sub === "realizado" ? <Realizado ctx={ctx} /> : <Projecao ctx={ctx} />}
+        {sub === "realizado" ? <Realizado ctx={ctx} /> : sub === "projecao" ? <Projecao ctx={ctx} /> : <EventoPorMaterial ctx={ctx} />}
       </div>
     </div>
   );
@@ -62,7 +73,10 @@ function Realizado({ ctx }: { ctx: ContextoDoPainel }) {
   const realizado = React.useMemo(() => producaoRealizadaPorDia(painel, evento, medida), [painel, evento, medida]);
   const planImp = React.useMemo(() => producaoPlanejadaPorDia(painel, "impressao", evento, medida), [painel, evento, medida]);
   const planAcab = React.useMemo(() => producaoPlanejadaPorDia(painel, "acabamento", evento, medida), [painel, evento, medida]);
-  const porEvento = React.useMemo(() => producaoPorEvento(painel).filter((r) => !evento || r.evento === evento), [painel, evento]);
+  const material = useFiltroDeMaterial(painel);
+  const porEvento = React.useMemo(
+    () => producaoPorEvento(painel, material.filtro).filter((r) => !evento || r.evento === evento),
+    [painel, evento, material.filtro]);
   const serieDoPlano = (proc: ProcessoDeProducao) => [
     { chave: "atrasado", nome: "Atrasado (prazo vencido)", cor: COR.atrasado },
     { chave: "liberado", nome: "Liberado p/ produção", cor: proc === "impressao" ? COR.prazo : COR.acabamento },
@@ -101,16 +115,27 @@ function Realizado({ ctx }: { ctx: ContextoDoPainel }) {
         </SecaoDaAnalise>
       </div>
 
-      <SecaoDaAnalise id="h-op-prod-ev" testId="op-prod-evento" titulo="Produção por evento" descricao={`Realizado nos últimos 30 dias e o saldo que ainda falta produzir.${naoSegueAMarca(ctx.marca)}`}>
+      <SecaoDaAnalise
+        id="h-op-prod-ev" testId="op-prod-evento" titulo="Produção por evento"
+        descricao={<>
+          Realizado nos últimos 30 dias e o saldo que ainda falta produzir.{naoSegueAMarca(ctx.marca)}
+          {material.escolhidos.length > 0 && (
+            <span data-testid="op-prod-evento-material-escolhido" style={{ display: "block", marginTop: 4, color: T.text, fontWeight: FW.medio }}>
+              Só {material.rotuloDosEscolhidos} — todas as colunas contam apenas as peças desse{material.escolhidos.length > 1 ? "s materiais" : " material"}.
+            </span>
+          )}
+        </>}
+        acoes={<FiltroDeMaterial valores={material.escolhidos} aoMudar={material.escolher} opcoes={material.opcoes} isMobile={isMobile} testId="op-prod-evento-material" />}
+      >
         <TabelaCompacta
           testId="op-tabela-prod-evento"
-          legenda="Produção por evento: impresso e acabado em 30 dias, a imprimir e a acabar"
+          legenda={`Produção por evento: impresso e acabado em 30 dias, a imprimir e a acabar${material.escolhidos.length > 0 ? ` — só ${material.rotuloDosEscolhidos}` : ""}`}
           linhas={porEvento}
           chave={(r) => r.evento}
           limite={15}
           minLargura={780}
           ordemInicial={{ coluna: "aImprimirM2", direcao: "desc" }}
-          vazio="Sem produção para este filtro."
+          vazio={material.escolhidos.length > 0 ? "Nenhum evento com peça desse material." : "Sem produção para este filtro."}
           colunas={[
             { id: "evento", rotulo: "Evento", ordenavel: true, valor: (r) => painel.nomes[r.evento] ?? r.evento },
             { id: "impresso", rotulo: "Impresso 30d (m²)", alinhar: "direita", ordenavel: true, valor: (r) => r.impressoM2_30d },
@@ -126,6 +151,213 @@ function Realizado({ ctx }: { ctx: ContextoDoPainel }) {
           ]}
         />
       </SecaoDaAnalise>
+    </>
+  );
+}
+
+// ─── Tipo de material (30/10, Pedro) ─────────────────────────────────────────
+
+/** O cadastro de materiais do app — o mesmo que a peça oferece ao ser cadastrada. */
+function useCadastroDeMateriais(): string[] {
+  const { data: catalogo = [] } = useQuery<{ kind: string; value: string }[]>({ queryKey: ["/api/catalog-options"] });
+  const { data: modelos = [] } = useQuery<{ material?: string | null }[]>({ queryKey: ["/api/standard-items"] });
+  // Sem o cadastro (falha ou resposta inesperada), o filtro fica com os padrão — a tela não cai.
+  return React.useMemo(
+    () => materiaisDoCadastro(normalizarRotulo, Array.isArray(catalogo) ? catalogo : [], Array.isArray(modelos) ? modelos : []),
+    [catalogo, modelos]);
+}
+
+const rotuloDoMaterial = (m: string) => (m === OUTROS_MATERIAIS ? ROTULO_OUTROS_MATERIAIS : m);
+
+function useFiltroDeMaterial(painel: Pick<PainelOperacional, "prodRealizado" | "prodPlanejado">) {
+  const cadastro = useCadastroDeMateriais();
+  const [escolhidos, escolher] = React.useState<string[]>([]);
+  const opcoes = React.useMemo(() => {
+    const doCadastro = new Set(cadastro);
+    const fora = [...painel.prodRealizado, ...painel.prodPlanejado].some((r) => !doCadastro.has(r.material));
+    return [
+      ...cadastro.map((m) => ({ value: m, label: m })),
+      ...(fora ? [{ value: OUTROS_MATERIAIS, label: ROTULO_OUTROS_MATERIAIS }] : []),
+    ];
+  }, [cadastro, painel]);
+  const filtro = React.useMemo(() => filtroDeMaterial(escolhidos, cadastro), [escolhidos, cadastro]);
+  return { escolhidos, escolher, opcoes, filtro, rotuloDosEscolhidos: escolhidos.map(rotuloDoMaterial).join(", ") };
+}
+
+// ─── Produção do evento por material (30/10, Pedro) ──────────────────────────
+
+/** A célula escolhida: material (null = todos) × status (null = todos). */
+type CelulaEscolhida = { material: string | null; status: StatusDoMaterial | null };
+
+function EventoPorMaterial({ ctx }: { ctx: ContextoDoPainel }) {
+  const { painel, isMobile } = ctx;
+  // Abre num evento de verdade: o que tem mais m² ainda a imprimir.
+  const porEventoInteiro = React.useMemo(() => producaoPorEvento(painel), [painel]);
+  const opcoes = React.useMemo(() => opcoesDeEvento(painel.eventos.map((e) => e.chave), painel.nomes), [painel]);
+  const sugerido = React.useMemo(() => {
+    const ativos = new Set(painel.eventos.map((e) => e.chave));
+    const maior = porEventoInteiro.filter((r) => ativos.has(r.evento)).sort((a, b) => b.aImprimirM2 - a.aImprimirM2)[0];
+    return maior?.evento ?? painel.eventos[0]?.chave ?? null;
+  }, [painel, porEventoInteiro]);
+  const [escolhido, setEscolhido] = React.useState<string | null>(null);
+  const evento = escolhido && painel.eventos.some((e) => e.chave === escolhido) ? escolhido : sugerido;
+  const [celula, setCelula] = React.useState<CelulaEscolhida | null>(null);
+  React.useEffect(() => { setCelula(null); }, [evento]);
+
+  const rel = React.useMemo(() => (evento ? producaoDoEventoPorMaterial(painel.pecas, evento) : null), [painel, evento]);
+  const doEvento = painel.eventos.find((e) => e.chave === evento) ?? null;
+  const prazo = doEvento?.fases[FASE_PRODUCAO]?.prazo ?? null;
+  const saldoNoOutro = evento ? porEventoInteiro.find((r) => r.evento === evento)?.aImprimirM2 ?? 0 : 0;
+  const refDaLista = React.useRef<HTMLDivElement>(null);
+
+  const abrir = (c: CelulaEscolhida) => {
+    setCelula(c);
+    requestAnimationFrame(() => refDaLista.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
+  const numero = (valor: number, c: CelulaEscolhida, rotulo: string, forte = false) => (valor > 0
+    ? (
+      <button
+        type="button"
+        onClick={() => abrir(c)}
+        aria-label={`${fmt0(valor)} m² — ver as peças de ${rotulo}`}
+        aria-pressed={celula?.material === c.material && celula?.status === c.status}
+        data-testid={`op-mat-celula-${c.material ?? "todos"}-${c.status ?? "total"}`}
+        className="pop-link"
+        style={{ border: "none", background: "none", padding: 0, font: "inherit", fontWeight: forte ? FW.forte : FW.medio, color: T.accentText, textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer", fontVariantNumeric: "tabular-nums" }}
+      >
+        {fmt0(valor)}
+      </button>
+    )
+    : <span style={{ color: T.second }}>0</span>);
+  const rotuloDaCelula = (c: CelulaEscolhida) =>
+    [c.material ?? "todos os materiais", c.status ? ROTULO_DO_STATUS_DO_MATERIAL[c.status] : null].filter(Boolean).join(" · ");
+
+  const colunaDoStatus = (s: StatusDoMaterial) => ({
+    id: s, rotulo: `${ROTULO_DO_STATUS_DO_MATERIAL[s]} (m²)`, alinhar: "direita" as const, ordenavel: true,
+    ocultarNoCelular: s === "pre" || s === "acabado",
+    valor: (l: LinhaDoMaterial) => l.m2[s],
+    render: (l: LinhaDoMaterial) => numero(l.m2[s], { material: l.material, status: s }, `${l.material} em ${ROTULO_DO_STATUS_DO_MATERIAL[s]}`),
+  });
+
+  // As peças da célula escolhida, com o m² DAQUELE status (a parcial em impressão aparece nos dois).
+  const pecasDaCelula = React.useMemo(() => {
+    if (!celula || !evento) return [];
+    return painel.pecas
+      .filter((p) => p.evento === evento && p.unidades > 0 && (!celula.material || p.material === celula.material))
+      .map((p) => ({ p, partes: m2DaPecaPorStatus(p) }))
+      .filter(({ partes }) => (celula.status ? partes[celula.status] > 0 : STATUS_DO_MATERIAL.some((s) => partes[s] > 0)))
+      .map(({ p, partes }) => ({ ...p, m2DaCelula: celula.status ? partes[celula.status] : p.m2 }));
+  }, [painel, evento, celula]);
+
+  return (
+    <>
+      <SecaoDaAnalise
+        id="h-op-mat-ev" testId="op-mat-evento" titulo="Produção do evento por material"
+        descricao={<>
+          O m² de cada material no status em que a peça está. <strong style={{ color: T.text, fontWeight: FW.medio }}>Pré-produção</strong> = Lista de imagens, Layout, Aprovação, Finalização e Revisão;
+          {" "}<strong style={{ color: T.text, fontWeight: FW.medio }}>A imprimir</strong> = liberada para a Gráfica e ainda na fila da impressora;
+          {" "}<strong style={{ color: T.text, fontWeight: FW.medio }}>A acabar</strong> = impressa, acabamento não conferido;
+          {" "}<strong style={{ color: T.text, fontWeight: FW.medio }}>Acabado</strong> = conferida, embalada ou entregue (tudo do evento). Clique num número para ver as peças.
+        </>}
+      >
+        <FaixaDeControles testId="op-mat-controles">
+          <Campo rotulo="Evento" id="op-mat-evento-escolha">
+            <FilterSelect
+              kind="field" label="Evento" placeholder="Escolha um evento" hideWhenEmpty={false}
+              value={evento ?? ""} onChange={(v) => { if (v) setEscolhido(v); }} options={opcoes}
+              searchPlaceholder="Buscar evento…" emptyText="Nenhum evento encontrado."
+              testId="op-mat-evento-escolha" fullWidth={isMobile} panelWidth={isMobile ? undefined : 340} triggerStyle={isMobile ? undefined : { minWidth: 260 }}
+            />
+          </Campo>
+        </FaixaDeControles>
+
+        {!evento || !rel ? (
+          <p data-testid="op-mat-sem-evento" style={{ margin: "14px 0 0", fontSize: FS.small, color: T.second }}>Nenhum evento em andamento.</p>
+        ) : (
+          <>
+            <dl data-testid="op-mat-resumo" style={{ display: "flex", flexWrap: "wrap", gap: isMobile ? "10px 20px" : "10px 32px", margin: "16px 0 14px" }}>
+              {([
+                ["Prazo de produção", prazo ? dma(prazo) : "—", "op-mat-prazo"],
+                ["Total", `${fmt0(rel.total.total)} m²`, "op-mat-total-m2"],
+                ["Peças", `${fmt0(rel.total.unidades)} un.`, "op-mat-total-pecas"],
+              ] as const).map(([rotulo, valor, testId]) => (
+                <div key={testId} style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                  <dt style={{ fontSize: FS.micro, fontWeight: FW.rotulo, letterSpacing: "0.1em", textTransform: "uppercase", color: T.second }}>{rotulo}</dt>
+                  <dd data-testid={testId} style={{ margin: 0, fontFamily: FONT.display, fontSize: FS.title, fontWeight: FW.forte, color: T.text, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" }}>{valor}</dd>
+                </div>
+              ))}
+            </dl>
+            <TabelaCompacta<LinhaDoMaterial>
+              testId="op-tabela-mat"
+              legenda={`Produção de ${painel.nomes[evento] ?? evento} por material: m² em cada status`}
+              linhas={rel.linhas}
+              chave={(l) => l.material}
+              limite={20}
+              minLargura={760}
+              larguraDaPrimeira={140}
+              ordemInicial={{ coluna: "aImprimir", direcao: "desc" }}
+              vazio="Este evento não tem peça a produzir."
+              colunas={[
+                { id: "material", rotulo: "Material", ordenavel: true, valor: (l) => l.material },
+                ...STATUS_DO_MATERIAL.map(colunaDoStatus),
+                { id: "total", rotulo: "Total (m²)", alinhar: "direita", ordenavel: true, valor: (l) => l.total,
+                  render: (l) => numero(l.total, { material: l.material, status: null }, `${l.material}, todos os status`, true) },
+                { id: "unidades", rotulo: "Peças", alinhar: "direita", ordenavel: true, valor: (l) => l.unidades, titulo: "Unidades a produzir" },
+              ]}
+              rodape={{
+                rotulo: "Total",
+                valores: {
+                  ...Object.fromEntries(STATUS_DO_MATERIAL.map((s) => [s, numero(rel.total.m2[s], { material: null, status: s }, `todos os materiais em ${ROTULO_DO_STATUS_DO_MATERIAL[s]}`, true)])),
+                  total: numero(rel.total.total, { material: null, status: null }, "todos os materiais, todos os status", true),
+                  unidades: fmt0(rel.total.unidades),
+                },
+              }}
+            />
+            {ctx.marca === "todas" && rel.linhas.length > 0 && (
+              <p data-testid="op-mat-conciliacao" style={{ margin: "10px 0 0", fontSize: FS.small, color: T.second, lineHeight: 1.5 }}>
+                No relatório <strong style={{ color: T.text, fontWeight: FW.medio }}>Produção por evento</strong>, a coluna "A imprimir" deste evento é{" "}
+                <strong style={{ color: T.text, fontWeight: FW.medio, fontVariantNumeric: "tabular-nums" }}>{fmt0(saldoNoOutro)} m²</strong>: o saldo inteiro da impressora, que aqui aparece dividido em
+                Pré-produção + A imprimir (<span style={{ fontVariantNumeric: "tabular-nums" }}>{fmt0(rel.total.m2.pre)} + {fmt0(rel.total.m2.aImprimir)} = {fmt0(rel.total.m2.pre + rel.total.m2.aImprimir)} m²</span>
+                {rel.total.m2.pre + rel.total.m2.aImprimir !== saldoNoOutro ? "; a diferença de 1 m² é do arredondamento de cada coluna" : ""}).
+              </p>
+            )}
+            {ctx.marca !== "todas" && (
+              <p style={{ margin: "10px 0 0", fontSize: FS.small, color: T.second }}>Segue o filtro de peças sem aprovação da página: só as peças com a marca escolhida.</p>
+            )}
+          </>
+        )}
+      </SecaoDaAnalise>
+
+      {celula && evento && (
+        <div ref={refDaLista} style={{ scrollMarginTop: 72 }}>
+          <SecaoDaAnalise
+            id="h-op-mat-pecas" testId="op-mat-pecas" titulo={`Peças · ${rotuloDaCelula(celula)}`}
+            descricao={`${fmt0(pecasDaCelula.length)} ${pecasDaCelula.length === 1 ? "peça" : "peças"} de ${painel.nomes[evento] ?? evento}. O m² é o desta coluna — a peça impressa em parte aparece em "A imprimir" e em "A acabar".`}
+            acoes={<Botao variante="secundario" tamanho={isMobile ? "toque" : "sm"} onClick={() => setCelula(null)} data-testid="op-mat-pecas-fechar"><X aria-hidden="true" style={{ width: 14, height: 14 }} />Fechar lista</Botao>}
+          >
+            <TabelaCompacta<PecaDaLinha & { m2DaCelula: number }>
+              testId="op-tabela-mat-pecas"
+              larguraDaPrimeira={84}
+              encolherAoTransbordar={false}
+              legenda={`Peças de ${rotuloDaCelula(celula)}`}
+              linhas={pecasDaCelula}
+              chave={(p) => p.id}
+              limite={20}
+              minLargura={820}
+              ordemInicial={{ coluna: "m2", direcao: "desc" }}
+              vazio="Nenhuma peça nesta célula."
+              colunas={[
+                { id: "peca", rotulo: "Peça", ordenavel: true, valor: (p) => p.displayId, render: (p) => <CelulaDaPeca id={idDaPeca(p)} isMobile={isMobile} /> },
+                { id: "tipo", rotulo: "Tipo", ordenavel: true, valor: (p) => [p.tipo, p.descricao].filter(Boolean).join(" · ") || "—" },
+                ...(celula.material ? [] : [{ id: "material", rotulo: "Material", ordenavel: true, ocultarNoCelular: true, valor: (p: PecaDaLinha) => p.material }]),
+                { id: "status", rotulo: "Status", ordenavel: true, ocultarNoCelular: true, valor: (p) => p.fase, render: (p) => <StatusDaLinha p={p} /> },
+                { id: "qtd", rotulo: "Qtd", alinhar: "direita", ordenavel: true, valor: (p) => p.unidades },
+                { id: "m2", rotulo: "m²", alinhar: "direita", ordenavel: true, valor: (p) => p.m2DaCelula, render: (p) => fmt1(p.m2DaCelula) },
+              ]}
+            />
+          </SecaoDaAnalise>
+        </div>
+      )}
     </>
   );
 }

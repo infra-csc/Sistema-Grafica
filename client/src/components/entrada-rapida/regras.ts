@@ -7,8 +7,10 @@ import {
   CAMPOS_VAZIOS_DA_PRODUCAO_INTERNA, corpoDaProducaoInterna, faltamInstrucoes, motivoParaNaoMarcar,
 } from "@shared/producao-interna";
 import type { BulkItemRow, PecaDoLote } from "./tipos";
+import { MATERIAIS_PADRAO } from "@shared/materiais";
 
-export const materials = ["Adesivo", "Lona", "Madeira", "Sanett", "Tecido", "Tecido Pet"];
+// A lista padrão mora em @shared/materiais (os relatórios de produção filtram por ela).
+export const materials: string[] = [...MATERIAIS_PADRAO];
 export const finishes = ["Dupla Face", "Ilhós", "Impressão UV", "Impresso", "Recorte", "Refile"];
 
 /* Total focusable fields per row (indices 0–9) */

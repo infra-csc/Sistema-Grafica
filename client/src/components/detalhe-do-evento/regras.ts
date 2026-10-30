@@ -9,6 +9,7 @@ import { TIPOS_DE_PECA, statusParaContagem } from "@shared/molde";
 import { kitCobradoNoMarco } from "@shared/kit";
 import { CAMPOS_VAZIOS_DA_PRODUCAO_INTERNA } from "@shared/producao-interna";
 import type { ItemFormData, Marco, PecaDoEvento, TrabalhoAberto } from "./tipos";
+import { MATERIAIS_PADRAO } from "@shared/materiais";
 
 /**
  * QUAL ETAPA CADA STATUS JÁ CUMPRIU — a régua da timeline.
@@ -118,7 +119,8 @@ export const formatarMedida = (v: string | number | null | undefined) => {
 
 // A lista única de tipos (com o Molde) mora em shared/molde.ts.
 export const itemTypes = [...TIPOS_DE_PECA];
-export const materials = ["Adesivo", "Lona", "Madeira", "Sanett", "Tecido", "Tecido Pet"];
+// A lista padrão mora em @shared/materiais (os relatórios de produção filtram por ela).
+export const materials: string[] = [...MATERIAIS_PADRAO];
 export const finishes = ["Dupla Face", "Ilhós", "Impressão UV", "Impresso", "Recorte", "Refile"];
 
 // Estado limpo do formulário de peça — o mesmo objeto de 14 campos era

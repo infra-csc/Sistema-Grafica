@@ -4,7 +4,7 @@
 // tem no Análises hoje" — a Análises de status, com dez abas, saiu).
 //
 // Cinco abas: Painel geral · Produção (Realizado por dia | Projeção de
-// produção do dia) · Pré-produção · Problemas operacionais · Status por
+// produção do dia | Evento por material) · Pré-produção · Problemas operacionais · Status por
 // evento. Cada aba tem os filtros do painel de referência (evento, medida,
 // dia, processo, incluir atrasados, chips).
 //
@@ -13,7 +13,7 @@
 // as funções de derivação de @shared/painel-operacional — a MESMA regra que o
 // teste prende. Nada é calculado aqui.
 //
-// URL: ?aba=<aba>&sub=<realizado|projecao>&ev=<evento> (o evento aberto em
+// URL: ?aba=<aba>&sub=<realizado|projecao|material>&ev=<evento> (o evento aberto em
 // "Status por evento") — o recorte sobrevive ao F5 e a um link colado.
 // Pré-produção: &pre=calendario abre o submenu "Eventos × processo × prazo",
 // com o estado dele em cal_so_atr, cal_ev, cal_fase, cal_ord e cal_dir. O link
@@ -36,7 +36,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { T, TOM, FS, FW, R } from "@/lib/theme";
 import { Seletor, fmt0 } from "./comum";
 import {
-  ABAS_DO_PAINEL, gravarCalendario, gravarMarca, lerCalendario, lerMarca, recortarPorMarca,
+  ABAS_DO_PAINEL, SUBS_DA_PRODUCAO, gravarCalendario, gravarMarca, lerCalendario, lerMarca, recortarPorMarca,
   type ContextoDoPainel, type EstadoDoCalendario, type IdDoPainel, type SubDaPre, type SubDaProducao,
 } from "./contexto";
 import AbaGeral from "./abas/geral";
@@ -55,7 +55,7 @@ function lerDaUrl(): { aba: IdDoPainel; sub: SubDaProducao; ev: string | null; s
   const peloHash = window.location.hash === HASH_DO_CALENDARIO;
   return {
     aba: peloHash ? "pre" : ABAS_DO_PAINEL.some((a) => a.id === aba) ? (aba as IdDoPainel) : "geral",
-    sub: p.get(URL_CHAVES.sub) === "projecao" ? "projecao" : "realizado",
+    sub: SUBS_DA_PRODUCAO.find((s) => s === p.get(URL_CHAVES.sub)) ?? "realizado",
     ev: p.get(URL_CHAVES.ev) || null,
     subPre: peloHash || p.get(URL_CHAVES.pre) === "calendario" ? "calendario" : "pendencias",
     calendario: lerCalendario(p),
@@ -325,6 +325,7 @@ function ComoCalculamos() {
           {p("Realizado usa a data registrada em cada peça: cadastro, envio de layout (histórico parcial — o app só guarda essa data para parte das peças: a troca do layout ou a entrada em “aguardando aprovação”), aprovação do patrocinador, arquivo final, revisão final, fim da impressão (a peça saiu toda da impressora) e conferência (acabamento). Janela de 60 dias, no fuso de Brasília.")}
           {p("Planejado: o saldo de cada peça é distribuído igualmente pelos dias úteis (segunda a sábado) entre hoje — ou o dia seguinte ao prazo da revisão final, se a peça ainda está em pré-produção — e o prazo da produção gráfica. Se o prazo já venceu, todo o saldo vai para hoje como atrasado. Unidades = quantidade − reaproveitadas; m² = área do arquivo (ou a visual, sem arquivo) × unidades a imprimir — o reaproveitamento não entra.")}
           {p("Projeção do dia: carga = atrasados + programados para o dia − já produzidos para o dia. Programado = peças cujo prazo de produção gráfica cai no dia; atrasados = prazo anterior a hoje e o processo ainda não feito (datas futuras nunca entram como atrasadas). Impresso = Impresso/acabamento, Conferido, Embalado ou Entregue; acabado = Conferido, Embalado ou Entregue.")}
+          {p("Por material: o material da peça como foi cadastrado (caixa alta, espaços e grafias juntadas). O filtro “Tipo de material” lista o cadastro de materiais do app — os padrão, os cadastrados e os dos Modelos; peça com material fora dele entra em “Outros (fora do cadastro)”. Em Evento por material, a peça conta no status em que está: Pré-produção (da Lista de imagens à Revisão final), A imprimir (liberada e ainda na impressora — da peça impressa em parte, só o que falta), A acabar (impressa, acabamento não conferido) e Acabado (conferida, embalada ou entregue, desde sempre). O “A imprimir” do Produção por evento é o saldo inteiro da impressora: Pré-produção + A imprimir daqui. Cada coluna é arredondada para que a soma dos materiais dê o total do evento.")}
           {p("Peças sem aprovação: a peça marcada “Sem patrocínio” ou “Arte do cliente” (as duas são marcadas à mão e podem vir juntas) não passa pela Aprovação. O prazo de Layout dela é o prazo de Layout do evento + a duração da etapa de Aprovação, em dias corridos (configuração geral; padrão 7) — com as duas, os dias contam uma vez só. Da finalização em diante os prazos são os do evento. Vale também para a peça do Kit. Enquanto a arte do cliente não chega, a peça fica em “Layout — Aguardando arte do cliente”; passado o Layout ajustado sem a arte, o atraso é do cliente — todos os outros atrasos são internos. Nada disso é gravado: o prazo é calculado na hora, pela saída do caminhão.")}
           {p("Filtro “Peças sem aprovação”: recorta as peças de todas as abas (listas, contagens, pendências, projeção do dia e a grade de eventos × processo). Os prazos e a situação de cada fase do evento, os números da Gestão de Prazos e as séries somadas por dia (m² realizados e planejados, processos de pré-produção) são do evento inteiro e não mudam com ele.")}
           {p("Pré-produção: a peça ainda passa por cada processo da fase em que está até a revisão final (a da Lista de imagens passa por todos; a sem aprovação pula a aprovação). O processo está atrasado quando o prazo dele, no evento da peça, é anterior a hoje — para a peça sem aprovação em Layout, quando passa também o Layout ajustado.")}

@@ -122,8 +122,13 @@ export interface ColunaDaTabela<L> {
 }
 
 export function TabelaCompacta<L>({
-  colunas, linhas, chave, legenda, ordemInicial, limite = 10, vazio = "Nada para mostrar neste recorte.", aoClicarLinha, minLargura = 560, alturaMaxima, larguraDaPrimeira = 150, encolherAoTransbordar = true, testId = "tabela",
+  colunas, linhas, chave, legenda, ordemInicial, limite = 10, vazio = "Nada para mostrar neste recorte.", aoClicarLinha, minLargura = 560, alturaMaxima, larguraDaPrimeira = 150, encolherAoTransbordar = true, testId = "tabela", rodape,
 }: {
+  /**
+   * A linha de TOTAL no pé da tabela (30/10): o rótulo vai na 1ª coluna e
+   * `valores` traz o conteúdo das outras pelo id da coluna (ausente = vazio).
+   */
+  rodape?: { rotulo: string; valores: Partial<Record<string, React.ReactNode>> };
   colunas: ColunaDaTabela<L>[];
   linhas: L[];
   chave: (l: L) => string;
@@ -287,6 +292,30 @@ export function TabelaCompacta<L>({
               </tr>
             ))}
           </tbody>
+          {rodape && (
+            <tfoot>
+              <tr data-testid={`${testId}-total`}>
+                {colunas.map((c, i) => {
+                  const Cel = i === 0 ? "th" : "td";
+                  const v = i === 0 ? rodape.rotulo : rodape.valores[c.id];
+                  return (
+                    <Cel
+                      key={c.id}
+                      scope={i === 0 ? "row" : undefined}
+                      style={{
+                        ...TABULAR, padding: isMobile ? "9px 6px" : "9px 10px", fontSize: FS.body, fontWeight: FW.forte,
+                        color: T.text, textAlign: c.alinhar === "direita" ? "right" : "left", verticalAlign: "middle",
+                        borderTop: `1px solid ${T.bdark}`, backgroundColor: T.low,
+                        ...(i === 0 ? { minWidth: larguraDaPrimeira, position: "sticky", left: 0, zIndex: 1, boxShadow: `1px 0 0 ${N.n3}` } : null),
+                      }}
+                    >
+                      {typeof v === "number" ? fmtInt(v) : (v ?? "")}
+                    </Cel>
+                  );
+                })}
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
       {ordenadas.length > limite && (

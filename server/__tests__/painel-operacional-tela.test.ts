@@ -152,6 +152,26 @@ describe("Análises — Painel operacional", () => {
     expect(pelo(c, "op-carga-impressao")!.textContent).toContain("29/10/2026");
   });
 
+  // 30/10 (Pedro): "Produção do evento por material".
+  it("Produção › Evento por material: abre no evento com mais a imprimir; o número lista as peças", async () => {
+    window.history.replaceState(null, "", "/analises?aba=producao&sub=material");
+    const { container: c } = render(h(Analises));
+    expect(pelo(c, "op-mat-evento")).not.toBeNull();
+    // Copa Norte: 8 m² a imprimir no total (2 em pré-produção + 6 liberados) × Abertura Sul 7.
+    expect(pelo(c, "op-mat-evento-escolha")!.textContent).toContain("Copa Norte");
+    const linhas = c.querySelectorAll('[data-testid="op-tabela-mat-linha"]');
+    expect(linhas).toHaveLength(1);
+    expect(linhas[0].textContent).toContain("LONA");
+    expect(pelo(c, "op-tabela-mat-total")!.textContent).toMatch(/Total/);
+    expect(pelo(c, "op-mat-conciliacao")!.textContent).toContain("2 + 6 = 8 m²");
+    act(() => { fireEvent.click(pelo(c, "op-mat-celula-LONA-aImprimir")!); });
+    const lista = pelo(c, "op-mat-pecas")!;
+    expect(lista.textContent).toContain("Peças · LONA · A imprimir");
+    expect(lista.querySelectorAll('[data-testid="op-tabela-mat-pecas-linha"]')).toHaveLength(2);
+    act(() => { fireEvent.click(pelo(c, "op-mat-pecas-fechar")!); });
+    expect(pelo(c, "op-mat-pecas")).toBeNull();
+  });
+
   it("Pré-produção: o número da tabela lista as peças, e Fechar some com a lista", () => {
     const { container: c } = render(h(Analises));
     act(() => { fireEvent.click(pelo(c, "aba-painel-op-pre")!); });

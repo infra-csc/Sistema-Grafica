@@ -19,7 +19,7 @@ import {
   Bar, BarChart, CartesianGrid, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { T, TOM, N, FS, FW, R, FONT } from "@/lib/theme";
-import { Calendar } from "lucide-react";
+import { Calendar, Layers } from "lucide-react";
 import { Botao } from "@/components/ui/botao";
 import { Selo } from "@/components/ui/selo";
 import { FilterSelect } from "@/components/filter-select";
@@ -450,6 +450,28 @@ export function FiltroDeEvento({ valor, aoMudar, opcoes, isMobile, testId }: {
   );
 }
 
+
+/**
+ * TIPO DE MATERIAL (30/10, Pedro): vários de uma vez; nenhum = todos. A lista
+ * é o cadastro de materiais do app (@shared/materiais) — e, se alguma peça usa
+ * um material fora dele, a opção "Outros (fora do cadastro)".
+ */
+export function FiltroDeMaterial({ valores, aoMudar, opcoes, isMobile, testId }: {
+  valores: string[]; aoMudar: (v: string[]) => void; opcoes: { value: string; label: string }[]; isMobile: boolean; testId: string;
+}) {
+  return (
+    <Campo rotulo="Tipo de material">
+      <FilterSelect
+        showAllLabelWhenEmpty hideWhenEmpty={false}
+        label="Material" allLabel="Todos os materiais" icon={Layers} activeAppearance="solid"
+        values={valores} onValuesChange={aoMudar} options={opcoes}
+        unitLabel={{ one: "material", many: "materiais" }}
+        searchPlaceholder="Buscar material…" emptyText="Nenhum material encontrado."
+        testId={testId} fullWidth={isMobile} panelWidth={isMobile ? undefined : 300} triggerStyle={isMobile ? undefined : { minWidth: 200 }}
+      />
+    </Campo>
+  );
+}
 
 /**
  * A 1ª célula de uma lista de peças: o número da peça e, no celular (onde a

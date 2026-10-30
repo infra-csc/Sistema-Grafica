@@ -101,7 +101,7 @@ describe("cliente", () => {
   it("a faixa fica fora das rotas, oferece Recarregar e NÃO recarrega sozinha", () => {
     const A = ler("client/src/App.tsx");
     expect(A).toContain("<AvisoDeVersaoNova />");
-    expect(A).toContain("Há uma versão nova do NORTE");
+    expect(A).toContain("Há uma versão nova do sistema");
     const i = A.indexOf("function AvisoDeVersaoNova()");
     const corpo = A.slice(i, A.indexOf("export default function App()"));
     expect(corpo.match(/location\.reload\(\)/g)!.length).toBe(1);

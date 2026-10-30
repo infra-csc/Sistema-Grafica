@@ -37,6 +37,7 @@ import {
   SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { MarcaMiro } from "@/components/marca-miro";
 
 type MenuItem = {
   title: string;
@@ -565,26 +566,26 @@ export function AppSidebar() {
     // com respiro (index.css, bloco csc-).
     <Sidebar collapsible="icon" className="csc-sidebar bg-white border-r border-[#e7e5e4]">
       {/* ── Header ── */}
-      {/* Logo da Gráfica; no trilho recolhido aparece somente o símbolo. */}
+      {/* MARCA MIRÓ (30/10): o logo com "Comunicação Visual" (MarcaMiro); no trilho
+          recolhido, só o símbolo. Cada uma em duas versões — a do tema escuro
+          troca o grafite por claro e MANTÉM o laranja (o filtro que invertia o
+          logo antigo apagaria o acento). styles/color-mode.css: .marca-clara/.marca-escura. */}
       <SidebarHeader style={{ height: 64, flexShrink: 0, padding: recolhida ? 0 : "0 12px 0 16px", borderBottom: `1px solid ${N.n3}`, justifyContent: "center", alignItems: recolhida ? "center" : "stretch" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{
             width: recolhida ? 32 : 188,
-            height: recolhida ? 36 : 56,
-            overflow: "hidden", flexShrink: recolhida ? 0 : 1,
+            height: recolhida ? 36 : 48,
+            flexShrink: recolhida ? 0 : 1,
             display: "flex", alignItems: "center", minWidth: 0,
           }}>
-            <img
-              className="grafica-logo"
-              src="/brand/logo-grafica-20261009.png"
-              alt="Gráfica"
-              width={2172}
-              height={724}
-              style={{
-                width: recolhida ? 108 : "100%", height: "auto",
-                maxWidth: recolhida ? "none" : "100%", flexShrink: 0,
-              }}
-            />
+            {recolhida ? (
+              <>
+                <img className="marca-clara" src="/brand/miro-simbolo-20261030.svg" alt="Miró" width={669} height={459} style={{ width: 32, height: "auto" }} />
+                <img className="marca-escura" src="/brand/miro-simbolo-escuro-20261030.svg" alt="Miró" width={669} height={459} style={{ width: 32, height: "auto" }} />
+              </>
+            ) : (
+              <MarcaMiro altura={30} />
+            )}
           </div>
           {/* NO CELULAR A FOLHA TEM UM "FECHAR". Antes só tocar no escuro ao
               lado fechava o menu — gesto que ninguém adivinha de primeira. */}

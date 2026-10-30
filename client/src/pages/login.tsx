@@ -10,6 +10,7 @@ import type { CorpoDoLogin, UsuarioSemSenha } from "@shared/api";
 import { useToast } from "@/hooks/use-toast";
 import { Lock, Loader2, AlertTriangle, ChevronDown, ArrowRight, Eye, EyeOff, Info } from "lucide-react";
 import { T, FS, R, N, FW, FONT, TOM, ESCURO, H } from "@/lib/theme";
+import { MarcaMiro } from "@/components/marca-miro";
 
 const SSO_ERROR_MESSAGES: Record<string, { title: string; description: string }> = {
   microsoft_not_configured: { title: "Login Microsoft em configuração", description: "A entrada direta pela Microsoft ainda está sendo configurada. Tente novamente mais tarde." },
@@ -63,30 +64,6 @@ const ROTULO: React.CSSProperties = {
   textTransform: "uppercase", letterSpacing: "0.1em",
   color: T.apoio,
 };
-
-/** A marca NORTE — o mesmo desenho da barra lateral (selo do app + nome + linha). */
-function MarcaNorte({ escura = false }: { escura?: boolean }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-      {/* Identidade do app (16/10): o selo da NORTE — quadrado branco
-          arredondado com o N da Produção no meio. O mesmo selo serve na
-          coluna escura e no topo claro do celular. */}
-      <img src="/selo-app.svg" alt="" aria-hidden="true" width={40} height={40} style={{ width: 40, height: 40, flexShrink: 0, display: "block" }} />
-      <span style={{ display: "flex", flexDirection: "column" }}>
-        <span style={{
-          fontFamily: FONT.display, fontSize: 17, fontWeight: FW.rotulo,
-          letterSpacing: "-0.04em", textTransform: "uppercase", lineHeight: 1,
-          color: escura ? ESCURO.texto : T.text,
-        }}>NORTE</span>
-        <span style={{
-          fontFamily: FONT.display, fontSize: FS.micro, fontWeight: FW.forte,
-          letterSpacing: "0.22em", textTransform: "uppercase", lineHeight: 1, marginTop: 5,
-          color: escura ? ESCURO.apoio : T.second,
-        }}>Marketing Esportivo</span>
-      </span>
-    </div>
-  );
-}
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -206,7 +183,7 @@ export default function Login() {
       `}</style>
 
       {/* ── COLUNA DA MARCA (42%) ── */}
-      <section className="login-brand-col" aria-label="Sobre o NORTE" style={{
+      <section className="login-brand-col" aria-label="Sobre a Miró" style={{
         position: "relative",
         // Teto de 720px: num monitor de 1920 a coluna escura passava de 800px
         // com o conteúdo encostado à esquerda e meia coluna vazia.
@@ -224,12 +201,12 @@ export default function Login() {
         <div aria-hidden="true" style={{
           position: "absolute", bottom: "-120px", right: "-120px",
           width: "420px", height: "420px", borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(249,115,22,0.18) 0%, transparent 65%)",
+          background: "radial-gradient(circle, rgba(228,91,18,0.2) 0%, transparent 65%)",
           filter: "blur(60px)", pointerEvents: "none",
         }} />
 
         <div style={{ position: "relative", zIndex: 1 }}>
-          <MarcaNorte escura />
+          <MarcaMiro altura={40} fundoEscuro />
         </div>
 
         <div style={{ position: "relative", zIndex: 1, maxWidth: 420 }}>
@@ -274,7 +251,7 @@ export default function Login() {
 
         <footer style={{ position: "relative", zIndex: 1 }}>
           <p style={{ color: ESCURO.apoio, fontSize: FS.small, margin: 0 }}>
-            © {new Date().getFullYear()} NORTE Marketing Esportivo. Todos os direitos reservados.
+            © {new Date().getFullYear()} Miró Comunicação Visual. Todos os direitos reservados.
           </p>
         </footer>
       </section>
@@ -294,9 +271,9 @@ export default function Login() {
         overscrollBehavior: "contain",
       }}>
         <div className="login-form-miolo" style={{ width: "100%", maxWidth: 448 + 64, padding: "48px 32px 32px", margin: "auto 0", boxSizing: "border-box" }}>
-          <h1 className="sr-only">Entrar no sistema — NORTE Marketing Esportivo</h1>
+          <h1 className="sr-only">Entrar no sistema — Miró Comunicação Visual</h1>
 
-          <div className="login-marca-celular"><MarcaNorte /></div>
+          <div className="login-marca-celular"><MarcaMiro altura={34} /></div>
 
           <header style={{ marginBottom: 32 }}>
             <h3 className="login-titulo" style={{
@@ -306,7 +283,7 @@ export default function Login() {
             }}>
               {/* "Bem-vindo de volta" pressupunha visita anterior — a primeira
                   tela de quem nunca entrou dizia que ele já tinha estado aqui. */}
-              Entrar no NORTE
+              Entrar na Miró
             </h3>
             <p style={{ color: T.second, fontWeight: FW.corpo, fontSize: FS.read, margin: 0, lineHeight: 1.5 }}>
               Entre com sua conta Microsoft corporativa.

@@ -41,7 +41,9 @@ describe("FullPageLoader", () => {
     const { getByRole } = render(h(FullPageLoader));
     const raiz = getByRole("status");
     expect(raiz.getAttribute("aria-live")).toBe("polite");
-    expect(raiz.textContent).toContain("NORTE");
+    // Marca Miró (30/10): o logo (decorativo — o status já diz "Carregando…") e a legenda.
+    expect(raiz.querySelector('img[src="/brand/miro-logo-20261030.svg"]')).not.toBeNull();
+    expect(raiz.textContent).toContain("Comunicação Visual");
     expect(raiz.textContent).toContain("Carregando…");
     const coluna = raiz.firstElementChild as HTMLElement;
     expect(coluna.style.flexDirection).toBe("column");

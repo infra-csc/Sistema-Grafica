@@ -43,6 +43,16 @@ export interface InclusaoDoKit {
 
 export const ehPecaDoKit = (peca: { kitRemessaId?: string | null }): boolean => !!peca.kitRemessaId;
 
+/** Elemento de GET /api/auth/ver-como/kit — quem o admin pode simular no Kit (30/10). */
+export interface PessoaDoKit { id: string; nome: string }
+
+/**
+ * De quem é o Kit que a tela enxerga: o próprio usuário — ou, no "ver como"
+ * do admin, a pessoa do Kit simulada (a mesma régua de `idDoKit` no servidor).
+ */
+export const idDoKitDe = (usuario: { id?: string | null; verComoKit?: PessoaDoKit | null } | null | undefined): string | null =>
+  usuario?.verComoKit?.id ?? usuario?.id ?? null;
+
 /**
  * Quem enxerga a peça. O usuário do Kit só vê as peças do Kit que ele criou;
  * todo o resto vê tudo. É a régua única do servidor (listas de peças, eventos,

@@ -197,7 +197,7 @@ function Sidebar({
         >
           <SheetHeader className="sr-only">
             <SheetTitle>Menu de navegação</SheetTitle>
-            <SheetDescription>Menu lateral do sistema NORTE.</SheetDescription>
+            <SheetDescription>Menu lateral da Miró.</SheetDescription>
           </SheetHeader>
           <div className="flex h-full w-full flex-col">{children}</div>
         </SheetContent>

@@ -169,10 +169,10 @@ export function BulkActionDialog({
                           Compl. de {parentDisplayIdOf(item)}
                         </span>
                       )}
-                      <span style={{ fontSize: 13, fontWeight: 600, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{item.type}</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: T.text, overflowWrap: "anywhere", minWidth: 0 }}>{item.type}</span>
                     </div>
                     {item.description && item.description !== item.type && (
-                      <div style={{ fontSize: 12, color: T.second, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <div style={{ fontSize: 12, color: T.second, overflowWrap: "anywhere" }}>
                         {item.description}
                       </div>
                     )}

@@ -968,7 +968,9 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
         </div>
       )}
 
-      <div>
+      {/* No celular o campo vem antes de "onde está": é o que se veio fazer aqui, e o
+          nome inteiro da peça empurrava para baixo da dobra. */}
+      <div style={isMobile && !trocando && !confirmandoTirar ? { order: -1 } : undefined}>
         {/* O campo pergunta o que saiu AGORA (dono, 21/09: "se tem 5 na
             impressora, como imprimo 10?"); o total é calculado e mostrado
             na linha viva. "Corrigir o total" abre o modo absoluto antigo. */}
@@ -1098,7 +1100,7 @@ export function ModalImpressao({ item, onFechar, abrirNaTroca = false, maquinaIn
       <DialogContent ref={superficieRef} className={HIDE_NATIVE_CLOSE} style={modalSurface(520)} data-testid="modal-impressao">
         <DialogTitle className="sr-only">{cab.title}</DialogTitle>
         <DialogDescription className="sr-only">{cab.subtitle || "Informe a impressão desta peça"}</DialogDescription>
-        <ModalHeader icon={Play} tint={T.text} title={cab.title} subtitle={cab.subtitle} onClose={onFechar} />
+        <ModalHeader compacto={isMobile} icon={Play} tint={T.text} title={cab.title} subtitle={cab.subtitle} onClose={onFechar} />
         {item && (
           <div style={{ padding: padModal, display: "flex", flexDirection: "column", gap: isMobile ? 16 : 20, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
             {/* Ficha resumida: qual peça o toque atingiu. */}
@@ -1121,13 +1123,13 @@ export function ModalImpressao({ item, onFechar, abrirNaTroca = false, maquinaIn
                 <div style={{ fontFamily: GROTESK, fontWeight: FW.forte, fontSize: isMobile ? FS.lead : FS.body, color: T.accentText }}>{item.displayId ?? "—"}</div>
                 <div style={{ fontSize: FS.strong, fontWeight: FW.forte, color: T.text }}>{item.type}</div>
                 {item.description && item.description !== item.type && (
-                  <div title={item.description} style={{ fontSize: FS.body, color: T.second, marginTop: 1, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>{item.description}</div>
+                  <div style={{ fontSize: FS.body, color: T.second, marginTop: 1, overflowWrap: "anywhere" }}>{item.description}</div>
                 )}
                 {item.event?.name && (
                   <div style={{ fontSize: FS.body, color: T.second, marginTop: 4, display: "flex", alignItems: "center", gap: 5 }}>
                     <Calendar aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0 }} />
                     {/* Nome do evento em até duas linhas (não corta em 390px). */}
-                    <span style={{ minWidth: 0, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>{item.event.name}</span>
+                    <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{item.event.name}</span>
                   </div>
                 )}
                 <div style={{ fontSize: fsMin(11), color: T.apoio, marginTop: 6, fontVariantNumeric: "tabular-nums" }}>

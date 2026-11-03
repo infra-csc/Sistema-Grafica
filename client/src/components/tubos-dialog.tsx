@@ -194,7 +194,7 @@ function Casca({ aberto, onClose, icone, tint, corDoIcone, titulo, subtitulo, la
         onOpenAutoFocus={(e) => { if (!isMobile && focoInicial?.current) { e.preventDefault(); focoInicial.current.focus(); } }}>
         <DialogTitle className="sr-only">{titulo}</DialogTitle>
         <DialogDescription className="sr-only">{subtitulo}</DialogDescription>
-        <ModalHeader icon={icone} tint={tint} corDoIcone={corDoIcone} title={titulo} subtitle={subtitulo} onClose={onClose} />
+        <ModalHeader compacto={isMobile} icon={icone} tint={tint} corDoIcone={corDoIcone} title={titulo} subtitle={subtitulo} onClose={onClose} />
         <div style={{ padding: pad, overflowY: "auto", flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", gap: 18 }}>
           {children}
         </div>
@@ -269,7 +269,7 @@ function LinhaDaPeca({ p, noVolume = false, semQuantidade = false }: { p: Peca; 
   return (
     <>
       <span style={{ fontFamily: FONT.mono, fontSize: FS.meta, fontWeight: FW.forte, color: COR.laranja, flexShrink: 0 }}>{p.displayId ?? "—"}</span>
-      <span style={{ fontSize: FS.body, color: COR.texto, flex: "1 1 120px", minWidth: 0, overflowWrap: "anywhere", lineHeight: 1.3 }}>
+      <span style={{ fontSize: FS.body, color: COR.texto, flex: noVolume ? "1 1 200px" : "1 1 120px", minWidth: 0, overflowWrap: "anywhere", lineHeight: 1.3 }}>
         {linhaDaLista({ ...p, quantity: q }, { mostrarQuantidade: !semQuantidade })}{parte ? <span style={{ color: COR.sec }}> {parte}</span> : null}
       </span>
     </>
@@ -697,8 +697,8 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
 
   return (
     <Casca aberto={aberto} onClose={onClose} icone={Truck} tint={ACAO.entregar.bg} largura={520} testId="modal-entregar-tubo" focoInicial={campoRef}
-      titulo={avulso ? `Entregar ${oQue} — ${t?.pecas[0] ? linhaDaLista(t.pecas[0], { mostrarQuantidade: false }) : ""}` : `Entregar Tubo ${n}${evento ? ` · ${evento.name}` : ""}`}
-      subtitulo={avulso ? "Confira a peça e registre quem recebeu" : "O tubo sai inteiro: confira o que tem dentro e registre quem recebeu"}
+      titulo={`Entregar ${oQue}`}
+      subtitulo={avulso ? "Confira a peça e registre quem recebeu" : `${evento ? `${evento.name}: ` : ""}o tubo sai inteiro. Confira o que tem dentro e registre quem recebeu`}
       rodape={podeFormulario ? (
         <Rodape testId={`rodape-entregar-tubo-${n}`}>
           <BotaoCancelar onClick={onClose} />

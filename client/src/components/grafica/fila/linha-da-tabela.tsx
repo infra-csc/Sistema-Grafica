@@ -258,7 +258,8 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
             caixa com a barra lateral aberta. Numa div o teto vale
             e limita também a largura mínima que ela pede. */}
         <td style={{ padding: padCelula }}>
-          <div data-testid={`celula-peca-${item.id}`} style={{ display: "flex", alignItems: "flex-start", gap: 10, maxWidth: compacto ? 230 : 320, minWidth: 160 }}>
+          {/* max-content até o teto: com o nome quebrando linha, a tabela automática encolhia esta coluna ao mínimo. */}
+          <div data-testid={`celula-peca-${item.id}`} style={{ display: "flex", alignItems: "flex-start", gap: 10, width: "max-content", maxWidth: compacto ? 230 : 320, minWidth: 160 }}>
             <MiniaturaDaPeca item={item} />
             <div style={{ minWidth: 0, flex: 1 }}>
           {/* No grupo das prioritárias não há o cabeçalho do evento: o evento vem na peça. */}
@@ -352,8 +353,9 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
               conferir/embalar/entregar). A observação vai no title. */}
           <SeloOrigemDoReaproveitamento peca={item} onde="grafica" style={{ marginBottom: 5, marginLeft: 5 }} />
           {item.description ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 2, minWidth: 0 }}>
-              <div style={{ fontSize: 13, color: item.isReuse ? TOM.esmeralda.text : T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: item.isReuse ? 600 : 400, minWidth: 0 }}>{item.description}</div>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 2, minWidth: 0 }}>
+              {/* O nome inteiro, sempre (dono, 03/11): quebra linha, nunca reticências. */}
+              <div style={{ fontSize: 13, lineHeight: 1.35, color: item.isReuse ? TOM.esmeralda.text : T.text, overflowWrap: "anywhere", fontWeight: item.isReuse ? 600 : 400, minWidth: 0 }}>{item.description}</div>
               <BotaoCopiar texto={item.description} rotulo={`a descrição da peça ${item.displayId ?? ""}`.trim()} tamanho={alvoDeToque(24, ponteiroGrosso)} testId={`copiar-descricao-${item.id}`} />
             </div>
           ) : (
@@ -368,7 +370,7 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
               o acabamento inteiro, porque a linha dependia do
               material. Junta só o que existe, sem "·" órfão. */}
           {compacto && (item.material || item.finish) && (
-            <div style={{ fontSize: 11, color: T.second, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <div style={{ fontSize: 11, color: T.second, marginTop: 2, overflowWrap: "anywhere" }}>
               {[item.material, item.finish].filter(Boolean).join(" · ")}
             </div>
           )}

@@ -129,8 +129,8 @@ export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMo
           </div>
           <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>{selectedItem.type}</div>
           {selectedItem.description && selectedItem.description !== selectedItem.type && (
-            <div style={{ display: "flex", alignItems: "center", gap: 2, marginTop: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, color: T.second, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{selectedItem.description}</div>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 2, marginTop: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, color: T.second, overflowWrap: "anywhere", minWidth: 0 }}>{selectedItem.description}</div>
               <BotaoCopiar texto={selectedItem.description} rotulo={`a descrição da peça ${selectedItem.displayId ?? ""}`.trim()} tamanho={isMobile ? 44 : 24} testId={`copiar-descricao-modal-${selectedItem.id}`} />
             </div>
           )}

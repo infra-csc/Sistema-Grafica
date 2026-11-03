@@ -213,9 +213,9 @@ describe("MÁQUINAS a 390px", () => {
       expect(el.style.flex, id).toBe("1 1 100%");
       expect(px(el.style.minHeight), id).toBeGreaterThanOrEqual(44);
     }
-    // O nome da impressora e o da peça quebram linha (2 linhas), nunca reticenciam.
+    // O nome da impressora e o da peça quebram linha, inteiros (dono, 03/11).
     expect(comReticencias($('[data-testid="maquina-agora-1"]')!)).toEqual([]);
-    expect($('[data-testid="nome-peca-p1"]')!.style.webkitLineClamp || ($('[data-testid="nome-peca-p1"]')!.style as any).WebkitLineClamp).toBe("2");
+    expect($('[data-testid="nome-peca-p1"]')!.style.webkitLineClamp || ($('[data-testid="nome-peca-p1"]')!.style as any).WebkitLineClamp).toBeFalsy();
     // "Escolher peça" e a fila reservada do cartão 2.
     expect($('[data-testid="link-escolher-peca-3"]')!.style.width).toBe("100%");
     // O cartão 2 está OCUPADO (a parte da p1): a ação da peça da fila é a troca

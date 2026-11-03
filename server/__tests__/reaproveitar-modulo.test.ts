@@ -200,6 +200,19 @@ describe("Observação no Conferir, no Embalar e no Entregar", () => {
   });
 });
 
+describe("Não pode cortar o nome (dono, 03/11)", () => {
+  it("a fila, os modais e as Máquinas mostram o nome inteiro", () => {
+    const CLAMP = /description[^\n]*(WebkitLineClamp|textOverflow)|(WebkitLineClamp|textOverflow)[^\n]*\{item\.(description|type)\}/;
+    for (const f of ["fila/linha-da-tabela.tsx", "fila/cartao-da-peca.tsx", "modais/conferencia-em-lote.tsx", "modais/modal-da-peca.tsx", "modal-impressao.tsx"]) {
+      expect(CLAMP.test(ler(`client/src/components/grafica/${f}`)), f).toBe(false);
+    }
+    expect(ler("client/src/components/grafica/fila/cartao-da-peca.tsx")).not.toContain("WebkitLineClamp");
+    for (const f of ["pedacos.tsx", "fila-geral.tsx", "seletor-de-peca.tsx", "cartao-da-impressora.tsx"]) {
+      expect(ler(`client/src/components/grafica/maquinas/${f}`), f).not.toContain("WebkitLineClamp");
+    }
+  });
+});
+
 describe("Máquinas e Gráfica", () => {
   it("'Tudo' pergunta antes de gravar, e 'Ainda não' limpa o campo", () => {
     const m = ler("client/src/components/grafica/modal-impressao.tsx");

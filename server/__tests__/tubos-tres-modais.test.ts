@@ -14,7 +14,7 @@
 //      link "Pôr num tubo que já existe".
 //   2. ENTREGAR TUBO N — a lista do que está dentro, as fotos, quem recebeu
 //      (com a sugestão do último), comprovante SEMPRE opcional; a embalada
-//      sozinha é "Entregar #0386 — …", nunca "tubo"; se falta conferir,
+//      sozinha é "Entregar #0386", nunca "tubo"; se falta conferir,
 //      explica e NÃO mostra o formulário.
 //   3. PAINEL — gestão: tubos abertos, entregues recolhidos, ações por tubo,
 //      apagar com confirmação, e a porta "Embalar peças conferidas (N)" — sem
@@ -351,7 +351,8 @@ for (const largura of [1280, 390]) {
       await montar({ tuboInicial: "t1", sugestaoRecebedor: "Fulano" }, largura);
       expect($$('[role="dialog"]').length).toBe(1);
       const m = $('[data-testid="modal-entregar-tubo"]')!;
-      expect(m.textContent).toContain("Entregar Tubo 1 · teste 3");
+      expect(m.textContent).toContain("Entregar Tubo 1");
+      expect(m.textContent).toContain("teste 3: o tubo sai inteiro");
       const lista = $('[data-testid="lista-entrega-tubo-1"]')!;
       expect(lista.textContent).toContain("No tubo · 2 peças");
       expect(lista.textContent).toContain("#0383");
@@ -396,7 +397,8 @@ for (const largura of [1280, 390]) {
     it("EMBALADA SOZINHA: 'Entregar #0390 — Placa de octanorme', nunca 'tubo'; mesma régua (só quem recebeu) e link da foto da conferência", async () => {
       await montar({ tuboInicial: "av1" }, largura);
       const m = $('[data-testid="modal-entregar-tubo"]')!;
-      expect(m.textContent).toContain("Entregar #0390 — Placa de octanorme");
+      expect(m.textContent).toContain("Entregar #0390");
+      expect(m.textContent).toContain("Placa de octanorme");
       expect(m.textContent).not.toMatch(/tubo/i);
       expect(m.textContent).toContain("Fotos da embalagem · 1");
       expect($('[data-testid="foto-conferencia-z1"]')!.getAttribute("href")).toBe("/objects/conf-z1.jpg");
@@ -559,7 +561,7 @@ for (const largura of [1280, 390]) {
       await clicar('[data-testid="tubo-entregar"]');
       await tick(20);
       expect($('[data-testid="modal-do-tubo"]')).toBeNull();
-      expect($('[data-testid="modal-entregar-tubo"]')!.textContent).toContain("Entregar Tubo 1 · teste 3");
+      expect($('[data-testid="modal-entregar-tubo"]')!.textContent).toContain("Entregar Tubo 1");
     }, 30_000);
 
     it("'Adicionar fotos' abre o formulário com câmera direta e o confirmar no rodapé", async () => {

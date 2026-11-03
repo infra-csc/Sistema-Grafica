@@ -71,7 +71,7 @@ export function PecaNaFilaDoCartao({ p, ordem, podeAgir, hojeMs, isMobile, proxi
       <div style={{ display: "flex", alignItems: "baseline", gap: "4px 8px", flexWrap: "wrap", paddingLeft: ordem != null ? 28 : 0 }}>
         {p.prioritaria && <SeloPrioritaria id={p.id} fonte={isMobile ? 12 : FS.small} />}
         <SeloDePrazo p={prazo} fonte={isMobile ? 12 : FS.small} />
-        <span style={{ flex: "1 1 120px", minWidth: 0, fontSize: isMobile ? 12 : FS.small, color: T.second, lineHeight: 1.45, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>
+        <span style={{ flex: "1 1 120px", minWidth: 0, fontSize: isMobile ? 12 : FS.small, color: T.second, lineHeight: 1.45, overflowWrap: "anywhere" }}>
         {[p.pausadaEm ? "Pausada — volta primeiro" : null, p.evento, reservadas < p.aImprimir ? `${reservadas} de ${p.aImprimir} un.` : `${p.aImprimir} un.`, p.impressas > 0 ? `${p.impressas} de ${p.aImprimir} já impressas` : null, p.m2 != null ? `${p.m2.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} m²` : null].filter(Boolean).join(" · ")}
         </span>
       </div>
@@ -227,7 +227,7 @@ export function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir, onT
               o nome quebra em até duas linhas e só então reticencia. */}
           <TituloDaPeca id={p.id} codigo={p.displayId} tipo={p.tipo} descricao={p.descricao} isMobile={isMobile} testId={`nome-peca-${p.id}`} />
           {(p.evento || apoioDaPeca(p)) && (
-            <div title={[p.evento, apoioDaPeca(p)].filter(Boolean).join(" · ")} style={{ fontSize: isMobile ? 12 : FS.small, color: T.second, marginTop: 2, lineHeight: 1.35, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>
+            <div title={[p.evento, apoioDaPeca(p)].filter(Boolean).join(" · ")} style={{ fontSize: isMobile ? 12 : FS.small, color: T.second, marginTop: 2, lineHeight: 1.35, overflowWrap: "anywhere" }}>
               {[p.evento, apoioDaPeca(p)].filter(Boolean).join(" · ")}
             </div>
           )}

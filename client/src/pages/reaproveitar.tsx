@@ -193,6 +193,7 @@ export default function Reaproveitar() {
 
 function CabecalhoDoEvento({ peca, primeiro }: { peca: PecaDaFila; primeiro: boolean }) {
   const ev = peca.event;
+  const isMobile = useIsMobile();
   return (
     <div className="ds-sobre-escuro" style={{ marginTop: primeiro ? 0 : 10, padding: "10px 14px", borderRadius: R.md, background: ESCURO.gradiente, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "6px 16px" }}>
       <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0 }}>
@@ -200,7 +201,7 @@ function CabecalhoDoEvento({ peca, primeiro }: { peca: PecaDaFila; primeiro: boo
         <span style={{ fontFamily: FONT.display, fontSize: FS.strong, fontWeight: FW.rotulo, color: ESCURO.texto, overflowWrap: "anywhere" }}>{ev?.name ?? "Sem evento"}</span>
       </span>
       {ev && (
-        <span style={{ display: "inline-flex", alignItems: "center", gap: "6px 14px", flexWrap: "wrap", fontSize: FS.small, color: ESCURO.apoio }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: "6px 14px", flexWrap: "wrap", fontSize: isMobile ? 12 : FS.small, color: ESCURO.apoio }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 5, whiteSpace: "nowrap" }}>
             <Calendar aria-hidden="true" style={{ width: 12, height: 12 }} />
             Início <strong style={{ color: ESCURO.texto, fontVariantNumeric: "tabular-nums" }}>{parseDateLocal(ev.startDate).toLocaleDateString("pt-BR")}</strong>
@@ -250,14 +251,14 @@ function LinhaDaPeca({ peca, respondendo, enviando, ocupado, podeAgir, isMobile,
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
               <button type="button" onClick={aoAbrir} aria-label={`Ver detalhes da peça ${peca.displayId ?? ""}`} data-testid={`abrir-peca-${peca.id}`}
-                style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: FONT.mono, fontSize: 13, fontWeight: FW.rotulo, color: T.accentText, minHeight: isMobile || dedo ? 32 : undefined }}>
+                style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: FONT.mono, fontSize: 13, fontWeight: FW.rotulo, color: T.accentText, minWidth: isMobile || dedo ? 44 : undefined, minHeight: isMobile || dedo ? 44 : undefined }}>
                 {peca.displayId}
               </button>
               <SeloKit peca={peca} />
               <span style={{ fontSize: FS.read, fontWeight: FW.forte, color: T.text }}>{peca.type}</span>
             </div>
             {peca.description && (
-              <div style={{ display: "flex", alignItems: "center", gap: 2, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 2, minWidth: 0 }}>
                 <span style={{ fontSize: FS.body, color: T.second, overflowWrap: "anywhere", minWidth: 0 }}>{peca.description}</span>
                 <BotaoCopiar texto={peca.description} rotulo={`a descrição da peça ${peca.displayId ?? ""}`.trim()} tamanho={isMobile || dedo ? 44 : 24} testId={`copiar-descricao-reaproveitar-${peca.id}`} />
               </div>
@@ -265,10 +266,10 @@ function LinhaDaPeca({ peca, respondendo, enviando, ocupado, podeAgir, isMobile,
           </div>
         </div>
         <dl style={{ display: "flex", flexWrap: "wrap", gap: "6px 18px", margin: 0, flex: "1 1 300px", minWidth: 0 }}>
-          <Dado rotulo="Material" valor={[peca.material, peca.finish].filter(Boolean).join(" · ") || "—"} />
-          <Dado rotulo="Medidas" valor={medidas || "—"} mono />
-          <Dado rotulo="Qtd" valor={String(qtyOf(peca))} />
-          <Dado rotulo="m²" valor={m2DaLinha(peca)} />
+          <Dado rotulo="Material" valor={[peca.material, peca.finish].filter(Boolean).join(" · ") || "—"} isMobile={isMobile} />
+          <Dado rotulo="Medidas" valor={medidas || "—"} mono isMobile={isMobile} />
+          <Dado rotulo="Qtd" valor={String(qtyOf(peca))} isMobile={isMobile} />
+          <Dado rotulo="m²" valor={m2DaLinha(peca)} isMobile={isMobile} />
         </dl>
         {!respondendo && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }} data-testid={`resposta-${peca.id}`}>
@@ -333,10 +334,10 @@ function LinhaDaPeca({ peca, respondendo, enviando, ocupado, podeAgir, isMobile,
   );
 }
 
-function Dado({ rotulo, valor, mono = false }: { rotulo: string; valor: React.ReactNode; mono?: boolean }) {
+function Dado({ rotulo, valor, mono = false, isMobile }: { rotulo: string; valor: React.ReactNode; mono?: boolean; isMobile: boolean }) {
   return (
     <div style={{ minWidth: 0 }}>
-      <dt style={{ fontSize: FS.micro, fontWeight: FW.rotulo, letterSpacing: "0.06em", textTransform: "uppercase", color: T.second }}>{rotulo}</dt>
+      <dt style={{ fontSize: isMobile ? 12 : FS.micro, fontWeight: FW.rotulo, letterSpacing: "0.06em", textTransform: "uppercase", color: T.second }}>{rotulo}</dt>
       <dd style={{ margin: 0, fontSize: mono ? 12 : FS.body, fontFamily: mono ? FONT.mono : undefined, color: T.text, fontVariantNumeric: "tabular-nums", overflowWrap: "anywhere" }}>{valor}</dd>
     </div>
   );

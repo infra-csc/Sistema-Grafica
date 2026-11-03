@@ -28,7 +28,7 @@ export function ResumoDaLista({ fila, isMobile, ponteiroGrosso, alvoNoTexto, fsM
     isLoading, isError, filteredItems, complementosAbertos, filtros, patchFiltros, finalizadasNoRecorte,
     resumoDaLista, entreguesOcultas, complementoChipLabel, comReusoNaLista,
   } = fila;
-  const temOQueDizer = filteredItems.length > 0 || complementosAbertos.length > 0 || filtros.complementos || finalizadasNoRecorte.total > 0;
+  const temOQueDizer = filteredItems.length > 0 || complementosAbertos.length > 0 || filtros.complementos || finalizadasNoRecorte.total > 0 || comReusoNaLista > 0;
   if (isLoading || isError || !temOQueDizer) return null;
   return (
     <div

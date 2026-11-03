@@ -20,6 +20,7 @@
 //
 // Espelho de POST /api/items/:id/complement (server/routes/items.ts).
 // ─────────────────────────────────────────────────────────────────────────────
+import { statusDeExibicao } from "@shared/molde";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import {
@@ -774,7 +775,7 @@ export function AumentarQuantidadeDialog({
                       <span style={{ fontFamily: FONT.mono, fontSize: FS.body, fontWeight: FW.forte, color: T.accentText }}>
                         {idBase}{idSuffix && <span style={{ color: T.accentText }}>{idSuffix}</span>}
                       </span>
-                      <StatusPill status={item.status} size="sm" />
+                      <StatusPill status={statusDeExibicao(item)} size="sm" />
                     </div>
                     <div style={{ fontSize: FS.strong, fontWeight: FW.forte, color: T.text, marginTop: 2 }}>{item.type}</div>
                     {/* Descrição e evento em até duas linhas: é a identidade da

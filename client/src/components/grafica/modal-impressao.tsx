@@ -555,12 +555,33 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
 
   const salvarImpressas = async (e: React.FormEvent) => {
     e.preventDefault();
+    await gravarImpressas(modoTotal ? quantidadeTotal : totalAPartirDoAgora(jaSairam, agora, teto).total);
+  };
+  // "TUDO" PERGUNTA ANTES (dono, 03/11: "confirmação no botão Tudo da máquina da
+  // Gráfica, para evitar erros"): um toque distraído mandava a peça inteira para
+  // o acabamento. A pergunta diz quantas e para onde; "Sim" já grava.
+  const pedirTudo = async () => {
+    if (modoTotal) { setQuantidadeTotal(teto); return; }
+    setAgora(naImpressora);
+    if (!maquinaAtual || naImpressora <= 0) return;
+    const total = totalAPartirDoAgora(jaSairam, naImpressora, teto).total;
+    const ok = await confirmar({
+      titulo: naImpressora === 1 ? "A unidade saiu da impressora?" : `As ${naImpressora} unidades saíram da impressora?`,
+      descricao: total >= teto
+        ? `${item.displayId ?? "A peça"} sai da ${rotuloDaMaquina(maquinaAtual)} e vai para Impresso / Acabamento.`
+        : `Fica anotado que saíram ${naImpressora} da ${rotuloDaMaquina(maquinaAtual)} (${total} de ${teto}).`,
+      confirmar: naImpressora === 1 ? "Sim, saiu" : `Sim, saíram ${naImpressora}`,
+      cancelar: "Ainda não",
+    });
+    if (!ok) { setAgora(""); return; }
+    await gravarImpressas(total);
+  };
+  const gravarImpressas = async (total: number) => {
     if (envioRef.current || startProductionMutation.isPending) return;
     if (!maquinaAtual) {
       toast({ title: "Escolha a máquina", description: "Diga em qual máquina a peça foi impressa antes de informar as impressas.", variant: "warning" });
       return;
     }
-    const total = modoTotal ? quantidadeTotal : totalAPartirDoAgora(jaSairam, agora, teto).total;
     let payload: DadosDeImpressas;
     if (dividida && parte) {
       // Por impressora: o servidor recalcula o total da peça como a soma das partes.
@@ -982,8 +1003,8 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
           />
           <Botao
             variante="secundario"
-            onClick={() => { if (modoTotal) setQuantidadeTotal(teto); else setAgora(naImpressora); }}
-            title={modoTotal ? `Total ${teto}` : `Todas as ${naImpressora} que estão na impressora`}
+            onClick={() => { void pedirTudo(); }}
+            title={modoTotal ? `Total ${teto}` : `Todas as ${naImpressora} que estão na impressora — pergunta antes de gravar`}
             data-testid="button-set-total"
             style={{ padding: "0 20px", minHeight: 44, fontSize: FS.read }}
           >

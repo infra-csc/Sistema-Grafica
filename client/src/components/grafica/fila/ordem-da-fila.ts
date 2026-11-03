@@ -11,7 +11,8 @@
 //   1. a SAÍDA DO CAMINHÃO mais próxima no topo (sem data vai para o fim) — a
 //      Gráfica trabalha por evento e pelo caminhão marcado;
 //   2. o NOME DO EVENTO desempata (e mantém os blocos de evento contíguos);
-//   3. o TIPO agrupa dentro do evento;
+//   3. o TIPO agrupa dentro do evento — e o KIT é um grupo só, depois dos tipos
+//      (dono, 03/11: "o kit vir como um grupo único");
 //   4. o CÓDIGO da peça, com `compareDisplayId`: o complemento COLA na mãe
 //      (#0062 → #0062-C1 → #0062-C2 → #0063). O filho herda evento e tipo, então
 //      os critérios de cima empatam e ele cai logo abaixo dela — sem isto
@@ -28,12 +29,14 @@
 // (perf9-grafica-carga.test.ts compara os dois com filas sorteadas).
 // ─────────────────────────────────────────────────────────────────────────────
 import { compareDisplayId } from "@/lib/displayId";
+import { ehPecaDoKit } from "@shared/kit";
 
 /** O que a ordem lê da peça. */
 export interface PecaOrdenavel {
   type: string;
   displayId?: string | null;
   isPriority?: boolean | null;
+  kitRemessaId?: string | null;
   event?: { name?: string | null; truckDepartureDate?: string | Date | null } | null;
 }
 
@@ -66,6 +69,7 @@ export function ordenarFilaDaGrafica<T extends PecaOrdenavel>(items: readonly T[
       evento,
       posEvento: posDoEvento.get(evento)!,
       prioritaria: Number(!!peca.isPriority),
+      doKit: Number(ehPecaDoKit(peca)),
       tipo: peca.type,
       posTipo: posDoTipo.get(peca.type)!,
     };
@@ -75,6 +79,7 @@ export function ordenarFilaDaGrafica<T extends PecaOrdenavel>(items: readonly T[
     if (prio !== 0) return prio;
     if (a.saida !== b.saida) return a.saida - b.saida;
     if (a.evento !== b.evento) return a.posEvento - b.posEvento;
+    if (a.doKit !== b.doKit) return a.doKit - b.doKit;
     if (a.tipo !== b.tipo) return a.posTipo - b.posTipo;
     return compareDisplayId(a.peca.displayId, b.peca.displayId);
   });

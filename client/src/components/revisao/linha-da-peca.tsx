@@ -147,6 +147,11 @@ export const LinhaDaPeca = memo(function LinhaDaPeca({
               Reaproveitada
             </Selo>
           )}
+          {!item.isReuse && (item.reusoPedido ?? 0) > 0 && (
+            <Selo data-testid={`selo-pedido-ao-estoque-${item.id}`} tom="sucesso" icone={Recycle} tamanho="sm" forma="retangulo" style={{ flexShrink: 0 }} title="Ao liberar, a peça volta ao módulo Reaproveitar com este pedido">
+              Pede {item.reusoPedido} un. ao estoque
+            </Selo>
+          )}
           <SeloOrigemDoReaproveitamento peca={item} style={{ flexShrink: 0 }} />
           <SeloDoEstoqueNaLinha linha={estoque} />
           {/* EVENTO FINALIZADO — sem este selo, a linha mostra "Revisar" e

@@ -49,7 +49,7 @@ export function ConfirmarLoteReaproveitar({
         <div style={corpoDaConfirmacao(celular)}>
           <AlertDialogDescription asChild>
             <div style={TEXTO_DA_CONFIRMACAO}>
-              {selecaoLote.vivas.length === 1 ? "A peça será marcada" : "As peças serão marcadas"} como reaproveitamento <strong>total</strong> e enviadas direto à Gráfica como produzidas — sem nova impressão. Para reaproveitar só parte das unidades de uma peça, use o Reaproveitar da própria peça (o ícone ♻ na tabela, o botão no cartão ou na ficha).
+              {selecaoLote.vivas.length === 1 ? "A peça será marcada" : "As peças serão marcadas"} como reaproveitamento <strong>total</strong> e vão para o módulo <strong>Reaproveitar</strong>: quem cuida do estoque diz quantas têm, e o que faltar vai para a Gráfica produzir. Para reaproveitar só parte das unidades de uma peça, use o Reaproveitar da própria peça (o ícone ♻ na tabela, o botão no cartão ou na ficha).
               {selecaoLote.finalizadas > 0 && (
                 <FicamDeFora>
                   <span data-testid="aviso-bulk-reuse-finalizadas" style={LINHA_DE_FORA}>

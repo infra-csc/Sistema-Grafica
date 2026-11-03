@@ -4,6 +4,7 @@
 // devolução e o lote de N chamadas. Funções puras — fora do componente para
 // não serem recriadas a cada render e para poderem ser testadas sozinhas.
 // ─────────────────────────────────────────────────────────────────────────────
+import { aguardaReaproveitar } from "@shared/reaproveitar";
 import { apiRequest } from "@/lib/queryClient";
 import { FORMATO_COMPACTO, expandirResposta } from "@shared/itens-compactos";
 import { arquivoFinalOk } from "@shared/molde";
@@ -66,7 +67,8 @@ export function reaproveitamentoTotal(item: { isReuse?: boolean | null } | null 
   return !!item?.isReuse;
 }
 /** Frase no passado, para o aviso depois de liberar. */
-export function destinoAoLiberar(item: { isReuse?: boolean | null } | null | undefined): string {
+export function destinoAoLiberar(item: { isReuse?: boolean | null; reusoPedido?: number | null; status?: string | null } | null | undefined): string {
+  if (aguardaReaproveitar(item)) return "foi para o módulo Reaproveitar: quando disserem quantas têm no estoque, o que faltar vai para a Gráfica";
   return reaproveitamentoTotal(item)
     ? "foi direto para Impresso / Acabamento, na conferência da Gráfica (reaproveitamento total — não passa pela impressão)"
     : "entrou na fila da Gráfica como Pronto para Produção";

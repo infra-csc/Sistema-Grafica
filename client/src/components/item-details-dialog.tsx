@@ -15,6 +15,7 @@ import { useState, useEffect } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { T, FONT, FS } from "@/lib/theme";
+import { aguardaReaproveitar, pedidoDoReaproveitar } from "@shared/reaproveitar";
 import { Botao } from "@/components/ui/botao";
 import { CabecalhoDaFicha } from "@/components/ficha-da-peca/cabecalho";
 import { FaixaDeResolucao } from "@/components/ficha-da-peca/faixa-de-resolucao";
@@ -223,6 +224,12 @@ export function ItemDetailsDialog<TPeca extends ItemDaFicha>({
                 handleEditChange={handleEditChange}
                 handleSave={handleSave}
               />
+
+              {aguardaReaproveitar(item) && (
+                <p data-testid="ficha-aguarda-reaproveitar" style={{ margin: 0, fontSize: FS.body, color: T.second }}>
+                  <strong style={{ color: T.text }}>Esperando o módulo Reaproveitar:</strong> {pedidoDoReaproveitar(item)} un. pedidas ao estoque. Só depois da resposta a peça entra na fila da Gráfica.
+                </p>
+              )}
 
               {/* De onde vem o reaproveitamento: Estoque / Em trânsito e a
                   etapa de origem, com o botão discreto para marcar ou trocar. */}

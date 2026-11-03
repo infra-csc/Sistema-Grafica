@@ -1,5 +1,6 @@
 // Revisão Final: liberar para produção e as devoluções (Arte, solicitante, Gráfica).
 import type { Express } from "express";
+import { pedeAoEstoque } from "@shared/reaproveitar";
 import { pulaAprovacao } from "@shared/prazo-sem-aprovacao";
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
@@ -175,7 +176,11 @@ export function registrarRevisao(app: Express): void {
 
       // Reaproveitamento parcial: body pode trazer { reuseQty } quando a Solicitação
       // quer reaproveitar só algumas unidades, enviando o restante para produção.
-      const pedidoNoCorpo = req.body?.reuseQty != null ? Number(req.body.reuseQty) : undefined;
+      // Peça que voltou à Revisão esperando o estoque (a Arte trocou o arquivo, por
+      // exemplo): sem número no corpo, o pedido continua de pé, nunca vira impressão calada.
+      const pedidoNoCorpo = req.body?.reuseQty != null
+        ? Number(req.body.reuseQty)
+        : (currentItem.reusoPedido ?? 0) > 0 ? currentItem.reusoPedido! : undefined;
       // SOLICITAÇÃO AO ESTOQUE (dono, 21/09): "as respostas do reaproveitar têm
       // que aparecer na REVISÃO, e é ELA que segue com o item… tem que vir
       // SUGERIDO de acordo com a resposta do estoque e ela só CONFIRMAR". Se a
@@ -237,15 +242,26 @@ export function registrarRevisao(app: Express): void {
       // outra etapa não passa pela Gráfica — fecha como Entregue na liberação.
       const fechaEmTransito = isFullReuse && origemNova?.origemReaproveitamento === "em_transito";
 
-      // Peças de reaproveitamento total não passam pela produção: já entram como produzidas.
-      // Reaproveitamento parcial vai para ready_for_production (as demais unidades precisam produzir).
-      const nextStatus = fechaEmTransito ? "delivered" : isFullReuse ? "produced" : "ready_for_production";
+      // MÓDULO REAPROVEITAR (dono, 03/11): reaproveitamento que sai do ESTOQUE não
+      // vale na liberação — a peça espera alguém dizer quantas tem de verdade
+      // (shared/reaproveitar.ts). "Em trânsito" não sai do estoque: segue direto.
+      // Com a solicitação ao estoque LIGADA quem responde é ela, antes da liberação:
+      // nunca as duas perguntas para a mesma peça.
+      const pedidoAoEstoque = !SOLICITACAO_AO_ESTOQUE_ATIVA && (isFullReuse || isPartialReuse) && pedeAoEstoque(origemNova?.origemReaproveitamento)
+        ? (isFullReuse ? currentItem.quantity : rawReuseQty!)
+        : null;
+
+      // Reaproveitamento total em trânsito não passa pela produção; o resto vai
+      // para ready_for_production (com o pedido, some da fila até a resposta).
+      const nextStatus = fechaEmTransito ? "delivered" : isFullReuse && pedidoAoEstoque == null ? "produced" : "ready_for_production";
 
       // Pre-fetch event for notification message (read outside tx — no lock needed)
       const event = await storage.getEvent(currentItem.eventId);
 
       const auditDetails = (fechaEmTransito
         ? `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("delivered")} (${fraseDoFechamentoEmTransito(origemNova?.obsReaproveitamento)})`
+        : pedidoAoEstoque != null
+        ? `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("ready_for_production")} (reaproveitamento: ${pedidoAoEstoque} de ${currentItem.quantity} un. esperam a resposta do estoque)`
         : isFullReuse
         ? `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("produced")} (reaproveitamento — não precisa produzir)`
         : isPartialReuse
@@ -264,8 +280,14 @@ export function registrarRevisao(app: Express): void {
             creatorReviewedAt: new Date(),
             hasModifiedData: false,
             updatedAt: new Date(),
-            ...(isPartialReuse ? { reuseQty: rawReuseQty!, isReuse: false } : {}),
-            ...(isFullReuse ? { reuseQty: currentItem.quantity, isReuse: true } : {}),
+            // Pedido ao estoque: nada é reaproveitado ainda (ver acima).
+            ...(pedidoAoEstoque != null
+              ? { reusoPedido: pedidoAoEstoque, reuseQty: 0, isReuse: false }
+              : {
+                  reusoPedido: null,
+                  ...(isPartialReuse ? { reuseQty: rawReuseQty!, isReuse: false } : {}),
+                  ...(isFullReuse ? { reuseQty: currentItem.quantity, isReuse: true } : {}),
+                }),
             ...(origemNova ?? {}),
             ...(fechaEmTransito ? { deliveredAt: new Date() } : {}),
             ...(destravar ? colunasDoDestravar() : {}),
@@ -322,6 +344,22 @@ export function registrarRevisao(app: Express): void {
       broadcast({ type: "notification_created", notification });
       // Chegou à Gráfica com unidades do ESTOQUE: os meninos já vão buscar.
       await avisarBuscarNoEstoque(null, item, req.userRole);
+      // Pedido ao estoque: quem reaproveita fica sabendo (o número do menu também).
+      // A peça já foi liberada: um aviso que falha não vira erro na tela de quem liberou.
+      if (pedidoAoEstoque != null) {
+        try {
+          const aviso = await storage.createNotification({
+            type: "itemAdded",
+            message: `Reaproveitar: ${[item.displayId, item.type].filter(Boolean).join(" ")} — ${pedidoAoEstoque} un. esperam a resposta do estoque${event?.name ? ` · ${event.name}` : ""}`,
+            eventId: item.eventId,
+            itemId: item.id,
+            targetRoles: ["grafica"],
+          });
+          broadcast({ type: "notification_created", notification: aviso });
+        } catch (erro) {
+          console.warn("[reaproveitar] não foi possível avisar quem responde:", erro);
+        }
+      }
       // Fechou como Entregue (tudo em trânsito): pode ter sido a última pendência do evento.
       if (fechaEmTransito) await recalcularEventoEAvisar(item.eventId);
       

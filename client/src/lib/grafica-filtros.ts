@@ -19,6 +19,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { isDelivered, isComplement, isInProd, reusedTotalOf, canConfer, type SaldoItem } from "./saldo";
+import { grupoDoKit } from "@shared/kit";
 import { aEmbalar, embaladaDe, entregueDe, type PecaDaEmbalagem } from "@shared/embalagem";
 import { impressorasDaPeca, SEM_IMPRESSORA as SEM_IMPRESSORA_COMPARTILHADO } from "@shared/progresso-da-impressao";
 import { pecaTravada } from "@shared/trava-da-peca";
@@ -28,6 +29,7 @@ import { normalizarBusca } from "./utils";
 /** Forma mínima de peça que o recorte enxerga — estrutural, para aceitar a peça da fila e os dados de teste. */
 export interface ItemGrafica extends SaldoItem {
   id?: string;
+  kitRemessaId?: string | null;
   displayId?: string | null;
   type?: string | null;
   description?: string | null;
@@ -464,7 +466,7 @@ export function itemCasaFiltros(
   if (f.travadas && !pecaTravada(item)) return false;
 
   if (excluir !== "evento" && f.evento.length > 0 && !f.evento.includes(String(item.eventId ?? ""))) return false;
-  if (excluir !== "grupo" && f.grupo.length > 0 && !f.grupo.includes(ctx.groupOf(String(item.type ?? "")))) return false;
+  if (excluir !== "grupo" && f.grupo.length > 0 && !f.grupo.includes(grupoDoKit(item) ?? ctx.groupOf(String(item.type ?? "")))) return false;
   // Percurso casa com QUALQUER um dos selecionados: a placa "5k/10k" entra
   // tanto no filtro 5k quanto no 10k.
   if (excluir !== "percurso" && f.percurso.length > 0 && !itemPercursos(item).some((p) => f.percurso.includes(p))) return false;

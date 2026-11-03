@@ -12,6 +12,7 @@ import { colunasDaReserva, lerReserva, reescalarReservaEPartes } from "@shared/r
 import { lerPartes } from "@shared/impressao-dividida";
 import { todaEmTransito, fraseDoFechamentoEmTransito } from "@shared/origem-do-reaproveitamento";
 import { statusDasEtapas } from "@shared/fluxo-peca";
+import { aguardaReaproveitar } from "@shared/reaproveitar";
 
 /** A fila da Gráfica antes de produzir: onde a peça 100% em trânsito não tem o que fazer. */
 const NA_FILA_DA_GRAFICA: ReadonlySet<string> = new Set(statusDasEtapas("ready_for_production", "approved", "inProduction"));
@@ -247,6 +248,11 @@ export function planejarEdicao(
   // e a Gráfica recebia para imprimir o que era para sair do estoque. Ligar
   // exige dizer QUANTAS (reuseQty); a flag `isReuse` continua sendo o
   // "reaproveita tudo", derivada da quantidade.
+  // À espera do módulo Reaproveitar, quem define o número é a resposta do estoque:
+  // gravar aqui deixava a resposta sem saída ("Nada a reaproveitar") e a peça presa.
+  if (mudaReuso && aguardaReaproveitar(currentItem)) {
+    return recusa(409, { error: "Esta peça espera a resposta do Reaproveitar — responda lá quantas têm no estoque." });
+  }
   if (mudaReuso) {
     const quantidadeFinal = Number(updatePayload.quantity ?? currentItem.quantity);
     if (validatedData.isReuse) {

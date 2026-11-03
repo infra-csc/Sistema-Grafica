@@ -5,6 +5,7 @@
 // lista: tudo o que ele lê vem de `ctx` e está no inventário `depsDaLinha`.
 // ─────────────────────────────────────────────────────────────────────────────
 import { Fragment } from "react";
+import { BotaoCopiar } from "@/components/botao-copiar";
 import type React from "react";
 import { Link } from "wouter";
 import { AlertCircle, Camera, Check, Package, PlusCircle, Tag, Truck } from "lucide-react";
@@ -44,12 +45,14 @@ import { SeloOrigemDoReaproveitamento } from "@/components/reaproveitamento/selo
 import { AcoesDoCartao } from "./acoes-do-cartao";
 import { quantidadeFisicaDe as quantidadeFisica } from "@shared/origem-do-reaproveitamento";
 
-export function CartaoDaPeca({ ctx, item, index, showEvHeader, corte, prioritarias = null }: {
+export function CartaoDaPeca({ ctx, item, index, showEvHeader, abreKit = false, corte, prioritarias = null }: {
   ctx: ContextoDaLinha;
   item: PecaDaFila;
   index: number;
   /** Primeira peça do evento: o cartão abre com o cabeçalho escuro dele. */
   showEvHeader: boolean;
+  /** Primeira peça do Kit do evento: a faixa do grupo (dono, 03/11). */
+  abreKit?: boolean;
   corte: CorteDoEvento | undefined;
   /** No grupo "Prioritárias" do topo (08/10): abre o grupo? quantas há? */
   prioritarias?: PosicaoNasPrioritarias;
@@ -168,6 +171,11 @@ export function CartaoDaPeca({ ctx, item, index, showEvHeader, corte, prioritari
               )}
             </div>
           )}
+        </div>
+      )}
+      {abreKit && (
+        <div data-testid={`secao-kit-${item.eventId}`} style={{ padding: "6px 10px", background: TOM.roxo.bg, borderLeft: `3px solid ${TOM.roxo.dot}`, borderRadius: R.sm, marginBottom: 4, fontSize: FS.meta, fontWeight: FW.rotulo, color: TOM.roxo.text, letterSpacing: "0.06em" }}>
+          KIT
         </div>
       )}
       <div
@@ -381,13 +389,16 @@ export function CartaoDaPeca({ ctx, item, index, showEvHeader, corte, prioritari
               peça na mão. Duas linhas: nome de peça costuma ser
               longo e uma linha só virava reticência inútil. */}
           {item.description && item.description !== item.type && (
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 2 }}>
             <div style={{
               fontSize: 13, color: item.isReuse ? TOM.esmeralda.text : T.second,
               fontWeight: item.isReuse ? 600 : 400, lineHeight: 1.35,
               display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-              overflow: 'hidden',
+              overflow: 'hidden', flex: 1, minWidth: 0,
             }}>
               {item.description}
+            </div>
+            <BotaoCopiar texto={item.description} rotulo={`a descrição da peça ${item.displayId ?? ""}`.trim()} tamanho={44} testId={`copiar-descricao-card-${item.id}`} />
             </div>
           )}
           {/* QUANTIDADES — o desktop tem as colunas QTD, REAPROV. e
@@ -458,6 +469,11 @@ export function CartaoDaPeca({ ctx, item, index, showEvHeader, corte, prioritari
           {item.observations && (
             <div style={{ fontSize: 12, color: TOM.alerta.text, display: 'flex', alignItems: 'flex-start', gap: 4, marginTop: 1, lineHeight: 1.35 }}>
               <AlertCircle aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0, marginTop: 1 }} />{item.observations}
+            </div>
+          )}
+          {item.conferenceNotes && (
+            <div data-testid={`obs-conferencia-card-${item.id}`} style={{ fontSize: 12, color: TOM.alerta.text, display: 'flex', alignItems: 'flex-start', gap: 4, marginTop: 1, lineHeight: 1.35 }}>
+              <AlertCircle aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0, marginTop: 1 }} /><span><strong>Na conferência:</strong> {item.conferenceNotes}</span>
             </div>
           )}
           {/* As instruções da produção interna, inteiras: no celular do

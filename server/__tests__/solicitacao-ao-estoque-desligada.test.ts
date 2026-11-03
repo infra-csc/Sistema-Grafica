@@ -190,18 +190,18 @@ describe("PATCH /api/items/:id/creator-review — a liberação de ANTES", () =>
     nadaDoEstoque();
   });
 
-  it("reuseQty de sempre (parcial e total) vale como antes", async () => {
+  it("reuseQty (parcial e total) espera o módulo Reaproveitar, sem tocar na solicitação", async () => {
     const parcial = await liberar({ reuseQty: 2 });
-    expect(parcial.body).toMatchObject({ status: "ready_for_production", reuseQty: 2, isReuse: false });
+    expect(parcial.body).toMatchObject({ status: "ready_for_production", reusoPedido: 2, reuseQty: 0, isReuse: false });
     const total = await liberar({ reuseQty: 6 });
-    expect(total.body).toMatchObject({ status: "produced", reuseQty: 6, isReuse: true });
+    expect(total.body).toMatchObject({ status: "ready_for_production", reusoPedido: 6, reuseQty: 0, isReuse: false });
     nadaDoEstoque();
   });
 
   it("a marca `peloEstoque` é ignorada (antes ela não existia): nada de 409 “não está mais disponível”", async () => {
     const r = await liberar({ reuseQty: 2, peloEstoque: true });
     expect(r.status, JSON.stringify(r.body)).toBe(200);
-    expect(r.body).toMatchObject({ status: "ready_for_production", reuseQty: 2, isReuse: false });
+    expect(r.body).toMatchObject({ status: "ready_for_production", reusoPedido: 2, reuseQty: 0, isReuse: false });
     nadaDoEstoque();
   });
 });

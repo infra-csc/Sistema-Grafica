@@ -32,6 +32,8 @@ import { AlertTriangle, Camera, CheckCircle2, ChevronDown, ImagePlus, Package, T
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { useAcompanharAreaVisivel } from "@/components/grafica/area-visivel";
+import { VisorDeFotos } from "@/components/grafica/modais/visor-de-fotos";
+import { ObservacoesDaPeca } from "@/components/grafica/observacoes-da-peca";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { SugestaoRecebedor } from "@/components/sugestao-recebedor";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -76,6 +78,9 @@ type Peca = {
   doKit?: boolean;
   /** Foto da conferência da peça — quem entrega vê que o material está documentado. */
   conferencePhotoUrl?: string | null;
+  /** O que veio antes (03/11): quem embala e quem entrega lê. */
+  observations?: string | null;
+  conferenceNotes?: string | null;
 };
 
 type Tubo = {
@@ -87,6 +92,8 @@ type Tubo = {
   recebidoPor: string | null;
   entreguePor: string | null;
   fotoEntregaUrl: string | null;
+  /** O que quem embalou anotou (03/11). */
+  obsEmbalagem?: string | null;
   /** As fotos do tubo com os itens (acumulam a cada embalar), quando e quem. */
   fotosFechamento: string[];
   fechadoEm: string | null;
@@ -286,8 +293,11 @@ function Miniaturas({ fotos, alt, tamanho = 56 }: { fotos: string[]; alt: string
 /** Câmera (direta no celular) + Galeria, com miniaturas e remover de 44px. */
 function Fotos({ lista, onMudar, alt }: { lista: string[]; onMudar: (f: (atual: string[]) => string[]) => void; alt: string }) {
   const { toast } = useToast();
+  // Tocar na miniatura abre a foto grande (30/10): é onde se vê se ficou boa.
+  const [vendo, setVendo] = useState<number | null>(null);
   return (
     <>
+      <VisorDeFotos fotos={lista} indice={vendo} aoMudar={setVendo} aoRemover={(url) => onMudar((f) => f.filter((x) => x !== url))} />
       <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
         {[{ capture: true, Icone: Camera, texto: "Câmera" }, { capture: false, Icone: ImagePlus, texto: "Galeria" }].map(({ capture, Icone, texto }) => (
           <div key={texto} style={{ flex: 1 }}>
@@ -312,14 +322,15 @@ function Fotos({ lista, onMudar, alt }: { lista: string[]; onMudar: (f: (atual: 
       {lista.length > 0 && (
         <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
           {lista.map((url, i) => (
-            <div key={url} style={{ position: "relative", width: 72, height: 72, borderRadius: R.md, overflow: "hidden", border: `1px solid ${COR.borda}` }}>
-              <img src={miniatura(url)} alt={`${alt} ${i + 1}`} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "contain", background: T.low }} />
-              {/* Alvo de 44px; o X visível é o disco de 24 no canto. */}
+            <div key={url} style={{ width: 96, borderRadius: R.md, overflow: "hidden", border: `1px solid ${COR.borda}` }}>
+              <button type="button" onClick={() => setVendo(i)} aria-label={`Ver a foto ${i + 1} em tamanho grande`} data-testid={`foto-do-volume-${i}`} style={{ display: "block", width: "100%", height: 96, padding: 0, border: "none", background: "none", cursor: "zoom-in" }}>
+                <img src={miniatura(url)} alt={`${alt} ${i + 1}`} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "contain", background: T.low, display: "block" }} />
+              </button>
+              {/* Faixa própria: sobre a miniatura, o alvo de 44px cobria o meio da
+                  foto e quem tocava para ampliar apagava. */}
               <button type="button" onClick={() => onMudar((f) => f.filter((x) => x !== url))} aria-label={`Remover a foto ${i + 1}`}
-                style={{ position: "absolute", top: 0, right: 0, width: 44, height: 44, padding: 4, border: "none", background: "none", display: "flex", alignItems: "flex-start", justifyContent: "flex-end", cursor: "pointer" }}>
-                <span style={{ width: 24, height: 24, borderRadius: "50%", background: "rgba(28,25,23,0.78)", color: T.surface, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <X aria-hidden="true" style={{ width: 12, height: 12 }} />
-                </span>
+                style={{ width: "100%", height: 44, padding: 0, border: "none", borderTop: `1px solid ${COR.borda}`, background: T.surface, color: T.second, fontSize: FS.meta, fontWeight: FW.medio, display: "flex", alignItems: "center", justifyContent: "center", gap: 4, cursor: "pointer" }}>
+                <X aria-hidden="true" style={{ width: 12, height: 12 }} /> Remover
               </button>
             </div>
           ))}
@@ -362,11 +373,13 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, emLote = false
   const [fotos, setFotos] = useState<string[]>([]);
   // Enter segurado / toque duplo: `isPending` só vira true no render seguinte.
   const enviandoRef = useRef(false);
+  // A observação de quem embala (dono, 03/11): vai para o volume, e quem entrega lê.
+  const [obs, setObs] = useState("");
 
   // Cada abertura começa limpa (outra peça, outro evento).
   const chave = evento ? `${evento.id}|${itens.join(",")}` : null;
   const [vista, setVista] = useState<string | null>(null);
-  if (chave !== vista) { setVista(chave); setFora(new Set()); setTubo(null); setEscolhendo(false); setFotos([]); setQuantas({}); }
+  if (chave !== vista) { setVista(chave); setFora(new Set()); setTubo(null); setEscolhendo(false); setFotos([]); setQuantas({}); setObs(""); }
 
   // Só embala quem está conferida e SEM tubo; a que outro aparelho embalou
   // antes (ou que é do Kit, para quem só visualiza) fica de fora, com aviso.
@@ -428,8 +441,8 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, emLote = false
       // O limite vale aqui também: nunca vai ao servidor mais que o disponível.
       const itensComQuantidade = pecas.map((p) => ({ id: p.id, quantidade: Math.max(1, Math.min(disponivel(p), quantasDe(p) ?? 1)) }));
       const r = escolhido === "novo"
-        ? await apiRequest("POST", `/api/events/${evento!.id}/tubos`, { itens: itensComQuantidade, fotos, ...(sozinha ? { avulso: true } : {}) })
-        : await apiRequest("PATCH", `/api/tubos/${escolhido}/itens`, { itens: itensComQuantidade, fotos });
+        ? await apiRequest("POST", `/api/events/${evento!.id}/tubos`, { itens: itensComQuantidade, fotos, obs, ...(sozinha ? { avulso: true } : {}) })
+        : await apiRequest("PATCH", `/api/tubos/${escolhido}/itens`, { itens: itensComQuantidade, fotos, obs });
       const t = (await r.json()) as { numero: number; avulso?: boolean };
       return { numero: t.numero, avulso: !!t.avulso, quantas: ids.length, nome: pecas[0]?.displayId ?? "Peça" };
     },
@@ -590,9 +603,22 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, emLote = false
             )}
           </section>
 
+          {/* O que veio antes (a Solicitação, a conferência): lido antes de embalar e fotografar. */}
+          {pecas.some((p) => p.observations?.trim() || p.conferenceNotes?.trim()) && (
+            <section data-testid="embalar-observacoes" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {pecas.map((p) => <ObservacoesDaPeca key={p.id} peca={p} compacto identificacao={pecas.length > 1 ? p.displayId : null} />)}
+            </section>
+          )}
           <section>
-            <span style={ROTULO}>{mostrarEscolha ? "2 · " : ""}{sozinha && escolhido === "novo" ? "Foto da peça embalada" : "Foto do tubo com os itens"} <span style={{ fontWeight: FW.corpo }}>· obrigatória</span></span>
+            <span style={ROTULO}>{mostrarEscolha ? "2 · " : ""}{sozinha && escolhido === "novo" ? "Foto da peça embalada" : "Foto do tubo com os itens"} <span style={{ fontWeight: FW.corpo }}>· obrigatória, pode anexar várias</span></span>
             <Fotos lista={fotos} onMudar={setFotos} alt="Foto do tubo com os itens" />
+          </section>
+
+          <section>
+            <label htmlFor="campo-obs-embalagem" style={ROTULO}>Observação <span style={{ fontWeight: FW.corpo }}>· opcional</span></label>
+            <textarea id="campo-obs-embalagem" value={obs} onChange={(e) => setObs(e.target.value)} rows={2} maxLength={1000}
+              placeholder="Ex.: uma ponta amassou, vai por cima no tubo" data-testid="campo-obs-embalagem"
+              style={{ width: "100%", boxSizing: "border-box", minHeight: 64, marginTop: 6, padding: "10px 12px", borderRadius: R.md, border: `1px solid ${COR.borda}`, background: T.surface, color: COR.texto, fontFamily: "inherit", fontSize: isMobile ? 16 : FS.body, lineHeight: 1.45, resize: "vertical" }} />
           </section>
         </>
       )}
@@ -710,6 +736,10 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
             <Aviso testId="entregar-fora-do-alcance">{avulso ? "Esta embalagem tem peça que você não vê" : "Este tubo tem peças que você não vê"} — quem entrega é quem enxerga o volume inteiro.</Aviso>
           )}
 
+          {t.obsEmbalagem?.trim() && (
+            <ObservacoesDaPeca peca={{}} extras={[{ rotulo: "Na embalagem", texto: t.obsEmbalagem }]} testId={`obs-embalagem-tubo-${t.numero}`} />
+          )}
+
           <section data-testid={`lista-entrega-tubo-${t.numero}`} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <span style={ROTULO}>{avulso ? "A peça" : `No tubo · ${plural(t.pecas.length, "peça", "peças")}`}</span>
             <ul style={{ margin: 0, padding: 0, listStyle: "none", border: `1px solid ${COR.borda}`, borderRadius: R.md, overflow: "hidden" }}>
@@ -728,6 +758,9 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
                       style={{ display: "inline-flex", alignItems: "center", minHeight: grosso ? 44 : 24, fontSize: FS.meta, fontWeight: FW.forte, color: COR.azul }}>
                       ver foto da conferência
                     </a>
+                  )}
+                  {(p.observations?.trim() || p.conferenceNotes?.trim()) && (
+                    <div style={{ flex: "1 1 100%", minWidth: 0 }}><ObservacoesDaPeca peca={p} compacto /></div>
                   )}
                 </li>
               ))}
@@ -761,7 +794,7 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
               </section>
               <section>
                 <label htmlFor="campo-obs-entrega" style={ROTULO}>Observação <span style={{ fontWeight: FW.corpo }}>· opcional</span></label>
-                <input id="campo-obs-entrega" value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Ex.: entregue na portaria" style={{ ...campo, marginTop: 6 }} />
+                <textarea id="campo-obs-entrega" value={obs} onChange={(e) => setObs(e.target.value)} rows={2} placeholder="Ex.: entregue na portaria" data-testid="campo-obs-entrega" style={{ ...campo, height: "auto", minHeight: 64, padding: "10px 12px", lineHeight: 1.45, resize: "vertical", fontFamily: "inherit", marginTop: 6 }} />
               </section>
             </>
           )}
@@ -776,7 +809,7 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
 //      servidor aplica a regra da entrega individual a cada volume; o que ele
 //      recusar volta com o motivo e fica marcado na aba, sem segurar os outros.
 // ═════════════════════════════════════════════════════════════════════════════
-export type VolumeDoLote = { id: string; nome: string; evento: { id: string; name: string }; pecas: number; unidades: number };
+export type VolumeDoLote = { id: string; nome: string; evento: { id: string; name: string }; pecas: number; unidades: number; avisos?: { rotulo: string; texto?: string | null }[] };
 export type ResultadoDoLote = { entregues: Array<{ tuboId: string }>; recusados: Array<{ tuboId: string; motivo: string }>; unidades: number };
 
 export function EntregarEmLoteDialog({ volumes, sugestaoRecebedor = "", onClose, onTerminou }: {
@@ -864,6 +897,7 @@ export function EntregarEmLoteDialog({ volumes, sugestaoRecebedor = "", onClose,
             <li key={v.id} style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, padding: "8px 12px", borderTop: "1px solid #f5f5f4", flexWrap: "wrap", fontSize: 13, color: COR.texto }}>
               <strong>{v.nome}</strong>
               <span style={{ color: COR.sec }}>{v.evento.name} · {plural(v.pecas, "peça", "peças")} / {v.unidades} un.</span>
+              <div style={{ flex: "1 1 100%", minWidth: 0 }}><ObservacoesDaPeca peca={{}} compacto extras={v.avisos} testId={`obs-do-volume-${v.id}`} /></div>
             </li>
           ))}
         </ul>
@@ -882,7 +916,7 @@ export function EntregarEmLoteDialog({ volumes, sugestaoRecebedor = "", onClose,
       </section>
       <section>
         <label htmlFor="campo-obs-entrega-lote" style={ROTULO}>Observação <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· opcional</span></label>
-        <input id="campo-obs-entrega-lote" value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Ex.: entregue na portaria" style={{ ...campo, marginTop: 6 }} />
+        <textarea id="campo-obs-entrega-lote" value={obs} onChange={(e) => setObs(e.target.value)} rows={2} placeholder="Ex.: entregue na portaria" data-testid="campo-obs-entrega-lote" style={{ ...campo, height: "auto", minHeight: 64, padding: "10px 12px", lineHeight: 1.45, resize: "vertical", fontFamily: "inherit", marginTop: 6 }} />
       </section>
     </Casca>
   );

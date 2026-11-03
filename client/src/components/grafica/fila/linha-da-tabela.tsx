@@ -13,6 +13,8 @@ import { Botao } from "@/components/ui/botao";
 import { Selo } from "@/components/ui/selo";
 import { StatusPill } from "@/components/status-pill";
 import { SeloKit } from "@/components/kit/selo-kit";
+import { BotaoCopiar } from "@/components/botao-copiar";
+import { grupoDoKit } from "@shared/kit";
 import { SelosSemAprovacao } from "@/components/selo-sem-aprovacao";
 import { SeloProducaoInterna, InstrucoesParaAGrafica } from "@/components/selo-producao-interna";
 import { AvisoDoEstoqueNaPeca } from "@/components/consulta-de-estoque/aviso-na-grafica";
@@ -95,8 +97,9 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
     <Fragment>
       {/* Cabeçalho de Evento */}
       {(() => {
-        const groupName = typeToGroup[item.type] || '';
-        const prevGroupName = prev ? (typeToGroup[prev.type] || '') : '';
+        // O Kit já é um grupo (cabeçalho abaixo): não abre o do catálogo.
+        const groupName = item.kitRemessaId ? '' : typeToGroup[item.type] || '';
+        const prevGroupName = prev && !prev.kitRemessaId ? (typeToGroup[prev.type] || '') : '';
         const showGroupHeader = !prioritarias && !showEvHeader && groupName !== '' && groupName !== prevGroupName;
         // Grupo em NEUTRO: era azul (#dbeafe/#1d4ed8) — a única
         // faixa azul da tela, sem significado nenhum de status.
@@ -175,8 +178,8 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
         <tr style={{ backgroundColor: N.n2 }}>
           <td colSpan={nColunas} style={{ padding: "6px 16px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ width: 3, height: 14, backgroundColor: T.accent, borderRadius: 999, flexShrink: 0 }} />
-              <span style={{ fontSize: 11, fontWeight: 700, color: T.text }}>{item.type}</span>
+              <div style={{ width: 3, height: 14, backgroundColor: item.kitRemessaId ? TOM.roxo.dot : T.accent, borderRadius: 999, flexShrink: 0 }} />
+              <span data-testid={item.kitRemessaId ? `secao-kit-${item.eventId}` : undefined} style={{ fontSize: 11, fontWeight: 700, color: item.kitRemessaId ? TOM.roxo.text : T.text }}>{grupoDoKit(item) ?? item.type}</span>
             </div>
           </td>
         </tr>
@@ -349,7 +352,10 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
               conferir/embalar/entregar). A observação vai no title. */}
           <SeloOrigemDoReaproveitamento peca={item} onde="grafica" style={{ marginBottom: 5, marginLeft: 5 }} />
           {item.description ? (
-            <div style={{ fontSize: 13, color: item.isReuse ? TOM.esmeralda.text : T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: item.isReuse ? 600 : 400 }}>{item.description}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 2, minWidth: 0 }}>
+              <div style={{ fontSize: 13, color: item.isReuse ? TOM.esmeralda.text : T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: item.isReuse ? 600 : 400, minWidth: 0 }}>{item.description}</div>
+              <BotaoCopiar texto={item.description} rotulo={`a descrição da peça ${item.displayId ?? ""}`.trim()} tamanho={alvoDeToque(24, ponteiroGrosso)} testId={`copiar-descricao-${item.id}`} />
+            </div>
           ) : (
             <div style={{ fontSize: 13, color: T.second }}>—</div>
           )}
@@ -573,13 +579,15 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
       )}
 
       {/* Linha de observação */}
-      {item.observations && (
+      {(item.observations || item.conferenceNotes) && (
         <tr style={{ backgroundColor: TOM.alerta.bg, borderBottom: `1px solid ${TOM.alerta.border}` }}>
           <td colSpan={nColunas} style={{ padding: "8px 16px" }}>
             <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
               <AlertCircle style={{ width: 14, height: 14, color: TOM.alerta.text, marginTop: 1, flexShrink: 0 }} />
-              <span style={{ fontSize: 13, color: TOM.alerta.text }}>
-                <strong>Observações:</strong> {item.observations}
+              <span style={{ fontSize: 13, color: TOM.alerta.text, display: "flex", flexDirection: "column", gap: 2 }}>
+                {item.observations && <span><strong>Observações:</strong> {item.observations}</span>}
+                {/* A anotação da conferência acompanha a peça até quem embala (03/11). */}
+                {item.conferenceNotes && <span data-testid={`obs-conferencia-${item.id}`}><strong>Na conferência:</strong> {item.conferenceNotes}</span>}
               </span>
             </div>
           </td>

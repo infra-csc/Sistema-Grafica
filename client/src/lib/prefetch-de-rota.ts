@@ -30,6 +30,7 @@ const IMPORTADORES: Record<string, () => Promise<unknown>> = {
   "/solicitacao": () => import("@/pages/solicitacao"),
   "/grafica": () => import("@/pages/grafica"),
   "/grafica/maquinas": () => import("@/pages/grafica-maquinas"),
+  "/reaproveitar": () => import("@/pages/reaproveitar"),
   // Solicitação ao estoque: só com a chave ligada (dono, 21/09 — segurar).
   ...(SOLICITACAO_AO_ESTOQUE_ATIVA
     ? { "/grafica/solicitacoes-ao-estoque": () => import("@/pages/solicitacoes-ao-estoque") }

@@ -7,6 +7,7 @@ import { useConfirmar } from "@/components/ui/usar-confirmar";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { FS, FW, N, R, T, TOM } from "@/lib/theme";
 import { miniatura } from "@/lib/miniatura";
+import { VisorDeFotos } from "./visor-de-fotos";
 
 export function PhotoPicker({ photos, onAdd, onRemove, onError, label = "Fotos", hint, dense = false, onEnviandoMudou }: {
   photos: string[];
@@ -21,12 +22,15 @@ export function PhotoPicker({ photos, onAdd, onRemove, onError, label = "Fotos",
 }) {
   const [enviando, setEnviando] = useState<Record<string, boolean>>({});
   const emAndamento = Object.values(enviando).filter(Boolean).length;
+  // Tocar na miniatura abre a foto grande (30/10): é onde se vê se ficou boa.
+  const [vendo, setVendo] = useState<number | null>(null);
   useEffect(() => { onEnviandoMudou?.(emAndamento); }, [emAndamento]); // eslint-disable-line react-hooks/exhaustive-deps
   // Saiu da tela no meio do envio: não deixa o "Enviando foto…" preso.
   useEffect(() => () => onEnviandoMudou?.(0), []); // eslint-disable-line react-hooks/exhaustive-deps
   const buttons = [
-    { capture: true, Icon: Camera, text: dense ? "Câmera" : "Tirar Foto" },
-    { capture: false, Icon: ImagePlus, text: dense ? "Galeria" : "Anexar Fotos" },
+    // Depois da primeira, o botão diz que dá para tirar MAIS (dono, 30/10: "mais fotos").
+    { capture: true, Icon: Camera, text: dense ? "Câmera" : photos.length > 0 ? "Tirar outra" : "Tirar Foto" },
+    { capture: false, Icon: ImagePlus, text: dense ? "Galeria" : photos.length > 0 ? "Anexar mais" : "Anexar Fotos" },
   ];
   // Celular: rótulo ≥ 12px (10px maiúsculo não se lê no sol do galpão).
   const noCelular = useIsMobile();
@@ -47,6 +51,7 @@ export function PhotoPicker({ photos, onAdd, onRemove, onError, label = "Fotos",
   return (
     <div>
       {dialogo}
+      <VisorDeFotos fotos={photos} indice={vendo} aoMudar={setVendo} aoRemover={onRemove} />
       {/* Rótulo em caixa normal: a caixa-alta de 10px era ruído, não ênfase. */}
       <label style={{ display: "block", fontSize: noCelular ? FS.meta : FS.small, fontWeight: FW.forte, color: T.apoio, marginBottom: 10 }}>
         {label} {hint && <span style={{ color: T.second, fontWeight: FW.corpo }}>{hint}</span>}
@@ -62,7 +67,7 @@ export function PhotoPicker({ photos, onAdd, onRemove, onError, label = "Fotos",
 
       <div style={{ display: "flex", gap: 12 }}>
         {buttons.map(({ capture, Icon, text }) => (
-          <div key={text} style={{ flex: 1 }}>
+          <div key={capture ? "camera" : "galeria"} style={{ flex: 1 }}>
             <ObjectUploader
               {...(capture ? { capture: true } : { multiple: true })}
               maxFileSize={10485760}
@@ -73,7 +78,7 @@ export function PhotoPicker({ photos, onAdd, onRemove, onError, label = "Fotos",
               buttonClassName="w-full h-full min-h-[64px] p-0 border-0 hover:bg-transparent"
               onComplete={r => onAdd(r.url)}
               onError={onError}
-              onEnviandoMudou={(b) => setEnviando(prev => (prev[text] === b ? prev : { ...prev, [text]: b }))}
+              onEnviandoMudou={(b) => { const k = capture ? "camera" : "galeria"; setEnviando(prev => (prev[k] === b ? prev : { ...prev, [k]: b })); }}
             >
               <div style={{ width: "100%", minHeight: 64, boxSizing: "border-box", padding: dense ? "12px 0" : "14px 0", backgroundColor: N.n2, borderRadius: R.md, border: `2px dashed ${T.bdark}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: dense ? 5 : 6, cursor: "pointer" }}>
                 <Icon aria-hidden="true" style={{ width: dense ? 18 : 20, height: dense ? 18 : 20, color: T.second }} />
@@ -85,23 +90,23 @@ export function PhotoPicker({ photos, onAdd, onRemove, onError, label = "Fotos",
       </div>
 
       {photos.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${dense ? 72 : 84}px, 1fr))`, gap: 8, marginTop: dense ? 10 : 12 }}>
-          {photos.map(url => (
-            <div key={url} style={{ position: "relative", aspectRatio: "1", borderRadius: 8, overflow: "hidden", border: `1px solid ${T.border}`, backgroundColor: N.n2 }}>
-              <img loading="lazy" decoding="async" src={miniatura(url) ?? url} alt="Foto anexada" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              {/* Alvo de toque 44×44 (área invisível maior que o X visível) e
-                  confirmação antes de remover — o botão de 20px colado na
-                  miniatura removia a foto num toque acidental, sem volta. */}
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${dense ? 84 : 96}px, 1fr))`, gap: 8, marginTop: dense ? 10 : 12 }}>
+          {photos.map((url, i) => (
+            <div key={url} style={{ borderRadius: 8, overflow: "hidden", border: `1px solid ${T.border}`, backgroundColor: N.n2 }}>
+              <button type="button" onClick={() => setVendo(i)} aria-label={`Ver a foto ${i + 1} em tamanho grande`} data-testid={`foto-anexada-${i}`} style={{ display: "block", width: "100%", aspectRatio: "1", padding: 0, border: "none", background: "none", cursor: "zoom-in" }}>
+                <img loading="lazy" decoding="async" src={miniatura(url) ?? url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+              </button>
+              {/* Faixa própria de 44px e confirmação antes de remover: sobre a
+                  miniatura, o alvo cobria o meio da foto e quem tocava para
+                  ampliar caía em Remover. */}
               <button
                 type="button"
                 onClick={() => { void pedirRemocao(url); }}
                 title="Remover foto"
                 aria-label="Remover foto"
-                style={{ position: "absolute", top: 0, right: 0, width: 44, height: 44, background: "transparent", border: "none", display: "flex", alignItems: "flex-start", justifyContent: "flex-end", padding: 4, cursor: "pointer" }}
+                style={{ width: "100%", height: 44, padding: 0, border: "none", borderTop: `1px solid ${T.border}`, backgroundColor: T.surface, color: T.second, fontSize: FS.meta, fontWeight: FW.medio, display: "flex", alignItems: "center", justifyContent: "center", gap: 4, cursor: "pointer" }}
               >
-                <span style={{ width: 20, height: 20, borderRadius: "50%", backgroundColor: "rgba(28,25,23,0.75)", color: T.surface, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <X style={{ width: 11, height: 11 }} />
-                </span>
+                <X aria-hidden="true" style={{ width: 12, height: 12 }} /> Remover
               </button>
             </div>
           ))}

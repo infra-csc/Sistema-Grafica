@@ -19,7 +19,7 @@ import { items as itemsTable, type Item } from "@shared/schema";
 /** As colunas que as decisões de reaproveitar e corrigir leem. */
 const COLUNAS_DA_CONTA = [
   "status", "quantity", "quantityProduced", "reuseQty", "isReuse", "conferredQty", "embaladaQty", "deliveredQty",
-  "origemReaproveitamento", "obsReaproveitamento", "travadaEm", "deletedAt", "printMachine", "impressaoPorMaquina", "reservaPorMaquina",
+  "origemReaproveitamento", "obsReaproveitamento", "reusoPedido", "travadaEm", "deletedAt", "printMachine", "impressaoPorMaquina", "reservaPorMaquina",
 ] as const;
 
 const igual = (a: unknown, b: unknown) => {

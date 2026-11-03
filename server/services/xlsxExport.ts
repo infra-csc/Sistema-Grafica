@@ -7,6 +7,7 @@ import { rotuloDaMaquina } from "@shared/fluxo-peca";
 import { nomeDaPeca } from "@shared/nome-da-peca";
 import { resumosDeTuboPorIds, type MapaDeResumos, type VolumeDaPeca } from "./tubosDaPeca";
 import type { Item } from "@shared/schema";
+import { aguardaReaproveitar, pedidoDoReaproveitar } from "@shared/reaproveitar";
 import { camposDoErro } from "../erros";
 import { seloDosVolumes } from "@shared/embalagem";
 import { origemDe, ROTULO_DA_ORIGEM, emTransitoDe, quantidadeFisicaDe } from "@shared/origem-do-reaproveitamento";
@@ -158,12 +159,14 @@ export async function withSponsorNames(rawItems: Item[]) {
 }
 
 // Reuso total antigo não preencheu reuse_qty, mas cobre a peça inteira.
-function reusedTotal(item: Pick<Item, "isReuse" | "quantity" | "reuseQty">): number {
-  return item.isReuse ? (item.quantity ?? 0) : (item.reuseQty ?? 0);
+// O pedido ao estoque sem resposta também não vai para a impressora (shared/reaproveitar.ts).
+function reusedTotal(item: Pick<Item, "isReuse" | "quantity" | "reuseQty" | "reusoPedido" | "status">): number {
+  if (item.isReuse) return item.quantity ?? 0;
+  return (item.reuseQty ?? 0) + (aguardaReaproveitar(item) ? pedidoDoReaproveitar(item) : 0);
 }
 
 /** Metragem que vai de fato para a impressora — o reaproveitado não é impresso. */
-function m2ToProduce(item: Pick<Item, "calculatedM2" | "isReuse" | "quantity" | "reuseQty">): number {
+function m2ToProduce(item: Pick<Item, "calculatedM2" | "isReuse" | "quantity" | "reuseQty" | "reusoPedido" | "status">): number {
   const total = item.calculatedM2 != null ? parseFloat(item.calculatedM2) : 0;
   const qty = item.quantity ?? 0;
   if (!total || !qty) return total;
@@ -281,7 +284,7 @@ export async function writeWorkbook(
         fileHeight:   item.fileHeight != null ? parseFloat(item.fileHeight) : "",
         calculatedM2: item.calculatedM2 != null ? parseFloat(item.calculatedM2) : 0,
         // Reuso parcial precisa aparecer como quantidade, não como Sim/Não.
-        isReuse:      item.isReuse ? "Sim" : (item.reuseQty > 0 ? `${item.reuseQty} un.` : "Não"),
+        isReuse:      item.isReuse ? "Sim" : aguardaReaproveitar(item) ? `${pedidoDoReaproveitar(item)} un. (aguarda o estoque)` : (item.reuseQty > 0 ? `${item.reuseQty} un.` : "Não"),
         origemReaprov: (() => { const o = origemDe(item); return o ? ROTULO_DA_ORIGEM[o] : ""; })(),
         obsReaprov:   origemDe(item) ? (item.obsReaproveitamento ?? "") : "",
         sponsors:     item.sponsorNames?.join(", ") ?? "",

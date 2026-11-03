@@ -24,6 +24,8 @@ import {
 import { avisarBuscarNoEstoque } from "../../services/aviso-buscar-no-estoque";
 import { recalcularEventoEAvisar } from "../../services/evento-concluido";
 import { gravarSeNaoMudou, FRASE_PECA_MUDOU } from "./gravar-se-nao-mudou";
+import { aguardaReaproveitar, pedidoDoReaproveitar, trilhaDaResposta } from "@shared/reaproveitar";
+import { arquivoFinalOk } from "@shared/molde";
 import type { Item } from "@shared/schema";
 
 /**
@@ -55,6 +57,28 @@ function trilhaDaOrigem(current: Item, depois: { origemReaproveitamento: OrigemD
   const mudou = (current.origemReaproveitamento ?? null) !== depois.origemReaproveitamento
     || (current.obsReaproveitamento ?? null) !== depois.obsReaproveitamento;
   return mudou ? ` · ${fraseDaTrilhaDaOrigem(depois.origemReaproveitamento, depois.obsReaproveitamento)}` : "";
+}
+
+/**
+ * Reaproveitamento total dispensa o arquivo final na liberação. Se o estoque não
+ * cobriu tudo, o resto vai imprimir sem arquivo: a Gráfica e a Revisão ficam sabendo.
+ * A peça já foi gravada: o aviso que falha não vira erro para quem respondeu.
+ */
+async function avisarSemArquivo(item: Item, reaproveitadas: number) {
+  const resta = item.quantity - reaproveitadas;
+  if (resta <= 0 || arquivoFinalOk(item) || (item.producaoInterna && item.instrucoesGrafica?.trim())) return;
+  try {
+    const aviso = await storage.createNotification({
+      type: "itemAdded",
+      message: `${[item.displayId, item.type].filter(Boolean).join(" ")}: faltam ${resta} un. e a peça não tem arquivo final — devolva à Revisão para a Arte enviar.`,
+      eventId: item.eventId,
+      itemId: item.id,
+      targetRoles: ["grafica", "solicitacao"],
+    });
+    broadcast({ type: "notification_created", notification: aviso });
+  } catch (erro) {
+    console.warn("[reaproveitar] não foi possível avisar da falta de arquivo:", erro);
+  }
 }
 
 /** mark-reuse, correct-reuse. */
@@ -113,6 +137,31 @@ export function registrarReaproveitamento(app: Express): void {
       }
       if (viaProduzida && (current.deliveredQty || 0) > 0) {
         return res.status(409).json({ error: `Não é possível reaproveitar: ${current.deliveredQty} un. já foram entregues` });
+      }
+
+      // A RESPOSTA DO MÓDULO REAPROVEITAR (dono, 03/11): quantas o estoque tem do
+      // que a Revisão pediu (shared/reaproveitar.ts). Zero não reaproveita nada: a
+      // peça só volta a aparecer na Gráfica para produzir tudo.
+      const respostaDoEstoque = req.body?.respostaDoEstoque === true;
+      const pedido = pedidoDoReaproveitar(current);
+      if (respostaDoEstoque) {
+        if (!aguardaReaproveitar(current) || pedido <= 0) {
+          return res.status(409).json({ error: "Esta peça não espera mais a resposta do estoque — atualize a tela.", code: "PECA_MUDOU" });
+        }
+        const temos = Number(req.body?.qty);
+        if (!Number.isInteger(temos) || temos < 0 || temos > pedido) {
+          return res.status(400).json({ error: `Informe quantas têm no estoque: de 0 a ${pedido} un.` });
+        }
+        if (temos === 0) {
+          // Zero é como zerar o reaproveitamento: a origem vai junto (ver origemDepois).
+          const item = await gravarSeNaoMudou(current, { reusoPedido: null, ...colunasDaOrigem(null, null) });
+          if (item === "mudou") return res.status(409).json({ error: FRASE_PECA_MUDOU, code: "PECA_MUDOU" });
+          if (!item) return res.status(404).json({ error: "Peça não encontrada" });
+          await createAuditLog(req, 'updated', 'item', item.id, trilhaDaResposta(0, pedido, current.quantity));
+          broadcast({ type: "item_updated", item });
+          await avisarSemArquivo(item, 0);
+          return res.json(item);
+        }
       }
 
       const alreadyReused = current.reuseQty || 0;
@@ -191,6 +240,8 @@ export function registrarReaproveitamento(app: Express): void {
       const item = await gravarSeNaoMudou(current, {
         reuseQty: newReuse,
         isReuse: isFullReuse,
+        // Respondeu (ou a Gráfica reaproveitou direto): o pedido acabou.
+        reusoPedido: null,
         ...origemNova,
         ...(fechaEmTransito
           ? { status: "delivered" as const, deliveredAt: new Date() }
@@ -213,7 +264,9 @@ export function registrarReaproveitamento(app: Express): void {
         'updated',
         'item',
         item.id,
-        (isFullReuse
+        (respostaDoEstoque
+          ? trilhaDaResposta(n, pedido, current.quantity)
+          : isFullReuse
           ? `Reaproveitamento total pela Gráfica: ${newReuse}/${current.quantity} un.`
           : `Reaproveitamento parcial pela Gráfica: ${n} un. (${newReuse}/${current.quantity} reaproveitadas, ${current.quantity - newReuse} a produzir)`)
           + trilhaDaOrigem(current, origemNova)
@@ -222,7 +275,9 @@ export function registrarReaproveitamento(app: Express): void {
 
       if (fechaEmTransito) await recalcularEventoEAvisar(item.eventId);
       broadcast({ type: "item_updated", item });
-      await avisarBuscarNoEstoque(current, item, req.userRole);
+      // Quem responde não é quem imprime: mesmo com papel Gráfica, a fila precisa do aviso.
+      await avisarBuscarNoEstoque(current, item, respostaDoEstoque ? null : req.userRole);
+      if (respostaDoEstoque) await avisarSemArquivo(item, item.reuseQty ?? 0);
       res.json(item);
     } catch (error) {
       responderFalha(res, error, "POST /api/items/:id/mark-reuse");

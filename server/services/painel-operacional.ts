@@ -44,6 +44,7 @@ const COLUNAS = {
   finish: items.finish,
   quantity: items.quantity,
   reuseQty: items.reuseQty,
+  reusoPedido: items.reusoPedido,
   fileWidth: items.fileWidth,
   fileHeight: items.fileHeight,
   visualWidth: items.visualWidth,

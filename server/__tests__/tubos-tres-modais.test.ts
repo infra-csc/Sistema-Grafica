@@ -165,7 +165,7 @@ for (const largura of [1280, 390]) {
       await act(async () => { fireEvent.click($$('[data-testid="button-upload-photo"]')[0]); });
       expect(botao().textContent).toBe("Embalar #0386 · 16 un. · 1 foto");
       expect(/safe-area-inset-bottom/.test($('[data-testid="rodape-embalar"]')!.style.paddingBottom)).toBe(true);
-      expect(px($('button[aria-label="Remover a foto 1"]')!.style.width)).toBe(44);
+      expect(px($('button[aria-label="Remover a foto 1"]')!.style.height)).toBe(44);
       // toque duplo não duplica
       await act(async () => { fireEvent.click(botao()); fireEvent.click(botao()); });
       await tick(30);

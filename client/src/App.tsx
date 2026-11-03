@@ -123,6 +123,7 @@ const Solicitacao = lazyPage(() => import("@/pages/solicitacao"));
 const PedidosDePeca = lazyPage(() => import("@/pages/pedidos-de-peca"));
 const Grafica = lazyPage(() => import("@/pages/grafica"));
 const GraficaMaquinas = lazyPage(() => import("@/pages/grafica-maquinas"));
+const Reaproveitar = lazyPage(() => import("@/pages/reaproveitar"));
 const SolicitacoesAoEstoque = lazyPage(() => import("@/pages/solicitacoes-ao-estoque"));
 const EtiquetaTubo = lazyPage(() => import("@/pages/etiqueta-tubo"));
 const Modelos = lazyPage(() => import("@/pages/modelos"));
@@ -230,6 +231,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "/pedidos-de-peca": "Solicitação de peças",
   "/grafica": "Gráfica",
   "/grafica/maquinas": "Máquinas da Gráfica",
+  "/reaproveitar": "Reaproveitar",
   "/grafica/solicitacoes-ao-estoque": "Solicitações ao estoque",
   "/modelos": "Modelos",
   "/calendario": "Calendário",
@@ -530,6 +532,9 @@ function Router() {
         {() => SOLICITACAO_AO_ESTOQUE_ATIVA
           ? <RoleProtectedRoute component={SolicitacoesAoEstoque} allowedRoles={ROLES_GRAFICA} />
           : <Redirect to="/grafica" replace />}
+      </Route>
+      <Route path="/reaproveitar">
+        {() => <RoleProtectedRoute component={Reaproveitar} allowedRoles={ROLES_GRAFICA} />}
       </Route>
       <Route path="/grafica/maquinas">
         {() => <RoleProtectedRoute component={GraficaMaquinas} allowedRoles={ROLES_GRAFICA} />}

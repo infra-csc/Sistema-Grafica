@@ -78,6 +78,13 @@
       "when": 1793042776424,
       "tag": "0010_prazos-sem-aprovacao",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793715586176,
+      "tag": "0011_reaproveitar-e-obs-embalagem",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,8 @@
 // O MODAL DA PEÇA: imprimir (o formulário é o MESMO da aba Máquinas) ou
 // conferir com foto (e, quando a conferência fecha a peça, já embalar).
 import type React from "react";
+import { ObservacoesDaPeca } from "@/components/grafica/observacoes-da-peca";
+import { BotaoCopiar } from "@/components/botao-copiar";
 import { AlertCircle, Calendar, CheckCircle, Play, PlusCircle, Search } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Botao } from "@/components/ui/botao";
@@ -71,7 +73,7 @@ export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMo
   const renderNotesField = (placeholder: string) => (
     <div>
       <label htmlFor="input-observacao-modal" style={{ display: "block", fontSize: fsMin(FS.small), fontWeight: FW.forte, color: T.apoio, marginBottom: 8 }}>
-        Observação <span style={{ color: T.second, fontWeight: FW.corpo }}>(opcional)</span>
+        Observação da conferência <span style={{ color: T.second, fontWeight: FW.corpo }}>(opcional)</span>
       </label>
       <textarea
         id="input-observacao-modal"
@@ -127,7 +129,10 @@ export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMo
           </div>
           <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>{selectedItem.type}</div>
           {selectedItem.description && selectedItem.description !== selectedItem.type && (
-            <div style={{ fontSize: 13, color: T.second, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{selectedItem.description}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 2, marginTop: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, color: T.second, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{selectedItem.description}</div>
+              <BotaoCopiar texto={selectedItem.description} rotulo={`a descrição da peça ${selectedItem.displayId ?? ""}`.trim()} tamanho={isMobile ? 44 : 24} testId={`copiar-descricao-modal-${selectedItem.id}`} />
+            </div>
           )}
           {selectedItem.event?.name && (
             <div style={{ fontSize: 13, color: T.second, marginTop: 4, display: "flex", alignItems: "center", gap: 5 }}>
@@ -219,8 +224,8 @@ export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMo
           extenso: "Buscar no estoque" ou "Em trânsito · vem de …". */}
       {origemDe(selectedItem) && <OrigemDoReaproveitamentoNaFicha peca={selectedItem} onde="grafica" podeEditar={false} onEditar={() => {}} />}
 
-      {/* Observações */}
-      {selectedItem.observations && (
+      {/* Observações — na conferência sobem para o TOPO do modal (ver lá). */}
+      {modalType !== "conference" && selectedItem.observations && (
         <div style={{ background: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 8, padding: '8px 10px', display: 'flex', gap: 7, alignItems: 'flex-start' }}>
           <AlertCircle style={{ width: 12, height: 12, color: TOM.alerta.text, flexShrink: 0, marginTop: 1 }} />
           <span style={{ fontSize: 13, color: TOM.alerta.text, lineHeight: 1.4 }}>{selectedItem.observations}</span>
@@ -272,6 +277,11 @@ export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMo
             `flex: 1 1 auto` + `minHeight: 0` dá a este corpo o que sobrar do
             cabeçalho medido pelo navegador. */}
         <div style={{ padding: padModal, display: "flex", flexDirection: "column", gap: isMobile ? 16 : 20, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
+
+          {/* A OBSERVAÇÃO VEM PRIMEIRO (dono, 03/11: "mais fácil de visualizar na
+              conferência"). Morava no fim da ficha, em 13px — e no celular a ficha
+              desce para depois das fotos: quem conferia só via se rolasse. */}
+          {selectedItem && modalType === "conference" && <ObservacoesDaPeca peca={selectedItem} />}
 
           {/* Arte aprovada em destaque — na conferência é o que a pessoa
               compara com a peça na mão, quase sempre pelo celular. Precisa ser
@@ -378,6 +388,8 @@ export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMo
               {/* A foto que termina de subir depois de o modal fechar ou mudar
                   de peça é descartada (chave da abertura). */}
               <PhotoPicker photos={photos} onAdd={fotoDaAbertura(chaveDoModal)} onRemove={removePhoto} onError={onPhotoError} onEnviandoMudou={setFotosSubindo} hint="· obrigatória, pode anexar várias" />
+              {/* Logo depois da foto: era o último campo, abaixo da ficha, e passava despercebido. */}
+              {renderNotesField("Ex.: cor puxando para o escuro, ilhós faltando…")}
 
               {/* CONFERIR E EMBALAR (decisão CONFERIR_E_EMBALAR): quando esta
                   conferência zera o que falta, embala já em volume avulso com
@@ -392,7 +404,6 @@ export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMo
               )}
 
               {fichaDepoisDasFotos && fichaDaPeca}
-              {renderNotesField("Ex.: cor puxando para o escuro, ilhós faltando…")}
               <div style={modalActionsStyle}>
                 <Botao tamanho="toque" onClick={() => { setSelectedItem(null); setModalType(null); }}
                   style={{ flex: 1, minHeight: isMobile ? 48 : 44 }}>

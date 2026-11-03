@@ -12,7 +12,7 @@
 import { PrioridadeNaImpressao, mostraPrioridadeNaImpressao } from "@/components/prioridade-na-impressao";
 import { useState, useMemo, useLayoutEffect, useRef } from "react";
 import type React from "react";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getCurrentUserName } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile, useElementSize, densityFromWidth, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
@@ -161,8 +161,14 @@ export default function Grafica() {
   const [galpao, setGalpao] = useState<null | "confer">(null);
   const registrarNoGalpao = async (item: PecaDaFila, dados: GalpaoDados) => {
     await apiRequest("POST", `/api/items/${item.id}/confer`, {
-      conferencePhotoUrl: dados.photoUrl, qty: dados.qty, notes: "",
+      conferencePhotoUrl: dados.photoUrl, qty: dados.qty, notes: dados.notes ?? "",
     });
+    // Todas na galeria, como no modal da peça (só depois do sucesso, para não sobrar foto órfã).
+    const anexos = await Promise.allSettled(dados.fotos.map((photoUrl) =>
+      apiRequest("POST", `/api/items/${item.id}/photos`, { photoUrl, kind: "conference", uploadedBy: getCurrentUserName() })));
+    if (anexos.some((a) => a.status === "rejected")) {
+      toast({ title: `Conferência feita · ${item.displayId}`, description: "Parte das fotos não pôde ser anexada.", variant: "warning" });
+    }
     // Invalidação POR PEÇA, não só na saída: esta é a tela em que duas pessoas
     // trabalham a mesma fila ao mesmo tempo — o computador da bancada precisa
     // ver a peça sumir enquanto o conferente anda com o celular.

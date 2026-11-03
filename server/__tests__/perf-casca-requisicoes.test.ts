@@ -14,6 +14,7 @@
 //   • o badge de pedidos só para quem resolve pedidos;
 //   • o número do Eventos (auditoria do book, 19/10) só para Solicitação e admin;
 //   • o das devolvidas no Painel Geral (29/10), também só Solicitação e admin;
+//   • o do módulo Reaproveitar (03/11), de quem pode responder;
 //   • nada de acervo pesado — isso é das páginas, não da casca.
 //
 // O WebSocket aqui nunca abre: a revalidação da (re)conexão é assunto do
@@ -33,6 +34,7 @@ function responder(url: string, papel: string) {
   if (url.startsWith("/api/auditorias-do-book")) return { auditorias: [] };
   if (url.startsWith("/api/items/revisao-final/contagem")) return { total: 0 };
   if (url.startsWith("/api/items/devolvidas-ao-rascunho")) return { pecas: [] };
+  if (url.startsWith("/api/items/reaproveitar/contagem")) return { total: 0 };
   return [];
 }
 
@@ -82,11 +84,13 @@ describe("a casca pede o mínimo ao montar", () => {
     expect(contar("/api/items/revisao-final/contagem")).toBe(1);
     // "Peças que a Arte devolve pra mim" no Painel Geral (dono, 29/10).
     expect(contar("/api/items/devolvidas-ao-rascunho")).toBe(1);
+    // O módulo Reaproveitar (dono, 03/11): quantas esperam a resposta do estoque.
+    expect(contar("/api/items/reaproveitar/contagem")).toBe(1);
     for (const pesado of ["/api/events", "/api/sponsors", "/api/standard-items", "/api/items"]) {
       expect(contar(pesado), pesado).toBe(0);
     }
     // Orçamento total da casca: se crescer, que seja de propósito.
-    expect(pedidos.length, pedidos.join(", ")).toBe(6);
+    expect(pedidos.length, pedidos.join(", ")).toBe(7);
   }, 20_000);
 
   it("gráfica: não pede o badge de pedidos (não é dela)", async () => {
@@ -98,7 +102,8 @@ describe("a casca pede o mínimo ao montar", () => {
     expect(contar("/api/auditorias-do-book")).toBe(0);
     expect(contar("/api/items/revisao-final/contagem")).toBe(0);
     expect(contar("/api/items/devolvidas-ao-rascunho")).toBe(0);
-    expect(pedidos.length, pedidos.join(", ")).toBe(2);
+    expect(contar("/api/items/reaproveitar/contagem")).toBe(1);
+    expect(pedidos.length, pedidos.join(", ")).toBe(3);
   }, 20_000);
 });
 
@@ -122,7 +127,7 @@ describe("o menu pré-carrega a tela antes do clique", () => {
     const menu = lerFonte("client/src/components/app-sidebar.tsx");
     const prefetch = lerFonte("client/src/lib/prefetch-de-rota.ts");
     const urls = Array.from(menu.matchAll(/\{ title: "[^"]+",\s*url: "([^"]+)"/g), (m) => m[1]);
-    expect(urls.length).toBe(27); // + Máquinas, Inferir executivos, Reparo de vínculos e Configurações (26/10)
+    expect(urls.length).toBe(28); // + Máquinas, Inferir executivos, Reparo de vínculos, Configurações (26/10) e Reaproveitar (03/11)
     for (const url of urls) expect(prefetch, url).toContain(`"${url}": () => import(`);
     expect(menu).toContain("prefetchRota(item.url)");
   });

@@ -51,7 +51,8 @@ vi.mock("@/contexts/auth-context", () => ({
 
 // ── Uma fila sintética com tudo o que o recorte lê ───────────────────────────
 const DIA = 86_400_000;
-const AGORA = Date.UTC(2026, 9, 7, 12);
+// Relativo ao dia do teste: a Gráfica esconde evento realizado, e data fixa envelhece.
+const AGORA = Date.now();
 function sorteio(semente: number) {
   let s = semente >>> 0;
   return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 2 ** 32; };

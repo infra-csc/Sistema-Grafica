@@ -22,6 +22,7 @@
 // lançamento às 22h caía no dia seguinte.
 // ─────────────────────────────────────────────────────────────────────────────
 import { primeiroAsPrioritarias } from "@shared/prioridade-na-impressao";
+import { aguardaReaproveitar, FRASE_AGUARDA_REAPROVEITAR } from "@shared/reaproveitar";
 import type { Express, Request, Response } from "express";
 import { sql } from "drizzle-orm";
 import { db } from "../db";
@@ -199,6 +200,8 @@ async function motivoDeNaoReservar(item: Peca | undefined, maquina?: string | nu
   if (maquina === null) return null;
   // Travada pela Solicitação: nem reservar (shared/trava-da-peca.ts).
   if (pecaTravada(item)) return fraseDaTrava(item);
+  // Espera o módulo Reaproveitar dizer quantas tem: ainda não é da impressora.
+  if (aguardaReaproveitar(item)) return FRASE_AGUARDA_REAPROVEITAR;
   // MOLDE (22/09) não passa pelas impressoras: é marcado como produzido na Gráfica.
   if (ehMolde(item)) return "Molde não entra na fila das impressoras — é marcado como produzido direto na Gráfica";
   const emImpressaoPorPartes = (item.status === "inProduction" || item.status === "em_producao")
@@ -565,6 +568,7 @@ export function registerMaquinasRoutes(app: Express): void {
         left join events e on e.id = i.event_id
         where i.deleted_at is null and e.arquivado_em is null and (
           i.status in ('ready_for_production', 'pronto_para_producao', 'approved', 'liberado')
+          and coalesce(i.reuso_pedido, 0) = 0
           -- A peça que iniciou SÓ UMA PARTE segue na fila com o resto dela.
           or (i.status in ('inProduction', 'em_producao') and i.impressao_por_maquina is not null)
         )

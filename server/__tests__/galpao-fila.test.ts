@@ -32,7 +32,7 @@ describe("os dois toques", () => {
   });
 
   it("a foto é obrigatória e o botão DIZ o que falta, em vez de só desabilitar", () => {
-    expect(FILA).toContain('disabled={!foto || enviando}');
+    expect(FILA).toContain('disabled={!temFoto || fotoSubindo || enviando}');
     expect(FILA).toContain('"Falta a foto"');
   });
 
@@ -48,7 +48,7 @@ describe("a fila não engana", () => {
   });
 
   it("cada peça nova zera foto e erro; o nome de quem recebe ATRAVESSA as peças", () => {
-    expect(FILA).toContain("setFoto(null);");
+    expect(FILA).toContain("setFotos([]);");
     expect(FILA).toContain("// Quem recebe assina o caminhão inteiro — o nome atravessa as peças.");
     // receivedBy não aparece no reset por peça
     const reset = FILA.slice(FILA.indexOf("Cada peça nova zera"), FILA.indexOf("if (!item) return null;"));
@@ -77,7 +77,7 @@ describe("a costura na tela da Gráfica", () => {
   });
 
   it("as chamadas usam as rotas reais, com os campos que elas leem", () => {
-    expect(GRAFICA).toContain("conferencePhotoUrl: dados.photoUrl, qty: dados.qty, notes: \"\",");
+    expect(GRAFICA).toContain("conferencePhotoUrl: dados.photoUrl, qty: dados.qty, notes: dados.notes ?? \"\",");
     expect(GRAFICA).not.toContain("/deliver`");
   });
 

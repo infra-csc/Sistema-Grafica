@@ -38,15 +38,24 @@ import { Botao } from "@/components/ui/botao";
 import { EstadoVazio, EstadoErro, Esqueleto } from "@/components/ui/estados";
 import { ACAO, CLASSE_DA_ACAO, T, TOM, FS, FW, FONT, R, SHADOW, pinturaDaAcao } from "@/lib/theme";
 
-type PecaDoTubo = { id: string; displayId: string | null; type: string; description: string | null; quantity: number; quantidadeNoTubo?: number };
+type PecaDoTubo = { id: string; displayId: string | null; type: string; description: string | null; quantity: number; quantidadeNoTubo?: number; observations?: string | null; conferenceNotes?: string | null };
 export type TuboDaAba = {
   id: string; numero: number; avulso: boolean;
   evento: { id: string; name: string; truckDepartureDate: string | null };
   criadoEm: string | null;
   fotosFechamento: string[]; fechadoEm: string | null; fechadoPor: string | null;
   entregueEm: string | null; recebidoPor: string | null; entreguePor: string | null; fotoEntregaUrl: string | null;
+  obsEmbalagem?: string | null;
   pecas: PecaDoTubo[]; unidades: number; podeAgir: boolean;
 };
+/** O que quem entrega precisa ler: a nota da embalagem e as das peças de dentro. */
+const avisosDoVolume = (t: TuboDaAba) => [
+  { rotulo: "Na embalagem", texto: t.obsEmbalagem },
+  ...t.pecas.flatMap((p) => [
+    { rotulo: `${p.displayId ?? "Peça"}`, texto: p.observations },
+    { rotulo: `${p.displayId ?? "Peça"} na conferência`, texto: p.conferenceNotes },
+  ]),
+];
 type Segmento = "abertos" | "sozinhas" | "entregues";
 const SEGMENTOS: Array<{ id: Segmento; rotulo: string }> = [
   { id: "abertos", rotulo: "Abertos" }, { id: "sozinhas", rotulo: "Embaladas sozinhas" }, { id: "entregues", rotulo: "Entregues" },
@@ -166,7 +175,7 @@ export function AbaTubos({ sugestaoRecebedor, onEntregou, onAbrirPeca }: {
   const noLote = useMemo(() => data.filter((t) => marcados.has(t.id) && podeEntrar(t)), [data, marcados]);
   const doFiltro = lista.filter(podeEntrar);
   const todosDoFiltroMarcados = doFiltro.length > 0 && doFiltro.every((t) => marcados.has(t.id));
-  const volumesDoLote: VolumeDoLote[] = noLote.map((t) => ({ id: t.id, nome: nomeDo(t), evento: { id: t.evento.id, name: t.evento.name }, pecas: t.pecas.length, unidades: t.unidades }));
+  const volumesDoLote: VolumeDoLote[] = noLote.map((t) => ({ id: t.id, nome: nomeDo(t), evento: { id: t.evento.id, name: t.evento.name }, pecas: t.pecas.length, unidades: t.unidades, avisos: avisosDoVolume(t) }));
   const terminouLote = (r: ResultadoDoLote, recebedor: string) => {
     // Entregues saem do lote; recusados FICAM marcados, com o motivo no cartão.
     setMarcados((m) => { const n = new Set(m); for (const e of r.entregues) n.delete(e.tuboId); return n; });

@@ -272,6 +272,11 @@ export function FichaDecisao(p: FichaDecisaoProps & { botoesNoRodape?: boolean; 
           Nesta peça continua liberado apenas excluir.
         </p>
       )}
+      {selectedItem && !selectedItem.isReuse && (selectedItem.reusoPedido ?? 0) > 0 && (
+        <p data-testid="ficha-pedido-ao-estoque" style={{ margin: 0, fontSize: letra(FS.small, isMobile), lineHeight: 1.5, color: TOM.sucesso.text, backgroundColor: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}`, borderRadius: 8, padding: "8px 12px" }}>
+          Esta peça já pediu {selectedItem.reusoPedido} un. ao estoque. Ao liberar, ela volta ao módulo Reaproveitar com o mesmo pedido.
+        </p>
+      )}
       {selectedItem?.isReuse && (
         <p style={{ margin: 0, fontSize: letra(FS.small, isMobile), lineHeight: 1.5, color: TOM.sucesso.text, backgroundColor: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}`, borderRadius: R.md, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
           <Recycle style={{ width: 14, height: 14, flexShrink: 0 }} />

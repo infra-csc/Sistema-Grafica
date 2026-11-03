@@ -21,6 +21,7 @@ import { CO } from "@/components/grafica/fila/aparencia";
 import { LINHAS_POR_LOTE, parentDisplayIdOf } from "@/components/grafica/fila/regras";
 import { SeloOrigemDoReaproveitamento } from "@/components/reaproveitamento/selo-da-origem";
 import { PhotoPicker } from "./seletor-de-fotos";
+import { ObservacoesDaPeca } from "@/components/grafica/observacoes-da-peca";
 
 export function BulkActionDialog({
   open, onClose, items, photos, onAddPhoto, onRemovePhoto, onPhotoError,
@@ -175,6 +176,8 @@ export function BulkActionDialog({
                         {item.description}
                       </div>
                     )}
+                    {/* Último olhar antes de registrar: quem confere em lote também lê (dono, 03/11). */}
+                    <div style={{ marginTop: item.observations || item.conferenceNotes ? 4 : 0 }}><ObservacoesDaPeca peca={item} compacto /></div>
                   </div>
                   <span style={{ fontSize: fs(11), fontWeight: 700, color: T.second, flexShrink: 0 }}>{qtyFor(item)} un.</span>
                 </div>

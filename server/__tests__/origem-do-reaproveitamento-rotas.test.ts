@@ -303,12 +303,77 @@ describe("as outras portas", () => {
     expect(p1()).toMatchObject({ status: "delivered", reuseQty: 10, isReuse: true, quantityProduced: 0 });
   });
 
-  it("Revisão Final libera com reaproveitamento do ESTOQUE: a Gráfica é avisada na chegada", async () => {
+  it("a resposta do módulo: zero não reaproveita, tudo vai para Conferir, acima do pedido é recusado", async () => {
+    const responder = (qty: unknown) => chamar("POST /api/items/:id/mark-reuse", { respostaDoEstoque: true, qty }, "grafica");
+
+    H.mundo.itens.p1 = peca({ status: "ready_for_production", reusoPedido: 6, reuseQty: 0, origemReaproveitamento: "estoque" });
+    for (const invalido of [7, -1, 1.5, "x"]) {
+      expect((await responder(invalido)).status, String(invalido)).toBe(400);
+      expect(p1()).toMatchObject({ reusoPedido: 6, reuseQty: 0 });
+    }
+
+    const nada = await responder(0);
+    expect(nada.status, JSON.stringify(nada.body)).toBe(200);
+    expect(p1()).toMatchObject({ status: "ready_for_production", reusoPedido: null, reuseQty: 0 });
+    // Já respondida: a segunda resposta (outra aba) não conta duas vezes.
+    expect((await responder(2)).status).toBe(409);
+    expect(p1()).toMatchObject({ reusoPedido: null, reuseQty: 0 });
+
+    H.mundo.itens.p1 = peca({ status: "ready_for_production", reusoPedido: 10, reuseQty: 0, origemReaproveitamento: "estoque" });
+    const tudo = await responder(10);
+    expect(tudo.status, JSON.stringify(tudo.body)).toBe(200);
+    expect(p1()).toMatchObject({ status: "produced", reusoPedido: null, reuseQty: 10, isReuse: true });
+  });
+
+  it("à espera, o número não muda pela edição: a resposta continua tendo saída", async () => {
+    H.mundo.itens.p1 = peca({ status: "ready_for_production", reusoPedido: 10, reuseQty: 0, origemReaproveitamento: "estoque" });
+    const r = await chamar("PATCH /api/items/:id", { isReuse: true, reuseQty: 10 }, "solicitacao");
+    expect(r.status, JSON.stringify(r.body)).toBe(409);
+    expect(r.body.error).toContain("espera a resposta do Reaproveitar");
+    expect(p1()).toMatchObject({ reusoPedido: 10, reuseQty: 0, isReuse: false });
+    const resposta = await chamar("POST /api/items/:id/mark-reuse", { respostaDoEstoque: true, qty: 5 }, "grafica");
+    expect(resposta.status, JSON.stringify(resposta.body)).toBe(200);
+    expect(p1()).toMatchObject({ reusoPedido: null, reuseQty: 5 });
+    // Respondeu com papel Gráfica: quem imprime é outra pessoa e recebe o aviso.
+    expect(H.avisos.at(-1)?.message).toMatch(/^Buscar no estoque: /);
+  });
+
+  it("voltou à Revisão com pedido em aberto: liberar pede de novo, não manda tudo imprimir", async () => {
+    H.mundo.itens.p1 = peca({ status: "awaiting_final_review", reusoPedido: 6, reuseQty: 0, origemReaproveitamento: "estoque", obsReaproveitamento: "Galpão" });
+    const r = await chamar("PATCH /api/items/:id/creator-review", {}, "solicitacao");
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    expect(p1()).toMatchObject({ status: "ready_for_production", reusoPedido: 6, reuseQty: 0, obsReaproveitamento: "Galpão" });
+  });
+
+  it("zero limpa a origem, e faltar unidade sem arquivo final avisa quem resolve", async () => {
+    H.mundo.itens.p1 = peca({ status: "ready_for_production", reusoPedido: 10, reuseQty: 0, origemReaproveitamento: "estoque", obsReaproveitamento: "Galpão", finalFileUrl: null });
+    const nada = await chamar("POST /api/items/:id/mark-reuse", { respostaDoEstoque: true, qty: 0 }, "grafica");
+    expect(nada.status, JSON.stringify(nada.body)).toBe(200);
+    expect(p1()).toMatchObject({ reusoPedido: null, reuseQty: 0, origemReaproveitamento: null, obsReaproveitamento: null });
+    expect(H.avisos.at(-1)).toMatchObject({ targetRoles: ["grafica", "solicitacao"] });
+    expect(H.avisos.at(-1)?.message).toMatch(/faltam 10 un\. e a peça não tem arquivo final/);
+  });
+
+  it("imprimir antes da resposta é recusado, para tela velha e script", async () => {
+    H.mundo.itens.p1 = peca({ status: "ready_for_production", reusoPedido: 4, reuseQty: 0, finalFileUrl: "arquivo.pdf" });
+    const r = await chamar("PATCH /api/items/:id/start-printing", { printMachine: "1" }, "grafica");
+    expect(r.status, JSON.stringify(r.body)).toBe(409);
+    expect(r.body.error).toContain("espera a resposta do Reaproveitar");
+    expect(p1().status).toBe("ready_for_production");
+  });
+
+  it("Revisão Final libera com reaproveitamento do ESTOQUE: espera o módulo; respondido, a Gráfica é avisada na chegada", async () => {
     H.mundo.itens.p1 = peca({ status: "awaiting_final_review" });
     const r = await chamar("PATCH /api/items/:id/creator-review", { reuseQty: 4, origemReaproveitamento: "estoque", obsReaproveitamento: "Lote do Rio" }, "solicitacao");
     expect(r.status, JSON.stringify(r.body)).toBe(200);
-    expect(p1()).toMatchObject({ status: "ready_for_production", reuseQty: 4, origemReaproveitamento: "estoque" });
-    const aviso = H.avisos.find((a) => a.targetRoles?.includes("grafica"));
-    expect(aviso?.message).toMatch(/^Buscar no estoque: #6033 .*\(4 un\.\) · Lote do Rio — Evento: COPA NORTE$/);
+    expect(p1()).toMatchObject({ status: "ready_for_production", reuseQty: 0, reusoPedido: 4, origemReaproveitamento: "estoque" });
+    // Ainda ninguém contou: nada de mandar buscar, só avisa quem responde.
+    expect(H.avisos.map((a) => a.message).join()).not.toContain("Buscar no estoque");
+    expect(H.avisos.at(-1)?.message).toMatch(/^Reaproveitar: #6033 .* 4 un\. esperam a resposta do estoque · COPA NORTE$/);
+
+    const resposta = await chamar("POST /api/items/:id/mark-reuse", { respostaDoEstoque: true, qty: 3 }, "solicitacao");
+    expect(resposta.status, JSON.stringify(resposta.body)).toBe(200);
+    expect(p1()).toMatchObject({ status: "ready_for_production", reuseQty: 3, reusoPedido: null, origemReaproveitamento: "estoque" });
+    expect(H.avisos.at(-1)?.message).toMatch(/^Buscar no estoque: #6033 .*\(3 un\.\) · Lote do Rio — Evento: COPA NORTE$/);
   });
 });

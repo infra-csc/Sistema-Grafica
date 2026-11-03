@@ -6,7 +6,7 @@
 // "O reaproveitar por solicitação, segurar: não vamos implementar agora; segue
 // no fluxo NORMAL de reaproveitar." Com SOLICITACAO_AO_ESTOQUE_ATIVA = false:
 //   1. REVISÃO FINAL: o modal Reaproveitamento é o de antes — "Reaproveitar
-//      tudo (N un.) — pula produção" e "Confirmar N un. reaproveitadas"
+//      tudo (N un.) — vai para o módulo Reaproveitar" e "Confirmar N un. reaproveitadas"
 //      aplicam direto, com o payload de sempre; nenhum selo, chip, filtro
 //      ?estoque=, bloco na ficha — e ZERO chamadas a /api/consultas-de-estoque;
 //   2. GRÁFICA: o aviso "N un. aguardando resposta do estoque" não aparece e
@@ -136,13 +136,13 @@ describe("Revisão Final com a chave desligada — o fluxo NORMAL de reaproveita
     expect(f.doEstoque()).toEqual([]);
   });
 
-  it("“Reaproveitar tudo (6 un.) — pula produção” aplica direto: PATCH isReuse + creator-review vazio, como antes", async () => {
+  it("“Reaproveitar tudo (6 un.) — vai para o módulo Reaproveitar” aplica direto: PATCH isReuse + creator-review vazio, como antes", async () => {
     const f = await montarRevisao();
     await act(async () => { fireEvent.click(tid("button-reuse-modal")!); });
-    await esperar(() => !!botaoComTexto("Reaproveitar tudo (6 un.) — pula produção"), "o modal abre com as opções de sempre");
+    await esperar(() => !!botaoComTexto("Reaproveitar tudo (6 un.) — vai para o módulo Reaproveitar"), "o modal abre com as opções de sempre");
     expect(tid("pedir-ao-estoque")).toBeNull();
     expect(tid("ja-conferi-aplicar-agora")).toBeNull();
-    await act(async () => { fireEvent.click(botaoComTexto("Reaproveitar tudo (6 un.) — pula produção")!); });
+    await act(async () => { fireEvent.click(botaoComTexto("Reaproveitar tudo (6 un.) — vai para o módulo Reaproveitar")!); });
     await esperar(() => f.escritas().length === 2, "as duas escritas de sempre");
     expect(f.escritas()).toEqual([
       { url: "/api/items/i1", method: "PATCH", body: { isReuse: true, reuseQty: 6 } },
@@ -165,7 +165,7 @@ describe("Revisão Final com a chave desligada — o fluxo NORMAL de reaproveita
   it("admin vê o mesmo modal de antes (sem atalho escondido)", async () => {
     await montarRevisao({ papel: "admin" });
     await act(async () => { fireEvent.click(tid("button-reuse-modal")!); });
-    await esperar(() => !!botaoComTexto("Reaproveitar tudo (6 un.) — pula produção"), "as opções aparecem direto");
+    await esperar(() => !!botaoComTexto("Reaproveitar tudo (6 un.) — vai para o módulo Reaproveitar"), "as opções aparecem direto");
     expect(tid("ja-conferi-aplicar-agora")).toBeNull();
     expect(tid("pedir-ao-estoque")).toBeNull();
   });

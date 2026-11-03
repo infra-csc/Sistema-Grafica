@@ -134,13 +134,13 @@ describe("Análises › Pré-produção › Eventos × processo × prazo", () =>
     const linhaE1 = todos(c, "op-cal-linha")[0];
     // Todas as fases do e1 venceram, mas só layout (1 peça) e produção (2) têm peça
     // agora: aprovação, finalização e revisão não ficam vermelhas por causa da do layout.
-    expect(linhaE1.querySelector('[data-testid="op-cal-fases-atrasadas"]')!.textContent).toBe("2 fases atrasadas");
+    expect(linhaE1.querySelector('[data-testid="op-cal-fases-atrasadas"]')!.textContent).toBe("2 etapas atrasadas");
     expect([1, 2, 3, 4, 5].map((n) => linhaE1.querySelector(`[data-testid="op-cal-celula-f${n}"]`)!.getAttribute("data-situacao")))
       .toEqual(["atrasada", "aguardando", "aguardando", "aguardando", "atrasada"]);
     expect(linhaE1.querySelector(".pop-cal-celula[data-cal-celula=\"e1|1\"] [data-testid=\"op-cal-celula-info\"]")!.textContent).toMatch(/^1 pç · \d+d atraso$/);
     expect(linhaE1.querySelector('[data-testid="op-cal-saida-passou"]')).not.toBeNull();
-    expect(pelo(c, "op-cal")!.textContent).toContain("Cada peça conta uma vez, na fase em que está agora");
-    expect(pelo(c, "op-cal-contagem")!.textContent).toMatch(/3 eventos, 2 com fase atrasada/);
+    expect(pelo(c, "op-cal")!.textContent).toContain("Cada peça conta uma vez, na etapa em que está agora");
+    expect(pelo(c, "op-cal-contagem")!.textContent).toMatch(/3 eventos, 2 com etapa atrasada/);
     // Cada fase mostra a data do prazo (critério 3).
     for (const cel of linhaE1.querySelectorAll('[data-testid^="op-cal-celula-f"]')) expect(cel.textContent).toMatch(/\d{2}\/\d{2}/);
   });
@@ -158,7 +158,7 @@ describe("Análises › Pré-produção › Eventos × processo × prazo", () =>
     act(() => { fireEvent.click(celula); });
     const quadro = pelo(c, "op-cal-pecas")!;
     expect(quadro.textContent).toContain("Copa Norte — Produção gráfica");
-    expect(pelo(c, "op-cal-pecas-resumo")!.textContent).toMatch(/^2 peças atrasadas nesta fase · prazo da fase \d{2}\/\d{2}\/2026 \(vencido há \d+ dias?\)$/);
+    expect(pelo(c, "op-cal-pecas-resumo")!.textContent).toMatch(/^2 peças atrasadas nesta etapa · prazo da etapa \d{2}\/\d{2}\/2026 \(vencido há \d+ dias?\)$/);
     expect(todos(quadro, "op-tabela-cal-pecas-linha")).toHaveLength(naCelula);
     expect(quadro.textContent).toContain("Fura-fila");
     expect(celula.getAttribute("aria-pressed")).toBe("true");
@@ -199,12 +199,12 @@ describe("Análises › Pré-produção › Eventos × processo × prazo", () =>
   it("a legenda explica o tracejado (aguardando) e o cinza (concluída)", () => {
     const c = abrirCalendario();
     const legenda = pelo(c, "op-cal-legenda")!.textContent!;
-    expect(legenda).toContain("Vencida com peças nesta fase");
-    expect(legenda).toContain("Aguardando peças de fases anteriores");
+    expect(legenda).toContain("Vencida com peças nesta etapa");
+    expect(legenda).toContain("Aguardando peças de etapas anteriores");
     expect(legenda).toContain("Concluída");
   });
 
-  it("somente eventos com fase atrasada esconde os outros (e vai para a URL)", async () => {
+  it("somente eventos com etapa atrasada esconde os outros (e vai para a URL)", async () => {
     const c = abrirCalendario();
     act(() => { fireEvent.click(pelo(c, "op-cal-so-atrasadas")!); });
     expect(eventosDaGrade(c)).toEqual(["e1", "e2"]);

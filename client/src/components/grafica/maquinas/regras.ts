@@ -229,7 +229,7 @@ export const apoioDaPeca = (p: { material?: string | null; medida?: string | nul
 export { perguntaDaTroca };
 
 /** "A impressora está com #0384 — tire-a, troque-a de máquina ou espere acabar". */
-export const motivoImpressoraOcupada = (codigo: string | null) => `A impressora está com ${codigo ?? "outra peça"} — tire-a, troque-a de máquina ou espere acabar`;
+export const motivoImpressoraOcupada = (codigo: string | null) => `A impressora está com ${codigo ?? "outra peça"} — tire-a, troque-a de impressora ou espere acabar`;
 
 /** Livres primeiro (é nelas que dá para imprimir já), depois pelo código. */
 export function impressorasComLivresPrimeiro(ocupacao: OcupacaoDasImpressoras): string[] {

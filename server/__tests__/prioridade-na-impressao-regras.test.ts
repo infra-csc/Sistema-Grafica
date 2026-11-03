@@ -144,7 +144,7 @@ const naFila = (id: string, over: Partial<PecaNaFila> = {}): PecaNaFila => ({
   maquinaPrevista: null, m2: 1, saidaCaminhao: "2026-10-10T12:00:00Z", prazoProducaoGrafica: -1, ...over,
 });
 
-describe("Máquinas: a prioritária primeiro", () => {
+describe("Impressoras: a prioritária primeiro", () => {
   it("fila geral: a prioritária de evento mais distante passa à frente de todas", () => {
     const fila = [
       naFila("0001", { saidaCaminhao: "2026-10-10T12:00:00Z" }),

@@ -380,7 +380,7 @@ describe("AUTORREVISÃO — nenhum caminho leva o molde a imprimir, conferir, em
   });
 });
 
-describe("Máquinas — o molde não entra na fila das impressoras", () => {
+describe("Impressoras — o molde não entra na fila das impressoras", () => {
   const textoDoSql = (q: any): string =>
     (q?.queryChunks ?? []).map((c: any) => (typeof c === "string" ? c : Array.isArray(c?.value) ? c.value.join("") : "")).join("");
 

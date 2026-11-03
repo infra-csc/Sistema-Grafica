@@ -101,7 +101,7 @@ export function Esqueleto({ lento }: { lento: boolean }) {
   );
   return (
     <div role="status" aria-busy="true" data-testid="maquinas-carregando" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <span className="sr-only">Carregando as máquinas…</span>
+      <span className="sr-only">Carregando as impressoras…</span>
       {lento && (
         <p data-testid="maquinas-lento" style={{ margin: 0, fontSize: FS.body, lineHeight: 1.5, color: AMBAR.text, background: AMBAR.bg, border: `1px solid ${AMBAR.border}`, borderRadius: R.md, padding: "10px 14px" }}>
           Está demorando mais que o normal. A conexão do galpão pode estar lenta — a tela carrega assim que responder.
@@ -132,7 +132,7 @@ export function SeloDePrazo({ p, fonte }: { p: { data: string; diff: number } | 
   if (!p) return <span style={{ fontSize: fonte, color: T.second }}>Sem prazo</span>;
   const pal = p.diff < 0 ? VERMELHO : p.diff === 0 ? TOM.laranja : p.diff <= 3 ? AMBAR : { text: T.second, bg: T.low, border: T.border };
   return (
-    <Selo cores={pal} title={`Marco de Produção Gráfica em ${p.data}`} style={{ fontSize: fonte, padding: "2px 8px", fontVariantNumeric: "tabular-nums" }}>
+    <Selo cores={pal} title={`Prazo de Produção Gráfica em ${p.data}`} style={{ fontSize: fonte, padding: "2px 8px", fontVariantNumeric: "tabular-nums" }}>
       {textoDoPrazo(p)}
     </Selo>
   );

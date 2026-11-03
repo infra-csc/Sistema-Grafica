@@ -148,7 +148,7 @@ export const NOMES_DAS_MAQUINAS: Readonly<Record<string, string>> = {
 };
 
 export const rotuloDaMaquina = (m: string | null | undefined): string =>
-  m ? (NOMES_DAS_MAQUINAS[m] ?? `Impressora ${m}`) : "máquina não informada";
+  m ? (NOMES_DAS_MAQUINAS[m] ?? `Impressora ${m}`) : "impressora não informada";
 
 /**
  * TUBOS (dono, 14/09: "na hora da conferência muitas peças vão no mesmo tubo;

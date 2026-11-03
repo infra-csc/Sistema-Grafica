@@ -36,7 +36,7 @@ const GRAFICA = fonteDaGrafica();
 const FICHA = fonteDoComponente("client/src/components/item-details-dialog.tsx");
 const MODAL = ler("client/src/components/grafica/modal-impressao.tsx");
 
-describe("as máquinas", () => {
+describe("as impressoras", () => {
   it("são 1, 2, 3 e 4 — o banco guarda o código, a tela lê o nome do dono (21/09)", () => {
     expect([...MAQUINAS_DE_IMPRESSAO]).toEqual(["1", "2", "3", "4"]);
     expect(MAQUINAS_DE_IMPRESSAO.map(rotuloDaMaquina)).toEqual([
@@ -47,9 +47,9 @@ describe("as máquinas", () => {
     ]);
   });
 
-  it("máquina que não existe é recusada", () => {
+  it("impressora que não existe é recusada", () => {
     expect(ehMaquinaValida("2")).toBe(true);
-    for (const ruim of ["5", "0", "", null, undefined, 2, "Máquina 1"]) {
+    for (const ruim of ["5", "0", "", null, undefined, 2, "Impressora 1"]) {
       expect(ehMaquinaValida(ruim as any), String(ruim)).toBe(false);
     }
   });
@@ -57,13 +57,13 @@ describe("as máquinas", () => {
 
 describe("o segundo momento: registrar o que saiu", () => {
 
-  it("a máquina viaja no payload do registro", () => {
+  it("a impressora viaja no payload do registro", () => {
     const av = avaliarProducao({ quantity: 10, quantityProduced: 0, reuseQty: 0 } as any, 10, "2");
     expect(av.ok).toBe(true);
     expect(av.payload).toMatchObject({ quantityProduced: 10, expectedProduced: 0, printMachine: "2" });
   });
 
-  it("sem máquina, o payload continua o de antes (chamador antigo não quebra)", () => {
+  it("sem impressora, o payload continua o de antes (chamador antigo não quebra)", () => {
     const av = avaliarProducao({ quantity: 10, quantityProduced: 0, reuseQty: 0 } as any, 4);
     expect(av.payload).toEqual({ quantityProduced: 4, expectedProduced: 0 });
   });
@@ -72,7 +72,7 @@ describe("o segundo momento: registrar o que saiu", () => {
 describe("a tela obriga a escolha — no modal COMPARTILHADO (components/grafica/modal-impressao.tsx)", () => {
   // O modal saiu de grafica.tsx em 21/09 para servir também à aba Máquinas:
   // uma cópia só do formulário, das mutations e dos toasts.
-  it("a fila e a aba Máquinas importam o mesmo modal", () => {
+  it("a fila e a aba Impressoras importam o mesmo modal", () => {
     expect(GRAFICA).toContain('from "@/components/grafica/modal-impressao"');
     expect(GRAFICA).toContain("useMutacoesDeImpressao({ onSucesso:");
     expect(GRAFICA).toContain("<FormularioDeImpressao");
@@ -82,23 +82,23 @@ describe("a tela obriga a escolha — no modal COMPARTILHADO (components/grafica
     expect(GRAFICA).not.toContain("productionData");
   });
 
-  it("o modal tem o seletor das quatro máquinas", () => {
+  it("o modal tem o seletor das quatro impressoras", () => {
     expect(MODAL).toContain('data-testid="seletor-maquina"');
     expect(MODAL).toContain("MAQUINAS_DE_IMPRESSAO.map((m) =>");
   });
 
-  it("nem informar impressas nem iniciar funcionam sem máquina", () => {
+  it("nem informar impressas nem iniciar funcionam sem impressora", () => {
     expect(MODAL).toContain("const pode = !!maquinaEscolhida && conta.valida && !escolhidaOcupada && !startPrintingMutation.isPending;");
-    expect(MODAL).toContain('toast({ title: "Escolha a máquina"');
+    expect(MODAL).toContain('toast({ title: "Escolha a impressora"');
   });
 
-  it("existe o botão de iniciar; a troca de máquina vive num painel próprio", () => {
+  it("existe o botão de iniciar; a troca de impressora vive num painel próprio", () => {
     expect(MODAL).toContain('data-testid="button-iniciar-impressao"');
     expect(MODAL).toContain('data-testid="button-trocar-maquina"');
     expect(MODAL).toContain("const trocando = emImpressao && !!maquinaAtual;");
   });
 
-  it("a fila mostra em que máquina a peça está e o progresso — o botão só diz o gesto", () => {
+  it("a fila mostra em que impressora a peça está e o progresso — o botão só diz o gesto", () => {
     expect(GRAFICA).toContain("function ProgressoImpressao(");
     expect(GRAFICA).toContain("isInProd(item) && <ProgressoImpressao item={item} fonte={10.5} duasLinhas onIniciarResto=");
     expect(GRAFICA).toContain("isInProd(item) ? rotuloAcaoImpressao(item)");
@@ -128,7 +128,7 @@ describe("a impressão é informada AOS POUCOS (dono, 14/09)", () => {
     expect(MODAL).toContain("title: `Impressas informadas${cod}`");
   });
 
-  it("o campo diz o que se lança: quantas já saíram da máquina", () => {
+  it("o campo diz o que se lança: quantas já saíram da impressora", () => {
     // Dono, 21/09: o campo pergunta o que saiu AGORA; o total é calculado.
     expect(MODAL).toContain("Quantas saíram agora?");
   });
@@ -156,7 +156,7 @@ describe("os nomes novos — com a trilha antiga ainda legível", () => {
     expect(FICHA).toContain('keywords: ["impresso / acabamento", "acabamento / conferência", "produzido"]');
   });
 
-  it("a ficha diz em que máquina a peça está", () => {
+  it("a ficha diz em que impressora a peça está", () => {
     expect(FICHA).toContain("na ${rotuloDaMaquina(item.printMachine)}");
   });
 });

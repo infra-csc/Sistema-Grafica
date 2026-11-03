@@ -121,7 +121,7 @@ describe("Gráfica com peça travada", () => {
   });
 });
 
-describe("Máquinas com peça travada", () => {
+describe("Impressoras com peça travada", () => {
   it("a peça travada na fila tem o mesmo selo e não Inicia / Imprime agora / Reserva", async () => {
     preparar(1600);
     window.history.replaceState({}, "", "/grafica/maquinas");

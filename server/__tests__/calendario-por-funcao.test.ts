@@ -26,7 +26,7 @@ describe("calendário: cada função vê o que precisa", () => {
     expect(CAL).toContain('grafica: ["deadlineProducaoGrafica"],');
   });
 
-  it("admin (e papel fora do mapa) vê tudo; os demais têm a saída 'Todos os marcos'", () => {
+  it("admin (e papel fora do mapa) vê tudo; os demais têm a saída 'Todos os prazos'", () => {
     expect(CAL).toContain('const marcosDoPapel = MARCOS_POR_PAPEL[user?.role ?? ""] ?? null;');
     expect(CAL).toContain("(!marcosDoPapel || verTodosOsMarcos)");
     expect(CAL).toContain('data-testid="button-marcos-da-funcao"');

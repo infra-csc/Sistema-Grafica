@@ -12,7 +12,7 @@ export type ResultadoDoLote = {
 };
 
 export const MAXIMO_DO_LOTE = 100;
-export const FALHA_GENERICA = "Não foi possível registrar a entrega deste volume — tente de novo.";
+export const FALHA_GENERICA = "Não foi possível registrar a entrega deste tubo ou embalagem — tente de novo.";
 
 /** Ids únicos e não vazios, na ordem em que vieram. */
 export function idsDoLote(bruto: unknown): string[] {

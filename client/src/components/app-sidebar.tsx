@@ -92,13 +92,13 @@ const fluxoItems: MenuItem[] = [
   { title: "Reaproveitar",            url: "/reaproveitar",            icon: Recycle,        roles: ["grafica", "solicitacao", "admin"] },
   // A aba de impressoras (dono, 14/09): o que cada uma imprime agora e o
   // diário do dia. Mesmos papéis da Gráfica (ROLES_GRAFICA no App).
-  { title: "Máquinas da Gráfica",     url: "/grafica/maquinas",        icon: Cog,            roles: ["grafica", "solicitacao", "admin"] },
+  { title: "Impressoras",     url: "/grafica/maquinas",        icon: Cog,            roles: ["grafica", "solicitacao", "admin"] },
   // A caixa da Gráfica (dono, 21/09): só com a chave ligada — ver
   // ITEM_SOLICITACOES_AO_ESTOQUE abaixo.
   ...(SOLICITACAO_AO_ESTOQUE_ATIVA ? [ITEM_SOLICITACOES_AO_ESTOQUE] : []),
   // O lugar único dos pedidos de peça (dono, 14/09): o Atendimento pede, a
   // Solicitação resolve — aqui e pelos eventos.
-  { title: "Solicitação de peças",    url: "/pedidos-de-peca",         icon: Inbox,          roles: ["atendimento", "solicitacao", "admin"] },
+  { title: "Pedidos de peças",    url: "/pedidos-de-peca",         icon: Inbox,          roles: ["atendimento", "solicitacao", "admin"] },
   { title: "Modelos",                 url: "/modelos",                 icon: Layers,         roles: ["solicitacao", "admin"], semKit: true },
 ];
 
@@ -134,7 +134,7 @@ const adminItems: MenuItem[] = [
   // 26/10: regras gerais do app — hoje, a duração da etapa de Aprovação.
   { title: "Configurações",   url: "/configuracoes", icon: SlidersHorizontal },
   { title: "Correção de textos", url: "/reparo-motivos", icon: Wand2 },
-  { title: "Notificações",    url: "/notificacoes", icon: Bell },
+  { title: "Avisos por e-mail",    url: "/notificacoes", icon: Bell },
   { title: "Reparar vínculos", url: "/reparo-vinculos-evento", icon: Link2 },
   { title: "Inferir executivos", url: "/inferir-executivos", icon: UserCheck },
   { title: "Logs do Sistema", url: "/logs-sistema", icon: ScrollText },
@@ -171,7 +171,7 @@ const DESCRICAO_DA_TELA: Record<string, string> = {
   "/historico": "Tudo o que foi feito no sistema, por quem e quando",
   "/versoes": "Qual versão da arte cada patrocinador aprovou, e os books",
   "/registros": "Fotos de conferência e de entrega de todas as peças",
-  "/analises": "Status de todas as fases: atrasos, gargalos, filas e desempenho",
+  "/analises": "Status de todas as etapas: atrasos, gargalos, filas e desempenho",
   "/patrocinadores": "Cadastro, executivo responsável e regra de aprovação de cada patrocinador",
   "/configurar-cotas": "Quais grupos de peças cada cota de patrocinador recebe",
   "/triagem-retorno": "Peças que voltaram de evento: avaliar a condição e decidir o destino",

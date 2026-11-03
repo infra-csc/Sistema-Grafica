@@ -228,9 +228,9 @@ const ROUTE_LABELS: Record<string, string> = {
   // Mesmo rótulo do menu (16/09): o status que traz a peça para cá é
   // "Aguardando Revisão Final".
   "/solicitacao": "Revisão Final",
-  "/pedidos-de-peca": "Solicitação de peças",
+  "/pedidos-de-peca": "Pedidos de peças",
   "/grafica": "Gráfica",
-  "/grafica/maquinas": "Máquinas da Gráfica",
+  "/grafica/maquinas": "Impressoras",
   "/reaproveitar": "Reaproveitar",
   "/grafica/solicitacoes-ao-estoque": "Solicitações ao estoque",
   "/modelos": "Modelos",
@@ -246,7 +246,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "/estoque": "Estoque",
   "/usuarios": "Usuários",
   "/logs-sistema": "Logs do Sistema",
-  "/notificacoes": "Notificações",
+  "/notificacoes": "Avisos por e-mail",
   "/reparo-motivos": "Correção de textos",
   "/configuracoes": "Configurações",
   "/reparo-vinculos-evento": "Reparo de vínculos",

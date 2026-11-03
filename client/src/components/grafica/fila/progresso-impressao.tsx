@@ -40,7 +40,7 @@ export function ProgressoImpressao({ item, fonte, duasLinhas, onIniciarResto }: 
       <div style={{ fontSize: fonte, color: T.accentText, fontWeight: 700, lineHeight: 1.3, fontVariantNumeric: "tabular-nums" }}>
         {maquina && (
           <span style={{ display: linhaPropria ? "block" : "inline" }}>
-            <Link href={linkDaImpressoraEmMaquinas(alvo ?? Object.keys(n.partes)[0] ?? "", item.id)} onClick={(e) => e.stopPropagation()} data-testid={`link-ver-na-maquina-${item.id}`} title="Ver esta peça no cartão da impressora, em Máquinas" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: 2, display: "inline-flex", alignItems: "center", minHeight: fonte >= 12 ? 44 : 24 }}>{maquina}</Link>
+            <Link href={linkDaImpressoraEmMaquinas(alvo ?? Object.keys(n.partes)[0] ?? "", item.id)} onClick={(e) => e.stopPropagation()} data-testid={`link-ver-na-maquina-${item.id}`} title="Ver esta peça no cartão da impressora, em Impressoras" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: 2, display: "inline-flex", alignItems: "center", minHeight: fonte >= 12 ? 44 : 24 }}>{maquina}</Link>
             {linhaPropria ? <span className="sr-only"> · </span> : " · "}
           </span>
         )}

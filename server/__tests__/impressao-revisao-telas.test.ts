@@ -162,7 +162,7 @@ async function montarMaquinas() {
   return { queryClient, trocar: (r: any) => { atual = r; } };
 }
 
-describe("Máquinas montada", () => {
+describe("Impressoras montada", () => {
   it("[4] a peça de evento finalizado pausada no topo NÃO é a 'Próxima' — a próxima é a primeira que pode entrar; ela só oferece 'Devolver'", async () => {
     await montarMaquinas();
     const pa = $('[data-testid="button-iniciar-fila-pa"]') as HTMLButtonElement;

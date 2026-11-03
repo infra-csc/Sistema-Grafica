@@ -222,7 +222,7 @@ describe("Arte — o que ficou padronizado, e os quatro que o dono manteve segme
     // passou por definição — o recorte não existe em vez de mentir. O
     // comentário do bloco é o contrato escrito; o que se trava aqui é que o
     // segmentado de Prazo continua existindo para as outras abas.
-    expect(ARTE).toContain('aria-label="Prazo da fase" data-testid="segment-atrasado"');
+    expect(ARTE).toContain('aria-label="Prazo da etapa" data-testid="segment-atrasado"');
   });
 });
 

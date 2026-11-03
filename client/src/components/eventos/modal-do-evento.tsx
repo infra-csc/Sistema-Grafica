@@ -72,7 +72,7 @@ export function ModalDoEvento({ form, isMobile, dedo, sponsors, sponsorsQueryLoa
             {soPatrocinadoresNoModal ? 'Vincular patrocinadores' : modalMode === 'edit' ? 'Editar evento' : modalMode === 'duplicate' ? 'Duplicar evento' : 'Novo evento'}
           </DialogTitle>
           <DialogDescription className="sr-only">
-            Nome, prioridade, datas, prazos dos 5 marcos e patrocinadores do evento.
+            Nome, prioridade, datas, os 5 prazos e patrocinadores do evento.
           </DialogDescription>
           <ModalHeader
             icon={soPatrocinadoresNoModal ? Building2 : modalMode === 'edit' ? Pencil : modalMode === 'duplicate' ? Copy : CalendarPlus}

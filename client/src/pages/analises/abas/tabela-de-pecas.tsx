@@ -39,8 +39,8 @@ export function TabelaDePecas({ pecas, nomes, testId, vazio, mostrarEvento = tru
           render: (p) => <span className="pop-texto-longo" title={p.descricao} style={{ fontSize: FS.body }}>{p.descricao || "—"}</span> },
         { id: "qtd", rotulo: "Qtd", alinhar: "direita", ordenavel: true, valor: (p) => p.quantidade },
         { id: "status", rotulo: "Status", ordenavel: true, valor: (p) => rotuloDaEtapaNoPainel(p.etapa), render: (p) => <StatusDaLinha p={p} /> },
-        { id: "fase", rotulo: "Fase atual", ordenavel: true, ocultarNoCelular: true, valor: (p) => FASES_DO_PAINEL[p.fase] ?? "—" },
-        { id: "prazo", rotulo: "Prazo da fase", ordenavel: true, valor: (p) => p.prazoFase, render: (p) => <PrazoDaLinha p={p} /> },
+        { id: "fase", rotulo: "Etapa atual", ordenavel: true, ocultarNoCelular: true, valor: (p) => FASES_DO_PAINEL[p.fase] ?? "—" },
+        { id: "prazo", rotulo: "Prazo da etapa", ordenavel: true, valor: (p) => p.prazoFase, render: (p) => <PrazoDaLinha p={p} /> },
         { id: "atraso", rotulo: "Atraso (dias)", alinhar: "direita", ordenavel: true, valor: (p) => p.diasAtraso, render: (p) => <AtrasoDaLinha p={p} /> },
         ...(mostrarFuraFila ? [{ id: "fura", rotulo: "Fura-fila", ordenavel: true, valor: (p: PecaDaLinha) => (p.furaFila ? "Sim" : "Não"), render: (p: PecaDaLinha) => <SimNao sim={p.furaFila} /> }] : []),
       ]}

@@ -90,7 +90,7 @@ describe("Análises — Painel operacional", () => {
   it("abre no Painel geral com a frase, os seis números e os eventos ativos", () => {
     const { container: c } = render(h(Analises));
     expect(pelo(c, "title-analises")!.textContent).toBe("Análises");
-    expect(pelo(c, "painel-op-frase")!.textContent).toMatch(/2 eventos estão atrasados, com \d+ peças fora do prazo da fase/);
+    expect(pelo(c, "painel-op-frase")!.textContent).toMatch(/2 eventos estão atrasados, com \d+ peças fora do prazo da etapa/);
     for (const id of ["op-kpi-eventos-atrasados", "op-kpi-pecas-fora", "op-kpi-saidas", "op-kpi-abertas", "op-kpi-m2-7d", "op-kpi-m2-falta"]) {
       expect(pelo(c, id), id).not.toBeNull();
     }
@@ -116,7 +116,7 @@ describe("Análises — Painel operacional", () => {
     act(() => { fireEvent.click(abertura); });
     expect(pelo(c, "aba-painel-evento")).not.toBeNull();
     expect(pelo(c, "op-evento-fatos")!.textContent).toContain("Abertura Sul");
-    expect(pelo(c, "op-evento-alerta")!.textContent).toMatch(/fase(s)? atrasada/);
+    expect(pelo(c, "op-evento-alerta")!.textContent).toMatch(/etapa(s)? atrasada/);
     expect(c.querySelectorAll('[data-testid="op-tabela-evento-pecas-linha"]')).toHaveLength(4);
     await esperarUrl();
     expect(window.location.search).toContain("ev=e2");

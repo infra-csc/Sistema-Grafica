@@ -73,7 +73,7 @@ describe("Mudança 1 · a timeline diz quantas peças estão atrás de cada marc
   });
 
   it("o title diz o número por extenso e que dá para clicar", () => {
-    expect(ED).toContain("return `${base} — nenhuma peça atrás deste marco`;");
+    expect(ED).toContain("return `${base} — nenhuma peça atrás deste prazo`;");
     expect(ED).toContain("'peça ainda não passou', 'peças ainda não passaram'");
     expect(ED).toContain("'Clique para ver só essas'");
   });
@@ -82,7 +82,7 @@ describe("Mudança 1 · a timeline diz quantas peças estão atrás de cada marc
 describe("Mudança 2 · frase de resolução e barra de fases no cabeçalho", () => {
   it("a frase existe, com as três formas e concordância", () => {
     expect(ED).toContain('data-testid="text-resolucao"');
-    expect(ED).toContain("'marco já venceu', 'marcos já venceram'");
+    expect(ED).toContain("'prazo já venceu', 'prazos já venceram'");
     expect(ED).toContain("'peça atrás', 'peças atrás'");
     expect(ED).toContain("return `Todas as ${t} ${plural(t, 'peça entregue', 'peças entregues')}.`;");
     expect(ED).toContain("' O caminhão sai hoje.'");

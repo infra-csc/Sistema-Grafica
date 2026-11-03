@@ -92,7 +92,7 @@ export function FasesESelecao({
   const seletorDeFase = (
     <FilterSelect
       kind="field" hideSearch hideWhenEmpty={false} fullWidth
-      label="Fase"
+      label="Etapa"
       value={activeTab}
       onChange={changeTab}
       options={faseFilterOptions}
@@ -104,7 +104,7 @@ export function FasesESelecao({
   if (isMobile) return (
     <div data-testid="linha-fase-mobile" style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ flex: '1 1 0', minWidth: 0 }} aria-label={`Fase aberta: ${faseAtualCount} ${faseAtualCount === 1 ? 'peça' : 'peças'}`} role="group">
+        <div style={{ flex: '1 1 0', minWidth: 0 }} aria-label={`Etapa aberta: ${faseAtualCount} ${faseAtualCount === 1 ? 'peça' : 'peças'}`} role="group">
           {seletorDeFase}
         </div>
         {ordenar}
@@ -150,7 +150,7 @@ export function FasesESelecao({
             }))}
             ativo={activeTab}
             aoTrocar={changeTab}
-            rotuloDaLista="Fases da Arte"
+            rotuloDaLista="Etapas da Arte"
             prefixoDeTestId="tab"
           />
         </div>

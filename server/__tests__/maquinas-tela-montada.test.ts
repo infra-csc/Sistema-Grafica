@@ -196,7 +196,7 @@ describe("as frases puras", async () => {
   });
 });
 
-describe("a aba Máquinas no desktop", () => {
+describe("a aba Impressoras no desktop", () => {
   it("AGORA: quatro cartões com os nomes do dono, progresso em palavras e 'Livre' com atalho", async () => {
     await montar(1280, retrato());
     const nomes = $$('[data-testid^="maquina-agora-"] h3').map((e) => e.textContent);
@@ -350,7 +350,7 @@ describe("a aba Máquinas no desktop", () => {
     // A primeira pintura é a silhueta, não um spinner.
     expect($('[data-testid="maquinas-carregando"]') || $('[data-testid="maquinas-erro"]')).toBeTruthy();
     for (let i = 0; i < 40 && !$('[data-testid="maquinas-erro"]'); i++) await tick(50);
-    expect($('[data-testid="maquinas-erro"]')!.textContent).toContain("Não foi possível carregar as máquinas");
+    expect($('[data-testid="maquinas-erro"]')!.textContent).toContain("Não foi possível carregar as impressoras");
     expect($('[data-testid="button-tentar-novamente"]')).toBeTruthy();
     qc.clear();
   }, 20_000);
@@ -380,14 +380,14 @@ describe("segunda passada: nada cortado, trocar direto, resumo e Excel", () => {
     expect($$('[data-testid^="maquina-agora-"] *').filter((e) => e.style.textOverflow === "ellipsis")).toEqual([]);
   });
 
-  it("'Trocar de máquina' no cartão abre o modal já no painel de troca, com o título dizendo isso", async () => {
+  it("'Trocar de impressora' no cartão abre o modal já no painel de troca, com o título dizendo isso", async () => {
     await montar(1280, retrato());
     const trocar = $('[data-testid="button-trocar-maquina-p1"]')!;
-    expect(trocar.textContent).toContain("Trocar de máquina");
+    expect(trocar.textContent).toContain("Trocar de impressora");
     await act(async () => { fireEvent.click(trocar); });
     await tick(30);
     const dialogo = $('[role="dialog"]')!;
-    expect(dialogo.textContent).toContain("Trocar de máquina — Impressora 1 (New XT)");
+    expect(dialogo.textContent).toContain("Trocar de impressora — Impressora 1 (New XT)");
     expect($('[data-testid="painel-troca"]')).toBeTruthy();
     expect(($('[data-testid="maquina-1"]') as HTMLButtonElement).disabled).toBe(true);
     const mover = () => $('[data-testid="button-iniciar-impressao"]') as HTMLButtonElement;
@@ -412,7 +412,7 @@ describe("segunda passada: nada cortado, trocar direto, resumo e Excel", () => {
     expect(JSON.parse(String(chamada[1].body))).toEqual({ printMachine: "2" });
   });
 
-  it("no modal aberto em 'impressas', o 'Trocar de máquina' é um botão contornado — não um link perdido", async () => {
+  it("no modal aberto em 'impressas', o 'Trocar de impressora' é um botão contornado — não um link perdido", async () => {
     await montar(1280, retrato());
     await act(async () => { fireEvent.click($('[data-testid="button-impressas-p1"]')!); });
     await tick(30);
@@ -422,11 +422,11 @@ describe("segunda passada: nada cortado, trocar direto, resumo e Excel", () => {
     expect(px(b.style.minHeight)).toBeGreaterThanOrEqual(34);
   });
 
-  it("RESUMO do dia: uma linha por impressora com unidades, peças, concluídas, na máquina, atividade, tempo e quem — e o total", async () => {
+  it("RESUMO do dia: uma linha por impressora com unidades, peças, concluídas, na impressora, atividade, tempo e quem — e o total", async () => {
     await montar(1280, retrato(), { url: "/grafica/maquinas?aba=resumo" });
     expect($('[data-testid="resumo-periodo"]')!.textContent).toBe("Hoje · 7 unidades impressas");
     const cabecalhos = $$('[data-testid="resumo-tabela"] th').map((e) => e.textContent);
-    expect(cabecalhos).toEqual(["Impressora", "Unidades", "Peças", "Concluídas", "Na máquina", "Atividade", "Tempo ativo", "Quem"]);
+    expect(cabecalhos).toEqual(["Impressora", "Unidades", "Peças", "Concluídas", "Na impressora", "Atividade", "Tempo ativo", "Quem"]);
     const celulas = (id: string) => $$(`[data-testid="${id}"] td`).map((e) => e.textContent);
     expect(celulas(`resumo-${HOJE}-1`)).toEqual(["Impressora 1 (New XT)", "3", "1", "0", "1", "09:00 → 10:12", "1h 12min", "Ana"]);
     expect(celulas(`resumo-${HOJE}-3`)).toEqual(["Impressora 3", "0", "0", "0", "0", "—", "—", "—"]);
@@ -927,7 +927,7 @@ describe("fila geral: Imprimir agora, sem modal", () => {
     expect($('[data-testid="button-iniciar-fila-f4"]'), "sem Iniciar desabilitado na peça").toBeNull();
     const motivos = $$('[data-testid="fila-maquina-1"] [role="status"]');
     expect(motivos.length, "o aviso aparece uma vez só").toBe(1);
-    expect(motivos[0].textContent).toBe("A impressora está com #0101 — tire-a, troque-a de máquina ou espere acabar");
+    expect(motivos[0].textContent).toBe("A impressora está com #0101 — tire-a, troque-a de impressora ou espere acabar");
     expect(px((motivos[0] as HTMLElement).style.fontSize)).toBe(12);
     expect($$('[data-testid="fila-maquina-1"] [data-testid^="button-imprimir-no-lugar-fila-"]').length, "uma troca por peça").toBe((r.maquinas[0] as any).naFila.length);
     expect($('[data-testid="mover-fila-f4"]')).toBeTruthy(); // a outra saída continua ali
@@ -1169,7 +1169,7 @@ describe("duas peças 2×1 são distinguíveis em cada lista, e o título abre a
 // está estranho, parece que está cortando algo").
 // ─────────────────────────────────────────────────────────────────────────────
 describe("impressora nunca trava, sem duplo disparo, modal sabe das ocupadas, barra de progresso", () => {
-  it("[GRAVE] peça de evento JÁ REALIZADO: 'Trocar de máquina' fica bloqueado, 'Impressas' não (IMPRESSAS_EM_EVENTO_REALIZADO) e 'Tirar da impressora' também não — senão a impressora travava para sempre", async () => {
+  it("[GRAVE] peça de evento JÁ REALIZADO: 'Trocar de impressora' fica bloqueado, 'Impressas' não (IMPRESSAS_EM_EVENTO_REALIZADO) e 'Tirar da impressora' também não — senão a impressora travava para sempre", async () => {
     const r = retrato();
     (r.maquinas[0].imprimindo[0] as any).eventoInfo = { id: "ev9", name: "Corrida de 2020", status: "created", startDate: "2020-01-01T00:00:00Z", reopenedAt: null };
     await montar(1280, r);
@@ -1273,7 +1273,7 @@ describe("impressora nunca trava, sem duplo disparo, modal sabe das ocupadas, ba
   });
 });
 
-describe("o modal de impressão com a peça FORA da máquina", () => {
+describe("o modal de impressão com a peça FORA da impressora", () => {
   it("só a impressora e UM botão; o campo que aparece é o de QUANTAS VÃO para a impressora — não o de impressas", async () => {
     prepararJsdom(1280);
     const { ModalImpressao } = await import("@/components/grafica/modal-impressao");
@@ -1383,7 +1383,7 @@ describe("o modal com a peça EM impressão mas SEM impressora anotada (legado)"
   });
 });
 
-describe("a aba Máquinas no celular", () => {
+describe("a aba Impressoras no celular", () => {
   it("sem tabela; alvos de 44; campo de data a 16px; nada mais largo que a tela", async () => {
     await montar(390, retrato(), { url: "/grafica/maquinas?aba=diario" });
     expect($("table")).toBeNull();

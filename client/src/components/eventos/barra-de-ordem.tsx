@@ -31,7 +31,7 @@ export function BarraDeOrdem({ ordem, setOrdem, isMobile, dedo }: {
   const refs = useRef<Partial<Record<OrdemDosEventos, HTMLButtonElement | null>>>({});
   const opcoes = ([
     ['saida', 'Saída do caminhão'],
-    ['marco', 'Marco mais crítico'],
+    ['marco', 'Prazo mais crítico'],
     ['nome', 'Nome'],
   ] as const);
   // Radiogroup de verdade: as setas trocam (o foco vai junto). Antes só o
@@ -82,7 +82,7 @@ export function BarraDeOrdem({ ordem, setOrdem, isMobile, dedo }: {
                 cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
               }}
             >
-              {isMobile && valor === 'saida' ? 'Saída' : isMobile && valor === 'marco' ? 'Marco crítico' : rotulo}
+              {isMobile && valor === 'saida' ? 'Saída' : isMobile && valor === 'marco' ? 'Prazo crítico' : rotulo}
             </button>
           );
         })}

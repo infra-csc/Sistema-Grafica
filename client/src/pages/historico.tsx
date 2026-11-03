@@ -392,7 +392,7 @@ function getInitials(name: string) {
 
 /* ── User avatar ──
    A versão anterior colapsava "Sistema" em "—" com a justificativa de que não
-   dava para afirmar que a máquina fez. Hoje dá: o servidor grava "Sistema" de
+   dava para afirmar que a impressora fez. Hoje dá: o servidor grava "Sistema" de
    forma EXPLÍCITA nos caminhos sem pessoa (derivação de status, cron,
    importação sem sessão) e nunca grava autor em branco. Continuar mostrando
    traço apagaria a única resposta honesta que essas linhas têm. */

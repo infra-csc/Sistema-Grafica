@@ -201,7 +201,7 @@ export const FilaAgrupada = memo(function FilaAgrupada({
       {/* A FAIXA DE ATENÇÃO — terceira forma (dono, 09/09: "está péssimo").
           O que estava errado não era a cor: era a faixa dizer três coisas com
           três aparências diferentes e UM comportamento só no meio delas.
-          "Paradas" era botão e filtrava; "passaram do marco" e "urgentes"
+          "Paradas" era botão e filtrava; "passaram do prazo" e "urgentes"
           eram texto morto — mesma pílula, mesmo peso, e o clique só
           funcionava num dos três. Pior: os dois mudos repetiam, com outro
           desenho, recortes que a barra "Mostrar" logo acima já oferece
@@ -226,12 +226,12 @@ export const FilaAgrupada = memo(function FilaAgrupada({
               testid: 'chip-atrasadas',
               ponto: TOM.perigo.text,
               n: tabId === activeTab ? atrasadasNaAba : atrasadas,
-              rotulo: emCartoes ? 'atrasadas' : 'passaram do marco',
+              rotulo: emCartoes ? 'atrasadas' : 'passaram do prazo',
               ligado: atrasadoFilter,
               alternar: () => setAtrasadoFilter(!atrasadoFilter),
               titulo: atrasadoFilter
-                ? 'Mostrar de novo todas as peças desta fase'
-                : 'Ver só as peças que já passaram do marco desta fase',
+                ? 'Mostrar de novo todas as peças desta etapa'
+                : 'Ver só as peças que já passaram do prazo desta etapa',
             },
             paradas > 0 && {
               chave: 'paradas' as const,
@@ -242,8 +242,8 @@ export const FilaAgrupada = memo(function FilaAgrupada({
               ligado: paradasFilter,
               alternar: () => setParadasFilter(v => !v),
               titulo: paradasFilter
-                ? 'Mostrar de novo todas as peças desta fase'
-                : `Ver só as peças paradas há mais de ${PARADA_HA_MAIS_DE} dias nesta fase`,
+                ? 'Mostrar de novo todas as peças desta etapa'
+                : `Ver só as peças paradas há mais de ${PARADA_HA_MAIS_DE} dias nesta etapa`,
             },
             urgentes > 0 && {
               chave: 'urgentes' as const,

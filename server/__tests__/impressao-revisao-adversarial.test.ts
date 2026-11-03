@@ -258,7 +258,7 @@ describe("5 · rotas vizinhas", () => {
   });
 });
 
-describe("6 · o resumo do dia: 'ainda na máquina'", () => {
+describe("6 · o resumo do dia: 'ainda na impressora'", () => {
   const em = (h: string) => Date.parse(`2026-09-22T${h}:00Z`);
   const reg = (id: string, itemId: string, maquina: string, tipo: string, hora: string, quantidade = 0) =>
     ({ id, itemId, displayId: itemId, tipoPeca: "Backdrop", evento: "X", maquina, tipo, quantidade, totalDepois: 0, aImprimir: 10, dia: "2026-09-22", hora, em: em(hora), quem: "Ana" });

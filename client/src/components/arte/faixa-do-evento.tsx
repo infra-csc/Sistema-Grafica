@@ -117,7 +117,7 @@ export function FaixaDoEvento({ bloco, prog, evTotal, noBloco, prioritarias = fa
             }),
           ].filter(Boolean).join(' · ');
           return (
-            <Selo data-testid="marco-da-fase" title={`Marco desta fase. ${todos}`} cores={s}
+            <Selo data-testid="marco-da-fase" title={`Prazo desta etapa. ${todos}`} cores={s}
               style={{ padding: '3px 9px', fontWeight: 700, ...(dedo ? { fontSize: 12 } : null) }}>
               {/* marginLeft e não o espaço do texto: o selo é inline-flex e o
                   espaço no começo de um item flex some — saía "06/10(4d)". */}

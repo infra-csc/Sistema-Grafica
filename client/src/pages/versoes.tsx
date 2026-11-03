@@ -279,7 +279,7 @@ export default function Versoes() {
     // prefers-reduced-motion.
     <div ref={raizRef} data-testid="raiz-versoes" style={{ height: "100%", overflowY: "auto", overflowX: "hidden", backgroundColor: T.bg }}>
       {/* ══ Cabeçalho ══ — a mesma anatomia das telas da casa (Histórico,
-          Máquinas): título, a pergunta da tela e, à direita, a ação que vale
+          Impressoras): título, a pergunta da tela e, à direita, a ação que vale
           para o recorte inteiro. O bloco laranja cheio ao lado do título saiu:
           era o único elemento da tela pintado de marca sem dizer nada. */}
       <div style={{ backgroundColor: T.surface, padding: apertado ? "16px 16px 0" : "22px 32px 0" }}>

@@ -278,7 +278,7 @@ describe("5. Registros e tubos pintam a miniatura; zoom e baixar, o original", (
   }, 30_000);
 });
 
-describe("6. o \"Ao vivo\" de Máquinas não repinta a página", () => {
+describe("6. o \"Ao vivo\" de Impressoras não repinta a página", () => {
   it("o halo anima só transform e opacity, e só com movimento liberado", () => {
     const pedacos = ler("client/src/components/grafica/maquinas/pedacos.tsx");
     expect(pedacos).not.toContain('className="maq-vivo"');

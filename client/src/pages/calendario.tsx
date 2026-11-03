@@ -769,7 +769,7 @@ export default function Calendario() {
 
         {/* ── Barra do escopo ──
             À esquerda, o que a grade está mostrando (e o que a busca achou);
-            à direita, QUAIS prazos ela desenha — com a saída "Todos os marcos"
+            à direita, QUAIS prazos ela desenha — com a saída "Todos os prazos"
             para quem tem o recorte da função. Antes os dois moravam no rodapé,
             abaixo de seis semanas de grade: ninguém achava o botão. */}
         {!isError && (
@@ -809,8 +809,8 @@ export default function Calendario() {
                 data-testid="button-marcos-da-funcao"
                 data-alvo-natural
                 title={verTodosOsMarcos
-                  ? "Voltar a ver só os marcos da sua função"
-                  : "A grade está mostrando só os marcos da sua função — clique para ver os seis"}
+                  ? "Voltar a ver só os prazos da sua função"
+                  : "A grade está mostrando só os prazos da sua função — clique para ver os seis"}
                 className="cal-chip"
                 style={{
                   display: "inline-flex", alignItems: "center", gap: 5, height: grosso ? 30 : 28, padding: "0 11px",
@@ -822,7 +822,7 @@ export default function Calendario() {
                 }}
               >
                 {verTodosOsMarcos && <Check aria-hidden="true" style={{ width: 13, height: 13 }} />}
-                {verTodosOsMarcos ? "Todos os marcos" : `Todos os marcos (${DEADLINE_TYPES.length})`}
+                {verTodosOsMarcos ? "Todos os prazos" : `Todos os prazos (${DEADLINE_TYPES.length})`}
               </button>
             )}
           </div>
@@ -1493,7 +1493,7 @@ export default function Calendario() {
                           )}
                           {soSemAprovacao && (
                             <span style={{ display: "block" }}>
-                              Só restam peças sem aprovação neste marco — elas vencem em {diaMes(soSemAprovacao)}.
+                              Só restam peças sem aprovação neste prazo — elas vencem em {diaMes(soSemAprovacao)}.
                             </span>
                           )}
                           {/* Marco que ANDOU por cair no fim de semana diz

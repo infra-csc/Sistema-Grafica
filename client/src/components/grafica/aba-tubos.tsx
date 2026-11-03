@@ -197,7 +197,7 @@ export function AbaTubos({ sugestaoRecebedor, onEntregou, onAbrirPeca }: {
         )}
       </p>
 
-      {/* Segmentos: o MESMO <Abas> da Gráfica e de Máquinas (setas, roving
+      {/* Segmentos: o MESMO <Abas> da Gráfica e de Impressoras (setas, roving
           tabindex e alvo de 44px moram lá). O wrapper guarda o testid antigo
           e a rolagem lateral do trilho no celular. */}
       <div style={{ position: "relative" }}>
@@ -246,7 +246,7 @@ export function AbaTubos({ sugestaoRecebedor, onEntregou, onAbrirPeca }: {
             onClick={() => setMarcados((m) => { const n = new Set(m); for (const t of doFiltro) { if (todosDoFiltroMarcados) n.delete(t.id); else n.add(t.id); } return n; })}>
             {todosDoFiltroMarcados ? "Desmarcar os deste filtro" : `Marcar todos deste filtro (${doFiltro.length})`}
           </Botao>
-          <span style={{ fontSize: FS.meta, color: COR.sec }}>Marque os volumes que saem juntos para entregar de uma vez.</span>
+          <span style={{ fontSize: FS.meta, color: COR.sec }}>Marque os tubos e embalagens que saem juntos para entregar de uma vez.</span>
         </div>
       )}
 
@@ -369,7 +369,7 @@ export function AbaTubos({ sugestaoRecebedor, onEntregou, onAbrirPeca }: {
           style={{ position: "sticky", bottom: 0, zIndex: 3, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap",
             padding: isMobile ? "10px 12px calc(10px + env(safe-area-inset-bottom))" : "10px 14px", borderRadius: isMobile ? 0 : R.lg, background: T.surface, border: `1px solid ${COR.borda}`, boxShadow: SHADOW.md }}>
           <span aria-live="polite" style={{ fontSize: isMobile ? FS.read : FS.body, color: COR.texto }}>
-            <strong>{plural(noLote.length, "volume marcado", "volumes marcados")}</strong> · {noLote.reduce((s, t) => s + t.unidades, 0)} un.
+            <strong>{plural(noLote.length, "tubo ou embalagem marcada", "tubos e embalagens marcados")}</strong> · {noLote.reduce((s, t) => s + t.unidades, 0)} un.
           </span>
           <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <Botao variante="fantasma" tamanho={tamanhoDoBotao} onClick={() => { setMarcados(new Set()); setRecusas({}); }} data-testid="limpar-lote">Limpar</Botao>

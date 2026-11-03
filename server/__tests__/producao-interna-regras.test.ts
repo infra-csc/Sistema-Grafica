@@ -49,7 +49,7 @@ describe("o botão aparece só quando vale", () => {
   });
 });
 
-describe("a máquina de estados e a regra dizem o mesmo", () => {
+describe("a impressora de estados e a regra dizem o mesmo", () => {
   it("a ação avulsa parte de draft/requested/awaiting_linking — ANTES_DA_ARTE sem o 'aguardando envio'", () => {
     expect(origemDaAcao("enviar-direto-para-a-grafica")).toEqual([...ENVIAVEL_DIRETO_PARA_A_GRAFICA]);
     expect(ANTES_DA_ARTE.filter((s) => s !== "awaiting_submission")).toEqual([...ENVIAVEL_DIRETO_PARA_A_GRAFICA]);

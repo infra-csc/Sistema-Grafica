@@ -197,7 +197,7 @@ export function BarraDeFiltros({
       atrasado" que já estão na tela. Ver lib/arte-rules.
       Em Finalizados o marco É a saída, que numa peça pronta já passou
       por definição: lá o recorte não existe em vez de mentir. */}
-  <div role="group" aria-label="Prazo da fase" data-testid="segment-atrasado"
+  <div role="group" aria-label="Prazo da etapa" data-testid="segment-atrasado"
     style={{ display: 'flex', alignItems: 'center', gap: 2, height: isMobile ? 'auto' : 36, padding: isMobile ? 0 : '0 3px', borderRadius: 9, background: N.n2, border: `1px solid ${T.border}`, boxSizing: 'border-box', flexShrink: 0 }}>
     <span style={{ fontSize: fsToque(11, dedo), fontWeight: 700, color: T.apoio, padding: '0 6px 0 8px' }}>Prazo</span>
     {([
@@ -211,8 +211,8 @@ export function BarraDeFiltros({
           aria-pressed={ativo} disabled={bloqueado}
           data-testid={`button-atrasado-${on ? 'sim' : 'nao'}`}
           title={bloqueado
-            ? "Em Finalizados o marco é a própria saída do caminhão, que numa peça pronta já passou — não há atraso a apontar"
-            : on ? "Só peças que já passaram do marco desta fase" : undefined}
+            ? "Em Finalizados o prazo é a própria saída do caminhão, que numa peça pronta já passou — não há atraso a apontar"
+            : on ? "Só peças que já passaram do prazo desta etapa" : undefined}
           style={{ display: 'inline-flex', alignItems: 'center', gap: 5, alignSelf: 'stretch', margin: isMobile ? 0 : '3px 0', minHeight: dedo ? ALVO_TOQUE : undefined, minWidth: dedo ? ALVO_TOQUE : undefined, justifyContent: 'center', padding: '0 10px', borderRadius: 6, border: 'none', cursor: bloqueado ? 'not-allowed' : 'pointer', opacity: bloqueado ? 0.5 : 1, fontSize: fsToque(11, dedo), fontWeight: ativo ? 700 : 600, background: ativo ? T.surface : T.bg, color: ativo ? T.text : T.apoio, boxShadow: ativo ? `inset 0 -2px 0 ${T.text}` : 'none', transition: 'all 0.12s' }}>
           {label}
           {on && !bloqueado && (

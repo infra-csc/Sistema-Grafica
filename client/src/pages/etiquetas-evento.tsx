@@ -780,7 +780,7 @@ export default function EtiquetasEvento() {
                   {ORDEM_DOS_TAMANHOS.map((t) => <option key={t} value={t}>{TAMANHOS[t].rotulo}</option>)}
                 </select>
               </label>
-              <label title="Quantas vezes cada lista sai — colam dos dois lados do volume." style={{ ...rotuloDeCampo, flex: "1 1 80px", minWidth: 0 }}>
+              <label title="Quantas vezes cada lista sai — colam dos dois lados do tubo." style={{ ...rotuloDeCampo, flex: "1 1 80px", minWidth: 0 }}>
                 Cópias
                 <select value={copias} onChange={(e) => setPrefs((p) => ({ ...p, copias: limitarCopias(e.target.value) }))} data-testid="select-copias-lista" className="etq-foco etq-campo" style={campo}>
                   {Array.from({ length: COPIAS_MAX }, (_, k) => k + 1).map((n) => <option key={n} value={n}>{n}</option>)}
@@ -808,7 +808,7 @@ export default function EtiquetasEvento() {
               <Segmento rotulo="Orientação da folha das etiquetas individuais" testid="orientacao" alvo={alvo} valor={orientacao} aoMudar={setOrientacao}
                 opcoes={[["paisagem", "Deitada"], ["retrato", "Em pé"]] as const} />
             </div>
-            <label style={linhaDeCaixa} title="Peça de 6 unidades vira 6 etiquetas numeradas — uma para cada volume.">
+            <label style={linhaDeCaixa} title="Peça de 6 unidades vira 6 etiquetas numeradas — uma para cada unidade.">
               <input type="checkbox" checked={porUnidade} onChange={(e) => setPorUnidade(e.target.checked)} data-testid="check-por-unidade" style={caixa} />
               Uma etiqueta por unidade (“3 de 6”)
             </label>

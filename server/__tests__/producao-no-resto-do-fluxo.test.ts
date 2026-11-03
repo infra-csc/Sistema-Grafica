@@ -103,7 +103,7 @@ describe("detalheDaProducao — a frase curta de cada etapa", () => {
     expect(fonte).not.toMatch(/color:\s*"#(f97316|a8a29e)"/i);
   });
 
-  it("sem duplicação: a conta vem da fonte única que a Gráfica e Máquinas leem", () => {
+  it("sem duplicação: a conta vem da fonte única que a Gráfica e Impressoras leem", () => {
     const fonte = ler("client/src/lib/detalhe-producao.ts");
     expect(fonte).toContain('from "@shared/progresso-da-impressao"');
     expect(fonte).not.toContain("DUPLICAÇÃO CONHECIDA");

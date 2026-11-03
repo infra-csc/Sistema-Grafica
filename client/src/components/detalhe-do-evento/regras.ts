@@ -200,7 +200,7 @@ export function fraseDeResolucao(
     // o total "atrás" é o do marco vencido mais avançado.
     const p = atrasDoMarco[vencidos[vencidos.length - 1].i];
     const n = vencidos.length;
-    return `${n} ${plural(n, 'marco já venceu', 'marcos já venceram')} com ${p} ${plural(p, 'peça atrás', 'peças atrás')}.${caminhao}`;
+    return `${n} ${plural(n, 'prazo já venceu', 'prazos já venceram')} com ${p} ${plural(p, 'peça atrás', 'peças atrás')}.${caminhao}`;
   }
   return `${entregues} de ${t} ${plural(t, 'peça entregue', 'peças entregues')} ·${caminhao ? caminhao.replace(/^ /, ' ').replace(/^ O/, ' o') : ' sem data de saída.'}`;
 }

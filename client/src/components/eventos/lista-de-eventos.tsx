@@ -234,7 +234,7 @@ export function ListaDeEventos({
             <span aria-hidden="true" />
             <span style={TH_LISTA}>Evento</span>
             <span style={TH_LISTA}>Saída</span>
-            <span style={TH_LISTA}>Próximo marco</span>
+            <span style={TH_LISTA}>Próximo prazo</span>
             <span style={TH_LISTA}>Peças</span>
             <span style={TH_LISTA}>Situação</span>
             <span aria-hidden="true" />

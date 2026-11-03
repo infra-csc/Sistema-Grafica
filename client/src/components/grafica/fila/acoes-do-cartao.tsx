@@ -127,7 +127,7 @@ export function AcoesDoCartao({ ctx, item, selo, gates }: {
               disabled={!!seloDaImpressao(item, selo)}
               title={seloDaImpressao(item, selo)
                 ? motivoAcaoBloqueada(seloDaImpressao(item, selo)!.motivo, "produzir")
-                : isInProd(item) ? tituloAcaoImpressao(item) : "Escolher a máquina e iniciar a impressão"}
+                : isInProd(item) ? tituloAcaoImpressao(item) : "Escolher a impressora e iniciar a impressão"}
               data-testid={`button-production-card-${item.id}`}
               {...bloqueioDaTrava(item)}
               style={{ ...flexPrincipal("produzir"), minHeight: 48, padding: '0 12px', whiteSpace: 'normal', textAlign: 'center', lineHeight: 1.15 }}

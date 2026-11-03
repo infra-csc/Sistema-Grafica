@@ -70,7 +70,7 @@ export default function AbaProblemas({ ctx }: { ctx: ContextoDoPainel }) {
         <h2 id="h-op-prob-kpis" className="sr-only">Problemas em aberto</h2>
         <GradeDeNumeros minimo={isMobile ? 150 : 190} rotulo="Problemas em aberto">
           <CartaoKpi data-testid="op-kpi-atraso-interno" rotulo={ROTULO_ATRASO_INTERNO} icone={AlertTriangle} valor={fmt0(atrasoInterno)} tom={atrasoInterno > 0 ? "perigo" : "neutro"}
-            sub={resumo.atrasadasAbertas > 0 ? `${fmt0(atrasoInterno)} de ${fmt0(resumo.atrasadasAbertas)} atrasadas · prazo da fase vencido` : "Prazo da fase atual vencido"}
+            sub={resumo.atrasadasAbertas > 0 ? `${fmt0(atrasoInterno)} de ${fmt0(resumo.atrasadasAbertas)} atrasadas · prazo da etapa vencido` : "Prazo da etapa atual vencido"}
             navegacao={atrasoInterno > 0} onClick={atrasoInterno > 0 ? () => irParaLista("atrasoInterno") : undefined} />
           <CartaoKpi data-testid="op-kpi-atraso-cliente" rotulo={ROTULO_ATRASO_DO_CLIENTE} icone={UserX} valor={fmt0(atrasoCliente)} tom={atrasoCliente > 0 ? TOM_DO_ATRASO_DO_CLIENTE : "neutro"}
             sub="Arte do cliente não chegou até o Layout ajustado"
@@ -185,7 +185,7 @@ export default function AbaProblemas({ ctx }: { ctx: ContextoDoPainel }) {
                 { id: "descricao", rotulo: "Descrição", ordenavel: true, ocultarNoCelular: true, valor: (p) => p.descricao || null,
                   render: (p) => <span className="pop-texto-longo" title={p.descricao} style={{ fontSize: FS.body }}>{p.descricao || "—"}</span> },
                 { id: "status", rotulo: "Status", ordenavel: true, valor: (p) => rotuloDaEtapaNoPainel(p.etapa), render: (p) => <StatusDaLinha p={p} /> },
-                { id: "prazo", rotulo: "Prazo da fase", ordenavel: true, ocultarNoCelular: true, valor: (p) => p.prazoFase, render: (p) => <PrazoDaLinha p={p} /> },
+                { id: "prazo", rotulo: "Prazo da etapa", ordenavel: true, ocultarNoCelular: true, valor: (p) => p.prazoFase, render: (p) => <PrazoDaLinha p={p} /> },
                 { id: "atraso", rotulo: "Dias de atraso", alinhar: "direita", ordenavel: true, valor: (p) => p.diasAtraso, render: (p) => <AtrasoDaLinha p={p} /> },
                 { id: "fura", rotulo: "Fura-fila", ordenavel: true, valor: (p) => (p.furaFila ? "Sim" : "Não"), render: (p) => <SimNao sim={p.furaFila} /> },
                 { id: "refacao", rotulo: "Refação", ordenavel: true, valor: (p) => (p.refacao ? "Sim" : "Não"), render: (p) => <SimNao sim={p.refacao} /> },

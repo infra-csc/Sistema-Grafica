@@ -801,7 +801,7 @@ export function registerSponsorRoutes(app: Express): void {
       // ou entregue (a tela esconde, mas era gate só de UI).
       // (a fase de vinculação: shared/maquina-de-estados.ts, "vincular-patrocinadores")
       if (!vemDeOrigemValida(currentItem.status, "vincular-patrocinadores")) {
-        return res.status(409).json({ error: `Peça não está em fase de vinculação (status atual: ${translateStatus(currentItem.status)})` });
+        return res.status(409).json({ error: `Peça não está em etapa de vinculação (status atual: ${translateStatus(currentItem.status)})` });
       }
 
       // Filtrar IDs nulos ou vazios e repetidos antes de inserir no banco

@@ -220,8 +220,8 @@ export function useFacetasDaFila({ items, filtros, ctxFiltros, groupOf }: {
         count: conta.get(m) ?? 0,
         pinned: true,
         title: m === SEM_IMPRESSORA
-          ? "Em impressão sem a máquina informada (peças de antes do controle de máquinas)."
-          : "Peças desta impressora — imprimindo, reservadas na fila dela ou já impressas nela (o mesmo cartão de Máquinas).",
+          ? "Em impressão sem a impressora informada (peças de antes do controle de impressoras)."
+          : "Peças desta impressora — imprimindo, reservadas na fila dela ou já impressas nela (o mesmo cartão de Impressoras).",
       }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gFacetPool, filtros.impressora]);

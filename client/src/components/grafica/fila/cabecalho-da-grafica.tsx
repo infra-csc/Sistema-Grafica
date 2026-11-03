@@ -159,21 +159,21 @@ export function AtalhosDaGrafica({ fila, isMobile, ponteiroGrosso, isExporting, 
   return (
     <>
     {/* A aba MÁQUINAS (dono, 14/09). Recortada numa impressora só,
-        a ida leva ao CARTÃO dela em Máquinas. No celular vira só o
+        a ida leva ao CARTÃO dela em Impressoras. No celular vira só o
         ícone; o chunk começa a descer no hover/foco/toque. */}
     <Link
       href={filtros.impressora.length === 1 && filtros.impressora[0] !== SEM_IMPRESSORA ? linkDaImpressoraEmMaquinas(filtros.impressora[0]) : "/grafica/maquinas"}
       data-testid="link-maquinas"
       className="ds-botao"
-      aria-label={isMobile ? "Máquinas: o que cada impressora imprime agora e o histórico do dia" : undefined}
-      title={filtros.impressora.length === 1 && filtros.impressora[0] !== SEM_IMPRESSORA ? `Ver a ${rotuloDaMaquina(filtros.impressora[0])} em Máquinas` : "O que cada impressora imprime agora e o histórico do dia"}
+      aria-label={isMobile ? "Impressoras: o que cada impressora imprime agora e o histórico do dia" : undefined}
+      title={filtros.impressora.length === 1 && filtros.impressora[0] !== SEM_IMPRESSORA ? `Ver a ${rotuloDaMaquina(filtros.impressora[0])} em Impressoras` : "O que cada impressora imprime agora e o histórico do dia"}
       onMouseEnter={() => prefetchRota("/grafica/maquinas")}
       onFocus={() => prefetchRota("/grafica/maquinas")}
       onTouchStart={() => prefetchRota("/grafica/maquinas")}
       style={{ ...linkSecundario, ...(isMobile ? { width: 44, padding: 0, flex: "0 0 44px" } : null) }}
     >
       <Printer aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0 }} />
-      {!isMobile && "Máquinas"}
+      {!isMobile && "Impressoras"}
     </Link>
     {/* Exportar Excel abre o recorte: lista atual ou eventos para fechamento.
         Continua disponível com a fila vazia; no celular o rótulo vai no aria-label. */}

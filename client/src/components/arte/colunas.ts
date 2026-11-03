@@ -88,7 +88,7 @@ export type ArteCol = { label: string; w: number | string; right?: boolean; sep?
  */
 export const DICA_DA_COLUNA: Record<string, string> = {
   'Arte': 'Dois ícones: thumb de aprovação (a imagem que o patrocinador aprova) e arquivo final (o que a Gráfica imprime). Verde = já subiu; passe o mouse no thumb para ver a prévia.',
-  'Prazo': 'O marco DESTA fase (não a saída do caminhão) e há quantos dias a peça está parada nela.',
+  'Prazo': 'O prazo DESTA etapa (não a saída do caminhão) e há quantos dias a peça está parada nela.',
   'Patroc.': 'Patrocinadores da peça. Em "Aguardando patrocinador", negrito com relógio = ainda não decidiu.',
   'Ações': 'O botão diz o próximo passo da peça; o "⋯" tem ver detalhes, prova em PDF, pular aprovação e devolver.',
 };

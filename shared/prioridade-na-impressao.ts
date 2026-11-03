@@ -171,7 +171,7 @@ export function lerPedidoDePrioridade(corpo: unknown): { ok: true; prioritaria: 
 /** A frase da trilha (audit_logs). */
 export function fraseDaTrilhaDaPrioridade(prioritaria: boolean, nome: string, etapa: string): string {
   return prioritaria
-    ? `Prioridade na impressão pedida por ${nome} (etapa: ${etapa}) — a peça passa à frente das outras na fila da Gráfica e na de Máquinas`
+    ? `Prioridade na impressão pedida por ${nome} (etapa: ${etapa}) — a peça passa à frente das outras na fila da Gráfica e na de Impressoras`
     : `Prioridade na impressão retirada por ${nome} (etapa: ${etapa})`;
 }
 

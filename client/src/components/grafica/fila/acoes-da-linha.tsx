@@ -382,7 +382,7 @@ export function AcoesDaLinha({ ctx, item, selo, emRevisao, isSelected, bulkEligi
                renderia 409. */
             title={seloDaImpressao(item, selo)
               ? motivoAcaoBloqueada(seloDaImpressao(item, selo)!.motivo, "produzir")
-              : isInProd(item) ? tituloAcaoImpressao(item) : "Escolher a máquina e iniciar a impressão"}
+              : isInProd(item) ? tituloAcaoImpressao(item) : "Escolher a impressora e iniciar a impressão"}
             data-testid={`button-production-${item.id}`}
             {...bloqueioDaTrava(item)}
           >

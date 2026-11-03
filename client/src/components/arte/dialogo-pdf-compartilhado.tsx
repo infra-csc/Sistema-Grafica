@@ -69,7 +69,7 @@ export function DialogoPdfCompartilhado({
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {/* Rótulo cinza como os dos outros modais (era marrom-laranja
                   #9d4300, uma sexta cor de rótulo na tela) e sem o zero à
-                  esquerda: "(05)" é notação de painel de máquina, não conta. */}
+                  esquerda: "(05)" é notação de painel de impressora, não conta. */}
               <h3 style={{ fontSize: fsToque(11, dedo), fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.apoio, margin: 0 }}>
                 {selectedItemIds.size} {selectedItemIds.size === 1 ? 'peça selecionada' : 'peças selecionadas'}
               </h3>

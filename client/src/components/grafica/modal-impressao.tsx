@@ -252,7 +252,7 @@ export function useMutacoesDeImpressao({ onSucesso }: { onSucesso?: () => void }
       toast(vars.trocando
         ? (vars.quantidade != null && (vars.ficam ?? 0) > 0
           ? { title: `${vars.quantidade} un. para a ${rotuloDaMaquina(vars.printMachine)}${cod}`, description: `${vars.ficam} ficam na ${rotuloDaMaquina(vars.deMaquina)}. Informe as impressas de cada impressora no cartão dela.` }
-          : { title: `Movida para a ${rotuloDaMaquina(vars.printMachine)}${cod}`, description: "O que já saiu fica anotado na máquina anterior." })
+          : { title: `Movida para a ${rotuloDaMaquina(vars.printMachine)}${cod}`, description: "O que já saiu fica anotado na impressora anterior." })
         : { title: `Em impressão na ${rotuloDaMaquina(vars.printMachine)}${cod}`, description: "Conforme as unidades saírem, informe quantas já foram impressas." });
     },
     // A causa mais comum do 409 aqui é a outra tela: a impressora foi ocupada
@@ -261,7 +261,7 @@ export function useMutacoesDeImpressao({ onSucesso }: { onSucesso?: () => void }
     onError: (error: Error, vars) => {
       invalidarTudo();
       toast({
-        title: vars.trocando ? "Não foi possível trocar de máquina" : "Não foi possível iniciar a impressão",
+        title: vars.trocando ? "Não foi possível trocar de impressora" : "Não foi possível iniciar a impressão",
         description: mensagemDeErroDaApi(error),
         variant: "destructive",
       });
@@ -279,7 +279,7 @@ export function useMutacoesDeImpressao({ onSucesso }: { onSucesso?: () => void }
 // uma peça da impressora nem imprimir outra no lugar sem trocar de tela.
 // Agora o modal das duas telas os oferece, pela MESMA mutation (e o cartão de
 // Máquinas também a usa): mesmo endpoint, mesmos toasts, mesmas chaves.
-export type PedidoDeMexer = { maquina: string; sai: OcupanteDaImpressora; entra?: { id: string; displayId?: string | null } | null; quantidade?: number | null; /** De qual RESERVA saem as unidades da que entra (o modal abriu da fila de outra impressora). */ reservaDe?: string | null; /** A que entra JÁ ESTÁ em impressão nesta outra impressora: as unidades mudam de máquina (modo mover). */ deMaquina?: string | null };
+export type PedidoDeMexer = { maquina: string; sai: OcupanteDaImpressora; entra?: { id: string; displayId?: string | null } | null; quantidade?: number | null; /** De qual RESERVA saem as unidades da que entra (o modal abriu da fila de outra impressora). */ reservaDe?: string | null; /** A que entra JÁ ESTÁ em impressão nesta outra impressora: as unidades mudam de impressora (modo mover). */ deMaquina?: string | null };
 export function useMexerNaImpressora({ onSucesso }: { onSucesso?: () => void } = {}) {
   const { toast } = useToast();
   return useMutation({
@@ -325,7 +325,7 @@ export function useReservarImpressora({ onSucesso }: { onSucesso?: () => void } 
         title: vars.quantidade != null
           ? (vars.maquina ? `${vars.quantidade} un. ${vars.deMaquina ? (vars.quantidade === 1 ? "movida" : "movidas") : (vars.quantidade === 1 ? "reservada" : "reservadas")} para a ${rotuloDaMaquina(vars.maquina)}` : `${vars.quantidade} un. ${vars.quantidade === 1 ? "devolvida" : "devolvidas"} à fila geral`)
           : vars.maquina ? `${plural(n, "peça reservada", "peças reservadas")} para a ${rotuloDaMaquina(vars.maquina)}` : `${plural(n, "peça devolvida", "peças devolvidas")} à fila geral`,
-        description: erros.length ? `${erros.length} não ${erros.length === 1 ? "entrou" : "entraram"}: ${erros.map((e) => e.displayId ?? "peça").join(", ")} — ${erros[0].erro}` : "Nada muda na etapa da peça — ela aparece na fila da impressora em Máquinas e com o selo \"Fila\" na Gráfica.",
+        description: erros.length ? `${erros.length} não ${erros.length === 1 ? "entrou" : "entraram"}: ${erros.map((e) => e.displayId ?? "peça").join(", ")} — ${erros[0].erro}` : "Nada muda na etapa da peça — ela aparece na fila da impressora em Impressoras e com o selo \"Fila\" na Gráfica.",
         // Nenhuma entrou pela REGRA (o servidor recusou cada uma): nada quebrou — é aviso.
         variant: erros.length && n === 0 ? "warning" : undefined,
       });
@@ -345,7 +345,7 @@ export function cabecalhoDoModalDeImpressao(item: PecaParaImprimir | null | unde
     const hora = horaDeInicio(item.productionStartedAt);
     if (abrirNaTroca && item.printMachine) {
       return {
-        title: `Trocar de máquina — ${rotuloDaMaquina(item.printMachine)}`,
+        title: `Trocar de impressora — ${rotuloDaMaquina(item.printMachine)}`,
         subtitle: `${hora ? `Desde ${hora} · ` : ""}escolha para onde a peça vai; o que já saiu fica anotado na atual`,
       };
     }
@@ -579,7 +579,7 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
   const gravarImpressas = async (total: number) => {
     if (envioRef.current || startProductionMutation.isPending) return;
     if (!maquinaAtual) {
-      toast({ title: "Escolha a máquina", description: "Diga em qual máquina a peça foi impressa antes de informar as impressas.", variant: "warning" });
+      toast({ title: "Escolha a impressora", description: "Diga em qual impressora a peça foi impressa antes de informar as impressas.", variant: "warning" });
       return;
     }
     let payload: DadosDeImpressas;
@@ -731,7 +731,7 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
             ? `Já saíram ${jaSairam} de ${teto}. Ao iniciar, a peça volta para "Em Impressão" e você informa o restante conforme sair.`
             : parteAIniciar
               ? `Só as unidades acima entram em impressão agora; o resto da peça continua reservado ou na fila geral.`
-              : `Ao iniciar, a peça fica "Em Impressão". Faltam ${remainingProduce(item)} un. — você informa quantas saíram conforme a máquina terminar.`}
+              : `Ao iniciar, a peça fica "Em Impressão". Faltam ${remainingProduce(item)} un. — você informa quantas saíram conforme a impressora terminar.`}
         </p>
         {quemSai && (
           <div role="alertdialog" aria-label="Imprimir esta no lugar" data-testid="troca-no-modal" style={{ display: "flex", flexDirection: "column", gap: 8, padding: "10px 12px", borderRadius: R.md, background: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, color: TOM.alerta.text, fontSize: fsMin(12), lineHeight: 1.45 }}>
@@ -883,7 +883,7 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
             // no tom da faixa: o dono não o achava no meio do laranja (21/09).
             style={{ minHeight: alvoDe(34, toque), padding: "0 12px", border: `1.5px solid ${TOM.laranja.text}`, color: TOM.laranja.text, fontSize: fsMin(12), flexShrink: 0, ...(isMobile ? { flex: "1 1 100%" } : {}) }}
           >
-            Trocar de máquina
+            Trocar de impressora
           </Botao>
         )}
       </div>
@@ -944,7 +944,7 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
           <p style={{ margin: 0, fontSize: fsMin(12), color: T.second, lineHeight: 1.45 }}>
             {maquinaAtual
               ? `O que já saiu (${jaSairam} de ${teto}) fica anotado na ${rotuloDaMaquina(maquinaAtual)}; o que for movido passa a contar na nova.`
-              : "Esta peça entrou em impressão antes do controle por máquina. Diga em qual impressora ela está para poder informar as impressas."}
+              : "Esta peça entrou em impressão antes do controle por impressora. Diga em qual impressora ela está para poder informar as impressas."}
           </p>
           <div data-testid="acoes-da-troca" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {!isMobile && botaoManter}

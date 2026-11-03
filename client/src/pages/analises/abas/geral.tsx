@@ -23,8 +23,8 @@ export default function AbaGeral({ ctx }: { ctx: ContextoDoPainel }) {
       <section aria-labelledby="h-op-kpis">
         <h2 id="h-op-kpis" className="sr-only">Resumo da operação</h2>
         <GradeDeNumeros minimo={isMobile ? 150 : 190} rotulo="Resumo da operação">
-          <CartaoKpi data-testid="op-kpi-eventos-atrasados" rotulo="Eventos atrasados" icone={AlertTriangle} valor={fmt0(kpis.atrasados)} tom={kpis.atrasados > 0 ? "perigo" : "neutro"} sub={`Alguma fase vencida com peça pendente${doEvento}`} />
-          <CartaoKpi data-testid="op-kpi-pecas-fora" rotulo="Peças fora do prazo" icone={CalendarClock} valor={fmt0(kpis.pecasAtrasadas)} tom={kpis.pecasAtrasadas > 0 ? "perigo" : "neutro"} sub={`Pendentes da fase vencida mais avançada${doEvento}`} />
+          <CartaoKpi data-testid="op-kpi-eventos-atrasados" rotulo="Eventos atrasados" icone={AlertTriangle} valor={fmt0(kpis.atrasados)} tom={kpis.atrasados > 0 ? "perigo" : "neutro"} sub={`Alguma etapa vencida com peça pendente${doEvento}`} />
+          <CartaoKpi data-testid="op-kpi-pecas-fora" rotulo="Peças fora do prazo" icone={CalendarClock} valor={fmt0(kpis.pecasAtrasadas)} tom={kpis.pecasAtrasadas > 0 ? "perigo" : "neutro"} sub={`Pendentes da etapa vencida mais avançada${doEvento}`} />
           <CartaoKpi data-testid="op-kpi-saidas" rotulo="Saídas em 7 dias" icone={Truck} valor={fmt0(kpis.saidas7d)} sub={`Caminhões de hoje a hoje + 7${doEvento}`} />
           <CartaoKpi data-testid="op-kpi-abertas" rotulo="Peças em aberto" icone={Layers} valor={fmt0(resumo.pecasAbertas)} sub="Não entregues, eventos ativos" />
           <CartaoKpi data-testid="op-kpi-m2-7d" rotulo="m² impressos · 7 dias" icone={Printer} valor={fmt0(resumo.m2Impresso7d)} sub={`Pelo fim da impressão${doEvento}`} />
@@ -33,7 +33,7 @@ export default function AbaGeral({ ctx }: { ctx: ContextoDoPainel }) {
       </section>
 
       <div className="pop-grade-2">
-        <SecaoDaAnalise id="h-op-status" testId="op-status" titulo="Peças em aberto por status" descricao="Eventos ativos. Em vermelho, as que já passaram do prazo da fase.">
+        <SecaoDaAnalise id="h-op-status" testId="op-status" titulo="Peças em aberto por status" descricao="Eventos ativos. Em vermelho, as que já passaram do prazo da etapa.">
           <BarrasEmpilhadas
             testId="op-status-barras"
             legenda="Peças em aberto por status, no prazo e atrasadas"

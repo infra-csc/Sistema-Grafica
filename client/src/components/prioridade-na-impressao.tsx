@@ -75,7 +75,7 @@ export function usePrioridadeNaImpressao(item: PecaComPrioridade | null | undefi
       toast({
         title: v.prioritaria ? `Prioridade pedida: ${rotulo}` : `Prioridade retirada: ${rotulo}`,
         description: v.prioritaria
-          ? "A Gráfica foi avisada. A peça passa à frente das outras na fila da Gráfica e na de Máquinas."
+          ? "A Gráfica foi avisada. A peça passa à frente das outras na fila da Gráfica e na de Impressoras."
           : "A peça volta para a ordem normal da fila da Gráfica.",
         variant: "success",
         action: (
@@ -155,7 +155,7 @@ export function PrioridadeNaImpressao({ item, eventoFinalizado = false, tamanho 
           onClick={(e) => { e.stopPropagation(); pedir(true); }}
           data-testid={`button-pedir-prioridade-${peca.id}`}
           aria-label={`${ROTULO_PEDIR_PRIORIDADE}: ${peca.displayId ?? "peça"}`}
-          title="A Gráfica é avisada e a peça passa à frente das outras na fila da Gráfica e na de Máquinas"
+          title="A Gráfica é avisada e a peça passa à frente das outras na fila da Gráfica e na de Impressoras"
           larguraCheia={larguraCheia}
           style={{ ...altura, ...(letra ? { fontSize: letra } : {}), ...style }}
         >
@@ -165,7 +165,7 @@ export function PrioridadeNaImpressao({ item, eventoFinalizado = false, tamanho 
     }
     return (
       <div className="prio-pedida" data-testid={`prioridade-pedida-${peca.id}`} style={style}>
-        {!naFilaDaGrafica && <Selo tom="perigo" forma="retangulo" icone={AlertTriangle} title="Pedida para a impressão: a peça está à frente das outras na fila da Gráfica e na de Máquinas" style={{ padding: "3px 8px", ...(letra ? { fontSize: letra } : {}) }}>
+        {!naFilaDaGrafica && <Selo tom="perigo" forma="retangulo" icone={AlertTriangle} title="Pedida para a impressão: a peça está à frente das outras na fila da Gráfica e na de Impressoras" style={{ padding: "3px 8px", ...(letra ? { fontSize: letra } : {}) }}>
           {ROTULO_PRIORIDADE_PEDIDA}
         </Selo>}
         <Botao
@@ -214,8 +214,8 @@ export function PrioridadeNaImpressaoIcone({ item, eventoFinalizado = false, noC
       aria-pressed={pedida}
       aria-label={`${rotulo}: ${item.displayId ?? "peça"}`}
       title={pedida
-        ? "Prioridade na impressão pedida — a peça está à frente na fila da Gráfica e na de Máquinas. Clique para retirar."
-        : "Pedir prioridade na impressão — a Gráfica é avisada e a peça passa à frente das outras na fila dela e na de Máquinas"}
+        ? "Prioridade na impressão pedida — a peça está à frente na fila da Gráfica e na de Impressoras. Clique para retirar."
+        : "Pedir prioridade na impressão — a Gráfica é avisada e a peça passa à frente das outras na fila dela e na de Impressoras"}
       data-testid={`button-prioridade-icone-${item.id}`}
       style={noCartao ? { minHeight: 44, width: 44, border: `1px solid ${T.border}`, cursor: pendente ? "wait" : "pointer" } : { cursor: pendente ? "wait" : "pointer" }}
     >

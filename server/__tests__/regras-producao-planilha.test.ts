@@ -134,7 +134,7 @@ describe("a coluna Tubo da planilha", () => {
     expect(ws.getRow(5).getCell(col + 1).value).toBe(""); // sem tubo: vazio
   });
 
-  it("export por evento (especificação) e relatório das máquinas: sem a coluna", async () => {
+  it("export por evento (especificação) e relatório das impressoras: sem a coluna", async () => {
     await handleExportItemsXlsx({ params: { id: "ev-1" } } as any, res());
     expect(linha(H.planilhas[0].getWorksheet("Itens"), 3)).not.toContain("Tubo");
     const wb: any = montarPlanilhaDeMaquinas({ de: "2026-09-21", ate: "2026-09-21", resumo: [], registros: [] });

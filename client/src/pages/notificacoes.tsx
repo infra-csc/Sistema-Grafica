@@ -153,7 +153,7 @@ export default function Notificacoes() {
       <div ref={refConteudo} style={{ maxWidth: 1060 }}>
         <div style={{ marginBottom: 24 }}>
           <h1 style={{ margin: "0 0 6px", fontFamily: FONT.display, fontSize: FS.h1, fontWeight: FW.rotulo, letterSpacing: "-0.03em", lineHeight: 1.1, color: T.text }}>
-            Notificações
+            Avisos por e-mail
           </h1>
           <p style={{ margin: 0, fontSize: FS.body, color: T.second, lineHeight: 1.5, maxWidth: 640 }}>
             {/* Delimita a tela: os avisos do sino (GET /api/notifications, por

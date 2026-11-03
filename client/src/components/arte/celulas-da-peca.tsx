@@ -326,15 +326,15 @@ export function PrazoDaPeca({ item, tabId, hoje, dedo = false, emLinha = false }
       {dias !== null && tom && (
         <span
           data-testid={`cell-idade-${item.id}`}
-          title={`Há ${dias} ${dias === 1 ? 'dia' : 'dias'} nesta fase (desde ${new Date(item.statusChangedAt ?? item.status_changed_at ?? "").toLocaleDateString('pt-BR')})`}
+          title={`Há ${dias} ${dias === 1 ? 'dia' : 'dias'} nesta etapa (desde ${new Date(item.statusChangedAt ?? item.status_changed_at ?? "").toLocaleDateString('pt-BR')})`}
           // A família do prazo logo acima (Inter, números tabulares): em DM
           // Mono a frase "há 2d na fase" saía espaçada letra a letra, com
           // outra voz que a data da mesma célula.
           style={{ fontSize: fsToque(11, dedo), fontWeight: tom.peso, color: tom.cor, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}
         >
-          {/* "há 0d na fase" não dizia nada a quem lê: a peça do dia diz que
+          {/* "há 0d na etapa" não dizia nada a quem lê: a peça do dia diz que
               chegou hoje. */}
-          {dias === 0 ? 'entrou hoje na fase' : <>há {dias}d na fase</>}
+          {dias === 0 ? 'entrou hoje na etapa' : <>há {dias}d na etapa</>}
         </span>
       )}
     </div>

@@ -91,7 +91,7 @@ export function CabecalhoDaArte({
             // `title` conta (rodada 4).
             <span
               data-testid="contexto-arte"
-              title="Soma de Aguardando envio, Correção e Finalizar arte — as fases em que a peça depende da Arte"
+              title="Soma de Aguardando envio, Correção e Finalizar arte — as etapas em que a peça depende da Arte"
             >
               {/* ENQUANTO CARREGA OU QUANDO FALHA, o contador não sabe nada:
                   dizia "Tudo em dia — nenhuma peça esperando a Arte" em cima
@@ -111,7 +111,7 @@ export function CabecalhoDaArte({
               <PopoverTrigger asChild>
                 <button
                   type="button"
-                  aria-label="Como funciona a Arte e o que se faz nesta fase"
+                  aria-label="Como funciona a Arte e o que se faz nesta etapa"
                   data-testid="button-como-funciona"
                   style={{ width: alvo(28, dedo), height: alvo(28, dedo), borderRadius: R.pill, border: 'none', background: 'transparent', color: T.apoio, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, margin: '-4px 0' }}
                 >

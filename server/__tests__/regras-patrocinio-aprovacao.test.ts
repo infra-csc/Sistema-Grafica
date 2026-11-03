@@ -216,7 +216,7 @@ describe("POST /api/items/:id/sponsor-approvals/:sponsorId/revert", () => {
     expect(linhaDe("sp-vale").status).toBe("approved");
   });
 
-  it("a janela por papel mora na máquina de estados: Atendimento em aprovação/finalização; admin sem limite", () => {
+  it("a janela por papel mora na impressora de estados: Atendimento em aprovação/finalização; admin sem limite", () => {
     for (const s of STATUS_CONHECIDOS) {
       expect(podeTransicionar(s, "revogar-aprovacao", "atendimento"), s).toBe(["awaiting_sponsor_approval", "sponsor_approved"].includes(s));
       expect(podeTransicionar(s, "revogar-aprovacao", "admin"), s).toBe(true);

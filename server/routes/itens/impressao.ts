@@ -73,7 +73,7 @@ export function registrarRotasDeImpressao(app: Express): void {
       // do que está sem impressora. O resto segue reservado / na fila geral.
       const { printMachine, quantidade, deMaquina, iniciarParte: pedeParte, daReserva } = req.body ?? {};
       if (!ehMaquinaValida(printMachine)) {
-        return res.status(400).json({ error: "Escolha a máquina em que a peça vai ser impressa" });
+        return res.status(400).json({ error: "Escolha a impressora em que a peça vai ser impressa" });
       }
       if (quantidade != null && (!Number.isInteger(Number(quantidade)) || Number(quantidade) <= 0)) {
         return res.status(400).json({ error: "A quantidade a mover precisa ser um número inteiro maior que zero" });
@@ -122,7 +122,7 @@ export function registrarRotasDeImpressao(app: Express): void {
           if (aguardaReaproveitar(current)) throw falha(409, { error: FRASE_AGUARDA_REAPROVEITAR });
           if (EM_REVISAO.has(current.status)) throw falha(409, { error: "Esta peça está em revisão — a Gráfica só age depois que a revisão liberar." });
           // De onde pode ir para a máquina: shared/maquina-de-estados.ts ("iniciar-impressao").
-          if (!vemDeOrigemValida(current.status, "iniciar-impressao")) throw falha(409, { error: `A peça não pode ir para a máquina no status atual: ${translateStatus(current.status)}` });
+          if (!vemDeOrigemValida(current.status, "iniciar-impressao")) throw falha(409, { error: `A peça não pode ir para a impressora no status atual: ${translateStatus(current.status)}` });
           // aImprimirDaPeca: quantidade − reaproveitadas, e ZERO na peça de reuso
           // legado (isReuse) — a mesma conta das telas.
           if (aImprimirDaPeca(current) - (current.quantityProduced || 0) <= 0) {
@@ -159,7 +159,7 @@ export function registrarRotasDeImpressao(app: Express): void {
         movimento
           ? (movimento.ficam > 0
             ? `Movidas ${movimento.movidas} un. para a ${rotuloDaMaquina(printMachine)} (${movimento.ficam} ficam na ${rotuloDaMaquina(origem)})`
-            : `Impressão mudou de máquina: ${rotuloDaMaquina(origem)} → ${rotuloDaMaquina(printMachine)}`)
+            : `Impressão mudou de impressora: ${rotuloDaMaquina(origem)} → ${rotuloDaMaquina(printMachine)}`)
           : parte
             ? `Impressão iniciada na ${rotuloDaMaquina(printMachine)}: ${parte.quantidade} un.${parte.reserva ? ` (segue reservado: ${resumoDaReserva(parte.reserva)})` : ""}`
             : `Impressão iniciada na ${rotuloDaMaquina(printMachine)} (${translateStatus(current.status)} → ${translateStatus("inProduction")})`
@@ -196,10 +196,10 @@ export function registrarRotasDeImpressao(app: Express): void {
       // escolha), mas este contrato é antigo e tem outros chamadores. O que o
       // servidor não aceita é máquina que não existe.
       if (printMachine != null && !ehMaquinaValida(printMachine)) {
-        return res.status(400).json({ error: `Máquina inválida: ${printMachine}` });
+        return res.status(400).json({ error: `Impressora inválida: ${printMachine}` });
       }
       if (maquina != null && !ehMaquinaValida(maquina)) {
-        return res.status(400).json({ error: `Máquina inválida: ${maquina}` });
+        return res.status(400).json({ error: `Impressora inválida: ${maquina}` });
       }
 
       // A leitura de FORA serve só ao que não muda com a peça: existir, o

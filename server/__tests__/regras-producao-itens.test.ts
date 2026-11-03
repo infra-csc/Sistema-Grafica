@@ -222,20 +222,20 @@ describe("a revisão aparece na Gráfica, mas o servidor não deixa agir", () =>
 describe("iniciar a impressão (start-printing)", () => {
   const iniciar = (body: Record<string, unknown>, id = "p") => chamar("PATCH /api/items/:id/start-printing", { params: { id }, body, userRole: "grafica" });
 
-  it("a peça tem onde guardar a máquina (items.print_machine, texto)", () => {
+  it("a peça tem onde guardar a impressora (items.print_machine, texto)", () => {
     const col = getTableConfig(items).columns.find((c) => c.name === "print_machine");
     expect(col?.getSQLType()).toBe("text");
   });
 
-  it("exige máquina válida (1 a 4)", async () => {
+  it("exige impressora válida (1 a 4)", async () => {
     mundo.itens.p = peca("p");
-    for (const printMachine of [undefined, "5", "0", "Máquina 1", 2]) {
-      expect(await iniciar({ printMachine }), String(printMachine)).toEqual({ status: 400, body: { error: "Escolha a máquina em que a peça vai ser impressa" } });
+    for (const printMachine of [undefined, "5", "0", "Impressora 1", 2]) {
+      expect(await iniciar({ printMachine }), String(printMachine)).toEqual({ status: 400, body: { error: "Escolha a impressora em que a peça vai ser impressa" } });
     }
     expect(escritasNaPeca()).toEqual([]);
   });
 
-  it("leva a peça para 'Em Impressão' na máquina escolhida, carimba o início — e deixa rastro na trilha e no diário", async () => {
+  it("leva a peça para 'Em Impressão' na impressora escolhida, carimba o início — e deixa rastro na trilha e no diário", async () => {
     mundo.itens.p = peca("p");
     const r = await iniciar({ printMachine: "2" });
     expect(r.status).toBe(200);
@@ -246,13 +246,13 @@ describe("iniciar a impressão (start-printing)", () => {
     expect(registros()).toEqual([expect.objectContaining({ itemId: "p", maquina: "2", tipo: "inicio", quantidade: 0, totalDepois: 0, userName: "Maria" })]);
   });
 
-  it("trocar de máquina: a trilha diz de onde para onde, e o diário grava 'troca'; trocar para a mesma é recusado", async () => {
+  it("trocar de impressora: a trilha diz de onde para onde, e o diário grava 'troca'; trocar para a mesma é recusado", async () => {
     mundo.itens.p = peca("p", { status: "inProduction", printMachine: "1", quantityProduced: 2 });
     expect(await iniciar({ printMachine: "1" })).toEqual({ status: 409, body: { error: `A peça já está na ${M("1")}` } });
     const r = await iniciar({ printMachine: "3" });
     expect(r.status).toBe(200);
     expect(mundo.itens.p.printMachine).toBe("3");
-    expect(H.trilha).toEqual([`Impressão mudou de máquina: ${M("1")} → ${M("3")}`]);
+    expect(H.trilha).toEqual([`Impressão mudou de impressora: ${M("1")} → ${M("3")}`]);
     expect(registros()).toEqual([expect.objectContaining({ maquina: "3", tipo: "troca", quantidade: 8, totalDepois: 2 })]);
   });
 
@@ -326,13 +326,13 @@ describe("iniciar a impressão (start-printing)", () => {
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
-describe("informar impressas (start-production) e o diário das máquinas", () => {
+describe("informar impressas (start-production) e o diário das impressoras", () => {
   const lancar = (body: Record<string, unknown>) => chamar("PATCH /api/items/:id/start-production", { params: { id: "p" }, body, userRole: "grafica" });
 
-  it("aceita a máquina junto e recusa máquina que não existe", async () => {
+  it("aceita a impressora junto e recusa impressora que não existe", async () => {
     mundo.itens.p = peca("p", { status: "inProduction", printMachine: "1" });
-    expect(await lancar({ quantityProduced: 2, printMachine: "9" })).toEqual({ status: 400, body: { error: "Máquina inválida: 9" } });
-    expect(await lancar({ quantityProduced: 2, maquina: "x" })).toEqual({ status: 400, body: { error: "Máquina inválida: x" } });
+    expect(await lancar({ quantityProduced: 2, printMachine: "9" })).toEqual({ status: 400, body: { error: "Impressora inválida: 9" } });
+    expect(await lancar({ quantityProduced: 2, maquina: "x" })).toEqual({ status: 400, body: { error: "Impressora inválida: x" } });
     expect(escritasNaPeca()).toEqual([]);
   });
 
@@ -377,7 +377,7 @@ describe("informar impressas (start-production) e o diário das máquinas", () =
     expect(mundo.itens.p.quantityProduced).toBe(4);
   });
 
-  it("o diário nunca derruba o gesto: sem máquina não anota; falha ao gravar vai para o log", async () => {
+  it("o diário nunca derruba o gesto: sem impressora não anota; falha ao gravar vai para o log", async () => {
     ligarBanco({ aoInserir: () => { throw new Error("tabela sumiu"); } });
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     await expect(registrarImpressao({ userName: "Ana" }, { itemId: "p", maquina: null, tipo: "inicio", quantidade: 0, totalDepois: 0 })).resolves.toBeUndefined();

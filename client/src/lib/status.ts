@@ -234,7 +234,7 @@ const G_EM_PRODUCAO: StatusGuia = {
   significado: "A peça está na impressora escolhida e ainda não saiu toda.",
   quemAge: "Gráfica",
   onde: "tela Gráfica",
-  proximoPasso: "Informar quantas já saíram da máquina; com todas, vai para Impresso / Acabamento.",
+  proximoPasso: "Informar quantas já saíram da impressora; com todas, vai para Impresso / Acabamento.",
   vez: "vez da Gráfica",
 };
 const G_PRODUZIDO: StatusGuia = {

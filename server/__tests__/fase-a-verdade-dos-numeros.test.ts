@@ -60,7 +60,7 @@ describe("Telas que diziam o que não era", () => {
 
   it("o quadro de Usuários bate com o menu", () => {
     const u = ler("client/src/pages/usuarios.tsx");
-    expect(u).toContain(`grafica: "Gráfica, Reaproveitar e Máquinas"`);
+    expect(u).toContain(`grafica: "Gráfica, Reaproveitar e Impressoras"`);
     expect(u).toContain("Registros e Análises");
   });
 });

@@ -310,13 +310,13 @@ patrocinador, o reaproveitamento) e a peça não muda de status.
 
 | Ação | De | Para | Quem | Condições |
 | --- | --- | --- | --- | --- |
-| tirar-do-tubo | `packed` | `conferred` | admin, grafica, solicitacao | a peça sai do volume (ou o volume é apagado) |
+| tirar-do-tubo | `packed` | `conferred` | admin, grafica, solicitacao | a peça sai do tubo (ou o tubo é apagado) |
 
 ### POST /api/tubos/:id/entregar · POST /api/tubos/entregar-em-lote
 
 | Ação | De | Para | Quem | Condições |
 | --- | --- | --- | --- | --- |
-| entregar-volume | `produced`, `produzido`, `conferred`, `conferido`, `packed` | `delivered` | admin, grafica, solicitacao | o volume entregue completa a quantidade da peça |
+| entregar-volume | `produced`, `produzido`, `conferred`, `conferido`, `packed` | `delivered` | admin, grafica, solicitacao | o tubo entregue completa a quantidade da peça |
 
 ### PATCH /api/items/:id/molde-produzido
 

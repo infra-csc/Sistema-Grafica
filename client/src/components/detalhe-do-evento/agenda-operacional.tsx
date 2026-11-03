@@ -142,7 +142,7 @@ export function AgendaOperacional({ event, isEventClosed, isMobile, marcosDoEven
             teclado (setas), senão os marcos da direita ficam fora. */}
         <div
           role={isMobile ? 'region' : undefined}
-          aria-label={isMobile ? 'Marcos de prazo do evento' : undefined}
+          aria-label={isMobile ? 'Prazos do evento' : undefined}
           tabIndex={isMobile ? 0 : undefined}
           style={{ overflowX: 'auto', paddingBottom: '4px' }}
         >
@@ -181,8 +181,8 @@ export function AgendaOperacional({ event, isEventClosed, isMobile, marcosDoEven
                 : { color: T.apoio, bg: N.n2, border: T.border };
               const tituloMarco = (() => {
                 const base = adjusted === 'fri' ? `${label} — movido de sáb para sex` : adjusted === 'sat' ? `${label} — movido de dom para sáb` : adjusted === 'mon' ? `${label} — movido de dom para seg` : label;
-                if (atras === 0) return `${base} — nenhuma peça atrás deste marco`;
-                const frase = `${atras} ${plural(atras, 'peça ainda não passou', 'peças ainda não passaram')} por este marco`;
+                if (atras === 0) return `${base} — nenhuma peça atrás deste prazo`;
+                const frase = `${atras} ${plural(atras, 'peça ainda não passou', 'peças ainda não passaram')} por este prazo`;
                 return clicavel ? `${base} — ${frase}. ${selecionado ? 'Clique para ver todas as peças de novo' : 'Clique para ver só essas'}` : `${base} — ${frase}`;
               })();
 
@@ -295,8 +295,8 @@ export function AgendaOperacional({ event, isEventClosed, isMobile, marcosDoEven
         {!isHistorical && milestones.some((_, i) => (atrasDoMarco[i] ?? 0) > 0) && (
           <p style={{ margin: '10px 0 0', fontSize: FS.meta, color: T.second, textAlign: 'center' }}>
             {marcoFiltro !== null
-              ? 'Mostrando só as peças atrás do marco escolhido — clique nele de novo para ver todas.'
-              : 'Clique num marco com peças para ver só as que ainda não passaram por ele.'}
+              ? 'Mostrando só as peças atrás do prazo escolhido — clique nele de novo para ver todas.'
+              : 'Clique num prazo com peças para ver só as que ainda não passaram por ele.'}
           </p>
         )}
       </div>

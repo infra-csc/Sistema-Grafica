@@ -196,7 +196,7 @@ export const months = [
 // primeiro. Alfabética poria "Prazo da fase" antes.
 export const ARTE_SORT_OPTIONS = [
   { value: "evento", label: "Evento", pinned: true },
-  { value: "prazo", label: "Prazo da fase", pinned: true },
+  { value: "prazo", label: "Prazo da etapa", pinned: true },
 ];
 
 // "Mais filtros" (dono, 22/09): à vista ficam a busca, o Evento, o "Saída 10

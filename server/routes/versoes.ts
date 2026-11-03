@@ -549,7 +549,14 @@ export function registerVersoesRoutes(app: Express): void {
         decisoesAmbiguas: decisoesTomadas.filter((d) => d.ambiguo).length,
       };
 
-      const books = r.eventos.length === 0 ? dados.books : dados.books.filter((b) => r.eventos.includes(b.eventId));
+      // A aba Books lista todo evento com book, não só os com peça no foco: oferecer o
+      // filtro pelas peças escondia o evento (Night Run Fortaleza, 03/11). A busca, aqui,
+      // é pelo nome do evento.
+      const books = dados.books.filter((b) => (r.eventos.length === 0 || r.eventos.includes(b.eventId))
+        && (!r.busca || b.eventName.toLowerCase().includes(r.busca)));
+      const eventosDosBooks = dados.books
+        .map((b) => ({ value: b.eventId, label: b.eventName, count: b.books.length }))
+        .sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
 
       res.json({
         resumo,
@@ -559,6 +566,7 @@ export function registerVersoesRoutes(app: Express): void {
             .sort((a, b) => a.label.localeCompare(b.label, "pt-BR")),
           patrocinadores: Array.from(contaPatrocinadores.entries()).map(([value, v]) => ({ value, label: v.label, count: v.count }))
             .sort((a, b) => b.count - a.count),
+          eventosDosBooks,
         },
         total: recortadas.length,
         pagina,

@@ -31,8 +31,17 @@ describe("Excel da Gráfica por evento", () => {
     render(React.createElement(QueryClientProvider, { client }, React.createElement(ExportarExcelGrafica, {
       open: true, onClose: vi.fn(), quantidadeNaLista: 3, isExporting: false, onExportar: exportar,
     })));
-    expect(screen.getByRole("button", { name: "Todos os eventos (3)" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: "Todos os eventos (3 peças)" }).getAttribute("aria-pressed")).toBe("true");
     fireEvent.click(screen.getByRole("button", { name: "Baixar Excel" }));
     expect(exportar).toHaveBeenCalledWith(undefined);
+  });
+
+  it("com busca ou filtro ligado, o botão diz que sai só a lista filtrada", () => {
+    const client = new QueryClient();
+    render(React.createElement(QueryClientProvider, { client }, React.createElement(ExportarExcelGrafica, {
+      open: true, onClose: vi.fn(), quantidadeNaLista: 1, comFiltros: true, isExporting: false, onExportar: vi.fn(async () => {}),
+    })));
+    expect(screen.getByRole("button", { name: "Lista filtrada (1 peça)" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.queryByRole("button", { name: /Todos os eventos/ })).toBeNull();
   });
 });

@@ -34,7 +34,7 @@ export function PlacarDeSituacao({
   loadingSponsors: boolean;
 }) {
   const celulas = [
-    { k: 'nova_versao', titulo: 'Sua decisão', n: contagemSituacao.get('nova_versao') ?? 0,
+    { k: 'nova_versao', titulo: 'Nova versão', n: contagemSituacao.get('nova_versao') ?? 0,
       cor: TOM.alerta.text, anel: TOM.alerta.dot, hint: SITUACAO_META.nova_versao.hint,
       testId: 'placar-nova-versao', cruzada: false,
       ativo: situacaoFilter.length === 1 && situacaoFilter[0] === 'nova_versao',
@@ -117,7 +117,7 @@ export function PlacarDeSituacao({
           {/* O `hint` do SITUACAO_META como TEXTO, não como `title`: ele
               explica o que o número significa e vivia só no hover do
               menu. NO CELULAR ele vai para leitor de tela e `title` — a
-              célula já diz o essencial ("Sua decisão", "Arte refazendo"). */}
+              célula já diz o essencial ("Nova versão", "Arte refazendo"). */}
           <span className={cards ? 'sr-only' : undefined} style={cards ? undefined : { display: 'block', marginTop: 8, fontSize: FS.meta, lineHeight: 1.45, color: T.second }}>
             {c.hint}
           </span>

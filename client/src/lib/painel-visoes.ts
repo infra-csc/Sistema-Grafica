@@ -33,8 +33,8 @@ const vazio = (): VisaoFiltros => ({ status: [], saida: [], foco: [] });
 export const VISOES_BASE: Visao[] = [
   {
     id: "atrasados",
-    label: "Atrasados",
-    hint: "Peças pendentes em eventos cujo caminhão já saiu",
+    label: "Caminhão atrasado",
+    hint: "Peças pendentes em eventos cujo caminhão já saiu. Etapa vencida fica na Gestão de Prazos",
     filtros: { ...vazio(), foco: ["atrasadas"] },
   },
   {

@@ -28,7 +28,7 @@ const painel = fonteDaTela("painel");
 
 describe("a faixa do topo não promete urgência à toa", () => {
   it("o rótulo é derivado do que existe na faixa", () => {
-    expect(painel).toContain("const temAlerta = atencao.reprovadas > 0 || atencao.atrasadas > 0;");
+    expect(painel).toContain("const temAlerta = atencao.reprovadas > 0 || atencao.atrasadas > 0 || etapaVencida > 0;");
     expect(painel).toContain('const rotulo = temAlerta ? "Precisa de atenção" : "Fora da lista";');
   });
 

@@ -47,7 +47,7 @@ export function AcoesDaLinha({ ctx, item, selo, emRevisao, isSelected, bulkEligi
     cancelComplementId, setCancelComplementId, cancelComplementMutation,
     menuAcoesId, setMenuAcoesId, menuParaCima, setMenuParaCima, idMenuAberto, fecharMenuAcoes,
     setDevolverItem, setDevolverMotivo, abrirEmbalar, setViewDetailsItem,
-    setTubosDoEvento, temVolumeAberto, ehAvulsa, tirarDoTuboMutation,
+    setTubosDoEvento, temVolumeAberto, ehAvulsa, tirarDoTuboMutation, pedirTirarDoTubo,
     compacto, tamLinha, ponteiroGrosso,
   } = ctx;
   return (
@@ -478,7 +478,7 @@ export function AcoesDaLinha({ ctx, item, selo, emRevisao, isSelected, bulkEligi
           <Botao
             tamanho={tamLinha}
             icone={Undo2}
-            onClick={() => tirarDoTuboMutation.mutate({ itemId: item.id, tuboId: item.tuboId, displayId: item.displayId })}
+            onClick={() => { void pedirTirarDoTubo({ itemId: item.id, tuboId: item.tuboId, displayId: item.displayId, avulsa: ehAvulsa(item) }); }}
             carregando={tirarDoTuboMutation.isPending && tirarDoTuboMutation.variables?.itemId === item.id}
             data-testid={`button-tirar-do-tubo-${item.id}`}
             aria-label={compacto ? `${ehAvulsa(item) ? "Desfazer embalagem" : "Tirar do tubo"}: ${item.displayId}` : undefined}

@@ -87,7 +87,7 @@ const PERMISSOES: Record<string, { pode: boolean; texto: string }[]> = {
     // POST .../sponsor-approvals/:sponsorId/approve e /reject
     { pode: true,  texto: "Aprova e reprova peças em nome do patrocinador" },
     // .../sponsor-approvals/:sponsorId/revert · PUT /api/quota-rules/global
-    { pode: true,  texto: "Revoga uma decisão já tomada e ajusta as regras de cota" },
+    { pode: true,  texto: "Revoga uma decisão já tomada" },
     // submit-final-file exige "arte"; start-production exige "grafica"
     { pode: false, texto: "Não anexa arte nem arquivo final, e não inicia produção" },
     { pode: false, texto: "Não cria nem exclui eventos" },
@@ -106,14 +106,14 @@ const PERMISSOES: Record<string, { pode: boolean; texto: string }[]> = {
  * linhas `{ pode:` por perfil, e este mapa não pode parecer uma delas.
  */
 const TELAS_NO_MENU: Record<string, string> = {
-  admin: "Todas — inclusive Usuários, Configurar Cotas, Estoque, Triagem de Retorno, Análises, Notificações e Logs",
-  solicitacao: "Revisão Final, Gráfica, Solicitação de peças, Vincular Patrocinadores, Patrocinadores e Modelos",
+  admin: "Todas — inclusive Usuários, Configurar Cotas, Estoque, Triagem de Retorno, Notificações e Logs",
+  solicitacao: "Vincular Patrocinadores, Atendimento, Revisão Final, Gráfica, Reaproveitar, Máquinas, Solicitação de peças, Modelos e Patrocinadores",
   arte: "Arte, Atendimento e Vincular Patrocinadores",
-  grafica: "Gráfica",
+  grafica: "Gráfica, Reaproveitar e Máquinas",
   atendimento: "Arte, Atendimento, Vincular Patrocinadores, Solicitação de peças e Patrocinadores",
 };
 // Itens do menu sem `roles` (app-sidebar.tsx): aparecem para qualquer perfil.
-const TELAS_DE_TODOS = "Painel Geral, Eventos, Gestão de Prazos, Calendário, Histórico, Versões aprovadas e Registros";
+const TELAS_DE_TODOS = "Painel Geral, Eventos, Gestão de Prazos, Calendário, Histórico, Versões aprovadas, Registros e Análises";
 
 /* ── Role config ── */
 // Tons 700 nos textos dos badges: os 500/600 anteriores reprovavam o piso de
@@ -1121,7 +1121,7 @@ export default function Usuarios() {
                             <span style={{ display: "block", fontSize: FS.meta, color: T.apoio, lineHeight: 1.45, marginTop: 3 }}>
                               {/* "menos Modelos": o item do menu tem `semKit` e a
                                   rota de escrita do catálogo recusa o Kit (routes.ts). */}
-                              Mesmas telas da Solicitação, menos Modelos. Só vê e cria peças do Kit — e só as que ele criou.
+                              Mesmas telas da Solicitação, menos Atendimento, Modelos e Análises. Só vê e cria peças do Kit — e só as que ele criou.
                               Sem a marca, a Solicitação só visualiza as peças do Kit.
                             </span>
                           </span>

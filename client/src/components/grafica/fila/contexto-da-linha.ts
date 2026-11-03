@@ -15,7 +15,7 @@ import type { GatesDaGrafica } from "./regras";
 export type ContextoDaLinha = GatesDaGrafica
   & EdicaoNaLinha
   & Pick<FilaDaGrafica, "seloDoItem" | "seloDaImpressao" | "etiquetaveisPorEvento" | "tubaveisPorEvento" | "typeToGroup" | "expandirGrupo">
-  & Pick<TubosDaFila, "setTubosDoEvento" | "seloDoTubo" | "tituloDoTubo" | "abrirTuboDaPeca" | "fechamentoDoTubo" | "temVolumeAberto" | "ehAvulsa" | "tirarDoTuboMutation">
+  & Pick<TubosDaFila, "setTubosDoEvento" | "seloDoTubo" | "tituloDoTubo" | "abrirTuboDaPeca" | "fechamentoDoTubo" | "temVolumeAberto" | "ehAvulsa" | "tirarDoTuboMutation" | "pedirTirarDoTubo">
   & Pick<SelecaoEmLote, "bulkOn" | "bulkConferMode" | "bulkPackMode" | "bulkSelectedIds" | "toggleBulkItem" | "abrirEmbalar">
   & Pick<ModalDaPecaEstado, "openProductionModal" | "openConferenceModal" | "tirarBloqueada" | "podeTirarBloqueada" | "mutacoesDeImpressao">
   & Pick<TravaDaFila, "travaDaLinha">

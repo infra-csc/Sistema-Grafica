@@ -29,6 +29,7 @@
 // em vez de chutar. Inferência apresentada como registro é o erro que esta tela
 // existe para evitar.
 // ─────────────────────────────────────────────────────────────────────────────
+import { useConfirmar } from "@/components/ui/usar-confirmar";
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
@@ -1241,8 +1242,9 @@ function AbaBooks({ eventos, apertado, toque, alturaControle, podeAvisar, podeRe
  * na tela, "não chegou" deixou de ser um mistério — e consertar deixou de
  * exigir republicar o book inteiro só para disparar o e-mail de novo.
  */
-function BotaoReenviarAviso({ eventId, altura }: { eventId: string; altura: number }) {
+function BotaoReenviarAviso({ eventId, altura, pessoas }: { eventId: string; altura: number; pessoas?: number | null }) {
   const { toast } = useToast();
+  const { confirmar, dialogo } = useConfirmar();
   const enviar = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", `/api/events/${eventId}/book/notify`, {});
@@ -1257,12 +1259,25 @@ function BotaoReenviarAviso({ eventId, altura }: { eventId: string; altura: numb
   });
   // `carregando` troca o ícone por spinner E desabilita: dois cliques rápidos
   // mandariam dois e-mails para a lista inteira.
+  const pedirReenvio = async () => {
+    const ok = await confirmar({
+      titulo: "Reenviar o aviso deste book?",
+      descricao: pessoas ? `O e-mail vai de novo para a lista inteira. O último aviso foi para ${pessoas} ${pessoas === 1 ? "pessoa" : "pessoas"}.` : "O e-mail vai para a lista inteira do book.",
+      confirmar: "Reenviar para todos",
+      cancelar: "Agora não",
+      icone: Send,
+    });
+    if (ok) enviar.mutate();
+  };
   return (
-    <Botao tamanho={altura >= 44 ? "toque" : "md"} icone={Send} onClick={() => enviar.mutate()} carregando={enviar.isPending}
+    <>
+    {dialogo}
+    <Botao tamanho={altura >= 44 ? "toque" : "md"} icone={Send} onClick={() => { void pedirReenvio(); }} carregando={enviar.isPending}
       data-testid={`button-reenviar-aviso-${eventId}`}
       title="Reenviar por e-mail o aviso deste book para os responsáveis do evento">
       Reenviar aviso
     </Botao>
+    </>
   );
 }
 
@@ -1368,7 +1383,7 @@ function LinhaDoBook({ b, ev, i, total, apertado, toque, alturaControle, podeAvi
             desenhado à mão, menor e de outra fonte que o Reenviar ao lado).
             No celular descem alinhadas ao texto, não à borda. */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginLeft: apertado ? 42 : 0, alignSelf: apertado ? undefined : "center" }}>
-        {podeAvisar && i === 0 && <BotaoReenviarAviso eventId={ev.eventId} altura={alturaControle} />}
+        {podeAvisar && i === 0 && <BotaoReenviarAviso eventId={ev.eventId} altura={alturaControle} pessoas={ev.aviso?.pessoas} />}
         {isWebUrl(b.bookUrl) ? (
           <BotaoLink externo href={b.bookUrl} download target="_blank" rel="noopener noreferrer" data-testid={`link-baixar-book-${ev.eventId}-${i}`}
             icone={Download} tamanho={alturaControle >= 44 ? "toque" : "md"}

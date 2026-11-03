@@ -2,6 +2,7 @@
 // REGRAS PURAS DO DETALHE DO EVENTO — sem React, sem rede. O cabeçalho, a
 // timeline, a lista e o formulário leem daqui em vez de cada um ter a sua.
 // ─────────────────────────────────────────────────────────────────────────────
+import { FUNIL_DE_PRAZOS, statusDoFunil } from "@shared/fluxo-peca";
 import { STATUS } from "@/lib/status";
 import { FORA_DO_FUNIL } from "@/lib/fases";
 import { MARCOS_DO_EVENTO, deslocamentoDeFimDeSemana, type MarcoDoEvento, type RegraDeFimDeSemana } from "@shared/prazo-dates";
@@ -22,15 +23,13 @@ import { MATERIAIS_PADRAO } from "@shared/materiais";
  * 4, em produção 5, entregue 6 — e os status intermediários entram na
  * posição monotônica entre eles. Cancelada/excluída não está atrás de nada.
  */
-const ETAPA_CUMPRIDA: Record<string, number> = {
-  awaiting_linking: 0, awaiting_submission: 0,
-  awaiting_approval: 2, awaiting_sponsor_approval: 2, sponsor_approved: 2, awaiting_finalization: 2,
-  awaiting_creator_review: 3, awaiting_final_review: 3, awaiting_review: 3, in_review: 3,
-  ready_for_production: 4, pronto_para_producao: 4, approved: 4, liberado: 4,
-  inProduction: 5, em_producao: 5, produced: 5, produzido: 5, conferred: 5, packed: 5,
-  delivered: 6, entregue: 6, canceled: 6, deleted: 6,
-};
-const etapaCumprida = (status: string) => ETAPA_CUMPRIDA[status] ?? 0;
+// Sai do funil canônico, o mesmo da Gestão de Prazos, do Relatório e das Análises.
+// A tabela escrita à mão aqui contava "Aguardando Revisão Final" como atrás da
+// Finalização e "Pronto para Produção" como atrás da Revisão: 10 e 13 peças onde
+// as outras telas diziam 8 e 10. Fora do funil (entregue, cancelada) não está atrás de nada.
+const ETAPA_CUMPRIDA = new Map<string, number>();
+FUNIL_DE_PRAZOS.forEach((etapa, i) => statusDoFunil(etapa.key).forEach((s) => ETAPA_CUMPRIDA.set(s, i)));
+const etapaCumprida = (status: string) => ETAPA_CUMPRIDA.get(status) ?? FUNIL_DE_PRAZOS.length;
 /**
  * Os marcos que a peça SEM APROVAÇÃO ("Sem patrocínio" / "Arte do cliente",
  * Pedro/dono 26/10) não tem: a Lista de Imagens (o Layout dela é um só, medido

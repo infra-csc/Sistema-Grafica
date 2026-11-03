@@ -7,6 +7,7 @@
 // com a peça marcada, focado em escolher o tubo) e pelo "Entregar tubo" da
 // embalada (`entregarTubo`: abre no formulário daquele tubo).
 // ─────────────────────────────────────────────────────────────────────────────
+import { useConfirmar } from "@/components/ui/usar-confirmar";
 import { useMemo, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -137,9 +138,21 @@ export function useTubosDaFila(pecasDoServidor: PecaDaFila[]) {
       toast({ title: "Não foi possível tirar do tubo", description: apiErrorMessage(error), variant: "destructive" });
     },
   });
+  // Um toque desfazia a embalagem logo abaixo de "Entregar tubo".
+  const { confirmar: confirmarTirar, dialogo: dialogoDoTirar } = useConfirmar();
+  const pedirTirarDoTubo = async (v: { itemId: string; tuboId: string | null; displayId?: string; avulsa?: boolean }) => {
+    const { avulsa, ...dados } = v;
+    const ok = await confirmarTirar({
+      titulo: avulsa ? `Desfazer a embalagem de ${v.displayId ?? "a peça"}?` : `Tirar ${v.displayId ?? "a peça"} do tubo?`,
+      descricao: "A peça volta para Conferido e precisa ser embalada de novo.",
+      confirmar: avulsa ? "Desfazer embalagem" : "Tirar do tubo",
+      cancelar: "Deixar como está",
+    });
+    if (ok) tirarDoTuboMutation.mutate(dados);
+  };
 
   return {
     tubosDoEvento, setTubosDoEvento, todosOsTubos, tubosAbertosNaTela, numeroDoTubo, fechamentoDoTubo, conteudoDoTubo,
-    volumesDaPeca, temVolumeAberto, tubosAvulsos, ehAvulsa, seloDoTubo, tituloDoTubo, abrirTuboDaPeca, tirarDoTuboMutation,
+    volumesDaPeca, temVolumeAberto, tubosAvulsos, ehAvulsa, seloDoTubo, tituloDoTubo, abrirTuboDaPeca, tirarDoTuboMutation, pedirTirarDoTubo, dialogoDoTirar,
   };
 }

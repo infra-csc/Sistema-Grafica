@@ -2,6 +2,7 @@
 // (quando houve) e a COMPARAÇÃO — o aprovado pelo patrocinador × o arquivo
 // final da Arte, lado a lado. Só props, sem hook: mora dentro do
 // FreezeWhileClosing do modal e não pode redesenhar enquanto ele sai.
+import { pulaAprovacao } from "@shared/prazo-sem-aprovacao";
 import { FileImage, Maximize2, RotateCcw } from "lucide-react";
 import { FilePreview, isWebUrl } from "@/components/file-preview";
 import { ehMolde } from "@shared/molde";
@@ -76,7 +77,7 @@ export function FichaComparacao({ selectedItem, isMobile, dedo = false, modo = i
         // ganha altura própria, generosa (abaixo).
         ...(flexiona || isMobile ? {} : { flex: "0 0 auto" }) }}>
         {[
-          { label: "Aprovado pelo patrocinador", curto: "Aprovado", url: selectedItem?.approvalThumbUrl, empty: "Sem thumb aprovado" },
+          { label: pulaAprovacao(selectedItem) ? "Thumb da Arte · sem aprovação" : "Aprovado pelo patrocinador", curto: pulaAprovacao(selectedItem) ? "Thumb" : "Aprovado", url: selectedItem?.approvalThumbUrl, empty: pulaAprovacao(selectedItem) ? "Sem thumb" : "Sem thumb aprovado" },
           { label: "Arquivo final da Arte", curto: "Arquivo final", url: selectedItem?.finalFileUrl, empty: ehMolde(selectedItem) ? "Molde não tem arquivo final — revise pelo thumb" : "A Arte ainda não subiu o arquivo final" },
         ].map(({ label, curto, url, empty }) => {
           // Caminho de rede/disco (\\10.100.1.7\...): o navegador não abre nem

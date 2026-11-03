@@ -4,6 +4,7 @@
 // client/src/components/painel/ (seções, linhas memoizadas, hooks de dados e
 // de ações, o recorte puro em recorte.ts e os tipos em tipos.ts); aqui fica o
 // estado da tela e a ordem em que as seções aparecem.
+import { useQuery } from "@tanstack/react-query";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { ExportPdfDialog } from "@/components/export-pdf-dialog";
 import { useAuth } from "@/contexts/auth-context";
@@ -51,6 +52,8 @@ import { DialogoDeExclusao } from "@/components/painel/dialogo-de-exclusao";
 export default function PainelGeral() {
   const { toast } = useToast();
   const { user } = useAuth();
+  // O placar da Gestão de Prazos: o Painel não diz "nada pede atenção" sem consultá-lo.
+  const { data: prazos } = useQuery<{ kpis?: { pecasAtrasadas?: number } }>({ queryKey: ["/api/prazos"], staleTime: 60_000 });
   const isAdmin = user?.role === "admin";
   const devolvidas = useDevolvidasAoRascunho(user);
   // Exclusão: admin e solicitação, em QUALQUER status — decisão do dono, mesma
@@ -421,6 +424,7 @@ export default function PainelGeral() {
         levarALista={levarALista}
         mostrarFinalizados={mostrarFinalizados}
         setMostrarFinalizados={setMostrarFinalizados}
+        pecasEmEtapaVencida={prazos?.kpis?.pecasAtrasadas ?? null}
       />
 
       {/* ── O PAINEL DO FLUXO ──

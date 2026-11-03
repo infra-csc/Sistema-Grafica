@@ -46,7 +46,7 @@ describe("2 · reenviar o aviso sai da tela de Versões", () => {
   it("o botão existe, só para o book atual e só para admin", () => {
     expect(VERSOES).toContain("function BotaoReenviarAviso(");
     expect(VERSOES).toContain("data-testid={`button-reenviar-aviso-${eventId}`}");
-    expect(VERSOES).toContain("{podeAvisar && i === 0 && <BotaoReenviarAviso eventId={ev.eventId} altura={alturaControle} />}");
+    expect(VERSOES).toContain("{podeAvisar && i === 0 && <BotaoReenviarAviso eventId={ev.eventId} altura={alturaControle} pessoas={ev.aviso?.pessoas} />}");
     expect(VERSOES).toContain('const podeAvisar = user?.role === "admin";');
   });
 

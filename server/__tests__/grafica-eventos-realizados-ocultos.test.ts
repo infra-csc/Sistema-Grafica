@@ -135,7 +135,7 @@ describe.each([1710, 390])("Gráfica em %ipx — eventos realizados", (largura) 
     (URL as any).createObjectURL = () => "blob:x";
     (URL as any).revokeObjectURL = () => {};
     await act(async () => { fireEvent.click(tid("button-export-xlsx")!); });
-    await esperar(() => document.body.textContent!.includes("Todos os eventos (5)"), "o modal conta as 5 peças");
+    await esperar(() => document.body.textContent!.includes("Todos os eventos (5 peças)"), "o modal conta as 5 peças");
     const baixar = Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.includes("Baixar Excel"))!;
     await act(async () => { fireEvent.click(baixar); });
     await esperar(() => fetchMock.mock.calls.some(([u]) => u === "/api/items/export-xlsx"), "o Excel foi pedido");

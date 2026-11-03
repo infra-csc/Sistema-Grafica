@@ -329,7 +329,7 @@ export default function Grafica() {
     seloDoItem: fila.seloDoItem, seloDaImpressao: fila.seloDaImpressao, etiquetaveisPorEvento: fila.etiquetaveisPorEvento,
     tubaveisPorEvento, typeToGroup: fila.typeToGroup, expandirGrupo: fila.expandirGrupo,
     setTubosDoEvento, seloDoTubo, tituloDoTubo: tubos.tituloDoTubo, abrirTuboDaPeca: tubos.abrirTuboDaPeca, fechamentoDoTubo,
-    temVolumeAberto: tubos.temVolumeAberto, ehAvulsa, tirarDoTuboMutation,
+    temVolumeAberto: tubos.temVolumeAberto, ehAvulsa, tirarDoTuboMutation, pedirTirarDoTubo: tubos.pedirTirarDoTubo,
     bulkOn, bulkConferMode, bulkPackMode, bulkSelectedIds, toggleBulkItem: lote.toggleBulkItem, abrirEmbalar: lote.abrirEmbalar,
     openProductionModal: modal.openProductionModal, openConferenceModal: modal.openConferenceModal,
     tirarBloqueada: modal.tirarBloqueada, podeTirarBloqueada: modal.podeTirarBloqueada, mutacoesDeImpressao: modal.mutacoesDeImpressao,
@@ -500,7 +500,8 @@ export default function Grafica() {
       )}
 
       <ModalDevolver devolucao={devolucao} isMobile={isMobile} padModal={padModal} fsMin={fsMin} />
-      <ExportarExcelGrafica open={excelAberto} onClose={() => setExcelAberto(false)} quantidadeNaLista={pecasDoExcel.length} isExporting={isExporting} onExportar={handleExportXlsx} />
+      {tubos.dialogoDoTirar}
+      <ExportarExcelGrafica open={excelAberto} onClose={() => setExcelAberto(false)} quantidadeNaLista={pecasDoExcel.length} comFiltros={fila.haFiltro} isExporting={isExporting} onExportar={handleExportXlsx} />
     </div>
   );
 }

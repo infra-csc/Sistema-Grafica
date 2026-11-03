@@ -27,15 +27,12 @@ const semCom = (s: string) => s.replace(/\r\n/g, "\n").replace(/\/\*[\s\S]*?\*\/
   .split("\n").map(l => l.replace(/^\s*\/\/.*$/, "")).join("\n");
 
 describe("Mudança 1 · a timeline diz quantas peças estão atrás de cada marco", () => {
-  it("a régua status → etapa cumprida tem os pontos de ancoragem do handoff", () => {
-    // aguardando envio 0, aguardando aprovação 2, aguardando revisão 3,
-    // pronto para produção 4, em produção 5, entregue 6.
-    expect(ED).toContain("awaiting_linking: 0, awaiting_submission: 0,");
-    expect(ED).toContain("awaiting_approval: 2, awaiting_sponsor_approval: 2,");
-    expect(ED).toContain("awaiting_creator_review: 3, awaiting_final_review: 3,");
-    expect(ED).toContain("ready_for_production: 4,");
-    expect(ED).toContain("inProduction: 5, em_producao: 5, produced: 5, produzido: 5, conferred: 5,");
-    expect(ED).toContain("delivered: 6, entregue: 6,");
+  it("a régua status → etapa cumprida sai do funil canônico, o mesmo das outras telas", () => {
+    // A tabela à mão contava diferente da Gestão de Prazos (03/11). Os pontos da
+    // régua são comparados com o servidor em fase-a-verdade-dos-numeros.test.ts.
+    expect(ED).toContain("FUNIL_DE_PRAZOS.forEach((etapa, i) => statusDoFunil(etapa.key).forEach((s) => ETAPA_CUMPRIDA.set(s, i)));");
+    expect(ED).toContain("ETAPA_CUMPRIDA.get(status) ?? FUNIL_DE_PRAZOS.length");
+    expect(ED).not.toContain("awaiting_linking: 0, awaiting_submission: 0,");
     // Atrás do marco i: etapa < i + 1 — e o marco cobra a peça (o Kit só da Entrega de Layouts em diante, 26/10).
     // A peça sem aprovação (Pedro/dono 26/10) não conta na Lista nem na Aprovação.
     expect(ED).toContain("export const estaAtrasDoMarco = (status: string, i: number, doKit = false, semAprovacao = false) => {");

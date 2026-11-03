@@ -154,7 +154,7 @@ const PDF_STYLES = `
 
         .ap-cover { align-items: center; justify-content: center; padding: 64px; background: #1c1917; }
         .ap-cover-inner { display: flex; flex-direction: column; align-items: center; gap: 26px; max-width: 82%; }
-        .ap-cover-rule { width: 56px; height: 4px; border-radius: 4px; background: #f97316; }
+        .ap-cover-rule { width: 56px; height: 4px; border-radius: 4px; background: #E45B12; }
         .ap-cover-event { font-family: 'Space Grotesk', sans-serif; font-size: 58px; font-weight: 800; letter-spacing: -0.035em; line-height: 1.06; color: #ffffff; text-align: center; }`;
 
 function writePdfDoc(win: Window, title: string, pages: string) {

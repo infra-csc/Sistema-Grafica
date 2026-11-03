@@ -10,7 +10,7 @@
 .dark .pg-row[data-zebra="0"] { background-color: var(--n0); }
 .dark .pg-row[data-zebra="1"] { background-color: var(--n2); }
 .dark .pg-row[data-deleted="1"] { background-color: var(--perigo-bg); border-left-color: var(--perigo-border); }
-.dark .pg-row[data-selected="1"], .dark .pg-row[data-deleted="0"]:hover { background-color: #431407; border-left-color: #f97316; }
+.dark .pg-row[data-selected="1"], .dark .pg-row[data-deleted="0"]:hover { background-color: #431407; border-left-color: #E45B12; }
 .dark .pnl-etapa[aria-pressed="false"]:hover, .dark .pnl-menu-item:not(:disabled):hover, .dark .pnl-dlg-cancelar:not(:disabled):hover { background-color: var(--n2) !important; }
 .dark .pnl-acao:not(:disabled):hover { background-color: var(--n2) !important; color: #fdba74 !important; border-color: var(--n4) !important; }
 .dark .pnl-acao-perigo:not(:disabled):hover { background-color: var(--perigo-bg) !important; color: var(--perigo-text) !important; border-color: var(--perigo-border) !important; }

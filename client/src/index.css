@@ -40,7 +40,7 @@
 
   --sidebar-accent-foreground: 20 13% 10%;
 
-  --sidebar-ring: 25 96% 53%;       /* #f97316 */
+  --sidebar-ring: 21 85% 48%;       /* #E45B12 */
 
   --popover: 0 0% 100%;
 
@@ -63,7 +63,7 @@
      Escurecido para ~4,6:1, alinhado ao --secondary-foreground (#78716c). */
   --muted-foreground: 24 6% 44%;     /* ≈ #736d67, contraste AA */
 
-  --accent: 25 96% 53%;     /* #f97316 laranja gráfico */
+  --accent: 21 85% 48%;     /* #E45B12 laranja da marca Miró */
 
   --accent-foreground: 0 0% 100%;
 
@@ -72,7 +72,7 @@
   --destructive-foreground: 0 0% 98%;
 
   --input: 40 33% 98%;      /* #fafaf9 */
-  --ring: 25 96% 53%;       /* #f97316 */
+  --ring: 21 85% 48%;       /* #E45B12 */
   --chart-1: 142 76% 36%;
   --chart-2: 45 93% 47%;
   --chart-3: 217 91% 60%;
@@ -82,7 +82,7 @@
   /* TITANIUM Brand Colors */
   --titanium-bg: 40 33% 98%;         /* #fafaf9 */
   --titanium-primary: 20 13% 10%;    /* #1c1917 */
-  --titanium-accent: 25 96% 53%;     /* #f97316 */
+  --titanium-accent: 21 85% 48%;     /* #E45B12 */
   --titanium-surface: 0 0% 100%;     /* #ffffff */
   --titanium-border: 20 12% 90%;     /* #e7e5e4 */
   --titanium-text-primary: 20 13% 10%;    /* #1c1917 */
@@ -477,7 +477,7 @@
 /* ── Orange token system ─────────────────────────────────────────
    --orange-soft  : #fff7ed  backgrounds leves
    --orange-border: #fb923c  bordas de controles ativos (orange-400)
-   --orange-brand : #f97316  ações primárias, ícones (orange-500)
+   --orange-brand : #E45B12  ações primárias, ícones (orange-500)
    --orange-deep  : #ea580c  gradientes, pressed (orange-600)
 ──────────────────────────────────────────────────────────────── */
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -665,7 +665,7 @@
 :root {
   --orange-soft   : #fff7ed;
   --orange-border : #fb923c;
-  --orange-brand  : #f97316;
+  --orange-brand  : #E45B12;
   --orange-deep   : #ea580c;
 }
 

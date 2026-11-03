@@ -89,7 +89,7 @@ export function ItemForm({
   const isEdit = mode === "edit";
   // "Digitar novo tipo" só existe no criar — no editar o tipo já é texto livre.
   const [customType, setCustomType] = useState(false);
-  const focusRing = (e: React.FocusEvent<HTMLElement>) => ((e.currentTarget as HTMLElement).style.boxShadow = "0 0 0 2px rgba(249,115,22,0.25)");
+  const focusRing = (e: React.FocusEvent<HTMLElement>) => ((e.currentTarget as HTMLElement).style.boxShadow = "0 0 0 2px rgba(228,91,18,0.25)");
   const blurRing = (e: React.FocusEvent<HTMLElement>) => ((e.currentTarget as HTMLElement).style.boxShadow = "none");
 
   const typeKnown = standardItems.some((s) => s.name === formData.type) || typeOptions.includes(formData.type);
@@ -295,12 +295,20 @@ export function ItemForm({
           )}
         </div>
 
-        {/* Reaproveitamento — banner topo (só na edição) */}
+        {/* Reaproveitamento — banner topo (só na edição).
+            UM BOTÃO, e a caixinha é só desenho (30/10). Era um <div> clicável
+            com o Checkbox do Radix dentro: no formulário, o Checkbox cria um
+            input escondido que, a cada troca, dispara um "click" que SOBE até
+            o <div> — que invertia de novo, e o Checkbox disparava de novo.
+            Laço infinito: "Esta tela encontrou um problema" ao marcar. */}
         {isEdit && (
-          <div
+          <button
+            type="button"
             data-testid="toggle-is-reuse"
-            onClick={() => setFormData({ ...formData, isReuse: !formData.isReuse })}
+            aria-pressed={!!formData.isReuse}
+            onClick={() => setFormData((f) => ({ ...f, isReuse: !f.isReuse }))}
             style={{
+              width: "100%", textAlign: "left", font: "inherit",
               // #047857 (não #059669): o subtítulo branco precisava de mais
               // contraste sobre o fundo ativo.
               backgroundColor: formData.isReuse ? TOM.esmeralda.text : T.low,
@@ -319,13 +327,18 @@ export function ItemForm({
                 <p style={{ fontSize: "12px", color: formData.isReuse ? T.surface : T.apoio, margin: 0 }}>Gráfica entrega direto — sem etapa de produção</p>
               </div>
             </div>
-            <Checkbox
-              checked={formData.isReuse}
-              onCheckedChange={(checked) => setFormData({ ...formData, isReuse: !!checked })}
+            <span
+              aria-hidden="true"
               data-testid="checkbox-is-reuse"
-              style={{ width: "20px", height: "20px", accentColor: T.surface, pointerEvents: "none", flexShrink: 0 }}
-            />
-          </div>
+              style={{
+                width: 20, height: 20, flexShrink: 0, borderRadius: 4, display: "inline-flex", alignItems: "center", justifyContent: "center",
+                border: `2px solid ${formData.isReuse ? T.surface : T.bdark}`,
+                backgroundColor: formData.isReuse ? T.surface : "transparent",
+              }}
+            >
+              {formData.isReuse && <Check style={{ width: 14, height: 14, color: TOM.esmeralda.text }} strokeWidth={3} />}
+            </span>
+          </button>
         )}
         {/* DE ONDE VEM (16/10): com o reaproveitamento ligado, Estoque ou
             Em trânsito (caminhão conjugado) e a etapa de origem. Só para quem
@@ -408,7 +421,7 @@ export function ItemForm({
                   placeholder="0.00"
                   data-testid={dim.testId}
                   style={{ width: "100%", backgroundColor: T.surface, border: "none", borderRadius: "8px", padding: "8px 12px", fontSize: "15px", fontWeight: 500, color: T.text, boxShadow: "0 1px 3px rgba(0,0,0,0.08)", transition: "box-shadow 0.15s" }}
-                  onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.25)")}
+                  onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(228,91,18,0.25)")}
                   onBlur={(e) => (e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.08)")}
                 />
               </div>

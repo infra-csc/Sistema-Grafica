@@ -196,7 +196,7 @@ export function AgendaOperacional({ event, isEventClosed, isMobile, marcosDoEven
                 // (AA em 10–11px); o laranja da marca (T.accent) fica
                 // na bolinha e no brilho, que são objeto gráfico.
                 labelCol = T.text; dateCol = T.accentText; labelW = FW.forte;
-                glowColor = 'rgba(249,115,22,0.18)';
+                glowColor = 'rgba(228,91,18,0.18)';
               } else if (isOverdue) {
                 dotBg = TOM.laranja.bg; dotBorder = TOM.laranja.dot; dotSize = 14;
                 labelCol = TOM.alerta.text; dateCol = TOM.alerta.text; labelW = FW.medio;
@@ -246,7 +246,7 @@ export function AgendaOperacional({ event, isEventClosed, isMobile, marcosDoEven
                       width: `${dotSize}px`, height: `${dotSize}px`, borderRadius: '50%',
                       backgroundColor: dotBg,
                       border: dotSize <= 10 ? 'none' : `2px solid ${dotBorder}`,
-                      boxShadow: isNext ? `0 0 0 5px rgba(249,115,22,0.12)` : 'none',
+                      boxShadow: isNext ? `0 0 0 5px rgba(228,91,18,0.12)` : 'none',
                       position: 'relative', zIndex: 1,
                     }} />
                   </div>

@@ -14,7 +14,7 @@ import {
   NOMES_DOS_MESES, DIAS_DA_SEMANA, horasEMinutos, horasCurtas, horaMinuto, diaCurto, mesCurto,
   faixaDaSemana, diaPorExtenso, plural,
 } from "@/components/calendario/formatos";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   Dialog,
   DialogContent,
@@ -245,11 +245,28 @@ export default function Calendario() {
 
   // Peças sem aprovação (26/10): o Layout ajustado vem da Gestão de Prazos —
   // MESMA chave de cache da tela de prazos, invalidada pelo WebSocket a cada
-  // mudança de peça/evento. Só busca quando a grade desenha o marco de Layout
-  // (o recorte da Gráfica e do Atendimento não o mostra). Erro ou demora aqui
+  // mudança de peça/evento. Só desenha o ajustado quando a grade mostra o marco de
+  // Layout (o recorte da Gráfica e do Atendimento não o mostra). Erro ou demora aqui
   // não seguram a grade: sem o payload, o calendário fica como sempre foi.
   const desenhaLayout = tiposVisiveis.some(dt => dt.key === CAMPO_LAYOUT);
-  const { data: prazos } = useQuery<PrazosPayload>({ queryKey: ["/api/prazos"], enabled: desenhaLayout });
+  const { data: prazos } = useQuery<PrazosPayload>({ queryKey: ["/api/prazos"] });
+  // PRAZO VENCIDO (03/11): prazo passado com peça atrasada não pode parecer prazo
+  // futuro. A contagem é a da Gestão de Prazos; marco cumprido não é vencido.
+  const atrasadasDoMarco = useMemo(() => {
+    const out = new Map<string, number>();
+    for (const ev of prazos?.events ?? []) {
+      if (ev.invalidDate) continue;
+      for (const s of ev.stages) {
+        const campo = MARCOS_DO_EVENTO.find(m => m.key === s.key)?.campo;
+        if (campo && s.atrasadas > 0) out.set(`${ev.id}:${campo}`, s.atrasadas);
+      }
+    }
+    return out;
+  }, [prazos]);
+  const prazosVencidos = useMemo(
+    () => tiposVisiveis.reduce((n, dt) => n + Array.from(atrasadasDoMarco.keys()).filter(k => k.endsWith(`:${dt.key}`)).length, 0),
+    [atrasadasDoMarco, tiposVisiveis],
+  );
   const layoutSemAprovacao = useMemo(
     () => layoutSemAprovacaoPorEvento(desenhaLayout ? prazos?.events : undefined),
     [prazos, desenhaLayout],
@@ -363,6 +380,12 @@ export default function Calendario() {
   }
 
   /** Meia-noite do dia da célula, para comparar "vence hoje" contra ele. */
+  /** Quantas peças estão vencidas neste prazo, no dia dele (0 = não está vencido). */
+  const vencidasNoPrazo = (item: { event: { id: string | number }; dtype: { key: string }; soSemAprovacao?: string; semAprovacao?: { pecas: number } }, dia: Date) => {
+    if (item.soSemAprovacao || dia.getTime() >= new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime()) return 0;
+    const atrasadas = atrasadasDoMarco.get(`${item.event.id}:${item.dtype.key}`) ?? 0;
+    return item.semAprovacao && atrasadas > 0 ? item.semAprovacao.pecas : atrasadas;
+  };
   const meiaNoiteDe = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
 
   /** Domingo da semana que contém `d` — domingo-primeiro, como a grade. */
@@ -549,8 +572,15 @@ export default function Calendario() {
         <CabecalhoDaPagina
           titulo="Calendário de Eventos"
           subtitulo="Início, saída do caminhão e prazos de cada evento — clique numa marcação para abrir o evento."
-          frescor={carregado && urgentEvents.length === 0 ? (
-            <Selo tom="sucesso" ponto data-testid="selo-sem-saidas">Nenhuma saída do caminhão nas próximas 48h</Selo>
+          frescor={carregado && (urgentEvents.length === 0 || prazosVencidos > 0) ? (
+            <span style={{ display: "inline-flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+              {urgentEvents.length === 0 && <Selo tom="sucesso" ponto data-testid="selo-sem-saidas">Nenhuma saída do caminhão nas próximas 48h</Selo>}
+              {prazosVencidos > 0 && (
+                <Link href="/prazos?atrasados=1" data-testid="link-prazos-vencidos" style={{ textDecoration: "none" }}>
+                  <Selo tom="perigo" ponto>{plural(prazosVencidos, "prazo vencido", "prazos vencidos")} · ver na Gestão de Prazos</Selo>
+                </Link>
+              )}
+            </span>
           ) : undefined}
           margemInferior={isMobile ? 14 : 20}
         />
@@ -876,7 +906,8 @@ export default function Calendario() {
                     ) : itens.map((item, i) => {
                       const ev = item.kind === "event" ? item.ev : item.event;
                       const meta = prioMeta(ev);
-                      const cor = item.kind === "deadline" ? item.dtype.color : meta.dot;
+                      const vencidas = item.kind === "deadline" ? vencidasNoPrazo(item, date) : 0;
+                      const cor = vencidas > 0 ? TOM.perigo.text : item.kind === "deadline" ? item.dtype.color : meta.dot;
                       const isStart = item.kind === "event" && item.ev._type === "start";
                       const Icone = item.kind === "deadline" ? Flag : isStart ? Calendar : Truck;
                       const tipo = item.kind === "deadline"
@@ -895,7 +926,7 @@ export default function Calendario() {
                           type="button"
                           data-testid={`week-item-${ev.id}`}
                           onClick={() => abrirEvento(ev.id)}
-                          aria-label={`Abrir evento ${ev.name} — ${tipo}`}
+                          aria-label={`Abrir evento ${ev.name} — ${tipo}${vencidas > 0 ? ` — vencido, ${plural(vencidas, "peça", "peças")}` : ""}`}
                           className="cal-realce cal-linha"
                           style={{
                             ["--realce" as string]: hoje ? TOM_FORTE.laranja.bg : N.n2,
@@ -913,6 +944,7 @@ export default function Calendario() {
                             <span style={{ fontSize: FS.body, fontWeight: FW.forte, color: P.text, lineHeight: 1.35, overflowWrap: "anywhere" }}>{ev.name}</span>
                             <span style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "2px 8px", fontSize: FS.meta, color: P.secondary }}>
                               <span style={{ color: item.kind === "deadline" ? item.dtype.text : P.secondary, fontWeight: item.kind === "deadline" ? FW.medio : FW.corpo }}>{tipo.charAt(0).toUpperCase() + tipo.slice(1)}</span>
+                              {vencidas > 0 && <Selo tom="perigo" data-testid={`prazo-vencido-${ev.id}`}>Vencido · {plural(vencidas, "peça", "peças")}</Selo>}
                               {saida && (
                                 <span style={{ fontFamily: "monospace", fontSize: 12, color: P.secondary, whiteSpace: "nowrap", flexShrink: 0 }}>
                                   {String(saida.getHours()).padStart(2, "0")}:{String(saida.getMinutes()).padStart(2, "0")}
@@ -1064,8 +1096,8 @@ export default function Calendario() {
                             key={item.kind === "event" ? `ev-${item.ev.id}-${item.ev._type}` : `dl-${item.event.id}-${item.dtype.key}-${i}`}
                             style={{
                               height: 4, borderRadius: 2,
-                              backgroundColor: item.kind === "event" ? prioMeta(item.ev).dot : item.dtype.color,
-                              opacity: item.kind === "deadline" ? 0.75 : 1,
+                              backgroundColor: item.kind === "event" ? prioMeta(item.ev).dot : vencidasNoPrazo(item, date) > 0 ? TOM.perigo.text : item.dtype.color,
+                              opacity: item.kind === "deadline" && vencidasNoPrazo(item, date) === 0 ? 0.75 : 1,
                             }}
                           />
                         ))}
@@ -1128,31 +1160,35 @@ export default function Calendario() {
                           const detalhe = semAprovacao
                             ? ` — ${plural(semAprovacao.pecas, "peça", "peças")} sem aprovação (Sem patrocínio / Arte do cliente); prazo do evento ${diaMes(semAprovacao.normal)}`
                             : soSemAprovacao ? ` — só restam peças sem aprovação, que vencem em ${diaMes(soSemAprovacao)}` : "";
+                          const vencidas = vencidasNoPrazo(item, date);
+                          const aviso = vencidas > 0 ? ` — vencido, ${plural(vencidas, "peça", "peças")}` : "";
                           return (
                             <button
                               key={`dl-${event.id}-${dtype.key}-${i}`}
                               type="button"
                               data-testid={semAprovacao ? `layout-sem-aprovacao-${event.id}` : undefined}
                               onClick={e => { e.stopPropagation(); abrirEvento(event.id); }}
-                              title={`${event.name} — prazo de ${nomeDoPrazo}${detalhe}`}
-                              aria-label={`Abrir evento ${event.name} — prazo de ${nomeDoPrazo}${detalhe}`}
+                              title={`${event.name} — prazo de ${nomeDoPrazo}${detalhe}${aviso}`}
+                              aria-label={`Abrir evento ${event.name} — prazo de ${nomeDoPrazo}${detalhe}${aviso}`}
                               className="cal-pilula"
                               style={{
                                 display: "flex", alignItems: "center", gap: 5, height: 22, flexShrink: 0,
                                 padding: "0 6px", width: "100%", textAlign: "left", boxSizing: "border-box",
-                                backgroundColor: `${dtype.color}14`,
+                                backgroundColor: vencidas > 0 ? TOM.perigo.bg : `${dtype.color}14`,
                                 border: "1px solid transparent",
-                                borderLeft: `3px dashed ${dtype.color}`,
+                                borderLeft: `3px dashed ${vencidas > 0 ? TOM.perigo.text : dtype.color}`,
                                 borderRadius: R.sm,
                                 overflow: "hidden", cursor: "pointer",
                                 font: "inherit", whiteSpace: "nowrap",
                               }}
                             >
-                              <Flag aria-hidden="true" style={{ width: 11, height: 11, color: dtype.color, flexShrink: 0 }} />
+                              {vencidas > 0
+                                ? <AlertTriangle aria-hidden="true" style={{ width: 11, height: 11, color: TOM.perigo.text, flexShrink: 0 }} />
+                                : <Flag aria-hidden="true" style={{ width: 11, height: 11, color: dtype.color, flexShrink: 0 }} />}
                               {/* O marco E o evento: só "Lista Img" na célula não
                                   dizia de quem era o prazo. */}
                               <span style={{ flex: 1, minWidth: 0, fontSize: FS.small, overflow: "hidden", textOverflow: "ellipsis" }}>
-                                <span style={{ fontWeight: FW.forte, color: dtype.text }}>
+                                <span style={{ fontWeight: FW.forte, color: vencidas > 0 ? TOM.perigo.text : dtype.text }}>
                                   {semAprovacao ? `${CURTO_LAYOUT_SEM_APROVACAO} (${semAprovacao.pecas})` : dtype.short}
                                 </span>
                                 <span style={{ fontWeight: FW.corpo, color: T.apoio }}> · {event.name}</span>
@@ -1481,6 +1517,9 @@ export default function Calendario() {
                           primeiro): o dialog diz isso com palavra. */}
                       {diaAbertoEhHoje && !soSemAprovacao && (
                         <Selo tom="alerta" ponto style={{ flexShrink: 0 }}>Vence hoje</Selo>
+                      )}
+                      {selectedDate && vencidasNoPrazo({ event, dtype, semAprovacao, soSemAprovacao }, selectedDate) > 0 && (
+                        <Selo tom="perigo" ponto style={{ flexShrink: 0 }}>Vencido · {plural(vencidasNoPrazo({ event, dtype, semAprovacao, soSemAprovacao }, selectedDate), "peça", "peças")}</Selo>
                       )}
                       <ChevronRight aria-hidden="true" className="cal-seta" style={{ width: 16, height: 16, color: T.second, flexShrink: 0, marginLeft: -4 }} />
                     </div>

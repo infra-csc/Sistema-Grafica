@@ -9,9 +9,9 @@
 // No celular a legenda recolhe num <details> ("Como ler o calendário"):
 // aberta, ela empilhava quatro linhas entre a grade e os próximos eventos.
 // ─────────────────────────────────────────────────────────────────────────────
-import { Calendar, Truck, Flag, ChevronDown } from "lucide-react";
+import { AlertTriangle, Calendar, Truck, Flag, ChevronDown } from "lucide-react";
 import { getPriorityMeta, getStatusMeta } from "@/lib/status";
-import { T, FS, FW, R } from "@/lib/theme";
+import { T, TOM, FS, FW, R } from "@/lib/theme";
 
 /* A mesma fonte única da cor das marcações (lib/status). */
 const CORES_DO_EVENTO: { label: string; dot: string }[] = [
@@ -49,6 +49,10 @@ function Conteudo({ compacto }: { compacto: boolean }) {
           <span aria-hidden="true" style={{ width: 12, height: 10, borderLeft: `3px dashed ${T.bdark}`, backgroundColor: T.low, borderRadius: 2 }} />
           <Flag aria-hidden="true" style={{ width: 12, height: 12, color: T.muted }} />
           Prazo
+        </span>
+        <span style={item}>
+          <AlertTriangle aria-hidden="true" style={{ width: 12, height: 12, color: TOM.perigo.text }} />
+          Prazo vencido
         </span>
       </span>
     </div>

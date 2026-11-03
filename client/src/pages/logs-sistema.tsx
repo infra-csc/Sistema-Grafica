@@ -216,7 +216,7 @@ export default function LogsSistema() {
   // invalidação nunca alcançava este cache, e a tela também baixava o mesmo
   // payload de novo sob uma chave própria em vez de reaproveitar o cache do
   // Histórico.
-  const { data, isLoading, isError, error, refetch, isFetching } = useQuery<{ logs: AuditLog[]; total: number }>({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery<{ logs: AuditLog[]; total: number; resumo?: { hoje: number; excecoes: number } | null }>({
     queryKey: ["/api/audit-logs", "?withTotal=1"],
   });
   const logs = data?.logs ?? [];
@@ -339,8 +339,9 @@ export default function LogsSistema() {
   };
 
   /* ── Stats ── */
-  const todayCount  = logs.filter(l => new Date(l.createdAt).toDateString() === new Date().toDateString()).length;
-  const errorCount  = logs.filter(l => ["deleted", "rejected"].includes(l.action)).length;
+  // Da trilha inteira (servidor): contar nos 500 carregados dava "Hoje" errado.
+  const todayCount  = data?.resumo?.hoje ?? null;
+  const errorCount  = data?.resumo?.excecoes ?? null;
   const semDados = isLoading || isError;
 
   const estadoDaCopia = (id: string) => (copiedId === id ? "copiado" : copyFailedId === id ? "falhou" : null);
@@ -389,9 +390,9 @@ export default function LogsSistema() {
             <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 14 : 20, flex: isMobile ? "1 1 100%" : undefined }}>
               <Numero rotulo="Registros" valor={semDados ? "–" : total.toLocaleString("pt-BR")} testId="stat-total-logs" />
               <span aria-hidden="true" style={{ width: 1, height: 34, backgroundColor: T.border }} />
-              <Numero rotulo="Hoje" valor={semDados ? "–" : todayCount} />
+              <Numero rotulo="Hoje no sistema" valor={semDados || todayCount === null ? "–" : todayCount.toLocaleString("pt-BR")} />
               <span aria-hidden="true" style={{ width: 1, height: 34, backgroundColor: T.border }} />
-              <Numero rotulo="Exclusões e reprovações" valor={semDados ? "–" : errorCount} cor={!semDados && errorCount > 0 ? TOM.perigo.text : undefined} />
+              <Numero rotulo="Exclusões e reprovações no sistema" valor={semDados || errorCount === null ? "–" : errorCount.toLocaleString("pt-BR")} cor={!semDados && errorCount !== null && errorCount > 0 ? TOM.perigo.text : undefined} />
             </div>
             {/* Secundário, não primário: exportar não cria nada. O motivo do
                 desabilitado aparece escrito — no toque não há title. */}

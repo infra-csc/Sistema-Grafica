@@ -125,7 +125,9 @@ export function registerAuditLogRoutes(app: Express): void {
           const total = admin
             ? await storage.getAuditLogsCount(tipo, entityId as string | undefined, termo)
             : await contarRecortado({ tipo, entityId: entityId as string | undefined, busca: termo, kit, userId, minhas });
-          return res.json({ logs, total, nextCursor });
+          // Para os números de Logs: o recorte carregado (500) não diz quantos foram hoje.
+          const resumo = admin && !tipo && !entityId && !termo ? await resumoDaTrilha() : null;
+          return res.json({ logs, total, nextCursor, ...(resumo ? { resumo } : {}) });
         }
         return res.json({ logs, nextCursor });
       }
@@ -136,6 +138,19 @@ export function registerAuditLogRoutes(app: Express): void {
     }
   });
 
+}
+
+/** Hoje (Brasília) e exclusões/reprovações na trilha inteira. Falhou: sem número, nunca um número errado. */
+async function resumoDaTrilha(): Promise<{ hoje: number; excecoes: number } | null> {
+  try {
+    const [linha] = await db.select({
+      hoje: sql<number>`count(*) filter (where ${auditLogs.createdAt} >= date_trunc('day', now() at time zone 'America/Sao_Paulo') at time zone 'America/Sao_Paulo')::int`,
+      excecoes: sql<number>`count(*) filter (where ${auditLogs.action} in ('deleted', 'rejected'))::int`,
+    }).from(auditLogs);
+    return linha ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** O `total` com o mesmo recorte da lista (sem trilha de usuários; Kit só o dele). */

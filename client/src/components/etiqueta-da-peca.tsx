@@ -13,6 +13,9 @@ export type PecaDoEvento = PecaDaFila & Pick<PecaComTubo, "tuboVolumesEntregues"
 export const dataBR = (iso?: string | null) =>
   iso ? new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "UTC" }) : null;
 
+/** O nome inteiro cabe na meia folha: quanto mais longo, menor. Nunca corta. */
+const tamanhoDoNomeDaPeca = (n: number) => (n <= 100 ? (n <= 60 ? 30 : 26) : n <= 150 ? 24 : n <= 220 ? 20 : 17);
+
 export function EtiquetaDaPeca({ e, i, testid, event, logo, usarLogo, gigante, prefixo, nome }: {
   e: EtiquetaIndividual<PecaDoEvento>;
   /** Posição na folha: a primeira leva a linha de corte embaixo. */
@@ -27,6 +30,8 @@ export function EtiquetaDaPeca({ e, i, testid, event, logo, usarLogo, gigante, p
 }) {
   const p = e.parte.peca;
   const volume = infoDoVolume(e.parte);
+  const nomeDaPeca = p.description || p.type;
+  const nomeLongo = nomeDaPeca.length > 60;
   return (
     <div data-testid={testid} className="etq-etiqueta" style={{
       display: "flex", alignItems: "stretch", gap: 18, padding: "22px 26px",
@@ -36,7 +41,7 @@ export function EtiquetaDaPeca({ e, i, testid, event, logo, usarLogo, gigante, p
       borderBottom: i === 0 ? "2px dashed #d6d3d1" : "none",
     }}>
       {/* O NOME DO EVENTO — o que se lê de longe na pilha */}
-      <div style={{ flex: "1.2 1 0", minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+      <div style={{ flex: nomeLongo ? "0.9 1 0" : "1.2 1 0", minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "center" }}>
         <p style={{ margin: 0, fontSize: 13, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#78716c" }}>
           {event?.truckDepartureDate ? `Saída ${dataBR(event.truckDepartureDate)}` : " "}
         </p>
@@ -64,7 +69,7 @@ export function EtiquetaDaPeca({ e, i, testid, event, logo, usarLogo, gigante, p
           color: T.text, lineHeight: 0.95,
           // Gigante de várias palavras (nome inteiro, cidade composta) desce
           // um degrau: 104px em três palavras estourava a meia folha.
-          fontSize: gigante && gigante.length <= 12 ? "clamp(56px, 8vw, 104px)" : "clamp(34px, 5.2vw, 64px)",
+          fontSize: nomeLongo ? "clamp(44px, 6.6vw, 88px)" : gigante && gigante.length <= 12 ? "clamp(56px, 8vw, 104px)" : "clamp(34px, 5.2vw, 64px)",
           overflowWrap: "anywhere",
         }}>
           {gigante || prefixo || nome}
@@ -75,21 +80,23 @@ export function EtiquetaDaPeca({ e, i, testid, event, logo, usarLogo, gigante, p
       <div style={{ flex: "1 1 0", minWidth: 0, display: "flex", gap: 16, alignItems: "center" }}>
         {(p.approvalThumbUrl || p.finalPreviewUrl) && (
           <img decoding="async" src={miniatura(p.approvalThumbUrl || p.finalPreviewUrl)} alt=""
-            style={{ width: 150, height: 150, objectFit: "contain", borderRadius: 10, border: `1px solid ${T.border}`, backgroundColor: T.bg, flexShrink: 0 }} />
+            style={{ width: nomeLongo ? 110 : 150, height: nomeLongo ? 110 : 150, objectFit: "contain", borderRadius: 10, border: `1px solid ${T.border}`, backgroundColor: T.bg, flexShrink: 0 }} />
         )}
-        <div style={{ minWidth: 0, flex: 1 }}>
+        {/* NOME LONGO: a quantidade sobe e o nome ganha a coluna inteira. */}
+        <div style={{ minWidth: 0, flex: 1, display: "flex", flexDirection: nomeLongo ? "column-reverse" : "row", justifyContent: nomeLongo ? "flex-end" : undefined, gap: nomeLongo ? 4 : 16 }}>
+        <div style={{ minWidth: 0, flex: nomeLongo ? undefined : 1 }}>
           {/* A DESCRIÇÃO manda: é ela que
               identifica o material na pilha — "Testeira Vale Local"
               diz mais que #2219. */}
-          <p style={{ margin: 0, fontFamily: FONT.display, fontSize: 30, fontWeight: 900, letterSpacing: "-0.01em", lineHeight: 1.12, color: T.text, overflowWrap: "anywhere" }}>
-            {p.description || p.type}
+          <p style={{ margin: 0, fontFamily: FONT.display, fontSize: tamanhoDoNomeDaPeca(nomeDaPeca.length), fontWeight: 900, letterSpacing: "-0.01em", lineHeight: 1.12, color: T.text, overflowWrap: "break-word" }}>
+            {nomeDaPeca}
           </p>
           <p style={{ margin: "6px 0 0", fontSize: 16, lineHeight: 1.3 }}>
             <span style={{ color: T.strong, textTransform: "uppercase", fontWeight: 700 }}>{p.type}</span>
             {" "}<span style={{ color: T.accentText, fontWeight: 700 }}>{p.displayId}</span>
           </p>
         </div>
-        <div style={{ alignSelf: "flex-start", textAlign: "right", flexShrink: 0 }}>
+        <div style={{ alignSelf: "flex-start", textAlign: nomeLongo ? "left" : "right", flexShrink: 0 }}>
           {/* O VOLUME: "TUBO 2" em destaque, colado à
               quantidade; "EMBALADA" se foi sozinha; nada se não
               foi embalada. O número do tubo pode ter sido
@@ -113,6 +120,7 @@ export function EtiquetaDaPeca({ e, i, testid, event, logo, usarLogo, gigante, p
               {e.n} de {e.total}
             </p>
           )}
+        </div>
         </div>
       </div>
     </div>

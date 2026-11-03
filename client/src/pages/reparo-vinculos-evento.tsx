@@ -20,6 +20,7 @@ type Vinculo = {
   eventName: string;
   sponsorName: string;
   provas: string[];
+  idsDasProvas?: string[];
 };
 
 type Previa = { vinculos: Vinculo[]; total: number };
@@ -235,7 +236,8 @@ function LinhaDoVinculo({ vinculo, primeira }: { vinculo: Vinculo; primeira: boo
           </span>
         </div>
       </div>
-      <ChipsDeIds ids={vinculo.provas} limite={estreito ? 6 : 10} />
+      <ChipsDeIds ids={vinculo.provas} limite={estreito ? 6 : 10}
+        hrefDe={(i) => vinculo.idsDasProvas?.[i] ? `/eventos/${vinculo.eventId}?item=${encodeURIComponent(vinculo.idsDasProvas[i])}` : undefined} />
     </li>
   );
 }

@@ -94,3 +94,43 @@ describe("Ações de risco perguntam antes", () => {
     expect(ler("client/src/pages/book-gerador.tsx")).toContain("fica\" : \"peças que estão no book atual ficam\"} sem book.");
   });
 });
+
+describe("Fase A, segunda leva", () => {
+  it("Calendário: prazo vencido vem da conta da Gestão de Prazos e tem aparência própria", () => {
+    const C = ler("client/src/pages/calendario.tsx");
+    expect(C).toContain("if (campo && s.atrasadas > 0) out.set(");
+    expect(C).toContain('data-testid="link-prazos-vencidos"');
+    expect(C).toContain("backgroundColor: vencidas > 0 ? TOM.perigo.bg");
+  });
+
+  it("Gráfica: o lote só existe na aba Fila, e trocar de aba sai dele", () => {
+    const G = ler("client/src/pages/grafica.tsx");
+    expect(G).toContain('podeConferir={podeConferir && abaDaTela === "fila"}');
+    expect(G).toContain('if (aba === "tubos" && bulkOn) sairDoLote();');
+  });
+
+  it("Books: sem filtro de patrocinador nem CSV, que só valem para peças", () => {
+    const V = ler("client/src/pages/versoes.tsx");
+    expect(V).toContain('{aba !== "books" && <FilterSelect label="Patrocinador"');
+    expect(V).toContain('{!apertado && aba !== "books" && botaoExportar}');
+    expect(V).toContain('{apertado && aba !== "books" && botaoExportar}');
+  });
+
+  it("Logs: os números vêm da trilha inteira, não dos 500 carregados", () => {
+    expect(ler("server/routes/audit-logs.ts")).toContain("admin && !tipo && !entityId && !termo ? await resumoDaTrilha() : null");
+    const L = ler("client/src/pages/logs-sistema.tsx");
+    expect(L).toContain("data?.resumo?.hoje ?? null");
+    expect(L).not.toContain("logs.filter(l => new Date(l.createdAt).toDateString()");
+  });
+
+  it("Reparo de vínculos: cada prova abre a peça dela", () => {
+    expect(ler("server/services/repararVinculosEvento.ts")).toContain("idsDasProvas: ids");
+    expect(ler("client/src/pages/reparo-vinculos-evento.tsx")).toContain("`/eventos/${vinculo.eventId}?item=${encodeURIComponent(vinculo.idsDasProvas[i])}`");
+  });
+
+  it("Etiqueta: nome longo diminui em vez de cortar, e não quebra palavra à toa", () => {
+    const E = ler("client/src/components/etiqueta-da-peca.tsx");
+    expect(E).toContain("fontSize: tamanhoDoNomeDaPeca(nomeDaPeca.length)");
+    expect(E).toContain('lineHeight: 1.12, color: T.text, overflowWrap: "break-word"');
+  });
+});

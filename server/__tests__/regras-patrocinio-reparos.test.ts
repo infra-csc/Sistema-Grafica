@@ -211,7 +211,7 @@ describe("repararVinculosEvento — só INSERE o vínculo de evento que falta", 
   it("lista só o par evento↔patrocinador que falta, com as peças que provam", async () => {
     cenario();
     expect(await listarVinculosEventoPendentes()).toEqual([
-      { eventId: "ev-1", sponsorId: "sp-livelo", eventName: "Primavera São Paulo", sponsorName: "Livelo", provas: ["#0001", "#0002"] },
+      { eventId: "ev-1", sponsorId: "sp-livelo", eventName: "Primavera São Paulo", sponsorName: "Livelo", provas: ["#0001", "#0002"], idsDasProvas: ["p1", "p2"] },
     ]);
   });
 

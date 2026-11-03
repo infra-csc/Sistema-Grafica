@@ -432,7 +432,7 @@ export function TituloDeSecao({
  * resto atrás de "+N" — a lista inteira cabe, mas não empurra a próxima linha
  * para fora da tela. O "+N" era "…": não dizia quantas, nem deixava ver.
  */
-export function ChipsDeIds({ ids, limite = 8, nome = { um: "peça", varios: "peças" } }: { ids: string[]; limite?: number; nome?: { um: string; varios: string } }) {
+export function ChipsDeIds({ ids, limite = 8, nome = { um: "peça", varios: "peças" }, hrefDe }: { ids: string[]; limite?: number; nome?: { um: string; varios: string }; hrefDe?: (indice: number) => string | undefined }) {
   const [abertos, setAbertos] = React.useState(false);
   const visiveis = abertos ? ids : ids.slice(0, limite);
   const resto = ids.length - visiveis.length;
@@ -440,7 +440,9 @@ export function ChipsDeIds({ ids, limite = 8, nome = { um: "peça", varios: "pe�
     <ul aria-label={plural(ids.length, nome.um, nome.varios)} style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
       {visiveis.map((id, i) => (
         <li key={`${id}-${i}`} style={{ fontFamily: FONT.mono, fontSize: FS.small, fontWeight: FW.medio, color: T.strong, backgroundColor: T.low, border: `1px solid ${T.border}`, borderRadius: R.sm, padding: "2px 7px", lineHeight: 1.5, overflowWrap: "anywhere" }}>
-          {id}
+          {hrefDe?.(i)
+            ? <a href={hrefDe(i)} target="_blank" rel="noopener noreferrer" data-testid={`prova-${id}`} title={`Abrir a peça ${id} em nova aba`} style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: 2 }}>{id}</a>
+            : id}
         </li>
       ))}
       {ids.length > limite && (

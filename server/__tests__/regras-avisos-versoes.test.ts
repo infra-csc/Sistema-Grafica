@@ -464,6 +464,24 @@ describe("3 · o servidor filtra, pagina, resume e exporta", () => {
     const BOOK = "/objects/books/atual.pdf";
     const booksDoEv1 = async () => (await versoes()).books.find((b: any) => b.eventId === "ev-1").books;
 
+    it("o filtro de evento da aba Books lista todo evento com book, mesmo sem peça em atenção; a busca é pelo nome (03/11)", async () => {
+      M.books = [
+        { eventId: "ev-1", bookUrl: BOOK, createdAt: T(20), createdBy: "Arte", itemCount: 1 },
+        { eventId: "ev-2", bookUrl: "/objects/books/eco.pdf", createdAt: T(5), createdBy: "Arte", itemCount: 3 },
+        { eventId: "ev-2", bookUrl: "/objects/books/eco2.pdf", createdAt: T(6), createdBy: "Arte", itemCount: 3 },
+      ];
+      const tudo = await versoes();
+      expect(tudo.facetas.eventosDosBooks).toEqual([
+        { value: "ev-1", label: "COPA NORTE", count: 1 },
+        { value: "ev-2", label: "ECO RUN", count: 2 },
+      ]);
+      expect((await versoes({ evento: "ev-2" })).books.map((b: any) => b.eventId)).toEqual(["ev-2"]);
+      // Com recorte, o menu continua oferecendo os outros eventos.
+      expect((await versoes({ evento: "ev-2" })).facetas.eventosDosBooks).toHaveLength(2);
+      expect((await versoes({ busca: "eco" })).books.map((b: any) => b.eventId)).toEqual(["ev-2"]);
+      expect((await versoes({ busca: "nada disso" })).books).toEqual([]);
+    });
+
     it("desatualizado conta as peças DO BOOK, e diz quais — com identidade", async () => {
       M.itens = [
         peca("dentro", { bookUrl: BOOK, approvalThumbUrl: "/objects/b.png", approvalThumbUpdatedAt: T(50), status: "sponsor_approved" }),

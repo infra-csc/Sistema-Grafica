@@ -92,7 +92,7 @@ type Resumo = {
 };
 type Payload = {
   resumo: Resumo; registroDesde: string | null;
-  facetas: { eventos: Faceta[]; patrocinadores: Faceta[] };
+  facetas: { eventos: Faceta[]; patrocinadores: Faceta[]; eventosDosBooks: Faceta[] };
   total: number; pagina: number; tamanho: number;
   itens: Peca[]; books: BooksDoEvento[];
 };
@@ -436,7 +436,7 @@ export default function Versoes() {
             onValuesChange={v => { setEventoFiltro(v); setPagina(0); }}
             hideWhenEmpty={false} disabled={!data} icon={CalendarDays} unitLabel={{ one: "evento", many: "eventos" }} fullWidth={apertado} rotuloQuandoVazio={apertado ? "Evento" : undefined}
             triggerStyle={{ height: alturaControle }}
-            options={data?.facetas.eventos ?? []} searchPlaceholder="Buscar evento..." emptyText="Nenhum evento" testId="filter-versoes-evento" />
+            options={(aba === "books" ? data?.facetas.eventosDosBooks : data?.facetas.eventos) ?? []} searchPlaceholder="Buscar evento..." emptyText="Nenhum evento" testId="filter-versoes-evento" />
           <FilterSelect label="Patrocinador" allLabel="Todos os patrocinadores" values={patrocinadorFiltro}
             onValuesChange={v => { setPatrocinadorFiltro(v); setPagina(0); }}
             hideWhenEmpty={false} disabled={!data} icon={Handshake} unitLabel={{ one: "patrocinador", many: "patrocinadores" }} fullWidth={apertado} rotuloQuandoVazio={apertado ? "Patrocinador" : undefined}
@@ -447,7 +447,7 @@ export default function Versoes() {
             <Search aria-hidden="true" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: T.second, pointerEvents: "none" }} />
             {/* 16px no celular: abaixo disso o iOS dá zoom ao focar. Mesmo raio
                 e mesma altura dos gatilhos ao lado — a faixa é uma linha só. */}
-            <input value={buscaInput} onChange={e => setBuscaInput(e.target.value)} placeholder="Buscar peça, tipo ou evento…" aria-label="Buscar" data-testid="input-busca-versoes"
+            <input value={buscaInput} onChange={e => setBuscaInput(e.target.value)} placeholder={aba === "books" ? "Buscar evento…" : "Buscar peça, tipo ou evento…"} aria-label="Buscar" data-testid="input-busca-versoes"
               className="ver-busca"
               style={{ width: "100%", height: alturaControle, paddingLeft: 34, paddingRight: buscaInput ? 40 : 12, border: `1px solid ${T.border}`, borderRadius: R.md, backgroundColor: T.surface, fontSize: isMobile ? FS.lead : FS.body, color: T.text, fontFamily: "inherit" }} />
             {buscaInput && (

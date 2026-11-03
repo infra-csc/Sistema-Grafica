@@ -40,6 +40,7 @@
 //
 // DATAS. Todo dia é "YYYY-MM-DD" do negócio. Dia útil = segunda a sábado.
 // ─────────────────────────────────────────────────────────────────────────────
+import { aguardaReaproveitar, pedidoDoReaproveitar } from "./reaproveitar";
 import { SP_DAY_FMT, DIAS_DA_GRAFICA, venceNoDia } from "./prazo-dates";
 import { FUNIL_DE_PRAZOS, ehBookCompleto, etapaDaPeca, type EtapaDaPeca } from "./fluxo-peca";
 import { comStatusDeContagem } from "./molde";
@@ -56,6 +57,7 @@ type Instante = Date | string | null | undefined;
 
 /** A peça como o painel a lê — só as colunas usadas (a rota busca só estas). */
 export interface PecaDoPainel {
+  reusoPedido?: number | null;
   id: string;
   displayId: string;
   eventId: string;
@@ -296,9 +298,13 @@ const num = (v: unknown): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
-/** Unidades a produzir = quantidade − reaproveitadas (nunca negativo). */
-export const unidadesAProduzir = (p: Pick<PecaDoPainel, "quantity" | "reuseQty">): number =>
-  Math.max(0, num(p.quantity) - num(p.reuseQty));
+/**
+ * Unidades a produzir = quantidade − reaproveitadas (nunca negativo). O pedido
+ * ao estoque ainda sem resposta também não vai para a impressora: bate com a aba
+ * Máquinas, que não mostra a peça. Se o estoque não tiver, o número sobe na resposta.
+ */
+export const unidadesAProduzir = (p: Pick<PecaDoPainel, "quantity" | "reuseQty"> & { reusoPedido?: number | null; status?: string | null }): number =>
+  Math.max(0, num(p.quantity) - num(p.reuseQty) - (aguardaReaproveitar(p) ? pedidoDoReaproveitar({ reusoPedido: p.reusoPedido, quantity: num(p.quantity) }) : 0));
 
 /** m² de UMA unidade: arquivo (largura × altura); sem ele, a medida visual; sem nenhuma, 0. */
 export function m2PorUnidade(p: Pick<PecaDoPainel, "fileWidth" | "fileHeight" | "visualWidth" | "visualHeight">): number {

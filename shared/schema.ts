@@ -1322,6 +1322,8 @@ export const insertItemSchema = createInsertSchema(items).omit({
 // status e ancestralidade. insertItemSchema segue existindo para uso INTERNO
 // (storage, importação, clonagem) e como base do updateItemSchema.
 export const publicInsertItemSchema = insertItemSchema.omit({
+  // Só a liberação na Revisão Final pede ao estoque (shared/reaproveitar.ts).
+  reusoPedido: true,
   parentItemId: true,
   complementSeq: true,
   complementReason: true,

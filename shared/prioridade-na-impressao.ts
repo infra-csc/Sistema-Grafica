@@ -32,6 +32,7 @@
 // RETIRAR o pedido é recuar — não é barrado por etapa nem por evento fechado:
 // tirar a marca de uma peça nunca faz trabalho andar.
 // ─────────────────────────────────────────────────────────────────────────────
+import { aguardaReaproveitar } from "./reaproveitar";
 import { ehMolde } from "./molde";
 import { EM_REVISAO, ehBookCompleto } from "./fluxo-peca";
 import { LIBERADA, EM_IMPRESSAO, PRODUZIDA } from "./maquina-de-estados";
@@ -65,6 +66,7 @@ export const TITULO_DO_SELO_NA_GRAFICA =
 
 /** O que a regra lê da peça (a do banco e a da tela servem). */
 export type PecaDaPrioridade = {
+  reusoPedido?: number | null;
   status?: string | null;
   type?: string | null;
   isReuse?: boolean | null;
@@ -121,6 +123,7 @@ export function motivoParaNaoPedirPrioridade(
   if (ehMolde(peca)) return fora("MOLDE", "Molde não vai para a impressora — não há impressão para priorizar.");
   if (ehBookCompleto(peca)) return fora("BOOK", "Book completo não é impresso — não há impressão para priorizar.");
   if (peca.isReuse) return fora("REAPROVEITAMENTO", "Peça de reaproveitamento total não é impressa — não há impressão para priorizar.");
+  if (aguardaReaproveitar(peca)) return fora("REAPROVEITAMENTO", "Esta peça espera a resposta do Reaproveitar — peça a prioridade depois que disserem quantas têm no estoque.");
   const status = String(peca.status ?? "");
   if (ETAPAS_DA_PRIORIDADE_NA_IMPRESSAO.includes(status)) return null;
   if (JA_SAIU_DA_IMPRESSORA.includes(status)) {

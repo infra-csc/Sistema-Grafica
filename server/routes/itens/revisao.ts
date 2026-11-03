@@ -176,7 +176,11 @@ export function registrarRevisao(app: Express): void {
 
       // Reaproveitamento parcial: body pode trazer { reuseQty } quando a Solicitação
       // quer reaproveitar só algumas unidades, enviando o restante para produção.
-      const pedidoNoCorpo = req.body?.reuseQty != null ? Number(req.body.reuseQty) : undefined;
+      // Peça que voltou à Revisão esperando o estoque (a Arte trocou o arquivo, por
+      // exemplo): sem número no corpo, o pedido continua de pé, nunca vira impressão calada.
+      const pedidoNoCorpo = req.body?.reuseQty != null
+        ? Number(req.body.reuseQty)
+        : (currentItem.reusoPedido ?? 0) > 0 ? currentItem.reusoPedido! : undefined;
       // SOLICITAÇÃO AO ESTOQUE (dono, 21/09): "as respostas do reaproveitar têm
       // que aparecer na REVISÃO, e é ELA que segue com o item… tem que vir
       // SUGERIDO de acordo com a resposta do estoque e ela só CONFIRMAR". Se a

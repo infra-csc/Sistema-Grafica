@@ -793,6 +793,7 @@ export function registerTubosRoutes(app: Express): void {
             criadoEm: t.createdAt,
             fotosFechamento: t.fotosFechamento ?? [], fechadoEm: t.fechadoEm, fechadoPor: t.fechadoPor,
             entregueEm: t.entregueEm, recebidoPor: t.recebidoPor, entreguePor: t.entreguePor, fotoEntregaUrl: t.fotoEntregaUrl, entregueObs: t.entregueObs,
+            obsEmbalagem: t.obsEmbalagem ?? null,
             pecas: dentro.map(({ p, l }) => pecaParaTela(p, l)),
             unidades: dentro.reduce((u, { l }) => u + l.quantidade, 0),
             // Age quem enxerga o volume inteiro e não esbarra na trava do Kit.

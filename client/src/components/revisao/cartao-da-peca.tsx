@@ -100,6 +100,11 @@ export const CartaoDaPeca = memo(function CartaoDaPeca({
               Reaproveitada
             </Selo>
           )}
+          {!item.isReuse && (item.reusoPedido ?? 0) > 0 && (
+            <Selo data-testid={`selo-pedido-ao-estoque-${item.id}`} tom="sucesso" icone={Recycle} tamanho="sm" forma="retangulo" style={LETRA_DO_SELO} title="Ao liberar, a peça volta ao módulo Reaproveitar com este pedido">
+              Pede {item.reusoPedido} un. ao estoque
+            </Selo>
+          )}
           <SeloOrigemDoReaproveitamento peca={item} style={LETRA_DO_SELO} />
         </div>
         <div style={{minWidth:0}}>

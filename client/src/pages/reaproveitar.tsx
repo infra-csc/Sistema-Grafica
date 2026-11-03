@@ -95,7 +95,8 @@ export default function Reaproveitar() {
       (await apiRequest("POST", `/api/items/${peca.id}/mark-reuse`, {
         respostaDoEstoque: true,
         qty,
-        ...(qty > 0 ? { origemReaproveitamento: "estoque", obsReaproveitamento: null } : {}),
+        // A nota de onde está no estoque (a Revisão escreveu) segue com a peça.
+        ...(qty > 0 ? { origemReaproveitamento: "estoque", obsReaproveitamento: peca.obsReaproveitamento ?? null } : {}),
       })).json(),
     onSuccess: (_r, { peca, qty }) => {
       toast({ title: `${peca.displayId ?? "Peça"} respondida`, description: fraseDaResposta(qty, qtyOf(peca)) });
@@ -232,8 +233,8 @@ function LinhaDaPeca({ peca, respondendo, enviando, ocupado, podeAgir, isMobile,
   const pedido = pedidoDoReaproveitar(peca);
   // Nasce VAZIO: a resposta é uma contagem de quem foi olhar, não um padrão aceito sem ver.
   const [texto, setTexto] = useState("");
-  const temos = texto === "" ? null : Math.max(0, Math.floor(Number(texto)) || 0);
-  const valido = temos !== null && temos <= pedido;
+  const temos = texto === "" ? null : Number(texto);
+  const valido = temos !== null && Number.isInteger(temos) && temos >= 0 && temos <= pedido;
   const travada = pecaTravada(peca);
   const alto = isMobile || dedo ? 44 : 36;
   const medidas = [
@@ -277,7 +278,7 @@ function LinhaDaPeca({ peca, respondendo, enviando, ocupado, podeAgir, isMobile,
         )}
       </div>
 
-      <ObservacoesDaPeca peca={peca} compacto />
+      <ObservacoesDaPeca peca={peca} compacto extras={[{ rotulo: "Onde está no estoque", texto: peca.obsReaproveitamento }]} />
 
       {respondendo && (
         <div style={{ borderTop: `1px solid ${N.n3}`, paddingTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
@@ -318,7 +319,7 @@ function LinhaDaPeca({ peca, respondendo, enviando, ocupado, podeAgir, isMobile,
               </div>
               <p id={`frase-${peca.id}`} role="status" data-testid={`frase-temos-${peca.id}`} style={{ margin: 0, fontSize: FS.meta, minHeight: 18, color: temos !== null && !valido ? TOM.perigo.text : T.apoio }}>
                 {temos === null ? "Conte no estoque e digite quantas têm."
-                  : !valido ? `A Revisão pediu ${pedido} un.: o máximo aqui é ${pedido}.`
+                  : !valido ? `Digite um número inteiro de 0 a ${pedido}: a Revisão pediu ${pedido} un.`
                   : fraseDaResposta(temos, qtyOf(peca))}
                 {temos !== null && valido && temos < pedido && !peca.finalFileUrl && !peca.producaoInterna && (
                   <strong style={{ display: "block", color: TOM.alerta.text }}>Esta peça não tem arquivo final: a Gráfica vai precisar dele para imprimir o que falta.</strong>

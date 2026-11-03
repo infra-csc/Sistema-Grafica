@@ -809,7 +809,7 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
 //      servidor aplica a regra da entrega individual a cada volume; o que ele
 //      recusar volta com o motivo e fica marcado na aba, sem segurar os outros.
 // ═════════════════════════════════════════════════════════════════════════════
-export type VolumeDoLote = { id: string; nome: string; evento: { id: string; name: string }; pecas: number; unidades: number };
+export type VolumeDoLote = { id: string; nome: string; evento: { id: string; name: string }; pecas: number; unidades: number; avisos?: { rotulo: string; texto?: string | null }[] };
 export type ResultadoDoLote = { entregues: Array<{ tuboId: string }>; recusados: Array<{ tuboId: string; motivo: string }>; unidades: number };
 
 export function EntregarEmLoteDialog({ volumes, sugestaoRecebedor = "", onClose, onTerminou }: {
@@ -897,6 +897,7 @@ export function EntregarEmLoteDialog({ volumes, sugestaoRecebedor = "", onClose,
             <li key={v.id} style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, padding: "8px 12px", borderTop: "1px solid #f5f5f4", flexWrap: "wrap", fontSize: 13, color: COR.texto }}>
               <strong>{v.nome}</strong>
               <span style={{ color: COR.sec }}>{v.evento.name} · {plural(v.pecas, "peça", "peças")} / {v.unidades} un.</span>
+              <div style={{ flex: "1 1 100%", minWidth: 0 }}><ObservacoesDaPeca peca={{}} compacto extras={v.avisos} testId={`obs-do-volume-${v.id}`} /></div>
             </li>
           ))}
         </ul>

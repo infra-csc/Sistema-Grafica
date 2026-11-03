@@ -12,6 +12,7 @@ import path from "path";
 import {
   aguardaReaproveitar, pedidoDoReaproveitar, pedeAoEstoque, fraseDaResposta, trilhaDaResposta,
 } from "@shared/reaproveitar";
+import { unidadesAProduzir } from "@shared/painel-operacional";
 import { ordenarFilaDaGrafica } from "@/components/grafica/fila/ordem-da-fila";
 import { cabecalhosDaPosicao } from "@/components/grafica/fila/grupo-das-prioritarias";
 import { linhasDeObservacao } from "@/components/grafica/observacoes-da-peca";
@@ -68,7 +69,7 @@ describe("Reaproveitar — as pontas amarradas", () => {
   it("a resposta valida o pedido, aceita zero e limpa o pedido", () => {
     expect(MARCA).toContain("req.body?.respostaDoEstoque === true");
     expect(MARCA).toContain("temos < 0 || temos > pedido");
-    expect(MARCA).toContain("gravarSeNaoMudou(current, { reusoPedido: null })");
+    expect(MARCA).toContain("gravarSeNaoMudou(current, { reusoPedido: null, ...colunasDaOrigem(null, null) })");
     expect(MARCA).toMatch(/isReuse: isFullReuse,\n\s+\/\/ Respondeu[^\n]*\n\s+reusoPedido: null,/);
   });
 
@@ -78,6 +79,32 @@ describe("Reaproveitar — as pontas amarradas", () => {
     expect(maquinas).toContain("and coalesce(i.reuso_pedido, 0) = 0");
     expect(maquinas).toContain("if (aguardaReaproveitar(item)) return FRASE_AGUARDA_REAPROVEITAR;");
     expect(ler("server/routes/itens/impressao.ts")).toContain("if (aguardaReaproveitar(current)) throw falha(409, { error: FRASE_AGUARDA_REAPROVEITAR });");
+  });
+
+  it("os números: o pedido sem resposta não conta como a imprimir", () => {
+    const p = { quantity: 10, reuseQty: 0, reusoPedido: 4, status: "ready_for_production" };
+    expect(unidadesAProduzir(p)).toBe(6);
+    expect(unidadesAProduzir({ ...p, reusoPedido: 10 })).toBe(0);
+    // Respondida (3 de 4): valem as reaproveitadas de verdade.
+    expect(unidadesAProduzir({ ...p, reusoPedido: null, reuseQty: 3 })).toBe(7);
+    expect(ler("server/services/painel-operacional.ts")).toContain("reusoPedido: items.reusoPedido");
+    expect(ler("server/services/xlsxExport.ts")).toContain("(aguarda o estoque)");
+  });
+
+  it("não pede prioridade na impressão para a peça à espera", () => {
+    expect(ler("shared/prioridade-na-impressao.ts")).toContain("if (aguardaReaproveitar(peca)) return fora(");
+  });
+
+  it("a resposta não apaga a nota de onde está no estoque, e quem conta a vê", () => {
+    const tela = ler("client/src/pages/reaproveitar.tsx");
+    expect(tela).toContain("obsReaproveitamento: peca.obsReaproveitamento ?? null");
+    expect(tela).toContain(`rotulo: "Onde está no estoque", texto: peca.obsReaproveitamento`);
+    // Negativo ou fracionado é inválido, não vira "Não tem".
+    expect(tela).toContain("Number.isInteger(temos) && temos >= 0 && temos <= pedido");
+  });
+
+  it("a ficha diz que a peça espera o módulo", () => {
+    expect(ler("client/src/components/item-details-dialog.tsx")).toContain("aguardaReaproveitar(item) && (");
   });
 
   it("a tela e o menu existem, para os mesmos papéis da Gráfica", () => {
@@ -138,6 +165,31 @@ describe("Observação no Conferir, no Embalar e no Entregar", () => {
     expect(r).toContain("await acrescentarObsDaEmbalagem(travado, obsDaEmbalagem, tx);");
     expect(r).toContain("obsEmbalagem: t.obsEmbalagem ?? null");
     expect(r).toContain("observations: p.observations ?? null");
+  });
+
+  it("os lotes também mostram: a conferência em lote e o Entregar em lote", () => {
+    expect(ler("client/src/components/grafica/modais/conferencia-em-lote.tsx")).toContain("<ObservacoesDaPeca peca={item} compacto />");
+    expect(ler("client/src/components/tubos-dialog.tsx")).toContain("extras={v.avisos}");
+    const aba = ler("client/src/components/grafica/aba-tubos.tsx");
+    expect(aba).toContain("avisos: avisosDoVolume(t)");
+    expect(ler("server/routes/tubos.ts")).toContain("obsEmbalagem: t.obsEmbalagem ?? null,\n            pecas: dentro.map");
+  });
+
+  it("o Modo Galpão (a conferência do celular) também: observação à vista, campo e várias fotos", () => {
+    const g = ler("client/src/components/galpao-fila.tsx");
+    expect(g).toContain("<ObservacoesDaPeca peca={vivo ?? item} />");
+    expect(g).toContain(`data-testid="galpao-obs"`);
+    expect(g).toContain("<ObjectUploader multiple");
+    expect(g).toContain("convertGCSUrlToLocalPath(enviada)");
+    expect(g).toContain("<VisorDeFotos");
+    // Foto subindo segura o Confirmar, e a de quem pulou não entra na peça seguinte.
+    expect(g).toContain("disabled={!temFoto || fotoSubindo || enviando}");
+    expect(g).toContain("if (pecaAtualRef.current !== daPeca) return;");
+    // O Esc do visor fecha a foto, não a fila.
+    expect(g).toContain("e.defaultPrevented");
+    const tela = ler("client/src/pages/grafica.tsx");
+    expect(tela).toContain("notes: dados.notes ?? \"\"");
+    expect(tela).toContain("dados.fotos.map((photoUrl)");
   });
 
   it("a migração cria as duas colunas, sem mexer no acervo", () => {

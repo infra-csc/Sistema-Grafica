@@ -17,12 +17,14 @@ const BOTAO: React.CSSProperties = {
   border: "none", borderRadius: R.pill, background: "rgba(255,255,255,0.14)", color: "#fff", cursor: "pointer",
 };
 
-export function VisorDeFotos({ fotos, indice, aoMudar, aoRemover }: {
+export function VisorDeFotos({ fotos, indice, aoMudar, aoRemover, zIndex }: {
   fotos: string[];
   /** null = fechado. */
   indice: number | null;
   aoMudar: (i: number | null) => void;
   aoRemover?: (url: string) => void;
+  /** Para abrir sobre uma tela cheia com camada própria (a fila do galpão). */
+  zIndex?: number;
 }) {
   const aberto = indice !== null && indice >= 0 && indice < fotos.length;
   const i = aberto ? indice! : 0;
@@ -41,7 +43,7 @@ export function VisorDeFotos({ fotos, indice, aoMudar, aoRemover }: {
       <DialogContent
         className={HIDE_NATIVE_CLOSE}
         data-testid="visor-de-fotos"
-        style={{ width: "min(960px, calc(100vw - 16px))", maxWidth: "none", height: "calc(100dvh - 16px)", maxHeight: "none", padding: 0, gap: 0, background: "#141210", border: "none", borderRadius: R.lg, display: "flex", flexDirection: "column", overflow: "hidden" }}
+        style={{ zIndex, width: "min(960px, calc(100vw - 16px))", maxWidth: "none", height: "calc(100dvh - 16px)", maxHeight: "none", padding: 0, gap: 0, background: "#141210", border: "none", borderRadius: R.lg, display: "flex", flexDirection: "column", overflow: "hidden" }}
       >
         <DialogTitle className="sr-only">Foto {i + 1} de {fotos.length}</DialogTitle>
         <DialogDescription className="sr-only">Veja a foto em tamanho grande antes de confirmar</DialogDescription>

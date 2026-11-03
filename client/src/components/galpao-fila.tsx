@@ -20,6 +20,8 @@
 //    caminhão é um só, quem assina costuma ser a mesma pessoa.
 //  · Foto obrigatória nos dois modos — é a regra do servidor, dita aqui antes
 //    do toque, não depois como erro.
+//  · OBSERVAÇÃO E MAIS FOTOS (dono, 03/11): o que a Solicitação escreveu vem à
+//    vista, e dá para anotar e anexar outras fotos sem sair do caminho feliz.
 //
 // O que este modo NÃO faz, de propósito: produzir, reaproveitar, devolver,
 // complemento. Exceção é trabalho de bancada — a lista continua lá para isso.
@@ -28,6 +30,9 @@ import { useEffect, useRef, useState } from "react";
 import { miniatura } from "@/lib/miniatura";
 import { Camera, Check, ChevronRight, ImagePlus, Truck, X } from "lucide-react";
 import { ObjectUploader } from "@/components/ObjectUploader";
+import { ObservacoesDaPeca } from "@/components/grafica/observacoes-da-peca";
+import { VisorDeFotos } from "@/components/grafica/modais/visor-de-fotos";
+import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { SugestaoRecebedor } from "@/components/sugestao-recebedor";
 import { remainingConfer } from "@/lib/saldo";
 import { useAcompanharAreaVisivel } from "@/components/grafica/area-visivel";
@@ -40,7 +45,7 @@ import type { PecaDaFila } from "@/components/grafica/tipos";
 import { remainingDeliver as saldoAEntregar } from "@/lib/saldo";
 import { quantidadeFisicaDe as quantidadeFisica } from "@shared/origem-do-reaproveitamento";
 
-export interface GalpaoDados { photoUrl: string; qty?: number; receivedBy?: string }
+export interface GalpaoDados { photoUrl: string; fotos: string[]; notes?: string; qty?: number; receivedBy?: string }
 
 interface Props {
   mode: "confer" | "deliver";
@@ -62,7 +67,12 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
   const tinta = isConfer ? TOM.ciano.text : ACAO.entregar.bg;
 
   const [idx, setIdx] = useState(0);
-  const [foto, setFoto] = useState<string | null>(null);
+  const [fotos, setFotos] = useState<string[]>([]);
+  const [notas, setNotas] = useState("");
+  const [vendo, setVendo] = useState<number | null>(null);
+  const [subindo, setSubindo] = useState<{ camera?: boolean; galeria?: boolean }>({});
+  const fotoSubindo = !!subindo.camera || !!subindo.galeria;
+  const temFoto = fotos.length > 0;
   const [qty, setQty] = useState(0);
   // Quem recebe assina o caminhão inteiro — o nome atravessa as peças.
   // Só as DESTA fila. Entre filas, não: a fila abre VAZIA e o nome da anterior
@@ -94,7 +104,8 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
     const anterior = document.activeElement as HTMLElement | null;
     caixaRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || enviandoRef.current) return;
+      // defaultPrevented: o Esc foi do visor de fotos, que fecha só a foto.
+      if (e.key !== "Escape" || e.defaultPrevented || enviandoRef.current) return;
       e.preventDefault();
       onClose(feitasRef.current);
     };
@@ -127,10 +138,14 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
   const vivo = item ? itens.find((i) => i.id === item.id) : undefined;
   const jaRegistradaPorOutro = !!item && !vivo;
   const saldoVivo = item && isConfer ? remainingConfer(vivo ?? item) : null;
+  const pecaAtualRef = useRef<string | undefined>(item?.id);
+  pecaAtualRef.current = item?.id;
 
   // Cada peça nova zera o que é DA peça (foto, erro) e repõe o saldo dela.
   useEffect(() => {
-    setFoto(null);
+    setFotos([]);
+    setNotas("");
+    setVendo(null);
     setErro(null);
     if (item && isConfer) setQty(remainingConfer(item));
   }, [idx, item, isConfer]);
@@ -145,6 +160,16 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
 
   if (!item) return null;
 
+  // A foto que termina de subir depois de "Pular" não pode entrar na peça seguinte.
+  const pecaDaTela = item.id;
+  const chegouFoto = (daPeca: string, enviada: string) => {
+    if (pecaAtualRef.current !== daPeca) return;
+    // O caminho do app, como no modal da peça: a URL crua do envio não abre aqui.
+    const url = convertGCSUrlToLocalPath(enviada);
+    setFotos((f) => (f.includes(url) ? f : [...f, url]));
+    setErro(null);
+  };
+
   const avancar = (totalFeitas: number) => {
     if (idx + 1 < fila.length) setIdx(idx + 1);
     else onClose(totalFeitas);
@@ -155,7 +180,7 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
   };
 
   const confirmar = async () => {
-    if (!foto || enviando) return;
+    if (!temFoto || enviando || fotoSubindo) return;
     if (jaRegistradaPorOutro) {
       setErro("Esta peça saiu da fila depois que ela abriu. Toque em Pular para seguir.");
       return;
@@ -164,7 +189,9 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
     setErro(null);
     try {
       await onConfirmar(item, {
-        photoUrl: foto,
+        photoUrl: fotos[0],
+        fotos,
+        notes: notas.trim() || undefined,
         ...(isConfer ? { qty } : { receivedBy: receivedBy.trim() || undefined }),
       });
       // `feitas + 1` na mão, não o estado: o setState ainda não aplicou e o
@@ -188,7 +215,7 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
 
   // Enquanto não dá para confirmar, o botão fica CINZA e legível (não só
   // apagado a 50%): "Falta a foto" é a instrução, e precisa ser lida.
-  const confirmarPronto = !!foto && !enviando && !jaRegistradaPorOutro;
+  const confirmarPronto = temFoto && !fotoSubindo && !enviando && !jaRegistradaPorOutro;
 
   return (
     <div
@@ -300,6 +327,9 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
           </p>
         </div>
 
+        {/* Antes da arte: quem está com a peça na mão lê o aviso antes de comparar. */}
+        <ObservacoesDaPeca peca={vivo ?? item} />
+
         {/* A arte grande — conferir É comparar o material com ela. */}
         {arte ? (
           // ALTURA RESERVADA (não maxHeight): a arte chegava depois e empurrava
@@ -359,50 +389,58 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
           <SugestaoRecebedor nome={sugestaoRecebedor} atual={receivedBy} onUsar={setReceivedBy} />
         )}
 
-        {/* A foto — o primeiro dos dois toques */}
-        {foto ? (
-          <div style={{ position: "relative", alignSelf: "flex-start" }}>
-            <img loading="lazy" decoding="async" src={miniatura(foto)} alt="Foto registrada" style={{ height: 96, borderRadius: R.lg, border: `2px solid ${tinta}` }} />
-            {/* Alvo de 44px (área invisível) em volta do X visível de 32 — o
-                botão colado na miniatura era menor que a ponta do dedo. */}
-            <button type="button" aria-label="Tirar outra foto" data-testid="galpao-refazer-foto"
-              onClick={() => setFoto(null)}
-              style={{ position: "absolute", top: -14, right: -14, width: 44, height: 44, borderRadius: "50%", border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
-              <span style={{ width: 32, height: 32, borderRadius: "50%", backgroundColor: T.dark, color: T.surface, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <X style={{ width: 14, height: 14 }} />
-              </span>
-            </button>
-          </div>
-        ) : (
-          <div style={{ display: "flex", gap: 12 }}>
-            <div style={{ flex: 2.2 }}>
-              {/* min-h: durante o envio o conteúdo vira "Enviando x%" (uma
-                  linha) e o botão encolhia, mudando tudo de lugar sob o dedo. */}
-              <ObjectUploader capture maxFileSize={10485760} buttonVariant="ghost" buttonClassName="w-full h-full min-h-[88px] p-0 border-0 hover:bg-transparent"
-                onComplete={(r) => { setFoto(r.url); setErro(null); }}
-                onError={(e) => setErro(e.message)}>
-                <div data-testid="galpao-camera" style={{ width: "100%", padding: "22px 0", backgroundColor: tinta, borderRadius: R.lg, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                  <Camera aria-hidden="true" style={{ width: 28, height: 28, color: T.surface }} />
-                  <span style={{ fontSize: FS.lead, fontWeight: FW.rotulo, color: T.surface }}>Tirar foto</span>
-                </div>
-              </ObjectUploader>
-            </div>
-            <div style={{ flex: 1 }}>
-              <ObjectUploader maxFileSize={10485760} buttonVariant="ghost" buttonClassName="w-full h-full min-h-[88px] p-0 border-0 hover:bg-transparent"
-                onComplete={(r) => { setFoto(r.url); setErro(null); }}
-                onError={(e) => setErro(e.message)}>
-                <div style={{ width: "100%", padding: "22px 0", backgroundColor: N.n2, borderRadius: R.lg, border: `2px dashed ${T.bdark}`, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                  <ImagePlus aria-hidden="true" style={{ width: 22, height: 22, color: T.apoio }} />
-                  <span style={{ fontSize: FS.read, fontWeight: FW.forte, color: T.strong }}>Galeria</span>
-                </div>
-              </ObjectUploader>
-            </div>
+        {/* As fotos já anexadas: tocar amplia; Remover fica fora da foto. */}
+        {temFoto && (
+          <div data-testid="galpao-fotos" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(96px, 1fr))", gap: 8 }}>
+            {fotos.map((url, i) => (
+              <div key={url} style={{ borderRadius: R.lg, overflow: "hidden", border: `2px solid ${tinta}`, backgroundColor: T.surface }}>
+                <button type="button" onClick={() => setVendo(i)} aria-label={`Ver a foto ${i + 1} em tamanho grande`} data-testid={`galpao-foto-${i}`}
+                  style={{ display: "block", width: "100%", aspectRatio: "1", padding: 0, border: "none", background: "none", cursor: "zoom-in" }}>
+                  <img loading="lazy" decoding="async" src={miniatura(url)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                </button>
+                <button type="button" onClick={() => setFotos((f) => f.filter((x) => x !== url))} aria-label={`Remover a foto ${i + 1}`} data-testid={`galpao-remover-foto-${i}`}
+                  style={{ width: "100%", height: 44, padding: 0, border: "none", borderTop: `1px solid ${T.border}`, backgroundColor: T.surface, color: T.second, fontSize: FS.body, fontWeight: FW.medio, display: "flex", alignItems: "center", justifyContent: "center", gap: 4, cursor: "pointer" }}>
+                  <X aria-hidden="true" style={{ width: 13, height: 13 }} /> Remover
+                </button>
+              </div>
+            ))}
           </div>
         )}
+        <VisorDeFotos fotos={fotos} indice={vendo} aoMudar={setVendo} aoRemover={(url) => setFotos((f) => f.filter((x) => x !== url))} zIndex={200} />
+
+        {/* A câmera é o primeiro dos dois toques; depois da foto vira "outra".
+            Sempre montados: a galeria envia várias, e trocar de bloco no meio
+            desmontaria quem ainda está enviando. */}
+        <div style={{ display: "flex", gap: 12 }}>
+          <div style={{ flex: temFoto ? 1 : 2.2 }}>
+            {/* min-h: durante o envio o conteúdo vira "Enviando x%" (uma
+                linha) e o botão encolhia, mudando tudo de lugar sob o dedo. */}
+            <ObjectUploader capture maxFileSize={10485760} buttonVariant="ghost" buttonClassName={`w-full h-full ${temFoto ? "min-h-[56px]" : "min-h-[88px]"} p-0 border-0 hover:bg-transparent`}
+              onComplete={(r) => chegouFoto(pecaDaTela, r.url)}
+              onEnviandoMudou={(b) => setSubindo((a) => ({ ...a, camera: b }))}
+              onError={(e) => setErro(e.message)}>
+              <div data-testid="galpao-camera" style={{ width: "100%", padding: temFoto ? "10px 0" : "22px 0", backgroundColor: temFoto ? N.n2 : tinta, borderRadius: R.lg, border: temFoto ? `2px dashed ${T.bdark}` : undefined, display: "flex", flexDirection: temFoto ? "row" : "column", alignItems: "center", justifyContent: "center", gap: 6, minHeight: temFoto ? 56 : 88, boxSizing: "border-box" }}>
+                <Camera aria-hidden="true" style={{ width: temFoto ? 20 : 28, height: temFoto ? 20 : 28, color: temFoto ? T.apoio : T.surface }} />
+                <span style={{ fontSize: temFoto ? FS.read : FS.lead, fontWeight: temFoto ? FW.forte : FW.rotulo, color: temFoto ? T.strong : T.surface }}>{temFoto ? "Tirar outra" : "Tirar foto"}</span>
+              </div>
+            </ObjectUploader>
+          </div>
+          <div style={{ flex: 1 }}>
+            <ObjectUploader multiple maxFileSize={10485760} buttonVariant="ghost" buttonClassName={`w-full h-full ${temFoto ? "min-h-[56px]" : "min-h-[88px]"} p-0 border-0 hover:bg-transparent`}
+              onComplete={(r) => chegouFoto(pecaDaTela, r.url)}
+              onEnviandoMudou={(b) => setSubindo((a) => ({ ...a, galeria: b }))}
+              onError={(e) => setErro(e.message)}>
+              <div data-testid="galpao-galeria" style={{ width: "100%", padding: temFoto ? "10px 0" : "22px 0", backgroundColor: N.n2, borderRadius: R.lg, border: `2px dashed ${T.bdark}`, display: "flex", flexDirection: temFoto ? "row" : "column", alignItems: "center", justifyContent: "center", gap: 6, minHeight: temFoto ? 56 : 88, boxSizing: "border-box" }}>
+                <ImagePlus aria-hidden="true" style={{ width: temFoto ? 20 : 22, height: temFoto ? 20 : 22, color: T.apoio }} />
+                <span style={{ fontSize: FS.read, fontWeight: FW.forte, color: T.strong }}>{temFoto ? "Anexar mais" : "Galeria"}</span>
+              </div>
+            </ObjectUploader>
+          </div>
+        </div>
         {/* POR QUE A FOTO — dito antes do toque. O motivo vivia no `title` do
             Confirmar cinza, que no celular ninguém lê. Enquanto a foto sobe, o
             próprio botão da câmera mostra "Enviando…" com o percentual. */}
-        {!foto && (
+        {!temFoto && (
           <p style={{ margin: "-4px 0 0", fontSize: FS.body, color: T.apoio, lineHeight: 1.4 }}>
             {isConfer
               ? "Foto obrigatória: é o registro de que a peça foi conferida."
@@ -410,12 +448,24 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
           </p>
         )}
 
+        {isConfer && (
+          <label style={{ display: "block" }}>
+            <span style={{ fontSize: FS.body, fontWeight: FW.forte, color: T.strong }}>
+              Observação <span style={{ fontWeight: FW.corpo, color: T.second }}>(opcional)</span>
+            </span>
+            {/* 16px: abaixo disso o iOS dá zoom na página ao tocar. */}
+            <textarea value={notas} onChange={(e) => setNotas(e.target.value)} rows={2} data-testid="galpao-obs"
+              placeholder="Ex.: cor puxando para o escuro, ilhós faltando…"
+              style={{ display: "block", width: "100%", boxSizing: "border-box", marginTop: 6, minHeight: 64, borderRadius: R.md, border: `1px solid ${T.bdark}`, padding: "10px 12px", fontSize: FS.lead, fontFamily: "inherit", color: T.text, backgroundColor: T.surface, resize: "vertical" }} />
+          </label>
+        )}
+
         {erro && (
           <p data-testid="galpao-erro" role="alert" style={{ margin: 0, padding: "10px 12px", fontSize: FS.read, fontWeight: FW.medio, color: TOM.perigo.text, backgroundColor: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}`, borderRadius: R.lg }}>
             {erro}
             {/* O Confirmar continua habilitado com a foto: tocar nele de novo
                 É o "tentar de novo". A frase diz isso em vez de deixar a dúvida. */}
-            {foto && !jaRegistradaPorOutro && <span style={{ display: "block", marginTop: 2, fontWeight: FW.corpo, color: TOM.perigo.text }}>A foto continua anexada — toque no botão abaixo para tentar de novo.</span>}
+            {temFoto && !jaRegistradaPorOutro && <span style={{ display: "block", marginTop: 2, fontWeight: FW.corpo, color: TOM.perigo.text }}>A foto continua anexada — toque no botão abaixo para tentar de novo.</span>}
           </p>
         )}
       </div>
@@ -431,8 +481,8 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
         </Botao>
         {/* A cor do modo (ciano conferir, verde entregar) fica: é o que diz de
             relance em qual fila a pessoa está. */}
-        <Botao variante="primario" tamanho="toque" onClick={confirmar} disabled={!foto || enviando} carregando={enviando} data-testid="galpao-confirmar"
-          title={!foto ? "A foto é obrigatória — é o registro da conferência/entrega." : undefined}
+        <Botao variante="primario" tamanho="toque" onClick={confirmar} disabled={!temFoto || fotoSubindo || enviando} carregando={enviando} data-testid="galpao-confirmar"
+          title={!temFoto ? "A foto é obrigatória — é o registro da conferência/entrega." : undefined}
           style={{
             flex: 1, height: 56, borderRadius: R.lg,
             backgroundColor: confirmarPronto ? tinta : T.border,
@@ -446,7 +496,8 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
           }}>
           {enviando ? "Registrando…"
             : jaRegistradaPorOutro ? "Já registrada"
-            : !foto ? "Falta a foto"
+            : !temFoto ? "Falta a foto"
+            : fotoSubindo ? "Enviando foto…"
             : isConfer ? `Conferir ${qty} un.`
             : `Entregar ${saldoAEntregar(vivo ?? item)} un.`}
         </Botao>

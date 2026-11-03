@@ -325,6 +325,35 @@ describe("as outras portas", () => {
     expect(p1()).toMatchObject({ status: "produced", reusoPedido: null, reuseQty: 10, isReuse: true });
   });
 
+  it("à espera, o número não muda pela edição: a resposta continua tendo saída", async () => {
+    H.mundo.itens.p1 = peca({ status: "ready_for_production", reusoPedido: 10, reuseQty: 0, origemReaproveitamento: "estoque" });
+    const r = await chamar("PATCH /api/items/:id", { isReuse: true, reuseQty: 10 }, "solicitacao");
+    expect(r.status, JSON.stringify(r.body)).toBe(409);
+    expect(r.body.error).toContain("espera a resposta do Reaproveitar");
+    expect(p1()).toMatchObject({ reusoPedido: 10, reuseQty: 0, isReuse: false });
+    const resposta = await chamar("POST /api/items/:id/mark-reuse", { respostaDoEstoque: true, qty: 5 }, "grafica");
+    expect(resposta.status, JSON.stringify(resposta.body)).toBe(200);
+    expect(p1()).toMatchObject({ reusoPedido: null, reuseQty: 5 });
+    // Respondeu com papel Gráfica: quem imprime é outra pessoa e recebe o aviso.
+    expect(H.avisos.at(-1)?.message).toMatch(/^Buscar no estoque: /);
+  });
+
+  it("voltou à Revisão com pedido em aberto: liberar pede de novo, não manda tudo imprimir", async () => {
+    H.mundo.itens.p1 = peca({ status: "awaiting_final_review", reusoPedido: 6, reuseQty: 0, origemReaproveitamento: "estoque", obsReaproveitamento: "Galpão" });
+    const r = await chamar("PATCH /api/items/:id/creator-review", {}, "solicitacao");
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    expect(p1()).toMatchObject({ status: "ready_for_production", reusoPedido: 6, reuseQty: 0, obsReaproveitamento: "Galpão" });
+  });
+
+  it("zero limpa a origem, e faltar unidade sem arquivo final avisa quem resolve", async () => {
+    H.mundo.itens.p1 = peca({ status: "ready_for_production", reusoPedido: 10, reuseQty: 0, origemReaproveitamento: "estoque", obsReaproveitamento: "Galpão", finalFileUrl: null });
+    const nada = await chamar("POST /api/items/:id/mark-reuse", { respostaDoEstoque: true, qty: 0 }, "grafica");
+    expect(nada.status, JSON.stringify(nada.body)).toBe(200);
+    expect(p1()).toMatchObject({ reusoPedido: null, reuseQty: 0, origemReaproveitamento: null, obsReaproveitamento: null });
+    expect(H.avisos.at(-1)).toMatchObject({ targetRoles: ["grafica", "solicitacao"] });
+    expect(H.avisos.at(-1)?.message).toMatch(/faltam 10 un\. e a peça não tem arquivo final/);
+  });
+
   it("imprimir antes da resposta é recusado, para tela velha e script", async () => {
     H.mundo.itens.p1 = peca({ status: "ready_for_production", reusoPedido: 4, reuseQty: 0, finalFileUrl: "arquivo.pdf" });
     const r = await chamar("PATCH /api/items/:id/start-printing", { printMachine: "1" }, "grafica");

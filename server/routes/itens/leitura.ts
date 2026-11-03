@@ -1,4 +1,7 @@
 // Leituras de peças: a lista (com delta e recorte), a lixeira e as filas das telas.
+import { and, gt, isNull } from "drizzle-orm";
+import { db } from "../../db";
+import { items as itemsTable } from "@shared/schema";
 import type { Express, Request } from "express";
 import { aguardaReaproveitar } from "@shared/reaproveitar";
 import { storage, cabeNaJanelaDeEntregues, type ComplementSummary } from "../../storage";
@@ -734,8 +737,9 @@ export function registrarFilasEPorEvento(app: Express): void {
     try {
       if (!["grafica", "solicitacao", "admin"].includes(req.userRole ?? "")) return res.json({ total: 0 });
       const usuario = quemVe(req);
-      const esperando = (await storage.getItemsByStatuses(["ready_for_production", "pronto_para_producao", "approved", "liberado"]))
-        .filter((i) => !i.deletedAt && aguardaReaproveitar(i) && pecaVisivelPara(usuario, i));
+      // Roda a cada mudança de peça (o número do menu): lê só quem tem pedido.
+      const esperando = (await db.select().from(itemsTable).where(and(gt(itemsTable.reusoPedido, 0), isNull(itemsTable.deletedAt))))
+        .filter((i) => aguardaReaproveitar(i) && pecaVisivelPara(usuario, i));
       const eventos = new Map((await storage.getEventsByIds(Array.from(new Set(esperando.map((i) => i.eventId))))).map((e) => [e.id, e]));
       res.json({ total: esperando.filter((i) => { const e = eventos.get(i.eventId); return !!e && !motivoEventoFechado(e); }).length });
     } catch (error) {

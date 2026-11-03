@@ -3,6 +3,7 @@
 // (área útil estreita). Os dois leem as MESMAS permissões e os mesmos gestos,
 // que chegam em `PropsDaPeca`.
 // ─────────────────────────────────────────────────────────────────────────────
+import { aguardaReaproveitar } from "@shared/reaproveitar";
 import { useState } from "react";
 import { Link } from "wouter";
 import { Plus, Pencil, Trash2, Lock, Recycle, AlertTriangle, Factory, FileInput } from "lucide-react";
@@ -508,7 +509,7 @@ export function LinhaDaPeca({
           {/* Prioridade na impressão (08/10): da Revisão Final até a impressão terminar. */}
           <PrioridadeNaImpressaoIcone item={item} eventoFinalizado={eventoFinalizado} />
           {/* Toggle reaproveitamento — enquanto não estiver em produção/entregue. */}
-          {!isEditBlocked(item.status) && (
+          {!isEditBlocked(item.status) && !aguardaReaproveitar(item) && (
             <button
               type="button"
               title={item.isReuse ? "Reaproveitamento ativo — clique para desativar" : "Marcar como reaproveitamento"}

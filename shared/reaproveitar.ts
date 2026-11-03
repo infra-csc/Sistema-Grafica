@@ -22,7 +22,7 @@
 /** Os status em que a resposta ainda faz sentido (a peça foi liberada e não andou). */
 const LIBERADA = new Set(["ready_for_production", "pronto_para_producao", "approved", "liberado"]);
 
-type PecaDoPedido = { reusoPedido?: number | null; status?: string | null; quantity?: number | null };
+type PecaDoPedido = { reusoPedido?: number | null; status?: string | null; quantity?: number | string | null };
 
 /** A peça espera a resposta do módulo Reaproveitar — fora da Gráfica e das impressoras. */
 export const aguardaReaproveitar = (p: PecaDoPedido | null | undefined): boolean =>
@@ -30,7 +30,19 @@ export const aguardaReaproveitar = (p: PecaDoPedido | null | undefined): boolean
 
 /** Quantas a pessoa pode confirmar: o pedido, com teto na quantidade atual da peça. */
 export const pedidoDoReaproveitar = (p: PecaDoPedido): number =>
-  Math.max(0, Math.min(p.reusoPedido ?? 0, p.quantity ?? p.reusoPedido ?? 0));
+  Math.max(0, Math.min(p.reusoPedido ?? 0, Number(p.quantity ?? p.reusoPedido ?? 0)));
+
+/**
+ * A peça é do módulo: espera a resposta ou foi reaproveitada por inteiro. Na fila
+ * da Gráfica ela só aparece com o filtro de reaproveitamento ou buscada (dono,
+ * 03/11: "só no Reaproveitar; na Gráfica, apenas se fizerem o filtro"). A parcial
+ * continua na fila: ainda há o que imprimir.
+ */
+export const ficaNoReaproveitar = (p: PecaDoPedido & { isReuse?: boolean | null; reuseQty?: number | string | null }): boolean => {
+  if (p.isReuse || aguardaReaproveitar(p)) return true;
+  const reuso = Number(p.reuseQty) || 0;
+  return reuso > 0 && reuso >= (Number(p.quantity) || 0);
+};
 
 /** A liberação pede ao estoque, ou aplica direto? Só "em trânsito" aplica direto. */
 export const pedeAoEstoque = (origem: string | null | undefined): boolean => origem !== "em_transito";

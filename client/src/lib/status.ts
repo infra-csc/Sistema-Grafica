@@ -11,7 +11,7 @@
 // contraste de texto. As paletas antigas usavam a cor saturada COMO texto, o
 // que reprovava AA.
 // ─────────────────────────────────────────────────────────────────────────────
-import { Clock, CheckCircle, Package, PackageCheck, Truck, XCircle, Lock } from "lucide-react";
+import { Clock, CheckCircle, Package, PackageCheck, Recycle, Truck, XCircle, Lock } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
   EVENT_CLOSED_STATUS,
@@ -110,6 +110,9 @@ export const STATUS: Record<string, StatusMeta> = {
   // produzido está no fim do fluxo dele, e "Impresso / Acabamento" mentiria
   // (não há acabamento nem conferência). Ver statusDeExibicao em shared/molde.
   molde_produzido:       meta("Produzido (molde)",      "Produzido",      P.emerald, CheckCircle),
+  // Também só de EXIBIÇÃO (dono, 03/11): a peça saiu do estoque, nada foi impresso.
+  reaproveitado:         meta("Reaproveitado",          "Reaproveitado",  P.emerald, Recycle),
+  aguarda_estoque:       meta("Aguardando o estoque",   "Aguard. estoque", P.amber,  Recycle),
   // ── Aliases LEGADOS em português (dados antigos ainda gravados assim) ──
   // Apontam para os mesmos metas dos status canônicos correspondentes
   // (liberado→approved, em_producao→inProduction, produzido→produced,
@@ -307,6 +310,20 @@ export const STATUS_GUIA: Record<string, StatusGuia> = {
   },
   delivered: G_ENTREGUE,
   entregue: G_ENTREGUE,
+  reaproveitado: {
+    significado: "Saiu inteira do estoque, nada foi impresso; falta conferir.",
+    quemAge: "Gráfica ou Solicitação",
+    onde: "Reaproveitar e Gráfica (filtro de reaproveitamento)",
+    proximoPasso: "Conferir a peça que veio do estoque.",
+    vez: "vez da conferência",
+  },
+  aguarda_estoque: {
+    significado: "Liberada pela Revisão, à espera de dizerem quantas têm no estoque.",
+    quemAge: "Quem reaproveita",
+    onde: "Reaproveitar",
+    proximoPasso: "Dizer quantas têm no estoque; o que faltar vai para a Gráfica produzir.",
+    vez: "vez do estoque",
+  },
   molde_produzido: {
     significado: "Molde produzido — o fluxo dele termina aqui (sem conferência, embalagem ou entrega).",
     quemAge: null,

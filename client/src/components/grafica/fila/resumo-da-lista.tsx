@@ -26,7 +26,7 @@ export function ResumoDaLista({ fila, isMobile, ponteiroGrosso, alvoNoTexto, fsM
 }) {
   const {
     isLoading, isError, filteredItems, complementosAbertos, filtros, patchFiltros, finalizadasNoRecorte,
-    resumoDaLista, entreguesOcultas, complementoChipLabel,
+    resumoDaLista, entreguesOcultas, complementoChipLabel, comReusoNaLista,
   } = fila;
   const temOQueDizer = filteredItems.length > 0 || complementosAbertos.length > 0 || filtros.complementos || finalizadasNoRecorte.total > 0;
   if (isLoading || isError || !temOQueDizer) return null;
@@ -95,6 +95,20 @@ export function ResumoDaLista({ fila, isMobile, ponteiroGrosso, alvoNoTexto, fsM
         })()}
         {/* Esconder dado sem dizer que está escondido é pior que o problema:
             o chip de reversão é parte da feature, não um extra. */}
+        {!filtros.reaproveitamento && !filtros.busca.trim() && comReusoNaLista > 0 && (
+          <>
+            {" · "}
+            <button
+              type="button"
+              onClick={() => patchFiltros({ reaproveitamento: true })}
+              data-testid="chip-reaproveitamento-oculto"
+              title="As peças reaproveitadas ficam no módulo Reaproveitar. Clique para ver aqui as com reaproveitamento."
+              style={{ background: "none", border: "none", padding: 0, fontSize: "inherit", fontWeight: 700, color: TOM.esmeralda.text, textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer", fontFamily: "inherit", ...alvoNoTexto }}
+            >
+              ♻ ver {comReusoNaLista} de reaproveitamento
+            </button>
+          </>
+        )}
         {entreguesOcultas > 0 && (
           <>
             {" · "}

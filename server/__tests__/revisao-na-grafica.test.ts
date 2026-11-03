@@ -60,7 +60,7 @@ describe("aparece", () => {
 describe("mas não age", () => {
   it("na tela: conferir, entregar, produzir e lote são barrados pelo emRevisao", () => {
     expect(GRAFICA).toContain("const canConferItem = canConfer(item) && !emRevisao;");
-    expect(GRAFICA).toContain("const podeProduzirAqui = !emRevisao && canProduce");
+    expect(GRAFICA).toContain("const podeProduzirAqui = !emRevisao && !aguardaReaproveitar(item) && canProduce");
     expect(GRAFICA).toContain("const bulkEligible = !emRevisao && (bulkConferMode");
     expect(GRAFICA).toContain("{!bulkOn && !emRevisao && podeConferir && canConfer(item) && (");
     // a entrega por peça saiu da tela: a embalada sai pelo volume
@@ -80,9 +80,9 @@ describe("segunda rodada (25/08): os quatro furos que sobraram", () => {
   const G = fonteDaGrafica();
 
   it("produzir e reaproveitar da tabela exigem !emRevisao", () => {
-    expect(G).toContain("{!bulkOn && !emRevisao && canProduce && !isDelivered(item)");
+    expect(G).toContain("{!bulkOn && !emRevisao && canProduce && !aguardaReaproveitar(item) && !isDelivered(item)");
     // 15/09: + !soVisualizaKit(item) — a Solicitação da Arena só vê a peça do Kit.
-    expect(G).toContain("{!bulkOn && !emRevisao && !pecaTravada(item) && !soVisualizaKit(item) && !isDelivered(item) && !isPosConferencia(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0)");
+    expect(G).toContain("{!bulkOn && !aguardaReaproveitar(item) && !emRevisao && !pecaTravada(item) && !soVisualizaKit(item) && !isDelivered(item) && !isPosConferencia(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0)");
     expect(G).toContain("{!bulkOn && !emRevisao && !soVisualizaKit(item) && (isProduced(item) || isAdmin) && reusedTotalOf(item) > 0");
   });
 

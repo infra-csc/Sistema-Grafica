@@ -160,7 +160,7 @@ describe("T4 — nenhum status de peça VIVA fica fora do funil", () => {
   // Status só de EXIBIÇÃO, nunca gravado: "molde_produzido" é o selo do molde
   // no fim do fluxo dele (shared/molde) — no banco ele é `produced`, e a
   // contagem o trata como entregue (statusParaContagem).
-  const STATUS_DE_EXIBICAO = new Set(["molde_produzido"]);
+  const STATUS_DE_EXIBICAO = new Set(["molde_produzido", "reaproveitado", "aguarda_estoque"]);
 
   it("todo status de client/src/lib/status.ts está no funil, entregue ou fora do funil", async () => {
     const { STATUS } = await import("@/lib/status");

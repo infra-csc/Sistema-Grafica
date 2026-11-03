@@ -10,8 +10,10 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
 import {
-  aguardaReaproveitar, pedidoDoReaproveitar, pedeAoEstoque, fraseDaResposta, trilhaDaResposta,
+  aguardaReaproveitar, ficaNoReaproveitar, pedidoDoReaproveitar, pedeAoEstoque, fraseDaResposta, trilhaDaResposta,
 } from "@shared/reaproveitar";
+import { statusDeExibicao } from "@shared/molde";
+import { getStatusMeta } from "@/lib/status";
 import { unidadesAProduzir } from "@shared/painel-operacional";
 import { ordenarFilaDaGrafica } from "@/components/grafica/fila/ordem-da-fila";
 import { cabecalhosDaPosicao } from "@/components/grafica/fila/grupo-das-prioritarias";
@@ -55,6 +57,46 @@ describe("Reaproveitar — quem espera a resposta", () => {
   });
 });
 
+describe("Só no Reaproveitar; na Gráfica, pelo filtro (dono, 03/11)", () => {
+  it("fica no módulo: à espera ou inteira; a parcial segue na fila, há o que imprimir", () => {
+    expect(ficaNoReaproveitar({ reusoPedido: 6, status: "ready_for_production", quantity: 10 })).toBe(true);
+    expect(ficaNoReaproveitar({ isReuse: true, status: "produced", quantity: 1, reuseQty: 1 })).toBe(true);
+    expect(ficaNoReaproveitar({ status: "produced", quantity: 4, reuseQty: 4 })).toBe(true);
+    expect(ficaNoReaproveitar({ status: "ready_for_production", quantity: 10, reuseQty: 4 })).toBe(false);
+    expect(ficaNoReaproveitar({ status: "ready_for_production", quantity: 10, reuseQty: 0 })).toBe(false);
+  });
+
+  it("o selo diz o que houve; o status gravado não muda", () => {
+    expect(statusDeExibicao({ status: "produced", isReuse: true, quantity: 1, reuseQty: 1, quantityProduced: 0 })).toBe("reaproveitado");
+    expect(statusDeExibicao({ status: "produced", quantity: 4, reuseQty: 4 })).toBe("reaproveitado");
+    expect(statusDeExibicao({ status: "ready_for_production", reusoPedido: 2 })).toBe("aguarda_estoque");
+    // Mista: houve impressão, "Impresso" é verdade.
+    expect(statusDeExibicao({ status: "produced", quantity: 10, reuseQty: 4, quantityProduced: 6 })).toBe("produced");
+    expect(statusDeExibicao({ status: "produced", quantity: 10, reuseQty: 0, quantityProduced: 10 })).toBe("produced");
+    // Depois de conferida, segue o fluxo normal.
+    expect(statusDeExibicao({ status: "conferred", isReuse: true, quantity: 1 })).toBe("conferred");
+    expect(getStatusMeta("reaproveitado").short).toBe("Reaproveitado");
+    expect(getStatusMeta("aguarda_estoque").short).toBe("Aguard. estoque");
+  });
+
+  it("a Gráfica traz de volta pelo filtro ou pela busca, e diz quantas estão fora", () => {
+    const fila = ler("client/src/components/grafica/hooks/use-fila-da-grafica.ts");
+    expect(fila).toContain("const mostraDoReaproveitar = filtros.reaproveitamento || !!filtros.busca.trim();");
+    expect(ler("client/src/components/grafica/fila/resumo-da-lista.tsx")).toContain("patchFiltros({ reaproveitamento: true })");
+    // À espera, vista pelo filtro: sem Imprimir nem Reaproveitar; o caminho é o módulo.
+    const linha = ler("client/src/components/grafica/fila/acoes-da-linha.tsx");
+    expect(linha).toContain("ir-para-reaproveitar-");
+    expect(linha).toContain("canProduce && !aguardaReaproveitar(item) && !isDelivered(item)");
+    expect(ler("client/src/components/grafica/fila/cartao-da-peca.tsx")).toContain("podeProduzirPeca = !emRevisao && !aguardaReaproveitar(item)");
+  });
+
+  it("o módulo abre onde há peça, separa as entregues e leva a conferir", () => {
+    const tela = ler("client/src/pages/reaproveitar.tsx");
+    expect(tela).toContain(`abaEscolhida ?? (aResponder.length > 0 || reaproveitadas.length === 0 ? "responder" : "reaproveitadas")`);
+    expect(tela).toContain("/grafica?reuso=1&item=");
+  });
+});
+
 describe("Reaproveitar — as pontas amarradas", () => {
   const LIBERACAO = ler("server/routes/itens/revisao.ts");
   const MARCA = ler("server/routes/itens/reaproveitamento.ts");
@@ -74,7 +116,7 @@ describe("Reaproveitar — as pontas amarradas", () => {
   });
 
   it("espera fora da Gráfica, das impressoras e da impressão", () => {
-    expect(ler("client/src/components/grafica/hooks/use-fila-da-grafica.ts")).toContain("pecasBrutas.filter((p) => !aguardaReaproveitar(p))");
+    expect(ler("client/src/components/grafica/hooks/use-fila-da-grafica.ts")).toContain("(mostraDoReaproveitar || !ficaNoReaproveitar(i))");
     const maquinas = ler("server/routes/maquinas.ts");
     expect(maquinas).toContain("and coalesce(i.reuso_pedido, 0) = 0");
     expect(maquinas).toContain("if (aguardaReaproveitar(item)) return FRASE_AGUARDA_REAPROVEITAR;");

@@ -17,6 +17,7 @@
 // (acervo antigo) e onde os status circulam em duas grafias (canônica em
 // inglês e legado em português).
 // ─────────────────────────────────────────────────────────────────────────────
+import { aguardaReaproveitar } from "@shared/reaproveitar";
 import { ehMolde, moldeConcluido } from "@shared/molde";
 import { aConferir, tetoDaConferencia, type PecaDaEmbalagem } from "@shared/embalagem";
 
@@ -27,6 +28,7 @@ import { aConferir, tetoDaConferencia, type PecaDaEmbalagem } from "@shared/emba
  * nenhuma chamada existente precisa de cast.
  */
 export interface SaldoItem {
+  reusoPedido?: number | null;
   status?: string | null;
   quantity?: number | string | null;
   quantityProduced?: number | string | null;
@@ -130,7 +132,9 @@ export const m2ToProduce = (item: SaldoItem): number => {
   const total = m2Of(item);
   const qty = qtyOf(item);
   if (!total || !qty) return total;
-  const toPrint = qty - reusedTotalOf(item);
+  // O pedido ao estoque sem resposta também não vai para a impressora (shared/reaproveitar).
+  const pedido = aguardaReaproveitar(item as { reusoPedido?: number | null; status?: string | null }) ? n(item.reusoPedido) : 0;
+  const toPrint = qty - reusedTotalOf(item) - pedido;
   return toPrint <= 0 ? 0 : (total / qty) * toPrint;
 };
 

@@ -20,10 +20,10 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { invalidarGraficaEMaquinas } from "@/lib/tempo-real-grafica";
 import { seloPecaEventoFinalizado, todayBusinessMs } from "@/lib/status";
 import { normalizarBusca, parseDateLocal } from "@/lib/utils";
-import { qtyOf, reusedTotalOf } from "@/lib/saldo";
+import { canConfer, isDelivered, qtyOf, reusedTotalOf } from "@/lib/saldo";
 import { ESCURO, FONT, FS, FW, N, R, T, TOM } from "@/lib/theme";
 import { Abas } from "@/components/ui/abas";
-import { Botao } from "@/components/ui/botao";
+import { Botao, BotaoLink } from "@/components/ui/botao";
 import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
 import { EstadoErro, EstadoVazio } from "@/components/ui/estados";
 import { EsqueletoDeFila } from "@/components/esqueleto-de-fila";
@@ -45,14 +45,15 @@ import { aguardaReaproveitar, fraseDaResposta, pedidoDoReaproveitar } from "@sha
 
 const SEM_PECAS: PecaDaFila[] = [];
 const LOTE = 60;
-type Aba = "responder" | "respondidas";
+type Aba = "responder" | "reaproveitadas" | "entregues";
 
 export default function Reaproveitar() {
   const { user } = useAuth();
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const dedo = usePonteiroGrosso();
-  const [aba, setAba] = useState<Aba>("responder");
+  // Sem escolha ainda: abre em "A responder", ou nas reaproveitadas se não houver o que responder.
+  const [abaEscolhida, setAba] = useState<Aba | null>(null);
   const [busca, setBusca] = useState("");
   const [evento, setEvento] = useState("all");
   const [vistas, setVistas] = useState(LOTE);
@@ -70,8 +71,11 @@ export default function Reaproveitar() {
   const hoje = todayBusinessMs();
   const vivas = useMemo(() => pecas.filter((p) => !p.deletedAt && !seloPecaEventoFinalizado(p.event, hoje)), [pecas, hoje]);
   const aResponder = useMemo(() => ordenarFilaDaGrafica(vivas.filter(aguardaReaproveitar)), [vivas]);
-  const respondidas = useMemo(() => ordenarFilaDaGrafica(vivas.filter((p) => !aguardaReaproveitar(p) && reusedTotalOf(p) > 0)), [vivas]);
-  const daAba = aba === "responder" ? aResponder : respondidas;
+  const comReuso = useMemo(() => ordenarFilaDaGrafica(vivas.filter((p) => !aguardaReaproveitar(p) && reusedTotalOf(p) > 0)), [vivas]);
+  const reaproveitadas = useMemo(() => comReuso.filter((p) => !isDelivered(p)), [comReuso]);
+  const entregues = useMemo(() => comReuso.filter(isDelivered), [comReuso]);
+  const aba: Aba = abaEscolhida ?? (aResponder.length > 0 || reaproveitadas.length === 0 ? "responder" : "reaproveitadas");
+  const daAba = aba === "responder" ? aResponder : aba === "reaproveitadas" ? reaproveitadas : entregues;
 
   const opcoesDeEvento = useMemo(() => {
     const m = new Map<string, { value: string; label: string; count: number }>();
@@ -122,7 +126,8 @@ export default function Reaproveitar() {
         aoTrocar={(id) => { setAba(id as Aba); setEvento("all"); setVistas(LOTE); }}
         itens={[
           { id: "responder", rotulo: "A responder", contador: aResponder.length > 0 ? aResponder.length : undefined, tom: "alerta" },
-          { id: "respondidas", rotulo: "Respondidas", contador: respondidas.length > 0 ? respondidas.length : undefined },
+          { id: "reaproveitadas", rotulo: "Reaproveitadas", contador: reaproveitadas.length > 0 ? reaproveitadas.length : undefined },
+          { id: "entregues", rotulo: "Entregues", contador: entregues.length > 0 ? entregues.length : undefined },
         ]}
       />
       {daAba.length > 0 && (
@@ -153,7 +158,7 @@ export default function Reaproveitar() {
           <EstadoVazio
             icone={Recycle}
             testId="vazio-reaproveitar"
-            titulo={daAba.length > 0 ? "Nenhuma peça neste recorte" : aba === "responder" ? "Nada esperando resposta" : "Nenhuma peça respondida ainda"}
+            titulo={daAba.length > 0 ? "Nenhuma peça neste recorte" : aba === "responder" ? "Nada esperando resposta" : aba === "reaproveitadas" ? "Nenhuma peça reaproveitada em andamento" : "Nenhuma peça reaproveitada entregue"}
             descricao={daAba.length > 0 ? "Mude a busca ou o evento." : aba === "responder" ? "Quando a Revisão Final pedir reaproveitamento, a peça aparece aqui." : "As peças com reaproveitamento aparecem aqui depois da resposta."}
           />
         ) : (
@@ -275,6 +280,9 @@ function LinhaDaPeca({ peca, respondendo, enviando, ocupado, podeAgir, isMobile,
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }} data-testid={`resposta-${peca.id}`}>
             <span style={{ fontSize: FS.body, fontWeight: FW.forte, color: TOM.esmeralda.text, fontVariantNumeric: "tabular-nums" }}>{reusedTotalOf(peca)} de {qtyOf(peca)} un. reaproveitadas</span>
             <StatusPill status={statusDeExibicao(peca)} size="sm" showDot={false} />
+            {podeAgir && !travada && canConfer(peca) && (
+              <BotaoLink href={`/grafica?reuso=1&item=${peca.id}`} variante="primario" tamanho={isMobile || dedo ? "toque" : "sm"} icone={Check} data-testid={`conferir-reaproveitada-${peca.id}`} style={{ background: TOM.ciano.text, borderColor: TOM.ciano.text, color: T.surface }}>Conferir</BotaoLink>
+            )}
           </div>
         )}
       </div>

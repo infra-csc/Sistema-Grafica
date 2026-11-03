@@ -26,6 +26,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** O nome canônico do tipo, como a lista de tipos e a importação gravam. */
+import { aguardaReaproveitar } from "./reaproveitar";
 export const TIPO_MOLDE = "Molde";
 
 /**
@@ -114,9 +115,29 @@ export function comStatusDeContagem<T extends { type?: string | null; status: st
 /** O status "de exibição" do molde produzido — selo "Produzido (molde)". */
 export const STATUS_MOLDE_PRODUZIDO = "molde_produzido";
 
-/** O status para o SELO: molde produzido ganha rótulo próprio, sem "Acabamento". */
-export const statusDeExibicao = (item: { type?: string | null; status?: string | null }): string =>
-  moldeConcluido(item) ? STATUS_MOLDE_PRODUZIDO : String(item?.status ?? "");
+/** A peça saiu inteira do estoque: nada foi impresso, falta conferir (dono, 03/11). */
+export const STATUS_REAPROVEITADO = "reaproveitado";
+/** Liberada, à espera de dizerem quantas têm no estoque (shared/reaproveitar.ts). */
+export const STATUS_AGUARDA_ESTOQUE = "aguarda_estoque";
+
+type PecaDoSelo = { type?: string | null; status?: string | null; isReuse?: boolean | null; reuseQty?: number | string | null; quantity?: number | string | null; quantityProduced?: number | string | null; reusoPedido?: number | null };
+
+const saiuInteiraDoEstoque = (item: PecaDoSelo): boolean => {
+  if (item.status !== "produced" && item.status !== "produzido") return false;
+  if (Number(item.quantityProduced) > 0) return false;
+  return !!item.isReuse || (Number(item.reuseQty) > 0 && Number(item.reuseQty) >= Number(item.quantity));
+};
+
+/**
+ * O status para o SELO. Só o rótulo muda, o gravado continua o mesmo: molde
+ * produzido sem "Acabamento"; e o reaproveitado por inteiro não diz "Impresso",
+ * que confundia quem confere (nada saiu da impressora).
+ */
+export const statusDeExibicao = (item: PecaDoSelo): string =>
+  moldeConcluido(item) ? STATUS_MOLDE_PRODUZIDO
+    : aguardaReaproveitar(item) ? STATUS_AGUARDA_ESTOQUE
+    : saiuInteiraDoEstoque(item) ? STATUS_REAPROVEITADO
+    : String(item?.status ?? "");
 
 /**
  * A devolução da Revisão tem dois destinos — "arte" (refaz o thumb) e

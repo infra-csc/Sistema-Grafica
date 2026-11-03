@@ -333,7 +333,7 @@ describe("Solicitação da Arena e o Kit (15/09)", () => {
   it("Gráfica esconde aumentar, reaproveitar e cancelar complemento do Kit para a Arena", () => {
     const GRAFICA = fonteDaGrafica();
     expect(GRAFICA).toContain("const mostraAumentar = !bulkOn && !emRevisao && !soVisualizaKit(item) && podeAumentarQuantidade(item, podeMexerQtd);");
-    expect(GRAFICA).toContain("{!bulkOn && !emRevisao && !pecaTravada(item) && !soVisualizaKit(item) && !isDelivered(item)");
+    expect(GRAFICA).toContain("{!bulkOn && !aguardaReaproveitar(item) && !emRevisao && !pecaTravada(item) && !soVisualizaKit(item) && !isDelivered(item)");
   });
 });
 

@@ -21,7 +21,7 @@ describe("o recorte de reaproveitamento", () => {
   });
 
   it("a régua é a MESMA dos chips verdes: total (isReuse) ou parcial (reusedTotalOf)", () => {
-    expect(LIB).toContain("if (!ignorarStatus && f.reaproveitamento && !(item.isReuse || reusedTotalOf(item) > 0)) return false;");
+    expect(LIB).toContain("if (!ignorarStatus && f.reaproveitamento && !(item.isReuse || reusedTotalOf(item) > 0 || aguardaReaproveitar(");
   });
 
   it("o recorte mora no MENU DE STATUS, como valor sintético (25/08)", () => {
@@ -31,6 +31,6 @@ describe("o recorte de reaproveitamento", () => {
     expect(TELA).toContain('{ value: "reuso", label: "♻ Com reaproveitamento", count: comReusoNaLista, pinned: true }');
     expect(TELA).not.toContain('data-testid="chip-reaproveitamento"');
     // a contagem continua do pool sem a própria dimensão
-    expect(TELA).toContain("statsPool.filter((i) => i.isReuse || reusedTotalOf(i) > 0).length");
+    expect(TELA).toContain("statsPool.filter((i) => i.isReuse || reusedTotalOf(i) > 0 || aguardaReaproveitar(i)).length + reusoForaDaLista");
   });
 });

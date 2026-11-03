@@ -4,8 +4,9 @@
 // a troca por JS (por isso rowBg devolve branco explícito e nunca "").
 // Na tabela COMPACTA as ações secundárias moram no menu "⋯".
 // ─────────────────────────────────────────────────────────────────────────────
+import { aguardaReaproveitar } from "@shared/reaproveitar";
 import { Check, CheckCircle, Eye, MoreHorizontal, Package, Play, Recycle, RotateCcw, Trash2, Truck, Undo2, X } from "lucide-react";
-import { Botao } from "@/components/ui/botao";
+import { Botao, BotaoLink } from "@/components/ui/botao";
 import { Selo } from "@/components/ui/selo";
 import { P, motivoAcaoBloqueada } from "@/lib/status";
 import type { SeloPecaEventoFinalizado } from "@/lib/status";
@@ -102,7 +103,7 @@ export function AcoesDaLinha({ ctx, item, selo, emRevisao, isSelected, bulkEligi
         {(() => {
           const temSecundaria = !bulkOn && (
             (podeMexerQtd && !soVisualizaKit(item) && ehComplemento && complementUntouched(item))
-            || (!emRevisao && !pecaTravada(item) && !soVisualizaKit(item) && !isDelivered(item) && !isPosConferencia(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0))
+            || (!aguardaReaproveitar(item) && !emRevisao && !pecaTravada(item) && !soVisualizaKit(item) && !isDelivered(item) && !isPosConferencia(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0))
             || (!emRevisao && !soVisualizaKit(item) && (isProduced(item) || isAdmin) && reusedTotalOf(item) > 0 && conferredOf(item) === 0 && deliveredOf(item) === 0)
             || (canProduce && podeDevolverParaRevisao(item)));
           if (!compacto || !temSecundaria) return null;
@@ -202,7 +203,7 @@ export function AcoesDaLinha({ ctx, item, selo, emRevisao, isSelected, bulkEligi
             (POST /api/items/:id/mark-reuse é barrado): marcar
             reaproveitamento é decidir o que entra na fila de
             produção, ou seja, faz o trabalho andar. */}
-        {!bulkOn && !emRevisao && !pecaTravada(item) && !soVisualizaKit(item) && !isDelivered(item) && !isPosConferencia(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0) && (
+        {!bulkOn && !aguardaReaproveitar(item) && !emRevisao && !pecaTravada(item) && !soVisualizaKit(item) && !isDelivered(item) && !isPosConferencia(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0) && (
           <>
             <Botao
               variante="fantasma"
@@ -366,7 +367,10 @@ export function AcoesDaLinha({ ctx, item, selo, emRevisao, isSelected, bulkEligi
             Vem DEPOIS das secundárias: a ação principal de cada
             etapa (Produzir, Conferir, Entregar) fica sempre na
             ponta direita, onde o olho já procura. */}
-        {!bulkOn && !emRevisao && canProduce && !isDelivered(item) && !isProduced(item) && !isPosConferencia(item) && !item.isReuse && (
+        {!bulkOn && aguardaReaproveitar(item) && (
+          <BotaoLink href="/reaproveitar" variante="secundario" tamanho={tamLinha} icone={Recycle} data-testid={`ir-para-reaproveitar-${item.id}`}>Responder no Reaproveitar</BotaoLink>
+        )}
+        {!bulkOn && !emRevisao && canProduce && !aguardaReaproveitar(item) && !isDelivered(item) && !isProduced(item) && !isPosConferencia(item) && !item.isReuse && (
           <Botao
             variante="primario"
             tamanho={tamLinha}

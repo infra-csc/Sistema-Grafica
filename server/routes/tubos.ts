@@ -104,6 +104,9 @@ const COLUNAS_PECA = {
   origemReaproveitamento: itemsTable.origemReaproveitamento,
   // A foto da conferência: quem entrega vê que o material já está documentado.
   conferencePhotoUrl: itemsTable.conferencePhotoUrl,
+  // O que veio antes (03/11): quem embala e quem entrega lê as observações da peça.
+  observations: itemsTable.observations,
+  conferenceNotes: itemsTable.conferenceNotes,
   tuboId: itemsTable.tuboId,
   eventId: itemsTable.eventId,
   deletedAt: itemsTable.deletedAt,
@@ -131,6 +134,8 @@ type PecaCrua = {
   reuseQty?: number | null;
   origemReaproveitamento?: string | null;
   conferencePhotoUrl?: string | null;
+  observations?: string | null;
+  conferenceNotes?: string | null;
   tuboId: string | null;
   eventId: string;
   deletedAt: Date | null;
@@ -285,6 +290,8 @@ const pecaParaTela = (p: PecaCrua, linha?: Linha) => ({
   // Em trânsito (16/10): as reaproveitadas não estão no volume — a etiqueta não liga o REAPROVEITAR por elas.
   origemReaproveitamento: p.origemReaproveitamento ?? null,
   conferencePhotoUrl: p.conferencePhotoUrl ?? null,
+  observations: p.observations ?? null,
+  conferenceNotes: p.conferenceNotes ?? null,
   // Peça cancelada/arquivada DENTRO de um volume: fica à vista como problema
   // (a entrega recusa até alguém tirá-la), em vez de sumir da lista.
   problema: linha && !linha.entregueEm ? problemaNoVolume(p) : null,
@@ -389,11 +396,11 @@ async function colocarNoTubo(req: Request, tubo: TuboCru, planos: Plano[], tx: E
 }
 
 /** A trilha e o aviso de "embalada" — depois da transação confirmada; falha aqui só vai ao log. */
-async function avisarEmbalagem(req: Request, tubo: TuboCru, planos: Plano[], nFotos = 0) {
-  await depoisDoCommit("avisar a embalagem", () => avisarEmbalagemCru(req, tubo, planos, nFotos));
+async function avisarEmbalagem(req: Request, tubo: TuboCru, planos: Plano[], nFotos = 0, obs = "") {
+  await depoisDoCommit("avisar a embalagem", () => avisarEmbalagemCru(req, tubo, planos, nFotos, obs));
 }
-async function avisarEmbalagemCru(req: Request, tubo: TuboCru, planos: Plano[], nFotos: number) {
-  const comFoto = nFotos > 0 ? ` · ${nFotos} ${nFotos === 1 ? "foto" : "fotos"}` : "";
+async function avisarEmbalagemCru(req: Request, tubo: TuboCru, planos: Plano[], nFotos: number, obs: string) {
+  const comFoto = (nFotos > 0 ? ` · ${nFotos} ${nFotos === 1 ? "foto" : "fotos"}` : "") + (obs ? ` · Obs: ${obs}` : "");
   await createAuditLogsEmLote(req, planos.map((pl) => {
     const quanto = pl.quantidade < pl.peca.quantity ? ` — ${pl.quantidade} de ${pl.peca.quantity} un.` : "";
     const details = tubo.avulso ? `Embalada (sozinha)${quanto}${comFoto}` : `Embalada no Tubo ${tubo.numero}${quanto}${comFoto}`;
@@ -588,6 +595,19 @@ function lerFotos(body: { fotos?: unknown; fotoUrl?: unknown } | null | undefine
 }
 const RECADO_FOTO_DO_EMBALAR = "Tire a foto para embalar";
 
+/** A observação de quem embala (03/11): texto do corpo, sem espaços nas pontas e com teto. */
+const OBS_DA_EMBALAGEM_MAX = 1000;
+const lerObsDaEmbalagem = (body: { obs?: unknown } | null | undefined): string =>
+  typeof body?.obs === "string" ? body.obs.trim().slice(0, OBS_DA_EMBALAGEM_MAX) : "";
+
+/** Embalar mais peças no mesmo volume acrescenta a linha, não apaga a de antes. */
+async function acrescentarObsDaEmbalagem(tubo: { id: string; obsEmbalagem?: string | null }, obs: string, ex: Ex) {
+  if (!obs) return;
+  const antes = tubo.obsEmbalagem?.trim();
+  if (antes && antes.split("\n").includes(obs)) return;
+  await ex.update(tubos).set({ obsEmbalagem: antes ? `${antes}\n${obs}` : obs }).where(eq(tubos.id, tubo.id));
+}
+
 // O NOME DO VOLUME (dono, 21/09: "nem sempre vai ser 'entregar tubo'"). A peça
 // embalada SOZINHA mora num volume avulso — nunca "Tubo N" em mensagem, trilha
 // ou tela. Os jeitos de dizer, com o artigo certo:
@@ -695,6 +715,7 @@ export function registerTubosRoutes(app: Express): void {
           recebidoPor: t.recebidoPor,
           entreguePor: t.entreguePor,
           fotoEntregaUrl: t.fotoEntregaUrl,
+          obsEmbalagem: t.obsEmbalagem ?? null,
           fotosFechamento: t.fotosFechamento ?? [],
           fechadoEm: t.fechadoEm,
           fechadoPor: t.fechadoPor,
@@ -915,6 +936,7 @@ export function registerTubosRoutes(app: Express): void {
     if (pedidos === null) return res.status(400).json({ error: "itens deve ser uma lista de peças (com a quantidade, se não for tudo)" });
     const lidas = lerFotos(req.body);
     if (lidas.erro) return res.status(400).json({ error: lidas.erro });
+    const obsDaEmbalagem = lerObsDaEmbalagem(req.body);
     let criado: Tubo | null = null;
     try {
       const eventId = req.params.eventId;
@@ -956,6 +978,7 @@ export function registerTubosRoutes(app: Express): void {
           if (r.recusas.length) throw new Recusa(409, `Não dá para embalar — ${r.recusas.join("; ")}`);
           await colocarNoTubo(req, travado, r.planos, tx);
           await acumularFotos(travado, lidas.fotos, resolveActor(req).userName, new Date(), tx);
+          await acrescentarObsDaEmbalagem(travado, obsDaEmbalagem, tx);
           return r.planos;
         });
       }
@@ -963,7 +986,7 @@ export function registerTubosRoutes(app: Express): void {
       if (!existente) {
         await depoisDoCommit("registrar o volume criado", () => createAuditLog(req, "created", "tubo", tubo.id, avulso ? `Embalagem avulsa criada (${evento.name})` : `Tubo ${tubo.numero} criado (${evento.name})`));
       }
-      if (planos.length) await avisarEmbalagem(req, tubo, planos, lidas.fotos.length);
+      if (planos.length) await avisarEmbalagem(req, tubo, planos, lidas.fotos.length, obsDaEmbalagem);
 
       await depoisDoCommit("avisar os tubos", async () => broadcast({ type: "tubos_atualizados", eventId }));
       res.status(existente ? 200 : 201).json(tubo);
@@ -985,6 +1008,7 @@ export function registerTubosRoutes(app: Express): void {
     if (pedidos.length === 0 && remover.length === 0) return res.status(400).json({ error: "Nada a mudar no tubo" });
     const lidas = lerFotos(req.body);
     if (lidas.erro) return res.status(400).json({ error: lidas.erro });
+    const obsDaEmbalagem = lerObsDaEmbalagem(req.body);
     const jaEntregue = (t: Volume) => `${oVolume(t)} já foi entregue — não dá para mexer no que tem dentro`;
     try {
       const [tubo] = await db.select().from(tubos).where(eq(tubos.id, req.params.id));
@@ -1035,6 +1059,7 @@ export function registerTubosRoutes(app: Express): void {
           }
           await colocarNoTubo(req, travado, planos, tx);
           await acumularFotos(travado, lidas.fotos, resolveActor(req).userName, new Date(), tx);
+          await acrescentarObsDaEmbalagem(travado, obsDaEmbalagem, tx);
         }
         let tiradas: Retirada[] = [];
         let sumiu = false;
@@ -1051,7 +1076,7 @@ export function registerTubosRoutes(app: Express): void {
       });
 
       if (feito.virouTubo !== null) await depoisDoCommit("registrar o avulso que virou tubo", () => createAuditLog(req, "updated", "tubo", tubo.id, `Embalagem avulsa virou o Tubo ${feito.virouTubo}`));
-      if (feito.planos.length) await avisarEmbalagem(req, feito.travado, feito.planos, lidas.fotos.length);
+      if (feito.planos.length) await avisarEmbalagem(req, feito.travado, feito.planos, lidas.fotos.length, obsDaEmbalagem);
       await avisarRetirada(req, feito.travado, feito.tiradas);
       await depoisDoCommit("avisar os tubos", async () => broadcast({ type: "tubos_atualizados", eventId: tubo.eventId }));
       res.json({ ok: true, numero: feito.travado.numero, avulso: !!feito.travado.avulso });

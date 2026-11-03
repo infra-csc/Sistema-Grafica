@@ -1,5 +1,6 @@
 // Leituras de peças: a lista (com delta e recorte), a lixeira e as filas das telas.
 import type { Express, Request } from "express";
+import { aguardaReaproveitar } from "@shared/reaproveitar";
 import { storage, cabeNaJanelaDeEntregues, type ComplementSummary } from "../../storage";
 import { ITEM_STATUSES, type Item, type Event, type Sponsor, type ItemSponsorApproval } from "@shared/schema";
 import { pecaVisivelPara, PARAM_SEM_KIT_ALHEIO, pecaNaVinculacaoDe } from "@shared/kit";
@@ -723,6 +724,23 @@ export function registrarFilasEPorEvento(app: Express): void {
     } catch (error) {
       console.error("[items] contagem da revisão final:", error);
       res.status(500).json({ error: "Não foi possível contar a Revisão Final" });
+    }
+  });
+
+  // QUANTAS PEÇAS ESPERAM O MÓDULO REAPROVEITAR — o número ao lado de
+  // "Reaproveitar" no menu (dono, 03/11; shared/reaproveitar.ts). De evento vivo:
+  // no encerrado nada mais anda, e o número nunca zeraria.
+  app.get("/api/items/reaproveitar/contagem", requireAuth, async (req, res) => {
+    try {
+      if (!["grafica", "solicitacao", "admin"].includes(req.userRole ?? "")) return res.json({ total: 0 });
+      const usuario = quemVe(req);
+      const esperando = (await storage.getItemsByStatuses(["ready_for_production", "pronto_para_producao", "approved", "liberado"]))
+        .filter((i) => !i.deletedAt && aguardaReaproveitar(i) && pecaVisivelPara(usuario, i));
+      const eventos = new Map((await storage.getEventsByIds(Array.from(new Set(esperando.map((i) => i.eventId))))).map((e) => [e.id, e]));
+      res.json({ total: esperando.filter((i) => { const e = eventos.get(i.eventId); return !!e && !motivoEventoFechado(e); }).length });
+    } catch (error) {
+      console.error("[items] contagem do reaproveitar:", error);
+      res.status(500).json({ error: "Não foi possível contar o Reaproveitar" });
     }
   });
 

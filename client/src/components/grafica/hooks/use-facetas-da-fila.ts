@@ -9,6 +9,7 @@
 // dropdowns continuariam prometendo o número antigo.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useMemo } from "react";
+import { grupoDoKit } from "@shared/kit";
 import { getPriorityMeta, descricaoDoStatus } from "@/lib/status";
 import { rotuloDaMaquina, MAQUINAS_DE_IMPRESSAO } from "@shared/fluxo-peca";
 import { recorteSoDaBusca, recorteSemABusca } from "@/components/grafica/recorte-da-busca";
@@ -112,7 +113,8 @@ export function useFacetasDaFila({ items, filtros, ctxFiltros, groupOf }: {
   const groupFilterOptions = useMemo(() => {
     const map = new Map<string, { value: string; label: string; count: number }>();
     gFacetPool('grupo').forEach((i) => {
-      const g = groupOf(i.type);
+      // O Kit é um grupo próprio (dono, 03/11).
+      const g = grupoDoKit(i) ?? groupOf(i.type);
       if (!g) return;
       const cur = map.get(g);
       if (cur) cur.count++;

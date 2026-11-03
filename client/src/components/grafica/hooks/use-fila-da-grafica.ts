@@ -6,6 +6,7 @@
 // números dos cartões e do resumo, e o orçamento de linhas desenhadas por lote.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useCallback, useEffect, useMemo, useRef, useState, startTransition } from "react";
+import { aguardaReaproveitar } from "@shared/reaproveitar";
 import { useQuery } from "@tanstack/react-query";
 import { getStatusLabel, seloPecaEventoFinalizado, todayBusinessMs } from "@/lib/status";
 import type { SeloPecaEventoFinalizado } from "@/lib/status";
@@ -32,6 +33,8 @@ import { ordenarFilaDaGrafica, CHAVE_DAS_PRIORITARIAS } from "@/components/grafi
 
 export type FilaDaGrafica = ReturnType<typeof useFilaDaGrafica>;
 
+const SEM_PECAS: PecaDaFila[] = [];
+
 export function useFilaDaGrafica() {
   // ── RECORTE (os doze filtros) ─────────────────────────────────────────────
   // UM objeto, inicializado da URL: F5 não perde o trabalho de filtrar e dá
@@ -57,7 +60,7 @@ export function useFilaDaGrafica() {
   // Grupos por evento já expandidos além do ROW_CAP.
   const [gruposExpandidos, setGruposExpandidos] = useState<Set<string>>(new Set());
 
-  const { data: pecasDoServidor = [], isLoading, isError, error, refetch, isFetching, dataUpdatedAt } = useQuery<PecaDaFila[]>({
+  const { data: pecasBrutas = SEM_PECAS, isLoading, isError, error, refetch, isFetching, dataUpdatedAt } = useQuery<PecaDaFila[]>({
     queryKey: ["/api/items/approved"],
     // Override LOCAL do default global (staleTime: Infinity, sem refetch em
     // foco). Esta é a única tela do app em que DUAS PESSOAS trabalham a mesma
@@ -71,6 +74,9 @@ export function useFilaDaGrafica() {
     refetchOnWindowFocus: true,
     refetchInterval: 300_000, // 5min (auditoria 27/08): o WebSocket cobre o tempo real; isto é só a rede de segurança de socket morto
   });
+  // MÓDULO REAPROVEITAR (dono, 03/11): enquanto ninguém disse quantas tem no
+  // estoque, a peça é de lá — não entra na fila, nos cartões nem nos totais.
+  const pecasDoServidor = useMemo(() => (pecasBrutas.some(aguardaReaproveitar) ? pecasBrutas.filter((p) => !aguardaReaproveitar(p)) : pecasBrutas), [pecasBrutas]);
   // ── Evento FINALIZADO: ESCONDIDO POR PADRÃO, A UM CLIQUE (dono, 08/10) ─────
   // DECISÃO NOVA (08/10): "tirar os itens de eventos que foram realizados da
   // Gráfica… tem que tirar a visualização dele, porque atrapalha, e eles não

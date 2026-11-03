@@ -446,6 +446,12 @@ export const items = pgTable("items", {
   // A observação livre: "vem do Night Run Salvador, etapa 17/10". Obrigatória
   // para "em trânsito" (a rota recusa sem ela); NULL sem origem.
   obsReaproveitamento: text("obs_reaproveitamento"),
+  // MÓDULO REAPROVEITAR (dono, 03/11): quantas unidades a Revisão Final pediu
+  // para reaproveitar e ainda ESPERAM a pessoa do estoque dizer quantas tem. A
+  // peça fica fora da fila da Gráfica até a resposta (POST mark-reuse com
+  // { respostaDoEstoque: true }): o que ela confirmar vira reuseQty e o resto vai
+  // para a impressora. NULL = nada esperando. Regras: shared/reaproveitar.ts.
+  reusoPedido: integer("reuso_pedido"),
   // ONDE A PEÇA ESTAVA quando foi cancelada (dono, 01/09: "descancelar item e
   // ele voltar no fluxo onde estava"). Preenchida pelo cancelamento
   // (individual e em lote); o descancelar do admin restaura para cá e limpa.
@@ -656,6 +662,10 @@ export const tubos = pgTable("tubos", {
   fotoEntregaUrl: text("foto_entrega_url"),
   entregueObs: text("entregue_obs"),
   entreguePor: text("entregue_por"),
+  // A observação de quem EMBALOU (dono, 03/11: "no conferir, embalar e entrega
+  // tem que ter observação"). Do volume, como a da entrega; embalar mais peças
+  // nele acrescenta uma linha. Quem entrega lê antes de sair.
+  obsEmbalagem: text("obs_embalagem"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 }, (table) => [
   uniqueIndex("UQ_tubos_evento_numero").on(table.eventId, table.numero),

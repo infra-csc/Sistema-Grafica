@@ -1,5 +1,6 @@
 // Impressão: iniciar/trocar de máquina e informar impressas (e as rotas aposentadas).
 import type { Express } from "express";
+import { aguardaReaproveitar, FRASE_AGUARDA_REAPROVEITAR } from "@shared/reaproveitar";
 import { eq, sql } from "drizzle-orm";
 import { db } from "../../db";
 import { storage } from "../../storage";
@@ -118,6 +119,7 @@ export function registrarRotasDeImpressao(app: Express): void {
           if (precisa.some((m) => !travas.includes(m))) return { recomecar: precisa };
           // As guardas sobre a linha TRAVADA (a leitura de fora pode estar velha).
           if (pecaTravada(current)) throw falha(409, { error: fraseDaTrava(current), code: CODIGO_PECA_TRAVADA });
+          if (aguardaReaproveitar(current)) throw falha(409, { error: FRASE_AGUARDA_REAPROVEITAR });
           if (EM_REVISAO.has(current.status)) throw falha(409, { error: "Esta peça está em revisão — a Gráfica só age depois que a revisão liberar." });
           // De onde pode ir para a máquina: shared/maquina-de-estados.ts ("iniciar-impressao").
           if (!vemDeOrigemValida(current.status, "iniciar-impressao")) throw falha(409, { error: `A peça não pode ir para a máquina no status atual: ${translateStatus(current.status)}` });

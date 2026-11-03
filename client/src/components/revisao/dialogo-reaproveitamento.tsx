@@ -110,7 +110,7 @@ export function DialogoReaproveitamento({
                   >
                     {origem.origem === "em_transito"
                       ? `Reaproveitar tudo (${qty} un.) — em trânsito, não passa pela Gráfica`
-                      : `Reaproveitar tudo (${qty} un.) — pula produção`}
+                      : `Reaproveitar tudo (${qty} un.) — ${SOLICITACAO_AO_ESTOQUE_ATIVA ? "pula produção" : "vai para o módulo Reaproveitar"}`}
                   </Botao>
 
                   {/* Opção: reaproveitar parcialmente (só aparece se qty > 1) */}
@@ -134,8 +134,8 @@ export function DialogoReaproveitamento({
                       </div>
                       <p style={{ margin: "0 0 10px", fontSize: letra(FS.small, isMobile), color: T.apoio }}>
                         {qty - partialReuseQty === 1
-                          ? <>A outra <strong>1</strong> un. segue para produção normal.</>
-                          : <>As outras <strong>{qty - partialReuseQty}</strong> un. seguem para produção normal.</>}
+                          ? <>A outra <strong>1</strong> un. vai para a Gráfica produzir.</>
+                          : <>As outras <strong>{qty - partialReuseQty}</strong> un. vão para a Gráfica produzir.</>}
                       </p>
                       {/* O parcial LIBERA o restante para produção — e produção
                           pede arquivo final. Dito aqui, antes do 409 do

@@ -24,6 +24,7 @@ import {
 import { avisarBuscarNoEstoque } from "../../services/aviso-buscar-no-estoque";
 import { recalcularEventoEAvisar } from "../../services/evento-concluido";
 import { gravarSeNaoMudou, FRASE_PECA_MUDOU } from "./gravar-se-nao-mudou";
+import { aguardaReaproveitar, pedidoDoReaproveitar, trilhaDaResposta } from "@shared/reaproveitar";
 import type { Item } from "@shared/schema";
 
 /**
@@ -115,6 +116,29 @@ export function registrarReaproveitamento(app: Express): void {
         return res.status(409).json({ error: `Não é possível reaproveitar: ${current.deliveredQty} un. já foram entregues` });
       }
 
+      // A RESPOSTA DO MÓDULO REAPROVEITAR (dono, 03/11): quantas o estoque tem do
+      // que a Revisão pediu (shared/reaproveitar.ts). Zero não reaproveita nada: a
+      // peça só volta a aparecer na Gráfica para produzir tudo.
+      const respostaDoEstoque = req.body?.respostaDoEstoque === true;
+      const pedido = pedidoDoReaproveitar(current);
+      if (respostaDoEstoque) {
+        if (!aguardaReaproveitar(current) || pedido <= 0) {
+          return res.status(409).json({ error: "Esta peça não espera mais a resposta do estoque — atualize a tela.", code: "PECA_MUDOU" });
+        }
+        const temos = Number(req.body?.qty);
+        if (!Number.isInteger(temos) || temos < 0 || temos > pedido) {
+          return res.status(400).json({ error: `Informe quantas têm no estoque: de 0 a ${pedido} un.` });
+        }
+        if (temos === 0) {
+          const item = await gravarSeNaoMudou(current, { reusoPedido: null });
+          if (item === "mudou") return res.status(409).json({ error: FRASE_PECA_MUDOU, code: "PECA_MUDOU" });
+          if (!item) return res.status(404).json({ error: "Peça não encontrada" });
+          await createAuditLog(req, 'updated', 'item', item.id, trilhaDaResposta(0, pedido, current.quantity));
+          broadcast({ type: "item_updated", item });
+          return res.json(item);
+        }
+      }
+
       const alreadyReused = current.reuseQty || 0;
       const produced = current.quantityProduced || 0;
 
@@ -191,6 +215,8 @@ export function registrarReaproveitamento(app: Express): void {
       const item = await gravarSeNaoMudou(current, {
         reuseQty: newReuse,
         isReuse: isFullReuse,
+        // Respondeu (ou a Gráfica reaproveitou direto): o pedido acabou.
+        reusoPedido: null,
         ...origemNova,
         ...(fechaEmTransito
           ? { status: "delivered" as const, deliveredAt: new Date() }
@@ -213,7 +239,9 @@ export function registrarReaproveitamento(app: Express): void {
         'updated',
         'item',
         item.id,
-        (isFullReuse
+        (respostaDoEstoque
+          ? trilhaDaResposta(n, pedido, current.quantity)
+          : isFullReuse
           ? `Reaproveitamento total pela Gráfica: ${newReuse}/${current.quantity} un.`
           : `Reaproveitamento parcial pela Gráfica: ${n} un. (${newReuse}/${current.quantity} reaproveitadas, ${current.quantity - newReuse} a produzir)`)
           + trilhaDaOrigem(current, origemNova)

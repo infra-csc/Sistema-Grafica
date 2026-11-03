@@ -255,8 +255,8 @@ export const TRANSICOES: readonly Transicao[] = [
   // ── Revisão Final ────────────────────────────────────────────────────────
   { acao: "liberar-para-producao", de: ["awaiting_final_review"], para: "ready_for_production", papeis: QUEM_DECIDE_NA_REVISAO,
     condicoes: [EVENTO_ABERTO, "arquivo final enviado (molde dispensa)", "peça travada: dizer se destrava ou mantém a trava"], rotas: [ROTA.liberar] },
-  { acao: "liberar-com-reaproveitamento-total", de: ["awaiting_final_review"], para: "produced", papeis: QUEM_DECIDE_NA_REVISAO,
-    condicoes: [EVENTO_ABERTO, "reaproveitamento da quantidade inteira — não imprime nada"], rotas: [ROTA.liberar] },
+  { acao: "liberar-com-reaproveitamento-total", de: ["awaiting_final_review"], para: "ready_for_production", papeis: QUEM_DECIDE_NA_REVISAO,
+    condicoes: [EVENTO_ABERTO, "reaproveitamento da quantidade inteira — espera a resposta do módulo Reaproveitar, fora da fila da Gráfica"], rotas: [ROTA.liberar] },
   { acao: "liberar-o-que-ja-foi-liberado", de: JA_LIBERADA, para: FICA_ONDE_ESTA, papeis: QUEM_DECIDE_NA_REVISAO,
     condicoes: [EVENTO_ABERTO, "clique repetido: responde a peça como está"], rotas: [ROTA.liberar] },
   { acao: "devolver-para-a-arte", de: ["awaiting_final_review"], para: "awaiting_submission", papeis: QUEM_DECIDE_NA_REVISAO,

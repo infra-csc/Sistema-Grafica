@@ -120,10 +120,11 @@ export function ListaDaFila({ fila, ctx, depsDaLinha, usaCards, colunas, tabelaR
           {linhasRenderizadas.map((item, index) => {
             const prev = index > 0 ? linhasRenderizadas[index - 1] : null;
             const corte = cortePorItem.get(item.id);
-            const { showEvHeader, prioritarias } = cabecalhosDaPosicao(item, prev, nPrioritarias);
+            const { showEvHeader, showTypeHeader, prioritarias } = cabecalhosDaPosicao(item, prev, nPrioritarias);
+            const abreKit = showTypeHeader && !!item.kitRemessaId;
             return (
-              <LinhaMemo key={item.id} deps={depsDaLinha(item, [index > 0, showEvHeader, prioritarias?.total, prioritarias?.abre, corte?.chave, corte?.total, corte?.ocultas, etiquetaveisPorEvento.get(String(item.eventId)) ?? 0])} render={() => (
-                <CartaoDaPeca ctx={ctx} item={item} index={index} showEvHeader={showEvHeader} corte={corte} prioritarias={prioritarias} />
+              <LinhaMemo key={item.id} deps={depsDaLinha(item, [index > 0, showEvHeader, abreKit, prioritarias?.total, prioritarias?.abre, corte?.chave, corte?.total, corte?.ocultas, etiquetaveisPorEvento.get(String(item.eventId)) ?? 0])} render={() => (
+                <CartaoDaPeca ctx={ctx} item={item} index={index} showEvHeader={showEvHeader} abreKit={abreKit} corte={corte} prioritarias={prioritarias} />
               )} />
             );
           })}

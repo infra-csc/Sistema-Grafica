@@ -2,7 +2,7 @@ import {
   Calendar, CalendarRange, Palette, Printer, Layers, LayoutDashboard,
   Activity, BarChart3, Users, Building2, UserCheck, ClipboardCheck,
   Link2, LogOut, ScrollText, Archive, ScanSearch, Settings2, SlidersHorizontal, Camera, Wand2,
-  Timer, GitBranch, Bell, Inbox, Cog, PackageSearch, X,
+  Timer, GitBranch, Bell, Inbox, Cog, PackageSearch, Recycle, X,
 } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -88,6 +88,8 @@ const fluxoItems: MenuItem[] = [
   // menu uma tela com esse nome. A rota continua /solicitacao; o testId fica.
   { title: "Revisão Final",           url: "/solicitacao",             icon: ClipboardCheck, roles: ["solicitacao", "admin"], testId: "nav-revisão" },
   { title: "Gráfica",                 url: "/grafica",                 icon: Printer,        roles: ["grafica", "solicitacao", "admin"] },
+  // Quem reaproveita não é quem imprime (dono, 03/11): diz quantas têm no estoque.
+  { title: "Reaproveitar",            url: "/reaproveitar",            icon: Recycle,        roles: ["grafica", "solicitacao", "admin"] },
   // A aba de impressoras (dono, 14/09): o que cada uma imprime agora e o
   // diário do dia. Mesmos papéis da Gráfica (ROLES_GRAFICA no App).
   { title: "Máquinas da Gráfica",     url: "/grafica/maquinas",        icon: Cog,            roles: ["grafica", "solicitacao", "admin"] },
@@ -161,6 +163,7 @@ const DESCRICAO_DA_TELA: Record<string, string> = {
   "/atendimento": "3º passo: registrar a aprovação ou a reprovação de cada patrocinador",
   "/solicitacao": "4º passo: conferir o arquivo final e liberar para produção (ou devolver à Arte)",
   "/grafica": "5º passo: produzir, conferir e entregar as peças liberadas",
+  "/reaproveitar": "Dizer quantas peças temos no estoque; o que faltar vai para a Gráfica produzir",
   "/grafica/maquinas": "O que cada impressora está imprimindo agora e o que saiu de cada uma no dia",
   "/grafica/solicitacoes-ao-estoque": "A Revisão Final pede peças ao estoque para reaproveitar; a Gráfica atende, atende em parte ou diz que não consegue",
   "/pedidos-de-peca": "Peças que faltam na lista de um evento: o Atendimento pede, a Solicitação cria",
@@ -206,6 +209,8 @@ const rotuloDoNumero = (url: string, n: number): string =>
     ? rotuloDoContadorDoBook(n)
     : url === "/solicitacao"
     ? `${n} ${n === 1 ? "peça esperando" : "peças esperando"} a revisão final`
+    : url === "/reaproveitar"
+    ? `${n} ${n === 1 ? "peça esperando" : "peças esperando"} a resposta do estoque`
     : url === "/grafica/solicitacoes-ao-estoque"
     ? `${n} ${n === 1 ? "solicitação ao estoque esperando" : "solicitações ao estoque esperando"} resposta`
     : `${n} ${n === 1 ? "solicitação esperando" : "solicitações esperando"} ação`;
@@ -507,6 +512,13 @@ export function AppSidebar() {
     queryKey: ["/api/items", "revisao-final/contagem"],
     enabled: revisaFinal,
   });
+  // Peças esperando a resposta do estoque (dono, 03/11): quem reaproveita vê o
+  // número sem abrir a tela. Mesma chave "/api/items": o tempo real atualiza.
+  const respondeReaproveitar = role === "grafica" || role === "solicitacao" || role === "admin";
+  const { data: reaproveitar } = useQuery<{ total: number }>({
+    queryKey: ["/api/items", "reaproveitar/contagem"],
+    enabled: respondeReaproveitar,
+  });
   // Peças que a Arte (ou a Vinculação) devolveu para o rascunho (dono, 29/10:
   // "antigamente eu conseguia ver na tela inicial"). O número fica no Painel
   // Geral, onde o aviso com o motivo e o caminho até o evento as lista.
@@ -514,6 +526,7 @@ export function AppSidebar() {
   const badges = {
     "/": devolvidas.habilitado ? devolvidas.pecas.length : undefined,
     "/solicitacao": revisaFinal ? revisao?.total : undefined,
+    "/reaproveitar": respondeReaproveitar ? reaproveitar?.total : undefined,
     "/eventos": auditoriasDoBook.habilitado ? auditoriasDoBook.resumo.pecas : undefined,
     "/pedidos-de-peca": resolvePedidos ? pendentes?.total : undefined,
     "/grafica/solicitacoes-ao-estoque": respondeConsultas ? consultasAbertas?.total : undefined,

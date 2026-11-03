@@ -388,13 +388,13 @@ export function useAcoesDaRevisao({
           title: "Reaproveitamento confirmado",
           description: origem?.origem === "em_transito"
             ? `${ok} peça(s) em trânsito: não passam pela Gráfica — já contam como entregues.`
-            : `${ok} peça(s) enviada(s) à Gráfica como produzida(s).`,
+            : `${ok} peça(s) no módulo Reaproveitar: quando disserem quantas têm no estoque, o que faltar vai para a Gráfica.`,
           variant: "success",
         });
       } else if (nFalhas === 0) {
         toast({
           title: "Marcadas, mas nem todas liberadas",
-          description: `${ok} enviada(s) à Gráfica; ${nSem} marcada(s) sem liberar — continuam selecionadas, com o motivo na linha.`,
+          description: `${ok} no módulo Reaproveitar; ${nSem} marcada(s) sem liberar — continuam selecionadas, com o motivo na linha.`,
           variant: "warning",
         });
       } else {
@@ -465,7 +465,7 @@ export function useAcoesDaRevisao({
         description: isReuse
           ? (origem?.origem === "em_transito"
             ? "Peça reaproveitada em trânsito: não passa pela Gráfica — já conta como entregue."
-            : "Peça enviada diretamente para a Gráfica como produzida.")
+            : "Foi para o módulo Reaproveitar: quando disserem quantas têm no estoque, o que faltar vai para a Gráfica.")
           : "A peça volta ao fluxo normal: para liberar, precisa do arquivo final.",
         variant: "success",
       });
@@ -493,7 +493,7 @@ export function useAcoesDaRevisao({
       setReuseDialogItemId(null);
       toast({
         title: "Reaproveitamento parcial confirmado",
-        description: "As unidades reaproveitadas foram guardadas. O restante segue para produção.",
+        description: "Foi para o módulo Reaproveitar: quando disserem quantas têm no estoque, o que faltar vai para a Gráfica.",
         variant: "success",
       });
     },

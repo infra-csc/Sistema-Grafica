@@ -200,7 +200,7 @@ patrocinador, o reaproveitamento) e a peça não muda de status.
 | Ação | De | Para | Quem | Condições |
 | --- | --- | --- | --- | --- |
 | liberar-para-producao | `awaiting_final_review` | `ready_for_production` | solicitacao, admin | evento aberto (nem encerrado nem já realizado); arquivo final enviado (molde dispensa); peça travada: dizer se destrava ou mantém a trava |
-| liberar-com-reaproveitamento-total | `awaiting_final_review` | `produced` | solicitacao, admin | evento aberto (nem encerrado nem já realizado); reaproveitamento da quantidade inteira — não imprime nada |
+| liberar-com-reaproveitamento-total | `awaiting_final_review` | `ready_for_production` | solicitacao, admin | evento aberto (nem encerrado nem já realizado); reaproveitamento da quantidade inteira — espera a resposta do módulo Reaproveitar, fora da fila da Gráfica |
 | liberar-o-que-ja-foi-liberado | `ready_for_production`, `approved`, `pronto_para_producao`, `liberado`, `inProduction`, `em_producao`, `produced`, `produzido`, `conferred`, `packed`, `delivered`, `entregue` | fica onde está | solicitacao, admin | evento aberto (nem encerrado nem já realizado); clique repetido: responde a peça como está |
 | liberar-com-reaproveitamento-total-em-transito | `awaiting_final_review` | `delivered` | solicitacao, admin | evento aberto (nem encerrado nem já realizado); reaproveitamento da quantidade inteira, em trânsito (com a observação) |
 

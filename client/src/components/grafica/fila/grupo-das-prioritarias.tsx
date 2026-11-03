@@ -13,6 +13,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { AlertTriangle, Truck } from "lucide-react";
 import { FS, FW, R, T, TOM } from "@/lib/theme";
+import { grupoDoKit } from "@shared/kit";
 import type { PecaDaFila } from "@/components/grafica/tipos";
 
 /** A peça abre o grupo das prioritárias (`abre`) e quantas há no recorte. `null` = fora do grupo. */
@@ -33,7 +34,9 @@ export function cabecalhosDaPosicao(item: PecaDaFila, prev: PecaDaFila | null, n
     return { showEvHeader: false, showTypeHeader: false, prioritarias: { abre: !prev || !prev.isPriority, total: nPrioritarias } };
   }
   const outroBloco = !prev || !!prev.isPriority || prev.event?.name !== item.event?.name;
-  return { showEvHeader: outroBloco, showTypeHeader: outroBloco || prev?.type !== item.type, prioritarias: null };
+  // O Kit é uma seção só (dono, 03/11), seja qual for o tipo de cada peça.
+  const secao = (p: PecaDaFila | null) => (p ? grupoDoKit(p) ?? p.type : null);
+  return { showEvHeader: outroBloco, showTypeHeader: outroBloco || secao(prev) !== secao(item), prioritarias: null };
 }
 
 const frase = (total: number) => (total === 1 ? "1 peça" : `${total} peças`);

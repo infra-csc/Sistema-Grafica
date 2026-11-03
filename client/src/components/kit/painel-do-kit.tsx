@@ -14,6 +14,7 @@
 // primeira planilha cria o Kit do evento; as seguintes só acrescentam peças.
 // "Adicionar peça" abre o formulário de sempre, já marcado Kit.
 // ─────────────────────────────────────────────────────────────────────────────
+import { statusDeExibicao } from "@shared/molde";
 import { useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { ChevronDown, FileSpreadsheet, Package, Plus, X } from "lucide-react";
@@ -270,7 +271,7 @@ export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, inclusao,
                           <span style={{ color: T.apoio, fontSize: 12, fontVariantNumeric: "tabular-nums" }}>× {p.quantity}</span>
                         </span>
                         {p.description ? <span style={{ color: T.apoio, fontSize: 12 }}>{p.description}</span> : null}
-                        <span style={{ alignSelf: "flex-start" }}><StatusBadge status={p.status} /></span>
+                        <span style={{ alignSelf: "flex-start" }}><StatusBadge status={statusDeExibicao(p)} /></span>
                       </button>
                     </li>
                   ))}
@@ -300,7 +301,7 @@ export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, inclusao,
                         </td>
                         <td style={{ padding: "8px 12px", fontVariantNumeric: "tabular-nums" }}>{p.quantity}</td>
                         <td style={{ padding: "8px 12px", color: T.strong }}>{[p.material, p.finish].filter(Boolean).join(" · ")}</td>
-                        <td style={{ padding: "8px 12px" }}><StatusBadge status={p.status} /></td>
+                        <td style={{ padding: "8px 12px" }}><StatusBadge status={statusDeExibicao(p)} /></td>
                       </tr>
                     ))}
                   </tbody>

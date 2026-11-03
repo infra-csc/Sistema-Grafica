@@ -82,7 +82,11 @@ describe("Só no Reaproveitar; na Gráfica, pelo filtro (dono, 03/11)", () => {
   it("a Gráfica traz de volta pelo filtro ou pela busca, e diz quantas estão fora", () => {
     const fila = ler("client/src/components/grafica/hooks/use-fila-da-grafica.ts");
     expect(fila).toContain("const mostraDoReaproveitar = filtros.reaproveitamento || !!filtros.busca.trim();");
-    expect(ler("client/src/components/grafica/fila/resumo-da-lista.tsx")).toContain("patchFiltros({ reaproveitamento: true })");
+    const resumo = ler("client/src/components/grafica/fila/resumo-da-lista.tsx");
+    expect(resumo).toContain("patchFiltros({ reaproveitamento: true })");
+    // Recorte só de reaproveitadas: a lista fica vazia, e o caminho continua lá.
+    expect(resumo).toContain("finalizadasNoRecorte.total > 0 || comReusoNaLista > 0;");
+    expect(ler("client/src/components/kit/painel-do-kit.tsx")).toContain("<StatusBadge status={statusDeExibicao(p)} />");
     // À espera, vista pelo filtro: sem Imprimir nem Reaproveitar; o caminho é o módulo.
     const linha = ler("client/src/components/grafica/fila/acoes-da-linha.tsx");
     expect(linha).toContain("ir-para-reaproveitar-");

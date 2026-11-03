@@ -35,7 +35,7 @@ export function TituloDaPeca({ id, codigo, tipo, descricao, isMobile, testId, fo
       aria-label={`Ver detalhes de ${codigo ?? "peça"}`}
       title={`${codigo ?? ""} ${nomeDaPeca(tipo, descricao)} — ver detalhes`.trim()}
       data-testid={testId}
-      style={{ border: "none", background: "transparent", padding: 0, margin: toque && !emLinha ? "-6px 0" : 0, font: "inherit", textAlign: "left", cursor: "pointer", color: T.text, fontSize: fonte, fontWeight: FW.forte, lineHeight: 1.3, minWidth: 0, maxWidth: "100%", minHeight: toque && !emLinha ? 44 : undefined, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}
+      style={{ border: "none", background: "transparent", padding: 0, margin: toque && !emLinha ? "-6px 0" : 0, font: "inherit", textAlign: "left", cursor: "pointer", color: T.text, fontSize: fonte, fontWeight: FW.forte, lineHeight: 1.3, minWidth: 0, maxWidth: "100%", minHeight: toque && !emLinha ? 44 : undefined, overflowWrap: "anywhere" }}
     >
       <span style={{ fontFamily: MONO, color: T.accentText, marginRight: 6 }}>{codigo ?? "—"}</span>
       {nome.destaque}

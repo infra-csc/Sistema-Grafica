@@ -373,7 +373,12 @@ export function CartaoDaPeca({ ctx, item, index, showEvHeader, abreKit = false, 
               </Selo>
             )}
           </div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.type}</div>
+        </div>
+        </div>
+        {/* Na largura toda do cartão: ao lado da foto de 88px, o nome inteiro (dono,
+            03/11) virava uma coluna de 5 linhas, com o vazio embaixo da foto. */}
+        <div style={{ padding: '0 12px 11px', display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: T.text, overflowWrap: 'anywhere' }}>{item.type}</div>
           {/* Identidade permanente: de quem este lote é complemento,
               quem pediu e quando. Não some depois da entrega. */}
           {ehComplemento && (
@@ -386,15 +391,14 @@ export function CartaoDaPeca({ ctx, item, index, showEvHeader, abreKit = false, 
           {/* A DESCRIÇÃO é o que distingue duas peças do mesmo tipo
               ("Banner" x "Banner"): o desktop sempre mostrou, o
               celular não — e é no celular que se confere com a
-              peça na mão. Duas linhas: nome de peça costuma ser
-              longo e uma linha só virava reticência inútil. */}
+              peça na mão. O nome inteiro (dono, 03/11): nome de peça
+              costuma ser longo, e cortado não serve para conferir. */}
           {item.description && item.description !== item.type && (
             <div style={{ display: "flex", alignItems: "flex-start", gap: 2 }}>
             <div style={{
               fontSize: 13, color: item.isReuse ? TOM.esmeralda.text : T.second,
               fontWeight: item.isReuse ? 600 : 400, lineHeight: 1.35,
-              display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-              overflow: 'hidden', flex: 1, minWidth: 0,
+              overflowWrap: 'anywhere', flex: 1, minWidth: 0,
             }}>
               {item.description}
             </div>
@@ -461,7 +465,7 @@ export function CartaoDaPeca({ ctx, item, index, showEvHeader, abreKit = false, 
           {coAberto && item.complementReason && (
             <div style={{ fontSize: 12, color: CO.textStrong, display: 'flex', alignItems: 'flex-start', gap: 4, marginTop: 2, lineHeight: 1.35 }}>
               <PlusCircle style={{ width: 11, height: 11, color: CO.text, flexShrink: 0, marginTop: 1 }} />
-              <span style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+              <span style={{ overflowWrap: 'anywhere' }}>
                 {item.complementReason}
               </span>
             </div>
@@ -479,7 +483,6 @@ export function CartaoDaPeca({ ctx, item, index, showEvHeader, abreKit = false, 
           {/* As instruções da produção interna, inteiras: no celular do
               galpão, sem arquivo, é o que diz o que fazer. */}
           <InstrucoesParaAGrafica peca={item} style={{ marginTop: 6 }} />
-        </div>
         </div>
 
           <AcoesDoCartao

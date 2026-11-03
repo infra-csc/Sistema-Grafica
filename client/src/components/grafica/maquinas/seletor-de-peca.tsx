@@ -123,11 +123,11 @@ export function SeletorDePeca({ maquina, reservadas, filaGeral, atualizando, hoj
                           {thumb ? <img src={thumb} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /> : <Printer style={{ width: 14, height: 14, color: T.muted }} />}
                         </span>
                         <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-                          <span style={{ fontSize: FS.body, fontWeight: FW.forte, lineHeight: 1.3, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>
+                          <span style={{ fontSize: FS.body, fontWeight: FW.forte, lineHeight: 1.3, overflowWrap: "anywhere" }}>
                             <span style={{ fontFamily: MONO, color: T.accentText, marginRight: 6 }}>{p.displayId ?? "—"}</span>{partesDoNomeDaPeca(p.tipo, p.descricao).destaque}
                             {partesDoNomeDaPeca(p.tipo, p.descricao).tipo && <span style={{ fontWeight: FW.corpo, color: T.second, marginLeft: 6 }}>{partesDoNomeDaPeca(p.tipo, p.descricao).tipo}</span>}
                           </span>
-                          <span style={{ fontSize: fonte, color: T.second, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>
+                          <span style={{ fontSize: fonte, color: T.second, overflowWrap: "anywhere" }}>
                             {[p.evento, `${p.aImprimir} un.`, p.m2 != null ? `${p.m2.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} m²` : null].filter(Boolean).join(" · ")}
                           </span>
                           {apoioDaPeca(p) && <span style={{ fontSize: fonte, color: T.second, overflowWrap: "anywhere" }}>{apoioDaPeca(p)}</span>}

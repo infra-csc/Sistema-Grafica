@@ -375,7 +375,7 @@ describe("segunda passada: nada cortado, trocar direto, resumo e Excel", () => {
     // A DESCRIÇÃO em destaque (é ela que identifica) e o tipo como apoio.
     expect(nome.textContent).toBe("#0101lona 440gBackdrop");
     expect(nome.style.whiteSpace).not.toBe("nowrap");
-    expect(nome.style.webkitLineClamp || (nome.style as any).WebkitLineClamp).toBe("2");
+    expect(nome.style.webkitLineClamp || (nome.style as any).WebkitLineClamp).toBeFalsy();
     // Em nenhum lugar da tela um rótulo ainda usa reticências de linha única.
     expect($$('[data-testid^="maquina-agora-"] *').filter((e) => e.style.textOverflow === "ellipsis")).toEqual([]);
   });
@@ -528,9 +528,9 @@ describe("a fila: geral, reservada por impressora, e o seletor de peça", () => 
     expect($('[data-testid="fila-peca-f1"]')!.textContent).toMatch(/Prazo \d\d\/\d\d · 1d/);
     expect($('[data-testid="estado-2"]')!.textContent).toBe("Livre · Na fila 2");
     expect($$('[data-testid="fila-maquina-2"] [data-testid^="peca-na-fila-"]').map((e) => e.getAttribute("data-testid"))).toEqual(["peca-na-fila-f4", "peca-na-fila-f5"]);
-    // O nome longo não corta: clamp de 2 linhas, sem nowrap.
+    // O nome longo não corta (dono, 03/11): sem clamp e sem nowrap.
     const nome = $('[data-testid="nome-fila-geral-f1"]') as HTMLElement;
-    expect(nome.style.webkitLineClamp || (nome.style as any).WebkitLineClamp).toBe("2");
+    expect(nome.style.webkitLineClamp || (nome.style as any).WebkitLineClamp).toBeFalsy();
     expect(nome.style.whiteSpace).not.toBe("nowrap");
   });
 
@@ -1085,10 +1085,10 @@ describe("duas peças 2×1 são distinguíveis em cada lista, e o título abre a
     expect($('[data-testid="nome-fila-d4"]')!.textContent).toBe("#04032×1 Itaú");
     expect($('[data-testid="nome-peca-d5"]')!.textContent).toBe("#04042×1 Bradesco");
     expect($('[data-testid="peca-na-maquina-d5"]')!.textContent).toContain("SANETT · 1,90 × 0,90 · Bradesco");
-    // Nada cortado: 2 linhas com clamp, sem reticências de linha única.
+    // Nada cortado (dono, 03/11): sem clamp e sem reticências.
     for (const id of ["nome-fila-geral-d1", "nome-fila-d3", "nome-peca-d5"]) {
       const el = $(`[data-testid="${id}"]`)!;
-      expect(el.style.webkitLineClamp || (el.style as any).WebkitLineClamp, id).toBe("2");
+      expect(el.style.webkitLineClamp || (el.style as any).WebkitLineClamp, id).toBeFalsy();
       expect(el.style.whiteSpace, id).not.toBe("nowrap");
     }
     // Seletor "Escolher peça".

@@ -890,10 +890,11 @@ function AuthenticatedLayout() {
                 aria-hidden={h1Visivel ? "true" : undefined}
                 style={{
                   fontFamily: FONT.display,
-                  fontSize: FS.strong, fontWeight: FW.forte, color: T.text, letterSpacing: "-0.01em",
+                  fontSize: barraEmFolha ? FS.body : FS.strong, fontWeight: FW.forte, color: T.text, letterSpacing: "-0.01em",
                   paddingLeft: 4,
                   flex: "1 1 auto", minWidth: 0,
-                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                  // No celular o nome quebra em duas linhas em vez de cortar (dono, 03/11).
+                  whiteSpace: barraEmFolha ? "normal" : "nowrap", lineHeight: barraEmFolha ? 1.15 : undefined, overflow: "hidden", textOverflow: "ellipsis",
                   opacity: h1Visivel ? 0 : 1,
                   transition: "opacity 0.18s ease",
                 }}

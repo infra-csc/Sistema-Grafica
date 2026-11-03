@@ -20,7 +20,7 @@ import { fmtN } from "./regras";
 
 export function FaixaDeAtencao({
   isLoading, isError, atencao, chipOcultasDados, hasActiveFilters, useCards,
-  focoFilter, toggleFoco, levarALista, mostrarFinalizados, setMostrarFinalizados,
+  focoFilter, toggleFoco, levarALista, mostrarFinalizados, setMostrarFinalizados, pecasEmEtapaVencida = null,
 }: {
   isLoading: boolean;
   isError: boolean;
@@ -34,28 +34,34 @@ export function FaixaDeAtencao({
   levarALista: () => void;
   mostrarFinalizados: boolean;
   setMostrarFinalizados: Dispatch<SetStateAction<boolean>>;
+  /** Peças em etapa vencida, do placar da Gestão de Prazos. null = ainda não se sabe. */
+  pecasEmEtapaVencida?: number | null;
 }) {
+  // O número é do sistema inteiro: com filtro ligado, a faixa fala só do recorte.
+  const etapaVencida = !hasActiveFilters && (pecasEmEtapaVencida ?? 0) > 0 ? pecasEmEtapaVencida! : 0;
   if (isLoading) {
     return <div aria-hidden="true" className="animate-pulse" style={{ width: useCards ? "100%" : 320, height: 38, borderRadius: R.pill, backgroundColor: N.n3 }} />;
   }
   if (!(!isError || atencao.reprovadas > 0 || atencao.atrasadas > 0 || chipOcultasDados)) return null;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-    {!isError && atencao.reprovadas === 0 && atencao.atrasadas === 0 && (
+    {!isError && atencao.reprovadas === 0 && atencao.atrasadas === 0 && etapaVencida === 0 && (
       <p data-testid="texto-atencao-em-dia" style={{ display: "flex", alignItems: "flex-start", gap: 8, margin: 0, fontSize: FS.body, lineHeight: 1.45, color: T.apoio }}>
         {/* Verde só aqui, e só no ícone: é o único "está tudo certo" da
             tela. #15803d sobre #fafaf9 = 4,80:1. */}
         <CheckCircle2 aria-hidden="true" style={{ width: 16, height: 16, color: TOM.sucesso.text, flexShrink: 0, marginTop: 1 }} />
         <span>
-          <strong style={{ color: T.text, fontWeight: FW.forte }}>Nada pede atenção agora.</strong>
-          {" "}Nenhuma peça reprovada pelo patrocinador nem em evento com caminhão atrasado
+          {/* "Nada pede atenção" só com a Gestão de Prazos confirmando: a frase saía
+              com peça em etapa vencida, porque olhava só reprovadas e caminhão. */}
+          {!hasActiveFilters && pecasEmEtapaVencida === 0 && <><strong style={{ color: T.text, fontWeight: FW.forte }}>Nada pede atenção agora.</strong>{" "}</>}
+          Nenhuma peça reprovada pelo patrocinador nem em evento com caminhão atrasado
           {/* Os números desta faixa seguem o recorte; com filtro ligado, a
               frase não pode soar como verdade do sistema inteiro. */}
           {hasActiveFilters ? " neste recorte." : "."}
         </span>
       </p>
     )}
-    {(atencao.reprovadas > 0 || atencao.atrasadas > 0 || chipOcultasDados) && (() => {
+    {(atencao.reprovadas > 0 || atencao.atrasadas > 0 || etapaVencida > 0 || chipOcultasDados) && (() => {
       /* O RÓTULO DIZ O QUE A FAIXA REALMENTE CARREGA.
 
          Ele era fixo em "Precisa de atenção", mas a faixa aparece por três
@@ -68,7 +74,7 @@ export function FaixaDeAtencao({
          Rótulo que promete o que não cumpre custa caro duas vezes: gasta a
          atenção de quem lê agora e ensina a ignorar a faixa da próxima vez
          — inclusive quando ela estiver certa. */
-      const temAlerta = atencao.reprovadas > 0 || atencao.atrasadas > 0;
+      const temAlerta = atencao.reprovadas > 0 || atencao.atrasadas > 0 || etapaVencida > 0;
       const rotulo = temAlerta ? "Precisa de atenção" : "Fora da lista";
       // No celular cada chip ocupa a linha inteira e pode quebrar o texto:
       // "147 peças ocultas · evento encerrado ou já realizado · mostrar" não
@@ -121,6 +127,21 @@ export function FaixaDeAtencao({
               {" "}{atencao.atrasadas === 1 ? "peça em evento com caminhão atrasado" : "peças em evento com caminhão atrasado"}
             </span>
           </button>
+        )}
+        {etapaVencida > 0 && (
+          <Link
+            href="/prazos?atrasados=1"
+            data-testid="chip-atencao-etapa-vencida"
+            className="pg-chip"
+            style={{ ...chipBase, textDecoration: "none", backgroundColor: TOM.perigo.bg, color: TOM.perigo.text, border: `1px solid ${TOM.perigo.border}` }}
+          >
+            <AlertTriangle aria-hidden="true" style={{ width: 15, height: 15, flexShrink: 0 }} />
+            <span>
+              <span style={{ fontFamily: FONT.display, fontWeight: 800 }}>{fmtN(etapaVencida)}</span>
+              {" "}{etapaVencida === 1 ? "peça em etapa vencida" : "peças em etapa vencida"} · ver na Gestão de Prazos
+            </span>
+            <ArrowUpRight aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0 }} />
+          </Link>
         )}
         {/* "QUEM PRECISA AGIR NESTE ATRASO?" O chip responde quantas peças,
             e o Painel não sabe dizer de quem é a vez — quem sabe é a Gestão

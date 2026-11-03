@@ -7,6 +7,7 @@
 // cliente" (Layout + N dias CORRIDOS). Vale na hora para toda peça em aberto
 // — os prazos são calculados, não gravados — e cada mudança fica na trilha.
 // ─────────────────────────────────────────────────────────────────────────────
+import { useConfirmar } from "@/components/ui/usar-confirmar";
 import { useEffect, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Settings2, CalendarClock, Save } from "lucide-react";
@@ -49,8 +50,21 @@ export default function Configuracoes() {
 
   const dias = diasDaAprovacaoValidos(valor);
   const mudou = !!data && dias !== null && dias !== data.diasDaAprovacao;
+  const { confirmar, dialogo } = useConfirmar();
+  const pedirSalvar = async () => {
+    if (dias === null || !mudou) return;
+    const ok = await confirmar({
+      titulo: `Mudar para ${dias} ${dias === 1 ? "dia" : "dias"}?`,
+      descricao: "Os prazos de todas as peças sem aprovação em aberto são recalculados na hora, em todas as telas.",
+      confirmar: "Salvar e recalcular",
+      cancelar: "Agora não",
+    });
+    if (ok) salvar.mutate(dias);
+  };
 
   return (
+    <>
+    {dialogo}
     <div data-testid="tela-configuracoes" style={{ backgroundColor: T.bg, minHeight: "100%", padding: isMobile ? "16px 16px 48px" : "28px 32px 64px" }}>
       <div style={{ maxWidth: 880 }}>
         <CabecalhoDaPagina
@@ -79,7 +93,7 @@ export default function Configuracoes() {
             <EstadoErro titulo="Não foi possível carregar a configuração" detalhe="Tente de novo em instantes." aoTentarDeNovo={() => refetch()} />
           ) : (
             <form
-              onSubmit={(e) => { e.preventDefault(); if (dias !== null && mudou) salvar.mutate(dias); }}
+              onSubmit={(e) => { e.preventDefault(); void pedirSalvar(); }}
               style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 16 : 28, alignItems: isMobile ? "stretch" : "flex-start" }}
             >
               <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
@@ -149,5 +163,6 @@ export default function Configuracoes() {
         </section>
       </div>
     </div>
+    </>
   );
 }

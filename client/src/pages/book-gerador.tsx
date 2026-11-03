@@ -200,10 +200,14 @@ export default function BookGerador() {
     // PUBLICAR NÃO SE DESFAZ: o PDF entra no evento (substituindo o atual, se
     // houver) e a equipe recebe o e-mail na hora. Uma pergunta antes — com a
     // mesma conta de páginas do botão, para não haver surpresa.
+    // Quem está no book atual e fica fora deste perde o link (ver routes/itens/book.ts).
+    const noNovo = new Set(incluidos.flatMap((g) => g.itens.map((i) => i.id)));
+    const perdem = (itens as any[]).filter((i) => i.bookUrl && !i.deletedAt && !noNovo.has(i.id)).length;
+    const avisoDePerda = perdem > 0 ? ` ${perdem} ${perdem === 1 ? "peça que está no book atual fica" : "peças que estão no book atual ficam"} sem book.` : "";
     const ok = await confirmar({
       titulo: bookAtualUrl ? "Substituir o book publicado?" : "Publicar o book?",
       descricao: bookAtualUrl
-        ? `O book novo (${nPaginasFinal} ${nPaginasFinal === 1 ? "página" : "páginas"}) SUBSTITUI o atual do evento, e a equipe recebe o aviso por e-mail com o que mudou.`
+        ? avisoDePerda + ` ` + `O book novo (${nPaginasFinal} ${nPaginasFinal === 1 ? "página" : "páginas"}) SUBSTITUI o atual do evento, e a equipe recebe o aviso por e-mail com o que mudou.`
         : `O book (${nPaginasFinal} ${nPaginasFinal === 1 ? "página" : "páginas"}, ${totalPecas} ${totalPecas === 1 ? "arte" : "artes"}) é publicado no evento, e a equipe recebe o aviso por e-mail.`,
       confirmar: bookAtualUrl ? "Substituir e avisar" : "Publicar e avisar",
       cancelar: "Revisar mais",

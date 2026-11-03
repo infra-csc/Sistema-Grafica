@@ -49,7 +49,7 @@ export function AcoesDoCartao({ ctx, item, selo, gates }: {
     correctReuseItemId, setCorrectReuseItemId, correctReuseQty, setCorrectReuseQty, correctReuseMutation,
     cancelComplementId, setCancelComplementId, cancelComplementMutation,
     setDevolverItem, setDevolverMotivo, abrirEmbalar, abrirComplemento,
-    setTubosDoEvento, temVolumeAberto, ehAvulsa, tirarDoTuboMutation,
+    setTubosDoEvento, temVolumeAberto, ehAvulsa, tirarDoTuboMutation, pedirTirarDoTubo,
   } = ctx;
   const {
     canConferItem, podeEmbalarPeca, mostraAumentar, podeProduzirAqui, podeCancelarCompl, podeProduzirPeca,
@@ -312,7 +312,7 @@ export function AcoesDoCartao({ ctx, item, selo, gates }: {
             <Botao
               tamanho="toque"
               icone={Undo2}
-              onClick={e => { e.stopPropagation(); tirarDoTuboMutation.mutate({ itemId: item.id, tuboId: item.tuboId, displayId: item.displayId }); }}
+              onClick={e => { e.stopPropagation(); void pedirTirarDoTubo({ itemId: item.id, tuboId: item.tuboId, displayId: item.displayId, avulsa: ehAvulsa(item) }); }}
               carregando={tirarDoTuboMutation.isPending && tirarDoTuboMutation.variables?.itemId === item.id}
               data-testid={`button-tirar-do-tubo-card-${item.id}`}
               style={{ ...flexSecundaria, minHeight: 48, padding: '0 12px' }}

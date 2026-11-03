@@ -1311,6 +1311,7 @@ export default function GestaoPrazos() {
           const idx = currentStageIdx(ev);
           const etapaKey = stageMeta[idx]?.key ?? "";
           const setor = STAGE_SECTOR[etapaKey]?.sector;
+          const nestaEtapa = ev.stages[idx]?.pendingCount ?? 0;
           // A faixa NOMEAVA o setor e não dava caminho até ele: quem lia
           // "Arte · prazo vencido há 12 dias" tinha de abrir o modal, achar o
           // grupo da etapa e só então clicar. O link é de EVENTO + ETAPA (é o
@@ -1375,7 +1376,10 @@ export default function GestaoPrazos() {
                   <strong style={{ color: TI.red, fontWeight: 700 }}>
                     prazo vencido há {diasTexto(ev.piorAtrasoDias)}
                   </strong>
-                  {ev.pecasEmAtraso > 0 && ` · ${pecasTexto(ev.pecasEmAtraso)} parada${ev.pecasEmAtraso !== 1 ? "s" : ""}`}
+                  {/* O setor é o da etapa mais antiga; o total do evento é outra conta. Juntos
+                      numa frase só, "Arte · 10 peças" cobrava da Arte peças que não eram dela. */}
+                  {nestaEtapa > 0 && ` · ${pecasTexto(nestaEtapa)} nesta etapa`}
+                  {ev.pecasEmAtraso > 0 && ev.pecasEmAtraso !== nestaEtapa && ` · ${pecasTexto(ev.pecasEmAtraso)} em atraso no evento`}
                   {/* RN09 (26/10): a fatia que é atraso do CLIENTE. */}
                   {ev.pecasEmAtraso > 0 && (ev.pecasAtrasoDoCliente ?? 0) > 0 && (
                     <span title={DICA_ATRASO_DO_CLIENTE} style={{ color: COR_DO_ATRASO_DO_CLIENTE.text, fontWeight: 700 }}>

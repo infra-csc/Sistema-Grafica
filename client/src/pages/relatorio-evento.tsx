@@ -32,7 +32,7 @@ interface Relatorio {
   totais: { pecas: number; entregues: number; canceladas: number };
   prazo: null | {
     categoria: string; piorAtrasoDias?: number;
-    stages: Array<{ key: string; label: string; deadline: string | null; state: string; pendingCount: number; diffDays: number | null }>;
+    stages: Array<{ key: string; label: string; deadline: string | null; prazoEfetivo?: string | null; state: string; pendingCount: number; diffDays: number | null }>;
     pendingItems: Array<{ id: string; displayId: string; status: string; type: string; description: string | null; waitingDays: number | null; stageIndex: number; marcoIndex: number }>;
   };
   aprovacoes: Array<{ nome: string; comPatrocinador: number; comArte: number }>;
@@ -239,7 +239,7 @@ export default function RelatorioEvento() {
                     return (
                       <tr key={s.key} data-testid={`funil-${s.key}`}>
                         <td style={{ ...td, color: T.text, fontWeight: FW.medio }}>{s.label}</td>
-                        <td style={{ ...td, color: T.strong, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{s.deadline ? dataBR(s.deadline) : "—"}</td>
+                        <td style={{ ...td, color: T.strong, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{/* Mesma base de "há Nd": o prazo efetivo, que pode ser o Layout ajustado. */}{(s.prazoEfetivo ?? s.deadline) ? dataBR((s.prazoEfetivo ?? s.deadline)!) : "—"}</td>
                         <td style={{ ...td, color: tom.cor, fontWeight: FW.forte, whiteSpace: semQuebra }}>
                           {tom.texto}{s.state === "overdue" && s.diffDays != null ? ` há ${Math.abs(s.diffDays)}d` : ""}
                         </td>

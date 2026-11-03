@@ -484,7 +484,7 @@ for (const largura of [1280, 390]) {
       expect($('[data-testid="entregar-falta-conferir"]')).toBeTruthy();
     }, 30_000);
 
-    it("confirmação SÓ onde destrói: apagar pede o segundo toque e diz o que acontece; tirar peça é direto, com toast", async () => {
+    it("confirmação onde desfaz trabalho: apagar pede o segundo toque e diz o que acontece; tirar peça pergunta antes (03/11)", async () => {
       await montar({}, largura);
       await clicar('[data-testid="apagar-tubo-1"]');
       expect(chamadas).toEqual([]);
@@ -493,6 +493,10 @@ for (const largura of [1280, 390]) {
       await tick(30);
       expect(chamadas[0]).toMatchObject({ metodo: "DELETE", url: expect.stringContaining("/api/tubos/t1") });
       await clicar('[data-testid="tirar-peca-b1"]');
+      await tick(30);
+      expect(chamadas).toHaveLength(1);
+      expect($('[data-testid="confirmacao"]')!.textContent).toContain("precisa ser embalada de novo");
+      await clicar('[data-testid="confirmacao-confirmar"]');
       await tick(30);
       expect(chamadas[1]).toMatchObject({ metodo: "PATCH", corpo: { remover: ["b1"] } });
     }, 30_000);
@@ -556,6 +560,9 @@ for (const largura of [1280, 390]) {
     it("'Entregar tubo' troca para o modal de entrega daquele tubo; 'Tirar do tubo' é por linha (PATCH remover)", async () => {
       await montar({ verTubo: "t1" }, largura);
       await clicar('[data-testid="tubo-tirar-a2"]');
+      await tick(30);
+      expect(chamadas).toEqual([]);
+      await clicar('[data-testid="confirmacao-confirmar"]');
       await tick(30);
       expect(chamadas[0]).toMatchObject({ metodo: "PATCH", url: expect.stringContaining("/api/tubos/t1/itens"), corpo: { remover: ["a2"] } });
       await clicar('[data-testid="tubo-entregar"]');

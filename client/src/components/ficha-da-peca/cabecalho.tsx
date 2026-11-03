@@ -32,7 +32,7 @@ export function CabecalhoDaFicha({ item, isMobile, onTransferir, onOpenChange }:
   // ── Prazo ─────────────────────────────────────────────────────────────────
   // toUTCDisplayDate faz `new Date(x)`, que aceita string e Date do mesmo jeito.
   const saida = item.event?.truckDepartureDate ? toUTCDisplayDate(item.event.truckDepartureDate as string) : null;
-  const diasAteSaida = saida ? Math.ceil((saida.getTime() - todayBusinessMs()) / DIA_MS) : null;
+  const diasAteSaida = saida ? Math.floor((saida.getTime() - todayBusinessMs()) / DIA_MS) : null;
   const prazoApertado = diasAteSaida !== null && diasAteSaida <= 7;
   const textoDoPrazo = diasAteSaida === null ? null
     : diasAteSaida < 0 ? `${haQuantoTempo(-diasAteSaida)}`

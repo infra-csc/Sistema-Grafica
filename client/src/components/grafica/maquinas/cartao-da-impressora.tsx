@@ -2,6 +2,7 @@
 // MÁQUINAS DA GRÁFICA — o cartão de cada impressora na aba Agora: a peça que
 // está nela (com as ações do mesmo modal da fila) e a fila reservada para ela.
 // ─────────────────────────────────────────────────────────────────────────────
+import { useConfirmar } from "@/components/ui/usar-confirmar";
 import { useContext, useState, type Dispatch, type SetStateAction } from "react";
 import { Link } from "wouter";
 import { AlertTriangle, ArrowLeftRight, ArrowRight, ChevronDown, ChevronRight, ExternalLink, Play, Printer } from "lucide-react";
@@ -182,6 +183,16 @@ export function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir, onT
   /** Um gesto de tirar/trocar está em voo: nada de segundo disparo. */
   mexendo?: boolean;
 }) {
+  const { confirmar, dialogo: dialogoDaTirada } = useConfirmar();
+  const confirmarTirada = async () => {
+    const ok = await confirmar({
+      titulo: `Tirar ${p.displayId ?? "a peça"} da ${rotuloDaMaquina(p.maquina)}?`,
+      descricao: "O que já saiu fica anotado e o resto volta para o topo da fila dela. A impressora fica livre.",
+      confirmar: "Tirar da impressora",
+      cancelar: "Deixar imprimindo",
+    });
+    if (ok) onTirar?.(p);
+  };
   // Dividida: o cartão mostra e age sobre a PARTE desta impressora.
   // (Vale também com UMA parte só: a peça que iniciou apenas a parte reservada
   // a esta impressora tem teto menor que a peça.)
@@ -309,13 +320,14 @@ export function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir, onT
             Trocar de máquina
           </Botao>
         )}
+        {dialogoDaTirada}
         {podeAgir && onTirar && !parteEsgotada && (
           <Botao
             variante="secundario"
             // SEM o bloqueio de evento finalizado (selo): tirar não faz trabalho
             // andar, só recua — e a peça de evento já realizado travaria a
             // impressora para sempre. O servidor também não barra quem SAI.
-            onClick={() => onTirar(p)}
+            onClick={() => { void confirmarTirada(); }}
             disabled={mexendo}
             aria-busy={mexendo || undefined}
             data-testid={`button-tirar-da-impressora-${p.id}`}

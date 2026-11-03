@@ -8,10 +8,12 @@ import { T } from "@/lib/theme";
 type EventoDoRelatorio = { id: string; name: string; startDate: string };
 export type RecorteDoExcel = { itemIds: string[]; title: string } | { eventIds: string[]; title: string };
 
-export function ExportarExcelGrafica({ open, onClose, quantidadeNaLista, isExporting, onExportar }: {
+export function ExportarExcelGrafica({ open, onClose, quantidadeNaLista, comFiltros = false, isExporting, onExportar }: {
   open: boolean;
   onClose: () => void;
   quantidadeNaLista: number;
+  /** Busca ou filtro ligado: o Excel da lista sai só com esse recorte. */
+  comFiltros?: boolean;
   isExporting: boolean;
   onExportar: (recorte?: RecorteDoExcel) => Promise<void>;
 }) {
@@ -36,7 +38,7 @@ export function ExportarExcelGrafica({ open, onClose, quantidadeNaLista, isExpor
         <DialogTitle>Exportar Excel da Gráfica</DialogTitle>
         <DialogDescription>Exporte todos os eventos ou selecione provas para o fechamento, inclusive eventos já realizados.</DialogDescription>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          <Botao aria-pressed={modo === "lista"} variante={modo === "lista" ? "primario" : "secundario"} onClick={() => setModo("lista")} disabled={isExporting}>Todos os eventos ({quantidadeNaLista})</Botao>
+          <Botao aria-pressed={modo === "lista"} variante={modo === "lista" ? "primario" : "secundario"} onClick={() => setModo("lista")} disabled={isExporting}>{comFiltros ? "Lista filtrada" : "Todos os eventos"} ({quantidadeNaLista} {quantidadeNaLista === 1 ? "peça" : "peças"})</Botao>
           <Botao aria-pressed={modo === "eventos"} variante={modo === "eventos" ? "primario" : "secundario"} onClick={() => setModo("eventos")} disabled={isExporting}>Selecionar eventos</Botao>
         </div>
         {modo === "lista" ? (

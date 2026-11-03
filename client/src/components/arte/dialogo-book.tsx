@@ -1,3 +1,4 @@
+import { useConfirmar } from "@/components/ui/usar-confirmar";
 import { Check, CheckCircle, ExternalLink, FileText, RefreshCw, Upload } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, modalSurface, ModalHeader, ModalFooter } from "@/components/modal-shell";
@@ -24,7 +25,26 @@ export function DialogoBook({ book, groupOf, dedo }: {
     bookEventPieces, bookSelectedIds, setBookSelectedIds, bookComentario, setBookComentario,
     bookPatrocinadores, bookComentarioFalta, saveBookMutation,
   } = book;
+  // Salvar limpa o book de TODAS as peças do evento e regrava só as marcadas. Marcar
+  // poucas tirou o book de 76 peças do Night Run Fortaleza (30/10) sem ninguém notar.
+  const { confirmar, dialogo: dialogoDoBook } = useConfirmar();
+  const perdem = bookEventPieces.filter((i) => i.bookUrl && !bookSelectedIds.has(i.id)).length;
+  const pedirSalvar = async () => {
+    if (perdem > 0) {
+      const ok = await confirmar({
+        titulo: `${perdem} ${perdem === 1 ? "peça vai perder" : "peças vão perder"} o book`,
+        descricao: `${bookSelectedIds.size === 1 ? "Só a peça marcada fica ligada" : `Só as ${bookSelectedIds.size} marcadas ficam ligadas`} a este book. As outras deixam de mostrar o book nas telas. O histórico continua em Versões aprovadas.`,
+        confirmar: "Salvar mesmo assim",
+        cancelar: "Revisar as peças",
+        perigo: true,
+      });
+      if (!ok) return;
+    }
+    saveBookMutation.mutate();
+  };
   return (
+    <>
+    {dialogoDoBook}
     <Dialog open={showBookModal} onOpenChange={setShowBookModal}>
       <DialogContent className={cn("p-0 gap-0", HIDE_NATIVE_CLOSE)} style={modalSurface(600)}>
         <DialogTitle className="sr-only">Subir book de aprovação</DialogTitle>
@@ -254,7 +274,7 @@ export function DialogoBook({ book, groupOf, dedo }: {
             tamanho={dedo ? "toque" : "md"}
             icone={existingBookUrl ? RefreshCw : FileText}
             carregando={saveBookMutation.isPending}
-            onClick={() => saveBookMutation.mutate()}
+            onClick={() => { void pedirSalvar(); }}
             disabled={!bookFileUrl || bookSelectedIds.size === 0 || bookComentarioFalta}
             style={dedo ? { flex: '1 1 0', minWidth: 0 } : undefined}
             title={!bookFileUrl ? 'Adicione o arquivo PDF antes de salvar' : bookSelectedIds.size === 0 ? 'Selecione ao menos uma peça' : bookComentarioFalta ? 'Este evento já tem book — escreva o que mudou nesta versão' : undefined}
@@ -269,5 +289,6 @@ export function DialogoBook({ book, groupOf, dedo }: {
         </ModalFooter>
       </DialogContent>
     </Dialog>
+    </>
   );
 }

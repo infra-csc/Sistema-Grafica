@@ -25,6 +25,7 @@
 // tudo conferido, com quem recebeu e com alguma foto (a do tubo ou a do
 // comprovante); peça do Kit é só-visualização para a Solicitação sem Kit.
 // ─────────────────────────────────────────────────────────────────────────────
+import { useConfirmar } from "@/components/ui/usar-confirmar";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
@@ -954,6 +955,16 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
     onSuccess: (_r, { tubo, peca }) => { toast({ title: tubo.avulso ? `Embalagem de ${peca.displayId ?? "peça"} desfeita` : `${peca.displayId ?? "Peça"} saiu do Tubo ${tubo.numero}`, description: "Voltou para Conferido." }); atualizarTudo(evento!.id); },
     onError: falhou("Não foi possível tirar do tubo"),
   });
+  const { confirmar: confirmarTirar, dialogo: dialogoDoTirar } = useConfirmar();
+  const pedirTirar = async (v: { tubo: Tubo; peca: Peca }) => {
+    const ok = await confirmarTirar({
+      titulo: v.tubo.avulso ? `Desfazer a embalagem de ${v.peca.displayId ?? "a peça"}?` : `Tirar ${v.peca.displayId ?? "a peça"} do Tubo ${v.tubo.numero}?`,
+      descricao: "A peça volta para Conferido e precisa ser embalada de novo.",
+      confirmar: v.tubo.avulso ? "Desfazer embalagem" : "Tirar do tubo",
+      cancelar: "Deixar como está",
+    });
+    if (ok) tirar.mutate(v);
+  };
   const apagar = useMutation({
     mutationFn: async (tubo: Tubo) => (await apiRequest("DELETE", `/api/tubos/${tubo.id}`)).json() as Promise<RespostaDoApagar>,
     onSuccess: (r, tubo) => {
@@ -1023,7 +1034,7 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
             <LinhaDaPeca p={p} noVolume />
             {!entregue && !p.conferida && <span style={{ fontSize: fsMin(11), fontWeight: FW.forte, color: COR.ambar }}>falta conferir</span>}
             {!entregue && !soVisualizaKit(p) && (
-              <Botao variante="fantasma" tamanho={tamanhoDaAcao} onClick={() => tirar.mutate({ tubo: t, peca: p })} disabled={tirar.isPending}
+              <Botao variante="fantasma" tamanho={tamanhoDaAcao} onClick={() => { void pedirTirar({ tubo: t, peca: p }); }} disabled={tirar.isPending}
                 data-testid={`tirar-peca-${p.id}`} aria-label={`Tirar ${p.displayId ?? "a peça"} do Tubo ${t.numero}`}>
                 Tirar
               </Botao>
@@ -1103,6 +1114,8 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
   };
 
   return (
+    <>
+    {dialogoDoTirar}
     <Casca aberto={!!evento} onClose={onClose} icone={Package} tint={COR.laranja} largura={660} testId="painel-de-tubos"
       titulo={`Tubos · ${evento?.name ?? ""}`} subtitulo="O que está em cada tubo, as fotos, a etiqueta e a entrega"
       rodape={tuboDasFotos ? (
@@ -1156,7 +1169,7 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
                           onClick={() => onEntregar(t.id)} data-testid={`entregar-sozinha-${peca.id}`}>
                           Entregar
                         </Botao>
-                        <Botao variante="fantasma" tamanho={tamanhoDaAcao} onClick={() => tirar.mutate({ tubo: t, peca })} disabled={tirar.isPending} data-testid={`desfazer-embalagem-${peca.id}`}>
+                        <Botao variante="fantasma" tamanho={tamanhoDaAcao} onClick={() => { void pedirTirar({ tubo: t, peca }); }} disabled={tirar.isPending} data-testid={`desfazer-embalagem-${peca.id}`}>
                           Desfazer embalagem
                         </Botao>
                       </>
@@ -1180,6 +1193,7 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
         </>
       )}
     </Casca>
+    </>
   );
 }
 
@@ -1224,6 +1238,16 @@ export function TuboDialog({ evento, tuboId, onClose, onEntregar, onAbrirPeca }:
     },
     onError: (e) => toast({ title: avulso ? "Não foi possível desfazer a embalagem" : "Não foi possível tirar do tubo", description: mensagemDeErro(e), variant: "destructive" }),
   });
+  const { confirmar: confirmarTirar, dialogo: dialogoDoTirar } = useConfirmar();
+  const pedirTirar = async (peca: Peca) => {
+    const ok = await confirmarTirar({
+      titulo: avulso ? `Desfazer a embalagem de ${peca.displayId ?? "a peça"}?` : `Tirar ${peca.displayId ?? "a peça"} do tubo?`,
+      descricao: "A peça volta para Conferido e precisa ser embalada de novo.",
+      confirmar: avulso ? "Desfazer embalagem" : "Tirar do tubo",
+      cancelar: "Deixar como está",
+    });
+    if (ok) tirar.mutate(peca);
+  };
   const guardarFotos = useMutation({
     mutationFn: async () => (await apiRequest("POST", `/api/tubos/${t!.id}/fechar`, { fotos: fotosNovas })).json() as Promise<RespostaDasFotos>,
     onSuccess: (r) => {
@@ -1247,6 +1271,8 @@ export function TuboDialog({ evento, tuboId, onClose, onEntregar, onAbrirPeca }:
   };
 
   return (
+    <>
+    {dialogoDoTirar}
     <Casca aberto={aberto} onClose={onClose} icone={Package} tint={avulso ? COR.azul : COR.laranja} largura={560} testId="modal-do-tubo"
       titulo={titulo} subtitulo={avulso ? "A peça embalada sozinha, as fotos e o que dá para fazer com ela" : "O que vai junto neste tubo, as fotos e o que dá para fazer com ele"}
       rodape={!t ? undefined : adicionando ? (
@@ -1312,7 +1338,7 @@ export function TuboDialog({ evento, tuboId, onClose, onEntregar, onAbrirPeca }:
                       {q} un.{parte ? <span style={{ fontWeight: FW.corpo, color: COR.sec }}> {parte}</span> : null}
                     </span>
                     {!entregue && !soVisualizaKit(p) && (
-                      <Botao variante="fantasma" tamanho={grosso ? "toque" : "md"} onClick={() => tirar.mutate(p)} disabled={tirar.isPending} data-testid={`tubo-tirar-${p.id}`}>
+                      <Botao variante="fantasma" tamanho={grosso ? "toque" : "md"} onClick={() => { void pedirTirar(p); }} disabled={tirar.isPending} data-testid={`tubo-tirar-${p.id}`}>
                         {avulso ? "Desfazer embalagem" : "Tirar do tubo"}
                       </Botao>
                     )}
@@ -1349,6 +1375,7 @@ export function TuboDialog({ evento, tuboId, onClose, onEntregar, onAbrirPeca }:
         </>
       )}
     </Casca>
+    </>
   );
 }
 

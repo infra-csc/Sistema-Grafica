@@ -941,6 +941,9 @@ describe("fila geral: Imprimir agora, sem modal", () => {
     // "Tirar da impressora", sozinho: pausa e deixa a impressora livre.
     await act(async () => { fireEvent.click($('[data-testid="button-tirar-da-impressora-p1"]')!); });
     await tick(30);
+    expect(posts()).toHaveLength(1); // pergunta antes (03/11)
+    await act(async () => { fireEvent.click($('[data-testid="confirmacao-confirmar"]')!); });
+    await tick(30);
     expect(posts()[1]).toEqual({ url: "/api/grafica/maquinas/1/pausar", body: { itemId: "p1" } });
   });
 
@@ -1178,8 +1181,11 @@ describe("impressora nunca trava, sem duplo disparo, modal sabe das ocupadas, ba
     const tirar = $('[data-testid="button-tirar-da-impressora-p1"]') as HTMLButtonElement;
     expect(tirar.disabled).toBe(false);
     fetchPorUrl();
-    // Duplo clique: um POST só.
+    // Duplo clique: uma pergunta só, e um POST só.
     await act(async () => { fireEvent.click(tirar); fireEvent.click(tirar); });
+    await tick(30);
+    const confirma = $('[data-testid="confirmacao-confirmar"]')!;
+    await act(async () => { fireEvent.click(confirma); fireEvent.click(confirma); });
     await tick(30);
     const posts = (fetchMockDe() as any).mock.calls.filter((c: any) => c[1]?.method === "POST").map((c: any) => String(c[0]));
     expect(posts).toEqual(["/api/grafica/maquinas/1/pausar"]);

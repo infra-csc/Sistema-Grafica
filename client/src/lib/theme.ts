@@ -175,9 +175,9 @@ export const T = {
    * use `T.second`.
    */
   muted: N.n6,
-  accent: "#f97316",
+  accent: "#E45B12",
   /**
-   * Accent em papel de TEXTO. O laranja `accent` (#f97316) rende 2,8:1 sobre
+   * Accent em papel de TEXTO. O laranja `accent` (#E45B12, o da marca Miró) rende 3,6:1 sobre
    * branco — accent NUNCA pode ser cor de texto, nem fundo sob texto branco.
    * Onde o laranja precisa carregar leitura (rótulos, links, botão com texto
    * branco), use este tom escurecido da mesma família (#c2410c, ~4,9:1 sobre

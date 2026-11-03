@@ -158,7 +158,7 @@ export default function Login() {
       <style>{`
         .login-campo { transition: border-color var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease; }
         .login-campo:hover { border-color: ${N.n5} !important; }
-        .login-campo:focus { outline: none; border-color: ${T.accent} !important; box-shadow: 0 0 0 3px rgba(249,115,22,0.14); }
+        .login-campo:focus { outline: none; border-color: ${T.accent} !important; box-shadow: 0 0 0 3px rgba(228,91,18,0.14); }
         .login-campo[aria-invalid="true"] { border-color: ${TOM.perigo.dot} !important; }
         .login-campo::placeholder { color: ${T.second}; opacity: 1; }
         .login-submit-btn { transition: background-color var(--dur-rapida) ease, transform var(--dur-rapida) ease; }

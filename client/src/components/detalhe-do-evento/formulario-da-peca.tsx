@@ -89,7 +89,7 @@ export function ItemForm({
   const isEdit = mode === "edit";
   // "Digitar novo tipo" só existe no criar — no editar o tipo já é texto livre.
   const [customType, setCustomType] = useState(false);
-  const focusRing = (e: React.FocusEvent<HTMLElement>) => ((e.currentTarget as HTMLElement).style.boxShadow = "0 0 0 2px rgba(249,115,22,0.25)");
+  const focusRing = (e: React.FocusEvent<HTMLElement>) => ((e.currentTarget as HTMLElement).style.boxShadow = "0 0 0 2px rgba(228,91,18,0.25)");
   const blurRing = (e: React.FocusEvent<HTMLElement>) => ((e.currentTarget as HTMLElement).style.boxShadow = "none");
 
   const typeKnown = standardItems.some((s) => s.name === formData.type) || typeOptions.includes(formData.type);
@@ -421,7 +421,7 @@ export function ItemForm({
                   placeholder="0.00"
                   data-testid={dim.testId}
                   style={{ width: "100%", backgroundColor: T.surface, border: "none", borderRadius: "8px", padding: "8px 12px", fontSize: "15px", fontWeight: 500, color: T.text, boxShadow: "0 1px 3px rgba(0,0,0,0.08)", transition: "box-shadow 0.15s" }}
-                  onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.25)")}
+                  onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(228,91,18,0.25)")}
                   onBlur={(e) => (e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.08)")}
                 />
               </div>

@@ -182,7 +182,7 @@ export function CartaoDaPeca({ ctx, item, index, showEvHeader, corte, prioritari
           border: `1.5px solid ${isSelected ? T.accent : (isNovo || coAberto) ? CO.border : T.border}`,
           // Realce de 5 s da peça recém-criada: no card o anel é
           // caminho livre (a tabela é que não pinta boxShadow).
-          boxShadow: isNovo ? '0 0 0 3px rgba(249,115,22,0.45)' : undefined,
+          boxShadow: isNovo ? '0 0 0 3px rgba(228,91,18,0.45)' : undefined,
           borderRadius: showEvHeader ? '0 0 12px 12px' : 12,
           overflow: 'hidden',
           cursor: bulkOn ? (bulkEligible ? 'pointer' : undefined) : 'pointer',

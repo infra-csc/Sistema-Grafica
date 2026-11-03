@@ -53,7 +53,7 @@ export function ResumoDoPeriodo({ dias, emCartoes, isMobile, hoje, onVerDiario, 
                   ) : (
                     <>
                       <span style={{ fontSize: isMobile ? 12 : FS.small, color: T.second, fontVariantNumeric: "tabular-nums" }}>
-                        <strong style={{ color: m.unidades > 0 ? IMP.text : T.strong }}>{m.unidades} un.</strong> · {plural(m.pecas, "peça", "peças")} · {m.concluidas} concl. · {m.aindaNaMaquina} na máquina
+                        <strong style={{ color: m.unidades > 0 ? IMP.text : T.strong }}>{m.unidades} un.</strong> · {plural(m.pecas, "peça", "peças")} · {m.concluidas} concl. · {m.aindaNaMaquina} na impressora
                       </span>
                       <span style={{ fontSize: isMobile ? 12 : FS.small, color: T.second, fontVariantNumeric: "tabular-nums" }}>
                         {m.primeira} → {m.ultima} · {duracaoCurta(m.minutosAtivos)}{m.quem.length ? ` · ${m.quem.join(", ")}` : ""}
@@ -79,7 +79,7 @@ export function ResumoDoPeriodo({ dias, emCartoes, isMobile, hoje, onVerDiario, 
             <th scope="col" style={{ ...th, textAlign: "right" }}>Unidades</th>
             <th scope="col" style={{ ...th, textAlign: "right" }}>Peças</th>
             <th scope="col" style={{ ...th, textAlign: "right" }}>Concluídas</th>
-            <th scope="col" style={{ ...th, textAlign: "right" }}>Na máquina</th>
+            <th scope="col" style={{ ...th, textAlign: "right" }}>Na impressora</th>
             <th scope="col" style={th}>Atividade</th>
             <th scope="col" style={{ ...th, textAlign: "right" }}>Tempo ativo</th>
             <th scope="col" style={th}>Quem</th>
@@ -215,8 +215,8 @@ export function AbaResumo({ isMobile, alvo, periodo, intervalo, dia, hoje, ehHoj
               icone={Printer}
               titulo={`Nenhuma impressão registrada ${periodo === "dia" ? (ehHoje ? "hoje" : `em ${diaBR(intervalo.de)}`) : `entre ${diaBR(intervalo.de)} e ${diaBR(intervalo.ate)}`}.`}
               descricao={intervalo.ate < INICIO_DO_DIARIO
-                ? `O diário por máquina começa em ${diaBR(INICIO_DO_DIARIO)}.`
-                : "Escolha outro período ou aguarde as máquinas registrarem."}
+                ? `O diário por impressora começa em ${diaBR(INICIO_DO_DIARIO)}.`
+                : "Escolha outro período ou aguarde as impressoras registrarem."}
             />
           </div>
         ) : relatorio.data ? (

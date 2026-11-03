@@ -13,8 +13,8 @@ export const KIT_EDITA_SO_EVENTO_PROPRIO = true;
 export const MSG_PECA_FORA_DO_KIT = "Esta peça não é do seu Kit. Você só pode ver e mexer nas peças do Kit que você criou.";
 export const MSG_CLONAR_KIT = "Clonar peças de outro evento não está disponível para o usuário do Kit.";
 export const MSG_EVENTO_DE_OUTRO = "Você só pode alterar um evento que você criou (dados, prioridade, patrocinadores e cotas).";
-export const MSG_VOLUME_FORA_DO_KIT = "Este volume tem peças fora do seu Kit. Você só mexe em volume com as peças do Kit que você criou.";
-export const MSG_VOLUME_SEM_PECA = "Abra o volume já com as peças do seu Kit.";
+export const MSG_VOLUME_FORA_DO_KIT = "Este tubo ou embalagem tem peças fora do seu Kit. Você só mexe em tubo ou embalagem com as peças do Kit que você criou.";
+export const MSG_VOLUME_SEM_PECA = "Abra o tubo ou a embalagem já com as peças do seu Kit.";
 
 const ESCRITA = new Set(["POST", "PATCH", "PUT", "DELETE"]);
 

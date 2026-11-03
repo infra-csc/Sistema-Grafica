@@ -177,7 +177,7 @@ describe("POST /api/items/:id/travar e /destravar", () => {
 // ─── O que a trava bloqueia (409 com a frase humana) ──────────────────────────
 describe("a peça travada não ANDA — 409 'Peça travada pela Solicitação: … — fale com …'", () => {
   const FRASE = "Peça travada pela Solicitação: Arte vai mudar — fale com Ana Solicitação";
-  it("iniciar impressão / trocar de máquina (start-printing)", async () => {
+  it("iniciar impressão / trocar de impressora (start-printing)", async () => {
     const r = await chamar("PATCH /api/items/:id/start-printing", { id: "trav", papel: "grafica", body: { printMachine: "3" } });
     expect(r).toEqual({ status: 409, body: { error: FRASE, code: "PECA_TRAVADA" } });
   });
@@ -216,7 +216,7 @@ describe("as telas leem pecaTravada (fonte)", () => {
     expect(G).toContain('testId="button-travadas-filter"');
     expect(ler("client/src/lib/grafica-filtros.ts")).toContain('{ chave: "travadas",    url: "travadas",   rotulo: "Só travadas" },');
   });
-  it("Máquinas: o mesmo selo e sem Iniciar/Imprimir agora/Reservar; ficha e Detalhe do evento mostram", () => {
+  it("Impressoras: o mesmo selo e sem Iniciar/Imprimir agora/Reservar; ficha e Detalhe do evento mostram", () => {
     const M = fonteDaTelaDeMaquinas();
     expect(M).toContain("if (pecaTravada(p)) {");
     // Só o próprio helper chama o selo de evento finalizado; todas as linhas passam pelo helper.

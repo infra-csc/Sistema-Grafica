@@ -68,7 +68,7 @@ const VERIFICACOES: Verificacao[] = [
     chave: "passou_com_pendencia",
     titulo: "Peça avançou com patrocinador ainda pendente",
     explicacao:
-      "A peça passou da fase de aprovação, mas há patrocinador que nunca decidiu. Pode virar peça impressa sem aval.",
+      "A peça passou da etapa de aprovação, mas há patrocinador que nunca decidiu. Pode virar peça impressa sem aval.",
     gravidade: "critico",
     // `skip_approval` fora: a peça que a Arte mandou direto para a
     // finalização (09/09) segue com linhas em "pending" DE PROPÓSITO — a

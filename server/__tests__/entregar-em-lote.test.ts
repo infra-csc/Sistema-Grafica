@@ -166,12 +166,12 @@ describe("a aba Tubos: marcar, entregar em lote, e o recusado fica com o motivo"
     expect(todos.textContent).toBe("Marcar todos deste filtro (2)");
     await act(async () => { fireEvent.click(todos); });
     const barra = $('[data-testid="barra-entregar-em-lote"]')!;
-    expect(barra.textContent).toContain("2 volumes marcados · 4 un.");
+    expect(barra.textContent).toContain("2 tubos e embalagens marcados · 4 un.");
 
     await act(async () => { fireEvent.click($('[data-testid="abrir-entregar-em-lote"]')!); });
     for (let i = 0; i < 40 && !$('[data-testid="modal-entregar-em-lote"]'); i++) await tick(25);
     const modal = $('[data-testid="modal-entregar-em-lote"]')!;
-    expect(modal.textContent).toContain("Entregar em lote · 2 volumes");
+    expect(modal.textContent).toContain("Entregar em lote · 2 tubos e embalagens");
     expect(modal.textContent).toContain("Tubo 1");
     expect(modal.textContent).toContain("Tubo 2");
     const confirmar = $('[data-testid="confirmar-entrega-em-lote"]') as HTMLButtonElement;
@@ -179,7 +179,7 @@ describe("a aba Tubos: marcar, entregar em lote, e o recusado fica com o motivo"
     expect(confirmar.textContent).toBe("Informe quem recebeu");
 
     await act(async () => { fireEvent.change($('[data-testid="recebedor-em-lote"]')!, { target: { value: "Carlos da portaria" } }); });
-    expect(confirmar.textContent).toBe("Entregar 2 volumes a Carlos da portaria");
+    expect(confirmar.textContent).toBe("Entregar 2 em lote a Carlos da portaria");
     await act(async () => { fireEvent.click(confirmar); });
     for (let i = 0; i < 40 && !chamadas.length; i++) await tick(25);
     expect(chamadas[0].body).toEqual({ tuboIds: ["t1", "t2"], receivedBy: "Carlos da portaria", photoUrl: null, notes: "" });

@@ -160,7 +160,7 @@ export function AbaDiario({ isMobile, alvo, dia, hoje, ehHoje, maquinas, maquina
                 ? `Nada saiu da ${maquinaFiltrada.rotulo} ${ehHoje ? "hoje" : `em ${diaBR(dia!)}`}.`
                 : `Nenhuma impressão registrada ${ehHoje ? "hoje" : `em ${diaBR(dia!)}`}.`}
               descricao={antesDoDiario
-                ? `O diário por máquina começa em ${diaBR(INICIO_DO_DIARIO)}: antes disso a impressão não anotava em qual máquina a peça saiu.`
+                ? `O diário por impressora começa em ${diaBR(INICIO_DO_DIARIO)}: antes disso a impressão não anotava em qual impressora a peça saiu.`
                 : maquinaFiltrada
                   ? "Veja as outras impressoras ou escolha outro dia."
                   : "Ao iniciar uma impressão na Gráfica, ela aparece aqui."}
@@ -211,7 +211,7 @@ export function AbaDiario({ isMobile, alvo, dia, hoje, ehHoje, maquinas, maquina
 
       {diario.length > 0 && antesDoDiario && (
         <p data-testid="nota-inicio-historico" style={{ margin: 0, fontSize: isMobile ? 12 : FS.small, color: T.second }}>
-          O histórico por máquina começa em 14/09/2026: antes disso a impressão não anotava em qual máquina a peça saiu.
+          O histórico por impressora começa em 14/09/2026: antes disso a impressão não anotava em qual impressora a peça saiu.
         </p>
       )}
     </section>

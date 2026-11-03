@@ -187,7 +187,7 @@ describe.each([360, 390])("Arte em %ipx — primeira dobra do celular", { timeou
     expect($('[role="dialog"]')).toBeNull();
     const lista = document.getElementById("painel-arte")!;
     expect(letrasMiudas(lista), "letra < 12px na fila do celular").toEqual([]);
-    expect(tid("cell-idade-p0")!.textContent).toMatch(/^há \d+d na fase$/);
+    expect(tid("cell-idade-p0")!.textContent).toMatch(/^há \d+d na etapa$/);
   });
 
   it("aba sem seleção (Aguardando patrocinador): cartão sem caixinha", async () => {

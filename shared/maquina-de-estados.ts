@@ -353,9 +353,9 @@ export const TRANSICOES: readonly Transicao[] = [
   { acao: "embalar", de: PODE_IR_PARA_TUBO.filter((s) => !EM_REVISAO.has(s)), para: "packed", papeis: ["admin", "grafica", "solicitacao"],
     condicoes: [NAO_TRAVADA, "a quantidade inteira conferida e embalada"], rotas: [ROTA.embalar] },
   { acao: "tirar-do-tubo", de: ["packed"], para: "conferred", papeis: ["admin", "grafica", "solicitacao"],
-    condicoes: ["a peça sai do volume (ou o volume é apagado)"], rotas: [ROTA.embalar, ROTA.apagarTubo] },
+    condicoes: ["a peça sai do tubo (ou o tubo é apagado)"], rotas: [ROTA.embalar, ROTA.apagarTubo] },
   { acao: "entregar-volume", de: PODE_IR_PARA_TUBO, para: "delivered", papeis: ["admin", "grafica", "solicitacao"],
-    condicoes: ["o volume entregue completa a quantidade da peça"], rotas: [ROTA.entregarTubo, ROTA.entregarEmLote] },
+    condicoes: ["o tubo entregue completa a quantidade da peça"], rotas: [ROTA.entregarTubo, ROTA.entregarEmLote] },
 
   // ── Molde (fluxo curto) ──────────────────────────────────────────────────
   { acao: "marcar-molde-produzido", de: MOLDE_LIBERADO, para: "produced", papeis: ["grafica", "admin"],

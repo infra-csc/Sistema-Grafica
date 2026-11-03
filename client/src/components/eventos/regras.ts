@@ -195,8 +195,8 @@ const PRIORITY_ORDER: Record<string, number> = { urgente: 0, alta: 1, media: 2, 
 
 /** A regra da ordem, escrita ao lado dos alternadores (a resposta a "por que este está em cima"). */
 export const REGRA_DA_ORDEM: Record<OrdemDosEventos, string> = {
-  saida: 'marco atrasado primeiro, depois quem embarca antes; realizados por último',
-  marco: 'o marco mais perto de vencer no topo',
+  saida: 'prazo atrasado primeiro, depois quem embarca antes; realizados por último',
+  marco: 'o prazo mais perto de vencer no topo',
   nome: 'ordem alfabética',
 };
 

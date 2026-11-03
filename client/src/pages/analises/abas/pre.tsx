@@ -148,13 +148,13 @@ function RealizadoEPendencias({ ctx }: { ctx: ContextoDoPainel }) {
         />
       </SecaoDaAnalise>
 
-      <SecaoDaAnalise id="h-op-pre-plan" testId="op-pre-plan" titulo="Planejado por dia — o que precisa ser feito" descricao={`Cada processo pendente cai no prazo da fase do evento (a peça sem aprovação em Layout, no Layout ajustado). O que já venceu aparece hoje, em vermelho.${naoSegueAMarca(ctx.marca)}`}>
+      <SecaoDaAnalise id="h-op-pre-plan" testId="op-pre-plan" titulo="Planejado por dia — o que precisa ser feito" descricao={`Cada processo pendente cai no prazo da etapa do evento (a peça sem aprovação em Layout, no Layout ajustado). O que já venceu aparece hoje, em vermelho.${naoSegueAMarca(ctx.marca)}`}>
         <GraficoDeDias
           testId="op-grafico-pre-plan"
           legenda="Processos de pré-produção planejados por dia"
           dados={planejado}
           series={[
-            { chave: "atrasado", nome: processos.length ? "Atrasado (processos escolhidos)" : "Atrasado (todas as fases)", cor: COR.atrasado },
+            { chave: "atrasado", nome: processos.length ? "Atrasado (processos escolhidos)" : "Atrasado (todas as etapas)", cor: COR.atrasado },
             ...PROCESSOS_DE_PRE.filter((p) => p.id !== "cadastro" && ligados(p.id)).map((p) => ({ chave: p.id, nome: p.rotulo, cor: COR_DO_PROCESSO[p.id] })),
           ]}
           formato={(v) => `${fmt0(v)} itens`}

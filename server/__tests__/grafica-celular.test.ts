@@ -477,7 +477,7 @@ describe.each([360, 390])("Gráfica em %ipx de largura", (largura) => {
     // Máquinas e Excel moram na linha das abas (a linha própria deles saiu).
     const abas = $('[data-testid="abas-grafica"]')!;
     expect(abas.contains($('[data-testid="button-export-xlsx"]')), "Excel na linha das abas").toBe(true);
-    expect(abas.contains($('[data-testid="link-maquinas"]')), "Máquinas na linha das abas").toBe(true);
+    expect(abas.contains($('[data-testid="link-maquinas"]')), "Impressoras na linha das abas").toBe(true);
     // Conferir em lote e Embalar em lote dividem uma linha (sem ícone no celular).
     const lotes = ["button-bulk-confer", "button-bulk-pack"].map((t) => $(`[data-testid="${t}"]`)!);
     expect(lotes[0].parentElement).toBe(lotes[1].parentElement);

@@ -196,9 +196,9 @@ export function devolverReserva(p: PecaReservavel, de?: string | null, quantidad
  * em impressão + reservado ≤ a imprimir continua valendo por construção.
  */
 export function iniciarParte(
-  p: PecaReservavel, maquina: string, opcoes: { daReserva?: boolean; quantidade?: number | null; /** A reserva consumida é a DESTA impressora (o operador trocou de máquina na hora de iniciar). Padrão: a própria `maquina`. */ reservaDe?: string | null },
+  p: PecaReservavel, maquina: string, opcoes: { daReserva?: boolean; quantidade?: number | null; /** A reserva consumida é a DESTA impressora (o operador trocou de impressora na hora de iniciar). Padrão: a própria `maquina`. */ reservaDe?: string | null },
 ): { ok: true; partes: PartesPorMaquina; reserva: ReservaPorMaquina | null; quantidade: number } | { ok: false; erro: string } {
-  if (!MAQUINAS_DE_IMPRESSAO.includes(maquina)) return { ok: false, erro: "Escolha a máquina em que a peça vai ser impressa" };
+  if (!MAQUINAS_DE_IMPRESSAO.includes(maquina)) return { ok: false, erro: "Escolha a impressora em que a peça vai ser impressa" };
   const reserva = reservaDaPeca(p);
   let n: number;
   let reservaNova: ReservaPorMaquina | null;
@@ -335,7 +335,7 @@ export function planejarInicioDaImpressao(p: PecaReservavel, pedido: PedidoDeIni
     origem: string | null;
   } {
   const { printMachine } = pedido;
-  if (!MAQUINAS_DE_IMPRESSAO.includes(printMachine)) return { ok: false, erro: "Escolha a máquina em que a peça vai ser impressa" };
+  if (!MAQUINAS_DE_IMPRESSAO.includes(printMachine)) return { ok: false, erro: "Escolha a impressora em que a peça vai ser impressa" };
   const valida = (m: unknown): m is string => typeof m === "string" && MAQUINAS_DE_IMPRESSAO.includes(m);
   const trocouDeMaquina = pedido.iniciarParte !== true && EM_IMPRESSAO.includes(p.status ?? "") && !!p.printMachine;
   const partesAtuais = partesDaPeca(p);

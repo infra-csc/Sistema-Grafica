@@ -434,7 +434,7 @@ export default function GraficaMaquinas() {
         <button
           type="button"
           className="mq-acao"
-          aria-label="O que a tela Máquinas mostra e o que dá para fazer nela"
+          aria-label="O que a tela Impressoras mostra e o que dá para fazer nela"
           data-testid="button-como-funciona-maquinas"
           style={{ width: alvoDe(28, toque), height: alvoDe(28, toque), borderRadius: R.pill, border: "1px solid transparent", background: "transparent", color: T.apoio, display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, margin: "-4px 0", verticalAlign: "middle" }}
         >
@@ -445,7 +445,7 @@ export default function GraficaMaquinas() {
         <p style={{ margin: 0, fontFamily: GROTESK, fontSize: FS.strong, fontWeight: FW.forte, color: T.text }}>Como funciona</p>
         <p style={{ margin: 0, fontSize: FS.body, color: T.strong, lineHeight: 1.5 }}>
           O que cada impressora está imprimindo agora, a fila do que vem, o resumo do período e o diário do que saiu de cada uma.
-          {podeAgir && " Daqui você reserva impressora, inicia, informa as impressas, manda para o acabamento ou troca de máquina."}
+          {podeAgir && " Daqui você reserva impressora, inicia, informa as impressas, manda para o acabamento ou troca de impressora."}
         </p>
         <div aria-hidden="true" style={{ display: "flex", gap: 14, flexWrap: "wrap", paddingTop: 10, borderTop: `1px solid ${T.border}`, fontSize: FS.meta, color: T.apoio }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 14, height: 4, borderRadius: R.pill, background: IMP.dot }} />Imprimindo</span>
@@ -483,7 +483,7 @@ export default function GraficaMaquinas() {
               (a linha de estado + o "Atualizado"), O QUE POSSO FAZER. O que a
               tela faz mora no "?" ao lado do estado. */}
           <CabecalhoDaPagina
-            titulo="Máquinas"
+            titulo="Impressoras"
             semMargem
             subtitulo={(
               <span>
@@ -532,7 +532,7 @@ export default function GraficaMaquinas() {
           <div role="alert" data-testid="maquinas-erro" style={{ padding: isMobile ? "14px" : "16px 18px", borderRadius: R.lg, background: VERMELHO.bg, border: `1px solid ${VERMELHO.border}`, color: VERMELHO.text, fontSize: FS.body, lineHeight: 1.5, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
             <span style={{ display: "flex", gap: 10, alignItems: "flex-start", flex: "1 1 260px", minWidth: 0 }}>
               <AlertTriangle aria-hidden="true" style={{ width: 18, height: 18, flexShrink: 0, marginTop: 1 }} />
-              <span>{ehServidorNaVersaoAnterior(error) ? AVISO_SERVIDOR_ANTIGO : <><strong style={{ display: "block", color: VERMELHO.text }}>Não foi possível carregar as máquinas.</strong>Confira a conexão e tente de novo — o resto do sistema segue funcionando.</>}</span>
+              <span>{ehServidorNaVersaoAnterior(error) ? AVISO_SERVIDOR_ANTIGO : <><strong style={{ display: "block", color: VERMELHO.text }}>Não foi possível carregar as impressoras.</strong>Confira a conexão e tente de novo — o resto do sistema segue funcionando.</>}</span>
             </span>
             <Botao variante="secundarioForte" icone={RotateCcw} carregando={isFetching} onClick={() => refetch()} data-testid="button-tentar-novamente" style={{ minHeight: alvo, ...(isMobile ? { flex: "1 1 100%" } : {}) }}>
               Tentar novamente
@@ -562,8 +562,8 @@ export default function GraficaMaquinas() {
                 <div role="status" data-testid="sem-maquina" style={{ padding: "12px 14px", borderRadius: R.lg, background: AMBAR.bg, border: `1px solid ${AMBAR.border}`, color: AMBAR.text, fontSize: FS.body, lineHeight: 1.5, display: "flex", gap: 10 }}>
                   <AlertTriangle aria-hidden="true" style={{ width: 16, height: 16, flexShrink: 0, marginTop: 2 }} />
                   <span>
-                    <strong>{plural(data.semMaquina.length, "peça está", "peças estão")} em impressão sem máquina anotada</strong> — foram
-                    iniciadas antes do controle por máquina. Abra na fila e escolha a impressora:{" "}
+                    <strong>{plural(data.semMaquina.length, "peça está", "peças estão")} em impressão sem impressora anotada</strong> — foram
+                    iniciadas antes do controle por impressora. Abra na fila e escolha a impressora:{" "}
                     {data.semMaquina.map((p, i) => (
                       <span key={p.id}>
                         {i > 0 && ", "}
@@ -656,7 +656,7 @@ export default function GraficaMaquinas() {
       </div>
 
       {/* O mesmo modal da fila da Gráfica: iniciar não cabe aqui (a peça já
-          está na máquina), então ele abre direto em "informar impressas". */}
+          está na impressora), então ele abre direto em "informar impressas". */}
       <ModalImpressao item={itemDoModal} abrirNaTroca={pecaNoModal?.trocar ?? false} maquinaInicial={pecaNoModal?.maquinaInicial ?? null} maquinaEmQuestao={pecaNoModal?.peca.parte ? pecaNoModal.peca.maquina : null} parteAIniciar={pecaNoModal?.parte ?? null} ocupadas={ocupadasParaOModal} onFechar={() => setPecaNoModal(null)} />
 
       {/* O seletor de peça do cartão "Livre": fecha e passa a vez ao modal de

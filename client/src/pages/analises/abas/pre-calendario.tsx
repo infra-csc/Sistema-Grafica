@@ -45,10 +45,10 @@ const PINTURA: Record<Exclude<SituacaoNoCalendario, "semPrazo">, React.CSSProper
   concluida: { backgroundColor: N.n2, border: `1px solid ${N.n3}`, color: T.second },
 };
 const LEGENDA: { id: Exclude<SituacaoNoCalendario, "semPrazo">; texto: string }[] = [
-  { id: "atrasada", texto: "Vencida com peças nesta fase" },
-  { id: "proxima", texto: "Vence nos próximos 15 dias, com peças nesta fase" },
-  { id: "depois", texto: "Vence depois, com peças nesta fase" },
-  { id: "aguardando", texto: "Aguardando peças de fases anteriores" },
+  { id: "atrasada", texto: "Vencida com peças nesta etapa" },
+  { id: "proxima", texto: "Vence nos próximos 15 dias, com peças nesta etapa" },
+  { id: "depois", texto: "Vence depois, com peças nesta etapa" },
+  { id: "aguardando", texto: "Aguardando peças de etapas anteriores" },
   { id: "concluida", texto: "Concluída" },
 ];
 
@@ -108,14 +108,14 @@ export default function CalendarioDeFases({ ctx }: { ctx: ContextoDoPainel }) {
 
   const descricao = (
     <>
-      Eventos a partir de <strong style={{ color: T.text, ...TABULAR }}>{dma(dados.hoje)}</strong> com prazo de fase até{" "}
-      <strong style={{ color: T.text, ...TABULAR }}>{dma(dados.fim)}</strong> ou com fase vencida:{" "}
+      Eventos a partir de <strong style={{ color: T.text, ...TABULAR }}>{dma(dados.hoje)}</strong> com prazo de etapa até{" "}
+      <strong style={{ color: T.text, ...TABULAR }}>{dma(dados.fim)}</strong> ou com etapa vencida:{" "}
       <span data-testid="op-cal-contagem">
         <strong style={{ color: T.text, ...TABULAR }}>{fmt0(dados.total)}</strong> {plural(dados.total, "evento", "eventos")},{" "}
-        <strong style={{ color: dados.comAtraso > 0 ? TOM.perigo.text : T.text, ...TABULAR }}>{fmt0(dados.comAtraso)}</strong> com fase atrasada
+        <strong style={{ color: dados.comAtraso > 0 ? TOM.perigo.text : T.text, ...TABULAR }}>{fmt0(dados.comAtraso)}</strong> com etapa atrasada
       </span>
       {cal.soAtrasadas && dados.total > dados.comAtraso ? ` (mostrando só esses)` : ""}.{" "}
-      <strong style={{ color: T.text, fontWeight: FW.medio }}>Cada peça conta uma vez, na fase em que está agora</strong>{" "}
+      <strong style={{ color: T.text, fontWeight: FW.medio }}>Cada peça conta uma vez, na etapa em que está agora</strong>{" "}
       — a peça parada no layout aparece só no layout; na produção gráfica, as já liberadas para a gráfica e ainda não entregues. Clique numa célula para ver as peças.
     </>
   );
@@ -126,7 +126,7 @@ export default function CalendarioDeFases({ ctx }: { ctx: ContextoDoPainel }) {
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", columnGap: 20, rowGap: 8, marginBottom: 12 }}>
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
             <Marcador marcado={cal.soAtrasadas} aoMudar={(v) => mudarCalendario({ soAtrasadas: v })} testId="op-cal-so-atrasadas">
-              somente eventos com fase atrasada
+              somente eventos com etapa atrasada
             </Marcador>
             {cal.ord && (
               <Botao variante="fantasma" tamanho={isMobile ? "toque" : "sm"} onClick={() => mudarCalendario({ ord: null, dir: "asc" })} data-testid="op-cal-ordem-padrao">
@@ -146,7 +146,7 @@ export default function CalendarioDeFases({ ctx }: { ctx: ContextoDoPainel }) {
 
         {dados.linhas.length === 0 ? (
           <Vazio testId="op-cal-vazio" alto>
-            {cal.soAtrasadas ? "Nenhum evento com fase atrasada." : "Nenhum evento com prazo de fase nos próximos 15 dias."}
+            {cal.soAtrasadas ? "Nenhum evento com etapa atrasada." : "Nenhum evento com prazo de etapa nos próximos 15 dias."}
           </Vazio>
         ) : (
           <div
@@ -238,7 +238,7 @@ function Grade({ linhas, hoje, isMobile, ordem, direcao, aoOrdenar, aoAbrir, sel
   return (
     <table style={{ width: "100%", minWidth: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
       <caption className="sr-only">
-        Eventos × processo × prazo: o prazo de cada fase por evento e as peças que estão nela agora. Clique no topo de uma coluna para ordenar.
+        Eventos × processo × prazo: o prazo de cada etapa por evento e as peças que estão nela agora. Clique no topo de uma coluna para ordenar.
       </caption>
       <thead>
         <tr>
@@ -258,7 +258,7 @@ function Grade({ linhas, hoje, isMobile, ordem, direcao, aoOrdenar, aoAbrir, sel
                 </span>
                 {atrasado && (
                   <span data-testid="op-cal-fases-atrasadas" style={{ display: "block", marginTop: 2, fontSize: FS.small, fontWeight: FW.corpo, color: T.second }}>
-                    {l.fasesAtrasadas} {plural(l.fasesAtrasadas, "fase atrasada", "fases atrasadas")}
+                    {l.fasesAtrasadas} {plural(l.fasesAtrasadas, "etapa atrasada", "etapas atrasadas")}
                   </span>
                 )}
                 {l.semPecas && (
@@ -305,7 +305,7 @@ function Celula({ linha, fase: f, hoje, isMobile, selecionada, aoAbrir, diasDaAp
 
   if (f.pendentes === 0 && f.situacao === "aguardando") {
     return (
-      <span data-testid={testId} data-situacao="aguardando" style={{ ...caixa, ...PINTURA.aguardando }} title={`${f.nome} · prazo ${dma(f.prazo)} · nenhuma peça nesta fase agora; ${f.aCaminho} ${plural(f.aCaminho, "peça ainda está", "peças ainda estão")} em fases anteriores`}>
+      <span data-testid={testId} data-situacao="aguardando" style={{ ...caixa, ...PINTURA.aguardando }} title={`${f.nome} · prazo ${dma(f.prazo)} · nenhuma peça nesta etapa agora; ${f.aCaminho} ${plural(f.aCaminho, "peça ainda está", "peças ainda estão")} em etapas anteriores`}>
         {data}
         <span style={{ fontSize: FS.small }}>aguarda {fmt0(f.aCaminho)} pç</span>
       </span>
@@ -327,7 +327,7 @@ function Celula({ linha, fase: f, hoje, isMobile, selecionada, aoAbrir, diasDaAp
   // sem aprovação nela (26/10). A situação e os dias de atraso já usam ele.
   const vale = f.prazoEfetivo ?? f.prazo;
   const ajustada = vale !== f.prazo;
-  const regra = `Prazo do evento ${dm(f.prazo)} — só há peças sem aprovação nesta fase (Layout + ${diasDaAprovacao} ${plural(diasDaAprovacao, "dia corrido", "dias corridos")})`;
+  const regra = `Prazo do evento ${dm(f.prazo)} — só há peças sem aprovação nesta etapa (Layout + ${diasDaAprovacao} ${plural(diasDaAprovacao, "dia corrido", "dias corridos")})`;
   const atrasada = f.situacao === "atrasada";
   const info = atrasada
     ? `${fmt0(f.pendentes)} pç · ${f.diasAtraso}d atraso`
@@ -379,8 +379,8 @@ function QuadroDePecas({ nome, fase, prazo, prazoDoEvento, hoje, pecas, nomes, i
   const dias = vencida ? diasEntre(hoje, prazo!) : 0;
   const n = pecas.length;
   const ajustado = !!prazo && !!prazoDoEvento && prazo !== prazoDoEvento;
-  const resumo = `${fmt0(n)} ${plural(n, "peça", "peças")} ${vencida ? plural(n, "atrasada", "atrasadas") : plural(n, "pendente", "pendentes")} nesta fase · `
-    + (prazo ? `prazo da fase ${dma(prazo)}${ajustado ? ` (ajustado; prazo do evento ${dma(prazoDoEvento)})` : ""}${vencida ? ` (vencido há ${dias} ${plural(dias, "dia", "dias")})` : ""}` : "fase sem prazo");
+  const resumo = `${fmt0(n)} ${plural(n, "peça", "peças")} ${vencida ? plural(n, "atrasada", "atrasadas") : plural(n, "pendente", "pendentes")} nesta etapa · `
+    + (prazo ? `prazo da etapa ${dma(prazo)}${ajustado ? ` (ajustado; prazo do evento ${dma(prazoDoEvento)})` : ""}${vencida ? ` (vencido há ${dias} ${plural(dias, "dia", "dias")})` : ""}` : "fase sem prazo");
   return (
     <SecaoDaAnalise
       id="h-op-cal-pecas"
@@ -389,7 +389,7 @@ function QuadroDePecas({ nome, fase, prazo, prazoDoEvento, hoje, pecas, nomes, i
       descricao={<span data-testid="op-cal-pecas-resumo" style={{ color: vencida ? TOM.perigo.text : undefined, fontWeight: vencida ? FW.medio : undefined }}>{resumo}</span>}
       acoes={<Botao tamanho={isMobile ? "toque" : "sm"} icone={X} onClick={aoFechar} data-testid="op-cal-pecas-fechar" aria-label="Fechar a lista de peças">Fechar</Botao>}
     >
-      <TabelaDePecas pecas={pecas} nomes={nomes} testId="op-tabela-cal-pecas" vazio="Nenhuma peça pendente nesta fase." mostrarEvento={false} mostrarFuraFila />
+      <TabelaDePecas pecas={pecas} nomes={nomes} testId="op-tabela-cal-pecas" vazio="Nenhuma peça pendente nesta etapa." mostrarEvento={false} mostrarFuraFila />
     </SecaoDaAnalise>
   );
 }

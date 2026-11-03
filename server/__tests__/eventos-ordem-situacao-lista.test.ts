@@ -154,7 +154,7 @@ describe("situação em um controle só", () => {
   });
 
   it("os chips de foco continuam — são cruzamentos, não situação", () => {
-    expect(tela).toContain("'Marco atrasado'");
+    expect(tela).toContain("'Prazo atrasado'");
     expect(tela).toContain("'Sem prioridade'");
     expect(tela).toContain("'Sem peças'");
     // E "Sem prioridade" filtra de verdade, via selectedPriorities.
@@ -170,8 +170,8 @@ describe("a ordem é declarada e trocável", () => {
     }
     // A regra fica escrita, não num tooltip: ela responde "por que este está em
     // cima", e essa pergunta se faz olhando a lista.
-    expect(tela).toContain("marco atrasado primeiro, depois quem embarca antes");
-    expect(tela).toContain("o marco mais perto de vencer no topo");
+    expect(tela).toContain("prazo atrasado primeiro, depois quem embarca antes");
+    expect(tela).toContain("o prazo mais perto de vencer no topo");
     expect(tela).toContain("ordem alfabética");
   });
 

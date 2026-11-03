@@ -102,7 +102,7 @@ export default function PedidosDePecaPagina() {
         {/* O cabeçalho da casa: onde estou · como funciona aqui · ajuda. A
             frase explica a tela PARA O PAPEL de quem vê (pedir × atender). */}
         <CabecalhoDaPagina
-          titulo="Solicitação de peças"
+          titulo="Pedidos de peças"
           testId="title-pedidos-de-peca"
           subtitulo={<span style={{ display: "block", maxWidth: 640, color: T.apoio }}>{explicacao}</span>}
           semMargem

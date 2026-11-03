@@ -139,7 +139,7 @@ describe("Arte 1280px — topo limpo e 'Mais ações'", { timeout: 60_000 }, () 
     expect(document.body.textContent).not.toMatch(/\b2 eventos\b/);
     const marcos = document.querySelectorAll('[data-testid="marco-da-fase"]');
     expect(marcos.length).toBe(2); // um por evento
-    expect(marcos[0].getAttribute("title")).toContain("Marco desta fase");
+    expect(marcos[0].getAttribute("title")).toContain("Prazo desta etapa");
   });
 
   it("linha: sem colunas de Dimensões/M²/Material; medida e material em texto secundário", async () => {

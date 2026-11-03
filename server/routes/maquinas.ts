@@ -105,7 +105,7 @@ const ehFalhaHttp = (e: unknown): e is FalhaHttp =>
 /** 403 para quem não é da Gráfica, da Solicitação nem admin — as três rotas usam. */
 function podeVer(req: Request, res: Response): boolean {
   if (PAPEIS_QUE_VEEM.includes(req.userRole ?? "")) return true;
-  res.status(403).json({ error: "O controle de máquinas é da Gráfica, da Solicitação e do admin" });
+  res.status(403).json({ error: "O controle de impressoras é da Gráfica, da Solicitação e do admin" });
   return false;
 }
 
@@ -392,7 +392,7 @@ export function registerMaquinasRoutes(app: Express): void {
           if (EM_REVISAO.has(entra.status)) throw falha(409, "A peça que entra está em revisão — a Gráfica só age depois que a revisão liberar.");
           const PODE = ["ready_for_production", "pronto_para_producao", "approved", "liberado", "inProduction", "em_producao"];
           if (ehMolde(entra)) throw falha(409, "Molde não vai para a impressora — é marcado como produzido direto na Gráfica.");
-          if (!PODE.includes(entra.status)) throw falha(409, `A peça que entra não pode ir para a máquina no status atual: ${translateStatus(entra.status)}`);
+          if (!PODE.includes(entra.status)) throw falha(409, `A peça que entra não pode ir para a impressora no status atual: ${translateStatus(entra.status)}`);
           if (await motivoEventoDaPeca(entra)) throw falha(409, "O evento da peça que entra já foi finalizado");
           // A que ENTRA não pode estar travada; a que SAI pode (recuar nunca é barrado).
           if (pecaTravada(entra)) throw Object.assign(falha(409, fraseDaTrava(entra)), { code: CODIGO_PECA_TRAVADA });
@@ -485,7 +485,7 @@ export function registerMaquinasRoutes(app: Express): void {
       res.json({ de, ate, hoje, dias: agregarRelatorioDeMaquinas(registros), registros });
     } catch (error) {
       console.error("[maquinas] falha ao montar o relatório:", error);
-      res.status(500).json({ error: "Não foi possível montar o relatório das máquinas." });
+      res.status(500).json({ error: "Não foi possível montar o relatório das impressoras." });
     }
   });
 
@@ -498,7 +498,7 @@ export function registerMaquinasRoutes(app: Express): void {
       await responderRelatorioMaquinasXlsx(res, { de, ate, resumo: agregarRelatorioDeMaquinas(registros), registros });
     } catch (error) {
       console.error("[maquinas] falha ao exportar o relatório:", error);
-      if (!res.headersSent) res.status(500).json({ error: "Não foi possível gerar o Excel das máquinas." });
+      if (!res.headersSent) res.status(500).json({ error: "Não foi possível gerar o Excel das impressoras." });
     }
   });
 
@@ -742,8 +742,8 @@ export function registerMaquinasRoutes(app: Express): void {
 
       res.json({ dia, hoje, maquinas: maquinasComFila, semMaquina, filaGeral });
     } catch (error) {
-      console.error("[maquinas] falha ao montar o controle de máquinas:", error);
-      res.status(500).json({ error: "Não foi possível carregar o controle de máquinas." });
+      console.error("[maquinas] falha ao montar o controle de impressoras:", error);
+      res.status(500).json({ error: "Não foi possível carregar o controle de impressoras." });
     }
   });
 }

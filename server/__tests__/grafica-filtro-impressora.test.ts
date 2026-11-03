@@ -33,11 +33,11 @@ describe("a impressora que o filtro enxerga na peça", () => {
     expect(itemImpressora(peca({ printMachine: "4" }))).toBe("4");
   });
 
-  it("peça já produzida continua da máquina em que começou (printMachine nunca é apagado)", () => {
+  it("peça já produzida continua da impressora em que começou (printMachine nunca é apagado)", () => {
     expect(itemImpressora(peca({ status: "produced", printMachine: "2" }))).toBe("2");
   });
 
-  it("'Sem impressora' é SÓ a peça em impressão sem máquina (legado)", () => {
+  it("'Sem impressora' é SÓ a peça em impressão sem impressora (legado)", () => {
     expect(itemImpressora(peca({ status: "inProduction", printMachine: null }))).toBe(SEM_IMPRESSORA);
     expect(itemImpressora(peca({ status: "em_producao" }))).toBe(SEM_IMPRESSORA);
     // fora da impressão e sem máquina: não tem impressora nenhuma
@@ -81,7 +81,7 @@ describe("fonte única: URL, contagem, limpar e empty state", () => {
     expect(contarFiltrosAtivos(f({ impressora: ["2"], status: ["inProduction"] }))).toBe(2);
   });
 
-  it("no 'Recorte atual' aparece o NOME da máquina, não o código", () => {
+  it("no 'Recorte atual' aparece o NOME da impressora, não o código", () => {
     const d = descreverFiltros(f({ impressora: ["1", SEM_IMPRESSORA] }), {
       impressora: (v) => v.map(m => m === SEM_IMPRESSORA ? "Sem impressora" : rotuloDaMaquina(m)).join(", "),
     });
@@ -94,10 +94,10 @@ describe("fonte única: URL, contagem, limpar e empty state", () => {
 describe("o dropdown na tela", () => {
   it("entra em SELECTS_PRINCIPAIS — a mesma lista que a folha 'Mais filtros' do celular reaproveita", () => {
     expect(TELA).toContain('{ label: "Impressora", allLabel: "Todas as impressoras", values: filtros.impressora, set: (v: string[]) => patchFiltros({ impressora: v }), options: impressoraFilterOptions, testId: "select-impressora-filter", sempre: false,');
-    expect(TELA).toContain("Impressora: \"Máquina em que a peça começou a imprimir;");
+    expect(TELA).toContain("Impressora: \"Impressora em que a peça começou a imprimir;");
   });
 
-  it("as opções saem do gFacetPool, em ordem fixa (4 máquinas + Sem impressora), só com contagem > 0 ou já escolhida", () => {
+  it("as opções saem do gFacetPool, em ordem fixa (4 impressoras + Sem impressora), só com contagem > 0 ou já escolhida", () => {
     expect(TELA).toContain("gFacetPool('impressora').forEach((i) => {");
     expect(TELA).toContain("const ordem = [...MAQUINAS_DE_IMPRESSAO, SEM_IMPRESSORA];");
     expect(TELA).toContain(".filter(m => (conta.get(m) ?? 0) > 0 || filtros.impressora.includes(m))");

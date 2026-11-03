@@ -416,7 +416,7 @@ export function buildEventPrazo(
       prazoEfetivo,
       diffDays,
       pendingCount: pendentesAqui,    // cobradas aqui OU antes (o gate real)
-      directCount: directCounts[i],   // cobradas exatamente por este marco
+      directCount: directCounts[i],   // cobradas exatamente por este prazo
       atrasadas: invalidDate ? 0 : atrasadas,
       state,
     };

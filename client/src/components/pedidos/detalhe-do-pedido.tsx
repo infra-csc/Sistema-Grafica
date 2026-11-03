@@ -168,7 +168,7 @@ export function DetalheDoPedido({ pedido, agora, seloDe, acoesDaLinha, acoes = [
   return (
     <Dialog open={!!pedido} onOpenChange={(aberto) => { if (!aberto) onFechar(); }}>
       <DialogContent data-testid="detalhe-do-pedido" className={HIDE_NATIVE_CLOSE} style={modalSurface(1080)}>
-        <DialogTitle className="sr-only">Solicitação de peças — {linhas.length} {linhas.length === 1 ? "peça" : "peças"}</DialogTitle>
+        <DialogTitle className="sr-only">Pedidos de peças — {linhas.length} {linhas.length === 1 ? "peça" : "peças"}</DialogTitle>
         <DialogDescription className="sr-only">Solicitada por {p.pedidoPor ?? "—"}</DialogDescription>
         <ModalHeader
           icon={Inbox}

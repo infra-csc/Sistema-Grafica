@@ -115,7 +115,7 @@ describe("as frases saem da regra", () => {
 });
 
 describe("paridade: o mesmo dia em todas as telas, um ano de saídas", () => {
-  it("servidor (Gestão de Prazos + card), Calendário, Detalhe, chip/Máquinas e alerta", () => {
+  it("servidor (Gestão de Prazos + card), Calendário, Detalhe, chip/Impressoras e alerta", () => {
     let sabados = 0;
     let domingosMovidos = 0;
     for (let i = 0; i < 366; i++) {

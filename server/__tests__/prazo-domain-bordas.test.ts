@@ -433,7 +433,7 @@ describe("T12 — piorAtrasoDias e as chaves de ordenação", () => {
 describe("T13 — daysSince nunca devolve negativo", () => {
   const hoje = dia("2026-08-13");
 
-  it("timestamp no futuro vira 0 (relógio de máquina adiantado ou gravação em outro fuso)", () => {
+  it("timestamp no futuro vira 0 (relógio de impressora adiantado ou gravação em outro fuso)", () => {
     expect(daysSince(new Date("2026-08-14T12:00:00.000Z"), hoje)).toBe(0);
     expect(daysSince(new Date("2027-01-01T00:00:00.000Z"), hoje)).toBe(0);
     expect(daysSince("2026-08-13T23:59:00.000Z", hoje)).toBe(0);

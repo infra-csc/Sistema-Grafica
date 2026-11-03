@@ -334,7 +334,7 @@ describe("PERF-6 — telas de evento", () => {
     anotar(`Detalhe · 5 teclas na busca ${(performance.now() - t1).toFixed(0)}ms · ${m.commits} commits · render ${m.ms.toFixed(0)}ms`);
   }, 120000);
 
-  itBench("Solicitação de peças: 300 solicitações", async () => {
+  itBench("Pedidos de peças: 300 solicitações", async () => {
     (globalThis as any).__telaPerf6 = "pedidos";
     perfil = "admin";
     window.history.replaceState(null, "", "/pedidos-de-peca");

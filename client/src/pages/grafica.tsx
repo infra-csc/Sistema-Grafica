@@ -351,12 +351,12 @@ export default function Grafica() {
         isExporting={isExporting} handleExportXlsx={() => setExcelAberto(true)} setGalpao={setGalpao} atalhosNasAbas={usaCards && !isMobile} />
 
       {/* ── As abas da tela: Fila | Tubos — uma abinha separada, não uma
-          página. O <Abas> do design system — o mesmo de Máquinas: tablist,
+          página. O <Abas> do design system — o mesmo de Impressoras: tablist,
           setas, roving tabindex e 44px. O número de tubos abertos vai no
           contador da aba. `?aba=tubos` na URL; cada aba monta SÓ o próprio
           painel. */}
       <div data-testid="abas-grafica">
-        {/* No celular, Máquinas e Excel (só ícones) moram à direita das abas —
+        {/* No celular, Impressoras e Excel (só ícones) moram à direita das abas —
             ver AtalhosDaGrafica. A linha das abas já existia; a deles não. */}
         {/* Tablet (lista em cartões, conteúdo < 820px): os mesmos atalhos de
             ícone sobem para cá — no topo eles abriam uma segunda fileira de

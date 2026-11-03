@@ -293,7 +293,7 @@ function EventCard({
               title={`${ms.label} — ${milestoneDueText(ms)}. Prazo: ${fmtDateBR(ms.deadline)}.${ms.pendingItems > 0 ? ` ${ms.pendingItems} ${ms.pendingItems === 1 ? 'peça ainda não passou' : 'peças ainda não passaram'} por esta etapa.` : ''}`}
               style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0 }}
             >
-              <p style={ROTULO}>Próximo marco</p>
+              <p style={ROTULO}>Próximo prazo</p>
               <span style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
                 <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: MARCO_COLOR[ms.key] || T.second, flexShrink: 0 }} />
                 <span style={{ fontSize: FS.body, fontWeight: FW.medio, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ms.label}</span>

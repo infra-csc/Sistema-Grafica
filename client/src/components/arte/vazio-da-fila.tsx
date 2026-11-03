@@ -23,7 +23,7 @@ export function VazioDaFila({ tabId, activeFilterCount, atrasadoFilter, setAtras
   // e mantém os demais — sair de "atrasadas" não deveria custar o filtro
   // de evento que a pessoa montou antes.
   const soAtrasadas = atrasadoFilter;
-  const marco = PHASE_DEADLINE[tabId]?.label ?? "prazo da fase";
+  const marco = PHASE_DEADLINE[tabId]?.label ?? "prazo da etapa";
   const outrosFiltros = activeFilterCount - 1;
   // O próximo passo, quando há um: desligar o recorte que esvaziou a lista
   // ou, fila zerada sem filtro, ir à próxima fase COM peças em que a Arte
@@ -58,7 +58,7 @@ export function VazioDaFila({ tabId, activeFilterCount, atrasadoFilter, setAtras
         titulo={soAtrasadas
           ? tabId === "finalizados"
             ? "Finalizados não tem atraso a mostrar"
-            : "Nada atrasado nesta fase"
+            : "Nada atrasado nesta etapa"
           : porFiltro
           ? "Nenhuma peça neste recorte"
           : tabId === "criar-aprovacoes" ? "Nenhuma peça aguardando envio"
@@ -69,11 +69,11 @@ export function VazioDaFila({ tabId, activeFilterCount, atrasadoFilter, setAtras
           <span data-testid="empty-arte-motivo">
             {soAtrasadas
               ? tabId === "finalizados"
-                ? "O marco desta fase é a própria saída do caminhão, que numa peça já pronta passou por definição — a lista está vazia pelo filtro, não porque falte trabalho."
-                : `A lista está vazia pelo FILTRO "Prazo: atrasados"${outrosFiltros > 0 ? ` (e mais ${outrosFiltros} ${outrosFiltros === 1 ? 'filtro' : 'filtros'})` : ''} — as peças desta fase estão todas dentro do marco de ${marco}.`
+                ? "O prazo desta etapa é a própria saída do caminhão, que numa peça já pronta passou por definição — a lista está vazia pelo filtro, não porque falte trabalho."
+                : `A lista está vazia pelo FILTRO "Prazo: atrasados"${outrosFiltros > 0 ? ` (e mais ${outrosFiltros} ${outrosFiltros === 1 ? 'filtro' : 'filtros'})` : ''} — as peças desta etapa estão todas dentro do prazo de ${marco}.`
               : porFiltro
               ? (activeFilterCount === 1 ? 'Um filtro ativo está escondendo o resto da fila' : `${activeFilterCount} filtros ativos estão escondendo o resto da fila`)
-              : tabId === "criar-aprovacoes" ? "Todo thumb desta fase já foi enviado"
+              : tabId === "criar-aprovacoes" ? "Todo thumb desta etapa já foi enviado"
               : tabId === "aguardando-patrocinador" ? "Nenhuma peça em aprovação pelo patrocinador"
               : tabId === "finalizar-layouts" ? "Nenhuma peça aprovada aguardando arquivo final"
               : "Nenhuma peça finalizada ainda"}

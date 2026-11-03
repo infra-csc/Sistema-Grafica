@@ -287,7 +287,7 @@ describe("sem ETag na API, 304 dos estáticos intacto", () => {
   });
 });
 
-describe("máquinas: o dia por intervalo (usa o índice), no fuso de São Paulo", () => {
+describe("impressoras: o dia por intervalo (usa o índice), no fuso de São Paulo", () => {
   it("as duas leituras do diário filtram created_at por intervalo — nunca a coluna convertida", async () => {
     const { chamar } = capturarRotas(registerMaquinasRoutes);
     const sessao = { userId: "u1", userRole: "grafica" };

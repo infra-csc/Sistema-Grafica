@@ -246,7 +246,7 @@ export const AnaliseBand = memo(function AnaliseBand({
                       <Link
                         href={s.url ?? "/eventos"}
                         title={s.url
-                          ? `Abrir ${s.sector} já na fase de ${s.stageLabel}`
+                          ? `Abrir ${s.sector} já na etapa de ${s.stageLabel}`
                           : "Peças desta etapa nascem no evento — abrir a lista de eventos"}
                         // `inline-flex` + minHeight: com `inline-block` o
                         // alvo era a altura do texto de 11px (~16px), logo

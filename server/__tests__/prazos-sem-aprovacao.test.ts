@@ -191,7 +191,7 @@ describe("critério 3 — sai de Layout direto para a Finalização; o prazo da 
     expect(com.pendingItems[0].prazo).toBe(com.stages[3].deadline);
   });
 
-  it("a máquina de estados: Aguardando Envio → Finalização pela Arte recebida", async () => {
+  it("a impressora de estados: Aguardando Envio → Finalização pela Arte recebida", async () => {
     const M = await import("@shared/maquina-de-estados");
     expect(M.proximoStatus("awaiting_submission", "receber-arte-do-cliente")).toBe("awaiting_creator_review");
     expect(M.proximoStatus("requested", "registrar-arte-do-cliente-recebida")).toBe("requested");
@@ -247,7 +247,7 @@ describe("critério 8 — painéis e filtros: prazo ajustado e interno × client
     });
   };
 
-  it("Análises: prazo da fase e dias de atraso pelo ajustado; Problemas separa interno × cliente; o indicador e o filtro", () => {
+  it("Análises: prazo da etapa e dias de atraso pelo ajustado; Problemas separa interno × cliente; o indicador e o filtro", () => {
     const pecas = [
       item({ id: "sem", skipApproval: true }),
       item({ id: "cli", arteDoCliente: true, arteDoClienteMarcadaEm: "2026-11-10T13:00:00Z" } as any),

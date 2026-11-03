@@ -355,7 +355,7 @@ describe("POST /api/grafica/maquinas/:maquina/trocar com deMaquina — imprimir 
     expect(r.status).toBe(409);
   });
 
-  it("evento finalizado da que ENTRA barra também no modo mover (trocar de máquina é trabalho andando)", async () => {
+  it("evento finalizado da que ENTRA barra também no modo mover (trocar de impressora é trabalho andando)", async () => {
     mundo.eventos["ev-1"] = { ...mundo.eventos["ev-1"], startDate: new Date("2026-09-20T00:00:00Z") };
     mundo.itens = {
       a: item({ id: "a", status: "inProduction", quantity: 10, quantityProduced: 2, printMachine: "1" }),

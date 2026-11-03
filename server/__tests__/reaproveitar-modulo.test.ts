@@ -247,7 +247,7 @@ describe("Observação no Conferir, no Embalar e no Entregar", () => {
 });
 
 describe("Não pode cortar o nome (dono, 03/11)", () => {
-  it("a fila, os modais e as Máquinas mostram o nome inteiro", () => {
+  it("a fila, os modais e as Impressoras mostram o nome inteiro", () => {
     const CLAMP = /description[^\n]*(WebkitLineClamp|textOverflow)|(WebkitLineClamp|textOverflow)[^\n]*\{item\.(description|type)\}/;
     for (const f of ["fila/linha-da-tabela.tsx", "fila/cartao-da-peca.tsx", "modais/conferencia-em-lote.tsx", "modais/modal-da-peca.tsx", "modal-impressao.tsx"]) {
       expect(CLAMP.test(ler(`client/src/components/grafica/${f}`)), f).toBe(false);
@@ -259,7 +259,7 @@ describe("Não pode cortar o nome (dono, 03/11)", () => {
   });
 });
 
-describe("Máquinas e Gráfica", () => {
+describe("Impressoras e Gráfica", () => {
   it("'Tudo' pergunta antes de gravar, e 'Ainda não' limpa o campo", () => {
     const m = ler("client/src/components/grafica/modal-impressao.tsx");
     expect(m).toContain("onClick={() => { void pedirTudo(); }}");

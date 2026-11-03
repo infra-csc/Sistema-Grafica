@@ -93,8 +93,8 @@ export default function AbaEvento({ ctx, trocarEvento }: { ctx: ContextoDoPainel
         <div style={{ minWidth: 0 }}>
           <strong style={{ fontSize: FS.read, color: vencidas.length ? TOM.perigo.text : proximas.length ? TOM.alerta.text : TOM.sucesso.text }}>
             {vencidas.length
-              ? `${vencidas.length} ${vencidas.length > 1 ? "fases atrasadas" : "fase atrasada"}`
-              : proximas.length ? "Nenhuma fase atrasada — atenção aos prazos próximos" : "Nenhuma fase atrasada"}
+              ? `${vencidas.length} ${vencidas.length > 1 ? "etapas atrasadas" : "etapa atrasada"}`
+              : proximas.length ? "Nenhuma etapa atrasada — atenção aos prazos próximos" : "Nenhuma etapa atrasada"}
           </strong>
           {(vencidas.length > 0 || proximas.length > 0) && (
             <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: FS.body, lineHeight: 1.6 }}>
@@ -114,10 +114,10 @@ export default function AbaEvento({ ctx, trocarEvento }: { ctx: ContextoDoPainel
       </div>
 
       <div className="pop-grade-2">
-        <SecaoDaAnalise id="h-op-ev-fases" testId="op-evento-fases" titulo="Fases e prazos" descricao="Prazo de cada fase do evento e quantas peças ainda estão nela ou antes dela.">
+        <SecaoDaAnalise id="h-op-ev-fases" testId="op-evento-fases" titulo="Etapas e prazos" descricao="Prazo de cada etapa do evento e quantas peças ainda estão nela ou antes dela.">
           <TabelaCompacta<FaseDoEvento>
             testId="op-tabela-fases"
-            legenda="Fases do evento com prazo, peças pendentes e situação"
+            legenda="Etapas do evento com prazo, peças pendentes e situação"
             linhas={ev.fases}
             chave={(f) => String(f.ordem)}
             limite={6}
@@ -127,7 +127,7 @@ export default function AbaEvento({ ctx, trocarEvento }: { ctx: ContextoDoPainel
             ordemInicial={{ coluna: "prazo", direcao: "asc" }}
             colunas={[
               // No celular a situação vem sob o nome da fase: a 4ª coluna não cabia em 390px.
-              { id: "fase", rotulo: "Fase", valor: (f) => f.etapa,
+              { id: "fase", rotulo: "Etapa", valor: (f) => f.etapa,
                 render: (f) => (isMobile
                   ? <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4 }}>{f.etapa}<SeloDaSituacao situacao={f.situacao} /></span>
                   : f.etapa) },
@@ -139,7 +139,7 @@ export default function AbaEvento({ ctx, trocarEvento }: { ctx: ContextoDoPainel
                   return (
                     <span
                       data-testid={`op-fase-prazo-ajustado-${f.ordem}`}
-                      title={`Prazo do evento ${dm(f.prazo)} — só há peças sem aprovação nesta fase (Layout + dias da Aprovação, corridos).`}
+                      title={`Prazo do evento ${dm(f.prazo)} — só há peças sem aprovação nesta etapa (Layout + dias da Aprovação, corridos).`}
                       style={{ display: "flex", flexDirection: "column", gap: 2 }}
                     >
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
@@ -149,15 +149,15 @@ export default function AbaEvento({ ctx, trocarEvento }: { ctx: ContextoDoPainel
                     </span>
                   );
                 } },
-              { id: "pendentes", rotulo: "Pendentes", titulo: "Peças nesta fase ou em fase anterior", alinhar: "direita", ordenavel: true, valor: (f) => f.pendentes },
+              { id: "pendentes", rotulo: "Pendentes", titulo: "Peças nesta etapa ou em etapa anterior", alinhar: "direita", ordenavel: true, valor: (f) => f.pendentes },
               { id: "situacao", rotulo: "Situação", ordenavel: true, ocultarNoCelular: true, valor: (f) => f.situacao, render: (f) => <SeloDaSituacao situacao={f.situacao} /> },
             ]}
           />
         </SecaoDaAnalise>
-        <SecaoDaAnalise id="h-op-ev-porfase" testId="op-evento-porfase" titulo="Peças por fase" descricao="Em vermelho, as que passaram do prazo da fase.">
+        <SecaoDaAnalise id="h-op-ev-porfase" testId="op-evento-porfase" titulo="Peças por etapa" descricao="Em vermelho, as que passaram do prazo da etapa.">
           <BarrasEmpilhadas
             testId="op-barras-fase"
-            legenda="Peças do evento por fase"
+            legenda="Peças do evento por etapa"
             linhas={porFase.map((r) => ({ id: String(r.fase), rotulo: r.rotulo, partes: { noPrazo: r.noPrazo, atrasadas: r.atrasadas, entregues: r.entregues } }))}
             series={[
               { chave: "noPrazo", nome: "No prazo", cor: COR.prazo },
@@ -182,7 +182,7 @@ export default function AbaEvento({ ctx, trocarEvento }: { ctx: ContextoDoPainel
                 {aguardandoComAtraso > 0 && (
                   <span style={{ color: COR_DO_ATRASO_DO_CLIENTE.text, fontWeight: FW.medio }}> · {fmt0(aguardandoComAtraso)} com atraso do cliente</span>
                 )}
-                <span style={{ color: T.second }}> — contam na fase de Layout; esperam o arquivo do cliente.</span>
+                <span style={{ color: T.second }}> — contam na etapa de Layout; esperam o arquivo do cliente.</span>
               </span>
             </p>
           )}
@@ -216,8 +216,8 @@ export default function AbaEvento({ ctx, trocarEvento }: { ctx: ContextoDoPainel
             { id: "qtd", rotulo: "Qtd", alinhar: "direita", ordenavel: true, valor: (p) => p.quantidade },
             { id: "m2", rotulo: "m²", alinhar: "direita", ordenavel: true, ocultarNoCelular: true, valor: (p) => p.m2, render: (p) => fmt1(p.m2) },
             { id: "status", rotulo: "Status", ordenavel: true, valor: (p) => rotuloDaEtapaNoPainel(p.etapa), render: (p) => <StatusDaLinha p={p} /> },
-            { id: "fase", rotulo: "Fase", ordenavel: true, ocultarNoCelular: true, valor: (p) => FASES_DO_PAINEL[p.fase] ?? "—" },
-            { id: "prazo", rotulo: "Prazo da fase", ordenavel: true, ocultarNoCelular: true, valor: (p) => (p.fase === FASE_ENTREGUE ? null : p.prazoFase),
+            { id: "fase", rotulo: "Etapa", ordenavel: true, ocultarNoCelular: true, valor: (p) => FASES_DO_PAINEL[p.fase] ?? "—" },
+            { id: "prazo", rotulo: "Prazo da etapa", ordenavel: true, ocultarNoCelular: true, valor: (p) => (p.fase === FASE_ENTREGUE ? null : p.prazoFase),
               render: (p) => <PrazoDaLinha p={p} entregue={p.fase === FASE_ENTREGUE} /> },
             { id: "atraso", rotulo: "Atraso (dias)", alinhar: "direita", ordenavel: true, valor: (p) => p.diasAtraso, render: (p) => <AtrasoDaLinha p={p} /> },
           ]}

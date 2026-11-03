@@ -26,7 +26,7 @@ export function SeloFilaDaImpressora({ item, fonte }: { item: PecaDaFila; fonte:
   const maquina = String(item.maquinaPrevista ?? "");
   const dividida = frase.length > 26;
   return (
-    <span data-testid="selo-fila-impressora" title={`Reservada na fila da ${maquina ? rotuloDaMaquina(maquina) : "impressora"} (Máquinas) — a etapa não muda até iniciar a impressão`} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: fonte, fontWeight: 700, color: T.apoio, background: N.n2, border: `1px solid ${T.border}`, borderRadius: 6, padding: "1px 6px", whiteSpace: dividida ? "normal" : "nowrap" }}>
+    <span data-testid="selo-fila-impressora" title={`Reservada na fila da ${maquina ? rotuloDaMaquina(maquina) : "impressora"} (Impressoras) — a etapa não muda até iniciar a impressão`} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: fonte, fontWeight: 700, color: T.apoio, background: N.n2, border: `1px solid ${T.border}`, borderRadius: 6, padding: "1px 6px", whiteSpace: dividida ? "normal" : "nowrap" }}>
       <Printer aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0 }} />
       {frase}
     </span>
@@ -73,7 +73,7 @@ export function DeadlineChip({ event, fonte = FS.small, curto = false }: {
     : "";
   return (
     <span
-      title={`Marco de Produção Gráfica em ${ds}${sufixo ? ` — ${sufixo}` : ""}`}
+      title={`Prazo de Produção Gráfica em ${ds}${sufixo ? ` — ${sufixo}` : ""}`}
       aria-label={`Prazo de produção gráfica: ${ds}${sufixo ? `, ${sufixo}` : ""}`}
       // flexWrap + maxWidth: o selo vivia em `nowrap` e, com a tabela mais
       // larga que a tela (sidebar aberta), saía pela direita cortado ao meio

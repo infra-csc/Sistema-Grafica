@@ -52,7 +52,7 @@ vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: () => {} }), toa
 // Ação (nas duas telas) × mensagem que o servidor emite. Conferida na fonte
 // das rotas logo abaixo — a tabela do relatório é esta.
 const ACOES: { acao: string; rota: string; arquivo: string; mensagens: string[] }[] = [
-  { acao: "iniciar impressão / imprimir agora / trocar de máquina", rota: '"/api/items/:id/start-printing"', arquivo: "server/routes/items.ts", mensagens: ["item_updated", "production_started"] },
+  { acao: "iniciar impressão / imprimir agora / trocar de impressora", rota: '"/api/items/:id/start-printing"', arquivo: "server/routes/items.ts", mensagens: ["item_updated", "production_started"] },
   { acao: "informar impressas / mandar para acabamento", rota: '"/api/items/:id/start-production"', arquivo: "server/routes/items.ts", mensagens: ["production_started"] },
   { acao: "reservar / mover / devolver reserva (com quantidade)", rota: '"/api/items/:id/maquina-prevista"', arquivo: "server/routes/maquinas.ts", mensagens: ["item_updated"] },
   { acao: "reservar em lote", rota: '"/api/items/bulk-maquina-prevista"', arquivo: "server/routes/maquinas.ts", mensagens: ["item_updated"] },
@@ -75,7 +75,7 @@ describe("1 · tempo real: toda mensagem de peça invalida as DUAS telas", () =>
     }
   });
 
-  it("o mapa: cada mensagem das ações invalida a fila da Gráfica E o retrato de Máquinas (e o resumo)", () => {
+  it("o mapa: cada mensagem das ações invalida a fila da Gráfica E o retrato de Impressoras (e o resumo)", () => {
     const deItem = new Set(ACOES.flatMap((a) => a.mensagens).filter((m) => m !== "tubos_atualizados"));
     for (const m of Array.from(deItem).concat(["production_updated", "event_updated", "event_deleted", "item_sponsor_added", "item_sponsor_removed"])) {
       const chaves = CHAVES_POR_MENSAGEM[m as keyof typeof CHAVES_POR_MENSAGEM] ?? [];
@@ -110,8 +110,8 @@ describe("1 · tempo real: toda mensagem de peça invalida as DUAS telas", () =>
         queryClient.setQueryData(["/api/grafica/maquinas", "?dia=2026-09-20"], {});
         await act(async () => { sockets[0].onmessage({ data: JSON.stringify({ type: tipo, item: {} }) }); vi.advanceTimersByTime(2500); });
         expect(queryClient.getQueryState(["/api/items/approved"])?.isInvalidated, `${tipo} → Gráfica`).toBe(true);
-        expect(queryClient.getQueryState(["/api/grafica/maquinas"])?.isInvalidated, `${tipo} → Máquinas`).toBe(true);
-        expect(queryClient.getQueryState(["/api/grafica/maquinas", "?dia=2026-09-20"])?.isInvalidated, `${tipo} → Máquinas (outro dia)`).toBe(true);
+        expect(queryClient.getQueryState(["/api/grafica/maquinas"])?.isInvalidated, `${tipo} → Impressoras`).toBe(true);
+        expect(queryClient.getQueryState(["/api/grafica/maquinas", "?dia=2026-09-20"])?.isInvalidated, `${tipo} → Impressoras (outro dia)`).toBe(true);
       }
       // A reconexão também revalida o retrato de Máquinas.
       queryClient.setQueryData(["/api/grafica/maquinas"], {});
@@ -125,7 +125,7 @@ describe("1 · tempo real: toda mensagem de peça invalida as DUAS telas", () =>
     }
   });
 
-  it("as mutações das duas telas usam a MESMA invalidação (fila + acervo + Máquinas + resumo)", () => {
+  it("as mutações das duas telas usam a MESMA invalidação (fila + acervo + Impressoras + resumo)", () => {
     expect(CHAVES_DA_MUTACAO).toEqual(["/api/items/approved", "/api/items", "/api/grafica/maquinas", "/api/grafica/maquinas/relatorio"]);
     const GRAFICA = fonteDaGrafica();
     const MAQUINAS = fonteDaTelaDeMaquinas();
@@ -258,7 +258,7 @@ describe("2 · as duas telas montadas com o MESMO fixture dizem o mesmo", () => 
     expect($('[data-testid="stat-approved"]')!.getAttribute("aria-label")).toBe("Filtrar por Liberados — 1 peças");
   });
 
-  it("Máquinas: o mesmo progresso nos cartões e as mesmas contagens", async () => {
+  it("Impressoras: o mesmo progresso nos cartões e as mesmas contagens", async () => {
     await montarMaquinas();
     expect($('[data-testid="progresso-p1"]')!.textContent).toBe(numerosDaImpressao(byId("p1")).frase);
     // A dividida: cada cartão com a SUA parte e o total da peça.
@@ -302,7 +302,7 @@ describe("2 · as duas telas montadas com o MESMO fixture dizem o mesmo", () => 
 
 // ─── 3 · Mesmas ações ─────────────────────────────────────────────────────────
 describe("3 · a peça em impressão tem as mesmas ações nas duas telas", () => {
-  it("na Gráfica, o modal da peça em impressão oferece Tirar da impressora e Trocar de máquina (como o cartão)", async () => {
+  it("na Gráfica, o modal da peça em impressão oferece Tirar da impressora e Trocar de impressora (como o cartão)", async () => {
     await montarGrafica();
     await act(async () => { fireEvent.click($('[data-testid="button-production-p1"]')!); });
     await tick(30);
@@ -310,7 +310,7 @@ describe("3 · a peça em impressão tem as mesmas ações nas duas telas", () =
     await act(async () => { fireEvent.click($('[data-testid="button-tirar-da-impressora"]')!); });
     expect($('[data-testid="confirmar-tirar"]')!.textContent).toContain("3 de 10 ficam anotadas; 7 voltam para o topo da fila dela");
   });
-  it("e o cartão de Máquinas continua com Impressas, Trocar de máquina, Tirar da impressora e Ver na Gráfica", async () => {
+  it("e o cartão de Impressoras continua com Impressas, Trocar de impressora, Tirar da impressora e Ver na Gráfica", async () => {
     await montarMaquinas();
     for (const t of ["button-impressas-p1", "button-trocar-maquina-p1", "button-tirar-da-impressora-p1", "link-peca-grafica-p1"]) expect($(`[data-testid="${t}"]`), t).not.toBeNull();
   });
@@ -324,12 +324,12 @@ describe("4 · navegação entre as telas, com o recorte certo", () => {
     expect(linkDaImpressoraNaGrafica("3")).toBe("/grafica?impressora=3");
   });
 
-  it("Gráfica → Máquinas: a impressora na linha leva ao cartão dela, com a peça", async () => {
+  it("Gráfica → Impressoras: a impressora na linha leva ao cartão dela, com a peça", async () => {
     await montarGrafica();
     expect($('[data-testid="link-ver-na-maquina-p1"]')!.getAttribute("href")).toBe("/grafica/maquinas?foco=2&item=p1");
   });
 
-  it("Máquinas com ?foco=2&item=p1: o cartão e a peça em foco; os links de volta", async () => {
+  it("Impressoras com ?foco=2&item=p1: o cartão e a peça em foco; os links de volta", async () => {
     await montarMaquinas("/grafica/maquinas?foco=2&item=p1");
     expect($('[data-testid="maquina-agora-2"]')!.getAttribute("data-em-foco")).toBe("true");
     expect($('[data-testid="peca-na-maquina-p1"]')!.getAttribute("data-em-foco")).toBe("true");

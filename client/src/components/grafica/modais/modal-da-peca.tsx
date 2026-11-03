@@ -328,8 +328,8 @@ export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMo
               depois das fotos (ver `fichaDepoisDasFotos`). */}
           {selectedItem && !fichaDepoisDasFotos && fichaDaPeca}
 
-          {/* ── FORM: IMPRESSÃO — compartilhado com a aba Máquinas ── */}
-          {/* key={id}: a máquina e a quantidade nascem da peça dentro do
+          {/* ── FORM: IMPRESSÃO — compartilhado com a aba Impressoras ── */}
+          {/* key={id}: a impressora e a quantidade nascem da peça dentro do
               formulário; trocar a peça remonta limpo, sem efeito de sync. */}
           {selectedItem && modalType === "production" && (
             <FormularioDeImpressao

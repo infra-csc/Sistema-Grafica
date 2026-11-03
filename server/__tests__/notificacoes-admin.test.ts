@@ -26,7 +26,7 @@ describe("a tela", () => {
   it("existe, é rota de admin e está no menu", () => {
     const APP = ler("client/src/App.tsx");
     expect(APP).toContain("component={Notificacoes} allowedRoles={ROLES_ADMIN}");
-    expect(ler("client/src/components/app-sidebar.tsx")).toContain('{ title: "Notificações",    url: "/notificacoes", icon: Bell },');
+    expect(ler("client/src/components/app-sidebar.tsx")).toContain('{ title: "Avisos por e-mail",    url: "/notificacoes", icon: Bell },');
   });
 
   it("célula sem registro em horário PASSADO diz 'Não rodou' — o caso invisível de 27/08", () => {

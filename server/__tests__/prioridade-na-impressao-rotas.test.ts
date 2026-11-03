@@ -208,7 +208,7 @@ describe("o efeito", () => {
     expect(r.status).toBe(200);
     expect(r.body.isPriority).toBe(true);
     const [trilha] = insercoes(auditLogs);
-    expect(trilha.details).toBe("Prioridade na impressão pedida por Fulana (etapa: Pronto para Produção) — a peça passa à frente das outras na fila da Gráfica e na de Máquinas");
+    expect(trilha.details).toBe("Prioridade na impressão pedida por Fulana (etapa: Pronto para Produção) — a peça passa à frente das outras na fila da Gráfica e na de Impressoras");
     expect(trilha.entityId).toBe("p1");
     const [aviso] = insercoes(notifications);
     expect(aviso.type).toBe("itemPriority");

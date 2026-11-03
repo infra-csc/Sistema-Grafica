@@ -37,10 +37,10 @@ export function CabecalhoDeEventos({ filtros, focoCounts, canCreate, canDelete, 
   // contagem calculada sobre os demais filtros. "Saem esta semana" ficou de
   // fora de propósito — duplicaria o toggle "Próximos 10 dias" da barra.
   const chips = [
-    { key: 'atrasado', label: 'Marco atrasado', count: focoCounts.atrasado, tone: { text: TOM.perigo.text, bg: TOM.perigo.bg, border: TOM.perigo.border, dot: TOM.perigo.dot }, active: foco === 'atrasado', toggle: () => setFoco(foco === 'atrasado' ? '' : 'atrasado') },
+    { key: 'atrasado', label: 'Prazo atrasado', count: focoCounts.atrasado, tone: { text: TOM.perigo.text, bg: TOM.perigo.bg, border: TOM.perigo.border, dot: TOM.perigo.dot }, active: foco === 'atrasado', toggle: () => setFoco(foco === 'atrasado' ? '' : 'atrasado') },
     { key: 'sem_prioridade', label: 'Sem prioridade', count: focoCounts.semPrioridade, tone: { text: T.strong, bg: T.low, border: T.border, dot: T.muted }, active: selectedPriorities.length === 1 && selectedPriorities[0] === 'sem_prioridade', toggle: () => setSelectedPriorities((prev) => (prev.length === 1 && prev[0] === 'sem_prioridade') ? [] : ['sem_prioridade']) },
     { key: 'sem_pecas', label: 'Sem peças', count: focoCounts.semPecas, tone: { text: TOM.alerta.text, bg: TOM.alerta.bg, border: TOM.alerta.border, dot: TOM.alerta.dot }, active: foco === 'sem_pecas', toggle: () => setFoco(foco === 'sem_pecas' ? '' : 'sem_pecas') },
-    { key: 'pedidos', label: 'Solicitações de peças', count: focoCounts.pedidos, tone: { text: TOM.alerta.text, bg: TOM.alerta.bg, border: TOM.alerta.border, dot: TOM.alerta.dot }, active: foco === 'pedidos', toggle: () => setFoco(foco === 'pedidos' ? '' : 'pedidos') },
+    { key: 'pedidos', label: 'Pedidos de peças', count: focoCounts.pedidos, tone: { text: TOM.alerta.text, bg: TOM.alerta.bg, border: TOM.alerta.border, dot: TOM.alerta.dot }, active: foco === 'pedidos', toggle: () => setFoco(foco === 'pedidos' ? '' : 'pedidos') },
     // A contagem diz PEÇAS e EVENTOS (dono, 19/10: "deixa claro o nº de
     // peças"): "59 peças em 13 eventos". O número que liga/desliga o atalho
     // continua sendo o de eventos — é o que o filtro mostra.

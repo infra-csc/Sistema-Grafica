@@ -35,7 +35,7 @@ const GRAFICA = fonteDaGrafica();
 const DIVIDIDA = ler("shared/impressao-dividida.ts");
 const RESERVA_SRC = ler("shared/reserva-de-impressora.ts");
 
-describe("1 · o diário das máquinas", () => {
+describe("1 · o diário das impressoras", () => {
   it("é uma tabela própria, um gesto por linha", () => {
     expect(SCHEMA).toContain('export const registrosDeImpressao = pgTable("registros_de_impressao", {');
     expect(SCHEMA).toContain('maquina: text("maquina").notNull(),');
@@ -44,7 +44,7 @@ describe("1 · o diário das máquinas", () => {
     expect(SCHEMA).toContain('totalDepois: integer("total_depois"),');
   });
 
-  it("apaga junto com a peça e tem índice para a consulta do dia por máquina", () => {
+  it("apaga junto com a peça e tem índice para a consulta do dia por impressora", () => {
     expect(SCHEMA).toContain('itemId: varchar("item_id").notNull().references(() => items.id, { onDelete: "cascade" }),');
     expect(SCHEMA).toContain('index("IDX_registros_impressao_maquina_data").on(table.maquina, table.createdAt),');
   });
@@ -52,7 +52,7 @@ describe("1 · o diário das máquinas", () => {
 
 describe("2 · os gestos gravam no diário", () => {
 
-  it("usa a máquina da parte; na peça não dividida, a da peça (a enviada só vale para a peça sem impressora)", () => {
+  it("usa a impressora da parte; na peça não dividida, a da peça (a enviada só vale para a peça sem impressora)", () => {
     expect(ITEMS).toContain("maquina: plano.maquinaDoRegistro,");
     expect(DIVIDIDA).toContain("maquinaDoRegistro: partesDepois ? maquina : maquinaNaoDividida,");
     expect(DIVIDIDA).toContain("const maquinaNaoDividida = maquinaAtual ?? (printMachine && MAQUINAS_DE_IMPRESSAO.includes(printMachine) ? printMachine : null);");
@@ -69,10 +69,10 @@ describe("4 · a leitura", () => {
 
   it("é dos mesmos papéis que veem a fila da Gráfica", () => {
     expect(ROTA).toContain('const PAPEIS_QUE_VEEM = ["grafica", "solicitacao", "admin"];');
-    expect(ROTA).toContain("O controle de máquinas é da Gráfica, da Solicitação e do admin");
+    expect(ROTA).toContain("O controle de impressoras é da Gráfica, da Solicitação e do admin");
   });
 
-  it("'agora' lê as peças em impressão; as sem máquina não somem", () => {
+  it("'agora' lê as peças em impressão; as sem impressora não somem", () => {
     expect(ROTA).toContain("where i.deleted_at is null and i.status in ('inProduction', 'em_producao')");
     expect(ROTA).toContain("const semMaquina = emImpressao");
   });
@@ -87,7 +87,7 @@ describe("4 · a leitura", () => {
     expect(ROTA).toContain("const dia = DIA_VALIDO.test(pedido) && pedido <= hoje ? pedido : hoje;");
   });
 
-  it("o total do dia soma só o que saiu da máquina — início e troca não imprimem nada", () => {
+  it("o total do dia soma só o que saiu da impressora — início e troca não imprimem nada", () => {
     expect(ROTA).toContain('(soma, r) => soma + (r.tipo === "parcial" || r.tipo === "conclusao" ? r.quantidade : 0),');
   });
 });
@@ -128,9 +128,9 @@ describe("5 · a tela", () => {
     expect(PAGINA).toContain("navegar(`/grafica/maquinas${qs ? `?${qs}` : \"\"}`, { replace: true });");
   });
 
-  it("avisa das peças em impressão sem máquina e de quando o histórico começa", () => {
+  it("avisa das peças em impressão sem impressora e de quando o histórico começa", () => {
     expect(PAGINA).toContain('data-testid="sem-maquina"');
-    expect(PAGINA).toContain("O histórico por máquina começa em 14/09/2026");
+    expect(PAGINA).toContain("O histórico por impressora começa em 14/09/2026");
     expect(PAGINA).toContain('const INICIO_DO_DIARIO = "2026-09-14";');
   });
 
@@ -213,7 +213,7 @@ const reg = (id: string, itemId: string, maquina: string, tipo: any, quantidade:
 describe("6 · o relatório — a conta pura", async () => {
   const r = await import("../services/relatorioDeMaquinas");
 
-  it("por dia × impressora: unidades, peças, concluídas, ainda na máquina, primeira/última, tempo ativo, quem", () => {
+  it("por dia × impressora: unidades, peças, concluídas, ainda na impressora, primeira/última, tempo ativo, quem", () => {
     const dias = r.agregarRelatorioDeMaquinas([
       reg("a", "p1", "1", "inicio", 0, 0, "2026-09-21", "08:00"),
       reg("b", "p1", "1", "parcial", 3, 3, "2026-09-21", "09:30", "Bia"),
@@ -319,7 +319,7 @@ describe("6 · o relatório — a rota e o Excel", () => {
 
     const resumo = lido.getWorksheet("Resumo")!;
     const texto = (ws: { getRow: (n: number) => { values: unknown } }, linha: number) => (ws.getRow(linha).values as any[]).slice(1).map((v) => (v == null ? "" : String(v)));
-    expect(texto(resumo, 3)).toEqual(["Dia", "Impressora", "Unidades impressas", "Peças", "Concluídas", "Ainda na máquina", "Primeira atividade", "Última atividade", "Tempo ativo", "Quem"]);
+    expect(texto(resumo, 3)).toEqual(["Dia", "Impressora", "Unidades impressas", "Peças", "Concluídas", "Ainda na impressora", "Primeira atividade", "Última atividade", "Tempo ativo", "Quem"]);
     expect(texto(resumo, 4)).toEqual(["21/09/2026", "Impressora 1 (New XT)", "3", "1", "0", "1", "08:00", "09:30", "1h 30min", "Ana, Bia"]);
     expect(texto(resumo, 8).slice(0, 5)).toEqual(["21/09/2026", "TOTAL DO DIA", "13", "2", "1"]);
 
@@ -453,7 +453,7 @@ describe("8 · a impressão dividida — a conta pura", async () => {
     expect(DIVIDIDA).toContain("? { impressaoPorMaquina: partesDepois, printMachine: maquinaPrincipal(partesDepois, maquina) ?? maquinaAtual }");
   });
 
-  it("a Gráfica: só admin/grafica/solicitacao leem Máquinas; o selo 'Fila: Impressora N' e a divisão na linha", () => {
+  it("a Gráfica: só admin/grafica/solicitacao leem Impressoras; o selo 'Fila: Impressora N' e a divisão na linha", () => {
     const ROTA = ler("server/routes/maquinas.ts");
     expect((ROTA.match(/requireAuth, requireRole\(\.\.\.PAPEIS_QUE_VEEM\)/g) ?? []).length).toBe(3);
     expect(ler("client/src/App.tsx")).toContain("<RoleProtectedRoute component={GraficaMaquinas} allowedRoles={ROLES_GRAFICA} />");
@@ -672,7 +672,7 @@ describe("11 · iniciar PARTE de uma peça sem reserva — servidor, contas e Gr
     expect(tudo.ok && d.normalizarPartes(tudo.partes, 28)).toBeNull();
   });
 
-  it("quantidade + reserva: sai primeiro do reservado à impressora, depois do sem impressora; menos que o reservado deixa o resto reservado; a reserva pode ir para OUTRA máquina", () => {
+  it("quantidade + reserva: sai primeiro do reservado à impressora, depois do sem impressora; menos que o reservado deixa o resto reservado; a reserva pode ir para OUTRA impressora", () => {
     const p = p28({ reservaPorMaquina: { "1": 20 } });
     expect(r.disponivelParaAMaquina(p, "1")).toBe(28);
     expect(r.disponivelParaAMaquina(p, "2")).toBe(8);
@@ -760,7 +760,7 @@ describe("12 · uma peça por impressora, pausar e trocar por prioridade", async
     expect(r.ocupanteDaImpressora([a, b, liberada], "4")).toBeNull();
   });
 
-  it("diário, resumo e Excel: 'Pausou — deu lugar à #0398', sem unidade e sem 'ainda na máquina'", async () => {
+  it("diário, resumo e Excel: 'Pausou — deu lugar à #0398', sem unidade e sem 'ainda na impressora'", async () => {
     const rel = await import("../services/relatorioDeMaquinas");
     const registros = [
       reg("i1", "p1", "1", "inicio", 0, 0, "2026-09-21", "08:00"),
@@ -893,7 +893,7 @@ describe("13 · a descrição da peça no retrato, no diário e no Excel (dono, 
 });
 
 describe("modal abre na etapa certa mesmo com servidor antigo (21/09)", () => {
-  it("peça da lista 'em impressão' é tratada como inProduction e herda a máquina do cartão", () => {
+  it("peça da lista 'em impressão' é tratada como inProduction e herda a impressora do cartão", () => {
     const tela = fonteDaTelaDeMaquinas();
     expect(tela).toContain('status: p.status ?? "inProduction"');
     expect(tela).toContain("p={p.maquina ? p : { ...p, maquina: m.codigo }}");

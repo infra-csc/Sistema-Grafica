@@ -168,13 +168,13 @@ describe("Análises × peças sem aprovação", () => {
     const layout = linha.querySelector('[data-testid="op-cal-celula-f1"]') as HTMLElement;
     expect(layout.getAttribute("data-ajustado")).toBe("1");
     expect(layout.querySelector('[data-testid="op-cal-celula-ajustada"]')!.textContent).toContain("17/11");
-    expect(layout.getAttribute("title")).toContain("Prazo do evento 10/11 — só há peças sem aprovação nesta fase (Layout + 7 dias corridos)");
+    expect(layout.getAttribute("title")).toContain("Prazo do evento 10/11 — só há peças sem aprovação nesta etapa (Layout + 7 dias corridos)");
     // A Finalização tem a peça comum: o prazo é o do evento, sem marca de ajuste.
     const fin = linha.querySelector('[data-testid="op-cal-celula-f3"]') as HTMLElement;
     expect(fin.getAttribute("data-ajustado")).toBeNull();
 
     // O quadro da célula diz o prazo que vale e o do evento.
     act(() => { fireEvent.click(layout); });
-    expect(pelo(c, "op-cal-pecas-resumo")!.textContent).toMatch(/prazo da fase 17\/11\/2026 \(ajustado; prazo do evento 10\/11\/2026\)/);
+    expect(pelo(c, "op-cal-pecas-resumo")!.textContent).toMatch(/prazo da etapa 17\/11\/2026 \(ajustado; prazo do evento 10\/11\/2026\)/);
   });
 });

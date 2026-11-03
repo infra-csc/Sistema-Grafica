@@ -106,11 +106,11 @@ const PERMISSOES: Record<string, { pode: boolean; texto: string }[]> = {
  * linhas `{ pode:` por perfil, e este mapa não pode parecer uma delas.
  */
 const TELAS_NO_MENU: Record<string, string> = {
-  admin: "Todas — inclusive Usuários, Configurar Cotas, Estoque, Triagem de Retorno, Notificações e Logs",
-  solicitacao: "Vincular Patrocinadores, Atendimento, Revisão Final, Gráfica, Reaproveitar, Máquinas, Solicitação de peças, Modelos e Patrocinadores",
+  admin: "Todas — inclusive Usuários, Configurar Cotas, Estoque, Triagem de Retorno, Avisos por e-mail e Logs",
+  solicitacao: "Vincular Patrocinadores, Atendimento, Revisão Final, Gráfica, Reaproveitar, Impressoras, Pedidos de peças, Modelos e Patrocinadores",
   arte: "Arte, Atendimento e Vincular Patrocinadores",
-  grafica: "Gráfica, Reaproveitar e Máquinas",
-  atendimento: "Arte, Atendimento, Vincular Patrocinadores, Solicitação de peças e Patrocinadores",
+  grafica: "Gráfica, Reaproveitar e Impressoras",
+  atendimento: "Arte, Atendimento, Vincular Patrocinadores, Pedidos de peças e Patrocinadores",
 };
 // Itens do menu sem `roles` (app-sidebar.tsx): aparecem para qualquer perfil.
 const TELAS_DE_TODOS = "Painel Geral, Eventos, Gestão de Prazos, Calendário, Histórico, Versões aprovadas, Registros e Análises";

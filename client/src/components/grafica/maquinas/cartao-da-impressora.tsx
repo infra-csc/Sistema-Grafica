@@ -243,7 +243,7 @@ export function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir, onT
             </div>
           )}
           <div style={{ fontSize: isMobile ? 12 : FS.small, color: T.second, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>
-            <span style={{ whiteSpace: "nowrap" }}>{hora ? `Desde ${hora}` : "Na máquina"}</span>{desde ? <> · <span style={{ whiteSpace: "nowrap" }}>{desde}</span></> : null}
+            <span style={{ whiteSpace: "nowrap" }}>{hora ? `Desde ${hora}` : "Na impressora"}</span>{desde ? <> · <span style={{ whiteSpace: "nowrap" }}>{desde}</span></> : null}
           </div>
         </div>
         {/* A ida para a Gráfica: um atalho discreto no canto da peça (era um
@@ -286,7 +286,7 @@ export function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir, onT
         </div>
       </div>
 
-      {/* Ações: a principal (o mesmo modal da fila), a troca de máquina
+      {/* Ações: a principal (o mesmo modal da fila), a troca de impressora
           e a volta para a Gráfica. */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {podeAgir && !parteEsgotada && (
@@ -313,11 +313,11 @@ export function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir, onT
             disabled={!!selo}
             aria-describedby={selo ? `motivo-bloqueio-${p.id}` : undefined}
             data-testid={`button-trocar-maquina-${p.id}`}
-            title={selo ? motivoBloqueio(selo, "trocar de máquina", p) : `Mover esta peça da ${rotuloDaMaquina(p.maquina)} para outra impressora`}
+            title={selo ? motivoBloqueio(selo, "trocar de impressora", p) : `Mover esta peça da ${rotuloDaMaquina(p.maquina)} para outra impressora`}
             style={{ ...largura("1 1 120px"), minHeight: alvo, padding: "0 10px", gap: 5, border: `1px solid ${T.bdark}`, color: T.text, fontSize: letra }}
           >
             <ArrowLeftRight aria-hidden="true" style={{ width: 12, height: 12, color: T.accentText, flexShrink: 0 }} />
-            Trocar de máquina
+            Trocar de impressora
           </Botao>
         )}
         {dialogoDaTirada}
@@ -358,8 +358,8 @@ export function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir, onT
       {podeAgir && selo && (
         <p id={`motivo-bloqueio-${p.id}`} data-testid={`motivo-bloqueio-${p.id}`} style={{ margin: 0, fontSize: isMobile ? 12 : FS.small, color: T.apoio, lineHeight: 1.4 }}>
           {seloImpressas
-            ? motivoBloqueio(seloImpressas, "informar impressas nem trocar de máquina", p)
-            : `Dá para informar as impressas (é o registro do que já saiu). ${motivoBloqueio(selo, "trocar de máquina", p)}`}
+            ? motivoBloqueio(seloImpressas, "informar impressas nem trocar de impressora", p)
+            : `Dá para informar as impressas (é o registro do que já saiu). ${motivoBloqueio(selo, "trocar de impressora", p)}`}
         </p>
       )}
     </div>
@@ -414,7 +414,7 @@ export function CartaoDaImpressora({ m, maquinaEmFoco, itemEmFoco, agora, hojeMs
       {!ocupada && (
         <div data-testid={`livre-${m.codigo}`} style={{ display: "flex", flexDirection: "column", gap: 10, padding: isMobile ? "12px" : "14px 12px", borderRadius: R.md, background: T.bg, border: `1px dashed ${T.bdark}` }}>
           <p style={{ margin: 0, fontSize: FS.body, color: T.apoio, lineHeight: 1.45 }}>
-            {naFila.length ? "Nenhuma peça imprimindo agora — a fila abaixo espera." : "Nenhuma peça nesta máquina."}
+            {naFila.length ? "Nenhuma peça imprimindo agora — a fila abaixo espera." : "Nenhuma peça nesta impressora."}
           </p>
           {podeAgir && (
             <Botao variante="secundarioForte" onClick={() => setSeletorDaMaquina(m.codigo)} data-testid={`link-escolher-peca-${m.codigo}`} title="Escolher, entre as peças liberadas, a que vai imprimir nesta impressora" style={{ ...botaoNeutro, width: isMobile ? "100%" : "fit-content" }}>
@@ -466,7 +466,7 @@ export function CartaoDaImpressora({ m, maquinaEmFoco, itemEmFoco, agora, hojeMs
         Peças desta impressora na Gráfica <ArrowRight aria-hidden="true" className="maq-seta" style={{ width: 12, height: 12, color: T.accentText }} />
       </Link>
 
-      {/* Rodapé: o que saiu desta máquina no dia aberto — e o atalho para o
+      {/* Rodapé: o que saiu desta impressora no dia aberto — e o atalho para o
           diário dela. Faixa de ponta a ponta, como o rodapé de um painel. */}
       <button
         type="button"

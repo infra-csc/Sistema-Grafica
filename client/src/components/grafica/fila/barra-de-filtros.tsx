@@ -76,7 +76,7 @@ export function BarraDeFiltros({ fila, isMobile, usaCards, ponteiroGrosso, showA
   // do campo; na barra do desktop o espaço é da fileira de campos.
   const DICA_DO_FILTRO: Record<string, string> = {
     Status: "Etapa da peça na fila; também filtra “♻ com reaproveitamento”.",
-    Impressora: "Máquina em que a peça começou a imprimir; também as que estão imprimindo ou reservadas nela (o cartão de Máquinas); “Sem impressora” é a peça em impressão sem máquina informada.",
+    Impressora: "Impressora em que a peça começou a imprimir; também as que estão imprimindo ou reservadas nela (o cartão de Impressoras); “Sem impressora” é a peça em impressão sem impressora informada.",
     Grupo: "Grupo do catálogo de Modelos (ex.: placas de 5KM × 10KM).",
     Percurso: "Distância escrita na peça (5k, 10k…).",
     "Mês": "Mês da saída do caminhão do evento.",

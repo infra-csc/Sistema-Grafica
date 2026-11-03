@@ -190,7 +190,7 @@ function EventRow({
         ) : '—'}
       </span>
 
-      {/* Próximo marco */}
+      {/* Próximo prazo */}
       <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
         {ms ? (
           <>

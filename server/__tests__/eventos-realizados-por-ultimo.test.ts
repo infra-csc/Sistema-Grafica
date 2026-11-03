@@ -77,7 +77,7 @@ describe("urgente MAS aberto vem primeiro", () => {
   });
 
   it("a regra escrita diz isso", () => {
-    expect(REGRA_DA_ORDEM.saida).toBe("marco atrasado primeiro, depois quem embarca antes; realizados por último");
+    expect(REGRA_DA_ORDEM.saida).toBe("prazo atrasado primeiro, depois quem embarca antes; realizados por último");
     expect(EV).toContain("{REGRA_DA_ORDEM[ordem]}");
   });
 });

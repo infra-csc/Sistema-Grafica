@@ -158,7 +158,7 @@ export function CartoesDeEtapa({ stats, filtros, patchFiltros, isMobile, isLoadi
     // do fluxo: é o trabalho CHEGANDO — visível, sem ação da Gráfica.
     { label: "Em Revisão",   value: stats.revisao,    sub: "Chegando da Revisão",  testId: "stat-revisao",    filterVals: FILTRO_DOS_CARTOES.revisao },
     { label: "Liberados",    value: stats.liberados,  sub: "Aguardam produção",    testId: "stat-approved",   filterVals: FILTRO_DOS_CARTOES.liberados },
-    { label: "Em Impressão", value: stats.emProducao, sub: "Na máquina",           testId: "stat-production", filterVals: FILTRO_DOS_CARTOES.emProducao },
+    { label: "Em Impressão", value: stats.emProducao, sub: "Na impressora",           testId: "stat-production", filterVals: FILTRO_DOS_CARTOES.emProducao },
     { label: "Impresso",     value: stats.produzidos, sub: "No acabamento",        testId: "stat-produced",   filterVals: FILTRO_DOS_CARTOES.produzidos },
     { label: "Conferidos",   value: stats.conferidos, sub: "Aguardam embalagem", testId: "stat-conferred", filterVals: FILTRO_DOS_CARTOES.conferidos },
     // EMBALADO (dono, 21/09): conferida e dentro do tubo — entre Conferidos e Entregues.

@@ -1312,8 +1312,8 @@ export function registerTubosRoutes(app: Express): void {
     if (!podeMexerEmTubo(req)) return res.status(403).json({ error: "Sem permissão para registrar entrega" });
     const { tuboIds, photoUrl, receivedBy, notes } = req.body ?? {};
     const ids = idsDoLote(tuboIds);
-    if (ids.length === 0) return res.status(400).json({ error: "Escolha ao menos um volume para entregar" });
-    if (ids.length > MAXIMO_DO_LOTE) return res.status(400).json({ error: `No máximo ${MAXIMO_DO_LOTE} volumes por vez` });
+    if (ids.length === 0) return res.status(400).json({ error: "Escolha ao menos um tubo ou embalagem para entregar" });
+    if (ids.length > MAXIMO_DO_LOTE) return res.status(400).json({ error: `No máximo ${MAXIMO_DO_LOTE} tubos e embalagens por vez` });
     const recebedor = typeof receivedBy === "string" ? receivedBy.trim() : "";
     if (!recebedor) return res.status(400).json({ error: "Informe quem recebeu — é o que registra a entrega" });
     const foto = typeof photoUrl === "string" && photoUrl.trim() ? urlDeThumbValida(photoUrl) : null;
@@ -1337,7 +1337,7 @@ export function registerTubosRoutes(app: Express): void {
     });
     // Nenhum saiu: é recusa do lote inteiro (409) — com os motivos, volume a volume.
     if (r.entregues.length === 0) {
-      return res.status(409).json({ error: r.recusados.length === 1 ? r.recusados[0].motivo : "Nenhum volume pôde ser entregue — veja o motivo de cada um.", ...r });
+      return res.status(409).json({ error: r.recusados.length === 1 ? r.recusados[0].motivo : "Nenhum tubo ou embalagem pôde ser entregue — veja o motivo de cada um.", ...r });
     }
     res.json(r);
   });

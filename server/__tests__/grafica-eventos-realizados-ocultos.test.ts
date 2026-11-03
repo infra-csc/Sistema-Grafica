@@ -162,7 +162,7 @@ describe("os filtros na URL", () => {
   });
 });
 
-describe("Máquinas: a fila geral esconde; a impressora mantém", () => {
+describe("Impressoras: a fila geral esconde; a impressora mantém", () => {
   it("deEventoFinalizado: realizado e encerrado sim; vivo e reaberto depois da data não", async () => {
     const { deEventoFinalizado } = await import("@/components/grafica/maquinas/regras");
     const { todayBusinessMs } = await import("@/lib/status");

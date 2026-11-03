@@ -54,7 +54,7 @@ describe("embalar parcial: conferidas esperando embalagem aparecem em Conferidos
     expect(casaEtapa(peca({ status: "produced", quantityProduced: 10, conferredQty: 4, embaladaQty: 4 }), "conferred")).toBe(false);
   });
 
-  it("peça ainda na máquina não embala (regra do servidor) — não promete o que o botão não faz", () => {
+  it("peça ainda na impressora não embala (regra do servidor) — não promete o que o botão não faz", () => {
     expect(casaEtapa(peca({ status: "inProduction", quantityProduced: 6, conferredQty: 6 }), "conferred")).toBe(false);
   });
 });

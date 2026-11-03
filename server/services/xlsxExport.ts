@@ -486,7 +486,7 @@ const RESUMO_COLS = [
   { header: "Unidades impressas", key: "unidades",   width: 18 },
   { header: "Peças",              key: "pecas",      width: 9  },
   { header: "Concluídas",         key: "concluidas", width: 12 },
-  { header: "Ainda na máquina",   key: "ainda",      width: 17 },
+  { header: "Ainda na impressora",   key: "ainda",      width: 17 },
   { header: "Primeira atividade", key: "primeira",   width: 18 },
   { header: "Última atividade",   key: "ultima",     width: 16 },
   { header: "Tempo ativo",        key: "tempo",      width: 13 },
@@ -562,7 +562,7 @@ export function montarPlanilhaDeMaquinas(opts: { de: string; ate: string; resumo
   // ── Aba 1: Resumo ────────────────────────────────────────────────────────
   const totalUnidades = resumo.reduce((s, d) => s + d.total.unidades, 0);
   const abaResumo = wb.addWorksheet("Resumo", { properties: { defaultColWidth: 14 } });
-  cabecalhoDaAba(abaResumo, RESUMO_COLS, "Máquinas — resumo", `Período: ${periodo}   |   ${totalUnidades} un. impressas   |   Exportado em ${fmt(new Date())}`);
+  cabecalhoDaAba(abaResumo, RESUMO_COLS, "Impressoras — resumo", `Período: ${periodo}   |   ${totalUnidades} un. impressas   |   Exportado em ${fmt(new Date())}`);
   let n = 0;
   for (const d of resumo) {
     for (const m of d.maquinas) {
@@ -592,7 +592,7 @@ export function montarPlanilhaDeMaquinas(opts: { de: string; ate: string; resumo
 
   // ── Aba 2: Registros ─────────────────────────────────────────────────────
   const abaRegistros = wb.addWorksheet("Registros", { properties: { defaultColWidth: 14 } });
-  cabecalhoDaAba(abaRegistros, REGISTROS_COLS, "Máquinas — registros", `Período: ${periodo}   |   ${registros.length} ${registros.length === 1 ? "lançamento" : "lançamentos"}`);
+  cabecalhoDaAba(abaRegistros, REGISTROS_COLS, "Impressoras — registros", `Período: ${periodo}   |   ${registros.length} ${registros.length === 1 ? "lançamento" : "lançamentos"}`);
   const emOrdem = [...registros].sort((a, b) => a.em - b.em);
   emOrdem.forEach((r, i) => {
     const row = abaRegistros.addRow({

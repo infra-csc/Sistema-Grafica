@@ -154,7 +154,7 @@ export function CartoesDeStatus({
                     ))}
                   </div>
                 ) : (
-                  <p style={{ margin: 0, padding: "6px 10px", fontSize: FS.meta, color: T.second }}>Nenhuma peça nesta fase.</p>
+                  <p style={{ margin: 0, padding: "6px 10px", fontSize: FS.meta, color: T.second }}>Nenhuma peça nesta etapa.</p>
                 )
               ) : (
                 <div style={useCards ? { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", columnGap: 6, rowGap: 2 } : { display: "flex", flexDirection: "column", gap: 2 }}>

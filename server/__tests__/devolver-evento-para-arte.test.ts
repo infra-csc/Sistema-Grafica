@@ -39,7 +39,7 @@ describe("quem volta para a Arte", () => {
     expect(situacaoParaVoltarAArte(p({ status: "canceled" }))).toMatchObject({ volta: false, grupo: "cancelada" });
   });
 
-  it("a máquina de estados registra a ação, só para o admin, com a mesma origem", () => {
+  it("a impressora de estados registra a ação, só para o admin, com a mesma origem", () => {
     const t = TRANSICOES.find((x) => x.acao === "devolver-evento-para-a-arte")!;
     expect(t).toBeTruthy();
     expect(t.papeis).toEqual(["admin"]);

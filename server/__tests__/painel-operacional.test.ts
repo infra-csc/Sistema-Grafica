@@ -251,7 +251,7 @@ describe("Pré-produção", () => {
     expect(preRealizadoPorDia(P, null, ["aprovacao"]).every((d) => d.layout === 0)).toBe(true);
   });
 
-  it("planejado: no prazo da fase; o vencido vai para hoje em 'atrasado'", () => {
+  it("planejado: no prazo da etapa; o vencido vai para hoje em 'atrasado'", () => {
     const r = prePlanejadoPorDia(P, "e2", null);
     // vencido hoje: b2 layout (09/10) — a aprovação de b2 vence 19/10.
     // b1 é "Sem patrocínio": o Layout dela é o AJUSTADO, 09/10 + 7 dias corridos

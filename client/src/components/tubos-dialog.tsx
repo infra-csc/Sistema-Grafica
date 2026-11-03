@@ -710,7 +710,7 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
       ) : undefined}>
       {isLoading && <Carregando />}
       {isError && <ErroAoCarregar onTentar={() => refetch()} />}
-      {data && !t && <Aviso testId="entregar-tubo-sumiu">Este volume não existe mais — alguém apagou ou desfez a embalagem. Feche e abra os tubos do evento.</Aviso>}
+      {data && !t && <Aviso testId="entregar-tubo-sumiu">Este tubo ou embalagem não existe mais — alguém apagou ou desfez a embalagem. Feche e abra os tubos do evento.</Aviso>}
 
       {t && (
         <>
@@ -848,9 +848,9 @@ export function EntregarEmLoteDialog({ volumes, sugestaoRecebedor = "", onClose,
       const entregues = r.entregues.length;
       toast({
         variant: r.recusados.length ? "warning" : "success",
-        title: `${plural(entregues, "volume entregue", "volumes entregues")} a ${quem}`,
+        title: `${plural(entregues, "tubo ou embalagem entregue", "tubos e embalagens entregues")} a ${quem}`,
         description: r.recusados.length
-          ? `${plural(r.recusados.length, "volume ficou", "volumes ficaram")} de fora — o motivo está no cartão.`
+          ? `${plural(r.recusados.length, "tubo ou embalagem ficou", "tubos e embalagens ficaram")} de fora — o motivo está no cartão.`
           : `${r.unidades} un. no total.`,
       });
       for (const id of Array.from(new Set(lista.map((v) => v.evento.id)))) atualizarTudo(id);
@@ -879,11 +879,11 @@ export function EntregarEmLoteDialog({ volumes, sugestaoRecebedor = "", onClose,
   const campo: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: isMobile ? 44 : 40, borderRadius: 8, border: `1px solid ${COR.borda}`, padding: "0 12px", fontSize: isMobile ? 16 : 14, background: "#fff", color: COR.texto };
   const rotulo = entregar.isPending ? "Entregando…"
     : !recebidoPor.trim() ? "Informe quem recebeu"
-    : `Entregar ${plural(lista.length, "volume", "volumes")} a ${recebidoPor.trim()}`;
+    : `Entregar ${lista.length} em lote a ${recebidoPor.trim()}`;
 
   return (
     <Casca aberto={aberto} onClose={onClose} icone={Truck} tint={ACAO.entregar.bg} largura={560} testId="modal-entregar-em-lote" focoInicial={campoRef}
-      titulo={`Entregar em lote · ${plural(lista.length, "volume", "volumes")}`}
+      titulo={`Entregar em lote · ${plural(lista.length, "tubo ou embalagem", "tubos e embalagens")}`}
       subtitulo={`${unidades} un.${eventos.length === 1 ? ` · ${eventos[0]}` : ` · ${eventos.length} eventos`} — confira e registre quem recebeu`}
       rodape={(
         <Rodape testId="rodape-entregar-em-lote">
@@ -892,7 +892,7 @@ export function EntregarEmLoteDialog({ volumes, sugestaoRecebedor = "", onClose,
         </Rodape>
       )}>
       <section data-testid="lista-entrega-em-lote" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <span style={ROTULO}>Vão sair · {plural(lista.length, "volume", "volumes")}</span>
+        <span style={ROTULO}>Vão sair · {plural(lista.length, "tubo ou embalagem", "tubos e embalagens")}</span>
         <ul style={{ margin: 0, padding: 0, listStyle: "none", border: `1px solid ${COR.borda}`, borderRadius: 10, overflow: "hidden", maxHeight: 240, overflowY: "auto" }}>
           {lista.map((v) => (
             <li key={v.id} style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, padding: "8px 12px", borderTop: "1px solid #f5f5f4", flexWrap: "wrap", fontSize: 13, color: COR.texto }}>
@@ -902,7 +902,7 @@ export function EntregarEmLoteDialog({ volumes, sugestaoRecebedor = "", onClose,
             </li>
           ))}
         </ul>
-        <span style={{ fontSize: 12.5, color: COR.sec }}>Cada volume passa pelas mesmas conferências da entrega individual. Se algum não puder sair, ele fica marcado com o motivo e os outros seguem.</span>
+        <span style={{ fontSize: 12.5, color: COR.sec }}>Cada tubo ou embalagem passa pelas mesmas conferências da entrega individual. Se algum não puder sair, ele fica marcado com o motivo e os outros seguem.</span>
       </section>
       <section>
         <label htmlFor="campo-quem-recebeu-lote" style={ROTULO}>Quem recebeu <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· obrigatório, vale para todos</span></label>

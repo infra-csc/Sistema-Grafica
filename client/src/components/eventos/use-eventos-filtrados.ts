@@ -265,9 +265,9 @@ export function useEventosFiltrados(
       chips.push({ key: 'mes', label: opt?.label || monthFilter, clear: () => setMonthFilter("all") });
     }
     if (next10DaysFilter) chips.push({ key: 'proximos', label: 'Próximos 10 dias', clear: () => setNext10DaysFilter(false) });
-    if (foco === 'atrasado') chips.push({ key: 'foco', label: 'Marco atrasado', clear: () => setFoco("") });
+    if (foco === 'atrasado') chips.push({ key: 'foco', label: 'Prazo atrasado', clear: () => setFoco("") });
     if (foco === 'sem_pecas') chips.push({ key: 'foco', label: 'Sem peças', clear: () => setFoco("") });
-    if (foco === 'pedidos') chips.push({ key: 'foco', label: 'Solicitações de peças', clear: () => setFoco("") });
+    if (foco === 'pedidos') chips.push({ key: 'foco', label: 'Pedidos de peças', clear: () => setFoco("") });
     if (foco === 'book') chips.push({ key: 'foco', label: 'Book com peças fora da lista', clear: () => setFoco("") });
     // O chip de "concluídos ocultos" saiu: os três alternadores de situação
     // JÁ mostram o que está dentro e o que está fora, com contagem. Um chip

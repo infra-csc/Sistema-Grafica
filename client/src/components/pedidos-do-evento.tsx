@@ -194,7 +194,7 @@ export function PedidosDoEvento({ eventId, pecas, podeVer, podeAtender, motivoEv
           <Inbox style={{ width: 17, height: 17, color: qtdAbertas || qtdAjustes ? TOM.alerta.text : T.second }} />
         </div>
         <h2 id="titulo-pedidos-do-evento" style={{ margin: 0, fontFamily: FONT.display, fontSize: FS.title, fontWeight: FW.forte, letterSpacing: "-0.02em", color: T.text }}>
-          Solicitações de peças
+          Pedidos de peças
         </h2>
         <span style={{ backgroundColor: qtdAbertas ? TOM.alerta.bg : N.n2, color: qtdAbertas ? TOM.alerta.text : T.apoio, border: `1px solid ${qtdAbertas ? TOM.alerta.border : T.border}`, borderRadius: R.pill, padding: "2px 10px", fontSize: FS.small, fontWeight: FW.forte }}>
           {qtdAbertas} {qtdAbertas === 1 ? "peça aberta" : "peças abertas"}

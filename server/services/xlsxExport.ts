@@ -11,7 +11,7 @@ import { aguardaReaproveitar, pedidoDoReaproveitar } from "@shared/reaproveitar"
 import { camposDoErro } from "../erros";
 import { seloDosVolumes } from "@shared/embalagem";
 import { origemDe, ROTULO_DA_ORIGEM, emTransitoDe, quantidadeFisicaDe } from "@shared/origem-do-reaproveitamento";
-import { STATUS_MOLDE_PRODUZIDO, statusDeExibicao } from "@shared/molde";
+import { STATUS_AGUARDA_ESTOQUE, STATUS_MOLDE_PRODUZIDO, STATUS_REAPROVEITADO, statusDeExibicao } from "@shared/molde";
 import {
   duracaoCurta, oQueAconteceuNoRegistro, ROTULO_DO_TIPO, nomeDoArquivoDoRelatorio,
   type RegistroDoPeriodo, type ResumoDoDia,
@@ -124,6 +124,8 @@ export const STATUS_LABELS: Record<string, string> = {
   liberado: "Liberado", produzido: "Impresso / Acabamento", conferido: "Conferido", entregue: "Entregue",
   // MOLDE (22/09): produzido é o fim do fluxo dele — sem "Acabamento".
   [STATUS_MOLDE_PRODUZIDO]: "Produzido (molde)",
+  [STATUS_REAPROVEITADO]: "Reaproveitado",
+  [STATUS_AGUARDA_ESTOQUE]: "Aguardando o estoque",
 };
 
 /**

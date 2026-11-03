@@ -56,7 +56,7 @@ export function useEdicaoNaLinha(compacto: boolean) {
           ? `${updated.reuseQty} un. ${updated.reuseQty === 1 ? "reaproveitada" : "reaproveitadas"}${emTransito ? " (em trânsito)" : ""}. ${falta === 1 ? "Falta" : "Faltam"} ${falta} un. para produzir.`
           : emTransito
             ? "Peça inteira em trânsito: não passa por conferir, embalar nem entregar — saiu da fila."
-            : "Peça inteira reaproveitada. Segue para conferência.",
+            : "Peça inteira reaproveitada. Agora ela fica no módulo Reaproveitar; aqui, no filtro ♻. Segue para conferência.",
       });
     },
     onError: (error: Error) => {

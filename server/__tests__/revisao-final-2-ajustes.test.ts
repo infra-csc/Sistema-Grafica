@@ -20,6 +20,6 @@ describe("a trava da Solicitação segura também o molde e o reaproveitar", () 
   it("a Gráfica não oferece Reaproveitar na peça travada", () => {
     // A recusa do mark-reuse (409 com a frase da trava) RODA em
     // regras-fluxo-reaproveitar-e-molde.test.ts.
-    expect(fonteDaGrafica()).toContain("const podeReaproveitarPeca = !emRevisao && !pecaTravada(item)");
+    expect(fonteDaGrafica()).toContain("const podeReaproveitarPeca = !emRevisao && !aguardaReaproveitar(item) && !pecaTravada(item)");
   });
 });

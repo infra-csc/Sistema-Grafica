@@ -4,12 +4,13 @@
 // e, no pé, as ações (acoes-do-cartao.tsx). É memoizado pela LinhaMemo da
 // lista: tudo o que ele lê vem de `ctx` e está no inventário `depsDaLinha`.
 // ─────────────────────────────────────────────────────────────────────────────
+import { aguardaReaproveitar } from "@shared/reaproveitar";
 import { Fragment } from "react";
 import { BotaoCopiar } from "@/components/botao-copiar";
 import type React from "react";
 import { Link } from "wouter";
-import { AlertCircle, Camera, Check, Package, PlusCircle, Tag, Truck } from "lucide-react";
-import { Botao } from "@/components/ui/botao";
+import { AlertCircle, Camera, Check, Package, PlusCircle, Tag, Truck, Recycle } from "lucide-react";
+import { Botao, BotaoLink } from "@/components/ui/botao";
 import { Selo } from "@/components/ui/selo";
 import { StatusPill } from "@/components/status-pill";
 import { SeloMolde } from "@/components/kit/selo-kit";
@@ -82,7 +83,7 @@ export function CartaoDaPeca({ ctx, item, index, showEvHeader, abreKit = false, 
   // !emRevisao em TODAS: em Revisão a Gráfica só OLHA (regra do
   // dono, 25/08) — a peça é trabalho chegando, não chegou.
   const mostraAumentar = !bulkOn && !emRevisao && !soVisualizaKit(item) && podeAumentarQuantidade(item, podeMexerQtd);
-  const podeProduzirAqui = !emRevisao && canProduce && coAberto && !isProduced(item) && !isPosConferencia(item) && !item.isReuse && remainingProduce(item) > 0;
+  const podeProduzirAqui = !emRevisao && !aguardaReaproveitar(item) && canProduce && coAberto && !isProduced(item) && !isPosConferencia(item) && !item.isReuse && remainingProduce(item) > 0;
   const podeCancelarCompl = podeMexerQtd && !soVisualizaKit(item) && ehComplemento && complementUntouched(item);
   // Evento finalizado: o botão continua na tela, DESABILITADO com o
   // motivo — sumir devolveria o buraco que esconder a peça criava
@@ -99,8 +100,8 @@ export function CartaoDaPeca({ ctx, item, index, showEvHeader, abreKit = false, 
   // coluna de Ações da tabela (acoes-da-linha.tsx): se mudar um, mude o
   // outro — `grafica-mobile.test.ts` confere que as duas batem.
   // O `!bulkOn` já vem do trilho, que só existe fora do lote.
-  const podeProduzirPeca = !emRevisao && canProduce && !isDelivered(item) && !isProduced(item) && !isPosConferencia(item) && !item.isReuse;
-  const podeReaproveitarPeca = !emRevisao && !pecaTravada(item) && !soVisualizaKit(item) && !isDelivered(item) && !isPosConferencia(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0);
+  const podeProduzirPeca = !emRevisao && !aguardaReaproveitar(item) && canProduce && !isDelivered(item) && !isProduced(item) && !isPosConferencia(item) && !item.isReuse;
+  const podeReaproveitarPeca = !emRevisao && !aguardaReaproveitar(item) && !pecaTravada(item) && !soVisualizaKit(item) && !isDelivered(item) && !isPosConferencia(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0);
   const podeCorrigirReaprov = !emRevisao && !soVisualizaKit(item) && (isProduced(item) || isAdmin) && reusedTotalOf(item) > 0
     && conferredOf(item) === 0 && deliveredOf(item) === 0;
   const podeDevolverPeca = canProduce && podeDevolverParaRevisao(item);
@@ -483,6 +484,9 @@ export function CartaoDaPeca({ ctx, item, index, showEvHeader, abreKit = false, 
           {/* As instruções da produção interna, inteiras: no celular do
               galpão, sem arquivo, é o que diz o que fazer. */}
           <InstrucoesParaAGrafica peca={item} style={{ marginTop: 6 }} />
+          {!bulkOn && aguardaReaproveitar(item) && (
+            <BotaoLink href="/reaproveitar" variante="secundario" tamanho="toque" larguraCheia icone={Recycle} data-testid={`ir-para-reaproveitar-card-${item.id}`} style={{ marginTop: 6 }}>Responder no Reaproveitar</BotaoLink>
+          )}
         </div>
 
           <AcoesDoCartao

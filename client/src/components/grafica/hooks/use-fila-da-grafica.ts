@@ -6,7 +6,7 @@
 // números dos cartões e do resumo, e o orçamento de linhas desenhadas por lote.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useCallback, useEffect, useMemo, useRef, useState, startTransition } from "react";
-import { aguardaReaproveitar } from "@shared/reaproveitar";
+import { aguardaReaproveitar, ficaNoReaproveitar } from "@shared/reaproveitar";
 import { useQuery } from "@tanstack/react-query";
 import { getStatusLabel, seloPecaEventoFinalizado, todayBusinessMs } from "@/lib/status";
 import type { SeloPecaEventoFinalizado } from "@/lib/status";
@@ -74,9 +74,7 @@ export function useFilaDaGrafica() {
     refetchOnWindowFocus: true,
     refetchInterval: 300_000, // 5min (auditoria 27/08): o WebSocket cobre o tempo real; isto é só a rede de segurança de socket morto
   });
-  // MÓDULO REAPROVEITAR (dono, 03/11): enquanto ninguém disse quantas tem no
-  // estoque, a peça é de lá — não entra na fila, nos cartões nem nos totais.
-  const pecasDoServidor = useMemo(() => (pecasBrutas.some(aguardaReaproveitar) ? pecasBrutas.filter((p) => !aguardaReaproveitar(p)) : pecasBrutas), [pecasBrutas]);
+  const pecasDoServidor = pecasBrutas;
   // ── Evento FINALIZADO: ESCONDIDO POR PADRÃO, A UM CLIQUE (dono, 08/10) ─────
   // DECISÃO NOVA (08/10): "tirar os itens de eventos que foram realizados da
   // Gráfica… tem que tirar a visualização dele, porque atrapalha, e eles não
@@ -123,10 +121,12 @@ export function useFilaDaGrafica() {
     }
     return m;
   }, [pecasDoServidor, hojeBusinessMs]);
-  // A BASE DA TELA: sem as de evento finalizado, salvo quando pedidas (08/10).
+  // A BASE DA TELA: sem as de evento finalizado, salvo quando pedidas (08/10), e
+  // sem as do módulo Reaproveitar, salvo com o filtro ou buscadas (dono, 03/11).
+  const mostraDoReaproveitar = filtros.reaproveitamento || !!filtros.busca.trim();
   const items = useMemo(
-    () => (filtros.realizados || selosPorItem.size === 0 ? pecasDoServidor : pecasDoServidor.filter((i) => !selosPorItem.has(i.id))),
-    [pecasDoServidor, selosPorItem, filtros.realizados],
+    () => pecasDoServidor.filter((i) => (filtros.realizados || !selosPorItem.has(i.id)) && (mostraDoReaproveitar || !ficaNoReaproveitar(i))),
+    [pecasDoServidor, selosPorItem, filtros.realizados, mostraDoReaproveitar],
   );
   const seloDoItem = (item: PecaDaFila): SeloPecaEventoFinalizado | null => selosPorItem.get(item.id) ?? null;
   // INFORMAR IMPRESSAS no evento realizado (decisão IMPRESSAS_EM_EVENTO_REALIZADO):
@@ -380,9 +380,15 @@ export function useFilaDaGrafica() {
    * régua dos chips verdes da linha. Conta SEM a própria dimensão (o pool que
    * alimenta os cards), senão ligar o chip zeraria o número dele.
    */
+  // As do módulo fora da base entram na conta: o número é o que o clique traz.
+  const reusoForaDaLista = useMemo(
+    () => (mostraDoReaproveitar ? 0 : pecasDoServidor.filter((i) => ficaNoReaproveitar(i) && (filtros.realizados || !selosPorItem.has(i.id))
+      && itemCasaFiltros(i, recorteDasPassadas, ctxFiltros, { ignorarStatus: true })).length),
+    [mostraDoReaproveitar, pecasDoServidor, selosPorItem, filtros.realizados, recorteDasPassadas, ctxFiltros],
+  );
   const comReusoNaLista = useMemo(
-    () => statsPool.filter((i) => i.isReuse || reusedTotalOf(i) > 0).length,
-    [statsPool],
+    () => statsPool.filter((i) => i.isReuse || reusedTotalOf(i) > 0 || aguardaReaproveitar(i)).length + reusoForaDaLista,
+    [statsPool, reusoForaDaLista],
   );
 
   const complementoChipLabel = complementosAbertos.length > 0
@@ -588,7 +594,7 @@ export function useFilaDaGrafica() {
   // Índice por id da lista COMPLETA. Resolver o lote com `find` era O(lote ×
   // fila): "Todas (2.000)" numa fila de 4 mil davam 4 milhões de comparações a
   // cada peça marcada — e de novo ao confirmar.
-  const itemPorId = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
+  const itemPorId = useMemo(() => new Map(pecasDoServidor.map((i) => [i.id, i])), [pecasDoServidor]);
 
   return {
     pecasDoServidor, items, isLoading, isError, error, refetch, isFetching, dataUpdatedAt, migracaoPendente,

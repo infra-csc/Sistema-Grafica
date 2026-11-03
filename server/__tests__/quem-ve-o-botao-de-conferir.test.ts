@@ -63,7 +63,7 @@ describe("o cliente espelha os DOIS gates, e não confunde um com o outro", () =
   it("o botão de produzir continua no gate de produzir", () => {
     // !emRevisao veio na frente em 24/08 — a revisão ficou visível na
     // Gráfica, e produzir peça que a Revisão não liberou não é opção.
-    expect(tela).toContain("const podeProduzirAqui = !emRevisao && canProduce &&");
+    expect(tela).toContain("const podeProduzirAqui = !emRevisao && !aguardaReaproveitar(item) && canProduce &&");
   });
 });
 

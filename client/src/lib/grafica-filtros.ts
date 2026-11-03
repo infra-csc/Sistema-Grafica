@@ -18,6 +18,7 @@
 // (ctx.groupOf), porque ela depende do catálogo de Modelos carregado por query.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { aguardaReaproveitar } from "@shared/reaproveitar";
 import { isDelivered, isComplement, isInProd, reusedTotalOf, canConfer, type SaldoItem } from "./saldo";
 import { grupoDoKit } from "@shared/kit";
 import { aEmbalar, embaladaDe, entregueDe, type PecaDaEmbalagem } from "@shared/embalagem";
@@ -461,7 +462,7 @@ export function itemCasaFiltros(
   if (!ignorarStatus && f.complementos && !isComplement(item)) return false;
   // Reuso total (isReuse) ou parcial (reuseQty>0) — a mesma régua dos chips
   // verdes da linha (reusedTotalOf considera as duas formas).
-  if (!ignorarStatus && f.reaproveitamento && !(item.isReuse || reusedTotalOf(item) > 0)) return false;
+  if (!ignorarStatus && f.reaproveitamento && !(item.isReuse || reusedTotalOf(item) > 0 || aguardaReaproveitar(item as { reusoPedido?: number | null; status?: string | null }))) return false;
   // Travadas pela Solicitação (shared/trava-da-peca.ts).
   if (f.travadas && !pecaTravada(item)) return false;
 

@@ -13,6 +13,8 @@ export type VinculoEventoPendente = {
   eventName: string;
   sponsorName: string;
   provas: string[];
+  /** Na mesma ordem de `provas`: o id que abre cada peça. */
+  idsDasProvas: string[];
 };
 
 type Actor = {
@@ -38,7 +40,7 @@ async function encontrarPendencias(database: DatabaseLike): Promise<VinculoEvent
   const arquivados = new Set(cadastro.filter((s) => s.arquivadoEm).map((s) => s.id));
   const nomeDoEvento = new Map(eventosTodos.map((e) => [e.id, e.name]));
   const jaNoEvento = new Set(vinculosDeEvento.map((v) => `${v.eventId}|${v.sponsorId}`));
-  const faltando = new Map<string, string[]>();
+  const faltando = new Map<string, { provas: string[]; ids: string[] }>();
 
   for (const v of vinculosDePeca) {
     const peca = pecaPorId.get(v.itemId);
@@ -46,12 +48,13 @@ async function encontrarPendencias(database: DatabaseLike): Promise<VinculoEvent
     if (arquivados.has(v.sponsorId)) continue;
     const chave = `${peca.eventId}|${v.sponsorId}`;
     if (jaNoEvento.has(chave)) continue;
-    const provas = faltando.get(chave) ?? [];
-    provas.push(peca.displayId ?? peca.id);
+    const provas = faltando.get(chave) ?? { provas: [], ids: [] };
+    provas.provas.push(peca.displayId ?? peca.id);
+    provas.ids.push(peca.id);
     faltando.set(chave, provas);
   }
 
-  return Array.from(faltando.entries()).map(([chave, provas]) => {
+  return Array.from(faltando.entries()).map(([chave, { provas, ids }]) => {
     const [eventId, sponsorId] = chave.split("|");
     return {
       eventId,
@@ -59,6 +62,7 @@ async function encontrarPendencias(database: DatabaseLike): Promise<VinculoEvent
       eventName: nomeDoEvento.get(eventId) ?? eventId,
       sponsorName: nomeDoSponsor.get(sponsorId) ?? sponsorId,
       provas,
+      idsDasProvas: ids,
     };
   });
 }

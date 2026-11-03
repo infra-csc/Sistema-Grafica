@@ -210,6 +210,8 @@ export default function Grafica() {
     const u = new URL(window.location.href);
     if (aba === "fila") u.searchParams.delete("aba"); else u.searchParams.set("aba", aba);
     window.history.replaceState(null, "", u.pathname + u.search);
+    // O lote marca peças da fila: na aba Tubos seria seleção sem lista à vista.
+    if (aba === "tubos" && bulkOn) sairDoLote();
     setAbaDaTela(aba);
   };
 
@@ -345,7 +347,7 @@ export default function Grafica() {
     <div ref={raizRef} style={{ display: "flex", flexDirection: "column", gap: isMobile ? 8 : 16, padding: isMobile ? "12px 12px" : 24, paddingBottom: bulkOn ? (isMobile ? 'calc(140px + env(safe-area-inset-bottom))' : 'calc(88px + env(safe-area-inset-bottom))') : isMobile ? 12 : 24, backgroundColor: T.bg, height: "100%", overflowY: "auto" }}>
       {dialogoDeConfirmacao}
 
-      <CabecalhoDaGrafica fila={fila} lote={lote} podeConferir={podeConferir} isMobile={isMobile} ponteiroGrosso={ponteiroGrosso}
+      <CabecalhoDaGrafica fila={fila} lote={lote} podeConferir={podeConferir && abaDaTela === "fila"} isMobile={isMobile} ponteiroGrosso={ponteiroGrosso}
         isExporting={isExporting} handleExportXlsx={() => setExcelAberto(true)} setGalpao={setGalpao} atalhosNasAbas={usaCards && !isMobile} />
 
       {/* ── As abas da tela: Fila | Tubos — uma abinha separada, não uma

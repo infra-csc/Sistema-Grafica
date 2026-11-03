@@ -86,8 +86,9 @@ describe("layoutSemAprovacaoPorEvento", () => {
 describe("a grade usa a régua (código-fonte)", () => {
   const cal = readFileSync(path.resolve(__dirname, "../../client/src/pages/calendario.tsx"), "utf8");
 
-  it("lê o ajustado da Gestão de Prazos, pela MESMA chave de cache, só quando desenha o Layout", () => {
-    expect(cal).toContain('useQuery<PrazosPayload>({ queryKey: ["/api/prazos"], enabled: desenhaLayout })');
+  it("lê o ajustado da Gestão de Prazos, pela MESMA chave de cache, e só o desenha quando a grade mostra o Layout", () => {
+    expect(cal).toContain('useQuery<PrazosPayload>({ queryKey: ["/api/prazos"] })');
+    expect(cal).toContain("layoutSemAprovacaoPorEvento(desenhaLayout ? prazos?.events : undefined)");
     expect(cal).toContain("layoutSemAprovacaoPorEvento(");
   });
 

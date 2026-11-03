@@ -234,7 +234,7 @@ export default function Versoes() {
   const books = data?.books ?? [];
   const totalPaginas = data ? Math.max(1, Math.ceil(data.total / data.tamanho)) : 1;
 
-  const filtrosAtivos = (busca ? 1 : 0) + (eventoFiltro.length ? 1 : 0) + (patrocinadorFiltro.length ? 1 : 0);
+  const filtrosAtivos = (busca ? 1 : 0) + (eventoFiltro.length ? 1 : 0) + (patrocinadorFiltro.length && aba !== "books" ? 1 : 0);
   const limpar = () => {
     setBuscaInput(""); setBusca(""); setEventoFiltro([]); setPatrocinadorFiltro([]); setPagina(0);
   };
@@ -306,7 +306,7 @@ export default function Versoes() {
                 </button>{" "}— cada publicação tem o botão Baixar.
               </p>
             </div>
-            {!apertado && botaoExportar}
+            {!apertado && aba !== "books" && botaoExportar}
           </header>
 
           {/* ══ Os três números que são o índice da tela ══ */}
@@ -432,17 +432,17 @@ export default function Versoes() {
           lista começava abaixo da dobra. A contagem do recorte fica à direita:
           é a resposta ao filtro que acabou de mudar. */}
       <div style={{ backgroundColor: T.surface, borderBottom: `1px solid ${T.border}`, padding: apertado ? "10px 16px 12px" : "12px 32px" }}>
-        <div style={{ maxWidth: 1600, margin: "0 auto", display: apertado ? "grid" : "flex", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", alignItems: "center", gap: apertado ? 8 : 10, flexWrap: "wrap" }}>
+        <div style={{ maxWidth: 1600, margin: "0 auto", display: apertado ? "grid" : "flex", gridTemplateColumns: aba === "books" ? "minmax(0, 1fr)" : "minmax(0, 1fr) minmax(0, 1fr)", alignItems: "center", gap: apertado ? 8 : 10, flexWrap: "wrap" }}>
           <FilterSelect label="Evento" allLabel="Todos os eventos" values={eventoFiltro}
             onValuesChange={v => { setEventoFiltro(v); setPagina(0); }}
             hideWhenEmpty={false} disabled={!data} icon={CalendarDays} unitLabel={{ one: "evento", many: "eventos" }} fullWidth={apertado} rotuloQuandoVazio={apertado ? "Evento" : undefined}
             triggerStyle={{ height: alturaControle }}
             options={(aba === "books" ? data?.facetas.eventosDosBooks : data?.facetas.eventos) ?? []} searchPlaceholder="Buscar evento..." emptyText="Nenhum evento" testId="filter-versoes-evento" />
-          <FilterSelect label="Patrocinador" allLabel="Todos os patrocinadores" values={patrocinadorFiltro}
+          {aba !== "books" && <FilterSelect label="Patrocinador" allLabel="Todos os patrocinadores" values={patrocinadorFiltro}
             onValuesChange={v => { setPatrocinadorFiltro(v); setPagina(0); }}
             hideWhenEmpty={false} disabled={!data} icon={Handshake} unitLabel={{ one: "patrocinador", many: "patrocinadores" }} fullWidth={apertado} rotuloQuandoVazio={apertado ? "Patrocinador" : undefined}
             triggerStyle={{ height: alturaControle }}
-            options={data?.facetas.patrocinadores ?? []} searchPlaceholder="Buscar patrocinador..." emptyText="Nenhum patrocinador" testId="filter-versoes-patrocinador" />
+            options={data?.facetas.patrocinadores ?? []} searchPlaceholder="Buscar patrocinador..." emptyText="Nenhum patrocinador" testId="filter-versoes-patrocinador" />}
 
           <div style={{ position: "relative", width: apertado ? "100%" : 300, gridColumn: apertado ? "1 / -1" : undefined }}>
             <Search aria-hidden="true" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: T.second, pointerEvents: "none" }} />
@@ -475,7 +475,7 @@ export default function Versoes() {
                   {apertado ? `Limpar (${filtrosAtivos})` : `Limpar filtros (${filtrosAtivos})`}
                 </Botao>
               )}
-              {apertado && botaoExportar}
+              {apertado && aba !== "books" && botaoExportar}
             </div>
           )}
         </div>

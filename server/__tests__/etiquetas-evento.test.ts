@@ -64,7 +64,7 @@ describe("a página /eventos/:id/etiquetas", () => {
     expect(PAGINA).toContain('data-testid="input-destaque"');
     expect(PAGINA).toContain('data-testid="input-texto-de-cima"');
     // gigante curta é enorme; nome inteiro / cidade composta desce um degrau
-    expect(PAGINA).toContain('fontSize: gigante && gigante.length <= 12 ? "clamp(56px, 8vw, 104px)" : "clamp(34px, 5.2vw, 64px)"');
+    expect(PAGINA).toContain('fontSize: nomeLongo ? "clamp(44px, 6.6vw, 88px)" : gigante && gigante.length <= 12 ? "clamp(56px, 8vw, 104px)" : "clamp(34px, 5.2vw, 64px)"');
     expect(PAGINA).toContain("compareDisplayId(a.displayId, b.displayId)");
   });
 

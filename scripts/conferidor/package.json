@@ -1,0 +1,13 @@
+{
+  "name": "conferidor-miro",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Confere o arquivo final da pasta da rede com o thumb da peça, no sistema da Miró. Só lê os arquivos.",
+  "engines": { "node": ">=22.13.0" },
+  "dependencies": {
+    "@napi-rs/canvas": "1.0.3",
+    "pdfjs-dist": "6.2.108",
+    "sharp": "0.35.5"
+  }
+}

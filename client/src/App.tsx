@@ -124,6 +124,7 @@ const PedidosDePeca = lazyPage(() => import("@/pages/pedidos-de-peca"));
 const Grafica = lazyPage(() => import("@/pages/grafica"));
 const GraficaMaquinas = lazyPage(() => import("@/pages/grafica-maquinas"));
 const Reaproveitar = lazyPage(() => import("@/pages/reaproveitar"));
+const ConferenciaArquivos = lazyPage(() => import("@/pages/conferencia-arquivos"));
 const SolicitacoesAoEstoque = lazyPage(() => import("@/pages/solicitacoes-ao-estoque"));
 const EtiquetaTubo = lazyPage(() => import("@/pages/etiqueta-tubo"));
 const Modelos = lazyPage(() => import("@/pages/modelos"));
@@ -232,6 +233,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "/grafica": "Gráfica",
   "/grafica/maquinas": "Impressoras",
   "/reaproveitar": "Reaproveitar",
+  "/conferencia-arquivos": "Conferência de arquivos",
   "/grafica/solicitacoes-ao-estoque": "Solicitações ao estoque",
   "/modelos": "Modelos",
   "/calendario": "Calendário",
@@ -281,6 +283,7 @@ const ROLES_VINCULAR = ["arte", "solicitacao", "atendimento", "admin"];
 const ROLES_ATENDIMENTO = ["atendimento", "arte", "solicitacao", "admin"];
 const ROLES_SOLICITACAO = ["solicitacao", "admin"];
 const ROLES_GRAFICA = ["grafica", "solicitacao", "admin"];
+const ROLES_CONFERENCIA = ["arte", "grafica", "solicitacao", "admin"];
 // Triagem e local no galpão são da Gráfica (dono, 14/09). O Estoque usa
 // ROLES_GRAFICA: a Solicitação consulta o que tem para reservar.
 // 15/09: Triagem de Retorno é só do admin (como o Estoque).
@@ -532,6 +535,9 @@ function Router() {
         {() => SOLICITACAO_AO_ESTOQUE_ATIVA
           ? <RoleProtectedRoute component={SolicitacoesAoEstoque} allowedRoles={ROLES_GRAFICA} />
           : <Redirect to="/grafica" replace />}
+      </Route>
+      <Route path="/conferencia-arquivos">
+        {() => <RoleProtectedRoute component={ConferenciaArquivos} allowedRoles={ROLES_CONFERENCIA} semKit />}
       </Route>
       <Route path="/reaproveitar">
         {() => <RoleProtectedRoute component={Reaproveitar} allowedRoles={ROLES_GRAFICA} />}

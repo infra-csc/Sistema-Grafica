@@ -44,6 +44,7 @@ import { registerArtesBuscaRoutes } from "./routes/artes-busca";
 import { registerMoldeRoutes } from "./routes/molde";
 import { registerIntegracaoChecklistRoutes } from "./routes/integracao-checklist";
 import { registerAuditoriaDoBookRoutes } from "./routes/auditoria-do-book";
+import { registerConferenciaDoArquivoRoutes } from "./routes/conferencia-do-arquivo";
 import { registerConfiguracoesRoutes } from "./routes/configuracoes";
 import { retomarAuditoriasDoBook } from "./services/auditoria-do-book/fila";
 import { db, pool } from "./db";
@@ -220,6 +221,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerConfiguracoesRoutes(app);
   // Auditoria do book com IA (19/10): leitura e marcação dos achados.
   registerAuditoriaDoBookRoutes(app);
+  registerConferenciaDoArquivoRoutes(app);
   // Checklist de Arena (outro app): só leitura, por token, sem sessão.
   registerIntegracaoChecklistRoutes(app);
   registerNotificationRoutes(app);

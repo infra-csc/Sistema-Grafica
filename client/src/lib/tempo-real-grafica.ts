@@ -141,6 +141,8 @@ export const CHAVES_POR_MENSAGEM: Readonly<Record<TipoMensagemWS, readonly AlvoD
   pedidos_de_peca: [{ prefixo: "/api/pedidos-de-peca" }],
   // Auditoria do book (19/10): a faixa e o selo de Eventos e o número do menu.
   auditorias_do_book: [{ prefixo: "/api/auditorias-do-book" }],
+  // A tela da conferência e o aviso na ficha da Revisão Final.
+  conferencia_do_arquivo: [{ prefixo: "/api/conferencia-do-arquivo" }],
 
   deadline_alert: ["/api/events"],
   // Chega junto com notification_created; a Gestão de Prazos é do hook.

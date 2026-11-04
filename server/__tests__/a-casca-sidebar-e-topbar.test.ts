@@ -35,13 +35,13 @@ const soCodigo = (fonte: string) => fonte
   .replace(/^[ \t]*\/\/.*$/gm, "");
 
 describe("1. a estrutura do menu não mudou", () => {
-  it("continuam 28 itens — incluindo ações administrativas e páginas novas", () => {
+  it("continuam 29 itens — incluindo ações administrativas e páginas novas", () => {
     // O merge reuniu os 24 itens da origem — entre eles Solicitação de peças
     // e Máquinas da Gráfica — com duas ações administrativas que só existiam
     // localmente: Reparar vínculos e Inferir executivos.
     // O teste existe para a mudança ser DECLARADA, não impedida.
     const itens = (sidebar.match(/\{ title: "/g) ?? []).length;
-    expect(itens).toBe(28); // + Inferir executivos e Reparo de vínculos (vieram do Replit, 21/09), Configurações (26/10) e Reaproveitar (03/11)
+    expect(itens).toBe(29); // + Inferir executivos e Reparo de vínculos (vieram do Replit, 21/09), Configurações (26/10), Reaproveitar (03/11) e Conferência de arquivos (04/11)
   });
 
   it("e o controle de permissão segue de pé", () => {

@@ -12,7 +12,7 @@ import { pool } from "../../db";
 import { criarAclDoKit, MSG_ARQUIVO_FORA_DO_KIT } from "../../objectAcl";
 import { recusaDaMarcaNaEscrita } from "@shared/producao-interna";
 import { lerOrigemDoCorpo, colunasDaOrigem, origemDe, fraseDaTrilhaDaOrigem, FIM_DO_FLUXO, recusaDaContaNoGalpao, origemComparavel } from "@shared/origem-do-reaproveitamento";
-import { pecaTravada, fraseDaTrava, CODIGO_PECA_TRAVADA } from "@shared/trava-da-peca";
+import { pecaTravada, fraseDaTrava, CODIGO_PECA_TRAVADA, podeTravar } from "@shared/trava-da-peca";
 import type { Item } from "@shared/schema";
 import { avisarBuscarNoEstoque } from "../../services/aviso-buscar-no-estoque";
 import { recalcularEventoEAvisar } from "../../services/evento-concluido";
@@ -239,7 +239,7 @@ export function registrarEdicao(app: Express): void {
 
       // A regra da edição (quantidade, reaproveitamento, campos derivados):
       // services/edicao-da-peca.ts. Recusa volta com o status e o corpo prontos.
-      const plano = planejarEdicao(currentItem, validatedData, req.body, mudaReuso);
+      const plano = planejarEdicao(currentItem, validatedData, req.body, mudaReuso, podeTravar(req.userRole));
       if ("recusa" in plano) return res.status(plano.recusa.status).json(plano.recusa.corpo);
       const { updatePayload, mudouQtd, promoveuParaProduzido, fechouEmTransito } = plano;
       // Origem sem reaproveitamento nenhum não grava (a peça não tem o que buscar).

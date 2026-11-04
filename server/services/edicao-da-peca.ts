@@ -164,6 +164,8 @@ export function planejarEdicao(
   validatedData: DadosDaEdicao,
   corpo: { reuseQty?: unknown } | undefined,
   mudaReuso: boolean,
+  /** Quem trava (Solicitação, admin) ajusta a quantidade da peça travada. */
+  podeAjustarTravada = false,
 ): PlanoDaEdicao | RecusaDaEdicao {
   const updatePayload: Partial<InsertItem> = { ...validatedData };
 
@@ -183,14 +185,12 @@ export function planejarEdicao(
     const nova = Number(novaQtd);
     const emProducao = COMPLEMENT_ALLOWED_STATUSES.includes(currentItem.status);
 
-    // TRAVA DA SOLICITAÇÃO (revisão 22/09): a peça travada não muda de
-    // quantidade. Regra escolhida pela SIMPLICIDADE: qualquer mudança de
-    // quantidade numa peça travada é recusada — e não só a redução que a
-    // promoveria a Produzido. Calcular "faria andar?" repetiria a conta da
-    // promoção abaixo e deixaria de fora os efeitos laterais (reuso que
-    // encolhe, reserva/divisão de impressora reescalada). Quem trava é a
-    // Solicitação, que também gerencia a lista: destrava, ajusta, trava.
-    if (pecaTravada(currentItem)) {
+    // TRAVA DA SOLICITAÇÃO: a trava segura a Gráfica, não quem travou. A peça é
+    // travada justamente para corrigir ("Quantidade vai mudar" é um dos motivos
+    // sugeridos), e destravar para ajustar abria uma brecha para a Gráfica
+    // imprimir (Fernanda, 04/11, #8272). Solicitação e admin ajustam; os demais
+    // seguem recusados. Só não pode a redução que faria a peça ANDAR (abaixo).
+    if (pecaTravada(currentItem) && !podeAjustarTravada) {
       return recusa(409, { error: fraseDaTrava(currentItem), code: CODIGO_PECA_TRAVADA });
     }
 
@@ -247,6 +247,10 @@ export function planejarEdicao(
     // peça ficaria eternamente Em Produção com saldo fantasma. Nunca
     // rebaixa: peça entregue continua entregue.
     if (nova <= impressas + reusoNovo && (currentItem.status === "inProduction" || currentItem.status === "em_producao")) {
+      // Virar Produzido é a peça andar: isso a trava segura para todo mundo.
+      if (pecaTravada(currentItem)) {
+        return recusa(409, { error: fraseDaTrava(currentItem), code: CODIGO_PECA_TRAVADA });
+      }
       updatePayload.status = "produced";
       promoveuParaProduzido = true;
     }

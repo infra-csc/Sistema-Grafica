@@ -583,6 +583,31 @@ export const auditoriasDoBook = pgTable("auditorias_do_book", {
   index("IDX_auditorias_do_book_event_id").on(table.eventId),
 ]);
 
+// Conferência do arquivo final × thumb aprovado (Pedro/dono, 04/11). Uma linha por
+// combinação de peça, arquivo e thumb: trocou um dos dois, confere de novo.
+export const conferenciasDoArquivo = pgTable("conferencias_do_arquivo", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  itemId: varchar("item_id").notNull().references(() => items.id, { onDelete: "cascade" }),
+  arquivo: text("arquivo").notNull(),
+  thumb: text("thumb").notNull(),
+  // confere | vale_olhar | nao_deu
+  veredito: text("veredito").notNull(),
+  motivo: text("motivo"),
+  // A prancheta comparada, em .ai com várias ("3/7").
+  pagina: text("pagina"),
+  previewUrl: text("preview_url"),
+  modelo: text("modelo"),
+  tokensEntrada: integer("tokens_entrada"),
+  tokensSaida: integer("tokens_saida"),
+  criadaEm: timestamp("criada_em").notNull().default(sql`now()`),
+  resolvidaEm: timestamp("resolvida_em"),
+  resolvidaPor: text("resolvida_por"),
+  nota: text("nota"),
+}, (table) => [
+  uniqueIndex("UQ_conferencia_peca_arquivo_thumb").on(table.itemId, table.arquivo, table.thumb),
+  index("IDX_conferencia_veredito").on(table.veredito),
+]);
+
 // Destinatários ADMINISTRÁVEIS dos avisos por e-mail (dono, 27/08 — tela
 // Notificações). Um canal SEM linha nenhuma usa a lista padrão escrita no
 // código (DESTINATARIOS_DA_GESTAO / DA_REVISAO / NOMEADOS do book): tabela

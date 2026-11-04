@@ -97,6 +97,8 @@ export type MensagemWS =
   | { type: "pedidos_de_peca"; eventId?: IdOpcional }
   // Auditoria do book com IA (19/10): rodou, concluiu, ou alguém marcou um achado.
   | { type: "auditorias_do_book"; eventId?: IdOpcional }
+  // Conferência do arquivo final × thumb (04/11): novo aviso, ou alguém marcou como visto.
+  | { type: "conferencia_do_arquivo" }
 
   // Prazos e avisos
   | { type: "deadline_alert"; event: EventoDoSinal; hoursRemaining: number }

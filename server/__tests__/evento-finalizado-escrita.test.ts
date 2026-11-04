@@ -558,6 +558,7 @@ const SEM_GUARDA_POR_DESENHO: Record<string, string> = {
   "POST /api/gestao/digest/enviar": "dispara o resumo das aprovações pendentes por e-mail; não grava peça nem evento (só a trilha do disparo) e não tem alvo de evento nenhum",
   "POST /api/events/:eventId/book/notify": "reenvia por e-mail o aviso de um book que JÁ existe; não grava peça nem evento (só a trilha do reenvio) — e é justamente em evento antigo que alguém pede o book de novo, então barrar fecharia a porta exatamente onde ela é útil",
   "POST /api/items/export-xlsx": "só lê e devolve arquivo",
+  "POST /api/reaproveitar/excel": "só lê e devolve arquivo",
   "POST /api/events/:id/preview-xlsx": "faz o parse da planilha sem salvar nada",
   "POST /api/items/:id/production": "rota aposentada, responde 410 sem tocar em nada",
   "PATCH /api/items/:id/approve": "rota aposentada (o liberar antigo), responde 410 sem tocar em nada",
@@ -607,6 +608,8 @@ const NA_REDE = (rel: string) => rel.startsWith("server/routes/itens/") || ["ser
  * não mexem em peça; a decisão de ampliar a rede é de produto.
  */
 const FORA_DO_RECORTE: Record<string, string> = {
+  // 04/11: grava o aviso da conferência do arquivo; não mexe na peça.
+  "server/routes/conferencia-do-arquivo.ts": "aviso à parte, não muda a peça",
   "server/routes/analises.ts": "leitura", "server/routes/artes-busca.ts": "leitura", "server/routes/audit-logs.ts": "leitura",
   "server/routes/auth.ts": "sessão e usuários", "server/routes/busca.ts": "leitura",
   // 21/10: quem está na máquina no login compartilhado — sessão, não peça.

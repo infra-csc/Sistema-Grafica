@@ -2,6 +2,9 @@
 // (quando houve) e a COMPARAÇÃO — o aprovado pelo patrocinador × o arquivo
 // final da Arte, lado a lado. Só props, sem hook: mora dentro do
 // FreezeWhileClosing do modal e não pode redesenhar enquanto ele sai.
+import { useQuery } from "@tanstack/react-query";
+import { TriangleAlert } from "lucide-react";
+import { Link } from "wouter";
 import { pulaAprovacao } from "@shared/prazo-sem-aprovacao";
 import { FileImage, Maximize2, RotateCcw } from "lucide-react";
 import { FilePreview, isWebUrl } from "@/components/file-preview";
@@ -25,6 +28,12 @@ export function FichaComparacao({ selectedItem, isMobile, dedo = false, modo = i
    */
   modo?: "lado" | "empilhada" | "celular";
 }) {
+  const { data: conferencia } = useQuery<{ veredito: string; motivo: string | null; resolvidaEm: string | null } | null>({
+    queryKey: ["/api/conferencia-do-arquivo", "peca", selectedItem?.id],
+    queryFn: async () => { const r = await fetch(`/api/items/${selectedItem!.id}/conferencia-do-arquivo`, { credentials: "include" }); return r.ok ? r.json() : null; },
+    enabled: !!selectedItem?.id,
+    staleTime: 60_000,
+  });
   const flexiona = modo === "lado";
   /**
    * EMPILHADAS no celular e no tablet (02/10, dono): lado a lado, cada quadro
@@ -57,6 +66,14 @@ export function FichaComparacao({ selectedItem, isMobile, dedo = false, modo = i
         </div>
       )}
 
+      {/* A conferência automática achou diferença entre o arquivo e o thumb (04/11). */}
+      {conferencia?.veredito === "vale_olhar" && !conferencia.resolvidaEm && (
+        <div data-testid="aviso-conferencia-do-arquivo" role="status" style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "8px 12px", borderRadius: R.md, backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, color: TOM.alerta.text, fontSize: FS.body }}>
+          <TriangleAlert aria-hidden="true" style={{ width: 15, height: 15, flexShrink: 0, marginTop: 2 }} />
+          <span><strong>O arquivo parece diferente do thumb.</strong> {conferencia.motivo}{" "}
+            <Link href="/conferencia-arquivos" style={{ color: "inherit", textDecoration: "underline" }}>Ver lado a lado</Link></span>
+        </div>
+      )}
       {/* ── 2 · COMPARAÇÃO — a única faixa que flexiona ──
           Os dois arquivos lado a lado na LARGURA INTEIRA do modal: é a
           comparação que esta tela existe para mostrar. `min-height: 200`

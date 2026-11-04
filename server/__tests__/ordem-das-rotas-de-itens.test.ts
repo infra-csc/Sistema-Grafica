@@ -38,6 +38,7 @@ const ORDEM_ORIGINAL = [
   "POST /api/items/marcas-sem-aprovacao",
   "GET /api/events/:id/export-items",
   "POST /api/items/export-xlsx",
+  "POST /api/reaproveitar/excel",
   "POST /api/events/:id/preview-xlsx",
   "POST /api/events/:id/confirm-import",
   "POST /api/events/:id/clone-items",

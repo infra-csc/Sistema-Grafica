@@ -218,7 +218,7 @@ describe("1 · a fronteira do molde fica fechada fora do rascunho", () => {
 // ═════════════════════════════════════════════════════════════════════════════
 // 2. Quantidade de peça travada
 // ═════════════════════════════════════════════════════════════════════════════
-describe("2 · peça travada não muda de quantidade", () => {
+describe("2 · peça travada: só quem trava muda a quantidade", () => {
   it("PATCH genérico: a redução que a promoveria a Produzido volta 409 com a frase da trava", async () => {
     mundo.itens.p1 = peca({ status: "inProduction", quantity: 10, quantityProduced: 6, ...TRAVA });
     const r = await chamar("PATCH /api/items/:id", { params: { id: "p1" }, body: { quantity: 6 }, userRole: "solicitacao" });
@@ -229,9 +229,14 @@ describe("2 · peça travada não muda de quantidade", () => {
     expect(mundo.itens.p1.quantity).toBe(10);
   });
 
-  it("qualquer mudança de quantidade (a regra escolhida é a mais simples); outros campos passam", async () => {
+  it("a Arte não muda a quantidade; quem trava muda, e a trava fica; outros campos passam", async () => {
     mundo.itens.p1 = peca({ status: "draft", quantity: 10, ...TRAVA });
-    expect((await chamar("PATCH /api/items/:id", { params: { id: "p1" }, body: { quantity: 12 }, userRole: "admin" })).status).toBe(409);
+    expect((await chamar("PATCH /api/items/:id", { params: { id: "p1" }, body: { quantity: 12 }, userRole: "arte" })).status).toBe(403);
+    expect(mundo.itens.p1.quantity).toBe(10);
+    expect((await chamar("PATCH /api/items/:id", { params: { id: "p1" }, body: { quantity: 12 }, userRole: "admin" })).status).toBe(200);
+    expect(mundo.itens.p1.quantity).toBe(12);
+    expect(mundo.itens.p1.travadaEm).toBeTruthy();
+    mundo.itens.p1.quantity = 10;
     const obs = await chamar("PATCH /api/items/:id", { params: { id: "p1" }, body: { observations: "ok", quantity: 10 }, userRole: "admin" });
     expect(obs.status).toBe(200);
     expect(mundo.itens.p1.observations).toBe("ok");

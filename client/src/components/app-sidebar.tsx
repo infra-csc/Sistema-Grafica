@@ -2,8 +2,7 @@ import {
   Calendar, CalendarRange, Palette, Printer, Layers, LayoutDashboard,
   Activity, BarChart3, Users, Building2, UserCheck, ClipboardCheck,
   Link2, LogOut, ScrollText, Archive, ScanSearch, Settings2, SlidersHorizontal, Camera, Wand2,
-  Timer, GitBranch, Bell, Inbox, Cog, PackageSearch, Recycle, X,
-} from "lucide-react";
+  Timer, GitBranch, Bell, Inbox, Cog, PackageSearch, Recycle, X, FileSearch } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
@@ -88,6 +87,7 @@ const fluxoItems: MenuItem[] = [
   // menu uma tela com esse nome. A rota continua /solicitacao; o testId fica.
   { title: "Revisão Final",           url: "/solicitacao",             icon: ClipboardCheck, roles: ["solicitacao", "admin"], testId: "nav-revisão" },
   { title: "Gráfica",                 url: "/grafica",                 icon: Printer,        roles: ["grafica", "solicitacao", "admin"] },
+  { title: "Conferência de arquivos", url: "/conferencia-arquivos",    icon: FileSearch,     roles: ["arte", "grafica", "solicitacao", "admin"], semKit: true },
   // Quem reaproveita não é quem imprime (dono, 03/11): diz quantas têm no estoque.
   { title: "Reaproveitar",            url: "/reaproveitar",            icon: Recycle,        roles: ["grafica", "solicitacao", "admin"] },
   // A aba de impressoras (dono, 14/09): o que cada uma imprime agora e o

@@ -1,0 +1,40 @@
+CONFERIDOR DA MIRÓ
+Compara o arquivo final da pasta da rede com o thumb da peça no sistema da Miró.
+
+O QUE ELE FAZ
+- Pergunta ao sistema quais peças precisam de conferência.
+- Lê o arquivo na pasta da rede. Só lê: não grava, não move e não apaga nada lá.
+- Gera uma imagem reduzida (até 1000 px) e envia para o sistema.
+- O sistema compara essa imagem com o thumb usando a API da Anthropic (Claude).
+- Só faz conexão de saída, por HTTPS (porta 443), para o endereço do sistema.
+  Não abre porta nem recebe conexão.
+
+REQUISITOS
+- Windows ligado o tempo todo, de preferência no cabo, na mesma rede da pasta.
+- Node.js 24 LTS (ou 22.13 ou mais novo).
+- Uma conta com permissão de LEITURA em \\10.100.1.7\TTKGrafica e \\10.100.1.30\Arte_Eventos_2026.
+  A conta SYSTEM normalmente não alcança essas pastas: use uma conta de serviço.
+
+INSTALAÇÃO
+1. Copie esta pasta para, por exemplo, C:\conferidor.
+2. No PowerShell, dentro da pasta, rode:  npm install --omit=dev
+3. Copie .conferidor.env.exemplo para .conferidor.env e coloque o token recebido.
+   Deixe esse arquivo legível só para a conta de serviço.
+4. Teste, com a conta de serviço:  rodar.cmd
+   Depois abra conferidor.log. A última linha deve ser "Passada concluída: ...".
+5. No Agendador de Tarefas, crie uma tarefa:
+   - Programa: C:\conferidor\rodar.cmd
+   - Repetir a cada 10 minutos, indefinidamente
+   - Executar estando o usuário conectado ou não, com a conta de serviço
+   - Se a tarefa já estiver em execução: não iniciar nova instância
+   - Limite de execução: desativado (a primeira passada pode levar horas)
+
+CONFERIDOR.LOG
+"Passada concluída" mostra quantas peças conferiram, quantas ficaram para olhar e
+quantas não deram para conferir.
+"Servidor respondeu 401": o token está errado.
+"Servidor respondeu 503": a conferência ainda não está ligada no sistema.
+
+OPCIONAL
+CONFERIDOR_SIMULTANEOS no .conferidor.env define quantos arquivos abrir ao mesmo
+tempo (padrão: 4).

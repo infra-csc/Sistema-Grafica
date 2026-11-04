@@ -12,7 +12,7 @@
 import type React from "react";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Calendar, Check, Package, Recycle, Truck } from "lucide-react";
+import { Calendar, Check, FileSpreadsheet, Package, Recycle, Truck } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
@@ -94,6 +94,27 @@ export default function Reaproveitar() {
   }, [daAba, busca, evento]);
   const naTela = visiveis.slice(0, vistas);
 
+  // O Excel para separar no estoque: a lista que está na tela, com os filtros dela.
+  const [exportando, setExportando] = useState(false);
+  const exportarExcel = async () => {
+    if (exportando || visiveis.length === 0) return;
+    setExportando(true);
+    try {
+      const res = await apiRequest("POST", "/api/reaproveitar/excel", { ids: visiveis.map((p) => p.id) });
+      const nome = decodeURIComponent(/filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1] ?? "Reaproveitar.xlsx");
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = url; a.download = nome;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      toast({ title: "Excel gerado", description: `${visiveis.length} ${visiveis.length === 1 ? "peça" : "peças"} para separar no estoque.`, variant: "success" });
+    } catch (e) {
+      toast({ title: "Não foi possível gerar o Excel", description: e instanceof Error ? e.message : "Tente de novo em instantes.", variant: "destructive" });
+    } finally {
+      setExportando(false);
+    }
+  };
+
   const responder = useMutation({
     mutationFn: async ({ peca, qty }: { peca: PecaDaFila; qty: number }) =>
       (await apiRequest("POST", `/api/items/${peca.id}/mark-reuse`, {
@@ -149,6 +170,15 @@ export default function Reaproveitar() {
             searchPlaceholder="Buscar evento…" emptyText="Nenhum evento encontrado."
             testId="filtro-evento-reaproveitar" fullWidth={isMobile} panelWidth={isMobile ? undefined : 340}
           />
+          <Botao
+            variante="secundario" icone={FileSpreadsheet} tamanho={isMobile || dedo ? "toque" : "md"}
+            onClick={() => { void exportarExcel(); }} carregando={exportando} disabled={visiveis.length === 0}
+            data-testid="button-excel-reaproveitar"
+            title={evento === "all" ? "Baixar a lista de todos os eventos. Filtre um evento para a separação de uma prova." : "Baixar a lista desta prova para separar no estoque"}
+            style={isMobile ? { width: "100%" } : undefined}
+          >
+            {evento === "all" ? `Excel (${visiveis.length})` : `Excel desta prova (${visiveis.length})`}
+          </Botao>
         </div>
       )}
 

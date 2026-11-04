@@ -5,6 +5,7 @@ import { requireAuth } from "../shared";
 import { responderErro, corpoEventoFechado } from "../../erros";
 import { handlePreviewXlsx, handleConfirmImport } from "../../services/xlsxImport";
 import { handleExportItemsXlsx, handleExportSelectedItemsXlsx } from "../../services/xlsxExport";
+import { responderExcelDoReaproveitar } from "../../services/excelDoReaproveitar";
 import { motivoEventoFechado } from "../eventoFinalizado";
 import { canCreateItemsFor } from "./comum";
 
@@ -33,6 +34,8 @@ export function registrarPlanilha(app: Express): void {
   app.get("/api/events/:id/export-items", requireAuth, handleExportItemsXlsx);
   // Exportação da Gráfica: recebe os ids já filtrados pela tela.
   app.post("/api/items/export-xlsx", requireAuth, handleExportSelectedItemsXlsx);
+  // A lista para separar no estoque, na tela Reaproveitar.
+  app.post("/api/reaproveitar/excel", requireAuth, responderExcelDoReaproveitar);
 
   // Import de Excel usa o fluxo preview → confirm (abaixo). O endpoint direto
   // /import-xlsx (parser legado) foi removido: importava a aba errada em

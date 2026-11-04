@@ -38,6 +38,7 @@ coverage/
 # Segredos locais — nunca no repositório.
 .env
 .env.*
+.conferidor.env
 # O modelo é o contrário: só nomes e comentários, nenhum valor. Precisa estar
 # versionado, senão ninguém descobre quais variáveis existem.
 !.env.example

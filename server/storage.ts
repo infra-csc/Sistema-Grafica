@@ -64,7 +64,8 @@ import { MARCA_DEVOLVIDA_PELA_ARTE, MARCA_DEVOLVIDA_PARA_A_CRIACAO } from "@shar
 import { problemaNaDataDoEvento, fraseDaDataInvalida } from "@shared/prazo-dates";
 import { doEventoNaoArquivado, daPecaDeEventoNaoArquivado } from "./services/arquivamento";
 import { ehForaDoFunil } from "@shared/fluxo-peca";
-import { moldeConcluido } from "@shared/molde";
+import { moldeConcluido, ehTipoMolde } from "@shared/molde";
+import { EM_VINCULACAO } from "@shared/maquina-de-estados";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // VOCABULÁRIO DE displayId — lado SERVIDOR.
@@ -2601,9 +2602,11 @@ export class DatabaseStorage implements IStorage {
     // Um único UPDATE por conjunto (via inArray) em vez de N updates em loop —
     // atômico e sem N+1. Envolto em transação para que peças por item e por
     // alocação manual sejam despachadas juntas ou nenhuma.
+    // "Nasceu depois da saída" só vale para quem nunca passou pelo ciclo (nunca foi
+    // atualizado): sem isso, o ativo já triado voltava para a triagem a cada hora.
     const jaSaiu = or(
       lt(inventoryAssets.updatedAt, departureDate),
-      gte(inventoryAssets.createdAt, departureDate),
+      and(gte(inventoryAssets.createdAt, departureDate), eq(inventoryAssets.updatedAt, inventoryAssets.createdAt)),
     );
 
     // Reserva de peça cancelada/excluída NÃO vai no caminhão (a alocação sem
@@ -2640,7 +2643,8 @@ export class DatabaseStorage implements IStorage {
           .where(and(
             inArray(inventoryAssets.id, allocIds),
             eq(inventoryAssets.trackingStatus, 'NO_GALPAO'),
-            jaSaiu
+            jaSaiu,
+            ...foraDeOutraReserva,
           ));
         updated += r2.rowCount ?? 0;
       }
@@ -2679,7 +2683,8 @@ export class DatabaseStorage implements IStorage {
           .set({ trackingStatus: 'AGUARDANDO_TRIAGEM', updatedAt: new Date() })
           .where(and(
             inArray(inventoryAssets.id, allocIds),
-            eq(inventoryAssets.trackingStatus, 'EM_USO')
+            eq(inventoryAssets.trackingStatus, 'EM_USO'),
+            ...foraDeOutraReserva,
           ));
         updated += r2.rowCount ?? 0;
       }
@@ -2830,7 +2835,9 @@ export class DatabaseStorage implements IStorage {
       // automática por cota não a enxerga (shared/producao-interna.ts).
       // KIT (21/10): para a Solicitação da Arena, as peças do Kit ficam de
       // fora — ela só as visualiza (a mesma régua do "Aplicar sugestões").
-      .where(and(eq(items.eventId, eventId), eq(items.producaoInterna, false), ...(opcoes.semPecasDoKit ? [isNull(items.kitRemessaId)] : [])));
+      // Só peça em vinculação, como o sync e o "Aplicar sugestões": a cota não mexe em
+      // peça impressa, cancelada, excluída nem nas marcadas sem aprovação.
+      .where(and(eq(items.eventId, eventId), inArray(items.status, [...EM_VINCULACAO]), isNull(items.deletedAt), eq(items.skipApproval, false), eq(items.arteDoCliente, false), eq(items.producaoInterna, false), ...(opcoes.semPecasDoKit ? [isNull(items.kitRemessaId)] : [])));
 
     // Get existing item-sponsor links to avoid duplicates
     const existingLinks = await db.select({ itemId: itemSponsors.itemId, sponsorId: itemSponsors.sponsorId })
@@ -2852,6 +2859,7 @@ export class DatabaseStorage implements IStorage {
       if (!sp.quota || !ruleMap[sp.quota]) continue;
       const allowedGroups = ruleMap[sp.quota];
       const matchingItems = eventItems.filter(it =>
+        !ehTipoMolde(it.type) &&
         allowedGroups.some(g => matchesGroup(it.type, g)) &&
         !linkedSet.has(`${it.id}:${sp.sponsorId}`)
       );

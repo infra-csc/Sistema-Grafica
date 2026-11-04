@@ -212,6 +212,13 @@ export function registrarAprovacao(app: Express): void {
         });
       }
 
+      // Quem reprovou espera a versão nova da Arte: a mesma trava da aprovação
+      // por patrocinador. O atalho aprovava também essa linha.
+      const linhasAntes = await storage.getItemSponsorApprovals(req.params.id);
+      if (linhasAntes.some((l) => l.status === "awaiting_arte")) {
+        return res.status(409).json({ error: "Há patrocinador aguardando a nova versão da Arte. Aprove os demais um a um." });
+      }
+
       const item = await storage.updateItem(req.params.id, {
         status: "sponsor_approved",
         sponsorApprovedBy: req.userName,
@@ -876,6 +883,11 @@ export function registrarAprovacao(app: Express): void {
       const alvo = await storage.getItem(itemId);
       if (!alvo) return res.status(404).json({ error: "Item não encontrado" });
       if (await barraEventoFinalizado(alvo, res)) return;
+      // Abrir rodada nova só cabe onde a peça ainda vai para a Aprovação: depois
+      // disso, apagava quem aprovou e deixava uma pendência falsa por baixo.
+      if (!["awaiting_submission", "awaiting_approval", "awaiting_sponsor_approval"].includes(alvo.status)) {
+        return res.status(409).json({ error: `A aprovação não pode ser reiniciada: a peça está em "${translateStatus(alvo.status)}".` });
+      }
 
       // Get item sponsors
       const itemSponsors = await storage.getItemSponsors(itemId);

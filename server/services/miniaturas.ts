@@ -13,7 +13,7 @@
 import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
-let sharp: typeof import("sharp") | null = null;
+let sharp: (typeof import("sharp"))["default"] | null = null;
 try {
   sharp = require("sharp");
 } catch {

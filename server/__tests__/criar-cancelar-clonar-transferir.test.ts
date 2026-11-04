@@ -215,9 +215,8 @@ describe("3 · dispensar aprovação e reaproveitar pelo PATCH", () => {
 
   it("o form inteiro com o MESMO valor passa (Arte editando outro campo)", async () => {
     mundo.itens.p1 = peca();
-    const r = await chamar("PATCH /api/items/:id", { params: { id: "p1" }, userRole: "arte", body: { skipApproval: false, isReuse: false, description: "Pórtico novo" } });
+    const r = await chamar("PATCH /api/items/:id", { params: { id: "p1" }, userRole: "arte", body: { skipApproval: false, isReuse: false, approvalThumbUrl: "/objects/uploads/novo" } });
     expect(r.status).toBe(200);
-    expect(mundo.itens.p1.description).toBe("Pórtico novo");
   });
 
   it("isReuse=true sem reuseQty é recusado; com a quantidade, grava as duas", async () => {

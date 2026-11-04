@@ -7,6 +7,9 @@ import { responderErro } from "../../erros";
 // Régua do thumb (só objeto do nosso storage): ./thumb-url.ts.
 import { urlDeThumbValida, ERRO_THUMB_FORA_DO_STORAGE } from "../thumb-url";
 import { barraEventoFinalizado } from "../eventoFinalizado";
+import { regraDaTrocaDeThumb } from "@shared/troca-de-material";
+import { pool } from "../../db";
+import { criarAclDoKit, MSG_ARQUIVO_FORA_DO_KIT } from "../../objectAcl";
 import { recusaDaMarcaNaEscrita } from "@shared/producao-interna";
 import { lerOrigemDoCorpo, colunasDaOrigem, origemDe, fraseDaTrilhaDaOrigem, FIM_DO_FLUXO, recusaDaContaNoGalpao, origemComparavel } from "@shared/origem-do-reaproveitamento";
 import { pecaTravada, fraseDaTrava, CODIGO_PECA_TRAVADA } from "@shared/trava-da-peca";
@@ -16,8 +19,10 @@ import { recalcularEventoEAvisar } from "../../services/evento-concluido";
 import { marcasEditaveis, recusaAoMarcar, FRASE_MARCA_TRAVADA } from "@shared/prazo-sem-aprovacao";
 import { colunasDaArteDoCliente, frasesDasMarcasDaPeca } from "../../services/marcas-de-aprovacao";
 import {
-  updateItemSchema, normalizarReferencias, planejarEdicao, descreverEdicao, avisarDepoisDaEdicao,
+  updateItemSchema, normalizarReferencias, planejarEdicao, camposDoContratoQueMudam, descreverEdicao, avisarDepoisDaEdicao,
 } from "../../services/edicao-da-peca";
+
+const aclDoKit = criarAclDoKit((texto, params) => pool.query(texto, params));
 
 /**
  * Quem muda o CAMINHO da peça pelo PATCH genérico — dispensar a aprovação do
@@ -69,14 +74,24 @@ export function registrarEdicao(app: Express): void {
         });
       }
 
-      // Referências normalizadas para /objects/, com ACL de quem enviou.
-      await normalizarReferencias(validatedData, req.userId!);
-
       // Pegar item atual antes de atualizar
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) {
         return res.status(404).json({ error: "Peça não encontrada" });
       }
+      // USUÁRIO DO KIT: gravar o caminho de um arquivo na peça dele fazia o
+      // arquivo "virar dele" para a ACL, e assim abria a arte de outra peça.
+      if (req.userKit && req.userId) {
+        const atuais = new Set([currentItem.approvalThumbUrl, currentItem.finalFileUrl, currentItem.referenceUrl, ...(currentItem.referenceUrls ?? [])]);
+        const novos = [validatedData.approvalThumbUrl, validatedData.finalFileUrl, validatedData.referenceUrl, ...(validatedData.referenceUrls ?? [])];
+        for (const url of novos) {
+          if (url && !atuais.has(url) && !(await aclDoKit.podeLer(req.idDoKit ?? req.userId, url))) {
+            return res.status(400).json({ error: MSG_ARQUIVO_FORA_DO_KIT });
+          }
+        }
+      }
+      // Referências normalizadas para /objects/, com ACL de quem enviou.
+      await normalizarReferencias(validatedData, req.userId!);
       // PRIORIDADE DA PEÇA (dono, 27/08): quem decide o que fura a fila da
       // Arte é quem gerencia a lista — admin e Solicitação. O gate dispara só
       // quando o valor MUDA: o formulário manda o form inteiro no spread, e
@@ -188,6 +203,19 @@ export function registrarEdicao(app: Express): void {
       // "MOLDE", "moldes" → "Molde" (o nome que a lista e a importação gravam).
       if (typeof validatedData.type === "string" && validatedData.type) validatedData.type = tipoCanonico(validatedData.type);
 
+      // O CONTRATO DA PEÇA (quantidade, material, medidas, descrição) é de quem
+      // gerencia a lista. Arte e Atendimento editam thumb e referência por aqui
+      // e não têm tela para o resto: mudavam até peça na impressora. Dispara na
+      // MUDANÇA, porque um formulário pode mandar os campos como estão.
+      if (["arte", "atendimento"].includes(role)) {
+        const mudou = camposDoContratoQueMudam(currentItem, validatedData, req.body);
+        if (mudou.length > 0) {
+          const parentEvent = await storage.getEvent(currentItem.eventId);
+          if (parentEvent?.createdBy !== req.userId) {
+            return res.status(403).json({ error: "Quantidade, material, medidas e descrição são editados pela Solicitação." });
+          }
+        }
+      }
       // THUMB pelo PATCH genérico: a mesma régua das rotas de envio — só
       // objeto do nosso storage (thumb-url.ts). Vazio/null = limpar, passa; o
       // MESMO valor que já está gravado também passa (o formulário manda o
@@ -196,6 +224,17 @@ export function registrarEdicao(app: Express): void {
         const thumb = urlDeThumbValida(validatedData.approvalThumbUrl);
         if (!thumb) return res.status(400).json({ error: ERRO_THUMB_FORA_DO_STORAGE });
         validatedData.approvalThumbUrl = thumb;
+      }
+      // TROCAR thumb que já existe tem regra (shared/troca-de-material): a peça
+      // liberada não troca, e o thumb aprovado só troca com motivo, pela rota
+      // que grava a versão e reabre a aprovação. Por aqui passava sem nada disso.
+      if (validatedData.approvalThumbUrl !== undefined && currentItem.approvalThumbUrl
+          && (validatedData.approvalThumbUrl || null) !== currentItem.approvalThumbUrl) {
+        const regra = regraDaTrocaDeThumb(currentItem);
+        if (!regra.pode) return res.status(409).json({ error: regra.motivo });
+        if (regra.exigeMotivo) {
+          return res.status(400).json({ error: "Este thumb já está em aprovação ou aprovado: a troca pede um motivo. Use “Trocar thumb” na Arte." });
+        }
       }
 
       // A regra da edição (quantidade, reaproveitamento, campos derivados):

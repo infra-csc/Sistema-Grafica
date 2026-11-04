@@ -68,6 +68,29 @@ export const updateItemSchema = insertItemSchema
 
 export type DadosDaEdicao = ReturnType<typeof updateItemSchema.parse>;
 
+/** O que define a peça encomendada: muda com quem gerencia a lista. */
+const CAMPOS_DO_CONTRATO = [
+  "type", "description", "quantity", "area", "visual", "visualWidth", "visualHeight", "fileWidth", "fileHeight",
+  "material", "finish", "measurement", "calculatedM2", "observations", "standardItemId", "producaoInterna", "instrucoesGrafica",
+] as const;
+
+const mesmoValor = (a: unknown, b: unknown): boolean => {
+  const x = a === "" || a === undefined ? null : a;
+  const y = b === "" || b === undefined ? null : b;
+  if (x === null || y === null) return x === y;
+  if (Number.isFinite(Number(x)) && Number.isFinite(Number(y))) return Number(x) === Number(y);
+  return String(x) === String(y);
+};
+
+/** Os campos do contrato que esta edição muda de verdade (o corpo pode trazer o formulário inteiro). */
+export function camposDoContratoQueMudam(atual: Record<string, unknown>, dados: Record<string, unknown>, corpo: Record<string, unknown> = {}): string[] {
+  const mudou: string[] = CAMPOS_DO_CONTRATO.filter((c) => dados[c] !== undefined && !mesmoValor(dados[c], atual[c]));
+  for (const c of ["reuseQty", "origemReaproveitamento", "obsReaproveitamento"]) {
+    if (corpo[c] !== undefined && !mesmoValor(corpo[c], atual[c])) mudou.push(c);
+  }
+  return mudou;
+}
+
 /** A recusa que a rota devolve como está: status HTTP e corpo. */
 export type RecusaDaEdicao = { recusa: { status: number; corpo: Record<string, unknown> } };
 const recusa = (status: number, corpo: Record<string, unknown>): RecusaDaEdicao => ({ recusa: { status, corpo } });

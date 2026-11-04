@@ -274,7 +274,7 @@ describe("as outras portas", () => {
     expect(arte.status).toBe(403);
     // o formulário manda "" para "sem origem" — não pode quebrar o PATCH de quem não mexe nela
     H.mundo.itens.p1 = peca({ status: "draft" });
-    expect((await chamar("PATCH /api/items/:id", { description: "Nova", origemReaproveitamento: "", obsReaproveitamento: "" }, "arte")).status).toBe(200);
+    expect((await chamar("PATCH /api/items/:id", { origemReaproveitamento: "", obsReaproveitamento: "" }, "arte")).status).toBe(200);
   });
 
   it("PATCH da peça: em trânsito sem observação é 400; desligar o reaproveitamento apaga a origem", async () => {

@@ -167,7 +167,7 @@ describe("PATCH /api/items/:id/sponsor-approve — o atalho aprova as LINHAS jun
     const antes = new Date("2026-08-01T10:00:00Z");
     mundo.aprovacoes.p1 = [
       linha("sp-vale", "pending"),
-      linha("sp-ache", "awaiting_arte", { rejectedBy: "Ana", rejectedAt: antes, rejectionReason: "logo torto" }),
+      linha("sp-ache", "pending"),
       linha("sp-min", "approved", { approvedBy: "Bia", approvedAt: antes }),
     ];
     const r = await aprovarTudo();
@@ -180,6 +180,13 @@ describe("PATCH /api/items/:id/sponsor-approve — o atalho aprova as LINHAS jun
     // quem já tinha aprovado não é reescrito (autor e hora originais ficam)
     expect(linhaDe("sp-min")).toMatchObject({ approvedBy: "Bia", approvedAt: antes });
     expect(H.storage.updateItemSponsorApproval).toHaveBeenCalledTimes(2);
+  });
+
+  it("quem reprovou espera a versão nova da Arte: o atalho não passa por cima", async () => {
+    mundo.aprovacoes.p1 = [linha("sp-vale", "pending"), linha("sp-ache", "awaiting_arte", { rejectedBy: "Ana", rejectionReason: "logo torto" })];
+    const r = await aprovarTudo();
+    expect(r.status).toBe(409);
+    expect(linhaDe("sp-ache").status).toBe("awaiting_arte");
   });
 
   it("o cache das Versões é invalidado — aprovação muda o que a tela mostra", async () => {

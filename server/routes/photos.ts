@@ -1,4 +1,5 @@
 // Delivery-photo routes. Extracted from server/routes.ts.
+import { urlDeThumbValida, ERRO_THUMB_FORA_DO_STORAGE } from "./thumb-url";
 import type { Express } from "express";
 import { z } from "zod";
 import { storage } from "../storage";
@@ -49,7 +50,11 @@ export function registerPhotoRoutes(app: Express): void {
         uploadedBy: req.userName || "Sistema",
       });
 
-      const photo = await storage.addDeliveryPhoto(validatedData);
+      // Comprovante é arquivo do nosso storage: a ficha desenha este valor como link e imagem.
+      const fotoNoStorage = urlDeThumbValida(validatedData.photoUrl);
+      if (!fotoNoStorage) return res.status(400).json({ error: ERRO_THUMB_FORA_DO_STORAGE });
+
+      const photo = await storage.addDeliveryPhoto({ ...validatedData, photoUrl: fotoNoStorage });
 
       broadcast({ type: "photo_added", photo });
 

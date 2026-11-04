@@ -219,6 +219,9 @@ UNION ALL SELECT i.kit_remessa_id, i.criado_por_id FROM tubos t JOIN tubo_itens 
 UNION ALL SELECT r.id, r.criado_por_id FROM kit_remessas r WHERE ${bate("r.arquivo")}
 LIMIT 200`;
 
+/** `<original>/thumb.webp`: ver services/miniaturas.ts. */
+const SUFIXO_DA_MINIATURA = "/thumb.webp";
+
 export function criarAclDoKit(consultar: Consulta, agora: () => number = Date.now) {
   const doUsuario = new Map<string, { expira: number; caminhos: Set<string> }>();
   const donasPorCaminho = new Map<string, { expira: number; donas: Dona[] }>();
@@ -254,8 +257,10 @@ export function criarAclDoKit(consultar: Consulta, agora: () => number = Date.no
   return {
     /** O usuário do Kit pode ler este /objects/…? (Para os outros perfis, não chame: é sempre sim.) */
     async podeLer(userId: string, caminhoPedido: string): Promise<boolean> {
-      const caminho = caminhoDoObjeto(caminhoPedido);
-      if (!caminho) return true;
+      const pedido = caminhoDoObjeto(caminhoPedido);
+      if (!pedido) return true;
+      // A miniatura mora ao lado do original e segue a mesma dona.
+      const caminho = pedido.endsWith(SUFIXO_DA_MINIATURA) ? pedido.slice(0, -SUFIXO_DA_MINIATURA.length) : pedido;
       if ((await arquivosDoUsuario(userId)).has(caminho)) return true;
       const donas = await donasDoArquivo(caminho);
       // Sem dona conhecida: a regra de sempre (qualquer sessão autenticada).

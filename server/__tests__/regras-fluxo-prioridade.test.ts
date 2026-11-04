@@ -109,7 +109,7 @@ describe("prioridade da PEÇA", () => {
       expect((muda.body as any).error).toBe("Marcar peça como prioritária é do admin e da Solicitação.");
       expect(mundo.itens.p1.isPriority).toBe(false);
       // A Arte editando outro campo manda o form inteiro com o valor de sempre.
-      const igual = await patch(papel, { isPriority: false, description: "Pórtico novo" });
+      const igual = await patch(papel, { isPriority: false });
       expect(igual.status, papel).toBe(200);
     }
     mundo.itens.p1 = peca({ isPriority: true });

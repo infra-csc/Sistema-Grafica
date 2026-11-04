@@ -5,13 +5,14 @@
 // da rede: gera uma imagem reduzida e manda para cá. A comparação fica no servidor,
 // junto da chave da IA, e o resultado é só um aviso: nunca trava a peça.
 //
-// Teste de 04/11 em 105 comparações: pegou os arquivos errados e não deu alarme
-// falso de arte. Deixa passar diferença parcial e sutil; é uma rede a mais, não a
-// conferência humana.
+// Teste de 04/11 com o Haiku em 105 comparações: pegou os arquivos errados e não deu
+// alarme falso de arte, mas deixou passar diferença parcial (#8095), que o Sonnet pegou.
+// Por isso o dono escolheu o Sonnet (04/11), cerca de 20 vezes mais caro por peça.
+// É uma rede a mais, não a conferência humana.
 
 import { urlDaApi } from "./auditoria-do-book/ia";
 
-export const MODELO_DA_CONFERENCIA = "claude-haiku-5-5";
+export const MODELO_DA_CONFERENCIA = "claude-sonnet-5-5";
 
 export const PERGUNTA_DA_CONFERENCIA = `São duas imagens de uma peça gráfica de evento.
 Imagem 1: o THUMB aprovado pelo patrocinador.

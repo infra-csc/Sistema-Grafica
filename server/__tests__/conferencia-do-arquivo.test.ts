@@ -31,7 +31,7 @@ describe("chamada da IA", () => {
     const f = vi.fn(async (_u: string, _i: RequestInit) => resposta(200, { content: [{ type: "text", text: '{"veredito":"confere"}' }], usage: { input_tokens: 10, output_tokens: 3 } }));
     vi.stubGlobal("fetch", f);
     const r = await compararComIA("THUMB", "FINAL", "chave");
-    expect(r).toMatchObject({ veredito: "confere", modelo: "claude-haiku-5-5", tokensEntrada: 10, tokensSaida: 3 });
+    expect(r).toMatchObject({ veredito: "confere", modelo: "claude-sonnet-5-5", tokensEntrada: 10, tokensSaida: 3 });
     const corpo = JSON.parse(String(f.mock.calls[0][1].body));
     expect(corpo.messages[0].content[0].source.data).toBe("THUMB");
     expect(corpo.messages[0].content[1].source.data).toBe("FINAL");
@@ -73,6 +73,7 @@ describe("quais peças entram na fila", () => {
     ["peça com algo impresso fica de fora", "coalesce(i.quantity_produced, 0) = 0"],
     ["sem thumb guardado fica de fora", "i.approval_thumb_url like '/objects/%'"],
     ["trocou arquivo ou thumb, confere de novo", "c.arquivo = i.final_file_url and c.thumb = i.approval_thumb_url"],
+    ["confere de outro modelo volta para a fila", "c.veredito = 'confere' and c.modelo is distinct from 'claude-sonnet-5-5'"],
     ["não deu volta para a fila depois de um dia", "c.veredito = 'nao_deu' and c.resolvida_em is null and c.criada_em < now() - interval '1 day'"],
   ])("%s", (_n, trecho) => {
     expect(SQL_PENDENTES).toContain(trecho);

@@ -7,7 +7,7 @@ import { pool } from "../db";
 import { requireAuth, requireRole, createAuditLog, broadcast } from "./shared";
 import { conferirTokenDaIntegracao } from "./integracao-checklist";
 import { ObjectStorageService } from "../objectStorage";
-import { compararComIA, type Veredito } from "../services/conferencia-do-arquivo";
+import { compararComIA, MODELO_DA_CONFERENCIA, type Veredito } from "../services/conferencia-do-arquivo";
 import { storage } from "../storage";
 
 const require = createRequire(import.meta.url);
@@ -25,7 +25,8 @@ const DADOS_DA_PECA = `
 const CONDICAO_DA_FILA = `
     from items i join events e on e.id = i.event_id
     left join conferencias_do_arquivo c on c.item_id = i.id and c.arquivo = i.final_file_url and c.thumb = i.approval_thumb_url
-   where (c.id is null or (c.veredito = 'nao_deu' and c.resolvida_em is null and c.criada_em < now() - interval '1 day'))
+   where (c.id is null or (c.veredito = 'nao_deu' and c.resolvida_em is null and c.criada_em < now() - interval '1 day')
+          or (c.veredito = 'confere' and c.modelo is distinct from '${MODELO_DA_CONFERENCIA}'))
      and i.deleted_at is null and e.arquivado_em is null and e.status <> 'closed'
      and e.start_date >= (now() at time zone 'America/Sao_Paulo')::date
      and i.approval_thumb_url like '/objects/%' and coalesce(i.final_file_url, '') <> ''
@@ -36,6 +37,7 @@ const CONDICAO_DA_FILA = `
  * Só o que ainda dá para mudar: nada impresso e evento por vir.
  * "Não deu" volta para a fila depois de um dia: o arquivo pode ter sido colocado na
  * pasta. Gravar de novo renova a data, então uma peça não fica girando sem parar.
+ * "Confere" dado por outro modelo volta também: trocar de modelo é para valer em tudo.
  */
 export const SQL_PENDENTES = `
   select i.id, i.display_id as "displayId", i.final_file_url as "arquivo", i.approval_thumb_url as "thumb"${CONDICAO_DA_FILA}

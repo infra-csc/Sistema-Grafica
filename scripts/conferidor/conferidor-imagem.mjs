@@ -12,7 +12,7 @@ const { createCanvas } = req("@napi-rs/canvas");
 sharp.concurrency(1);
 const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
 
-const LADO = 1000, TETO_AI = 80 * 1048576, TETO_TIF = 500 * 1048576, MAX_PRANCHETAS = 60;
+const LADO = 1000, TETO_AI = 80 * 1048576, TETO_TIF = 500 * 1048576, MAX_PRANCHETAS = 60, MAX_CANDIDATAS = 3;
 // O caminho vem como foi colado: às vezes entre aspas e com barras trocadas.
 const caminhoLocal = (u) => u.trim().replace(/^"+|"+$/g, "").split("/").join(path.sep);
 
@@ -54,19 +54,21 @@ async function imagemDoArquivo(arquivo, thumb) {
   }
   if (st.size > TETO_AI) throw new Error("Arquivo grande demais para conferir.");
   const a = await abrirPdf(u);
-  // Um .ai costuma ter várias pranchetas: vale a mais parecida com o thumb.
+  // Um .ai costuma ter várias pranchetas. A semelhança só ordena: em formas simples
+  // (o numeral 1 e o 2 de um pódio) ela erra, então vão as mais parecidas e o servidor
+  // só avisa se nenhuma conferir.
   const n = Math.min(a.doc.numPages, MAX_PRANCHETAS);
-  let melhor = 1;
+  let ordem = [1];
   if (n > 1) {
     if (!a.assinaturas) {
       a.assinaturas = [];
       for (let i = 1; i <= n; i++) a.assinaturas.push(await assinatura(await desenhar(await a.doc.getPage(i), 200)));
     }
     const alvo = await assinatura(thumb);
-    let menor = Infinity;
-    a.assinaturas.forEach((s, i) => { const d = distancia(alvo, s); if (d < menor) { menor = d; melhor = i + 1; } });
+    ordem = a.assinaturas.map((s, i) => ({ pagina: i + 1, d: distancia(alvo, s) })).sort((x, y) => x.d - y.d).slice(0, MAX_CANDIDATAS).map((x) => x.pagina);
   }
-  return { jpg: await emJpeg(await desenhar(await a.doc.getPage(melhor), LADO)), pagina: `${melhor}/${a.doc.numPages}` };
+  const [jpg, ...outras] = await Promise.all(ordem.map(async (p) => emJpeg(await desenhar(await a.doc.getPage(p), LADO))));
+  return { jpg, pagina: `${ordem[0]}/${a.doc.numPages}`, extras: outras.map((o, i) => ({ final: o.toString("base64"), pagina: `${ordem[i + 1]}/${a.doc.numPages}` })) };
 }
 
 // Problema da rede ou de permissão não diz nada sobre a peça: não grava, tenta na próxima passada.
@@ -80,11 +82,11 @@ async function pastaResponde(arquivo) {
 
 process.on("message", async ({ id, arquivo, thumb }) => {
   try {
-    const { jpg, pagina } = await imagemDoArquivo(arquivo, Buffer.from(thumb, "base64"));
+    const { jpg, pagina, extras } = await imagemDoArquivo(arquivo, Buffer.from(thumb, "base64"));
     // Quase toda branca costuma ser falha ao gerar, não arte em branco: não vira aviso de arte errada.
     const st = await sharp(jpg).stats();
     if (st.channels.every((c) => c.mean > 250 && c.stdev < 6)) process.send({ id, naoDeu: "A imagem do arquivo saiu em branco ao gerar." });
-    else process.send({ id, final: jpg.toString("base64"), pagina });
+    else process.send({ id, final: jpg.toString("base64"), pagina, extras: extras ?? [] });
   } catch (e) {
     if (ERROS_DA_REDE.has(e?.code)) return process.send({ id, adiar: String(e.code) });
     if (e?.code === "ENOENT" && caminhoLocal(arquivo).startsWith(path.sep + path.sep) && !(await pastaResponde(arquivo))) return process.send({ id, adiar: "pasta da rede fora do ar" });

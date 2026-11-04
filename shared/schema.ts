@@ -446,6 +446,8 @@ export const items = pgTable("items", {
   // A observação livre: "vem do Night Run Salvador, etapa 17/10". Obrigatória
   // para "em trânsito" (a rota recusa sem ela); NULL sem origem.
   obsReaproveitamento: text("obs_reaproveitamento"),
+  // O que quem resolveu a conferência do arquivo escolheu mostrar à Gráfica (04/11).
+  avisoDaConferencia: text("aviso_da_conferencia"),
   // MÓDULO REAPROVEITAR (dono, 03/11): quantas unidades a Revisão Final pediu
   // para reaproveitar e ainda ESPERAM a pessoa do estoque dizer quantas tem. A
   // peça fica fora da fila da Gráfica até a resposta (POST mark-reuse com
@@ -602,7 +604,12 @@ export const conferenciasDoArquivo = pgTable("conferencias_do_arquivo", {
   criadaEm: timestamp("criada_em").notNull().default(sql`now()`),
   resolvidaEm: timestamp("resolvida_em"),
   resolvidaPor: text("resolvida_por"),
+  // O que foi escrito para a Gráfica ao resolver.
   nota: text("nota"),
+  // certo | corrigido
+  resolucao: text("resolucao"),
+  // Corrigiram o arquivo: confere de novo, mesmo com o caminho igual.
+  reconferir: boolean("reconferir").notNull().default(false),
 }, (table) => [
   uniqueIndex("UQ_conferencia_peca_arquivo_thumb").on(table.itemId, table.arquivo, table.thumb),
   index("IDX_conferencia_veredito").on(table.veredito),
@@ -1377,6 +1384,8 @@ export const publicInsertItemSchema = insertItemSchema.omit({
   // nasce sem reaproveitamento contado, então nasce sem origem.
   origemReaproveitamento: true,
   obsReaproveitamento: true,
+  // Só nasce quando alguém resolve a conferência do arquivo.
+  avisoDaConferencia: true,
   // A trava da Solicitação só nasce por POST /api/items/:id/travar.
   travadaEm: true,
   travadaPor: true,

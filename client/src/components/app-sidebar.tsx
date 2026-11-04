@@ -211,6 +211,8 @@ const rotuloDoNumero = (url: string, n: number): string =>
     ? `${n} ${n === 1 ? "peça esperando" : "peças esperando"} a revisão final`
     : url === "/reaproveitar"
     ? `${n} ${n === 1 ? "peça esperando" : "peças esperando"} a resposta do estoque`
+    : url === "/conferencia-arquivos"
+    ? `${n} ${n === 1 ? "arquivo esperando" : "arquivos esperando"} alguém olhar`
     : url === "/grafica/solicitacoes-ao-estoque"
     ? `${n} ${n === 1 ? "solicitação ao estoque esperando" : "solicitações ao estoque esperando"} resposta`
     : `${n} ${n === 1 ? "solicitação esperando" : "solicitações esperando"} ação`;
@@ -519,6 +521,12 @@ export function AppSidebar() {
     queryKey: ["/api/items", "reaproveitar/contagem"],
     enabled: respondeReaproveitar,
   });
+  // Avisos da conferência de arquivos (dono, 04/11): só somem quando alguém resolve.
+  const veConferencia = !user?.kit && ["arte", "grafica", "solicitacao", "admin"].includes(role);
+  const { data: conferencia } = useQuery<{ total: number }>({
+    queryKey: ["/api/conferencia-do-arquivo", "contagem"],
+    enabled: veConferencia,
+  });
   // Peças que a Arte (ou a Vinculação) devolveu para o rascunho (dono, 29/10:
   // "antigamente eu conseguia ver na tela inicial"). O número fica no Painel
   // Geral, onde o aviso com o motivo e o caminho até o evento as lista.
@@ -527,6 +535,7 @@ export function AppSidebar() {
     "/": devolvidas.habilitado ? devolvidas.pecas.length : undefined,
     "/solicitacao": revisaFinal ? revisao?.total : undefined,
     "/reaproveitar": respondeReaproveitar ? reaproveitar?.total : undefined,
+    "/conferencia-arquivos": veConferencia ? conferencia?.total : undefined,
     "/eventos": auditoriasDoBook.habilitado ? auditoriasDoBook.resumo.pecas : undefined,
     "/pedidos-de-peca": resolvePedidos ? pendentes?.total : undefined,
     "/grafica/solicitacoes-ao-estoque": respondeConsultas ? consultasAbertas?.total : undefined,

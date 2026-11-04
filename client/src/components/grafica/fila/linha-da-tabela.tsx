@@ -581,12 +581,14 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
       )}
 
       {/* Linha de observação */}
-      {(item.observations || item.conferenceNotes) && (
+      {(item.observations || item.conferenceNotes || item.avisoDaConferencia) && (
         <tr style={{ backgroundColor: TOM.alerta.bg, borderBottom: `1px solid ${TOM.alerta.border}` }}>
           <td colSpan={nColunas} style={{ padding: "8px 16px" }}>
             <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
               <AlertCircle style={{ width: 14, height: 14, color: TOM.alerta.text, marginTop: 1, flexShrink: 0 }} />
               <span style={{ fontSize: 13, color: TOM.alerta.text, display: "flex", flexDirection: "column", gap: 2 }}>
+                {/* O que quem resolveu a conferência do arquivo escolheu dizer (04/11). */}
+                {item.avisoDaConferencia && <span data-testid={`aviso-do-arquivo-${item.id}`}><strong>Aviso sobre o arquivo:</strong> {item.avisoDaConferencia}</span>}
                 {item.observations && <span><strong>Observações:</strong> {item.observations}</span>}
                 {/* A anotação da conferência acompanha a peça até quem embala (03/11). */}
                 {item.conferenceNotes && <span data-testid={`obs-conferencia-${item.id}`}><strong>Na conferência:</strong> {item.conferenceNotes}</span>}

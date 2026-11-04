@@ -381,6 +381,8 @@ function destinoDaNotificacao(n: Notification, role?: string | null): string | n
     }
     return n.eventId ? `/eventos/${n.eventId}?pedidos=1` : "/pedidos-de-peca";
   }
+  // CONFERÊNCIA DE ARQUIVOS (04/11): a tela onde o aviso se resolve.
+  if (tipo === "conferenciaDoArquivo") return "/conferencia-arquivos";
   // AUDITORIA DO BOOK (19/10): a tela de Eventos já com o painel do evento aberto.
   if (tipo === "bookAuditado") return n.eventId ? `/eventos?foco=book&book=${n.eventId}` : "/eventos?foco=book";
   // Avisos de LOTE, sem peça: a fila onde o lote espera.

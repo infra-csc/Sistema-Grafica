@@ -202,7 +202,7 @@ export function CabecalhoDaArte({
                       // Desabilitado sem dizer por quê parece quebrado: a
                       // linha de baixo explica o que o libera.
                       title={selectedItemIds.size > 0
-                        ? `Usar UM PDF como thumb das ${selectedItemIds.size === 1 ? 'peça selecionada' : `${selectedItemIds.size} peças selecionadas`} e enviar para aprovação`
+                        ? `Usar um PDF como thumb ${selectedItemIds.size === 1 ? 'da peça selecionada' : `das ${selectedItemIds.size} peças selecionadas`} e enviar para aprovação`
                         : 'Marque as peças na tabela (caixinhas à esquerda) para enviar todas com um mesmo PDF'}
                       style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: 1, width: '100%', minHeight: alvo(36, dedo), padding: '4px 12px', borderRadius: R.sm, border: `1px solid ${selectedItemIds.size > 0 ? TOM.laranja.border : T.border}`, background: selectedItemIds.size > 0 ? TOM.laranja.bg : T.surface, color: selectedItemIds.size > 0 ? T.accentText : T.apoio, fontSize: FS.body, fontWeight: 600, cursor: selectedItemIds.size > 0 ? 'pointer' : 'not-allowed', textAlign: 'left' }}
                     >
@@ -237,7 +237,7 @@ export function CabecalhoDaArte({
           <span style={{ fontSize: 12, color: T.strong }}>
             {isMobile
               ? <><b style={{ fontWeight: 700 }}>Modo consulta.</b> Só a Arte altera peças.</>
-              : <><b style={{ fontWeight: 700 }}>Modo consulta.</b> Você vê a fila da Arte e pode exportar PDFs, mas enviar, corrigir, finalizar e pular a aprovação é da equipe de Arte.</>}
+              : <><b style={{ fontWeight: 700 }}>Modo consulta.</b> Você vê a fila da Arte e pode exportar PDFs, mas enviar, corrigir, finalizar e dispensar a aprovação é da equipe de Arte.</>}
           </span>
         </div>
       )}

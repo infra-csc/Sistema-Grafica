@@ -84,7 +84,7 @@ export const ehBookCompleto = (i: { type?: string | null } | null | undefined): 
 export const POS_APROVACAO: readonly string[] = [
   "sponsor_approved", "awaiting_finalization",
   // awaiting_creator_review é APELIDO LEGADO da mesma fase de revisão — o
-  // servidor o traduz como "Aguardando Revisão Final", igual ao nome novo.
+  // servidor e o cliente o chamam de "Aguardando Finalização".
   // Ele faltou na primeira versão desta lista e a peça #3483 da Primavera RJ
   // foi recusada como "já é da Gráfica" estando em plena revisão (25/08).
   "awaiting_creator_review",
@@ -276,7 +276,7 @@ export const FUNIL_DE_PRAZOS: ReadonlyArray<{ key: string; label: string; etapas
   { key: "layouts",      label: "Entrega de Layouts",  etapas: ["awaiting_submission"] },
   { key: "aprovacao",    label: "Aprovação de Layout", etapas: ["awaiting_approval"] },
   { key: "finalizacao",  label: "Finalização",         etapas: ["awaiting_finalization"] },
-  { key: "revisao",      label: "Revisão de Lista",    etapas: ["awaiting_final_review"] },
+  { key: "revisao",      label: "Revisão Final",    etapas: ["awaiting_final_review"] },
   { key: "producao",     label: "Produção Gráfica",
     etapas: ["ready_for_production", "approved", "inProduction", "produced", "conferred", "packed"] },
 ];

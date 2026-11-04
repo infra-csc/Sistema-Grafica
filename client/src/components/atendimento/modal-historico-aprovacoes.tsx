@@ -173,7 +173,7 @@ export function ModalHistoricoDeAprovacoes({ histDetailItem, setHistDetailItem, 
                                 )}
                               </>
                             )}
-                            {isNewVersion && <span style={{ fontSize: letra(FS.small, toque), color: TOM.alerta.text }}>Nova versão de arte solicitada</span>}
+                            {isNewVersion && <span style={{ fontSize: letra(FS.small, toque), color: TOM.alerta.text }}>Nova versão enviada pela Arte, aguardando decisão</span>}
                             {!appr && <span style={{ fontSize: letra(FS.small, toque), color: T.second }}>Aguardando resposta do patrocinador</span>}
                           </div>
                         </div>

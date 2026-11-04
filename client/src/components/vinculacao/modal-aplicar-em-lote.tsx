@@ -214,11 +214,11 @@ export function ModalAplicarEmLote({
             {(() => {
               const pecas = `${selectedItemIds.size} ${selectedItemIds.size === 1 ? 'peça' : 'peças'}`;
               if (bulkSkipApproval) {
-                return `${pecas} ${selectedItemIds.size === 1 ? 'passa' : 'passam'} a não exigir patrocinador — os vínculos que ${selectedItemIds.size === 1 ? 'ela tiver é removido' : 'elas tiverem são removidos'}.`;
+                return `${pecas} ${selectedItemIds.size === 1 ? 'passa' : 'passam'} a não exigir patrocinador — os vínculos que ${selectedItemIds.size === 1 ? 'ela tiver são removidos' : 'elas tiverem são removidos'}.`;
               }
               const n = bulkSelectedSponsors.length;
-              if (n === 0) return `Escolha os patrocinadores que entram nas ${pecas} selecionadas.`;
-              return `${n} ${n === 1 ? 'patrocinador entra' : 'patrocinadores entram'} nas ${pecas} selecionadas, somando aos vínculos que já existem.`;
+              if (n === 0) return `Escolha os patrocinadores ${selectedItemIds.size === 1 ? 'da peça selecionada' : `das ${pecas} selecionadas`}.`;
+              return `${n} ${n === 1 ? 'patrocinador entra' : 'patrocinadores entram'} ${selectedItemIds.size === 1 ? 'na peça selecionada, somando aos vínculos que ela já tem' : `nas ${pecas} selecionadas, somando aos vínculos que já existem`}.`;
             })()}
           </p>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'flex-start' }}>

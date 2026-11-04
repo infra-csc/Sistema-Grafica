@@ -280,7 +280,7 @@ export function registrarRotaAposentadaDeProducao(app: Express): void {
   // conferir os logs de acesso.
   app.post("/api/items/:id/production", requireAuth, async (_req, res) => {
     res.status(410).json({
-      error: 'Rota descontinuada. Use PATCH /api/items/:id/start-production, que valida o teto de produção, soma o reaproveitamento e cria os ativos de inventário.',
+      error: 'Rota descontinuada. Use PATCH /api/items/:id/start-production, que valida o teto de produção, soma o reaproveitamento e cria as peças do Estoque.',
       code: "ROUTE_GONE",
     });
   });

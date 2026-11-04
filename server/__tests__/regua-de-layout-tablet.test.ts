@@ -227,7 +227,7 @@ describe("Estoque: o acervo no tablet", () => {
   it("tablet (janela 1280, conteúdo 700): cartões, sem tabela de 900px", async () => {
     await montarEstoque(1280, 700);
     expect($("table")).toBeNull();
-    expect($('[aria-label="Materiais do acervo"]')).toBeTruthy();
+    expect($('[aria-label="Materiais do Estoque"]')).toBeTruthy();
     expect(tid("row-asset-s1")).toBeTruthy();
   });
 

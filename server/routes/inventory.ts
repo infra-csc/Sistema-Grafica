@@ -150,7 +150,7 @@ export function registerInventoryRoutes(app: Express): void {
       res.json(assets);
     } catch (error) {
       console.error("Error fetching inventory:", error);
-      res.status(500).json({ error: "Erro ao buscar acervo" });
+      res.status(500).json({ error: "Erro ao buscar o Estoque" });
     }
   });
 
@@ -266,7 +266,7 @@ export function registerInventoryRoutes(app: Express): void {
         return res.status(400).json({ error: error.errors?.[0]?.message || "Dados inválidos" });
       }
       console.error("Error creating inventory asset:", error);
-      res.status(500).json({ error: "Erro ao criar peça no acervo" });
+      res.status(500).json({ error: "Erro ao criar peça no Estoque" });
     }
   });
 
@@ -332,7 +332,7 @@ export function registerInventoryRoutes(app: Express): void {
     try {
       const { condition, notes, trackingStatus, location } = triageSchema.parse(req.body);
       const asset = await storage.getInventoryAsset(req.params.id);
-      if (!asset) return res.status(404).json({ error: "Ativo não encontrado" });
+      if (!asset) return res.status(404).json({ error: "Peça não encontrada" });
       const newStatus = destinoDaTriagem(trackingStatus);
       const local = (location ?? "").trim() || asset.location || null;
       const updated = await db.transaction(async (tx) => {
@@ -378,13 +378,13 @@ export function registerInventoryRoutes(app: Express): void {
   app.post("/api/inventory/:id/triage-split", requireInventoryWrite, async (req, res) => {
     try {
       const asset = await storage.getInventoryAsset(req.params.id);
-      if (!asset) return res.status(404).json({ error: "Ativo não encontrado" });
+      if (!asset) return res.status(404).json({ error: "Peça não encontrada" });
 
       const { splits, location } = triageSplitSchema.parse(req.body);
 
       const totalQty = splits.reduce((s, sp) => s + (sp.qty ?? 0), 0);
       if (totalQty !== (asset.quantity ?? 1))
-        return res.status(400).json({ error: `Soma das quantidades (${totalQty}) não bate com o total do ativo (${asset.quantity})` });
+        return res.status(400).json({ error: `Soma das quantidades (${totalQty}) não bate com o total da peça (${asset.quantity})` });
 
       const localDoLote = (sp: { location?: string | null }) =>
         (sp.location ?? "").trim() || (location ?? "").trim() || asset.location || null;
@@ -542,6 +542,9 @@ export function registerInventoryRoutes(app: Express): void {
       const { assetId } = req.body;
       if (!assetId || typeof assetId !== "string") return res.status(400).json({ error: "assetId é obrigatório" });
       if (barraSeArquivado(await storage.getEvent(req.params.id), res)) return;
+      const ativo = await storage.getInventoryAsset(assetId);
+      if (!ativo) return res.status(404).json({ error: "Peça do estoque não encontrada" });
+      if (ativo.trackingStatus !== "NO_GALPAO") return res.status(409).json({ error: "Só peça que está no galpão pode ser alocada." });
       const alloc = await storage.allocateAssetToEvent(req.params.id, assetId);
       broadcast({ type: "estoque_reservas", eventId: req.params.id });
       res.status(201).json(alloc);
@@ -553,6 +556,14 @@ export function registerInventoryRoutes(app: Express): void {
 
   app.delete("/api/allocations/:id", requireInventoryAdmin, async (req, res) => {
     try {
+      // Reserva que já saiu no caminhão virou uso: a mesma recusa da rota da reserva.
+      const [reserva] = await db.select({ itemId: eventInventoryAllocations.itemId, situacao: inventoryAssets.trackingStatus })
+        .from(eventInventoryAllocations)
+        .innerJoin(inventoryAssets, eq(inventoryAssets.id, eventInventoryAllocations.assetId))
+        .where(eq(eventInventoryAllocations.id, req.params.id));
+      if (reserva?.itemId && reserva.situacao === "EM_USO") {
+        return res.status(409).json({ error: "Esta peça já saiu no caminhão deste evento: a reserva virou uso." });
+      }
       const success = await storage.deallocateAsset(req.params.id);
       if (!success) return res.status(404).json({ error: "Alocação não encontrada" });
       broadcast({ type: "estoque_reservas" });

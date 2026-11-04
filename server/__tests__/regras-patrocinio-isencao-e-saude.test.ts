@@ -158,7 +158,7 @@ describe("camada 2 — a saúde dos dados vê o que escapar", () => {
     for (const papel of ["atendimento", "arte", "grafica", "solicitacao"]) {
       const r = await chamar(papel);
       expect(r._status, papel).toBe(403);
-      expect(r._body.error).toBe("Apenas administradores podem ver a saude dos dados");
+      expect(r._body.error).toBe("Só administradores veem a saúde dos dados.");
     }
     const r = await chamar("admin");
     expect(r._status).toBe(200);

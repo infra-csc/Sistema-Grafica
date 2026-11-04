@@ -213,7 +213,7 @@ export function registerPrazoRoutes(app: Express): void {
       let trend: PrazoTrend = null;
       try {
         const [prev] = await trendP.then(abrir);
-        if (prev) {
+        if (prev && !doKit) {
           trend = {
             atrasados: kpis.atrasados - prev.atrasados,
             saidas7d: kpis.saidas7d - prev.saidas7d,
@@ -235,7 +235,7 @@ export function registerPrazoRoutes(app: Express): void {
       try {
         const { base, baseRows } = await desdeOntemP.then(abrir);
 
-        if (base) {
+        if (base && !doKit) {
           const baseById = new Map(baseRows.map((r) => [r.eventId, r]));
 
           const entraramEmAtraso: DesdeOntemEvento[] = [];

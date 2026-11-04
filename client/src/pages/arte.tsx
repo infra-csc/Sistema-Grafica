@@ -894,7 +894,7 @@ export default function Arte() {
         ) : trocaTodaNegada ? (
           <p data-testid="material-troca-bloqueada" style={{ display: 'flex', alignItems: 'flex-start', gap: 8, margin: 0, padding: '10px 14px', borderRadius: 10, background: N.n2, border: `1px solid ${T.border}`, fontSize: isMobile ? 13 : 12.5, color: T.strong, lineHeight: 1.5 }}>
             <Lock aria-hidden="true" style={{ width: 14, height: 14, color: T.apoio, flexShrink: 0, marginTop: 2 }} />
-            <span><b style={{ fontWeight: 700 }}>Material não pode mais ser trocado</b> — {motivoDaTrocaNegada}</span>
+            <span><b style={{ fontWeight: 700 }}>Thumb e arquivo final não podem mais ser trocados</b> — {motivoDaTrocaNegada}</span>
           </p>
         ) : (painelDaFicha === 'finalizacao' || painelDaFicha === 'troca') && selectedItem ? (
           <PainelDeFinalizacao

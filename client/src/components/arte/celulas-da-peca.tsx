@@ -163,8 +163,9 @@ export function MenuDeAcoes({ item, podeEditar, dedo, acoes }: {
                 existir", que é o oposto do que acontece: ela vai ser
                 impressa, e antes de todo mundo. O ícone virou avanço, não
                 bloqueio.
-                O RÓTULO é escolha do dono, reafirmada em 09/09: "Direto
-                para finalização". Fica registrado o que a ação FAZ, para
+                O RÓTULO é escolha do dono: "Dispensar aprovação" (04/11; de
+                09/09 até lá, "Direto para finalização"). Dispensa a APROVAÇÃO,
+                não a peça. Fica registrado o que a ação FAZ, para
                 quem vier depois não se perder: desde 09/09 o servidor
                 grava DESTINO_DA_DISPENSA (routes/items.ts) — a peça PARA
                 na finalização da Arte, sobe o arquivo final e a Revisão
@@ -184,7 +185,7 @@ export function MenuDeAcoes({ item, podeEditar, dedo, acoes }: {
               onMouseEnter={e => { e.currentTarget.style.background = P.blue.bg; }}
               onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
             >
-              <FastForward style={{ width: 14, height: 14, flexShrink: 0 }} /> Direto para finalização
+              <FastForward style={{ width: 14, height: 14, flexShrink: 0 }} /> Dispensar aprovação
             </button>
           </>
         )}

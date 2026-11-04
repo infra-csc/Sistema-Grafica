@@ -169,7 +169,7 @@ describe("4 · o reenvio da correção é derivado, não escolhido", () => {
     expect(cru).not.toContain("checkbox-correcao-sponsor-");
     expect(ARTE).toContain('data-testid="painel-reenvio"');
     expect(ARTE).toContain("Para quem vai o reenvio — automático");
-    expect(ARTE).toContain("{recebe ? 'vai receber' : 'mantém aprovação'}");
+    expect(ARTE).toContain("{recebe ? 'vai receber' : a.sponsor?.strictApproval ? 'perde a aprovação' : 'mantém aprovação'}");
     expect(ARTE).toContain("Vai para {correcaoDestinatarios.length} de {correcaoAprovacoes.length}");
   });
 

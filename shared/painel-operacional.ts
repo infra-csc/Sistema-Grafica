@@ -1015,7 +1015,8 @@ export function pendenciasPorEvento(painel: Pick<PainelOperacional, "hoje" | "pe
     for (const s of passos) {
       const c = PROCESSO_DO_PASSO[s];
       x.pendentes[c]++;
-      const prazo = prazoNaFase(p, dl, s);
+      // O prazo que cobra a peça; a Lista de Imagens não tem coluna e era medida pelo Layout.
+      const prazo = p.prazoFase ?? prazoNaFase(p, dl, s);
       if (prazo && prazo < painel.hoje) { x.atrasados[c]++; x.totalAtrasados++; }
     }
   }

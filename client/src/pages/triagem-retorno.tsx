@@ -598,7 +598,7 @@ export default function TriagemRetorno() {
       if (!asset) {
         // Sem o ativo não dá para validar a quantidade — rejeita com erro
         // claro e conta como falha (antes virava doTriage com qty=1 silencioso).
-        return Promise.reject(new Error(`Ativo ${id} não está mais na fila de triagem.`));
+        return Promise.reject(new Error(`Peça ${id} não está mais na fila de triagem.`));
       }
       return doTriage(id, asset.quantity ?? 1);
     }, setGravadasDoLote);
@@ -972,7 +972,7 @@ export default function TriagemRetorno() {
                       fontSize: FS.small, fontWeight: FW.forte, fontFamily: FONT.mono,
                     }}>×{qty}</span>
                     {(iguaisPorChave.get(chaveDoGrupo(asset)) ?? 0) > qty && (
-                      <span data-testid={`iguais-${asset.id}`} title="Registros do mesmo material ficam juntos; para repartir a quantidade entre destinos, use Dividir no quadro do evento"
+                      <span data-testid={`iguais-${asset.id}`} title="Peças do mesmo material ficam juntas; para repartir a quantidade entre destinos, use Dividir no quadro do evento"
                         style={{ fontSize: FS.small, fontWeight: FW.medio, color: T.apoio, background: N.n2, borderRadius: 5, padding: "1px 6px", whiteSpace: "nowrap" }}>
                         {iguaisPorChave.get(chaveDoGrupo(asset))} un. iguais
                       </span>

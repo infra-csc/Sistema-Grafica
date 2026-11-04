@@ -1,3 +1,4 @@
+import { ehForaDoFunil } from "@shared/fluxo-peca";
 import ExcelJS from "exceljs";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -169,6 +170,7 @@ function reusedTotal(item: Pick<Item, "isReuse" | "quantity" | "reuseQty" | "reu
 
 /** Metragem que vai de fato para a impressora — o reaproveitado não é impresso. */
 function m2ToProduce(item: Pick<Item, "calculatedM2" | "isReuse" | "quantity" | "reuseQty" | "reusoPedido" | "status">): number {
+  if (ehForaDoFunil(item.status)) return 0; // cancelada não vai para a impressora
   const total = item.calculatedM2 != null ? parseFloat(item.calculatedM2) : 0;
   const qty = item.quantity ?? 0;
   if (!total || !qty) return total;

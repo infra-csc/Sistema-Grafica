@@ -7,6 +7,7 @@ import { corpoEventoFechado, fraseDoZod, camposDoErro } from "../../erros";
 import { motivoEventoFechado, barraEventoArquivado } from "../eventoFinalizado";
 import { COMPLEMENT_ALLOWED_STATUSES } from "./comum";
 import { criarComplemento, desfazerComplemento } from "../../services/complemento-da-peca";
+import { liberarReservasDasPecas } from "../estoque-reservas";
 import { vemDeOrigemValida } from "@shared/maquina-de-estados";
 
 /**
@@ -205,6 +206,7 @@ export function registrarComplemento(app: Express): void {
 
       // Soft delete + trilha + aviso, numa transação: services/complemento-da-peca.ts.
       const { notification } = await desfazerComplemento(item, parent, event, req);
+      await liberarReservasDasPecas(req, [item.id], "excluída"); // reserva de peça morta não segura estoque
 
       await updateEventStatus(item.eventId);
 
@@ -226,7 +228,7 @@ export function registrarComplemento(app: Express): void {
       const erro = camposDoErro(error);
       if (erro.code === "42703") {
         return res.status(503).json({
-          error: "Migração pendente: peça ao administrador rodar npm run db:push.",
+          error: "Este recurso ainda não foi ativado no sistema. Avise o administrador.",
           code: "MIGRATION_PENDING",
         });
       }

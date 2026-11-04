@@ -12,6 +12,7 @@
 // Agora o GET só lê e este job escreve, no boot e de hora em hora, usando o
 // MESMO cálculo da rota (`prazo-domain`) — não há segunda implementação da
 // regra para divergir.
+import { ehBookCompleto } from "@shared/fluxo-peca";
 import { lerDiasDaAprovacao } from "./configuracoes";
 import { sql } from "drizzle-orm";
 import { db } from "../db";
@@ -51,6 +52,7 @@ async function agregarDiaCorrente(): Promise<{ day: string; events: PrazoEvent[]
 
   const itemsByEvent = new Map<string, ItemParaPrazo[]>();
   for (const it of candidateItems) {
+    if (ehBookCompleto(it)) continue; // a tela não conta o BOOK COMPLETO (routes/prazos.ts)
     const arr = itemsByEvent.get(it.eventId);
     if (arr) arr.push(it); else itemsByEvent.set(it.eventId, [it]);
   }

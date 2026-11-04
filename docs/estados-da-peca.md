@@ -216,7 +216,7 @@ patrocinador, o reaproveitamento) e a peça não muda de status.
 
 | Ação | De | Para | Quem | Condições |
 | --- | --- | --- | --- | --- |
-| devolver-ao-solicitante | qualquer status, menos `draft` | `draft` | arte, admin | evento aberto (nem encerrado nem já realizado); motivo com pelo menos 10 caracteres; de depois da Arte a trilha marca "JÁ FORA DA ARTE" |
+| devolver-ao-solicitante | qualquer status, menos `draft`, `canceled`, `cancelled`, `deleted`, `archived` | `draft` | arte, admin | evento aberto (nem encerrado nem já realizado); motivo com pelo menos 10 caracteres; de depois da Arte a trilha marca "JÁ FORA DA ARTE" |
 
 ### POST /api/events/:id/devolver-para-a-arte
 
@@ -277,9 +277,9 @@ patrocinador, o reaproveitamento) e a peça não muda de status.
 | Ação | De | Para | Quem | Condições |
 | --- | --- | --- | --- | --- |
 | corrigir-reaproveitamento-para-a-fila | `produced`, `produzido` | `ready_for_production` | grafica, solicitacao, admin | evento aberto (nem encerrado nem já realizado); nada conferido, entregue ou embalado; sobra o que imprimir |
-| corrigir-reaproveitamento-para-a-fila | qualquer status, menos `awaiting_final_review`, `awaiting_review`, `in_review`, `produced`, `produzido` | `ready_for_production` | admin | evento aberto (nem encerrado nem já realizado); o admin corrige em qualquer etapa antes da conferência; sobra o que imprimir |
-| corrigir-para-reaproveitamento-total | qualquer status, menos `awaiting_final_review`, `awaiting_review`, `in_review` | `produced` | admin | evento aberto (nem encerrado nem já realizado); peça não travada pela Solicitação; nada conferido, entregue ou embalado; só o admin alcança o total (Gráfica e Solicitação corrigem até quantidade − 1) |
-| corrigir-para-reaproveitamento-total-em-transito | qualquer status, menos `awaiting_final_review`, `awaiting_review`, `in_review` | `delivered` | admin | evento aberto (nem encerrado nem já realizado); peça não travada pela Solicitação; nada conferido, entregue ou embalado; a origem gravada é "em trânsito" |
+| corrigir-reaproveitamento-para-a-fila | `ready_for_production`, `pronto_para_producao`, `approved`, `liberado`, `inProduction`, `em_producao` | `ready_for_production` | admin | evento aberto (nem encerrado nem já realizado); o admin corrige em qualquer etapa antes da conferência; sobra o que imprimir |
+| corrigir-para-reaproveitamento-total | `ready_for_production`, `pronto_para_producao`, `approved`, `liberado`, `inProduction`, `em_producao`, `produced`, `produzido` | `produced` | admin | evento aberto (nem encerrado nem já realizado); peça não travada pela Solicitação; nada conferido, entregue ou embalado; só o admin alcança o total (Gráfica e Solicitação corrigem até quantidade − 1) |
+| corrigir-para-reaproveitamento-total-em-transito | `ready_for_production`, `pronto_para_producao`, `approved`, `liberado`, `inProduction`, `em_producao`, `produced`, `produzido` | `delivered` | admin | evento aberto (nem encerrado nem já realizado); peça não travada pela Solicitação; nada conferido, entregue ou embalado; a origem gravada é "em trânsito" |
 
 ### PATCH /api/items/:id/origem-reaproveitamento
 
@@ -296,9 +296,9 @@ patrocinador, o reaproveitamento) e a peça não muda de status.
 
 | Ação | De | Para | Quem | Condições |
 | --- | --- | --- | --- | --- |
-| conferir-tudo | qualquer status, menos `awaiting_final_review`, `awaiting_review`, `in_review`, `delivered`, `entregue`, `canceled`, `archived`, `deleted` | `conferred` | grafica, solicitacao, admin | peça não travada pela Solicitação; foto da conferência; molde não passa por conferência; confere a quantidade inteira |
-| conferir-tudo-ja-embalado | qualquer status, menos `awaiting_final_review`, `awaiting_review`, `in_review`, `delivered`, `entregue`, `canceled`, `archived`, `deleted` | `packed` | grafica, solicitacao, admin | peça não travada pela Solicitação; foto da conferência; fecha a conferência com tudo já embalado |
-| conferir-parte | qualquer status, menos `awaiting_final_review`, `awaiting_review`, `in_review`, `delivered`, `entregue`, `canceled`, `archived`, `deleted` | fica onde está | grafica, solicitacao, admin | peça não travada pela Solicitação; foto da conferência; ainda falta conferir |
+| conferir-tudo | qualquer status, menos `awaiting_final_review`, `awaiting_review`, `in_review`, `delivered`, `entregue`, `canceled`, `archived`, `deleted`, `draft`, `requested`, `awaiting_linking`, `awaiting_submission`, `awaiting_approval`, `awaiting_sponsor_approval`, `sponsor_approved`, `awaiting_finalization` | `conferred` | grafica, solicitacao, admin | peça não travada pela Solicitação; foto da conferência; molde não passa por conferência; confere a quantidade inteira |
+| conferir-tudo-ja-embalado | qualquer status, menos `awaiting_final_review`, `awaiting_review`, `in_review`, `delivered`, `entregue`, `canceled`, `archived`, `deleted`, `draft`, `requested`, `awaiting_linking`, `awaiting_submission`, `awaiting_approval`, `awaiting_sponsor_approval`, `sponsor_approved`, `awaiting_finalization` | `packed` | grafica, solicitacao, admin | peça não travada pela Solicitação; foto da conferência; fecha a conferência com tudo já embalado |
+| conferir-parte | qualquer status, menos `awaiting_final_review`, `awaiting_review`, `in_review`, `delivered`, `entregue`, `canceled`, `archived`, `deleted`, `draft`, `requested`, `awaiting_linking`, `awaiting_submission`, `awaiting_approval`, `awaiting_sponsor_approval`, `sponsor_approved`, `awaiting_finalization` | fica onde está | grafica, solicitacao, admin | peça não travada pela Solicitação; foto da conferência; ainda falta conferir |
 
 ### PATCH /api/tubos/:id/itens
 

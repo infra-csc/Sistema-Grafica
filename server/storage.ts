@@ -1216,6 +1216,11 @@ export class DatabaseStorage implements IStorage {
         bookUrl: parent.bookUrl,
         referenceUrl: parent.referenceUrl,
         skipApproval: parent.skipApproval,
+        // Do Kit continua do Kit, e produção interna leva as instruções para a Gráfica.
+        kitRemessaId: parent.kitRemessaId,
+        criadoPorId: parent.criadoPorId,
+        producaoInterna: parent.producaoInterna,
+        instrucoesGrafica: parent.instrucoesGrafica,
         // As marcas das peças sem aprovação (26/10) vêm junto: a arte do
         // complemento é a mesma da mãe — se veio do cliente, veio do cliente.
         arteDoCliente: parent.arteDoCliente,
@@ -1582,18 +1587,23 @@ export class DatabaseStorage implements IStorage {
   // notificação (até 50 em paralelo). role null (admin) marca todas as não
   // lidas; papel específico marca só as visíveis a ele (targetRoles nulo ou
   // vazio = visível para todos, compat retroativa). Retorna quantas marcou.
-  async markAllNotificationsAsReadForRole(role: string | null, userId: string | null = null): Promise<number> {
+  async markAllNotificationsAsReadForRole(role: string | null, userId: string | null = null, pecasDoKit: string[] | null = null): Promise<number> {
     // Notificação individual de OUTRA pessoa não é marcada — senão o "Marcar
     // todas" de um colega apagava o "seu pedido foi atendido" de quem pediu.
+    // Usuário do Kit: só o individual dele e os avisos das peças do Kit dele, como na lista do sino.
+    const doKit = pecasDoKit === null ? [] : [pecasDoKit.length > 0
+      ? or(eq(notifications.targetUserId, userId ?? ""), inArray(notifications.itemId, pecasDoKit))
+      : eq(notifications.targetUserId, userId ?? "")];
     const doUsuario = sql`(${notifications.targetUserId} IS NULL OR ${notifications.targetUserId} = ${userId})`;
     const marked = await db
       .update(notifications)
       .set({ isRead: true })
       .where(
         role === null
-          ? and(eq(notifications.isRead, false), doUsuario)
+          ? and(eq(notifications.isRead, false), doUsuario, ...doKit)
           : and(
               eq(notifications.isRead, false),
+              ...doKit,
               sql`(${notifications.targetRoles} IS NULL OR cardinality(${notifications.targetRoles}) = 0 OR ${role} = ANY(${notifications.targetRoles}))`,
               doUsuario,
             ),
@@ -1823,7 +1833,7 @@ export class DatabaseStorage implements IStorage {
       // MOLDE (22/09): o produzido é o fim do fluxo dele — a lista de eventos
       // só CONTA por status, então ele chega como entregue (shared/molde). O
       // tipo só serve para isso e não vai na resposta.
-      .then((linhas) => linhas.map(({ type, ...l }) => (moldeConcluido({ type, status: l.status }) ? { ...l, status: "delivered" } : l)));
+      .then((linhas) => linhas.map((l) => (moldeConcluido({ type: l.type, status: l.status }) ? { ...l, status: "delivered" } : l)));
   }
 
   // USUÁRIO DO KIT (perf 17/09): as rotas de eventos e de notificações
@@ -2510,7 +2520,7 @@ export class DatabaseStorage implements IStorage {
         throw e;
       }
     }
-    throw new Error("Não foi possível gerar o código do acervo após várias tentativas");
+    throw new Error("Não foi possível gerar o código do Estoque após várias tentativas");
   }
 
   async createInventoryAssets(assets: Array<Omit<InsertInventoryAsset, 'displayId'> & { displayId: string }>): Promise<InventoryAsset[]> {

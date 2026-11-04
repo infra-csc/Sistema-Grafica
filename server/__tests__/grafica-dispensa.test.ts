@@ -206,7 +206,7 @@ describe("o contrato alinhado com as rotas irmãs", () => {
     itens["i-1"] = peca({ status: "awaiting_sponsor_approval", eventId: "ev-fantasma" });
     const r = await dispensar();
     expect(r.status).toBe(200);
-    expect(notificacoes[0].message).toBe("Saiu da sua fila sem aprovação: Pórtico 6x3 (a Arte mandou direto para a finalização)");
+    expect(notificacoes[0].message).toBe("Saiu da sua fila sem aprovação: Pórtico 6x3 (a Arte dispensou a aprovação)");
   });
 
   it("o audit log da dispensa continua, com status anterior e motivo", async () => {
@@ -217,8 +217,8 @@ describe("o contrato alinhado com as rotas irmãs", () => {
     expect(acao).toBe("dispensed");
     expect(entidade).toBe("item");
     expect(id).toBe("i-1");
-    expect(detalhe).toContain("awaiting_submission");
-    expect(detalhe).toContain("Foi direto para a finalização, sem aprovação do Atendimento");
+    expect(detalhe).toContain("estava em Aguardando Envio");
+    expect(detalhe).toContain("Foi direto para a Finalização, sem aprovação do patrocinador");
     expect(detalhe).toContain("cliente aprovou por WhatsApp");
   });
 });

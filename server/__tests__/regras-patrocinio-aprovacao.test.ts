@@ -271,13 +271,13 @@ describe("POST /api/items/:id/sponsor-approvals/:sponsorId/revert", () => {
     mundo.itens.p1 = peca({ status: "sponsor_approved" });
     mundo.aprovacoes.p1 = [linha("sp-vale", "approved")];
     await revogar("atendimento");
-    expect(trilhaDe("p1")).toContain('Atendimento revogou a aprovação de "Vale" — volta a pendente (estava: approved)');
+    expect(trilhaDe("p1")).toContain('Atendimento revogou a aprovação de "Vale" — volta a pendente (estava: aprovada)');
 
     H.trilha = [];
     mundo.itens.p1 = peca({ status: "awaiting_sponsor_approval" });
     mundo.aprovacoes.p1 = [linha("sp-vale", "awaiting_arte", { rejectedBy: "Ana", rejectionReason: "cor" })];
     await revogar("admin");
-    expect(trilhaDe("p1")).toContain('Administrador revogou a decisão de "Vale" — volta a pendente (estava: awaiting_arte)');
+    expect(trilhaDe("p1")).toContain('Administrador revogou a decisão de "Vale" — volta a pendente (estava: aguardando a Arte)');
     expect(linhaDe("sp-vale")).toMatchObject({ status: "pending", rejectedBy: null, rejectionReason: null });
   });
 

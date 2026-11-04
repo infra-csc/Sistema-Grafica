@@ -354,7 +354,17 @@ export function registerAuthRoutes(app: Express): void {
           return res.status(400).json({ error: "Email já cadastrado" });
         }
       }
+      // O sistema não fica sem ninguém para gerir usuários (dono, 03/11).
+      if (validatedData.role !== undefined && validatedData.role !== "admin") {
+        const alvo = await storage.getUser(req.params.id);
+        if (alvo?.role === "admin") {
+          const admins = (await storage.getAllUsers()).filter((u) => u.role === "admin");
+          if (admins.length <= 1) return res.status(409).json({ error: "Este é o último admin. Promova outra pessoa antes de mudar o perfil dele." });
+        }
+      }
       const updateData: Partial<User> = { ...validatedData };
+      // O Kit só existe no perfil Solicitação: mudou de perfil, a marca cai junto.
+      if (validatedData.role !== undefined && validatedData.role !== "solicitacao") updateData.kit = false;
       // Cultura só vale no Atendimento: mudou para outro perfil, a marca cai;
       // marcada num perfil que não é Atendimento, não pega.
       if (validatedData.cultura === true || validatedData.role !== undefined) {

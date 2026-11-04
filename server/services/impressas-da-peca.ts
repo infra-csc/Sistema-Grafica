@@ -5,7 +5,8 @@
 // molde; aqui mora o lançamento sob a linha TRAVADA e, quando a peça fecha
 // como produzida, o cadastro dos ativos no Estoque.
 // ─────────────────────────────────────────────────────────────────────────────
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
+import { rotuloDaMaquina } from "@shared/fluxo-peca";
 import { db } from "../db";
 import { storage, assetPrefix, assetSeqOf } from "../storage";
 import { items as itemsTable, auditLogs, type Item, type Event } from "@shared/schema";
@@ -54,6 +55,14 @@ export async function lancarImpressas(
       throw plano.corpo.error === ERRO_LANCAMENTO_TRAVADA
         ? falha(409, { error: fraseDaTrava(before), code: CODIGO_PECA_TRAVADA })
         : falha(plano.status, plano.corpo);
+    }
+    // Peça antiga, sem impressora anotada: a enviada só vale se estiver livre.
+    const novaImpressora = plano.set.printMachine;
+    if (typeof novaImpressora === "string" && !before.printMachine && !before.impressaoPorMaquina) {
+      const [ocupada] = await tx.select({ id: itemsTable.id, displayId: itemsTable.displayId }).from(itemsTable)
+        .where(and(eq(itemsTable.printMachine, novaImpressora), eq(itemsTable.status, "inProduction"), isNull(itemsTable.deletedAt), ne(itemsTable.id, before.id)))
+        .limit(1);
+      if (ocupada && ocupada.id !== before.id) throw falha(409, { error: `${rotuloDaMaquina(novaImpressora)} está ocupada com ${ocupada.displayId ?? "outra peça"}.` });
     }
     const [updated] = await tx
       .update(itemsTable)

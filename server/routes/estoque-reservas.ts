@@ -602,10 +602,10 @@ export function registerEstoqueReservasRoutes(app: Express): void {
       const itens = lista(req.query.itens);
       const ativos = lista(req.query.ativos);
       if (itens.length === 0 && ativos.length === 0) {
-        return res.status(400).json({ error: "Diga de quais materiais (itens=) ou registros (ativos=) quer os usos." });
+        return res.status(400).json({ error: "Diga de quais materiais (itens=) ou peças (ativos=) quer os usos." });
       }
       if (itens.length > LIMITE_DO_RECORTE_DE_USOS || ativos.length > LIMITE_DO_RECORTE_DE_USOS) {
-        return res.status(400).json({ error: `No máximo ${LIMITE_DO_RECORTE_DE_USOS} materiais e ${LIMITE_DO_RECORTE_DE_USOS} registros por consulta.` });
+        return res.status(400).json({ error: `No máximo ${LIMITE_DO_RECORTE_DE_USOS} materiais e ${LIMITE_DO_RECORTE_DE_USOS} peças por consulta.` });
       }
       const recorte = [
         ...(itens.length ? [inArray(inventoryAssets.originalItemId, itens)] : []),

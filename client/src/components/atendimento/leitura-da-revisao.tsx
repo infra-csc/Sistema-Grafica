@@ -191,7 +191,7 @@ export function HistoricoDaPeca({ itemLogs, toque, lado = 24 }: {
           <ol style={{ display: 'flex', flexDirection: 'column', gap: 18, listStyle: 'none', margin: 0, padding: 0 }}>
             {itemLogs.slice(0, 10).map((log) => {
               // ACTION_CONFIG é const de módulo.
-              const cfg = ACTION_CONFIG[log.action] ?? { label: log.action?.replace(/_/g, ' ') ?? 'Ação', bg: T.border, iconColor: T.muted, icon: Clock };
+              const cfg = ACTION_CONFIG[log.action] ?? { label: 'Alteração na peça', bg: T.border, iconColor: T.muted, icon: Clock };
               const IconComp = cfg.icon;
               const isSystemLog = ['updated', 'status_changed', 'file_uploaded', 'thumb_uploaded'].includes(log.action);
               return (

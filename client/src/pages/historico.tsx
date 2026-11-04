@@ -626,7 +626,7 @@ function buildDescription(e: TimelineEvent, nav: Nav, aposCodigo?: React.ReactNo
     case "item_released":
       return <span>{ID} <B>{e.itemType}</B> revisada e liberada para produção · evento {EV}<Excluida e={e} /></span>;
     case "item_dispensed":
-      return <span>{ID} <B>{e.itemType}</B> dispensada (aprovação ignorada) · evento {EV}<Excluida e={e} /></span>;
+      return <span>{ID} <B>{e.itemType}</B> com aprovação dispensada · evento {EV}<Excluida e={e} /></span>;
     case "item_deleted":
       return <span>Peça {ID} <B>{e.itemType}</B> excluída do evento {EV}</span>;
     case "production_started":

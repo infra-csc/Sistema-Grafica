@@ -617,7 +617,7 @@ describe("ativos de inventário do complemento — o prefixo que não pode colid
     const doComplemento = ativosCriados().map((a) => a.displayId);
 
     (H.storage.createInventoryAssets as any).mockClear();
-    mundo.itens["p621"] = peca({ id: "p621", displayId: "#0621", quantity: 2, status: "inProduction", quantityProduced: 0, producedAt: null, productionStartedAt: null });
+    mundo.itens["p621"] = peca({ id: "p621", displayId: "#0621", conferredQty: 0, quantity: 2, status: "inProduction", quantityProduced: 0, producedAt: null, productionStartedAt: null });
     itemEmFoco = mundo.itens["p621"];
     await produzir("p621", { quantityProduced: 2 });
     const daOutraPeca = ativosCriados().map((a) => a.displayId);

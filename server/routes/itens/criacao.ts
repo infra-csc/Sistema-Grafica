@@ -205,7 +205,7 @@ export function registrarCriacao(app: Express): void {
       // Entrada Rápida cria peça da Arena: o usuário do Kit usa o formulário
       // ou a planilha do Kit (14/09).
       if (req.userKit) {
-        return res.status(403).json({ error: "A Entrada Rápida não cria peça do Kit — use o formulário ou a importação." });
+        return res.status(403).json({ error: "A Entrada rápida não cria peça do Kit — use o formulário ou a importação." });
       }
       // Mesma trava do POST unitário — sem ela o lote era o caminho aberto para
       // pendurar peça num evento encerrado.

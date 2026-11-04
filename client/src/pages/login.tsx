@@ -20,10 +20,10 @@ const SSO_ERROR_MESSAGES: Record<string, { title: string; description: string }>
   sso_user_not_found: {
     title: "Acesso não autorizado",
     description:
-      "Seu e-mail não está cadastrado na Gráfica. Entre no portal NORTE e solicite acesso ao sistema.",
+      "Seu e-mail não está cadastrado na Miró. Entre no portal NORTE e solicite acesso ao sistema.",
   },
   sso_invalid_token: {
-    title: "Token SSO inválido",
+    title: "Link do portal expirado",
     description:
       "O link de autenticação expirou ou é inválido. Tente novamente pelo portal ou contate o administrador.",
   },
@@ -354,7 +354,7 @@ export default function Login() {
                 Login via Microsoft
               </p>
               <p style={{ margin: 0, fontSize: FS.body, color: T.apoio, lineHeight: 1.55 }}>
-                Use sua conta Microsoft corporativa para entrar na Gráfica.
+                Use sua conta Microsoft corporativa para entrar na Miró.
               </p>
               {/* O card mandava ir ao portal e não levava até ele. Só aparece
                   quando o endereço do portal está configurado — o mesmo
@@ -374,7 +374,7 @@ export default function Login() {
                   só descobria isso DEPOIS de ir ao portal e voltar com erro. */}
               <p style={{ display: "flex", alignItems: "flex-start", gap: 6, margin: "12px 0 0", paddingTop: 12, borderTop: `1px solid ${N.n3}`, fontSize: FS.meta, color: T.second, lineHeight: 1.5 }}>
                 <Info aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0, marginTop: 2 }} />
-                <span>Ainda não tem acesso? {hubUrl ? <a href={hubUrl} data-testid="link-portal-norte" style={{ color: T.text, fontWeight: FW.forte }}>Entre no portal NORTE e solicite acesso à Gráfica.</a> : "Solicite acesso à Gráfica pelo portal NORTE."}</span>
+                <span>Ainda não tem acesso? {hubUrl ? <a href={hubUrl} data-testid="link-portal-norte" style={{ color: T.text, fontWeight: FW.forte }}>Entre no portal NORTE e solicite acesso à Miró.</a> : "Solicite acesso à Miró pelo portal NORTE."}</span>
               </p>
             </div>
           </div>

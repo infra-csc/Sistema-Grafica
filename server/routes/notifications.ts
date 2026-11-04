@@ -89,6 +89,7 @@ export function registerNotificationRoutes(app: Express): void {
       const marked = await storage.markAllNotificationsAsReadForRole(
         userRole === "admin" ? null : userRole,
         req.session?.userId ?? null,
+        req.session?.userKit === true ? await storage.getIdsDasPecasDoKitDoCriador(req.idDoKit ?? req.session?.userId ?? null) : null,
       );
       invalidateNotificationsCache();
       broadcast({ type: "notification_read" });

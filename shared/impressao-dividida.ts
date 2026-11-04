@@ -206,6 +206,7 @@ export function resumoDaDivisao(partes: PartesPorMaquina): string {
 /** A peça como a linha do banco a entrega (o mínimo que o lançamento lê). */
 export type PecaParaLancar = PecaDividivel & {
   status?: string | null;
+  conferredQty?: number | null;
   quantity: number | string;
   productionStartedAt?: Date | string | null;
   producedAt?: Date | string | null;
@@ -320,6 +321,12 @@ export function planejarLancamentoDeImpressas(peca: PecaParaLancar, pedido: Pedi
     }
   } else if (pedido.expectedProduced != null && numeroExato(pedido.expectedProduced) !== jaProduzido) {
     return erro(409, `Outra pessoa lançou produção nesta peça: agora são ${jaProduzido} un. produzidas (você viu ${numeroExato(pedido.expectedProduced)}). Confira o número e lance de novo.`, { code: "PRODUCTION_CONFLICT", actualProduced: jaProduzido });
+  }
+
+  // Piso: o que já foi conferido existe de verdade; o total não desce abaixo dele.
+  const conferidas = inteiro(peca.conferredQty);
+  if (quantityProduced + reuso < conferidas) {
+    return erro(409, `Já há ${conferidas} un. conferidas: o total impresso e reaproveitado não pode ficar abaixo disso.`);
   }
 
   // Teto: produzido + reaproveitado não passa da quantidade da peça.

@@ -327,6 +327,9 @@ export const ACTION_CONFIG: Record<string, { label: string; bg: string; iconColo
   sponsor_rejected: { label: 'Patrocinador reprovou', bg: TOM.perigo.bg, iconColor: TOM.perigo.text, icon: XCircle },
   file_uploaded:    { label: 'Arquivo enviado',       bg: TOM.roxo.bg, iconColor: TOM.roxo.text, icon: Upload },
   thumb_uploaded:   { label: 'Thumb enviado',         bg: TOM.roxo.bg, iconColor: TOM.roxo.text, icon: ImageIcon },
+  removed:          { label: 'Patrocinador desvinculado', bg: TOM.perigo.bg, iconColor: TOM.perigo.text, icon: XCircle },
+  added:            { label: 'Patrocinador acrescentado', bg: TOM.turquesa.bg, iconColor: TOM.turquesa.text, icon: Link2 },
+  dispensed:        { label: 'Aprovação dispensada',  bg: TOM.ciano.bg, iconColor: TOM.ciano.text, icon: Send },
 };
 
 // A ORDEM DA LISTA, DECLARADA E TROCÁVEL.

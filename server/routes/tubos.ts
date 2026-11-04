@@ -478,7 +478,7 @@ export async function excluirPecaTirandoDosVolumes(req: Request, itemId: string)
     const agora = new Date();
     const apagada = await tx.update(itemsTable).set({ deletedAt: agora, updatedAt: agora })
       .where(and(eq(itemsTable.id, itemId), isNull(itemsTable.deletedAt))).returning({ id: itemsTable.id });
-    if (!apagada.length) throw new Recusa(404, "Item not found");
+    if (!apagada.length) throw new Recusa(404, "Esta peça já foi excluída. Atualize a tela.");
     return mexidos;
   });
   if (!feito) return null;

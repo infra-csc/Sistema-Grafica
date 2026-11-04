@@ -364,7 +364,7 @@ describe("triagem · quadro agrupado por quantidade", () => {
     await act(async () => { fireEvent.click(tid("button-salvar-triagem")!); });
     await tick(20);
     expect(escritas().length).toBe(0);
-    expect(textoDosAvisos()).toContain("#EST-M-7 é um registro de 10 unidades");
+    expect(textoDosAvisos()).toContain("#EST-M-7 é uma peça de 10 unidades");
     expect(textoDosAvisos()).toContain("faltam 6 un.");
 
     await act(async () => { fireEvent.click(tid("dividir-manutencao-a2000")!); });
@@ -423,7 +423,7 @@ describe("triagem · quadro agrupado por quantidade", () => {
     expect(escritas().length).toBe(0);
     expect(tid("titulo-confirmar-descarte")).toBeNull();
     expect(textoDosAvisos()).toContain("2 peças reservadas iriam para fora do Galpão");
-    expect(textoDosAvisos()).toContain("está reservado para #0123 (Meia do Rio) — libere a reserva ou mande para o Galpão");
+    expect(textoDosAvisos()).toContain("está reservada para #0123 (Meia do Rio) — libere a reserva ou mande para o Galpão");
 
     // Refaz: 3 no Galpão e 21 na Manutenção → as três reservadas vão ao Galpão.
     await act(async () => { fireEvent.click(tid("dividir-galpao-a1000")!); });
@@ -605,7 +605,7 @@ describe("estoque", () => {
     expect(px(tid("button-view-asset-s1")!.style.width)).toBeGreaterThanOrEqual(44);
     await act(async () => { fireEvent.change(tid("input-search-assets")!, { target: { value: "zzz" } }); });
     await tick(20);
-    expect(document.body.textContent).toContain("Nenhum ativo neste recorte");
+    expect(document.body.textContent).toContain("Nenhuma peça neste recorte");
     await act(async () => { fireEvent.click(tid("button-clear-filters-vazio")!); });
     await tick(20);
     expect($$('[data-testid^="row-asset-"]').length).toBe(27);
@@ -668,7 +668,7 @@ describe("estoque · agrupado por quantidade, onde já foi usado e o detalhe", (
     // A peça de origem é pedida quando o detalhe abre.
     await vi.waitFor(() => expect(tid("detalhe-do-ativo")!.textContent).toContain("Peça de origem #0396"), { timeout: 15_000, interval: 20 });
     const modal = tid("detalhe-do-ativo")!;
-    expect(modal.textContent).toContain("34 unidades em 34 registros");
+    expect(modal.textContent).toContain("34 unidades em 34 peças");
     expect(tid("detalhe-arte")!.getAttribute("alt")).toBe("Arte de 2×1 — 2×1 Nubank");
     expect(tid("detalhe-situacao-frase")!.textContent).toContain("30 no galpão (4 separadas) · 4 em uso");
     expect(modal.textContent).toContain("Neste material34 un.");
@@ -694,7 +694,7 @@ describe("estoque · agrupado por quantidade, onde já foi usado e o detalhe", (
     expect(tid("detalhe-reserva")!.textContent).toContain("Reservada para a peça #0777 de teste 3");
     expect(tid("detalhe-usos")!.textContent).toContain("Separada para teste 3 · peça #0777");
     expect(tid("detalhe-trilha")!.querySelectorAll("li").length).toBe(2);
-    expect(modal.textContent).toContain("Este registro1 un.");
+    expect(modal.textContent).toContain("Esta peça1 un.");
     expect(tid("detalhe-editar")).not.toBeNull();
     // Reservada: manutenção travada ANTES do clique, com o motivo à vista.
     expect((tid("detalhe-manutencao") as HTMLButtonElement).disabled).toBe(true);
@@ -765,7 +765,7 @@ describe("estoque · agrupado por quantidade, onde já foi usado e o detalhe", (
   it("os cartões do topo contam UNIDADES como as linhas, e dizem quando registros ≠ unidades", async () => {
     fetchFalso();
     await montarEstoque(1280, [ativoDoAcervo(1, { quantity: 10, name: "Grade" }), ativoDoAcervo(2)]);
-    expect(document.body.textContent).toContain("2 registros · 11 unidades");
+    expect(document.body.textContent).toContain("2 peças · 11 unidades");
     expect(tid("contador-da-lista")!.textContent).toBe("2 materiais · 11 unidades");
   });
 

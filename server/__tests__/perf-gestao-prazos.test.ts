@@ -59,7 +59,7 @@ const STAGES = [
   ["layouts", "Entrega de Layouts", -20],
   ["aprovacao", "Aprovação de Layout", -12],
   ["finalizacao", "Finalização", -10],
-  ["revisao", "Revisão de Lista", -8],
+  ["revisao", "Revisão Final", -8],
   ["producao", "Produção Gráfica", -1],
 ] as const;
 const TODAY = "2026-09-17";

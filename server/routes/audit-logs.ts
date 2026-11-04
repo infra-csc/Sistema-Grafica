@@ -17,6 +17,8 @@ export function recortarTrilha<L extends { entityType?: string | null; entityId?
 ): L[] {
   return logs.filter((l) => {
     if (!quem.admin && l.entityType === "user") return false;
+    // Gestão de operador e PIN é do admin (dono, 03/11); o turno é trilha da operação.
+    if (!quem.admin && l.entityType === "operador" && !String((l as { action?: string | null }).action ?? "").startsWith("turno_")) return false;
     if (quem.kit) return (!!quem.userId && l.userId === quem.userId) || (l.entityType === "item" && quem.minhas.has(l.entityId ?? ""));
     return true;
   });

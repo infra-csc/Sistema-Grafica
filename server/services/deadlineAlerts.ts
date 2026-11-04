@@ -13,9 +13,8 @@ import { lerDiasDaAprovacao } from "./configuracoes";
 
 /** Fim do dia de um prazo "YYYY-MM-DD" (mesma convenção de `fimDoDiaDoPrazo`). */
 function fimDoDia(dia: string): Date {
-  const d = new Date(`${dia}T00:00:00Z`);
-  d.setHours(23, 59, 59, 0);
-  return d;
+  // Brasília é UTC-3 o ano inteiro. O setHours local caía no dia anterior em produção.
+  return new Date(`${dia}T23:59:59-03:00`);
 }
 
 /** Está numa das janelas de aviso (48h / 24h antes)? */
@@ -31,8 +30,7 @@ const naJanelaDeAviso = (horas: number) => (horas <= 48 && horas > 47.5) || (hor
 export function fimDoDiaDoPrazo(ancoraMs: number, offsetDays: number, campo: MarcoDoEvento["campo"]): Date {
   const d = new Date(ancoraMs + offsetDays * 24 * 60 * 60 * 1000);
   d.setUTCDate(d.getUTCDate() + deslocamentoDeFimDeSemana(d.getUTCDay(), FIM_DE_SEMANA_DO_CAMPO[campo]));
-  d.setHours(23, 59, 59, 0);
-  return d;
+  return fimDoDia(d.toISOString().slice(0, 10));
 }
 
 // Deduplication: track alert keys already sent in this process lifetime.
@@ -105,7 +103,8 @@ export function startDeadlineAlerts(): void {
           { field: "deadlineListaImagens",   label: "Lista de Imagens",    roles: ["solicitacao", "admin"] },
           { field: "deadlineEntregaLayouts", label: "Entrega de Layouts",  roles: ["arte", "admin"] },
           { field: "deadlineAprovacaoLayout",label: "Aprovação de Layout", roles: ["atendimento", "arte", "admin"] },
-          { field: "deadlineRevisaoLista",   label: "Revisão de Lista",    roles: ["solicitacao", "admin"] },
+          { field: "deadlineFinalizacao",    label: "Finalização",         roles: ["arte", "admin"] },
+          { field: "deadlineRevisaoLista",   label: "Revisão Final",    roles: ["solicitacao", "admin"] },
           { field: "deadlineProducaoGrafica",label: "Produção Gráfica",    roles: ["grafica", "admin"] },
         ];
 

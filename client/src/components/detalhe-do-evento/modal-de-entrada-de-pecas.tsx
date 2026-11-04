@@ -81,7 +81,7 @@ export function ModalDeEntradaDePecas({
             do fade, o que remonta a árvore inteira dentro do Presence.
             Mecanismo por extenso em components/modal-shell.tsx. */}
         <FreezeWhileClosing open={open}>
-        <DialogTitle className="sr-only">{bulkMode && !editingItem ? "Entrada Rápida" : "Adicionar Peça"}</DialogTitle>
+        <DialogTitle className="sr-only">{bulkMode && !editingItem ? "Entrada rápida" : "Adicionar Peça"}</DialogTitle>
         <DialogDescription className="sr-only">
           {bulkMode && !editingItem ? "Modo lote — entrada rápida de peças" : "Nova peça de produção"}
         </DialogDescription>

@@ -387,7 +387,7 @@ export function useAcoesDasPecas({
         handleCloseEditDialog();
         toast({
           title: "Peça já em produção",
-          description: 'A quantidade não sobe por aqui: o aumento vira uma peça complementar, e o pedido é feito na tela da Gráfica.',
+          description: 'A quantidade não sobe por aqui: abra a edição da peça e use “Aumentar quantidade”, logo abaixo do campo. O aumento vira uma peça complementar.',
           variant: "warning",
         });
         return;

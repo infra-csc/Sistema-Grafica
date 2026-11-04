@@ -157,7 +157,7 @@ describe("Arte montada — trocar o arquivo final", () => {
     // arquivo final, a ficha mostra UMA linha neutra com o motivo da regra,
     // em vez do bloco de troca inteiro dizendo "não" duas vezes.
     await esperar(() => !!tid("material-troca-bloqueada"), "a ficha abre com o bloqueio escrito");
-    expect(tid("material-troca-bloqueada")!.textContent).toContain("Material não pode mais ser trocado");
+    expect(tid("material-troca-bloqueada")!.textContent).toContain("Thumb e arquivo final não podem mais ser trocados");
     expect(tid("material-troca-bloqueada")!.textContent).toContain(ERRO_JA_PRODUZIDO);
     expect(tid("input-final-file-path")).toBeNull();
     expect(tid("button-submit-final")).toBeNull();

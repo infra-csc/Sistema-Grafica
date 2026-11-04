@@ -198,7 +198,7 @@ export function registerConsultasDeEstoqueRoutes(app: Express): void {
       const { httpStatus, message } = camposDoErro(error);
       if (httpStatus) return res.status(httpStatus).json({ error: message });
       console.error("[solicitacao-ao-estoque] erro ao sugerir:", error);
-      res.status(500).json({ error: "Erro ao procurar no acervo" });
+      res.status(500).json({ error: "Erro ao procurar no Estoque" });
     }
   });
 
@@ -218,7 +218,7 @@ export function registerConsultasDeEstoqueRoutes(app: Express): void {
       const ativosIds: string[] = atende && Array.isArray(req.body?.ativosIds)
         ? Array.from(new Set<string>(req.body.ativosIds.filter((x: unknown): x is string => typeof x === "string" && x.length > 0)))
         : [];
-      if (ativosIds.length > 500) return res.status(400).json({ error: "No máximo 500 peças do acervo por resposta." });
+      if (ativosIds.length > 500) return res.status(400).json({ error: "No máximo 500 peças do Estoque por resposta." });
 
       const consulta = await repo.consultaPorId(req.params.id);
       if (!consulta) return res.status(404).json({ error: "Solicitação não encontrada" });
@@ -235,7 +235,7 @@ export function registerConsultasDeEstoqueRoutes(app: Express): void {
         id: consulta.id, status: v.status, atendida: v.atendida, ativosIds, observacao, fotoUrl, quem,
       });
 
-      const semVinculo = v.atendida > 0 && codigos.length === 0 ? " — sem vínculo com o acervo" : "";
+      const semVinculo = v.atendida > 0 && codigos.length === 0 ? " — sem vínculo com o Estoque" : "";
       await createAuditLog(req, "updated", "item", peca.id,
         v.atendida > 0
           ? `Estoque respondeu: atende ${v.atendida} de ${consulta.quantidadePedida} un. pedidas${codigos.length ? ` — reservadas ${codigos.join(", ")}` : semVinculo}${observacao ? ` (${observacao})` : ""}${aplicado ? "" : " · a Revisão Final confirma ao liberar"}`

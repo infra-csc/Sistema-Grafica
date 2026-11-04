@@ -196,7 +196,7 @@ export default function RelatorioEvento() {
         {/* ── Cabeçalho do documento ── */}
         <header style={{ borderBottom: `2px solid ${T.text}`, paddingBottom: 14, marginBottom: 20 }}>
           <p style={{ margin: 0, fontSize: 10, fontWeight: FW.forte, letterSpacing: "0.14em", textTransform: "uppercase", color: T.second }}>
-            NORTE · relatório do evento
+            Miró · relatório do evento
           </p>
           <h1 id="titulo-relatorio-h1" style={{ margin: "6px 0 4px", fontFamily: FONT.display, fontSize: estreito ? FS.h2 : FS.h1, fontWeight: FW.forte, letterSpacing: "-0.02em", lineHeight: 1.15, color: T.text, overflowWrap: "anywhere" }} data-testid="titulo-relatorio">
             {r.evento.name}

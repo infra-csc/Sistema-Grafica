@@ -35,7 +35,7 @@ export function ConfirmarExclusao({
             <div style={TEXTO_DA_CONFIRMACAO}>
               {itemId && (() => {
                 const item = pendingItems.find(i => i.id === itemId);
-                return item ? <span>A peça <strong>{item.displayId}</strong> será permanentemente excluída. Esta ação não pode ser desfeita.</span> : "Esta peça será permanentemente excluída.";
+                return item ? <span>A peça <strong>{item.displayId}</strong> vai para a lixeira e sai da Revisão Final. Um administrador pode restaurá-la depois.</span> : "Esta peça vai para a lixeira e sai da Revisão Final. Um administrador pode restaurá-la depois.";
               })()}
             </div>
           </AlertDialogDescription>

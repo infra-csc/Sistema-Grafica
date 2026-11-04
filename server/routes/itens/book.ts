@@ -244,10 +244,6 @@ export function registrarBook(app: Express): void {
           });
         }
       }
-      // Limpa o bookUrl antigo de TODOS os itens do evento antes de setar o novo.
-      // Isso garante que itens não selecionados não fiquem com URL obsoleta,
-      // evitando que a exportação abra a versão antiga do book.
-      await storage.clearEventBookUrl(req.params.eventId);
       // O book só leva peça VIVA DESTE evento: id de outro evento, peça na
       // lixeira ou cancelada não entra nem na contagem (19/10 — o número do
       // book chegou a passar o de peças do evento). Tela velha mandando id
@@ -261,6 +257,10 @@ export function registrarBook(app: Express): void {
       if (idsValidos.length === 0) {
         return res.status(400).json({ error: "Nenhuma das peças selecionadas está ativa neste evento — atualize a tela e selecione de novo." });
       }
+      // Limpa o bookUrl antigo de TODOS os itens do evento antes de setar o novo, para
+      // a exportação não abrir a versão antiga. Só depois de validar: seleção inválida
+      // respondia 400 com o book atual já apagado.
+      await storage.clearEventBookUrl(req.params.eventId);
       const count = await storage.setItemsBookUrl(idsValidos, bookUrl || null);
       if (bookUrl) {
         await storage.createEventBook({ eventId: req.params.eventId, bookUrl, itemCount: count, createdBy: req.userName ?? null, comment: textoDoComentario || null });

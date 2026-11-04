@@ -341,7 +341,7 @@ describe("as peças do Kit", () => {
   it("a Entrada Rápida não cria peça do Kit", async () => {
     const r = await chamar("POST /api/items/bulk", { sessao: KIT, body: { items: [LINHA] } });
     expect(r.status).toBe(403);
-    expect((r.body as any).error).toBe("A Entrada Rápida não cria peça do Kit — use o formulário ou a importação.");
+    expect((r.body as any).error).toBe("A Entrada rápida não cria peça do Kit — use o formulário ou a importação.");
     expect(H.storage.createBulkItems).not.toHaveBeenCalled();
   });
 

@@ -111,7 +111,7 @@ export function CabecalhoDoEvento({ eventId, event, total, grupoMarcado, aoMarca
               {event.truckDepartureDate && (() => {
                 const dls = [
                   { label: "Lista de Imagens", days: event.deadlineListaImagens  ?? -25 },
-                  { label: "Revisão de Lista", days: event.deadlineRevisaoLista   ?? -8  },
+                  { label: "Revisão Final", days: event.deadlineRevisaoLista   ?? -8  },
                 ];
                 const tod = new Date(); tod.setHours(0,0,0,0);
                 return dls.map(({ label, days }) => {

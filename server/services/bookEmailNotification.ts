@@ -425,8 +425,12 @@ export async function notifyBookSaved(input: BookEmailInput, env: Env = process.
     console.info("[book-email] enviado", { eventId: input.eventId, para: message.to, copia: message.bcc ?? [] });
     return { status: "sent", para: message.to, copia: message.bcc ?? [], descartados };
   } catch (error) {
-    const reason = error instanceof Error ? error.message : "falha desconhecida no Resend";
-    console.error("[book-email] falha no envio", { eventId: input.eventId, reason });
+    const tecnico = error instanceof Error ? error.message : "falha desconhecida no Resend";
+    console.error("[book-email] falha no envio", { eventId: input.eventId, reason: tecnico });
+    // O diagnóstico fica no log; a tela e a trilha recebem uma frase.
+    const reason = tecnico.startsWith("Resend respondeu")
+      ? "o provedor de e-mail recusou o envio"
+      : "não foi possível falar com o provedor de e-mail";
     return { status: "failed", reason, descartados };
   }
 }

@@ -188,7 +188,7 @@ describe("Patrocinadores: excluir arquiva, e o admin restaura", () => {
     H.rotas["GET /api/sponsors"] = () => ({ corpo: [PATROCINADOR] });
     const Patrocinadores = (await import("@/pages/patrocinadores")).default;
     await montar(Patrocinadores);
-    const lixeira = await esperar(() => document.querySelector('[aria-label="Excluir patrocinador Marca Viva"]') as HTMLElement | null);
+    const lixeira = await esperar(() => document.querySelector('[aria-label="Arquivar Marca Viva"]') as HTMLElement | null);
     expect(lixeira).toBeTruthy();
     await act(async () => { lixeira!.click(); });
     await tick(120);

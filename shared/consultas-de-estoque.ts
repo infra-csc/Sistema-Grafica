@@ -125,12 +125,12 @@ export function validarAtendimento(e: { resposta: unknown; quantidade: unknown; 
     return { ok: false, erro: "Diga quantas unidades o estoque atende (número inteiro, mínimo 1)." };
   }
   const atendida = informada ?? e.unidadesDosAtivos;
-  if (atendida < 1) return { ok: false, erro: "Diga quantas unidades o estoque atende, ou escolha as peças do acervo." };
+  if (atendida < 1) return { ok: false, erro: "Diga quantas unidades o Estoque atende, ou escolha as peças." };
   if (atendida > e.quantidadePedida) {
     return { ok: false, erro: `Pediram ${e.quantidadePedida} un. — não dá para atender ${atendida}.` };
   }
   if (e.unidadesDosAtivos > atendida) {
-    return { ok: false, erro: `As peças escolhidas do acervo somam ${e.unidadesDosAtivos} un. — mais do que as ${atendida} atendidas.` };
+    return { ok: false, erro: `As peças escolhidas do Estoque somam ${e.unidadesDosAtivos} un. — mais do que as ${atendida} atendidas.` };
   }
   return { ok: true, atendida, status: atendida >= e.quantidadePedida ? "atendida" : "atendida_parcial" };
 }

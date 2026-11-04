@@ -20,6 +20,15 @@ import { vemDeOrigemValida, podeTransicionar } from "@shared/maquina-de-estados"
 import { aguardandoArteDoCliente, pulaAprovacao } from "@shared/prazo-sem-aprovacao";
 
 /** envio para aprovação, aprovação, dispensa e aprovações por patrocinador. */
+/** Como a trilha escreve o estado da linha de aprovação (o banco guarda a chave em inglês). */
+const ESTADO_DA_DECISAO: Record<string, string> = {
+  approved: "aprovada",
+  rejected: "reprovada",
+  pending: "pendente",
+  awaiting_arte: "aguardando a Arte",
+  new_version_pending: "nova versão aguardando decisão",
+};
+
 export function registrarAprovacao(app: Express): void {
   // Submit item for sponsor approval (Arte module)
   app.patch("/api/items/:id/submit-for-approval", requireAuth, async (req, res) => {
@@ -136,7 +145,7 @@ export function registrarAprovacao(app: Express): void {
           'updated',
           'item',
           item.id,
-          `Enviado para Arte — Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus(nextStatus)} (sem aprovação de patrocinador)`
+          `Enviada pela Arte — Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus(nextStatus)} (sem aprovação de patrocinador)`
         );
         
         // Notifica Solicitação para revisar
@@ -164,7 +173,7 @@ export function registrarAprovacao(app: Express): void {
           'updated',
           'item',
           item.id,
-          `Enviado para Arte — Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus(nextStatus)}`
+          `Enviada pela Arte para aprovação do patrocinador — Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus(nextStatus)}`
         );
         
         // Notifica Atendimento para aprovar com patrocinador
@@ -292,7 +301,7 @@ export function registrarAprovacao(app: Express): void {
       if (await barraEventoFinalizado(currentItem, res)) return;
       // De onde a ação pode partir: shared/maquina-de-estados.ts.
       if (!vemDeOrigemValida(currentItem.status, "dispensar-aprovacao")) {
-        return res.status(409).json({ error: `A peça não pode pular a aprovação na etapa atual (${translateStatus(currentItem.status)}).` });
+        return res.status(409).json({ error: `Não dá para dispensar a aprovação desta peça na etapa atual (${translateStatus(currentItem.status)}).` });
       }
       // MOLDE (22/09) não tem aprovação nem finalização: o envio dele já vai
       // direto para a Revisão Final.
@@ -339,7 +348,7 @@ export function registrarAprovacao(app: Express): void {
         "dispensed",
         "item",
         req.params.id,
-        `Peça dispensada pela Arte. Status anterior: ${currentItem.status}. Foi direto para a finalização, sem aprovação do Atendimento${reason ? `. Motivo: ${reason}` : ''}`
+        `Aprovação dispensada pela Arte (estava em ${translateStatus(currentItem.status)}). Foi direto para a Finalização, sem aprovação do patrocinador${reason ? `. Motivo: ${reason}` : ''}`
       );
 
       // A dispensa PULA a aprovação e joga a peça direto na fila da Gráfica —
@@ -359,7 +368,7 @@ export function registrarAprovacao(app: Express): void {
       if (saiuDoAtendimento) {
         const notification = await storage.createNotification({
           type: "itemAdded",
-          message: `Saiu da sua fila sem aprovação: ${item.type}${event ? ` — ${event.name}` : ""} (a Arte mandou direto para a finalização)`,
+          message: `Saiu da sua fila sem aprovação: ${item.type}${event ? ` — ${event.name}` : ""} (a Arte dispensou a aprovação)`,
           eventId: item.eventId,
           itemId: item.id,
           targetRoles: ["atendimento"],
@@ -741,7 +750,7 @@ export function registrarAprovacao(app: Express): void {
         itemId,
         reabrirIncoerente
           ? `${req.userRole === "admin" ? "Administrador" : "Atendimento"} reabriu a aprovação de "${sponsor?.name || sponsorId}" — a linha já estava pendente com a peça avançada (estado herdado do atalho de aprovação)${motivo ? `. Motivo: ${motivo}` : ''}. Item reaberto: ${translateStatus(currentItem.status)} → ${translateStatus(item.status)}`
-          : `${req.userRole === "admin" ? "Administrador" : "Atendimento"} revogou a ${previousStatus === "approved" ? "aprovação" : "decisão"} de "${sponsor?.name || sponsorId}" — volta a pendente (estava: ${previousStatus})${motivo ? `. Motivo: ${motivo}` : ''}${item.status !== currentItem.status ? `. Item reaberto: ${translateStatus(currentItem.status)} → ${translateStatus(item.status)}` : ''}`
+          : `${req.userRole === "admin" ? "Administrador" : "Atendimento"} revogou a ${previousStatus === "approved" ? "aprovação" : "decisão"} de "${sponsor?.name || sponsorId}" — volta a pendente (estava: ${ESTADO_DA_DECISAO[previousStatus] ?? previousStatus})${motivo ? `. Motivo: ${motivo}` : ''}${item.status !== currentItem.status ? `. Item reaberto: ${translateStatus(currentItem.status)} → ${translateStatus(item.status)}` : ''}`
       );
 
       broadcast({ type: "sponsor_approval_updated", itemId, approval: updatedApproval });

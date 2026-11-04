@@ -1,3 +1,4 @@
+import { spDayMs } from "./prazo-dates";
 // ─────────────────────────────────────────────────────────────────────────────
 // A PRIORIDADE AUTOMÁTICA DO EVENTO (pedido do dono, 25/08).
 //
@@ -28,7 +29,8 @@ export function prioridadePelaSaida(
   agoraMs: number,
 ): PrioridadeDoEvento | null {
   if (saidaMs === null || !Number.isFinite(saidaMs)) return null;
-  const dias = Math.ceil((saidaMs - agoraMs) / UM_DIA_MS);
+  // Dias de calendário no fuso do negócio: horas cruas erravam um dia entre 21h e 24h.
+  const dias = Math.round((Date.parse(new Date(saidaMs).toISOString().slice(0, 10) + "T00:00:00Z") - spDayMs(new Date(agoraMs))) / UM_DIA_MS);
   // Caminhão já saiu: priorizar não muda mais nada — e um "urgente" eterno em
   // evento passado só dessensibiliza o vermelho de quem ainda está em jogo.
   if (dias < 0) return null;

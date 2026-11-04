@@ -311,7 +311,8 @@ describe("PATCH /api/items/:id/arte-reject", () => {
   });
 
   it("vale de QUALQUER estado depois da Arte — e a trilha marca de onde veio", async () => {
-    for (const status of DEPOIS_DA_ARTE) {
+    // Cancelada fica de fora: só o admin descancela (03/11).
+    for (const status of Array.from(DEPOIS_DA_ARTE).filter((s) => !["canceled", "cancelled", "deleted", "archived"].includes(s))) {
       H.trilha = [];
       mundo.itens.p1 = peca({ status });
       const r = await devolver();
@@ -406,7 +407,7 @@ describe("PATCH /api/items/:id/return-to-arte", () => {
     await devolver({ notes: MOTIVO, destino: "arte" });
     expect(mundo.itens.p1.observations).toBe(MOTIVO);
     expect(mundo.itens.p1.rejectionReason).toBe(MOTIVO);
-    expect(trilhaDe("p1")).toContain("volta para o comeco da Arte");
+    expect(trilhaDe("p1")).toContain("volta para o começo da Arte");
     expect(trilhaDe("p1")).toContain(MOTIVO);
   });
 

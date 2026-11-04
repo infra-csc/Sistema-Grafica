@@ -247,6 +247,18 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
   },
 };
 
+/**
+ * O rótulo vem do tipo do aviso, e os dois avisos da troca do arquivo final
+ * depois da liberação usam tipos que dizem outra coisa: "Peça avançou" para a
+ * peça que voltou e "Voltou para você" para a que saiu da fila da Gráfica.
+ * Só muda o que se lê: o tipo gravado e o grupo do sino continuam os mesmos.
+ */
+const configDoAviso = (n: Notification): TypeConfig => {
+  if (n.type === "arteApproved" && n.message.includes("voltou para a Revisão Final")) return TYPE_CONFIG.itemRejected;
+  if (n.type === "itemRejected" && n.message.includes("saiu da fila")) return { ...TYPE_CONFIG.itemRejected, label: "Saiu da sua fila" };
+  return TYPE_CONFIG[n.type] ?? DEFAULT_CONFIG;
+};
+
 const DEFAULT_CONFIG: TypeConfig = {
   Icon: Bell,
   border: T.muted,
@@ -672,7 +684,7 @@ export function NotificationBell({
                   );
                 };
                 const renderNotificacao = (n: Notification) => {
-                const cfg = TYPE_CONFIG[n.type] ?? DEFAULT_CONFIG;
+                const cfg = configDoAviso(n);
                 const Icon = cfg.Icon;
                 const isDeadline = n.type === "deadlineAlert";
                 // "O que acontece ao clicar?" Com destino, o aviso diz que abre;

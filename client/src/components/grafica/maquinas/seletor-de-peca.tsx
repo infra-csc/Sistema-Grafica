@@ -79,7 +79,7 @@ export function SeletorDePeca({ maquina, reservadas, filaGeral, atualizando, hoj
 
             {total === 0 ? (
               <div data-testid="seletor-vazio">
-                <EstadoVazio compacto icone={Printer} titulo="Nenhuma peça liberada agora." descricao="Quando a Arte liberar uma peça para a Gráfica, ela aparece aqui." />
+                <EstadoVazio compacto icone={Printer} titulo="Nenhuma peça liberada agora." descricao="Quando a Revisão Final liberar uma peça para a Gráfica, ela aparece aqui." />
               </div>
             ) : lista.length === 0 ? (
               <div data-testid="seletor-sem-resultado">

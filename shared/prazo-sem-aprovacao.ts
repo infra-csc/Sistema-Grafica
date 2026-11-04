@@ -223,7 +223,15 @@ export function somarDiasCorridos(dia: string, n: number): string {
 export function prazoDeLayoutAjustado(prazoDeLayout: string, diasDaAprovacao: number): string {
   const d = meioDia(somarDiasCorridos(prazoDeLayout, diasDaAprovacao));
   d.setUTCDate(d.getUTCDate() + deslocamentoDeFimDeSemana(d.getUTCDay(), FIM_DE_SEMANA_DO_MARCO.layouts));
-  return d.toISOString().slice(0, 10);
+  // Sexta + 1 dia cairia no sábado e voltaria para a própria sexta: sem nenhum dia a
+  // mais. A peça vai para a segunda (dono, 03/11).
+  const ajustado = d.toISOString().slice(0, 10);
+  if (diasDaAprovacao > 0 && ajustado <= prazoDeLayout) {
+    const seguinte = meioDia(somarDiasCorridos(prazoDeLayout, 1));
+    while (seguinte.getUTCDay() === 0 || seguinte.getUTCDay() === 6) seguinte.setUTCDate(seguinte.getUTCDate() + 1);
+    return seguinte.toISOString().slice(0, 10);
+  }
+  return ajustado;
 }
 
 /**

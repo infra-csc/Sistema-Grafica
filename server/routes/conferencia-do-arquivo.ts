@@ -190,12 +190,12 @@ export function registerConferenciaDoArquivoRoutes(app: Express): void {
     }
   });
 
-  // O número do menu: só o que precisa de alguém olhar e ainda não teve ação (dono, 04/11).
-  // "Não deu para conferir" fica na aba dele, fora do número.
+  // O número do menu (dono, 04/11): "Vale olhar" e "Não deu para conferir" sem ação.
+  // Só sai quando alguém resolve.
   app.get("/api/conferencia-do-arquivo/contagem", requireAuth, async (req, res) => {
     try {
       if (req.userKit || !PAPEIS_DA_CONFERENCIA.includes(req.userRole ?? "")) return res.json({ total: 0 });
-      const { rows } = await pool.query(`select count(*)::int as total from (${COLUNAS_DA_LISTA} and c.veredito = 'vale_olhar' and c.resolvida_em is null) x`);
+      const { rows } = await pool.query(`select count(*)::int as total from (${COLUNAS_DA_LISTA} and c.veredito <> 'confere' and c.resolvida_em is null) x`);
       res.json({ total: rows[0]?.total ?? 0 });
     } catch (erro) {
       console.error("[conferencia] contagem", erro);

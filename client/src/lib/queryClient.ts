@@ -58,7 +58,15 @@ async function throwIfResNotOk(res: Response, url?: string) {
   // o HTML bruto — substituir por mensagem genérica legível.
   const isHtml = raw.trimStart().startsWith("<");
   if (isHtml) {
-    throw new Error(`Erro ${res.status} — servidor retornou resposta inesperada. Tente novamente.`);
+    throw new Error("O servidor não respondeu como esperado. Recarregue a página e tente de novo; se continuar, avise o administrador.");
+  }
+  // Sem corpo JSON, o que sobra é o statusText do proxy em inglês ("Bad Gateway",
+  // "Payload Too Large"): a pessoa lê a frase, o status continua no Network.
+  if (res.status >= 500 && !raw.trimStart().startsWith("{")) {
+    throw new Error("O servidor não respondeu agora. Tente de novo em instantes; se continuar, avise o administrador.");
+  }
+  if (res.status === 413 && !raw.trimStart().startsWith("{")) {
+    throw new Error("O pedido ficou grande demais para o servidor. Envie menos peças de uma vez e tente de novo.");
   }
 
   // Corpo JSON: as rotas respondem `{ "error": "..." }` com frases escritas

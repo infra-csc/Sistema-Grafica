@@ -113,7 +113,9 @@ export const COMPLEMENTAVEL: readonly StatusDaPeca[] = [
 const EM_APROVACAO: readonly StatusDaPeca[] = ["awaiting_sponsor_approval"];
 const POS_APROVACAO_SEM_FINALIZACAO = POS_APROVACAO.filter((s) => s !== "sponsor_approved");
 const QUEM_DECIDE_NA_REVISAO: readonly Papel[] = ARTE_DECIDE_NA_REVISAO ? ["solicitacao", "admin", "arte"] : ["solicitacao", "admin"];
-const CONFERIVEL: Origem = { todosMenos: [...Array.from(EM_REVISAO), ...FORA_DA_CONFERENCIA] };
+/** Antes da liberação a peça é da Arte: o reaproveitado só se confere quando ela volta à Gráfica (dono, 03/11). */
+export const ANTES_DA_LIBERACAO: readonly StatusDaPeca[] = ["draft", "requested", "awaiting_linking", "awaiting_submission", "awaiting_approval", "awaiting_sponsor_approval", "sponsor_approved", "awaiting_finalization"];
+const CONFERIVEL: Origem = { todosMenos: [...Array.from(EM_REVISAO), ...FORA_DA_CONFERENCIA, ...ANTES_DA_LIBERACAO] };
 /** Fora do funil: a origem do reaproveitamento não muda mais. */
 const FORA_DO_FUNIL_DA_ORIGEM: readonly StatusDaPeca[] = ["canceled", "cancelled", "deleted", "archived"];
 /** O que a Gráfica enxerga e mexe: de liberada até entregue. */
@@ -265,7 +267,7 @@ export const TRANSICOES: readonly Transicao[] = [
     condicoes: [EVENTO_ABERTO, MOTIVO, "destino \"finalização\" (trocar o arquivo final) com a rodada de aprovação fechada"], rotas: [ROTA.devolverArte, ROTA.devolverArteLote] },
   { acao: "devolver-para-a-aprovacao", de: ["awaiting_final_review"], para: "awaiting_sponsor_approval", papeis: QUEM_DECIDE_NA_REVISAO,
     condicoes: [EVENTO_ABERTO, MOTIVO, "destino \"finalização\", mas com patrocinador ainda pendente"], rotas: [ROTA.devolverArte, ROTA.devolverArteLote] },
-  { acao: "devolver-ao-solicitante", de: { todosMenos: ["draft"] }, para: "draft", papeis: ["arte", "admin"],
+  { acao: "devolver-ao-solicitante", de: { todosMenos: ["draft", ...FORA_DO_FUNIL_DA_ORIGEM] }, para: "draft", papeis: ["arte", "admin"],
     condicoes: [EVENTO_ABERTO, MOTIVO, "de depois da Arte a trilha marca \"JÁ FORA DA ARTE\""], rotas: [ROTA.devolverSolicitante] },
   // Mudança que refaz a arte do evento inteiro (ex.: data nova troca os logos)
   // — admin, de qualquer etapa depois da Arte enquanto não há material físico
@@ -302,9 +304,9 @@ export const TRANSICOES: readonly Transicao[] = [
     condicoes: [EVENTO_ABERTO, NAO_TRAVADA, "nada conferido nem entregue — converte impressas em reaproveitadas e vice-versa"], rotas: [ROTA.reaproveitar] },
   { acao: "corrigir-reaproveitamento-para-a-fila", de: PRODUZIDA, para: "ready_for_production", papeis: ["grafica", "solicitacao", "admin"],
     condicoes: [EVENTO_ABERTO, "nada conferido, entregue ou embalado", "sobra o que imprimir"], rotas: [ROTA.corrigirReuso] },
-  { acao: "corrigir-reaproveitamento-para-a-fila", de: { todosMenos: [...Array.from(EM_REVISAO), ...PRODUZIDA] }, para: "ready_for_production", papeis: ["admin"],
+  { acao: "corrigir-reaproveitamento-para-a-fila", de: [...LIBERADA, ...EM_IMPRESSAO], para: "ready_for_production", papeis: ["admin"],
     condicoes: [EVENTO_ABERTO, "o admin corrige em qualquer etapa antes da conferência", "sobra o que imprimir"], rotas: [ROTA.corrigirReuso] },
-  { acao: "corrigir-para-reaproveitamento-total", de: { todosMenos: Array.from(EM_REVISAO) }, para: "produced", papeis: ["admin"],
+  { acao: "corrigir-para-reaproveitamento-total", de: [...LIBERADA, ...EM_IMPRESSAO, ...PRODUZIDA], para: "produced", papeis: ["admin"],
     condicoes: [EVENTO_ABERTO, NAO_TRAVADA, "nada conferido, entregue ou embalado", "só o admin alcança o total (Gráfica e Solicitação corrigem até quantidade − 1)"], rotas: [ROTA.corrigirReuso] },
 
   // ── Reaproveitamento EM TRÂNSITO (dono, 16/10) ───────────────────────────
@@ -320,7 +322,7 @@ export const TRANSICOES: readonly Transicao[] = [
     condicoes: [EVENTO_ABERTO, NAO_TRAVADA, "nada impresso: a quantidade inteira vem em trânsito"], rotas: [ROTA.reaproveitar] },
   { acao: "ajustar-para-reaproveitamento-total-em-transito", de: PRODUZIDA, para: "delivered", papeis: ["admin", "solicitacao"],
     condicoes: [EVENTO_ABERTO, NAO_TRAVADA, "nada conferido nem entregue", "a quantidade inteira passa a vir em trânsito"], rotas: [ROTA.reaproveitar] },
-  { acao: "corrigir-para-reaproveitamento-total-em-transito", de: { todosMenos: Array.from(EM_REVISAO) }, para: "delivered", papeis: ["admin"],
+  { acao: "corrigir-para-reaproveitamento-total-em-transito", de: [...LIBERADA, ...EM_IMPRESSAO, ...PRODUZIDA], para: "delivered", papeis: ["admin"],
     condicoes: [EVENTO_ABERTO, NAO_TRAVADA, "nada conferido, entregue ou embalado", "a origem gravada é \"em trânsito\""], rotas: [ROTA.corrigirReuso] },
 
   // ── A origem do reaproveitamento, marcada ou trocada depois ──────────────

@@ -67,7 +67,7 @@ const SIGNIFICADO_DO_STATUS: Record<TrackingStatus, string> = {
   EM_USO: "Saiu num evento; volta para a triagem depois dele.",
   AGUARDANDO_TRIAGEM: "Voltou de um evento e espera a triagem decidir o destino.",
   EM_MANUTENCAO: "Fora do estoque disponível até o reparo terminar.",
-  DESCARTADO: "Saiu do acervo; fica oculta da tabela, salvo filtrando por Descartado.",
+  DESCARTADO: "Saiu do Estoque; fica oculta da tabela, salvo filtrando por Descartado.",
 };
 const SIGNIFICADO_DA_CONDICAO: Record<Condition, string> = {
   PERFEITO: "Sem defeito — pronta para usar de novo.",
@@ -123,12 +123,12 @@ function DeleteModal({ asset, reserva, onClose, onConfirm, isPending }: {
           <div style={{ minWidth: 0, flex: 1 }}>
             <AlertDialogTitle asChild>
               <h2 style={{ color: T.text, fontWeight: FW.rotulo, fontSize: FS.title, fontFamily: FONT.display, margin: 0, letterSpacing: "-0.02em", lineHeight: 1.25 }}>
-                Excluir este ativo do acervo?
+                Excluir esta peça do Estoque?
               </h2>
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <p style={{ fontSize: FS.body, color: T.apoio, margin: "6px 0 0", fontFamily: FONT.corpo, lineHeight: 1.5 }}>
-                Ele some do acervo de vez — não dá para desfazer pelo app. Se a peça só saiu de uso, prefira mudar o status para Descartado.
+                Ela some do Estoque de vez — não dá para desfazer pelo app. Se a peça só saiu de uso, prefira mudar o status para Descartado.
               </p>
             </AlertDialogDescription>
           </div>
@@ -147,7 +147,7 @@ function DeleteModal({ asset, reserva, onClose, onConfirm, isPending }: {
             <Botao variante="perigo" tamanho="toque" icone={Trash2} onClick={onConfirm} disabled={!!reserva} carregando={isPending}
               data-testid="button-confirm-delete" alinharMotivo="end"
               motivo={reserva ? "Peça reservada — libere a reserva antes de excluir" : undefined}>
-              {isPending ? "Excluindo…" : "Excluir ativo"}
+              {isPending ? "Excluindo…" : "Excluir peça"}
             </Botao>
           </div>
         </div>
@@ -195,11 +195,11 @@ function AssetModal({ asset, reserva, onClose, onSaved }: {
       isEdit ? apiRequest("PATCH", `/api/inventory/${asset!.id}`, corpoDoFormulario(data)) : apiRequest("POST", "/api/inventory", data),
     // Toast com o NOME do ativo e erro com o motivo do servidor — "Erro ao
     // salvar." sem porquê não dizia se era campo, permissão ou conexão.
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }); toast({ title: isEdit ? "Ativo atualizado" : "Ativo cadastrado", description: form.name.trim(), variant: "success" }); onSaved(); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }); toast({ title: isEdit ? "Peça atualizada" : "Peça cadastrada", description: form.name.trim(), variant: "success" }); onSaved(); },
     onError: (e: Error) => {
       // 409 de peça reservada: recarrega as reservas para o aviso aparecer.
       queryClient.invalidateQueries({ queryKey: ["/api/estoque/reservas-ativas"] });
-      toast({ title: "Não foi possível salvar o ativo", description: e.message, variant: "destructive" });
+      toast({ title: "Não foi possível salvar a peça", description: e.message, variant: "destructive" });
     },
   });
 
@@ -236,9 +236,9 @@ function AssetModal({ asset, reserva, onClose, onSaved }: {
         // Salvar sumia embaixo junto com o formulário.
         style={modalSurface(500)}
       >
-        <DialogTitle className="sr-only">{isEdit ? "Editar ativo" : "Cadastrar novo ativo"}</DialogTitle>
+        <DialogTitle className="sr-only">{isEdit ? "Editar peça" : "Cadastrar nova peça"}</DialogTitle>
         <DialogDescription className="sr-only">
-          Formulário de cadastro e edição de ativo do acervo.
+          Formulário de cadastro e edição de peça do Estoque.
         </DialogDescription>
         {/* Fechar vai no `trailing` (e não no onClose do ModalHeader) só para
             manter o data-testid que os testes de ponta a ponta usam. O
@@ -246,8 +246,8 @@ function AssetModal({ asset, reserva, onClose, onSaved }: {
         <ModalHeader
           icon={Archive}
           tint={T.accentText}
-          title={isEdit ? "Editar ativo" : "Cadastrar novo ativo"}
-          subtitle={isEdit ? `${asset!.displayId} · acervo do galpão` : "Entra no acervo do galpão"}
+          title={isEdit ? "Editar peça" : "Cadastrar nova peça"}
+          subtitle={isEdit ? `${asset!.displayId} · Estoque do galpão` : "Entra no Estoque do galpão"}
           compacto={isMobile}
           onClose={onClose}
           testIdDoFechar="button-close-modal"
@@ -389,9 +389,9 @@ function AssetModal({ asset, reserva, onClose, onSaved }: {
           <Botao variante="primario" tamanho="toque" data-testid="button-save-asset"
             disabled={!form.name.trim() || tiraDoGalpaoReservada} carregando={mutation.isPending}
             alinharMotivo="end"
-            motivo={!form.name.trim() ? "Preencha o nome do ativo" : tiraDoGalpaoReservada ? "Peça reservada — veja o aviso acima" : undefined}
+            motivo={!form.name.trim() ? "Preencha o nome da peça" : tiraDoGalpaoReservada ? "Peça reservada — veja o aviso acima" : undefined}
             onClick={() => mutation.mutate(form)}>
-            {mutation.isPending ? "Salvando…" : isEdit ? "Salvar alterações" : "Cadastrar ativo"}
+            {mutation.isPending ? "Salvando…" : isEdit ? "Salvar alterações" : "Cadastrar peça"}
           </Botao>
         </div>
       </DialogContent>
@@ -500,7 +500,7 @@ export default function Estoque() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiRequest("DELETE", `/api/inventory/${id}`),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }); toast({ title: "Ativo excluído", description: deleting ? `${deleting.displayId} — ${deleting.name}` : undefined, variant: "success" }); setDeleting(null); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }); toast({ title: "Peça excluída", description: deleting ? `${deleting.displayId} — ${deleting.name}` : undefined, variant: "success" }); setDeleting(null); },
     onError: (e: Error) => {
       queryClient.invalidateQueries({ queryKey: ["/api/estoque/reservas-ativas"] });
       toast({ title: "Não foi possível excluir", description: e.message, variant: "destructive" });
@@ -699,10 +699,10 @@ export default function Estoque() {
 
   // Subtítulo = o ESTADO do acervo agora, não uma paráfrase do título.
   const estadoDoAcervo = isLoading
-    ? "Carregando o acervo…"
+    ? "Carregando o Estoque…"
     : isError
-      ? "O acervo não carregou"
-      : `${total.toLocaleString("pt-BR")} ${total === 1 ? "unidade" : "unidades"} no acervo${triageCount > 0 ? ` · ${triageCount} aguardando triagem` : ""}`;
+      ? "O Estoque não carregou"
+      : `${total.toLocaleString("pt-BR")} ${total === 1 ? "unidade" : "unidades"} no Estoque${triageCount > 0 ? ` · ${triageCount} aguardando triagem` : ""}`;
 
   return (
     <div style={{ padding: isMobile ? "14px 16px" : "32px 36px", background: T.bg, height: "100%", overflowY: "auto" }}>
@@ -715,7 +715,7 @@ export default function Estoque() {
         acoes={podeEditar ? (
           <Botao variante="primario" tamanho="toque" icone={Plus} larguraCheia={isMobile}
             data-testid="button-new-asset" onClick={() => setEditing(null)}>
-            Novo ativo
+            Nova peça
           </Botao>
         ) : undefined}
       />
@@ -731,12 +731,12 @@ export default function Estoque() {
           na ordem do ciclo — guardado, saiu, em reparo, descartado — e por
           último o atalho que LEVA à Triagem. As células FILTRAM a lista
           (<button aria-pressed>), menos a da Triagem, que navega. */}
-      <FaixaDeKpis minimo={isMobile ? 104 : 150} rotulo="Resumo do acervo" style={{ marginBottom: isMobile ? 16 : 20 }}>
+      <FaixaDeKpis minimo={isMobile ? 104 : 150} rotulo="Resumo do Estoque" style={{ marginBottom: isMobile ? 16 : 20 }}>
         <CartaoKpi variante="celula" compacto={isMobile}
-          rotulo="Total do acervo" valor={semNumero ? "—" : total.toLocaleString("pt-BR")} icone={isMobile ? undefined : Package} tom="info"
+          rotulo="Total do Estoque" valor={semNumero ? "—" : total.toLocaleString("pt-BR")} icone={isMobile ? undefined : Package} tom="info"
           // O cartão LIMPA os filtros ao ser tocado — e nada dizia isso: com
           // filtro ativo, o subtexto vira o convite.
-          sub={hasFilters ? "Toque para ver tudo" : registrosNoTotal !== total ? `${registrosNoTotal} registros · ${total} unidades` : "Unidades no acervo"}
+          sub={hasFilters ? "Toque para ver tudo" : registrosNoTotal !== total ? `${registrosNoTotal} ${registrosNoTotal === 1 ? "peça" : "peças"} · ${total} unidades` : "Unidades no Estoque"}
           ativo={!hasFilters}
           onClick={limparFiltros}
         />
@@ -813,7 +813,7 @@ export default function Estoque() {
                   fontSize: isMobile ? FS.lead : FS.body, fontWeight: FW.corpo, fontFamily: FONT.corpo,
                   background: T.surface, color: T.strong, boxSizing: "border-box",
                 }}
-                aria-label="Buscar ativos"
+                aria-label="Buscar peças"
                 placeholder="Nome, ID ou franquia..." value={search} onChange={e => setSearch(e.target.value)} />
               </div>
               {isMobile && (
@@ -940,8 +940,8 @@ export default function Estoque() {
                 aqui, e não lá em cima na barra (que já rolou para fora). */}
             <EstadoVazio
               icone={Archive}
-              titulo={hasFilters ? "Nenhum ativo neste recorte" : "Nenhum ativo no acervo ainda"}
-              descricao={hasFilters ? "Os filtros atuais escondem todo o acervo." : podeEditar ? "Cadastre o primeiro ativo pelo botão Novo ativo." : "As peças entram aqui depois de produzidas e triadas."}
+              titulo={hasFilters ? "Nenhuma peça neste recorte" : "Nenhuma peça no Estoque ainda"}
+              descricao={hasFilters ? "Os filtros atuais escondem todo o Estoque." : podeEditar ? "Cadastre a primeira peça pelo botão Nova peça." : "As peças entram aqui depois de produzidas e triadas."}
               acao={hasFilters ? (
                 <Botao variante="primario" tamanho="toque" data-testid="button-clear-filters-vazio" onClick={limparFiltros}>
                   Limpar filtros
@@ -1202,7 +1202,7 @@ export default function Estoque() {
 
               if (emCards) {
                 return (
-                  <ul aria-label="Materiais do acervo" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                  <ul aria-label="Materiais do Estoque" style={{ listStyle: "none", margin: 0, padding: 0 }}>
                     {gruposVisiveis.map((g, i) => {
                       const unico = g.ativos.length === 1;
                       const asset = g.ativos[0];

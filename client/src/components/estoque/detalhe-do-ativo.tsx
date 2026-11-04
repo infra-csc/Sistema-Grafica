@@ -68,7 +68,7 @@ function fraseDaTrilha(l: { action: string; details?: string | null }): string {
   try { d = l.details ? JSON.parse(l.details) : {}; } catch { d = {}; }
   const txt = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
   switch (l.action) {
-    case "cadastrado": case "created": return "Entrou no acervo";
+    case "cadastrado": case "created": return "Entrou no Estoque";
     case "triagem": return `Triada${txt(d.destino) && DESTINO_DA_TRIAGEM[txt(d.destino)!] ? ` — ${DESTINO_DA_TRIAGEM[txt(d.destino)!]}` : ""}`;
     case "reservado": return `Reservada${txt(d.peca) ? ` para a peça ${txt(d.peca)}` : ""}${txt(d.evento) ? ` (${txt(d.evento)})` : ""}`;
     case "reserva_liberada": return `Reserva liberada${txt(d.motivo) ? ` — ${txt(d.motivo)}` : ""}`;
@@ -149,7 +149,7 @@ export function DetalheDoAtivo({ grupo, unidade, linkedItem, sponsors, reservaPo
     if (falhas.length > 0) queryClient.invalidateQueries({ queryKey: ["/api/estoque/reservas-ativas"] });
     setGravando(false);
     if (falhas.length > 0) toast({ title: `${alvos.length - falhas.length} de ${alvos.length} atualizadas`, description: falhas[0].reason?.message, variant: "destructive" });
-    else toast({ title: feito, description: alvos.length > 1 ? `${alvos.length} registros · ${unidades} un.` : alvos[0].displayId, variant: "success" });
+    else toast({ title: feito, description: alvos.length > 1 ? `${alvos.length} peças · ${unidades} un.` : alvos[0].displayId, variant: "success" });
   };
 
   const condicaoUnica = umaSo ? umaSo.condition : Object.keys(grupo.porCondicao).length === 1 ? Object.keys(grupo.porCondicao)[0] : null;
@@ -169,7 +169,7 @@ export function DetalheDoAtivo({ grupo, unidade, linkedItem, sponsors, reservaPo
   const titulo = umaSo ? umaSo.name : grupo.nome;
   const subtitulo = umaSo
     ? `${umaSo.displayId} · ${(umaSo.quantity ?? 1) === 1 ? "1 unidade" : `${umaSo.quantity} unidades`}${grupo.ativos.length > 1 ? ` · uma das ${grupo.unidades} deste material` : ""}`
-    : `${grupo.unidades} unidades em ${grupo.ativos.length} registros`;
+    : `${grupo.unidades} unidades em ${grupo.ativos.length} peças`;
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -249,7 +249,7 @@ export function DetalheDoAtivo({ grupo, unidade, linkedItem, sponsors, reservaPo
               <Linha rotulo="Origem">{alvos[0].autoAdded ? "Produção da Gráfica" : "Cadastro manual"}</Linha>
               {/* As DUAS quantidades, cada uma dizendo de quem é — antes "1 un."
                   e "34 un." apareciam lado a lado sem explicação. */}
-              <Linha rotulo={umaSo ? "Este registro" : "Neste material"}>{unidades} un.</Linha>
+              <Linha rotulo={umaSo ? "Esta peça" : "Neste material"}>{unidades} un.</Linha>
               {linkedItem?.quantity ? <Linha rotulo={`Peça de origem ${linkedItem.displayId ?? ""}`.trim()}>{linkedItem.quantity} un. pedidas</Linha> : null}
             </dl>
             {semPecaDeOrigem && <p style={{ margin: "10px 0 0", fontSize: FS.meta, color: T.second, lineHeight: 1.5 }}>Cadastrado à mão, sem peça de origem — tipo, material e medida só existem nas peças produzidas pela Gráfica.</p>}
@@ -284,7 +284,7 @@ export function DetalheDoAtivo({ grupo, unidade, linkedItem, sponsors, reservaPo
               {carregandoTrilha ? (
                 <Esqueleto variante="lista" linhas={2} rotulo="Carregando a trilha" />
               ) : (trilha ?? []).length === 0 ? (
-                <p style={{ margin: 0, fontSize: FS.body, color: T.second }}>Sem registros de quem mexeu neste ativo.</p>
+                <p style={{ margin: 0, fontSize: FS.body, color: T.second }}>Sem registros de quem mexeu nesta peça.</p>
               ) : (
                 <ol data-testid="detalhe-trilha" style={{ listStyle: "none", margin: 0, padding: "0 0 0 14px", borderLeft: `2px solid ${T.border}`, display: "flex", flexDirection: "column", gap: 12 }}>
                   {(trilha ?? []).slice(0, 12).map((l) => (

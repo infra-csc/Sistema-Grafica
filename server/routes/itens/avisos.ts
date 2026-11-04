@@ -101,7 +101,7 @@ export function registrarAvisos(app: Express): void {
   // pecas de todos os eventos e nao e trabalho de operacao.
   app.get("/api/admin/consistencia", requireAuth, async (req, res) => {
     if (req.userRole !== "admin") {
-      return res.status(403).json({ error: "Apenas administradores podem ver a saude dos dados" });
+      return res.status(403).json({ error: "Só administradores veem a saúde dos dados." });
     }
     try {
       res.json(await verificarConsistencia());

@@ -375,7 +375,7 @@ describe("acrescentar · o lote é honesto sobre o que não fez", () => {
     const r = await acrescentar(["p1", "p2"]);
     expect(r.status).toBe(200);
     expect(r.body.vinculadas).toBe(1);
-    expect(r.body.recusadas).toEqual([expect.objectContaining({ motivo: "falha interna: conexão caiu" })]);
+    expect(r.body.recusadas).toEqual([expect.objectContaining({ motivo: "não foi possível acrescentar agora, tente de novo" })]);
   });
 
   it("evento finalizado: a peça é recusada com a frase da casa; o lote inteiro barrado vira 409", async () => {

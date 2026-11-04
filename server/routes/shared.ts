@@ -88,7 +88,7 @@ export function translateStatus(status: string): string {
     // Legacy status compatibility
     awaiting_sponsor_approval: "Aguardando Aprovação",
     sponsor_approved: "Aguardando Finalização",
-    awaiting_creator_review: "Aguardando Revisão Final",
+    awaiting_creator_review: "Aguardando Finalização",
   };
   return statusMap[status] || status;
 }
@@ -197,7 +197,7 @@ export function sendSensitiveError(res: Response, error: unknown, context: strin
 // regras TÊM de andar juntas, senão o valor gravado na coluna volta a divergir
 // do valor que a API devolve. (Dívida conhecida: extrair para server/lib.)
 const DELIVERED_STATUSES = new Set(["delivered", "entregue"]);
-const OUT_OF_FUNNEL_STATUSES = new Set(["canceled", "deleted", "archived"]);
+const OUT_OF_FUNNEL_STATUSES = new Set(["canceled", "cancelled", "deleted", "archived"]);
 
 /**
  * Valor gravado em `events.status` quando UMA PESSOA encerra o evento.

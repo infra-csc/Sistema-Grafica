@@ -100,9 +100,24 @@ export async function montarApp(): Promise<AppDeTeste> {
   });
   // Operadores do login compartilhado (21/10), como em server/routes.ts.
   app.use(montarIdentidadeDoOperador());
+  // A lixeira, como em server/routes.ts.
+  app.use(async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!["POST", "PATCH", "PUT"].includes(req.method)) return next();
+      const alvo = req.path.match(/^\/api\/items\/([^/]+)(\/[^/]+)?/);
+      if (!alvo || alvo[1].startsWith("bulk") || alvo[2] === "/restore") return next();
+      const [peca] = await db.select({ deletedAt: itemsTable.deletedAt }).from(itemsTable).where(eq(itemsTable.id, alvo[1])).limit(1);
+      if (peca?.deletedAt) return res.status(404).json({ error: "Peça não encontrada" });
+      next();
+    } catch (e) {
+      next(e);
+    }
+  });
   app.use(async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (req.userRole !== "solicitacao" || req.userKit || !["POST", "PATCH", "PUT", "DELETE"].includes(req.method)) return next();
+      // Clonar lê a peça de origem e cria outra, como em server/routes.ts.
+      if (req.method === "POST" && /^\/api\/events\/[^/]+\/clone-items$/.test(req.path)) return next();
       const ids: string[] = [];
       const alvo = req.path.match(/^\/api\/items\/([^/]+)(?:\/|$)/);
       if (alvo && !["bulk", "export-xlsx"].includes(alvo[1])) ids.push(alvo[1]);

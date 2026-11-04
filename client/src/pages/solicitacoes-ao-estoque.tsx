@@ -264,25 +264,25 @@ function Responder({ c, isMobile, onRespondida }: { c: Consulta; isMobile: boole
     <div data-testid={`responder-${c.id}`} style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 14 }}>
       <div>
         <h3 style={subtitulo}>
-          {buscaAplicada ? "Busca no acervo" : "O sistema sugere"}
+          {buscaAplicada ? "Busca no Estoque" : "O sistema sugere"}
         </h3>
         <p style={{ margin: "2px 0 0", fontSize: FS.meta, color: T.second, lineHeight: 1.45 }}>
           {buscaAplicada
-            ? "Peças livres do acervo que contêm o que você digitou."
-            : "Peças livres do acervo com o mesmo tipo e a mesma medida — patrocinador igual primeiro."}
+            ? "Peças livres do Estoque que contêm o que você digitou."
+            : "Peças livres do Estoque com o mesmo tipo e a mesma medida — patrocinador igual primeiro."}
         </p>
       </div>
 
       <form role="search" onSubmit={(e) => { e.preventDefault(); setBuscaAplicada(busca.trim()); }} style={{ display: "flex", gap: 8 }}>
-        <label htmlFor={`busca-${c.id}`} className="sr-only">Buscar no acervo</label>
+        <label htmlFor={`busca-${c.id}`} className="sr-only">Buscar no Estoque</label>
         <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
           <Search aria-hidden="true" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 15, height: 15, color: T.second, pointerEvents: "none" }} />
           <input id={`busca-${c.id}`} data-testid={`input-busca-acervo-${c.id}`} type="search" value={busca} onChange={(e) => setBusca(e.target.value)}
             className="sol-campo"
-            placeholder="Buscar no acervo: código, tipo, evento…" style={{ ...campo, width: "100%", paddingLeft: 34 }} />
+            placeholder="Buscar no Estoque: código, tipo, evento…" style={{ ...campo, width: "100%", paddingLeft: 34 }} />
         </div>
         <Botao type="submit" variante="secundario" tamanho="toque" icone={Search}
-          aria-label="Buscar no acervo" data-testid={`button-busca-acervo-${c.id}`}
+          aria-label="Buscar no Estoque" data-testid={`button-busca-acervo-${c.id}`}
           style={{ minHeight: alvo, minWidth: alvo }}>
           {isMobile ? null : "Buscar"}
         </Botao>
@@ -296,16 +296,16 @@ function Responder({ c, isMobile, onRespondida }: { c: Consulta; isMobile: boole
       </form>
 
       {isLoading ? (
-        <div role="status" data-testid="sugestoes-carregando" aria-label="Procurando no acervo" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div role="status" data-testid="sugestoes-carregando" aria-label="Procurando no Estoque" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {[0, 1].map((i) => (
             <div key={i} className="sol-esqueleto" style={{ height: 76, borderRadius: R.md, border: `1px solid ${T.border}`, background: T.surface }} />
           ))}
-          <span style={{ fontSize: FS.meta, color: T.second }}>Procurando no acervo…</span>
+          <span style={{ fontSize: FS.meta, color: T.second }}>Procurando no Estoque…</span>
         </div>
       ) : isError ? (
         <div data-testid="sugestoes-erro">
           <EstadoErro
-            titulo="Não deu para procurar no acervo."
+            titulo="Não deu para procurar no Estoque."
             detalhe="Você ainda pode responder pelo que achou no galpão."
             aoTentarDeNovo={() => refetch()}
             compacto
@@ -314,10 +314,10 @@ function Responder({ c, isMobile, onRespondida }: { c: Consulta; isMobile: boole
       ) : sugestoes && sugestoes.length === 0 ? (
         <p data-testid="sugestoes-vazio" style={{ margin: 0, fontSize: FS.body, color: T.strong, background: T.bg, border: `1px dashed ${T.bdark}`, borderRadius: R.md, padding: "12px 14px", lineHeight: 1.5 }}>
           {buscaAplicada
-            ? `Nada livre no acervo com “${buscaAplicada}”. Procure no galpão e responda.`
+            ? `Nada livre no Estoque com “${buscaAplicada}”. Procure no galpão e responda.`
             : data?.semMedida
               ? "A peça não tem medida cadastrada, então o sistema não consegue sugerir. Use a busca ou procure no galpão e responda."
-              : "Nada parecido no acervo — procure no galpão e responda."}
+              : "Nada parecido no Estoque — procure no galpão e responda."}
         </p>
       ) : (
         <ul data-testid="lista-de-sugestoes" style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8, maxHeight: isMobile ? undefined : 360, overflowY: isMobile ? undefined : "auto" }}>
@@ -329,7 +329,7 @@ function Responder({ c, isMobile, onRespondida }: { c: Consulta; isMobile: boole
               // A LINHA INTEIRA marca/desmarca (rótulo do checkbox), e não só a
               // palavra "Usar"; marcada, ganha o verde e o fio à esquerda.
               <li key={s.chave} data-testid={`sugestao-${s.chave}`} className="sol-sugestao" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: isMobile ? "wrap" : "nowrap", padding: 10, borderRadius: R.md, border: `1px solid ${marcado ? TOM.sucesso.border : T.border}`, boxShadow: marcado ? `inset 3px 0 0 ${TOM.sucesso.text}` : "none", backgroundColor: marcado ? TOM.sucesso.bg : T.surface }}>
-                <Miniatura src={s.thumb} alt={`Arte da peça ${s.origem.displayId ?? ""} do acervo`} lado={56} />
+                <Miniatura src={s.thumb} alt={`Arte da peça ${s.origem.displayId ?? ""} do Estoque`} lado={56} />
                 <div style={{ flex: "1 1 180px", minWidth: 0, fontSize: FS.body, color: T.strong, lineHeight: 1.45 }}>
                   <p style={{ margin: 0, fontWeight: FW.forte, color: T.text, overflowWrap: "anywhere" }}>
                     {s.origem.tipo} · {medida(s.origem.largura, s.origem.altura)}
@@ -401,8 +401,8 @@ function Responder({ c, isMobile, onRespondida }: { c: Consulta; isMobile: boole
             : <AlertTriangle aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0, marginTop: 1 }} />}
           <span>
             {selecionados.ids.length > 0
-              ? `${selecionados.soma} un. do acervo ficam reservadas para esta peça ao atender.${selecionados.soma < pedida ? " O que passar disso vai sem vínculo com o acervo." : ""}`
-              : "Nada escolhido: a resposta vai sem vínculo com o acervo — nenhuma peça fica reservada."}
+              ? `${selecionados.soma} un. do Estoque ficam reservadas para esta peça ao atender.${selecionados.soma < pedida ? " O que passar disso vai sem vínculo com o Estoque." : ""}`
+              : "Nada escolhido: a resposta vai sem vínculo com o Estoque — nenhuma peça fica reservada."}
           </span>
         </p>
       </div>
@@ -487,7 +487,7 @@ function Desfecho({ c }: { c: Consulta }) {
       </p>
       <p style={{ ...linha, fontSize: FS.meta, color: T.second }}>
         Respondido por <strong style={{ color: T.apoio, fontWeight: FW.medio }}>{c.respondidoPor ?? "—"}</strong> em {dataEHora(c.respondidoEm)}
-        {atendeu ? (c.ativosIds.length ? ` · ${c.ativosIds.length} ${c.ativosIds.length === 1 ? "peça reservada" : "peças reservadas"} do acervo` : " · sem vínculo com o acervo") : ""}
+        {atendeu ? (c.ativosIds.length ? ` · ${c.ativosIds.length} ${c.ativosIds.length === 1 ? "peça reservada" : "peças reservadas"} do Estoque` : " · sem vínculo com o Estoque") : ""}
       </p>
       {c.observacaoResposta && (
         <blockquote style={{ margin: 0, padding: "6px 12px", borderLeft: `3px solid ${T.bdark}`, background: T.surface, borderRadius: R.sm, fontSize: FS.body, color: T.strong, lineHeight: 1.5, overflowWrap: "anywhere" }}>

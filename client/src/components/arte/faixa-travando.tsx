@@ -130,7 +130,7 @@ export function FaixaTravando({
             data-testid="button-travando-todas"
             style={{ font: 'inherit', border: 'none', background: 'transparent', padding: 0, minHeight: alvo(28, dedo), color: T.accentText, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', textDecoration: 'underline', textUnderlineOffset: 3, textDecorationColor: TOM.laranja.border }}
           >
-            {showAllTravando ? 'Mostrar menos' : `Ver as ${ocultas} outra${ocultas !== 1 ? 's' : ''}`}
+            {showAllTravando ? 'Mostrar menos' : (ocultas === 1 ? 'Ver mais 1' : `Ver as outras ${ocultas}`)}
           </button>
         )}
       </div>
@@ -141,7 +141,7 @@ export function FaixaTravando({
           {(ocultas > 0 || showAllTravando) && (
             <button type="button" onClick={() => setShowAllTravando(v => !v)} data-testid="button-travando-todas"
               style={{ font: 'inherit', border: 'none', background: 'transparent', padding: 0, minHeight: 44, color: T.accentText, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', textDecoration: 'underline', textUnderlineOffset: 3, textDecorationColor: TOM.laranja.border }}>
-              {showAllTravando ? 'Mostrar menos' : `Ver as ${ocultas} outra${ocultas !== 1 ? 's' : ''}`}
+              {showAllTravando ? 'Mostrar menos' : (ocultas === 1 ? 'Ver mais 1' : `Ver as outras ${ocultas}`)}
             </button>
           )}
         </div>

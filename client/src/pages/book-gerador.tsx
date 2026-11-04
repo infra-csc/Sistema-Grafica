@@ -235,7 +235,7 @@ export default function BookGerador() {
       const fraseAviso = aviso?.status === "sent"
         ? ` Aviso por e-mail enviado para ${(aviso.para ?? []).join(", ")}.`
         : aviso?.status === "failed"
-          ? ` O aviso por e-mail NÃO saiu (${aviso.reason ?? "motivo desconhecido"}) — avise a equipe por outro caminho.`
+          ? ` O aviso por e-mail NÃO saiu (${aviso.reason ?? "motivo desconhecido"}) — avise a equipe por outro caminho e chame o admin.`
           : "";
       toast({
         title: aviso?.status === "failed" ? "Book publicado — mas o aviso NÃO saiu" : "Book gerado e publicado",
@@ -404,7 +404,7 @@ export default function BookGerador() {
                 {/* O que aconteceu com o aviso, com as palavras do servidor — e
                     em vermelho escuro quando falhou: aí alguém avisa na mão. */}
                 {resultado.aviso?.status === "sent" && <>{" "}Aviso por e-mail enviado para {(resultado.aviso.para ?? []).join(", ")}.</>}
-                {resultado.aviso?.status === "failed" && <span style={{ color: TOM_FORTE.perigo.text, fontWeight: FW.medio }}>{" "}O aviso por e-mail NÃO saiu ({resultado.aviso.reason ?? "motivo desconhecido"}) — avise a equipe por outro caminho.</span>}
+                {resultado.aviso?.status === "failed" && <span style={{ color: TOM_FORTE.perigo.text, fontWeight: FW.medio }}>{" "}O aviso por e-mail NÃO saiu ({resultado.aviso.reason ?? "motivo desconhecido"}) — avise a equipe por outro caminho e chame o admin.</span>}
                 {resultado.falhas > 0 && <>{" "}{resultado.falhas} {resultado.falhas === 1 ? "arte falhou e ficou" : "artes falharam e ficaram"} fora.</>}
               </p>
               <BotaoLink href={resultado.url} externo target="_blank" rel="noopener noreferrer" tamanho={isMobile ? "toque" : "sm"} icone={ExternalLink} tom="sucesso" data-testid="book-abrir-pdf">

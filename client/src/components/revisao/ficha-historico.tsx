@@ -28,6 +28,14 @@ const NON_STATUS_LOG_CFG: Record<string, { label: string; dot: string; text: str
 
 export function getLogCfg(log: Pick<RegistroDoHistorico, "action" | "details"> | null | undefined): { label: string; dot: string; text: string } {
   const action = log?.action;
+  // A ação "approved" serve à aprovação do patrocinador e à liberação da
+  // Revisão. A diferença está no texto (mesmo critério de lib/timeline.ts):
+  // aprovação cita o patrocinador; só a liberação é "Liberado".
+  const texto = (log?.details ?? "").toLowerCase();
+  if (action === "approved" && (texto.includes("patrocinador") || texto.includes("aprovou")) && !texto.includes("liberado para produção")) {
+    const m = getStatusMeta(action);
+    return { label: "Aprovado", dot: m.dot, text: m.text };
+  }
   if (action && STATUS[action]) {
     const m = getStatusMeta(action);
     return { label: m.label, dot: m.dot, text: m.text };

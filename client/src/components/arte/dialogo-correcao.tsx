@@ -46,6 +46,8 @@ export function DialogoCorrecao({
    */
   const correcaoAprovacoes: AprovacaoDaCorrecao[] = correcaoItem?.aprovacoes ?? correcaoItem?.awaitingArteApprovals ?? [];
   const correcaoDestinatarios: string[] = correcaoAprovacoes.filter((a) => a.status !== 'approved').map((a) => a.sponsorId);
+  // O desaprovador que já aprovou não entra nesta conta, mas perde a aprovação no servidor.
+  const correcaoPerdemAprovacao = correcaoAprovacoes.filter((a) => a.status === 'approved' && a.sponsor?.strictApproval).length;
   return (
     <Dialog open={!!correcaoItem} onOpenChange={(open) => { if (!open) void fecharCorrecaoModal(); }}>
       {/* QUEM ROLA É O CORPO, não o modal inteiro (revisão 02/10): com o
@@ -219,7 +221,7 @@ export function DialogoCorrecao({
                       if (!file) return;
                       const ok = file.type.startsWith('image/') || file.type === 'application/pdf';
                       if (!ok) {
-                        toast({ title: "Arquivo inválido", description: "Aceito: PDF, PNG, SVG ou outras imagens", variant: "warning" });
+                        toast({ title: "Arquivo inválido", description: "Envie PDF, PNG, JPG, WEBP ou GIF.", variant: "warning" });
                         return;
                       }
                       setCorrecaoFileName(file.name);
@@ -238,7 +240,7 @@ export function DialogoCorrecao({
                       </p>
                       {/* O atalho que JÁ existe, desenhado como tecla. */}
                       <p style={{ fontSize: fsToque(11.5, dedo), color: T.apoio, margin: 0 }}>
-                        {isPasteUploading ? 'Aguarde o upload concluir' : dedo ? 'PDF, PNG ou SVG' : <>PDF, PNG ou SVG · ou cole com <kbd style={KBD}>Ctrl</kbd>+<kbd style={KBD}>V</kbd></>}
+                        {isPasteUploading ? 'Aguarde o upload concluir' : dedo ? 'PDF, PNG, JPG ou WEBP' : <>PDF, PNG, JPG ou WEBP · ou cole com <kbd style={KBD}>Ctrl</kbd>+<kbd style={KBD}>V</kbd></>}
                       </p>
                     </div>
                     {!isPasteUploading && (
@@ -308,8 +310,8 @@ export function DialogoCorrecao({
                             olho não sabia qual ler. O estado é o selo; o
                             destino é a seta. */}
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: dedo ? undefined : 112, justifyContent: 'flex-end', fontSize: fsToque(11.5, dedo), fontWeight: 700, color: recebe ? T.text : TOM.sucesso.text, whiteSpace: 'nowrap' }}>
-                          {recebe ? <Send aria-hidden="true" style={{ width: 11, height: 11 }} /> : <Check aria-hidden="true" style={{ width: 12, height: 12 }} />}
-                          {recebe ? 'vai receber' : 'mantém aprovação'}
+                          {recebe || a.sponsor?.strictApproval ? <Send aria-hidden="true" style={{ width: 11, height: 11 }} /> : <Check aria-hidden="true" style={{ width: 12, height: 12 }} />}
+                          {recebe ? 'vai receber' : a.sponsor?.strictApproval ? 'perde a aprovação' : 'mantém aprovação'}
                         </span>
                       </div>
                     );
@@ -318,6 +320,7 @@ export function DialogoCorrecao({
                 {correcaoAprovacoes.length > 0 && (
                   <p data-testid="text-reenvio-total" style={{ margin: '10px 0 0', fontSize: 12, fontWeight: 700, color: T.strong }}>
                     Vai para {correcaoDestinatarios.length} de {correcaoAprovacoes.length} {correcaoAprovacoes.length === 1 ? 'patrocinador' : 'patrocinadores'}
+                    {correcaoPerdemAprovacao > 0 ? ` · ${correcaoPerdemAprovacao} ${correcaoPerdemAprovacao === 1 ? 'perde a aprovação e volta' : 'perdem a aprovação e voltam'} para a fila do Atendimento` : ''}
                   </p>
                 )}
               </div>

@@ -72,7 +72,7 @@ const EVENT_DEADLINE_LABELS: Record<string, string> = {
   deadlineEntregaLayouts: "Prazo de entrega dos layouts",
   deadlineAprovacaoLayout: "Prazo de aprovação do layout",
   deadlineFinalizacao: "Prazo de finalização da arte",
-  deadlineRevisaoLista: "Prazo de revisão da lista",
+  deadlineRevisaoLista: "Prazo da Revisão Final",
   deadlineProducaoGrafica: "Prazo da produção gráfica",
 };
 
@@ -212,7 +212,7 @@ function dayUTC(value: Date | string): Date {
 // "entregue" é a grafia legada de delivered — conta como pronta, não pendente.
 const DELIVERED = new Set(["delivered", "entregue"]);
 // Cancelada/excluída/arquivada não conta como pendência nem como total.
-const OUT_OF_FUNNEL = new Set(["canceled", "deleted", "archived"]);
+const OUT_OF_FUNNEL = new Set(["canceled", "cancelled", "deleted", "archived"]);
 // "em_producao" é a grafia legada de inProduction. Peça aqui significa material
 // físico já na máquina — é o número que a confirmação de encerramento precisa
 // dizer em voz alta.
@@ -289,7 +289,7 @@ const MARCO_DEFS: MarcoDef[] = [
     ],
   },
   {
-    key: "revisao", label: "Revisão de Lista",
+    key: "revisao", label: "Revisão Final",
     offsetField: "deadlineRevisaoLista", defaultOffset: -8,
     pendingStatuses: [
       "awaiting_final_review", "awaiting_review", "in_review",

@@ -19,6 +19,8 @@
 // Toda transição é UPDATE condicional no status de origem: duas pessoas agindo
 // na mesma peça ao mesmo tempo — a segunda recebe 409, nunca um estado torto.
 // ─────────────────────────────────────────────────────────────────────────────
+import { soVisualizaPecaDoKit } from "@shared/kit";
+import { ehForaDoFunil } from "@shared/fluxo-peca";
 import type { Express, Request } from "express";
 import { z } from "zod";
 import { and, asc, desc, eq, inArray, isNull, ne, or, sql, type SQL } from "drizzle-orm";
@@ -277,7 +279,7 @@ const NAO_ENCONTRADA = "Peça da solicitação não encontrada";
 type LinhaDoPedido = typeof linhasDoPedidoDePeca.$inferSelect;
 
 export async function vincularPecaALinha(
-  req: Pick<Request, "userRole" | "userName" | "userId">, linhaId: string, itemId: string,
+  req: Pick<Request, "userRole" | "userName" | "userId" | "userKit">, linhaId: string, itemId: string,
 ): Promise<{ status: number; erro?: string; linha?: LinhaDoPedido }> {
   if (!["admin", "solicitacao"].includes(req.userRole ?? "")) {
     return { status: 403, erro: "Atender solicitação de peça é do perfil Solicitação e do admin." };
@@ -291,6 +293,10 @@ export async function vincularPecaALinha(
   const peca = await storage.getItem(itemId);
   if (!peca || peca.deletedAt) return { status: 404, erro: "Peça não encontrada" };
   if (peca.eventId !== linha.eventId) return { status: 400, erro: "A peça escolhida é de outro evento." };
+  if (soVisualizaPecaDoKit({ role: req.userRole ?? null, kit: req.userKit === true }, peca)) {
+    return { status: 403, erro: "Peça do Kit: a Solicitação da Arena só visualiza. Quem age nela é o usuário do Kit." };
+  }
+  if (ehForaDoFunil(peca.status)) return { status: 409, erro: `A peça ${peca.displayId} está cancelada e não atende a solicitação.` };
   const motivoFim = await motivoEventoDaPeca({ eventId: linha.eventId });
   if (motivoFim) return { status: 409, erro: erroEventoFechado(motivoFim) };
   const jaLigada = peca.pedidoDePecaLinhaId ?? null;

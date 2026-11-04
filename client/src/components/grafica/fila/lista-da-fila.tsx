@@ -88,7 +88,7 @@ export function ListaDaFila({ fila, ctx, depsDaLinha, usaCards, colunas, tabelaR
               <>
                 {haFiltro ? `Recorte atual: ${descricaoFiltros.join(" · ")}`
                   : entreguesOcultas > 0 ? `${entreguesOcultas} peça${entreguesOcultas !== 1 ? "s" : ""} já entregue${entreguesOcultas !== 1 ? "s" : ""} ${entreguesOcultas !== 1 ? "estão" : "está"} fora da fila.`
-                  : "Quando a Arte liberar peças para produção, elas aparecem aqui"}
+                  : "Quando a Revisão Final liberar peças para a Gráfica, elas aparecem aqui."}
                 {haFiltro && entreguesOcultas > 0 && (
                   <span style={{ display: "block", marginTop: 6 }}>
                     {entreguesOcultas} peça{entreguesOcultas !== 1 ? "s" : ""} deste recorte {entreguesOcultas !== 1 ? "estão" : "está"} fora da fila por já ter{entreguesOcultas !== 1 ? "em" : ""} sido entregue{entreguesOcultas !== 1 ? "s" : ""}.

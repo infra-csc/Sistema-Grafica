@@ -182,7 +182,9 @@ registrarCache("versoes", () => { cache = null; });
 async function doUsuario(req: Pick<Request, "userKit" | "userId" | "idDoKit">, dados: DadosDeVersoes): Promise<DadosDeVersoes> {
   if (!req.userKit) return dados;
   const minhas = new Set(await storage.getIdsDasPecasDoKitDoCriador(req.idDoKit ?? req.userId ?? null));
-  return { ...dados, itens: dados.itens.filter((p) => minhas.has(p.id)) };
+  const itens = dados.itens.filter((p) => minhas.has(p.id));
+  const eventos = new Set(itens.map((p) => p.eventId));
+  return { ...dados, itens, books: dados.books.filter((b) => eventos.has(b.eventId)) };
 }
 
 async function carregar(): Promise<DadosDeVersoes> {

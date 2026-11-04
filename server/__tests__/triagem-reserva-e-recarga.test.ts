@@ -64,7 +64,7 @@ describe("plano de gravação com peças RESERVADAS", () => {
     const { conflitos } = planoDeGravacao(grupo, { galpao: 1, manutencao: 0, descartar: 9 }, "PERFEITO", reservaDe);
     expect(conflitos.map((c) => c.ativoId).sort()).toEqual(["0412-10", "0412-9"]);
     expect(recusaPorReserva(conflitos[0].displayId, conflitos[0].reserva)).toBe(
-      `${conflitos[0].displayId} está reservado para #0123 (Meia do Rio) — libere a reserva ou mande para o Galpão`,
+      `${conflitos[0].displayId} está reservada para #0123 (Meia do Rio) — libere a reserva ou mande para o Galpão`,
     );
   });
 
@@ -233,7 +233,7 @@ describe("rota · reserva não sobrevive à triagem", () => {
     linhas.a1._alvo = true; reservaFutura();
     const r = await chamar("PATCH /api/inventory/:id/triage", { id: "a1" }, { condition: "SUCATA", trackingStatus: "DESCARTADO" });
     expect(r.status).toBe(409);
-    expect(r.body.error).toBe("#EST-0396-1 está reservado para #0123 (Meia do Rio) — libere a reserva ou mande para o Galpão");
+    expect(r.body.error).toBe("#EST-0396-1 está reservada para #0123 (Meia do Rio) — libere a reserva ou mande para o Galpão");
     expect(linhas.a1.trackingStatus).toBe("AGUARDANDO_TRIAGEM");
     expect(H.auditoria.length).toBe(0);
     expect(H.broadcasts.length).toBe(0);
@@ -261,7 +261,7 @@ describe("rota · reserva não sobrevive à triagem", () => {
       { qty: 4, condition: "SUCATA", trackingStatus: "DESCARTADO" },
     ] });
     expect(r.status).toBe(409);
-    expect(r.body.error).toBe("#EST-M-7 está reservado para #0123 (Meia do Rio) — libere a reserva ou mande o registro inteiro para o Galpão");
+    expect(r.body.error).toBe("#EST-M-7 está reservada para #0123 (Meia do Rio) — libere a reserva ou mande a peça inteira para o Galpão");
     expect(linhas.a24.quantity).toBe(24);
     expect(inseridos.length).toBe(0);
   });

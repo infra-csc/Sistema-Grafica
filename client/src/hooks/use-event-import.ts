@@ -72,10 +72,14 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
         method: "POST",
         body: formData,
         credentials: "include",
+      }).catch(() => {
+        throw new Error("Não foi possível falar com o servidor. Verifique a internet e tente de novo.");
       });
       if (!response.ok) {
-        const err: unknown = await response.json();
-        throw new Error(erroDaResposta(err) || "Erro ao processar arquivo");
+        // O 413 do proxy vem em HTML: sem a guarda, o toast mostrava o erro do JSON em inglês.
+        const err: unknown = await response.json().catch(() => null);
+        throw new Error(erroDaResposta(err)
+          || (response.status === 413 ? "A planilha é grande demais para enviar. Divida em partes menores." : "Erro ao processar arquivo"));
       }
       return response.json();
     },

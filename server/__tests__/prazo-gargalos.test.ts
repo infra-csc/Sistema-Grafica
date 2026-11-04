@@ -35,7 +35,7 @@ const STAGE_META = [
   { key: "listaImagens", label: "Lista de Imagens" },
   { key: "layouts", label: "Entrega de Layouts" },
   { key: "aprovacao", label: "Aprovação de Layout" },
-  { key: "revisao", label: "Revisão de Lista" },
+  { key: "revisao", label: "Revisão Final" },
   { key: "producao", label: "Produção Gráfica" },
 ];
 

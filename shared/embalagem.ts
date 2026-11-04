@@ -35,6 +35,7 @@ export type PecaDaEmbalagem = {
   origemReaproveitamento?: string | null;
 };
 
+import { ANTES_DA_LIBERACAO as ANTES_DA_LIBERACAO_DA_MAQUINA } from "./maquina-de-estados";
 import { EM_REVISAO, podeIrParaTubo } from "./fluxo-peca";
 import { quantidadeFisicaDe, emTransitoDe } from "./origem-do-reaproveitamento";
 import { pecaTravada, fraseDaTrava, type PecaTravavel } from "./trava-da-peca";
@@ -245,10 +246,12 @@ export const CONFERIR_E_EMBALAR = false;
 const IMPRESSAO_FECHADA = new Set(["produced", "produzido", "conferred", "conferido", "packed"]);
 /** Onde não se confere nada: fim do fluxo ou fora dele. */
 const FORA_DA_CONFERENCIA = new Set(["delivered", "entregue", "canceled", "archived", "deleted"]);
+/** Antes da liberação a peça é da Arte: o reaproveitado só se confere quando ela volta à Gráfica (dono, 03/11). */
+const ANTES_DA_LIBERACAO = new Set<string>(ANTES_DA_LIBERACAO_DA_MAQUINA);
 
 /** O status deixa conferir? Fora da revisão e fora do fim do fluxo. */
 export const statusConferivel = (status: string | null | undefined): boolean =>
-  !EM_REVISAO.has(String(status)) && !FORA_DA_CONFERENCIA.has(String(status));
+  !EM_REVISAO.has(String(status)) && !FORA_DA_CONFERENCIA.has(String(status)) && !ANTES_DA_LIBERACAO.has(String(status));
 
 /**
  * Quantas unidades existem para conferir: impressas + reaproveitadas, até a

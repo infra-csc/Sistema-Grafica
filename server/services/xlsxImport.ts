@@ -699,7 +699,7 @@ import { alinharTipo, chaveDoTipo, tipoAntesDoSeparador, tipoPeloTextoDoItem, ty
 
   /** Uma linha como o preview devolveu. Vem do cliente: nada é garantido. */
   type LinhaImportada = {
-    linha?: unknown; type?: unknown; description?: unknown; quantity?: unknown;
+    linha?: unknown; type?: unknown; description?: unknown; quantity?: unknown; reuse?: unknown;
     visualWidth?: unknown; visualHeight?: unknown; fileWidth?: unknown; fileHeight?: unknown;
     calculatedM2?: unknown; material?: unknown; finish?: unknown; measurement?: unknown; observations?: unknown;
     suggestedSponsorIds?: unknown; suggestedSponsorId?: unknown;
@@ -779,7 +779,11 @@ import { alinharTipo, chaveDoTipo, tipoAntesDoSeparador, tipoPeloTextoDoItem, ty
         visualHeight: texto(item.visualHeight),
         fileWidth: texto(item.fileWidth),
         fileHeight: texto(item.fileHeight),
-        calculatedM2: Number(item.calculatedM2) || 0,
+        // Recalculado aqui, com a régua da prévia: o valor do corpo não é a autoridade.
+        calculatedM2: Math.round((Number(item.quantity) || 0) * (Number(item.fileWidth) || 0) * (Number(item.fileHeight) || 0) * 10000) / 10000,
+        // "Reaprov. = Sim" ou o botão da prévia: sem isto a peça ia ser impressa de novo.
+        isReuse: item.reuse === true,
+        reuseQty: item.reuse === true ? Number(item.quantity) || 0 : 0,
         material: item.material || "Lona",
         finish: item.finish || "Ilhós",
         measurement: item.measurement || "",

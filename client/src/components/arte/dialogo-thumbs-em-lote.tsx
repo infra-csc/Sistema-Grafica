@@ -123,7 +123,7 @@ export function DialogoThumbsEmLote({ lote, itemPorId, correcaoItems, events, gr
                   <p style={{ fontSize: 12, fontWeight: 700, color: isDragOverBulk ? TOM.sucesso.text : T.text, margin: '0 0 2px' }}>
                     {isDragOverBulk ? 'Solte aqui' : 'Arrastar ou clicar'}
                   </p>
-                  <p style={{ fontSize: fsToque(11, dedo), color: T.apoio, margin: 0, letterSpacing: '0.03em' }}>JPG · PNG · WEBP · SVG</p>
+                  <p style={{ fontSize: fsToque(11, dedo), color: T.apoio, margin: 0, letterSpacing: '0.03em' }}>JPG · PNG · WEBP · GIF</p>
                 </div>
               </div>
             </div>
@@ -193,7 +193,7 @@ export function DialogoThumbsEmLote({ lote, itemPorId, correcaoItems, events, gr
                   descricao={`Arraste para a área ${isMobile ? 'acima' : 'ao lado'} ou toque nela para escolher`}
                   acao={
                     <div style={{ display: 'flex', gap: 6 }}>
-                      {['JPG', 'PNG', 'WEBP', 'SVG'].map(f => (
+                      {['JPG', 'PNG', 'WEBP', 'GIF'].map(f => (
                         <Selo key={f} tom="neutro" tamanho="sm">{f}</Selo>
                       ))}
                     </div>

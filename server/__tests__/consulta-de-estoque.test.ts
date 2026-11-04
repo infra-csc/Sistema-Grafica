@@ -382,7 +382,7 @@ describe("POST /api/consultas-de-estoque/:id/responder — atender, atender parc
     expect(r.status).toBe(200);
     expect(H.repo.responderConsulta.mock.calls[0][0]).toMatchObject({ status: "atendida_parcial", atendida: 3, ativosIds: [] });
     expect(avisos[0].message).toBe("Estoque atendeu 3 de 5 un. — #0123");
-    expect(String(H.createAuditLog.mock.calls.at(-1)[4])).toContain("sem vínculo com o acervo");
+    expect(String(H.createAuditLog.mock.calls.at(-1)[4])).toContain("sem vínculo com o Estoque");
     expect(String(H.createAuditLog.mock.calls.at(-1)[4])).toContain("a Revisão Final confirma ao liberar");
   });
 

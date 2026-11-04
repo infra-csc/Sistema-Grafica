@@ -144,7 +144,7 @@ export class ObjectStorageService {
         const partial = file.createReadStream({ start, end });
         partial.on("error", (err) => {
           console.error("Stream error:", err);
-          if (!res.headersSent) res.status(500).json({ error: "Error streaming file" });
+          if (!res.headersSent) res.status(500).json({ error: "Não foi possível abrir o arquivo agora. Recarregue a página e tente de novo." });
         });
         partial.pipe(res);
         return;
@@ -158,7 +158,7 @@ export class ObjectStorageService {
       stream.on("error", (err) => {
         console.error("Stream error:", err);
         if (!res.headersSent) {
-          res.status(500).json({ error: "Error streaming file" });
+          res.status(500).json({ error: "Não foi possível abrir o arquivo agora. Recarregue a página e tente de novo." });
         }
       });
 
@@ -166,7 +166,7 @@ export class ObjectStorageService {
     } catch (error) {
       console.error("Error downloading file:", error);
       if (!res.headersSent) {
-        res.status(500).json({ error: "Error downloading file" });
+        res.status(500).json({ error: "Não foi possível baixar o arquivo agora. Tente de novo em instantes." });
       }
     }
   }

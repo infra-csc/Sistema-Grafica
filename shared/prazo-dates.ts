@@ -294,10 +294,10 @@ export interface MarcoDoEvento {
 /** A ordem é a da CADEIA CAUSAL, não a alfabética nem a de criação. */
 export const MARCOS_DO_EVENTO: readonly MarcoDoEvento[] = [
   { key: "listaImagens", campo: "deadlineListaImagens",    label: "Lista de Imagens",    curto: "Lista Img",      offset: -25, cor: "#8b5cf6", texto: "#6d28d9", fimDeSemana: "seg-sex", descricao: "Criação dos itens do evento" },
-  { key: "layouts",      campo: "deadlineEntregaLayouts",  label: "Entrega de Layouts",  curto: "Entrega Layout", offset: -20, cor: "#3b82f6", texto: "#1d4ed8", fimDeSemana: "seg-sex", descricao: "Arte entrega os arquivos finais" },
+  { key: "layouts",      campo: "deadlineEntregaLayouts",  label: "Entrega de Layouts",  curto: "Entrega Layout", offset: -20, cor: "#3b82f6", texto: "#1d4ed8", fimDeSemana: "seg-sex", descricao: "Arte envia o layout para aprovação" },
   { key: "aprovacao",    campo: "deadlineAprovacaoLayout", label: "Aprovação de Layout", curto: "Aprov. Layout",  offset: -12, cor: "#f59e0b", texto: "#b45309", fimDeSemana: "seg-sex", descricao: "Aprovação pelo patrocinador" },
   { key: "finalizacao",  campo: "deadlineFinalizacao",     label: "Finalização",         curto: "Finalização",    offset: -10, cor: "#14b8a6", texto: "#0f766e", fimDeSemana: "seg-sex", descricao: "Arte anexa o arquivo final da peça" },
-  { key: "revisao",      campo: "deadlineRevisaoLista",    label: "Revisão de Lista",    curto: "Revisão Lista",  offset: -8,  cor: "#10b981", texto: "#047857", fimDeSemana: "seg-sex", descricao: "Criador revisa e lança todos os itens" },
+  { key: "revisao",      campo: "deadlineRevisaoLista",    label: "Revisão Final",       curto: "Revisão Final",  offset: -8,  cor: "#10b981", texto: "#047857", fimDeSemana: "seg-sex", descricao: "Criador revisa e lança todos os itens" },
   { key: "producao",     campo: "deadlineProducaoGrafica", label: "Produção Gráfica",    curto: "Prod. Gráfica",  offset: -1,  cor: "#f97316", texto: "#c2410c", fimDeSemana: DIAS_DA_GRAFICA, descricao: "Prazo da gráfica para produzir" },
 ] as const;
 

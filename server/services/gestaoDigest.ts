@@ -52,7 +52,7 @@ import { agoraNoFuso, ehProducao } from "./revisaoDigest";
 import { destinatariosDoCanal } from "./destinatarios";
 import { reservarDisparo, anotarDesfecho } from "./reservaDeDisparo";
 import { executarComoLider } from "./lideranca";
-import { eventDayMs, todayBusinessMs, EVENT_CLOSED_STATUS } from "@shared/prazo-dates";
+import { eventDayMs, spDayMs, todayBusinessMs, EVENT_CLOSED_STATUS } from "@shared/prazo-dates";
 
 /**
  * Horas de disparo, no fuso do negócio — as mesmas do aviso da Revisão
@@ -311,7 +311,7 @@ export function montarResumoDaGestao(
     const ev = eventoPorId.get(eventId);
     const saida = ev?.truckDepartureDate ? new Date(ev.truckDepartureDate) : null;
     const diasParaSaida = saida && Number.isFinite(saida.getTime())
-      ? Math.ceil((saida.getTime() - agora.getTime()) / DIA_MS)
+      ? Math.round((Date.parse(saida.toISOString().slice(0, 10) + "T00:00:00Z") - spDayMs(agora)) / DIA_MS)
       : null;
     return {
       eventId,

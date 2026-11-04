@@ -121,8 +121,8 @@ async function camposDaDevolucaoDaRevisao(peca: Item, destino: DestinoDevolucao,
 /** A frase da auditoria — o destino escolhido precisa ficar no registro. */
 function textoDoDestino(destino: DestinoDevolucao): string {
   return destino === "arte"
-    ? "volta para o comeco da Arte (refazer a arte)"
-    : "volta para a finalizacao (trocar o arquivo final)";
+    ? "volta para o começo da Arte (refazer a arte)"
+    : "volta para a Finalização (trocar o arquivo final)";
 }
 
 /** Revisão Final: liberar e devolver (inclusive em lote). */
@@ -424,7 +424,9 @@ export function registrarRevisao(app: Express): void {
       // (shared/maquina-de-estados.ts: "devolver-ao-solicitante" parte de todo status menos o rascunho)
       if (!vemDeOrigemValida(currentItem.status, "devolver-ao-solicitante")) {
         return res.status(409).json({
-          error: "Esta peça já está na criação (Rascunho) — não há para onde devolver.",
+          error: currentItem.status === "draft"
+            ? "Esta peça já está na criação (Rascunho) — não há para onde devolver."
+            : "Peça cancelada só volta pelo Descancelar, que é do admin.",
         });
       }
 
@@ -435,6 +437,9 @@ export function registrarRevisao(app: Express): void {
       const item = await storage.updateItem(req.params.id, {
         status: "draft",
         rejectionReason: motivo.motivo,
+        // Saiu da Gráfica: a impressora, a reserva e a trava caem junto.
+        printMachine: null, impressaoPorMaquina: null, reservaPorMaquina: null, maquinaPrevista: null,
+        ...colunasDoDestravar(),
         // Zera o estado de aprovação/revisão: se a peça voltar a andar, ela
         // recomeça o trâmite em vez de herdar um "aprovado" de outra versão.
         sponsorApprovedBy: null,

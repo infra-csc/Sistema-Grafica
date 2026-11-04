@@ -1034,8 +1034,8 @@ export default function GestaoPrazos() {
       <div role="alert">
         <EstadoVazio
           icone={AlertTriangle}
-          titulo="Esta tela é do diretor"
-          descricao="Seu usuário não tem acesso à Gestão de Prazos."
+          titulo="Sua sessão expirou ou você não tem acesso"
+          descricao="Entre de novo para ver a Gestão de Prazos."
           acao={
             <Link href="/" data-testid="link-voltar-painel" className="ds-botao" style={{ ...linkComoBotao, minHeight: alvoEstado }}>
               Ir para o Painel

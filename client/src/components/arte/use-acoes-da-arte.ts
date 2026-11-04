@@ -378,7 +378,7 @@ export function useAcoesDaArte({
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       setDispenseItem(null);
       setDispenseReason("");
-      toast({ title: "Direto para a finalização", description: "A peça pulou a aprovação do Atendimento — agora é subir o arquivo final.", variant: "success" });
+      toast({ title: "Aprovação dispensada", description: "A peça foi para a Finalização sem a aprovação do Atendimento. Agora é subir o arquivo final.", variant: "success" });
     },
     onError: (error: Error) => {
       toast({ title: "Não foi possível dispensar", description: mensagemDeErro(error), variant: "destructive" });

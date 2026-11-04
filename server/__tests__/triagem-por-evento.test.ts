@@ -89,7 +89,7 @@ describe("o quadro de arrastar", () => {
 
   it("dividir por quantidade é no quadro; a tabela é registro por registro, e dela se volta aos eventos", () => {
     expect(QUADRO).toContain('data-testid={`dividir-${id}`}');
-    expect(QUADRO).toContain("Tabela (registro por registro)");
+    expect(QUADRO).toContain("Tabela (peça por peça)");
     expect(PAGINA).toContain('data-testid="button-voltar-eventos-triagem"');
   });
 });

@@ -35,7 +35,7 @@ describe("1 · a Arte vê o que aconteceu com o aviso", () => {
     expect(ARTE).toContain('if (a?.status === "sent") {');
     expect(ARTE).toContain('title: "Book salvo e avisado"');
     expect(ARTE).toContain('title: "Book salvo — mas o aviso NÃO saiu"');
-    expect(ARTE).toContain("Avise a equipe por outro caminho.");
+    expect(ARTE).toContain("Avise a equipe por outro caminho e chame o admin.");
     expect(ARTE).toContain('variant: "destructive",');
     // e o caso "desligado/simulação" continua sendo só "Book salvo"
     expect(ARTE).toContain('toast({ title: "Book salvo", description: quantas, variant: "success" });');

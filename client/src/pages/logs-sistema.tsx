@@ -109,6 +109,7 @@ const ENTITY_LABELS: Record<string, string> = {
   sistema: "Sistema",
   clonagem: "Clonagem",
   operador: "Operador",
+  configuracao: "Configuração",
 };
 
 const rotuloDaEntidade = (tipo: string) => ENTITY_LABELS[tipo] ?? tipo;
@@ -118,7 +119,15 @@ const resumoDaClonagem = (l: AuditLog): string | null => {
   if (l.entityType !== "clonagem" || !l.details) return null;
   try { const d = JSON.parse(l.details) as { resumo?: unknown }; return typeof d.resumo === "string" ? d.resumo : null; } catch { return null; }
 };
-const descricaoDo = (l: AuditLog) => resumoDaClonagem(l) ?? l.details ?? `${getActionCfg(l.action).label} em ${rotuloDaEntidade(l.entityType)}`;
+// O reparo de motivos grava JSON (campo, antes e depois): a tela mostra a frase.
+const resumoDoReparo = (l: AuditLog): string | null => {
+  if (l.action !== "corrected_text" || !l.details) return null;
+  try {
+    const d = JSON.parse(l.details) as { before?: unknown; after?: unknown };
+    return typeof d.before === "string" && typeof d.after === "string" ? `Motivo da peça corrigido: “${d.before}” → “${d.after}”` : null;
+  } catch { return null; }
+};
+const descricaoDo = (l: AuditLog) => resumoDaClonagem(l) ?? resumoDoReparo(l) ?? l.details ?? `${getActionCfg(l.action).label} em ${rotuloDaEntidade(l.entityType)}`;
 
 /* ── Avatar ── */
 // O payload de /api/audit-logs NÃO traz o papel do usuário (só userName), então

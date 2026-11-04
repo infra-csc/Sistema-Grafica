@@ -88,7 +88,8 @@ export function registerRelatorioRoutes(app: Express): void {
       // ── Fotos do evento ────────────────────────────────────────────────
       // `url`: o registro de hoje só traz photoUrl; o fallback fica como estava.
       const fotos: Array<RegistroDeFoto & { url?: string | null }> = todasFotos;
-      const fotosDoEvento = fotos.filter((f) => f.eventId === event.id && (f.photoUrl || f.url));
+      // Usuário do Kit: só as fotos das peças dele, como as peças do relatório.
+      const fotosDoEvento = fotos.filter((f) => f.eventId === event.id && (f.photoUrl || f.url) && (!req.userKit || (!!f.itemId && idsDoEvento.has(f.itemId))));
       const conferencia = fotosDoEvento.filter((f) => String(f.kind).startsWith("confer")).length;
       const ultimas = fotosDoEvento
         .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())

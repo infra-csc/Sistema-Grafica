@@ -11,7 +11,7 @@
 //      filtra ("Aguardando estoque", "Estoque respondeu"); o lote leva a
 //      sugestão e o resumo diz quantas.
 //   2. A CAIXA DA GRÁFICA: "Pedem 5 de 6 un.", sugestões do acervo, Atender (5),
-//      Atender parcial, Não consigo atender, "sem vínculo com o acervo", abas na
+//      Atender parcial, Não consigo atender, "sem vínculo com o Estoque", abas na
 //      URL, vazio, erro, sem sugestão; a Solicitação só acompanha.
 //   3. CELULAR (390px): uma coluna, alvos de 44px, campos a 16px, respostas
 //      coladas no pé com safe-area.
@@ -371,7 +371,7 @@ describe("a caixa da Gráfica — Solicitações ao estoque", () => {
     await act(async () => { fireEvent.change(tid("qtd-sugestao-L1")!, { target: { value: "3" } }); });
     await act(async () => { fireEvent.change(tid("qtd-sugestao-L2")!, { target: { value: "9" } }); }); // só cabem 2 (5 pedidas − 3)
     expect((tid("qtd-sugestao-L2") as HTMLInputElement).value).toBe("2");
-    expect(tid("aviso-vinculo-c1")!.textContent).toContain("5 un. do acervo ficam reservadas");
+    expect(tid("aviso-vinculo-c1")!.textContent).toContain("5 un. do Estoque ficam reservadas");
     await act(async () => { fireEvent.click(tid("button-atender-c1")!); });
     await esperar(() => f.escritas().length === 1, "responde");
     expect(f.escritas()[0]).toEqual({
@@ -403,8 +403,8 @@ describe("a caixa da Gráfica — Solicitações ao estoque", () => {
   it("sem sugestão: manda procurar no galpão; dá para atender SEM escolher ativo (“sem vínculo com o acervo”) ou dizer que não consegue, com o motivo", async () => {
     const f = await montarCaixa(1280, { abertas: [daCaixa(1)] });
     await esperar(() => !!tid("sugestoes-vazio"), "a frase de vazio aparece");
-    expect(tid("sugestoes-vazio")!.textContent).toBe("Nada parecido no acervo — procure no galpão e responda.");
-    expect(tid("aviso-vinculo-c1")!.textContent).toContain("sem vínculo com o acervo");
+    expect(tid("sugestoes-vazio")!.textContent).toBe("Nada parecido no Estoque — procure no galpão e responda.");
+    expect(tid("aviso-vinculo-c1")!.textContent).toContain("sem vínculo com o Estoque");
     expect((tid("button-atender-c1") as HTMLButtonElement).disabled).toBe(false);
     await act(async () => { fireEvent.change(tid("input-observacao-resposta-c1")!, { target: { value: "rasgadas" } }); });
     // A confirmação agora é o diálogo do app (useConfirmar), e não o
@@ -429,7 +429,7 @@ describe("a caixa da Gráfica — Solicitações ao estoque", () => {
     await act(async () => { fireEvent.click(tid("button-busca-acervo-c1")!); });
     await esperar(() => !!tid("sugestao-M1"), "o resultado da busca aparece");
     expect(buscas).toEqual(["", "portico"]);
-    expect(tid("responder-c1")!.textContent).toContain("Busca no acervo");
+    expect(tid("responder-c1")!.textContent).toContain("Busca no Estoque");
     await act(async () => { fireEvent.click(tid("button-procurar-c2")!); });
     await esperar(() => !!tid("responder-c2"), "a segunda abre");
     expect(tid("responder-c1")).toBeNull();
@@ -446,10 +446,10 @@ describe("a caixa da Gráfica — Solicitações ao estoque", () => {
     });
     expect(tid("aba-respondidas")!.getAttribute("aria-selected")).toBe("true");
     expect(tid("consulta-c1")!.textContent).toContain("Atendeu 3 de 5 un. pedidas");
-    expect(tid("consulta-c1")!.textContent).toContain("2 peças reservadas do acervo");
+    expect(tid("consulta-c1")!.textContent).toContain("2 peças reservadas do Estoque");
     expect(tid("consulta-c1")!.textContent).toContain("Esperando a Revisão Final confirmar e liberar");
     expect(tid("consulta-c2")!.textContent).toContain("Já é reaproveitamento na peça (5 de 6 un. reaproveitadas)");
-    expect(tid("consulta-c2")!.textContent).toContain("sem vínculo com o acervo");
+    expect(tid("consulta-c2")!.textContent).toContain("sem vínculo com o Estoque");
     expect(tid("consulta-c3")!.textContent).toContain("Não conseguiu atender as 5 un. pedidas");
     expect(tid("consulta-c3")!.textContent).toContain("rasgadas");
     await act(async () => { fireEvent.click(tid("aba-abertas")!); });

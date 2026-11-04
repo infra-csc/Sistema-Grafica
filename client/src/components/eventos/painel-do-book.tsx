@@ -322,7 +322,7 @@ export function PainelDoBook({ eventId, nomeDoEvento, onFechar, aud, isMobile, a
       return (
         <EstadoVazio compacto icone={KeyRound} testId="painel-book-sem-chave"
           titulo="Auditoria com IA desligada"
-          descricao="Falta o Secret ANTHROPIC_API_KEY no servidor. Com a chave configurada e o app reiniciado, este book é auditado sozinho." />
+          descricao="A auditoria com IA ainda não foi ligada no servidor. Avise o administrador: quando ligar, este book é auditado sozinho." />
       );
     }
     if (a.status === "erro") {

@@ -137,7 +137,7 @@ export function useBookDaArte({ arteItemsPool, eventFilter, toast, uploadFileRaw
       } else if (a?.status === "failed") {
         toast({
           title: "Book salvo — mas o aviso NÃO saiu",
-          description: `${quantas} Motivo: ${a.reason ?? "desconhecido"}. Avise a equipe por outro caminho.`,
+          description: `${quantas} Motivo: ${a.reason ?? "desconhecido"}. Avise a equipe por outro caminho e chame o admin.`,
           variant: "destructive",
         });
       } else {

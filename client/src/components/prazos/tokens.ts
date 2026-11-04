@@ -262,7 +262,7 @@ export const STAGE_HEADERS = [
   // e "Producao" inteiras — lia como erro de digitacao, nao como abreviacao.
   // "Final" sem ponto e uma palavra de verdade e cabe no mesmo espaco.
   { key: "finalizacao", short: "Final", full: "Finalização" },
-  { key: "revisao", short: "Revisão", full: "Revisão de Lista" },
+  { key: "revisao", short: "Revisão", full: "Revisão Final" },
   { key: "producao", short: "Produção", full: "Produção Gráfica" },
 ];
 

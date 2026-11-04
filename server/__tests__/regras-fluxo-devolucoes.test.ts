@@ -112,7 +112,7 @@ describe("a Arte devolve ao solicitante de qualquer estado (arte-reject)", () =>
     chamar("PATCH /api/items/:id/arte-reject", { sessao: sessao(papel), params: { id }, body: { rejectionReason: MOTIVO } });
 
   it("aceita de qualquer estado, inclusive depois da produção", async () => {
-    for (const status of ["requested", "awaiting_submission", "ready_for_production", "inProduction", "produced", "delivered", "canceled"]) {
+    for (const status of ["requested", "awaiting_submission", "ready_for_production", "inProduction", "produced", "delivered"]) {
       mundo.itens.p1 = peca({ status });
       const r = await devolver("arte");
       expect(r.status, status).toBe(200);

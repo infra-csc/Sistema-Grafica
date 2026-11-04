@@ -1,4 +1,5 @@
 // Sponsor, quota-rule, event-sponsor, and item-sponsor routes. Extracted from server/routes.ts.
+import { JA_LIBERADA } from "@shared/maquina-de-estados";
 import type { Express } from "express";
 import { storage } from "../storage";
 import { marcasEditaveis, pulaAprovacao } from "@shared/prazo-sem-aprovacao";
@@ -641,7 +642,7 @@ export function registerSponsorRoutes(app: Express): void {
         `${eventId}_${sponsorId}`,
         `Patrocinador "${sponsor?.name}" removido do evento "${event?.name}"`
           + (pecasDesvinculadas > 0
-            ? ` — desvinculado também de ${pecasDesvinculadas} peça${pecasDesvinculadas !== 1 ? "s" : ""}${rodadasFechadas > 0 ? `; ${rodadasFechadas} rodada${rodadasFechadas !== 1 ? "s" : ""} de aprovação fechou e a peça seguiu` : ""}${inativadas > 0 ? `; ${inativadas} peça${inativadas !== 1 ? "s" : ""} que só tinha${inativadas !== 1 ? "m" : ""} este patrocinador foi${inativadas !== 1 ? "ram" : ""} cancelada${inativadas !== 1 ? "s" : ""} (visível no Painel Geral)` : ""}`
+            ? ` — desvinculado também de ${pecasDesvinculadas} peça${pecasDesvinculadas !== 1 ? "s" : ""}${rodadasFechadas > 0 ? `; ${rodadasFechadas} rodada${rodadasFechadas !== 1 ? "s" : ""} de aprovação ${rodadasFechadas !== 1 ? "fecharam e as peças seguiram" : "fechou e a peça seguiu"}` : ""}${inativadas > 0 ? `; ${inativadas} peça${inativadas !== 1 ? "s" : ""} que só tinha${inativadas !== 1 ? "m" : ""} este patrocinador foi${inativadas !== 1 ? "ram" : ""} cancelada${inativadas !== 1 ? "s" : ""} (visíve${inativadas !== 1 ? "is" : "l"} no Painel Geral)` : ""}`
             : "")
       );
 
@@ -1120,7 +1121,8 @@ export function registerSponsorRoutes(app: Express): void {
           broadcast({ type: "item_sponsor_added", itemSponsor: { itemId, sponsorId } });
         } catch (e: any) {
           // Uma peça com problema NÃO derruba o lote: vira recusa nomeada.
-          recusadas.push({ displayId: rotulo, motivo: `falha interna: ${e?.message ?? "erro desconhecido"}` });
+          console.error(`[acrescentar-patrocinador] falha na peça ${itemId}:`, e);
+          recusadas.push({ displayId: rotulo, motivo: "não foi possível acrescentar agora, tente de novo" });
         }
       }));
 
@@ -1310,6 +1312,8 @@ export function registerSponsorRoutes(app: Express): void {
     }
   });
 
+  const DEPOIS_DA_APROVACAO = ["sponsor_approved", "awaiting_finalization", "awaiting_creator_review", "awaiting_final_review", "awaiting_review", "in_review", ...JA_LIBERADA];
+
   // Add single sponsor to item
   app.post("/api/items/:id/sponsors", requireLinkingWrite, async (req, res) => {
     try {
@@ -1327,6 +1331,17 @@ export function registerSponsorRoutes(app: Express): void {
       if (ehMolde(item)) return res.status(409).json({ error: ERRO_PATROCINADOR_EM_MOLDE, code: "MOLDE_SEM_PATROCINADOR" });
       if (item.producaoInterna) return res.status(409).json({ error: ERRO_PATROCINADOR_NA_PRODUCAO_INTERNA, code: CODIGO_COM_PATROCINADOR });
       if (barraSeArquivado(await storage.getSponsor(validatedData.sponsorId), res, PATROCINADOR_ARQUIVADO_ERRO)) return;
+      // Depois da aprovação o patrocinador novo nunca decidiria: quem reabre a rodada é o Acrescentar.
+      if (DEPOIS_DA_APROVACAO.includes(item.status)) {
+        return res.status(409).json({ error: `A peça está em "${translateStatus(item.status)}": use "Acrescentar patrocinador", que reabre a aprovação quando ainda dá.` });
+      }
+      // Com patrocinador, a peça deixa de pular a Aprovação (a regra do sync, 27/10).
+      if (item.skipApproval || item.arteDoCliente) {
+        await storage.updateItem(req.params.id, {
+          ...(item.skipApproval ? { skipApproval: false } : {}),
+          ...(item.arteDoCliente ? colunasDaArteDoCliente(false, req.userName ?? null) : {}),
+        });
+      }
 
       const itemSponsor = await storage.addSponsorToItem(validatedData);
 

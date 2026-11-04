@@ -296,7 +296,7 @@ async function runStartupMaintenance() {
     // Loga o erro completo no servidor sempre.
     console.error(err);
     // Convenção dos erros de middleware (http-errors, body-parser): status/statusCode e message.
-    const e: { status?: number; statusCode?: number; message?: string } =
+    const e: { status?: number; statusCode?: number; message?: string; type?: string } =
       typeof err === "object" && err !== null ? err : {};
     // Se a resposta já começou a ser enviada, não dá para reescrever o status/
     // corpo — delega ao handler padrão do Express (senão dá "Cannot set headers
@@ -310,6 +310,9 @@ async function runStartupMaintenance() {
     // cliente que lia `.error` recebia undefined).
     const message = status >= 500
       ? "Erro interno do servidor"
+      // Os dois do body-parser vêm em inglês ("request entity too large", "Unexpected token…").
+      : e.type === "entity.too.large" ? "O pedido ficou grande demais para o servidor. Envie menos peças de uma vez e tente de novo."
+      : e.type === "entity.parse.failed" ? "Não foi possível ler o pedido. Recarregue a página e tente de novo."
       : (e.message || "Erro na requisição");
     res.status(status).json({ error: message });
   });

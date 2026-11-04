@@ -616,7 +616,7 @@ export default function Patrocinadores() {
           className="pat-acao-perigo"
           data-testid={`button-delete-${sponsor.id}`}
           onClick={() => setDeletingSponsor(sponsor)}
-          aria-label={`Excluir patrocinador ${sponsor.name}`}
+          aria-label={`Arquivar ${sponsor.name}`}
           title="Arquivar (dá para restaurar)"
           style={{ width: toque, height: toque, padding: 0, color: T.second }}
         />

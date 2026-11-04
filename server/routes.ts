@@ -106,6 +106,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // operando". Login sem operadores passa direto (server/operadores.ts).
   app.use(montarIdentidadeDoOperador());
 
+  // ── LIXEIRA: peça excluída só volta pelo Restaurar ──────────────────────
+  // storage.getItem devolve a excluída (a lixeira precisa disso), e as rotas de
+  // escrita não olhavam: dava para liberar ou aprovar peça que estava na lixeira.
+  app.use(async (req, res, next) => {
+    try {
+      if (!["POST", "PATCH", "PUT"].includes(req.method)) return next();
+      const alvo = req.path.match(/^\/api\/items\/([^/]+)(\/[^/]+)?/);
+      if (!alvo || alvo[1].startsWith("bulk") || alvo[2] === "/restore") return next();
+      const [peca] = await db.select({ deletedAt: itemsTable.deletedAt }).from(itemsTable).where(eq(itemsTable.id, alvo[1])).limit(1);
+      if (peca?.deletedAt) return res.status(404).json({ error: "Peça não encontrada" });
+      next();
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // ── KIT: a Solicitação da Arena só VISUALIZA peça do Kit (dono, 15/09) ────
   // Uma trava só para toda escrita em peça (/api/items/:id/…, e lotes com
   // `itemIds`): quem é da Solicitação e NÃO é usuário do Kit não age sobre
@@ -126,6 +142,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // com uma peça do Kit no recorte, a Solicitação levava 403 ao baixar o
       // Excel do que ela já vê (21/10). Não escreve nada — fica de fora da trava.
       if (req.method === "POST" && req.path === "/api/items/export-xlsx") return next();
+      // Clonar lê a peça de origem e cria outra: com seleção ou sem, a mesma regra.
+      if (req.method === "POST" && /^\/api\/events\/[^/]+\/clone-items$/.test(req.path)) return next();
       const ids: string[] = [];
       const alvo = req.path.match(/^\/api\/items\/([^/]+)(?:\/|$)/);
       if (alvo && !["bulk", "export-xlsx"].includes(alvo[1])) ids.push(alvo[1]);

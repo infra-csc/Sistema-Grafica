@@ -1297,7 +1297,7 @@ export const insertItemSchema = createInsertSchema(items).omit({
   createdAt: true,
   updatedAt: true,
 }).extend({
-  quantity: z.number().min(1),
+  quantity: z.number().int("A quantidade precisa ser um número inteiro").min(1),
   // O jsonb inferido pelo drizzle-zod vira um tipo recursivo que derruba a
   // inferência do schema inteiro (`validatedData` virava `{}`); declarado à mão.
   impressaoPorMaquina: z.record(z.string(), z.object({ atrib: z.number().int().min(0), impressas: z.number().int().min(0) })).nullable().optional(),
@@ -1547,7 +1547,7 @@ export const insertInventoryAssetSchema = createInsertSchema(inventoryAssets).om
   condition: z.enum(["PERFEITO", "AVARIA_LEVE", "SUCATA"]).default("PERFEITO"),
   franchiseTags: z.array(z.string()).default([]),
   sponsorIds: z.array(z.string()).default([]),
-  quantity: z.number().min(1).default(1),
+  quantity: z.number().int("A quantidade precisa ser um número inteiro").min(1).default(1),
   autoAdded: z.boolean().default(false),
   trackingStatus: z.enum(["NO_GALPAO", "EM_USO", "AGUARDANDO_TRIAGEM", "EM_MANUTENCAO", "DESCARTADO"]).default("NO_GALPAO"),
 });

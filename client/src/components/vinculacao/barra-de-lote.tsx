@@ -157,7 +157,7 @@ export function BarraDeLote({
               onClick={handleOpenBulkApplyDialog}
               data-testid="button-apply-bulk-sponsors"
               style={acao}
-              title={enviadasSelecionadas > 0 ? `Reescreve os patrocinadores das ${naVinculacao} que ainda estão na vinculação` : undefined}
+              title={enviadasSelecionadas > 0 ? `Soma os patrocinadores escolhidos ${naVinculacao === 1 ? 'à peça que ainda está' : `às ${naVinculacao} peças que ainda estão`} na Vinculação` : undefined}
             >
               Aplicar{enviadasSelecionadas > 0 ? ` em ${naVinculacao}` : ' patrocinadores'}
             </Botao>

@@ -59,7 +59,7 @@ export function recusaPorReserva(
   divisao = false,
 ): string {
   const para = reserva.itemDisplayId ? `${reserva.itemDisplayId} (${reserva.eventName})` : `o evento ${reserva.eventName}`;
-  return `${displayId} está reservado para ${para} — libere a reserva ou mande ${divisao ? "o registro inteiro " : ""}para o Galpão`;
+  return `${displayId} está reservada para ${para} — libere a reserva ou mande ${divisao ? "a peça inteira " : ""}para o Galpão`;
 }
 
 // ─── Semelhança ──────────────────────────────────────────────────────────────

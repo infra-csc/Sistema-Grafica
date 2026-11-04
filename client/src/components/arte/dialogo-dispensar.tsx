@@ -11,7 +11,7 @@ import type { PecaDaArte } from "./tipos";
 import { fsToque } from "./constantes";
 import type { AcoesDaArte } from "./use-acoes-da-arte";
 
-/** "Direto para finalização": a peça pula a aprovação do Atendimento, com motivo. */
+/** "Dispensar aprovação": a peça pula a aprovação do Atendimento, com motivo. */
 export function DialogoDispensar({ dispenseItem, setDispenseItem, dispenseReason, setDispenseReason, dispenseMutation, dedo }: {
   dispenseItem: PecaDaArte | null;
   setDispenseItem: Dispatch<SetStateAction<PecaDaArte | null>>;
@@ -30,8 +30,8 @@ export function DialogoDispensar({ dispenseItem, setDispenseItem, dispenseReason
             `dispenseItem`/`dispenseReason`, que acabaram de ser zerados. Sem
             congelar o modal se apaga durante o fade. */}
         <FreezeWhileClosing open={!!dispenseItem}>
-        <DialogTitle className="sr-only">Direto para finalização</DialogTitle>
-        <DialogDescription className="sr-only">Mandar a peça direto para a finalização da arte, sem a aprovação do Atendimento</DialogDescription>
+        <DialogTitle className="sr-only">Dispensar aprovação</DialogTitle>
+        <DialogDescription className="sr-only">Dispensar a aprovação do Atendimento: a peça vai para a finalização da arte</DialogDescription>
         {/* ModalHeader compartilhado: o X feito à mão aqui tinha 20px, abaixo
             do alvo mínimo de toque, num diálogo que libera peça para produção.
             A casca dá 34px, o mesmo tamanho dos outros modais da tela. */}
@@ -41,7 +41,7 @@ export function DialogoDispensar({ dispenseItem, setDispenseItem, dispenseReason
           icon={FastForward}
           variant="confirm"
           tint={P.amber.text}
-          title="Direto para finalização"
+          title="Dispensar aprovação"
           subtitle="A peça pula a aprovação do Atendimento e vai para a finalização"
           onClose={() => { setDispenseItem(null); setDispenseReason(""); }}
         />
@@ -117,7 +117,7 @@ export function DialogoDispensar({ dispenseItem, setDispenseItem, dispenseReason
               data-testid="button-confirm-dispense"
               style={{ ...(dedo ? { flex: '1 1 0', minWidth: 0 } : null), ...(faltamNoMotivo(dispenseReason, MOTIVO_DISPENSA_MIN) > 0 ? null : { borderColor: P.amber.text, color: P.amber.text }) }}
             >
-              {dispenseMutation.isPending ? 'Enviando…' : 'Mandar para finalização'}
+              {dispenseMutation.isPending ? 'Enviando…' : 'Dispensar aprovação'}
             </Botao>
           </div>
         </ModalFooter>

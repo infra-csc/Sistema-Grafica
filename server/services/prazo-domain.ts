@@ -393,7 +393,9 @@ export function buildEventPrazo(
       if (i === APROVACAO_STAGE_INDEX && pd.pula && pd.marco < i) continue;
       const p = prazoNoMarco(i, prazosDoEvento, pd.piso);
       if (efetivo === null || p < efetivo) efetivo = p;
-      if (p < hojeStr) atrasadas += 1;
+      // Com a Aprovação longa, o Layout ajustado vence depois da Finalização: a peça
+      // ainda dentro dele não é atraso de ninguém, como na lista e nas Análises.
+      if (p < hojeStr && !(pd.piso && pd.prazo >= hojeStr)) atrasadas += 1;
     }
     const prazoEfetivo = efetivo ?? deadline;
     const diffDays = Math.round((Date.parse(`${prazoEfetivo}T00:00:00Z`) - today) / 86400000);

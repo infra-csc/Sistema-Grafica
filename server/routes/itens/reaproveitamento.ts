@@ -320,7 +320,7 @@ export function registrarReaproveitamento(app: Express): void {
       const isAdmin = req.userRole === "admin";
       // (a janela de cada papel: shared/maquina-de-estados.ts, "corrigir-reaproveitamento-para-a-fila")
       if (!podeTransicionar(current.status, "corrigir-reaproveitamento-para-a-fila", req.userRole)) {
-        return res.status(409).json({ error: "Correção disponível apenas para peças com status Produzido" });
+        return res.status(409).json({ error: "Só dá para corrigir o reaproveitamento de peça Liberada, Em Impressão ou Impresso; Gráfica e Solicitação, só em Impresso." });
       }
       if ((current.conferredQty || 0) > 0) {
         return res.status(409).json({ error: "Não é possível corrigir: a peça já foi parcialmente conferida" });
@@ -346,7 +346,7 @@ export function registrarReaproveitamento(app: Express): void {
       // limite continua sendo o parcial, que é o que a operação deles cobre.
       const maximo = isAdmin ? current.quantity : current.quantity - 1;
       const correctedReuseQty = Number(req.body?.correctedReuseQty);
-      if (isNaN(correctedReuseQty) || correctedReuseQty < 0 || correctedReuseQty > maximo) {
+      if (!Number.isInteger(correctedReuseQty) || correctedReuseQty < 0 || correctedReuseQty > maximo) {
         return res.status(400).json({
           error: `Quantidade corrigida inválida (deve ser entre 0 e ${maximo})`,
         });

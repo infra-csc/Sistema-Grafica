@@ -263,7 +263,7 @@ export function TriagemModal({
         <Linha rotulo="Medida">{linkedItem?.measurement || "—"}</Linha>
         <Linha rotulo="Dimensões">{linkedItem?.visualWidth && linkedItem?.visualHeight ? `${linkedItem.visualWidth} × ${linkedItem.visualHeight} m` : "—"}</Linha>
         <Linha rotulo="M² total">{linkedItem?.calculatedM2 ? `${linkedItem.calculatedM2} m²` : "—"}</Linha>
-        <Linha rotulo="Este registro">{qty} un.</Linha>
+        <Linha rotulo="Esta peça">{qty} un.</Linha>
         <Linha rotulo="Peça de origem">{linkedItem?.quantity ? `${linkedItem.quantity} un.` : "—"}</Linha>
       </dl>
       <p style={{ margin: "10px 0 0", fontSize: FS.body, color: T.apoio, lineHeight: 1.5 }}>

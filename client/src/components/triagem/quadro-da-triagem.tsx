@@ -206,7 +206,7 @@ const CartaoDoGrupo = memo(function CartaoDoGrupo({ grupo, coluna, quantidade, r
           </Botao>
           <Botao tamanho="sm" variante="fantasma" data-testid={`ver-pecas-${id}`} aria-expanded={aberto} onClick={() => setAberto((v) => !v)}
             style={{ minHeight: alvo, fontWeight: FW.medio }}>
-            {grupo.ativos.length} {grupo.ativos.length === 1 ? "registro" : "registros"} <ChevronDown size={13} aria-hidden="true" style={{ transform: aberto ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+            {grupo.ativos.length} {grupo.ativos.length === 1 ? "peça" : "peças"} <ChevronDown size={13} aria-hidden="true" style={{ transform: aberto ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
           </Botao>
         </div>
       )}
@@ -482,7 +482,7 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
     // quando nenhuma escolha de registros fecha a conta.)
     const incompleto = todos.flatMap((p) => p.plano.incompletos.map((i) => ({ ...i, nome: p.grupo.nome })))[0];
     if (incompleto) {
-      toast({ title: `${incompleto.displayId} é um registro de ${incompleto.quantidade} unidades`, description: `Ele precisa ser distribuído inteiro: faltam ${incompleto.faltam} un. de ${incompleto.nome} sem destino.`, variant: "warning" });
+      toast({ title: `${incompleto.displayId} é uma peça de ${incompleto.quantidade} unidades`, description: `Ela precisa ser distribuída inteira: faltam ${incompleto.faltam} un. de ${incompleto.nome} sem destino.`, variant: "warning" });
       return;
     }
     // Reservado fora do Galpão: o servidor recusaria (409). Avisa ANTES.
@@ -707,9 +707,9 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
           )}
           acoes={(
             <>
-              <Botao tamanho={toque ? "toque" : "md"} icone={Table2} onClick={onTabela} data-testid="button-quadro-tabela" title="A tabela mostra registro por registro, com observação individual"
+              <Botao tamanho={toque ? "toque" : "md"} icone={Table2} onClick={onTabela} data-testid="button-quadro-tabela" title="A tabela mostra peça por peça, com observação individual"
                 larguraCheia={isMobile} style={{ minHeight: alvo, fontSize: FS.body }}>
-                Tabela (registro por registro)
+                Tabela (peça por peça)
               </Botao>
               <Botao variante={unidadesMovidas > 0 || salvando ? "primario" : "secundario"} tamanho={toque ? "toque" : "md"} icone={CheckCircle2} onClick={salvar} data-testid="button-salvar-triagem"
                 disabled={unidadesMovidas === 0 || atualizando} carregando={salvando}

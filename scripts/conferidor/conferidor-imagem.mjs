@@ -12,7 +12,7 @@ const { createCanvas } = req("@napi-rs/canvas");
 sharp.concurrency(1);
 const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
 
-const LADO = 1000, TETO_AI = 700 * 1048576, TETO_TIF = 500 * 1048576, MAX_PRANCHETAS = 60, MAX_CANDIDATAS = 3;
+const LADO = 1000, TETO_AI = 700 * 1048576, TETO_TIF = 700 * 1048576, MAX_PRANCHETAS = 60, MAX_CANDIDATAS = 3;
 // O caminho vem como foi colado: às vezes entre aspas e com barras trocadas.
 const caminhoLocal = (u) => u.trim().replace(/^"+|"+$/g, "").split("/").join(path.sep);
 

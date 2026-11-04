@@ -12,6 +12,7 @@ import {
   insertInventoryAssetSchema, inventoryAssets, auditLogs, eventInventoryAllocations, events, items as itemsTable, sponsors, itemSponsors,
 } from "@shared/schema";
 import { requireAuth, requireRole, broadcast, createAuditLog } from "./shared";
+import { semKit } from "../trava-do-kit";
 import { recusaDeTriagem, recusaPorReserva, reservaEstaAtiva } from "@shared/estoque";
 import { ehForaDoFunil } from "@shared/fluxo-peca";
 import { barraSeArquivado } from "../services/arquivamento";
@@ -139,7 +140,7 @@ export function registerInventoryRoutes(app: Express): void {
   // Estoque baixava /api/items inteiro (MBs) só para ligar ativo a evento — e,
   // enquanto não chegava, a chave dos grupos mudava e as linhas abertas
   // fechavam sozinhas.
-  app.get("/api/inventory", requireAuth, async (req, res) => {
+  app.get("/api/inventory", requireAuth, semKit, async (req, res) => {
     try {
       const assets = await db
         .select({ ...getTableColumns(inventoryAssets), origemEventId: itemsTable.eventId })
@@ -153,7 +154,7 @@ export function registerInventoryRoutes(app: Express): void {
     }
   });
 
-  app.get("/api/inventory/available/:franchise", requireAuth, async (req, res) => {
+  app.get("/api/inventory/available/:franchise", requireAuth, semKit, async (req, res) => {
     try {
       const assets = await storage.getAvailableAssetsByFranchise(req.params.franchise);
       res.json(assets);
@@ -168,7 +169,7 @@ export function registerInventoryRoutes(app: Express): void {
   // cada peça triada, em qualquer aba, disparava esta leitura de novo. Agora
   // lê só as colunas que o enriquecimento usa, só das peças/eventos/
   // patrocinadores que a fila cita.
-  app.get("/api/inventory/awaiting-triage", requireAuth, async (req, res) => {
+  app.get("/api/inventory/awaiting-triage", requireAuth, semKit, async (req, res) => {
     try {
       const assets = await storage.getAssetsAwaitingTriage();
       const origens = await emFatias(unicos(assets.map((a) => a.originalItemId)), (ids) =>
@@ -202,7 +203,7 @@ export function registerInventoryRoutes(app: Express): void {
     }
   });
 
-  app.get("/api/inventory/:id/allocations", requireAuth, async (req, res) => {
+  app.get("/api/inventory/:id/allocations", requireAuth, semKit, async (req, res) => {
     try {
       const allocations = await storage.getAssetAllocations(req.params.id);
       res.json(allocations);
@@ -215,7 +216,7 @@ export function registerInventoryRoutes(app: Express): void {
   // A peça de ORIGEM de um ativo, para o detalhe do Estoque (tipo, material,
   // medida, patrocinadores). Uma peça só, pedida quando o detalhe abre — no
   // lugar de /api/items inteiro. A Triagem usa a mesma rota.
-  app.get("/api/inventory/:id/origem", requireAuth, async (req, res) => {
+  app.get("/api/inventory/:id/origem", requireAuth, semKit, async (req, res) => {
     try {
       const [peca] = await db
         .select({
@@ -238,7 +239,7 @@ export function registerInventoryRoutes(app: Express): void {
     }
   });
 
-  app.get("/api/inventory/:id", requireAuth, async (req, res) => {
+  app.get("/api/inventory/:id", requireAuth, semKit, async (req, res) => {
     try {
       const asset = await storage.getInventoryAsset(req.params.id);
       if (!asset) return res.status(404).json({ error: "Peça não encontrada" });

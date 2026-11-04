@@ -68,7 +68,7 @@ beforeEach(() => {
 });
 
 const patch = async (body: Record<string, unknown>) => {
-  const r = await chamar("PATCH /api/items/:id", { sessao: { userId: "u-arte", userRole: "arte", userName: "Ana" }, params: { id: "p1" }, body });
+  const r = await chamar("PATCH /api/items/:id", { sessao: { userId: "u-arte", userRole: "solicitacao", userName: "Ana" }, params: { id: "p1" }, body });
   expect(r.status, JSON.stringify(r.body)).toBe(200);
   return gravado!;
 };

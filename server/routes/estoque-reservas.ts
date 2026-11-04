@@ -47,6 +47,7 @@ import {
 } from "@shared/estoque";
 import { etapaDaPeca, ehForaDoFunil, statusDasEtapas } from "@shared/fluxo-peca";
 import { requireAuth, requireRole, broadcast, createAuditLog, createAuditLogsEmLote, type AuditActor } from "./shared";
+import { semKit } from "../trava-do-kit";
 
 // 15/09: Estoque é só do admin.
 const requireReservaDeEstoque = requireRole("admin");
@@ -637,7 +638,7 @@ export function registerEstoqueReservasRoutes(app: Express): void {
   // Reservas vigentes do acervo inteiro — o Estoque e a Triagem mostram
   // "reservada para o evento X, saída dd/mm". Fora de /api/inventory/* para
   // não cair na rota /api/inventory/:id.
-  app.get("/api/estoque/reservas-ativas", requireAuth, async (_req, res) => {
+  app.get("/api/estoque/reservas-ativas", requireAuth, semKit, async (_req, res) => {
     try {
       const reservas = await carregarReservasAtivas(db, new Date());
       const idsDePeca = Array.from(new Set(reservas.map((r) => r.itemId).filter((x): x is string => !!x)));

@@ -10,6 +10,12 @@ import { pecaVisivelPara } from "@shared/kit";
 // Decisão do dono: o usuário do Kit só altera o evento que ele criou.
 export const KIT_EDITA_SO_EVENTO_PROPRIO = true;
 
+/** O acervo é da Arena: o usuário do Kit não tem tela de Estoque nem de Triagem, e a API entregava o caminho das artes. */
+export const semKit = (req: Request, res: Response, next: NextFunction) => {
+  if (req.userKit) return res.status(403).json({ error: "O Estoque não faz parte do Kit." });
+  next();
+};
+
 export const MSG_PECA_FORA_DO_KIT = "Esta peça não é do seu Kit. Você só pode ver e mexer nas peças do Kit que você criou.";
 export const MSG_CLONAR_KIT = "Clonar peças de outro evento não está disponível para o usuário do Kit.";
 export const MSG_EVENTO_DE_OUTRO = "Você só pode alterar um evento que você criou (dados, prioridade, patrocinadores e cotas).";

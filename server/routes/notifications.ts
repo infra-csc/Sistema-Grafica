@@ -7,6 +7,13 @@ import { requireAuth, broadcast } from "./shared";
 import { notifCache, setNotifCache, invalidateNotificationsCache, notifCacheGeneration } from "../cache";
 import { responderFalha } from "../erros";
 
+/** A régua da lista do sino, para a notificação de um id só. */
+function ehDestinatario(n: Notification, papel: string, userId: string | null, minhasDoKit: Set<string> | null): boolean {
+  if (papel !== "admin" && n.targetRoles?.length && !n.targetRoles.includes(papel)) return false;
+  if (n.targetUserId && n.targetUserId !== userId) return false;
+  return !minhasDoKit || (!!n.itemId && minhasDoKit.has(n.itemId));
+}
+
 export function registerNotificationRoutes(app: Express): void {
   // ============ NOTIFICATIONS ============
 
@@ -93,6 +100,15 @@ export function registerNotificationRoutes(app: Express): void {
 
   app.patch("/api/notifications/:id/read", requireAuth, async (req, res) => {
     try {
+      // A mesma régua da lista: quem não é destinatário não lê nem dá baixa.
+      const alvo = await storage.getNotification(req.params.id);
+      const userId = req.session?.userId ?? null;
+      const minhasDoKit = req.session?.userKit === true && alvo && alvo.targetUserId !== userId
+        ? new Set(await storage.getIdsDasPecasDoKitDoCriador(req.idDoKit ?? userId))
+        : null;
+      if (!alvo || !ehDestinatario(alvo, req.session?.userRole ?? "", userId, minhasDoKit)) {
+        return res.status(404).json({ error: "Notificação não encontrada" });
+      }
       const notification = await storage.markNotificationAsRead(req.params.id);
       if (!notification) {
         return res.status(404).json({ error: "Notificação não encontrada" });

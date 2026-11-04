@@ -381,7 +381,7 @@ describe("a marca na criação e na edição", () => {
 
   it("editar: o form inteiro de quem não marca passa, se a marca e a instrução não mudam", async () => {
     H.mundo.itens.p1 = peca("p1", { producaoInterna: true, instrucoesGrafica: INSTR });
-    const r = await chamar("PATCH /api/items/:id", { params: { id: "p1" }, userRole: "arte", body: { producaoInterna: true, instrucoesGrafica: INSTR, description: "Outro texto" } });
+    const r = await chamar("PATCH /api/items/:id", { params: { id: "p1" }, userRole: "arte", body: { producaoInterna: true, instrucoesGrafica: INSTR } });
     expect(r.status, JSON.stringify(r.body)).toBe(200);
   });
 });

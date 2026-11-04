@@ -1,9 +1,7 @@
 // Object-storage upload / serve / delivery-photo-save routes. Extracted
 // from server/routes.ts (OBJECT STORAGE section).
 import express, { type Express } from "express";
-import { storage } from "../storage";
-import { insertDeliveryPhotoSchema } from "@shared/schema";
-import { requireAuth, sendSensitiveError } from "./shared";
+import { requireAuth } from "./shared";
 import { pool } from "../db";
 import { criarAclDoKit, MSG_ARQUIVO_FORA_DO_KIT } from "../objectAcl";
 import { avaliarUpload, avaliarPedidoDeUrlAssinada, cabecalhosDoObjeto, MAX_UPLOAD_BYTES } from "../upload-seguro";
@@ -157,41 +155,4 @@ export async function registerObjectRoutes(app: Express): Promise<void> {
       return res.sendStatus(500);
     }
   });
-
-  // Save delivery photo info to database
-  app.post("/api/delivery-photos", requireAuth, async (req, res) => {
-    try {
-      // Quem enviou vem da SESSÃO (com o operador do login compartilhado, 21/10),
-      // nunca do corpo: o navegador mandava o nome do localStorage.
-      const validatedData = insertDeliveryPhotoSchema.parse({ ...req.body, uploadedBy: req.userName || "Sistema" });
-
-      // Normalize the photo URL to object path and record an ACL policy so
-      // the object is attributed to its uploader. Delivery photos are
-      // treated as "public" to any authenticated user, matching the
-      // pre-existing behavior where objects with no ACL policy were freely
-      // accessible to anyone logged in.
-      const objectStorageService = new ObjectStorageService();
-      let photoPath: string;
-      try {
-        photoPath = await objectStorageService.trySetObjectEntityAclPolicy(
-          validatedData.photoUrl,
-          { owner: req.userId!, visibility: "public" }
-        );
-      } catch {
-        // Object may not exist in storage yet (e.g. legacy/external URL) —
-        // fall back to just normalizing the path without setting an ACL.
-        photoPath = objectStorageService.normalizeObjectEntityPath(validatedData.photoUrl);
-      }
-
-      const photo = await storage.addDeliveryPhoto({
-        ...validatedData,
-        photoUrl: photoPath,
-      });
-      
-      res.status(201).json(photo);
-    } catch (error) {
-      sendSensitiveError(res, error, "Error saving delivery photo", 500);
-    }
-  });
-
 }

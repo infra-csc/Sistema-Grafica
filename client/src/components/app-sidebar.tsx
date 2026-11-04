@@ -87,7 +87,7 @@ const fluxoItems: MenuItem[] = [
   // menu uma tela com esse nome. A rota continua /solicitacao; o testId fica.
   { title: "Revisão Final",           url: "/solicitacao",             icon: ClipboardCheck, roles: ["solicitacao", "admin"], testId: "nav-revisão" },
   { title: "Gráfica",                 url: "/grafica",                 icon: Printer,        roles: ["grafica", "solicitacao", "admin"] },
-  { title: "Conferência de arquivos", url: "/conferencia-arquivos",    icon: FileSearch,     roles: ["arte", "grafica", "solicitacao", "admin"], semKit: true },
+  { title: "Conferência de arte",     url: "/conferencia-arquivos",    icon: FileSearch,     roles: ["arte", "grafica", "solicitacao", "admin"], semKit: true },
   // Quem reaproveita não é quem imprime (dono, 03/11): diz quantas têm no estoque.
   { title: "Reaproveitar",            url: "/reaproveitar",            icon: Recycle,        roles: ["grafica", "solicitacao", "admin"] },
   // A aba de impressoras (dono, 14/09): o que cada uma imprime agora e o
@@ -164,6 +164,7 @@ const DESCRICAO_DA_TELA: Record<string, string> = {
   "/solicitacao": "4º passo: conferir o arquivo final e liberar para produção (ou devolver à Arte)",
   "/grafica": "5º passo: produzir, conferir e entregar as peças liberadas",
   "/reaproveitar": "Dizer quantas peças temos no estoque; o que faltar vai para a Gráfica produzir",
+  "/conferencia-arquivos": "Comparar o arquivo final com o thumb das peças que ainda não foram impressas",
   "/grafica/maquinas": "O que cada impressora está imprimindo agora e o que saiu de cada uma no dia",
   "/grafica/solicitacoes-ao-estoque": "A Revisão Final pede peças ao estoque para reaproveitar; a Gráfica atende, atende em parte ou diz que não consegue",
   "/pedidos-de-peca": "Peças que faltam na lista de um evento: o Atendimento pede, a Solicitação cria",

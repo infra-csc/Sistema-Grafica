@@ -298,7 +298,7 @@ export default function ConferenciaArquivos() {
   return (
     <div data-testid="pagina-conferencia-arquivos" className="container mx-auto p-4 max-w-6xl 2xl:max-w-[1440px]" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <CabecalhoDaPagina
-        titulo="Conferência de arquivos"
+        titulo="Conferência de arte"
         subtitulo={isMobile ? "O arquivo final é a mesma arte do thumb? Nenhuma peça fica travada." : "Compara o arquivo final com o thumb das peças que ainda não foram impressas. É um aviso para olhar: nenhuma peça fica travada."}
       />
       {data && (

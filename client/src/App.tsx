@@ -233,7 +233,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "/grafica": "Gráfica",
   "/grafica/maquinas": "Impressoras",
   "/reaproveitar": "Reaproveitar",
-  "/conferencia-arquivos": "Conferência de arquivos",
+  "/conferencia-arquivos": "Conferência de arte",
   "/grafica/solicitacoes-ao-estoque": "Solicitações ao estoque",
   "/modelos": "Modelos",
   "/calendario": "Calendário",

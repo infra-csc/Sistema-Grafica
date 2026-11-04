@@ -13,13 +13,16 @@ import { storage } from "../storage";
 const require = createRequire(import.meta.url);
 const carregarSharp = () => require("sharp") as typeof import("sharp")["default"];
 
-/**
- * Só o que ainda dá para mudar: nada impresso e evento por vir.
- * "Não deu" volta para a fila depois de um dia: o arquivo pode ter sido colocado na
- * pasta. Gravar de novo renova a data, então uma peça não fica girando sem parar.
- */
-export const SQL_PENDENTES = `
-  select i.id, i.display_id as "displayId", i.final_file_url as "arquivo", i.approval_thumb_url as "thumb"
+// O banco grava em UTC e o processo roda em horário de Brasília: lido cru pelo driver,
+// o horário sairia 3 horas adiantado. Por isso a data já sai escrita, com o fuso.
+const ISO_UTC = (coluna: string) => `to_char(${coluna}, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')`;
+const DADOS_DA_PECA = `
+         i.id as "itemId", i.display_id as "displayId", i.type as "tipo", i.description as "descricao", i.status, i.quantity as "quantidade",
+         i.material, i.finish as "acabamento", i.file_width as "arqL", i.file_height as "arqA", i.visual_width as "visL", i.visual_height as "visA",
+         i.calculated_m2 as "m2", i.event_id as "eventId", e.name as "evento",
+         to_char(e.start_date, 'YYYY-MM-DD') as "inicio", to_char(e.truck_departure_date, 'YYYY-MM-DD') as "saida"`;
+
+const CONDICAO_DA_FILA = `
     from items i join events e on e.id = i.event_id
     left join conferencias_do_arquivo c on c.item_id = i.id and c.arquivo = i.final_file_url and c.thumb = i.approval_thumb_url
    where (c.id is null or (c.veredito = 'nao_deu' and c.resolvida_em is null and c.criada_em < now() - interval '1 day'))
@@ -27,14 +30,25 @@ export const SQL_PENDENTES = `
      and e.start_date >= (now() at time zone 'America/Sao_Paulo')::date
      and i.approval_thumb_url like '/objects/%' and coalesce(i.final_file_url, '') <> ''
      and coalesce(i.is_reuse, false) = false and coalesce(i.reuse_qty, 0) = 0 and coalesce(i.quantity_produced, 0) = 0
-     and i.status in ('awaiting_creator_review', 'awaiting_final_review', 'ready_for_production', 'approved', 'pronto_para_producao', 'liberado', 'inProduction', 'em_producao')
+     and i.status in ('awaiting_creator_review', 'awaiting_final_review', 'ready_for_production', 'approved', 'pronto_para_producao', 'liberado', 'inProduction', 'em_producao')`;
+
+/**
+ * Só o que ainda dá para mudar: nada impresso e evento por vir.
+ * "Não deu" volta para a fila depois de um dia: o arquivo pode ter sido colocado na
+ * pasta. Gravar de novo renova a data, então uma peça não fica girando sem parar.
+ */
+export const SQL_PENDENTES = `
+  select i.id, i.display_id as "displayId", i.final_file_url as "arquivo", i.approval_thumb_url as "thumb"${CONDICAO_DA_FILA}
    order by e.truck_departure_date, i.display_id limit $1`;
 
+/** A mesma fila, com o que a tela mostra de cada peça. */
+const SQL_FILA_DA_TELA = `
+  select i.final_file_url as "arquivo", i.approval_thumb_url as "thumb",${DADOS_DA_PECA}${CONDICAO_DA_FILA}
+   order by e.truck_departure_date, e.name, i.display_id limit 2000`;
+
 const COLUNAS_DA_LISTA = `
-  select c.id, c.item_id as "itemId", c.veredito, c.motivo, c.pagina, c.thumb, c.arquivo, c.preview_url as "previewUrl",
-         c.criada_em as "criadaEm", c.resolvida_em as "resolvidaEm", c.resolvida_por as "resolvidaPor",
-         i.display_id as "displayId", i.type as "tipo", i.description as "descricao", i.status, i.quantity as "quantidade",
-         i.event_id as "eventId", e.name as "evento", e.truck_departure_date as "saida"
+  select c.id, c.veredito, c.motivo, c.pagina, c.thumb, c.arquivo, c.preview_url as "previewUrl", c.nota,
+         ${ISO_UTC("c.criada_em")} as "criadaEm", ${ISO_UTC("c.resolvida_em")} as "resolvidaEm", c.resolvida_por as "resolvidaPor",${DADOS_DA_PECA}
     from conferencias_do_arquivo c join items i on i.id = c.item_id join events e on e.id = i.event_id
    where i.deleted_at is null and e.arquivado_em is null
      and c.arquivo = i.final_file_url and c.thumb = i.approval_thumb_url`;
@@ -134,12 +148,12 @@ export function registerConferenciaDoArquivoRoutes(app: Express): void {
   app.get("/api/conferencia-do-arquivo", requireRole("admin", "solicitacao", "arte", "grafica"), async (req, res) => {
     try {
       if (req.userKit) return res.status(403).json({ error: "A conferência não faz parte do Kit." });
-      const [{ rows: linhas }, { rows: pendentes }] = await Promise.all([
-        pool.query(`${COLUNAS_DA_LISTA} and (c.veredito <> 'confere') order by c.resolvida_em nulls first, e.truck_departure_date, i.display_id limit 500`),
-        pool.query(`select count(*)::int as n from (${SQL_PENDENTES.replace("limit $1", "")}) p`),
+      const [{ rows: linhas }, { rows: fila }, { rows: ultima }] = await Promise.all([
+        pool.query(`${COLUNAS_DA_LISTA} order by e.truck_departure_date, e.name, i.display_id limit 3000`),
+        pool.query(SQL_FILA_DA_TELA),
+        pool.query(`select ${ISO_UTC("max(criada_em)")} as "em" from conferencias_do_arquivo`),
       ]);
-      const { rows: conferem } = await pool.query(`select count(*)::int as n from (${COLUNAS_DA_LISTA} and c.veredito = 'confere') x`);
-      res.json({ linhas, conferem: conferem[0]?.n ?? 0, pendentes: pendentes[0]?.n ?? 0 });
+      res.json({ linhas, fila, ultimaConferencia: ultima[0]?.em ?? null });
     } catch (erro) {
       console.error("[conferencia] lista", erro);
       res.status(500).json({ error: "Não foi possível carregar a conferência." });

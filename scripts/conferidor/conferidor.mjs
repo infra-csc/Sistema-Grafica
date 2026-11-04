@@ -61,9 +61,9 @@ async function conferir(vaga, p) {
   const rt = await api(`/api/conferidor/${p.id}/thumb`);
   if (!rt.ok) throw new Error(`thumb ${rt.status}`);
   const thumb = Buffer.from(await rt.arrayBuffer()).toString("base64");
-  const { final, pagina, naoDeu, adiar } = await gerar(vaga, { id: p.id, arquivo: p.arquivo, thumb });
+  const { final, pagina, extras, naoDeu, adiar } = await gerar(vaga, { id: p.id, arquivo: p.arquivo, thumb });
   if (adiar) throw new Error(`ficou para a próxima passada (${adiar})`);
-  const corpo = naoDeu ? { naoDeu } : { final, pagina };
+  const corpo = naoDeu ? { naoDeu } : { final, pagina, extras };
   const r = await api(`/api/conferidor/${p.id}`, { method: "POST", body: JSON.stringify({ arquivo: p.arquivo, ...corpo }) });
   if (!r.ok) throw new Error(`comparar ${r.status}`);
   return (await r.json()).veredito;

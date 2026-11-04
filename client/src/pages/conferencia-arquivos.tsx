@@ -6,7 +6,7 @@
 // que conferiu e o que ainda espera, para não restar dúvida do que foi visto.
 import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Calendar, Check, ExternalLink, FileSearch, FolderOpen, Maximize2, Package, TriangleAlert, Truck } from "lucide-react";
+import { Calendar, Check, ExternalLink, FileSearch, FolderOpen, Maximize2, Package, TriangleAlert, Truck, Wrench } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
@@ -25,18 +25,19 @@ import { EsqueletoDeFila } from "@/components/esqueleto-de-fila";
 import { FilterSelect } from "@/components/filter-select";
 import { BotaoCopiar } from "@/components/botao-copiar";
 import { StatusPill } from "@/components/status-pill";
+import { ATALHOS_DO_AVISO, AVISO_MAXIMO, lerResolucao, type ResolucaoDaConferencia } from "@shared/conferencia-do-arquivo";
 
 type DadosDaPeca = {
   itemId: string; displayId: string | null; tipo: string; descricao: string | null; status: string; quantidade: number;
   material: string | null; acabamento: string | null; arqL: string | null; arqA: string | null; visL: string | null; visA: string | null; m2: string | null;
-  eventId: string; evento: string; inicio: string | null; saida: string | null; thumb: string | null; arquivo: string;
+  eventId: string; evento: string; inicio: string | null; saida: string | null; thumb: string | null; arquivo: string; avisoNaGrafica: string | null;
 };
 type Conferencia = DadosDaPeca & {
   id: string; veredito: "confere" | "vale_olhar" | "nao_deu"; motivo: string | null; pagina: string | null; previewUrl: string | null;
-  criadaEm: string; resolvidaEm: string | null; resolvidaPor: string | null; nota: string | null;
+  criadaEm: string; resolvidaEm: string | null; resolvidaPor: string | null; nota: string | null; resolucao: ResolucaoDaConferencia | null; reconferir: boolean;
 };
 type Resposta = { linhas: Conferencia[]; fila: DadosDaPeca[]; ultimaConferencia: string | null };
-type Aba = "olhar" | "nao_deu" | "conferem" | "fila" | "vistas";
+type Aba = "olhar" | "nao_deu" | "conferem" | "fila" | "resolvidas";
 type Linha = DadosDaPeca & Partial<Conferencia>;
 
 const CHAVE = ["/api/conferencia-do-arquivo"];
@@ -78,8 +79,8 @@ function situacaoDoConferidor(ultima: string | null, fila: number): { tom: NomeD
   return { tom: "alerta", titulo: "Conferidor parado", detalhe: `${ultimaFrase} A fila só anda com ele ligado num computador da rede.` };
 }
 
-function PainelDaCobertura({ conferem, olhar, naoDeu, vistas, fila, ultima }: { conferem: number; olhar: number; naoDeu: number; vistas: number; fila: number; ultima: string | null }) {
-  const conferidas = conferem + olhar + naoDeu + vistas;
+function PainelDaCobertura({ conferem, olhar, naoDeu, resolvidas, fila, ultima }: { conferem: number; olhar: number; naoDeu: number; resolvidas: number; fila: number; ultima: string | null }) {
+  const conferidas = conferem + olhar + naoDeu + resolvidas;
   const total = conferidas + fila;
   const pct = total > 0 ? Math.round((conferidas / total) * 100) : 0;
   const sit = situacaoDoConferidor(ultima, fila);
@@ -87,7 +88,7 @@ function PainelDaCobertura({ conferem, olhar, naoDeu, vistas, fila, ultima }: { 
     { rotulo: "Conferem", n: conferem, cor: TOM.sucesso.text },
     { rotulo: "Vale olhar", n: olhar, cor: TOM.alerta.text },
     { rotulo: "Não deu para conferir", n: naoDeu, cor: N.n6 },
-    { rotulo: "Vistas", n: vistas, cor: TOM.info.text },
+    { rotulo: "Resolvidas", n: resolvidas, cor: TOM.info.text },
   ];
   return (
     <section aria-label="Situação da conferência" data-testid="painel-conferencia" style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, padding: 16, display: "flex", flexWrap: "wrap", gap: "14px 28px", alignItems: "center" }}>
@@ -206,7 +207,7 @@ function ImagemDaComparacao({ rotulo, url, vazio, aoAmpliar }: { rotulo: string;
   );
 }
 
-function RodapeDaLinha({ l, dedo, aoMarcar }: { l: Conferencia; dedo: boolean; aoMarcar: () => void }) {
+function RodapeDaLinha({ l, dedo, aoResolver, aoTirarAviso, tirando }: { l: Conferencia; dedo: boolean; aoResolver: (acao: ResolucaoDaConferencia) => void; aoTirarAviso: () => void; tirando: boolean }) {
   const tamanho = dedo ? "toque" : "md";
   const c = caminhoLimpo(l.arquivo);
   return (
@@ -217,14 +218,17 @@ function RodapeDaLinha({ l, dedo, aoMarcar }: { l: Conferencia; dedo: boolean; a
         <BotaoCopiar texto={c} rotulo={`o caminho do arquivo de ${l.displayId ?? "a peça"}`} tamanho={dedo ? 44 : 24} />
       </div>
       {l.resolvidaEm ? (
-        <div data-testid={`vista-${l.displayId ?? l.id}`} style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2, maxWidth: "100%" }}>
-          <Selo tom="sucesso" ponto>Vista por {l.resolvidaPor ?? "alguém"} {quando(l.resolvidaEm)}</Selo>
-          {l.nota && <span style={{ fontSize: FS.small, color: T.second, overflowWrap: "anywhere" }}>{l.nota}</span>}
+        <div data-testid={`resolvida-${l.displayId ?? l.id}`} style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4, maxWidth: "100%" }}>
+          <Selo tom="sucesso" ponto>{l.resolucao === "corrigido" ? "Corrigido" : l.resolucao === "certo" ? "Estava certo" : "Vista"} por {l.resolvidaPor ?? "alguém"} {quando(l.resolvidaEm)}</Selo>
+          {l.nota && <span style={{ fontSize: FS.meta, color: T.apoio, overflowWrap: "anywhere" }}><strong>Na Gráfica:</strong> {l.nota}</span>}
+          {l.reconferir && <span style={{ fontSize: FS.small, color: T.second }}>Esperando a nova conferência do arquivo.</span>}
+          {l.avisoNaGrafica && <Botao variante="secundario" tamanho={dedo ? "toque" : "sm"} onClick={aoTirarAviso} carregando={tirando} data-testid={`tirar-aviso-${l.displayId ?? l.id}`}>Tirar o aviso da Gráfica</Botao>}
         </div>
       ) : (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           <BotaoLink href={linkDaPeca(l)} variante="secundario" tamanho={tamanho} icone={ExternalLink} data-testid={`abrir-${l.displayId ?? l.id}`}>Abrir peça</BotaoLink>
-          <Botao variante="secundario" tamanho={tamanho} icone={Check} onClick={aoMarcar} data-testid={`resolver-${l.displayId ?? l.id}`}>Marcar como vista</Botao>
+          <Botao variante="secundario" tamanho={tamanho} icone={Check} onClick={() => aoResolver("certo")} data-testid={`certo-${l.displayId ?? l.id}`}>{l.veredito === "nao_deu" ? "Conferi à mão" : "Arquivo está certo"}</Botao>
+          <Botao variante="primario" tamanho={tamanho} icone={Wrench} onClick={() => aoResolver("corrigido")} data-testid={`corrigi-${l.displayId ?? l.id}`}>Corrigi o arquivo</Botao>
         </div>
       )}
     </footer>
@@ -240,8 +244,8 @@ export default function ConferenciaArquivos() {
   const [evento, setEvento] = useState("all");
   const [vistos, setVistos] = useState(LOTE);
   const [ampliada, setAmpliada] = useState<Conferencia | null>(null);
-  const [marcando, setMarcando] = useState<Conferencia | null>(null);
-  const [nota, setNota] = useState("");
+  const [resolvendo, setResolvendo] = useState<{ linha: Conferencia; acao: ResolucaoDaConferencia } | null>(null);
+  const [aviso, setAviso] = useState("");
   const { data, isLoading, isError, refetch, isFetching } = useQuery<Resposta>({ queryKey: CHAVE, staleTime: 30_000 });
 
   const linhas = data?.linhas ?? SEM_LINHAS;
@@ -251,7 +255,7 @@ export default function ConferenciaArquivos() {
     nao_deu: linhas.filter((x) => x.veredito === "nao_deu" && !x.resolvidaEm),
     conferem: linhas.filter((x) => x.veredito === "confere"),
     fila,
-    vistas: linhas.filter((x) => x.veredito !== "confere" && !!x.resolvidaEm),
+    resolvidas: linhas.filter((x) => x.veredito !== "confere" && !!x.resolvidaEm),
   }), [linhas, fila]);
   // Sem escolha, abre no que pede atenção.
   const aba: Aba = abaEscolhida ?? (grupos.olhar.length > 0 ? "olhar" : grupos.nao_deu.length > 0 ? "nao_deu" : grupos.conferem.length > 0 ? "conferem" : "olhar");
@@ -273,16 +277,22 @@ export default function ConferenciaArquivos() {
   const porEvento = useMemo(() => { const m = new Map<string, number>(); for (const l of visiveis) m.set(l.eventId, (m.get(l.eventId) ?? 0) + 1); return m; }, [visiveis]);
 
   const resolver = useMutation({
-    mutationFn: async ({ id, texto }: { id: string; texto: string }) => (await apiRequest("POST", `/api/conferencia-do-arquivo/${id}/resolver`, { nota: texto })).json(),
-    onSuccess: () => {
-      toast({ title: "Marcada como vista", variant: "success" });
-      setMarcando(null); setNota("");
+    mutationFn: async ({ id, acao, texto }: { id: string; acao: ResolucaoDaConferencia; texto: string }) => (await apiRequest("POST", `/api/conferencia-do-arquivo/${id}/resolver`, { acao, aviso: texto })).json(),
+    onSuccess: (_r, { texto }) => {
+      toast({ title: texto.trim() ? "Resolvido e Gráfica avisada" : "Resolvido", variant: "success" });
+      setResolvendo(null); setAviso("");
       void queryClient.invalidateQueries({ queryKey: CHAVE });
     },
-    onError: (e: Error) => toast({ title: "Não foi possível marcar", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast({ title: "Não foi possível resolver", description: e.message, variant: "destructive" }),
+  });
+  const tirarAviso = useMutation({
+    mutationFn: async (id: string) => (await apiRequest("POST", `/api/conferencia-do-arquivo/${id}/tirar-aviso`, {})).json(),
+    onSuccess: () => { toast({ title: "Aviso tirado da Gráfica", variant: "success" }); void queryClient.invalidateQueries({ queryKey: CHAVE }); },
+    onError: (e: Error) => toast({ title: "Não foi possível tirar o aviso", description: e.message, variant: "destructive" }),
   });
   const tamanhoDoBotao = dedo ? "toque" : "md";
-  const pedirMarcar = (c: Conferencia) => { setNota(""); setMarcando(c); };
+  const pedirResolver = (linha: Conferencia, acao: ResolucaoDaConferencia) => { setAviso(""); setResolvendo({ linha, acao }); };
+  const leituraDoAviso = resolvendo ? lerResolucao({ acao: resolvendo.acao, aviso }) : null;
   let eventoAnterior: string | null = null;
 
   return (
@@ -292,7 +302,7 @@ export default function ConferenciaArquivos() {
         subtitulo={isMobile ? "O arquivo final é a mesma arte do thumb? Nenhuma peça fica travada." : "Compara o arquivo final com o thumb das peças que ainda não foram impressas. É um aviso para olhar: nenhuma peça fica travada."}
       />
       {data && (
-        <PainelDaCobertura conferem={grupos.conferem.length} olhar={grupos.olhar.length} naoDeu={grupos.nao_deu.length} vistas={grupos.vistas.length} fila={fila.length} ultima={data.ultimaConferencia} />
+        <PainelDaCobertura conferem={grupos.conferem.length} olhar={grupos.olhar.length} naoDeu={grupos.nao_deu.length} resolvidas={grupos.resolvidas.length} fila={fila.length} ultima={data.ultimaConferencia} />
       )}
       <Abas
         rotuloDaLista="Situação da conferência"
@@ -304,7 +314,7 @@ export default function ConferenciaArquivos() {
           { id: "nao_deu", rotulo: "Não deu para conferir", contador: grupos.nao_deu.length || undefined },
           { id: "conferem", rotulo: "Conferem", contador: grupos.conferem.length || undefined },
           { id: "fila", rotulo: "Na fila", contador: grupos.fila.length || undefined },
-          { id: "vistas", rotulo: "Vistas", contador: grupos.vistas.length || undefined },
+          { id: "resolvidas", rotulo: "Resolvidas", contador: grupos.resolvidas.length || undefined },
         ]}
       />
       {daAba.length > 0 && (
@@ -335,8 +345,8 @@ export default function ConferenciaArquivos() {
           <EstadoVazio
             icone={FileSearch}
             testId="vazio-conferencia"
-            titulo={daAba.length > 0 ? "Nenhuma peça neste recorte" : { olhar: "Nenhuma peça para olhar", nao_deu: "Nenhum arquivo ficou de fora", conferem: "Nenhuma peça conferida ainda", fila: "Nada esperando conferência", vistas: "Nada marcado como visto ainda" }[aba]}
-            descricao={daAba.length > 0 ? "Mude a busca ou o evento." : { olhar: "Quando um arquivo parecer diferente do thumb, ele aparece aqui.", nao_deu: "Aparecem aqui os arquivos que não foram encontrados ou não abriram.", conferem: "As peças em que o arquivo é a mesma arte do thumb ficam aqui.", fila: "Toda peça liberada e ainda não impressa já foi conferida.", vistas: "As peças marcadas como vistas ficam aqui, com quem marcou." }[aba]}
+            titulo={daAba.length > 0 ? "Nenhuma peça neste recorte" : { olhar: "Nenhuma peça para olhar", nao_deu: "Nenhum arquivo ficou de fora", conferem: "Nenhuma peça conferida ainda", fila: "Nada esperando conferência", resolvidas: "Nada resolvido ainda" }[aba]}
+            descricao={daAba.length > 0 ? "Mude a busca ou o evento." : { olhar: "Quando um arquivo parecer diferente do thumb, ele aparece aqui.", nao_deu: "Aparecem aqui os arquivos que não foram encontrados ou não abriram.", conferem: "As peças em que o arquivo é a mesma arte do thumb ficam aqui.", fila: "Toda peça liberada e ainda não impressa já foi conferida.", resolvidas: "As peças resolvidas ficam aqui, com quem resolveu e o que a Gráfica recebeu." }[aba]}
           />
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }} data-testid="lista-conferencia">
@@ -363,7 +373,7 @@ export default function ConferenciaArquivos() {
                         <ImagemDaComparacao rotulo="Thumb" url={l.thumb} vazio="Sem thumb" aoAmpliar={() => setAmpliada(conf)} />
                         <ImagemDaComparacao rotulo={l.pagina && !l.pagina.endsWith("/1") ? `Arquivo final · prancheta ${l.pagina}` : "Arquivo final"} url={l.previewUrl ?? null} vazio="Sem imagem do arquivo" aoAmpliar={() => setAmpliada(conf)} />
                       </div>
-                      <RodapeDaLinha l={conf} dedo={dedo} aoMarcar={() => pedirMarcar(conf)} />
+                      <RodapeDaLinha l={conf} dedo={dedo} aoResolver={(acao) => pedirResolver(conf, acao)} aoTirarAviso={() => tirarAviso.mutate(conf.id)} tirando={tirarAviso.isPending && tirarAviso.variables === conf.id} />
                     </article>
                   ) : l.veredito === "nao_deu" ? (
                     <article data-testid={testId} style={{ ...cartao, padding: isMobile ? 12 : 14, flexDirection: "column", gap: 10 }}>
@@ -375,7 +385,7 @@ export default function ConferenciaArquivos() {
                         <strong>{l.motivo ?? "Não deu para conferir."}</strong>
                         <span style={{ color: T.second }}> Tentado {quando(l.criadaEm)}.{l.resolvidaEm ? "" : " Confira o caminho na peça: o sistema tenta de novo depois de um dia."}</span>
                       </p>
-                      <RodapeDaLinha l={conf} dedo={dedo} aoMarcar={() => pedirMarcar(conf)} />
+                      <RodapeDaLinha l={conf} dedo={dedo} aoResolver={(acao) => pedirResolver(conf, acao)} aoTirarAviso={() => tirarAviso.mutate(conf.id)} tirando={tirarAviso.isPending && tirarAviso.variables === conf.id} />
                     </article>
                   ) : (
                     <article data-testid={testId} style={{ ...cartao, padding: 10, gap: 12, alignItems: "center", flexWrap: isMobile ? "wrap" : "nowrap" }}>
@@ -418,19 +428,31 @@ export default function ConferenciaArquivos() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!marcando} onOpenChange={(o) => { if (!o && !resolver.isPending) setMarcando(null); }}>
-        <DialogContent className="sm:max-w-[480px]" data-testid="marcar-vista">
+      {/* Quem resolve escolhe o que a Gráfica lê: fica na peça, na tela dela, e chega no sino. */}
+      <Dialog open={!!resolvendo} onOpenChange={(o) => { if (!o && !resolver.isPending) setResolvendo(null); }}>
+        <DialogContent className="sm:max-w-[520px]" data-testid="resolver-conferencia">
           <DialogHeader>
-            <DialogTitle>Marcar {marcando?.displayId ?? "a peça"} como vista?</DialogTitle>
+            <DialogTitle>{resolvendo?.acao === "corrigido" ? "Corrigi o arquivo" : resolvendo?.linha.veredito === "nao_deu" ? "Conferi à mão" : "Arquivo está certo"} · {resolvendo?.linha.displayId ?? "peça"}</DialogTitle>
             <DialogDescription>
-              O aviso sai da lista e fica registrado no histórico da peça. Se a Arte trocar o caminho do arquivo ou o thumb, a peça é conferida de novo.
+              {resolvendo?.acao === "corrigido" ? "O aviso sai da lista e o arquivo é conferido de novo. Se ainda parecer diferente, o aviso volta." : "O aviso sai da lista e fica registrado no histórico da peça."}
             </DialogDescription>
           </DialogHeader>
-          <label htmlFor="nota-da-conferencia" style={{ fontSize: FS.body, fontWeight: FW.forte, color: T.text }}>O que você viu? <span style={{ fontWeight: FW.medio, color: T.second }}>(opcional)</span></label>
-          <Textarea id="nota-da-conferencia" value={nota} onChange={(e) => setNota(e.target.value)} maxLength={300} rows={3} placeholder="Ex.: arquivo certo, diferença só na imagem gerada" data-testid="nota-conferencia" />
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <label htmlFor="aviso-da-conferencia" style={{ fontSize: FS.body, fontWeight: FW.forte, color: T.text }}>
+              O que vai aparecer na Gráfica {resolvendo?.acao === "certo" && <span style={{ fontWeight: FW.medio, color: T.second }}>(opcional)</span>}
+            </label>
+            <div role="group" aria-label="Atalhos do aviso" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {resolvendo && ATALHOS_DO_AVISO[resolvendo.acao].map((a) => (
+                <button key={a} type="button" className="ds-botao" aria-pressed={aviso === a} onClick={() => setAviso(a)} data-testid={`atalho-${a}`} style={{ padding: dedo ? "10px 12px" : "6px 10px", borderRadius: R.md, cursor: "pointer", textAlign: "left", fontSize: FS.meta, fontWeight: FW.medio, border: `1px solid ${aviso === a ? T.accent : T.border}`, backgroundColor: aviso === a ? TOM.laranja.bg : T.surface, color: aviso === a ? TOM.laranja.text : T.apoio }}>{a}</button>
+              ))}
+            </div>
+            <Textarea id="aviso-da-conferencia" value={aviso} onChange={(e) => setAviso(e.target.value)} maxLength={AVISO_MAXIMO} rows={3} placeholder="Escolha um atalho ou escreva o que a Gráfica precisa saber" data-testid="aviso-conferencia" />
+            <p style={{ margin: 0, fontSize: FS.small, color: T.second }}>Fica na peça, na tela da Gráfica, com o seu nome. A Gráfica também recebe no sino.</p>
+            {aviso.trim().length > 0 && leituraDoAviso && !leituraDoAviso.ok && <p role="alert" style={{ margin: 0, fontSize: FS.small, color: TOM.perigo.text }}>{leituraDoAviso.erro}</p>}
+          </div>
           <DialogFooter>
-            <Botao variante="secundario" tamanho={tamanhoDoBotao} onClick={() => setMarcando(null)} disabled={resolver.isPending}>Agora não</Botao>
-            <Botao variante="primario" tamanho={tamanhoDoBotao} icone={Check} carregando={resolver.isPending} onClick={() => { if (marcando) resolver.mutate({ id: marcando.id, texto: nota }); }} data-testid="confirmar-marcar-vista">Marcar como vista</Botao>
+            <Botao variante="secundario" tamanho={tamanhoDoBotao} onClick={() => setResolvendo(null)} disabled={resolver.isPending}>Agora não</Botao>
+            <Botao variante="primario" tamanho={tamanhoDoBotao} icone={Check} carregando={resolver.isPending} disabled={!leituraDoAviso?.ok} onClick={() => { if (resolvendo) resolver.mutate({ id: resolvendo.linha.id, acao: resolvendo.acao, texto: aviso }); }} data-testid="confirmar-resolver">{aviso.trim() ? "Resolver e avisar a Gráfica" : "Resolver"}</Botao>
           </DialogFooter>
         </DialogContent>
       </Dialog>

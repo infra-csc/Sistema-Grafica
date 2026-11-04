@@ -86,11 +86,13 @@ describe("a casca pede o mínimo ao montar", () => {
     expect(contar("/api/items/devolvidas-ao-rascunho")).toBe(1);
     // O módulo Reaproveitar (dono, 03/11): quantas esperam a resposta do estoque.
     expect(contar("/api/items/reaproveitar/contagem")).toBe(1);
+    // O número da Conferência de arquivos: só some quando alguém resolve (04/11).
+    expect(contar("/api/conferencia-do-arquivo/contagem")).toBe(1);
     for (const pesado of ["/api/events", "/api/sponsors", "/api/standard-items", "/api/items"]) {
       expect(contar(pesado), pesado).toBe(0);
     }
     // Orçamento total da casca: se crescer, que seja de propósito.
-    expect(pedidos.length, pedidos.join(", ")).toBe(7);
+    expect(pedidos.length, pedidos.join(", ")).toBe(8);
   }, 20_000);
 
   it("gráfica: não pede o badge de pedidos (não é dela)", async () => {
@@ -103,7 +105,8 @@ describe("a casca pede o mínimo ao montar", () => {
     expect(contar("/api/items/revisao-final/contagem")).toBe(0);
     expect(contar("/api/items/devolvidas-ao-rascunho")).toBe(0);
     expect(contar("/api/items/reaproveitar/contagem")).toBe(1);
-    expect(pedidos.length, pedidos.join(", ")).toBe(3);
+    expect(contar("/api/conferencia-do-arquivo/contagem")).toBe(1);
+    expect(pedidos.length, pedidos.join(", ")).toBe(4);
   }, 20_000);
 });
 

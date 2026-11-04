@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("../db", () => ({ db: {}, pool: {} }));
-import { lerResposta, compararComIA, PERGUNTA_DA_CONFERENCIA } from "../services/conferencia-do-arquivo";
+import { lerResposta, compararCandidatas, compararComIA, PERGUNTA_DA_CONFERENCIA } from "../services/conferencia-do-arquivo";
 import { conferirTokenDaIntegracao } from "../routes/integracao-checklist";
 import { SQL_PENDENTES } from "../routes/conferencia-do-arquivo";
+import { ATALHOS_DO_AVISO, avisoNaPeca, lerResolucao } from "@shared/conferencia-do-arquivo";
 
 describe("leitura da resposta da IA", () => {
   it("confere não traz motivo", () => {
@@ -49,6 +50,53 @@ describe("chamada da IA", () => {
   });
 });
 
+describe("arquivo com várias pranchetas", () => {
+  const resultado = (veredito: "confere" | "vale_olhar") => ({ veredito, motivo: veredito === "confere" ? null : "difere", modelo: "m", tokensEntrada: 1, tokensSaida: 1 });
+  const candidatas = [{ final: "numeral-2", pagina: "2/3" }, { final: "numeral-1", pagina: "1/3" }, { final: "numeral-3", pagina: "3/3" }];
+
+  // #8942: a mais parecida com o thumb do numeral 1 era a prancheta do 2.
+  it("basta uma prancheta conferir, e para aí", async () => {
+    const comparar = vi.fn(async (f: string) => resultado(f === "numeral-1" ? "confere" : "vale_olhar"));
+    const r = await compararCandidatas(candidatas, comparar);
+    expect(r.veredito).toBe("confere");
+    expect(r.candidata.pagina).toBe("1/3");
+    expect(comparar).toHaveBeenCalledTimes(2);
+  });
+  it("nenhuma conferiu: o aviso mostra a mais parecida", async () => {
+    const r = await compararCandidatas(candidatas, async () => resultado("vale_olhar"));
+    expect(r.veredito).toBe("vale_olhar");
+    expect(r.candidata.pagina).toBe("2/3");
+  });
+  it("arquivo de uma prancheta compara uma vez só", async () => {
+    const comparar = vi.fn(async () => resultado("confere"));
+    await compararCandidatas([candidatas[0]], comparar);
+    expect(comparar).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("resolver o aviso", () => {
+  it("corrigido exige dizer algo à Gráfica", () => {
+    expect(lerResolucao({ acao: "corrigido" }).ok).toBe(false);
+    expect(lerResolucao({ acao: "corrigido", aviso: "  " }).ok).toBe(false);
+    expect(lerResolucao({ acao: "corrigido", aviso: "Arquivo corrigido: abra de novo" })).toEqual({ ok: true, acao: "corrigido", aviso: "Arquivo corrigido: abra de novo" });
+  });
+  it("certo não exige aviso", () => {
+    expect(lerResolucao({ acao: "certo" })).toEqual({ ok: true, acao: "certo", aviso: null });
+  });
+  it("aviso curto demais, longo demais ou ação desconhecida são recusados", () => {
+    expect(lerResolucao({ acao: "certo", aviso: "ok" }).ok).toBe(false);
+    expect(lerResolucao({ acao: "certo", aviso: "x".repeat(301) }).ok).toBe(false);
+    expect(lerResolucao({ acao: "ignorar" }).ok).toBe(false);
+    expect(lerResolucao(undefined).ok).toBe(false);
+  });
+  it("todo atalho é um aviso válido", () => {
+    for (const acao of ["certo", "corrigido"] as const) for (const aviso of ATALHOS_DO_AVISO[acao]) expect(lerResolucao({ acao, aviso }).ok).toBe(true);
+  });
+  it("na peça vai o texto, quem escreveu e quando", () => {
+    expect(avisoNaPeca("Abra de novo", "Fernanda", new Date("2026-11-04T19:30:00Z"))).toBe("Abra de novo (Fernanda, 04/11 às 16:30)");
+  });
+});
+
 describe("token do conferidor", () => {
   const TOKEN = "t".repeat(40);
   it("sem token no servidor, fica desativada", () => {
@@ -74,6 +122,7 @@ describe("quais peças entram na fila", () => {
     ["sem thumb guardado fica de fora", "i.approval_thumb_url like '/objects/%'"],
     ["trocou arquivo ou thumb, confere de novo", "c.arquivo = i.final_file_url and c.thumb = i.approval_thumb_url"],
     ["confere de outro modelo volta para a fila", "c.veredito = 'confere' and c.modelo is distinct from 'claude-sonnet-5-5'"],
+    ["corrigiram o arquivo, confere de novo", "or c.reconferir"],
     ["não deu volta para a fila depois de um dia", "c.veredito = 'nao_deu' and c.resolvida_em is null and c.criada_em < now() - interval '1 day'"],
   ])("%s", (_n, trecho) => {
     expect(SQL_PENDENTES).toContain(trecho);

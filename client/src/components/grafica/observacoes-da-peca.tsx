@@ -12,11 +12,13 @@ export type PecaComObservacoes = {
   id?: string;
   observations?: string | null;
   conferenceNotes?: string | null;
+  avisoDaConferencia?: string | null;
 };
 
 /** As linhas do bloco (pura). Vazia = nada a mostrar. */
 export function linhasDeObservacao(peca: PecaComObservacoes, extras: { rotulo: string; texto?: string | null }[] = []): { rotulo: string; texto: string }[] {
   return [
+    { rotulo: "Aviso sobre o arquivo", texto: peca.avisoDaConferencia },
     { rotulo: "Observação da peça", texto: peca.observations },
     { rotulo: "Na conferência", texto: peca.conferenceNotes },
     ...extras,

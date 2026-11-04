@@ -82,8 +82,8 @@ describe("tabela ↔ código, sem sobras de nenhum lado", () => {
     //    − criar, editar e excluir remessa do Kit (23/10: uma inclusão só, sem rota de escrita).
     //    + operadores do login compartilhado: criar, alterar e redefinir PIN (admin, 21/10).
     // 132 (Pedro/dono 26/10): + Arte recebida, marcas sem aprovação em lote e a configuração dos dias da Aprovação.
-    expect(REGUA_DE_PAPEIS.length).toBe(133);
-    expect(doCodigo.length).toBe(133);
+    expect(REGUA_DE_PAPEIS.length).toBe(134);
+    expect(doCodigo.length).toBe(134);
   });
 });
 

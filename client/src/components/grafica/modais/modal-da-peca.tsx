@@ -224,6 +224,12 @@ export function ModalDaPeca({ modal, pecasDoServidor, oferecerEmbalarJunto, isMo
           extenso: "Buscar no estoque" ou "Em trânsito · vem de …". */}
       {origemDe(selectedItem) && <OrigemDoReaproveitamentoNaFicha peca={selectedItem} onde="grafica" podeEditar={false} onEditar={() => {}} />}
 
+      {modalType !== "conference" && selectedItem.avisoDaConferencia && (
+        <div data-testid="aviso-do-arquivo-modal" style={{ background: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 8, padding: '8px 10px', display: 'flex', gap: 7, alignItems: 'flex-start' }}>
+          <AlertCircle style={{ width: 12, height: 12, color: TOM.alerta.text, flexShrink: 0, marginTop: 1 }} />
+          <span style={{ fontSize: 13, color: TOM.alerta.text, lineHeight: 1.4 }}><strong>Aviso sobre o arquivo:</strong> {selectedItem.avisoDaConferencia}</span>
+        </div>
+      )}
       {/* Observações — na conferência sobem para o TOPO do modal (ver lá). */}
       {modalType !== "conference" && selectedItem.observations && (
         <div style={{ background: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 8, padding: '8px 10px', display: 'flex', gap: 7, alignItems: 'flex-start' }}>

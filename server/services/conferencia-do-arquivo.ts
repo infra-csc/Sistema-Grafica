@@ -47,6 +47,25 @@ export function lerResposta(texto: string): { veredito: Veredito; motivo: string
   return { veredito: "nao_deu", motivo: "A comparação não trouxe uma resposta clara." };
 }
 
+export type CandidataDoArquivo = { final: string; pagina: string | null };
+/**
+ * Um .ai com várias pranchetas manda as mais parecidas com o thumb. Basta uma conferir:
+ * o aviso só sai se nenhuma conferir, e aí vale a mais parecida (a primeira).
+ */
+export async function compararCandidatas(
+  candidatas: CandidataDoArquivo[],
+  comparar: (final: string) => Promise<ResultadoDaComparacao>,
+): Promise<ResultadoDaComparacao & { candidata: CandidataDoArquivo }> {
+  let primeira: (ResultadoDaComparacao & { candidata: CandidataDoArquivo }) | null = null;
+  for (const candidata of candidatas) {
+    const r = { ...(await comparar(candidata.final)), candidata };
+    if (r.veredito === "confere") return r;
+    primeira ??= r;
+  }
+  if (!primeira) throw new Error("Nenhuma imagem para comparar");
+  return primeira;
+}
+
 const espera = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
 
 /** Compara as duas imagens (JPEG em base64). Falha da API lança: quem chama decide. */

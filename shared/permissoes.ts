@@ -88,6 +88,7 @@ export const REGUA_DE_PAPEIS: RegraDeRota[] = [
   { metodo: "PATCH", rota: "/api/events/:id", papeis: ["admin", "solicitacao"] },
   // Marcar o aviso da conferência do arquivo como visto (04/11).
   { metodo: "POST", rota: "/api/conferencia-do-arquivo/:id/resolver", papeis: ["admin", "solicitacao", "arte", "grafica"] },
+  { metodo: "POST", rota: "/api/conferencia-do-arquivo/:id/tirar-aviso", papeis: ["admin", "solicitacao", "arte", "grafica"] },
   { metodo: "PATCH", rota: "/api/events/:id/priority", papeis: ["admin", "atendimento", "solicitacao"] },
   { metodo: "PUT", rota: "/api/events/:id/quota-rules", papeis: ["admin", "atendimento"] },
   { metodo: "DELETE", rota: "/api/events/:id/quota-rules/:quota", papeis: ["admin", "atendimento"] },

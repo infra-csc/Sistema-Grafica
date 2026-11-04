@@ -92,6 +92,13 @@
       "when": 1793811771299,
       "tag": "0012_conferencia-do-arquivo",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793821233902,
+      "tag": "0013_resolucao-da-conferencia",
+      "breakpoints": true
     }
   ]
 }

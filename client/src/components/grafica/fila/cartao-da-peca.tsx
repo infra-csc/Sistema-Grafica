@@ -471,6 +471,11 @@ export function CartaoDaPeca({ ctx, item, index, showEvHeader, abreKit = false, 
               </span>
             </div>
           )}
+          {item.avisoDaConferencia && (
+            <div data-testid={`aviso-do-arquivo-card-${item.id}`} style={{ fontSize: 12, color: TOM.alerta.text, display: 'flex', alignItems: 'flex-start', gap: 4, marginTop: 1, lineHeight: 1.35 }}>
+              <AlertCircle aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0, marginTop: 1 }} /><span><strong>Aviso sobre o arquivo:</strong> {item.avisoDaConferencia}</span>
+            </div>
+          )}
           {item.observations && (
             <div style={{ fontSize: 12, color: TOM.alerta.text, display: 'flex', alignItems: 'flex-start', gap: 4, marginTop: 1, lineHeight: 1.35 }}>
               <AlertCircle aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0, marginTop: 1 }} />{item.observations}

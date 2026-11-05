@@ -105,8 +105,9 @@ describe("a casca pede o mínimo ao montar", () => {
     expect(contar("/api/items/revisao-final/contagem")).toBe(0);
     expect(contar("/api/items/devolvidas-ao-rascunho")).toBe(0);
     expect(contar("/api/items/reaproveitar/contagem")).toBe(1);
-    expect(contar("/api/conferencia-do-arquivo/contagem")).toBe(1);
-    expect(pedidos.length, pedidos.join(", ")).toBe(4);
+    // A conferência é da Arte e do admin (05/11).
+    expect(contar("/api/conferencia-do-arquivo/contagem")).toBe(0);
+    expect(pedidos.length, pedidos.join(", ")).toBe(3);
   }, 20_000);
 });
 

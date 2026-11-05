@@ -122,7 +122,13 @@ export function planejarBook(pecas: readonly PecaDoBook[], modelo?: ModeloDoBook
   for (const r of rotulos) { const s = secaoDaPeca(r, ""); if (s) paginasNoModelo.set(s, (paginasNoModelo.get(s) ?? 0) + 1); }
   const SERVICO = /posto medico|guarda volume|ortopedic|tenda|massagem|ambulatorio/;
   const servicosNoModelo = rotulos.some((r) => SERVICO.test(normalizarDoBook(r)));
-  const ordem = [...secoesDoModelo, ...ORDEM_PADRAO.filter((s) => !secoesDoModelo.includes(s))];
+  const ordem = secoesDoModelo.slice();
+  for (const s of ORDEM_PADRAO) {
+    if (ordem.includes(s)) continue;
+    // Entra logo depois da seção que normalmente vem antes dela.
+    const antes = ORDEM_PADRAO.slice(0, ORDEM_PADRAO.indexOf(s)).reverse().find((x) => ordem.includes(x));
+    ordem.splice(antes ? ordem.indexOf(antes) + 1 : 0, 0, s);
+  }
   const paginas: PaginaPlanejada[] = [];
   const rotuloDe = (s: SecaoDoBook) => rotuloDaSecao.get(s) ?? s;
   for (const s of ordem) {
@@ -285,6 +291,38 @@ export const PAGINA_DO_BOOK = { LP: 842, AP: 595, TOPO: 595 * 0.05, BASE: 595 * 
 export function posicionarPagina<T extends ArteMedida & { descricao: string | null }>(secao: SecaoDoBook, portico: boolean, artes: readonly T[]): Posicao<T>[] {
   const W = PAGINA_DO_BOOK.LP - 2 * PAGINA_DO_BOOK.MX, H = PAGINA_DO_BOOK.BASE - PAGINA_DO_BOOK.TOPO;
   return (portico && montarPortico(artes, W, H)) || arranjarNaPagina(artes, W, H, secao === "Estande" ? 0.5 : 0.62, preferenciaDaSecao(secao, artes.length));
+}
+
+// ── As posições do book modelo ─────────────────────────────────────────────
+// Os books do mesmo circuito saem do mesmo modelo do InDesign. Quando a página do modelo tem
+// o mesmo número de artes, usar as posições dele chega muito mais perto do que calcular.
+export type Vaga = { x: number; y: number; w: number; h: number };
+
+/** A página do modelo que serve: mesmo nome, ou mesma seção, com o mesmo número de artes. */
+export function paginaDoModeloParaUsar<P extends { rotulo: string | null; vagas: readonly Vaga[] }>(modelo: readonly P[], rotulo: string, secao: SecaoDoBook, n: number): P | null {
+  const nome = normalizarDoBook(rotulo);
+  const iguais = modelo.filter((p) => p.vagas.length === n && p.rotulo);
+  return iguais.find((p) => normalizarDoBook(p.rotulo) === nome) ?? iguais.find((p) => secaoDaPeca(p.rotulo, "") === secao) ?? null;
+}
+
+/** Quem fica em qual vaga: o par mais parecido primeiro. custo[arte][vaga]; devolve a vaga de cada arte. */
+export function atribuirVagas(custo: ReadonlyArray<readonly number[]>): number[] {
+  const n = custo.length;
+  const pares: Array<[number, number, number]> = [];
+  for (let a = 0; a < n; a++) for (let v = 0; v < custo[a].length; v++) pares.push([custo[a][v], a, v]);
+  pares.sort((x, y) => x[0] - y[0] || x[1] - y[1] || x[2] - y[2]);
+  const vagaDaArte = new Array<number>(n).fill(-1);
+  const ocupada = new Set<number>();
+  for (const [, a, v] of pares) { if (vagaDaArte[a] >= 0 || ocupada.has(v)) continue; vagaDaArte[a] = v; ocupada.add(v); }
+  return vagaDaArte;
+}
+
+/** A arte dentro da vaga, inteira e centrada. Tudo em pontos da página. */
+export function encaixarNaVaga(arte: ArteMedida, v: Vaga): Vaga {
+  const LV = v.w * PAGINA_DO_BOOK.LP, AV = v.h * PAGINA_DO_BOOK.AP;
+  const e = Math.min(LV / arte.w, AV / arte.h);
+  const w = arte.w * e, h = arte.h * e;
+  return { x: v.x * PAGINA_DO_BOOK.LP + (LV - w) / 2, y: v.y * PAGINA_DO_BOOK.AP + (AV - h) / 2, w, h };
 }
 
 /**

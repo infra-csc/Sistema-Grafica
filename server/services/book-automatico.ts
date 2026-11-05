@@ -6,7 +6,7 @@ import { pool } from "../db";
 import { ObjectStorageService } from "../objectStorage";
 import { lerPdfDoBook } from "./auditoria-do-book/pdf";
 import {
-  circuitoDoEvento, combinarComOficial, compararVersoes, PAGINA_DO_BOOK, planejarBook, posicionarPagina, rotuloDoRodape, secaoDaPeca, type PaginaFinal, type PaginaPlanejada,
+  atribuirVagas, circuitoDoEvento, combinarComOficial, compararVersoes, encaixarNaVaga, PAGINA_DO_BOOK, paginaDoModeloParaUsar, planejarBook, posicionarPagina, rotuloDoRodape, secaoDaPeca, type PaginaFinal, type PaginaPlanejada, type Vaga,
   type ModeloDoBook, type PecaDoBook,
 } from "@shared/book-automatico";
 
@@ -74,12 +74,13 @@ export async function acharBookModelo(eventId: string, ignorarProprio = false): 
   return b ? { url: b.url, evento: b.evento, em: b.em, thumbs: null, proprio: false } : null;
 }
 
-type Rotulos = { rotulos: string[]; porPagina: Array<string | null>; paginaDoRodape: number; xDoRotulo: number };
+type Rotulos = { rotulos: string[]; porPagina: Array<string | null>; paginaDoRodape: number; xDoRotulo: number; paginas: PaginaDoModelo[] };
 async function lerRotulos(bytes: Buffer): Promise<Rotulos> {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const doc = await pdfjs.getDocument({ data: new Uint8Array(bytes), disableFontFace: true, verbosity: 0 }).promise;
   const rotulos: string[] = [];
   const porPagina: Array<string | null> = [];
+  const paginas: PaginaDoModelo[] = [];
   let paginaDoRodape = Math.min(1, doc.numPages - 1), xDoRotulo = 0.25, achou = false;
   for (let i = 1; i <= doc.numPages; i++) {
     const p = await doc.getPage(i);
@@ -88,6 +89,7 @@ async function lerRotulos(bytes: Buffer): Promise<Rotulos> {
     const rodape = (texto.items as Array<{ str?: string; transform?: number[] }>).filter((t) => t.str?.trim() && t.transform && 1 - t.transform[5] / v.height > 0.8);
     const r = rotuloDoRodape(rodape.map((t) => ({ texto: t.str!, x: t.transform![4] / v.width })));
     porPagina.push(r || null);
+    if (i > 1) { const ops = await p.getOperatorList(); paginas.push({ indice: i - 1, rotulo: r || null, vagas: vagasDaPagina(ops as never, pdfjs.OPS as never, v.width, v.height) }); }
     if (r) {
       rotulos.push(r);
       if (!achou) { achou = true; paginaDoRodape = i - 1; xDoRotulo = rodape[0].transform![4] / v.width; }
@@ -95,7 +97,55 @@ async function lerRotulos(bytes: Buffer): Promise<Rotulos> {
     p.cleanup();
   }
   await doc.loadingTask.destroy();
-  return { rotulos, porPagina, paginaDoRodape, xDoRotulo };
+  return { rotulos, porPagina, paginaDoRodape, xDoRotulo, paginas };
+}
+
+// ── As vagas do modelo ─────────────────────────────────────────────────────
+type PaginaDoModelo = { indice: number; rotulo: string | null; vagas: Vaga[] };
+const mult = (a: number[], b: number[]) => [a[0] * b[0] + a[2] * b[1], a[1] * b[0] + a[3] * b[1], a[0] * b[2] + a[2] * b[3], a[1] * b[2] + a[3] * b[3], a[0] * b[4] + a[2] * b[5] + a[4], a[1] * b[4] + a[3] * b[5] + a[5]];
+/** Onde estão as artes numa página do PDF, sem rodapé nem fundo de página inteira. */
+function vagasDaPagina(ops: { fnArray: number[]; argsArray: unknown[] }, OPS: Record<string, number>, L: number, A: number): Vaga[] {
+  const out: Vaga[] = []; let m = [1, 0, 0, 1, 0, 0]; const pilha: number[][] = []; let forms = 0;
+  const reg = (bb: number[]) => {
+    const p = [[bb[0], bb[1]], [bb[2], bb[1]], [bb[0], bb[3]], [bb[2], bb[3]]].map(([x, y]) => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]]);
+    const xs = p.map((q) => q[0]), ys = p.map((q) => q[1]);
+    const b = { x: Math.min(...xs) / L, y: 1 - Math.max(...ys) / A, w: (Math.max(...xs) - Math.min(...xs)) / L, h: (Math.max(...ys) - Math.min(...ys)) / A };
+    if (b.w * b.h >= 0.004 && b.y >= -0.02 && b.y + b.h <= 0.84 && !(b.w > 0.97 && b.h > 0.7)) out.push(b);
+  };
+  ops.fnArray.forEach((f, i) => {
+    const a = ops.argsArray[i] as number[][];
+    if (f === OPS.save) pilha.push(m);
+    else if (f === OPS.restore) m = pilha.pop() ?? m;
+    else if (f === OPS.transform) m = mult(m, a as unknown as number[]);
+    else if (f === OPS.paintFormXObjectBegin) { pilha.push(m); if (a[0]) m = mult(m, a[0]); if (forms === 0 && a[1]) reg(a[1]); forms++; }
+    else if (f === OPS.paintFormXObjectEnd) { m = pilha.pop() ?? m; forms = Math.max(0, forms - 1); }
+    else if (forms === 0 && (f === OPS.paintImageXObject || f === OPS.paintInlineImageXObject || f === OPS.paintImageMaskXObject)) reg([0, 0, 1, 1]);
+  });
+  return out.filter((c, i) => !out.slice(0, i).some((o) => Math.abs(o.x - c.x) < 0.005 && Math.abs(o.y - c.y) < 0.005 && Math.abs(o.w - c.w) < 0.005 && Math.abs(o.h - c.h) < 0.005));
+}
+const LADO_DA_MINIATURA = 24;
+const miniaturaCrua = (b: Buffer) => carregarSharp()(b, { failOn: "none" }).rotate().flatten({ background: "#ffffff" }).removeAlpha().resize(LADO_DA_MINIATURA, LADO_DA_MINIATURA, { fit: "fill" }).raw().toBuffer();
+const distancia = (a: Buffer, b: Buffer) => { let s = 0; for (let i = 0; i < a.length; i++) s += Math.abs(a[i] - b[i]); return s / a.length; };
+
+/** O desenho de cada vaga da página do modelo, para colocar cada peça na que mais se parece. */
+async function miniaturasDasVagas(bytes: Buffer, indice: number, vagas: readonly Vaga[]): Promise<Buffer[] | null> {
+  try {
+    const { createCanvas } = require("@napi-rs/canvas");
+    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const doc = await pdfjs.getDocument({ data: new Uint8Array(bytes), disableFontFace: true, verbosity: 0 }).promise;
+    const p = await doc.getPage(indice + 1);
+    const v = p.getViewport({ scale: 1 }); const W = 700, H = Math.round((W * v.height) / v.width);
+    const cv = createCanvas(W, H); const ctx = cv.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, H);
+    await p.render({ canvasContext: ctx, viewport: p.getViewport({ scale: W / v.width }), canvas: cv } as never).promise;
+    const png: Buffer = cv.toBuffer("image/png");
+    const sharp = carregarSharp(); const out: Buffer[] = [];
+    for (const b of vagas) {
+      const left = Math.max(0, Math.round(b.x * W)), top = Math.max(0, Math.round(b.y * H));
+      out.push(await sharp(png).extract({ left, top, width: Math.min(W - left, Math.max(4, Math.round(b.w * W))), height: Math.min(H - top, Math.max(4, Math.round(b.h * H))) }).flatten({ background: "#ffffff" }).removeAlpha().resize(LADO_DA_MINIATURA, LADO_DA_MINIATURA, { fit: "fill" }).raw().toBuffer());
+    }
+    p.cleanup(); await doc.loadingTask.destroy();
+    return out;
+  } catch { return null; }
 }
 
 async function arteEmJpeg(url: string): Promise<{ bytes: Buffer; w: number; h: number }> {
@@ -134,12 +184,12 @@ export async function montarRascunho(eventId: string, opcoes: { comoEventoNovo?:
   const pecas = await pecasDoEvento(eventId);
 
   const modeloInfo = await acharBookModelo(eventId, opcoes.comoEventoNovo);
-  let origem: PDFDocument | null = null, lidos: Rotulos | null = null;
+  let origem: PDFDocument | null = null, lidos: Rotulos | null = null, bytesDoModelo: Buffer | null = null;
   if (modeloInfo) {
     try {
-      const bytes = await lerPdfDoBook(modeloInfo.url);
-      lidos = await lerRotulos(bytes);
-      origem = await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false });
+      bytesDoModelo = await lerPdfDoBook(modeloInfo.url);
+      lidos = await lerRotulos(bytesDoModelo);
+      origem = await PDFDocument.load(bytesDoModelo, { ignoreEncryption: true, updateMetadata: false });
     } catch (erro) {
       console.warn("[book-automatico] modelo não abriu; segue sem ele:", erro instanceof Error ? erro.message : erro);
       origem = null; lidos = null;
@@ -224,10 +274,30 @@ export async function montarRascunho(eventId: string, opcoes: { comoEventoNovo?:
       pdf.drawText(textoDoPdf(String(ev.name)).slice(0, 60), { x: 30, y: AP * 0.105, size: 8, font: fonte, color: rgb(0.35, 0.35, 0.35) });
     }
     pdf.drawText(textoDoPdf(pg.rotulo).slice(0, 90), { x: (rodape && lidos ? lidos.xDoRotulo : 0.25) * LP, y: AP * 0.105, size: 12, font: fonte, color: rgb(0.2, 0.2, 0.2) });
-    const pos = posicionarPagina(pg.secao, !!pg.portico, artes);
-    for (const c of pos) {
-      const img = await out.embedJpg(c.arte.bytes);
-      pdf.drawImage(img, { x: MX + c.x, y: AP - TOPO - c.y - c.h, width: c.w, height: c.h });
+    // Mesmo número de artes que a página do modelo: usa as posições dele.
+    const doModelo = lidos ? paginaDoModeloParaUsar(lidos.paginas, pg.rotulo, pg.secao, artes.length) : null;
+    let colocou = false;
+    if (doModelo && bytesDoModelo) {
+      let vagaDe = artes.map((_, i) => i);
+      if (artes.length > 1) {
+        const dasVagas = await miniaturasDasVagas(bytesDoModelo, doModelo.indice, doModelo.vagas);
+        if (dasVagas) {
+          const dasArtes = await Promise.all(artes.map((a) => miniaturaCrua(a.bytes)));
+          vagaDe = atribuirVagas(dasArtes.map((m: Buffer) => dasVagas.map((v) => distancia(m, v))));
+        }
+      }
+      for (let i = 0; i < artes.length; i++) {
+        const c = encaixarNaVaga(artes[i], doModelo.vagas[vagaDe[i]]);
+        const img = await out.embedJpg(artes[i].bytes);
+        pdf.drawImage(img, { x: c.x, y: AP - c.y - c.h, width: c.w, height: c.h });
+      }
+      colocou = true;
+    }
+    if (!colocou) {
+      for (const c of posicionarPagina(pg.secao, !!pg.portico, artes)) {
+        const img = await out.embedJpg(c.arte.bytes);
+        pdf.drawImage(img, { x: MX + c.x, y: AP - TOPO - c.y - c.h, width: c.w, height: c.h });
+      }
     }
     paginasFeitas.push({
       rotulo: pg.rotulo, secao: pg.secao, pecas: artes.map((a) => a.peca.displayId), conferir: pg.conferir,

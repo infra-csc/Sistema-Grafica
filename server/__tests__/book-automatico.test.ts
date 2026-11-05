@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  arranjarNaPagina, circuitoDoEvento, combinarComOficial, compararVersoes, montarPortico, motivoDeFicarFora, planejarBook, preferenciaDaSecao, rotuloDoRodape, secaoDaPeca, type PecaDoBook,
+  arranjarNaPagina, circuitoDoEvento, combinarComOficial, compararVersoes, montarPortico, motivoDeFicarFora, planejarBook, preferenciaDaSecao, rotuloDoRodape, secaoDaPeca, atribuirVagas, encaixarNaVaga, paginaDoModeloParaUsar, PAGINA_DO_BOOK, type PecaDoBook,
 } from "@shared/book-automatico";
 
 const peca = (id: string, tipo: string, descricao: string | null = null, thumb: string | null = "/objects/x"): PecaDoBook => ({ id, displayId: `#${id}`, tipo, descricao, thumb });
@@ -26,6 +26,10 @@ describe("o plano", () => {
   it("segue a ordem do modelo do circuito e usa o nome dele", () => {
     const p = planejarBook([peca("1", "Palco", "backdrop"), peca("2", "Pórtico", "testeira"), peca("3", "2x1", "a")], { rotulos: ["Pórtico", "Backdrop Palco", "Gradil"] });
     expect(p.paginas.map((g) => g.rotulo)).toEqual(["Pórtico", "Backdrop Palco", "Gradil"]);
+  });
+  it("seção que o modelo não tem entra na posição normal, não no fim", () => {
+    const p = planejarBook([peca("1", "PORTICO BEM VINDO", "Testeira bem vindo"), peca("2", "PORTICO", "Testeira"), peca("3", "2x1", "a"), peca("4", "Placa km", "km 1")], { rotulos: ["Pórtico", "Gradil", "Placa Km"] });
+    expect(p.paginas.map((g) => g.secao)).toEqual(["Pórtico", "Testeira Bem-vindo & Até Logo", "Gradil", "Placa Km"]);
   });
   it("sem modelo, usa a ordem mais comum", () => {
     const p = planejarBook([peca("3", "2x1", "a"), peca("1", "Palco", "b"), peca("2", "Rolo", "c")]);
@@ -132,6 +136,26 @@ describe("as artes na página", () => {
     expect(pos[1].x).toBeLessThan(pos[2].x);
   });
   it("pórtico sem lateral cai no arranjo comum", () => { expect(montarPortico([{ w: 1400, h: 260, descricao: "Testeira" }], W, H)).toBeNull(); });
+});
+
+describe("as posições do book modelo", () => {
+  const vaga = { x: 0.1, y: 0.1, w: 0.3, h: 0.3 };
+  const modelo = [{ rotulo: "Gradil", vagas: [vaga, vaga, vaga] }, { rotulo: "Estande - DHL", vagas: [vaga, vaga] }, { rotulo: "Palco", vagas: [vaga] }, { rotulo: null, vagas: [vaga, vaga] }];
+  it("usa a página de mesmo nome e mesmo número de artes", () => { expect(paginaDoModeloParaUsar(modelo, "Gradil", "Gradil", 3)?.rotulo).toBe("Gradil"); });
+  it("outro patrocinador usa a página de estande do circuito", () => { expect(paginaDoModeloParaUsar(modelo, "Estande - Lupo", "Estande", 2)?.rotulo).toBe("Estande - DHL"); });
+  it("número de artes diferente não força: volta para o cálculo", () => { expect(paginaDoModeloParaUsar(modelo, "Gradil", "Gradil", 7)).toBeNull(); });
+  it("página sem nome não serve de modelo", () => { expect(paginaDoModeloParaUsar([{ rotulo: null, vagas: [vaga] }], "Palco", "Palco", 1)).toBeNull(); });
+  it("cada arte vai para a vaga mais parecida, sem repetir", () => {
+    expect(atribuirVagas([[5, 1, 9], [1, 2, 9], [9, 9, 3]])).toEqual([1, 0, 2]);
+    expect(new Set(atribuirVagas([[1, 1], [1, 1]])).size).toBe(2);
+  });
+  it("arte cabe inteira na vaga, sem deformar, e centrada", () => {
+    const v = encaixarNaVaga({ w: 1000, h: 100 }, vaga);
+    expect(v.w / v.h).toBeCloseTo(10, 3);
+    expect(v.w).toBeLessThanOrEqual(0.3 * PAGINA_DO_BOOK.LP + 0.01);
+    expect(v.x + v.w / 2).toBeCloseTo((0.1 + 0.15) * PAGINA_DO_BOOK.LP, 3);
+    expect(v.y + v.h / 2).toBeCloseTo((0.1 + 0.15) * PAGINA_DO_BOOK.AP, 3);
+  });
 });
 
 describe("o nome da seção no rodapé", () => {

@@ -1,5 +1,7 @@
 # Remoção dos hotsites — solicitação de 07/10/2026
 
+> **Documento histórico.** Registra o estado da época em que foi escrito (migração para a VPS, concluída em 26/10/2026). Para a operação atual, veja [operação da produção](../../docs/operacao-producao.md).
+
 O usuário autorizou remover da VPS os hotsites para dedicar o ambiente à Gráfica.
 A remoção foi executada depois que `sudo -n` passou a fornecer acesso root.
 O script foi conferido com `sh -n` no Ubuntu e executado com o hash revisado

@@ -1,5 +1,10 @@
 # Login Microsoft direto na Gráfica
 
+> **Estado atual (nov/2026):** em uso na produção (https://grafica.appsnorte.com)
+> desde o corte de 26/10/2026. As menções ao Replit abaixo são do período de
+> homologação. O link do portal na tela de login vem de `VITE_HUB_URL`, fixado
+> no build. No DEV o login Microsoft fica desligado (`MICROSOFT_*` vazias).
+
 Código instalado e login real validado em 09/10/2026, após cadastro do callback pelo responsável no Microsoft Entra. O destino ativo da Gráfica no Portal NORTE permanece no Replit.
 
 ## Comportamento

@@ -1,5 +1,7 @@
 # Resend preparado — 09/10/2026
 
+> **Documento histórico.** Registra o estado da época em que foi escrito (migração para a VPS, concluída em 26/10/2026). Para a operação atual, veja [operação da produção](operacao-producao.md).
+
 Atualização posterior: por solicitação do responsável, remetente alterado para **sistemagrafica@nortemkt.com**, carregado no app e conferido com disparos automáticos desligados. O endereço anterior abaixo registra a configuração e o teste históricos. Não foi enviado novo teste após a troca de endereço.
 
 Chave fornecida pelo responsável instalada em `services.env` da VPS (root/modo 600), fora do código. Configuração anterior preservada em arquivo privado de `infra/backups/services-pre-resend-*`. Container do app recriado sem alterar PostgreSQL ou dados; chave e remetente carregados no processo.

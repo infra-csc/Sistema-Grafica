@@ -1,5 +1,7 @@
 # Homologação com os dados copiados — 09/10/2026
 
+> **Documento histórico.** Registra o estado da época em que foi escrito (migração para a VPS, concluída em 26/10/2026). Para a operação atual, veja [operação da produção](operacao-producao.md).
+
 Ambiente: https://grafica.appsnorte.com. Banco ativo: `grafica_import_20261008`, cópia do Neon. Imagem atual: `grafica-homolog:20261009-visual` (frontend alinhado; backend preservado). Armazenamento: bucket privado R2 `grafica-homolog-arquivos`.
 
 ## Checklist

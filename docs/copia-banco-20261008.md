@@ -1,5 +1,7 @@
 # Cópia do banco — 08/10/2026
 
+> **Documento histórico.** Registra o estado da época em que foi escrito (migração para a VPS, concluída em 26/10/2026). Para a operação atual, veja [operação da produção](operacao-producao.md).
+
 Neon exportado às 15h49 (Brasília), com conexão somente leitura e TLS verificado. Dump custom PostgreSQL 16 restaurado por transação no banco separado `grafica_import_20261008`, de propriedade de `grafica_app`. Backup prévio do destino: `infra/backups/grafica-20261008T184932Z-1351642.dump`.
 
 Restaurados 51 usuários, 96 eventos, 6.681 peças, 12.745 fotos de entrega e 4.012 versões de arte. Dados de sessões, tokens SSO, limites de tentativas e reservas de disparo foram excluídos da exportação. Senhas dos usuários preservadas na cópia.

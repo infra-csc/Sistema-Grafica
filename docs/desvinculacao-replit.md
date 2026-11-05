@@ -1,5 +1,7 @@
 # Etapa 2 — desvinculação do código
 
+> **Documento histórico.** Registra o estado da época em que foi escrito (migração para a VPS, concluída em 26/10/2026). Para a operação atual, veja [operação da produção](operacao-producao.md).
+
 ## O que mudou
 
 - Plugins Vite e SDK de conectores do Replit removidos, junto com `.replit`.

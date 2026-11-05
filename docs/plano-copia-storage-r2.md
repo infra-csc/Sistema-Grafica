@@ -1,5 +1,7 @@
 # Preparação da cópia de arquivos — 08/10/2026
 
+> **Documento histórico.** Registra o estado da época em que foi escrito (migração para a VPS, concluída em 26/10/2026). Para a operação atual, veja [operação da produção](operacao-producao.md).
+
 **Atualização final: lote completo concluído às 15:03:38 de Brasília em 08/10/2026.**
 17.762 objetos, 14.904.542.958 bytes. Verificação posterior da listagem R2:
 17.762 objetos, zero ausentes, divergentes ou extras em relação ao lote.

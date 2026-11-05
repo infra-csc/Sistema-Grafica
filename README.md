@@ -5,12 +5,24 @@ que controlava, de ponta a ponta, o caminho de cada peça impressa: da
 solicitação até a entrega no caminhão.
 
 **Stack:** React + Vite + TypeScript no cliente · Express + Drizzle no servidor ·
-PostgreSQL por TCP · WebSocket para tempo real · execução independente da hospedagem.
+PostgreSQL 16 (driver `pg`, por TCP) · WebSocket para tempo real · arquivos no
+Cloudflare R2 · e-mail pelo Resend · Node 24.
 
-* [Arquitetura](docs/arquitetura.md) — camadas, `shared/`, tempo real, caches,
-  agendadores, uploads
-* [Estados da peça](docs/estados-da-peca.md) — quem move a peça, de onde, para onde
-* [Testes E2E](e2e/README.md) — como rodar os cinco fluxos
+**Onde roda:** produção em **https://grafica.appsnorte.com**, numa VPS Hetzner
+com Docker Compose, atrás de Cloudflare e Caddy (desde 26/10/2026; antes era
+Replit + Neon). Há um ambiente de testes em **https://devgrafica.appsnorte.com**,
+alimentado pela branch `dev`.
+
+| Quero saber | Onde está |
+| --- | --- |
+| Como a produção roda, como publicar, voltar atrás, backups | [docs/operacao-producao.md](docs/operacao-producao.md) |
+| Ambiente DEV e o deploy automático da branch `dev` | [infra/grafica-dev/README.md](infra/grafica-dev/README.md) |
+| Integração com o Checklist de Arena | [docs/integracao-checklist.md](docs/integracao-checklist.md) |
+| Camadas, `shared/`, autenticação, tempo real, caches, agendadores, uploads | [docs/arquitetura.md](docs/arquitetura.md) |
+| Quem move a peça, de onde, para onde | [docs/estados-da-peca.md](docs/estados-da-peca.md) |
+| Testes de ponta a ponta | [e2e/README.md](e2e/README.md) |
+| Cada variável de ambiente | [.env.example](.env.example) |
+| Índice de toda a documentação (atual e histórica) | [docs/README.md](docs/README.md) |
 
 ---
 
@@ -80,8 +92,7 @@ O que ele faz (`scripts/dev-local.mjs`):
 
 1. sobe um **Postgres em memória** (PGlite — o Postgres compilado para
    WebAssembly) servido na máquina pelo protocolo normal do Postgres (psql e
-   DBeaver conectam) e por WebSocket (é por onde o driver do Neon do servidor
-   fala);
+   DBeaver conectam; o servidor também);
 2. aplica as **migrações** de `migrations/` — as mesmas de produção;
 3. cria **um usuário por perfil** — `admin@local.test`, `solicitacao@local.test`,
    `arte@local.test`, `grafica@local.test`, `atendimento@local.test`, todos com a
@@ -100,15 +111,15 @@ O que ele faz (`scripts/dev-local.mjs`):
 dados entre execuções), `--limpar`, `--sem-exemplos`, `--porta=5000`.
 
 **Uploads funcionam**: um object storage de mentira (`scripts/local/gcs-local.mjs`)
-faz o papel do bucket de arquivos. O que **não** existe no local: o login pelo
-portal (SSO), e-mail de verdade e a URL assinada do caminho legado de upload
-(`POST /api/objects/upload` — as telas usam o `/upload-direct`, que funciona).
+faz o papel do bucket de arquivos. O que **não** existe no local: o login pela
+Microsoft e pelo portal (SSO), e-mail de verdade e a URL assinada do caminho
+legado de upload (`POST /api/objects/upload` — as telas usam o `/upload-direct`,
+que funciona).
 
 Como o banco local se liga ao servidor sem mudar o código de produção: o
-servidor usa o driver serverless do Neon (`server/db.ts`), que fala Postgres
-dentro de um WebSocket. O `dev:local` carrega antes do servidor um preload só
-dele (`scripts/local/neon-local.mjs`, via `--import`) que aponta esse driver para
-o banco local. `server/db.ts` não mudou.
+servidor fala Postgres por TCP com o driver `pg` (`server/db.ts`), e o
+`dev:local` só entrega a ele um `DATABASE_URL` que aponta para o PGlite local.
+É o mesmo caminho da produção.
 
 > **Onde ficam as ferramentas.** PGlite e Playwright moram em `../_ferramentas`
 > (ou na pasta de `NORTE_FERRAMENTAS`), fora do projeto: o app publicado não
@@ -133,12 +144,15 @@ Preencha as três obrigatórias (as outras têm padrão ou desligam o recurso):
 | --- | --- |
 | `DATABASE_URL` | O servidor **lança no import** de `server/db.ts` — não sobe pela metade |
 | `SESSION_SECRET` | Fail-fast em `server/session.ts`. Gere com `openssl rand -base64 48` |
-| `PRIVATE_OBJECT_DIR` | Upload não grava (bucket de arquivos) |
+| `PRIVATE_OBJECT_DIR` | Upload não grava (bucket de arquivos). Com R2: `STORAGE_PROVIDER=r2` e as `R2_*` |
 
-E uma que **precisa** ser definida em produção, embora o app suba sem ela:
+E as que **precisam** ser definidas em produção, embora o app suba sem elas:
 
 | Variável | Sem ela |
 | --- | --- |
+| `MICROSOFT_TENANT_ID`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_REDIRECT_URI` | O botão "Entrar com Microsoft" avisa que está em configuração. Detalhes em [docs/login-microsoft-direto.md](docs/login-microsoft-direto.md) |
+| `CHECKLIST_INTEGRACAO_TOKEN` | A integração com o Checklist de Arena responde 503 (desligada) |
+| `RESEND_API_KEY` + interruptores `*_ENABLED` | Nenhum e-mail sai |
 | `SSO_SECRET` | O login pelo portal NORTE passa a validar o JWT com o `SESSION_SECRET` — funciona, mas o portal fica com o segredo que assina as sessões deste app (quem tem um forja o outro). O boot avisa no log (`[SSO] ATENÇÃO`). Use o **mesmo** valor configurado no portal e **diferente** do `SESSION_SECRET`. |
 
 O `.env.example` explica **cada** variável, uma por linha.
@@ -172,15 +186,27 @@ deploy viraram scripts em `scripts/`, rodados uma vez por quem opera.
 
 ---
 
-## Execução independente da hospedagem
+## Onde roda e como publicar
 
-Use Node conforme `.nvmrc`, instale com `npm ci`, configure `.env` e execute
-`npm run dev`. Para produção: `npm run build` e `npm start`. Os comandos
-funcionam também no Windows. Nunca aplique migrações automaticamente no boot.
+| | Produção | DEV |
+| --- | --- | --- |
+| URL | https://grafica.appsnorte.com | https://devgrafica.appsnorte.com |
+| Branch | `main` | `dev` |
+| Hospedagem | VPS Hetzner, Compose `grafica-homolog` | mesma VPS, Compose `grafica-dev` |
+| Banco | PostgreSQL 16 local, fuso UTC | PostgreSQL próprio, cópia da produção |
+| Arquivos | Cloudflare R2 (privado) | R2 fictício (bucket do dev pendente) |
+| Login | Microsoft, portal NORTE (SSO), e-mail e senha | só e-mail e senha |
+| E-mails | ligados (Resend) | desligados |
+| Deploy | manual, com backup antes | GitHub Actions a cada push na `dev` |
 
-A migração para a VPS é feita em etapas: [estado e configurações](docs/desvinculacao-replit.md).
-O armazenamento ainda mantém o contrato GCS, com credenciais próprias ou
-emulador local; R2 e transferência de arquivos fazem parte da próxima etapa.
+**Fluxo de alteração:** commit na `dev` → CI verde → testar no DEV → pull
+request `dev` → `main` (merge só com OK do responsável) → publicar na produção.
+Roteiro completo, rollback, backups e restauração em
+[docs/operacao-producao.md](docs/operacao-producao.md).
+
+Para rodar em qualquer outro lugar: Node conforme `.nvmrc`, `npm ci`, `.env`
+preenchido, `npm run build` e `npm start`. Funciona também no Windows. Nunca
+aplique migrações automaticamente no boot.
 
 ---
 
@@ -205,7 +231,9 @@ muda shared/schema.ts → npm run db:generate → revisa o SQL → commit → no
    sabe declarar (extensão, índice GIN) vai numa migração escrita à mão:
    `npm run db:generate -- --custom --name <nome>` cria o arquivo vazio.
 4. **Commit** do `.sql` **e** de `migrations/meta/` juntos.
-5. **No servidor** (dev e, depois, produção), na Shell:
+5. **No servidor** (DEV e, depois, produção). No DEV o deploy automático já
+   faz isso; na produção, dentro de um container da imagem nova, na rede do
+   Compose (comando completo em [docs/operacao-producao.md](docs/operacao-producao.md)):
 
    ```bash
    npm run db:migrate                 # SIMULAÇÃO: lista o que está pendente
@@ -262,7 +290,7 @@ sentidos**: o que existe lá e o schema não declara, ele derruba — os índice
 busca do Histórico, por exemplo — e em produção já apagou tabela e índices. O
 `db:drift` lista o que sobra **separando** o que foi criado por script.
 
-O hook de merge do projeto (`scripts/post-merge.sh`) **não mexe no banco**: a
+O antigo hook de merge (`scripts/post-merge.sh`) **não mexe no banco**: a
 migração é um passo que alguém roda e confere.
 
 ---
@@ -314,14 +342,14 @@ Todos leem `DATABASE_URL` do ambiente. Rode com `npx tsx scripts/<arquivo>`.
 | `motivos-sem-s.ts` | Motivos que perderam a letra "s" (o `s+` sem a barra invertida) |
 | `corrigir-senha-placeholder.mjs` | Contas criadas sem senha que ganharam uma senha fixa conhecida |
 
-`post-merge.sh` roda sozinho a cada merge no servidor e **não toca no banco**.
+`post-merge.sh` era o hook de merge do Replit e **não toca no banco**.
 
 ### Ambiente local (`dev-local.mjs`, `e2e.mjs`, `scripts/local/`)
 
 Nunca leem o `DATABASE_URL` do ambiente: o banco é sempre o PGlite que eles
-mesmos sobem. `banco-local.mjs` (Postgres em memória nas portas TCP e
-WebSocket), `gcs-local.mjs` (object storage de mentira), `neon-local.mjs`
-(preload que aponta o driver do Neon para o banco local), `app-local.mjs`
+mesmos sobem. `banco-local.mjs` (Postgres em memória na porta TCP, com um
+WebSocket opcional para testes de protocolo), `gcs-local.mjs` (object storage
+de mentira), `app-local.mjs`
 (monta tudo e sobe o servidor), `semear.mjs` (dados de exemplo pela API),
 `instalar-ferramentas.mjs` (`npm run ferramentas:instalar`).
 
@@ -378,3 +406,24 @@ defeitos conhecidos: [e2e/README.md](e2e/README.md).
   (`npm run db:migrate:ci`);
 * à mão (aba Actions → CI → **Run workflow**) — também os testes de ponta a
   ponta, com o app inteiro local (`npm run e2e`).
+
+`.github/workflows/deploy-dev.yml` — a cada push na branch `dev`: tipos, build
+e envio do release por SSH para a VPS, onde `infra/grafica-dev/deploy-ci.sh`
+monta a imagem, migra **só** o `grafica_dev`, confere o health e volta atrás
+sozinho se falhar. Usa o secret `DEV_SSH_PRIVATE_KEY`, uma chave que na VPS só
+consegue rodar esse deploy. A produção não é alcançável por esse workflow.
+
+---
+
+## Como trabalhar neste repositório
+
+* **Branches:** trabalho novo vai na `dev`. A `main` só recebe por pull request
+  `dev` → `main`, com OK explícito do responsável.
+* **Segredos nunca entram no Git** — nem `.env`, nem chave, nem token, nem
+  `DATABASE_URL` real. Os modelos (`*.example`) só trazem nomes.
+* **Não mexer em `shared/schema.ts`** sem instrução explícita; mudança de
+  schema segue "Banco e migrações".
+* **Entregas pequenas**, com o diff relido inteiro antes de aplicar.
+* **Tudo em português**: commits, textos de tela, documentação.
+* Mudou a operação (servidor, deploy, variável)? Atualize
+  [docs/operacao-producao.md](docs/operacao-producao.md) no mesmo commit.

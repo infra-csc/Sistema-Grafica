@@ -1,5 +1,7 @@
 # Backup e restauração da Gráfica — 09/10/2026
 
+> **Documento histórico.** Registra o estado da época em que foi escrito (migração para a VPS, concluída em 26/10/2026). Para a operação atual, veja [operação da produção](operacao-producao.md).
+
 ## Resultado verificado
 
 O backup agora identifica o banco efetivamente conectado ao app, `grafica_import_20261008`, em vez do banco de inicialização `grafica_homolog`. O dump custom foi restaurado em banco temporário isolado, sem substituir o banco do app.

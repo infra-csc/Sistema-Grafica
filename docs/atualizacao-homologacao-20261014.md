@@ -1,5 +1,7 @@
 # Atualização da homologação — 14/10/2026
 
+> **Documento histórico.** Registra o estado da época em que foi escrito (migração para a VPS, concluída em 26/10/2026). Para a operação atual, veja [operação da produção](operacao-producao.md).
+
 Produção no Replit e destino do portal NORTE preservados. Nenhuma exclusão no storage de origem. Disparos de e-mail desativados.
 
 ## Dados e arquivos

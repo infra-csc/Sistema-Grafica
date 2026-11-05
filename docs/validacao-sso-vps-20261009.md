@@ -1,5 +1,7 @@
 # Homologacao do login na VPS — 09/10/2026
 
+> **Documento histórico.** Registra o estado da época em que foi escrito (migração para a VPS, concluída em 26/10/2026). Para a operação atual, veja [operação da produção](operacao-producao.md).
+
 O destino `producao` do Portal NORTE continua no Replit. Nenhum arquivo, segredo ou publicacao do hub foi alterado. Nenhuma conexao do app da VPS foi direcionada ao Neon.
 
 ## Configuracao instalada

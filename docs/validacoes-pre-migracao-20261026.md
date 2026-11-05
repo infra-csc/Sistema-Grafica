@@ -1,5 +1,7 @@
 # Validações antes da migração — 26/10/2026
 
+> **Documento histórico.** Registra o estado da época em que foi escrito (migração para a VPS, concluída em 26/10/2026). Para a operação atual, veja [operação da produção](operacao-producao.md).
+
 Janela solicitada: 14h30 de Brasília. Nenhuma troca do portal ou alteração no Replit realizada nesta etapa. App continua na cópia `grafica_import_20261014`; os dados de hoje estão separados em `grafica_import_20261026`.
 
 ## Aprovado

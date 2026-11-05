@@ -1,5 +1,7 @@
 # VPS preparada e procedimento de troca
 
+> **Documento histórico.** Registra o estado da época em que foi escrito (migração para a VPS, concluída em 26/10/2026). Para a operação atual, veja [operação da produção](operacao-producao.md).
+
 ## Restrição do responsável
 
 **Manter Replit ativo. Desativar somente após autorização explícita do responsável.** Preparação, conferências, cópias e testes na VPS não autorizam mudar o destino no portal NORTE, interromper a origem ou realizar a troca de produção.

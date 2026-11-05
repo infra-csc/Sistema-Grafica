@@ -1,5 +1,7 @@
 # Diagnóstico SSH — 2026-10-07
 
+> **Documento histórico.** Registra o estado da época em que foi escrito (migração para a VPS, concluída em 26/10/2026). Para a operação atual, veja [operação da produção](../../docs/operacao-producao.md).
+
 Destino: VPS da Gráfica, 5.161.234.21. Preparação do ambiente pausada a pedido
 do usuário para investigar os timeouts. Nenhuma senha está registrada aqui.
 

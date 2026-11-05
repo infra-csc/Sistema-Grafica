@@ -1,12 +1,29 @@
-# Preparação da Gráfica — Hetzner + Cloudflare
+# Infraestrutura da produção — Hetzner + Cloudflare
 
-## Estado atual — 09/10/2026
+## Estado atual
 
-VPS conferida e preparada para continuar a homologação, com backup PostgreSQL no
-R2. Replit permanece ativo; sua desativação e a troca de produção dependem de
-autorização explícita do responsável. Consulte o
-[estado atual e procedimento de troca/retorno](../../docs/vps-preparada-e-procedimento-de-troca.md).
-As seções abaixo preservam o histórico da preparação inicial.
+Esta pasta é a fonte dos arquivos que rodam em `~/grafica-homolog/infra` na VPS:
+a **produção** de https://grafica.appsnorte.com desde o corte de 26/10/2026.
+Como publicar, voltar atrás, fazer backup e restaurar está em
+[docs/operacao-producao.md](../../docs/operacao-producao.md).
+
+| Arquivo | Para quê |
+| --- | --- |
+| `compose.yaml` | PostgreSQL 16 (fuso UTC, só em loopback, volume persistente) |
+| `compose.app.yaml` | App (imagem `grafica-homolog:${GRAFICA_RELEASE}`, só leitura, 1,5 GB) |
+| `Dockerfile`, `Dockerfile.release-*` | Imagem do zero / imagem de release a partir da anterior |
+| `Caddyfile` | Modelo do bloco `grafica.appsnorte.com` (proxies da Cloudflare confiáveis, 50 MB) |
+| `backup-postgres.sh`, `backup-completo.sh`, `enviar-backup-r2.mjs` | Dump diário e envio ao R2 |
+| `grafica-backup.service`, `grafica-backup.timer` | Agendamento do backup (03:00 de Brasília) |
+| `*.env.example`, `preparar-app-env.sh`, `configurar-chaves-servicos.sh` | Modelos e geração das variáveis (sem segredos) |
+| `restaurar-producao-*.sh`, `verificar-restauracao*.mjs` | Restauração e conferência usadas no corte |
+| `migrar-storage-r2*.mjs`, `copiar-incremental-r2.sh`, `conferir-*.mjs` | Cópia e conferência dos arquivos para o R2 |
+| `validar-*.mjs` | Validações de fluxo, SSO e storage (algumas gravam: só com autorização) |
+
+O ambiente DEV tem a pasta própria: [infra/grafica-dev/](../grafica-dev/README.md).
+
+As seções abaixo preservam o histórico da preparação inicial (07 a 09/10/2026)
+e **não descrevem o estado atual**.
 
 ## Estado em 07/10/2026
 

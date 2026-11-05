@@ -37,4 +37,5 @@ quantas não deram para conferir.
 
 OPCIONAL
 CONFERIDOR_SIMULTANEOS no .conferidor.env define quantos arquivos abrir ao mesmo
-tempo (padrão: 4).
+tempo (padrão: 4). CONFERIDOR_INTERVALO_MIN define o intervalo quando ele roda
+sempre ligado, sem o Agendador (padrão: 5).

@@ -13,6 +13,7 @@ import { invalidarCacheDeVersoes } from "../versoes";
 import { motivoEventoFechado, erroEventoFechado } from "../eventoFinalizado";
 import { responderFalha } from "../../erros";
 
+
 // ─────────────────────────────────────────────────────────────────────────────
 // QUEM RECEBE O AVISO DO BOOK.
 //
@@ -263,7 +264,9 @@ export function registrarBook(app: Express): void {
       await storage.clearEventBookUrl(req.params.eventId);
       const count = await storage.setItemsBookUrl(idsValidos, bookUrl || null);
       if (bookUrl) {
-        await storage.createEventBook({ eventId: req.params.eventId, bookUrl, itemCount: count, createdBy: req.userName ?? null, comment: textoDoComentario || null });
+        const registroDoBook = await storage.createEventBook({ eventId: req.params.eventId, bookUrl, itemCount: count, createdBy: req.userName ?? null, comment: textoDoComentario || null });
+        // A fotografia dos thumbs: nunca derruba a publicação.
+        void import("../../services/book-automatico").then((m) => m.fotografarThumbsDoBook(req.params.eventId, registroDoBook?.id)).catch((erro) => console.warn("[book] fotografia dos thumbs:", erro instanceof Error ? erro.message : erro));
         invalidarCacheDeVersoes();
         // items.book_url guarda apenas a versão atual; event_books preserva
         // cada publicação anterior para consulta e download futuros.

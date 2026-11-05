@@ -548,6 +548,9 @@ export const eventBooks = pgTable("event_books", {
   // precisa saber o que mudou sem folhear as páginas comparando. Sai no
   // e-mail e na aba Books das Versões.
   comment: text("comment"),
+  // Qual thumb cada peça tinha quando este book foi publicado (05/11). É o que diz, sem
+  // adivinhar, quais páginas mudaram depois. Nulo nos books anteriores a esta data.
+  thumbs: jsonb("thumbs"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 }, (table) => [
   index("IDX_event_books_event_id").on(table.eventId),
@@ -586,6 +589,7 @@ export const auditoriasDoBook = pgTable("auditorias_do_book", {
 ]);
 
 // O rascunho do book automático (04/11): uma linha por versão. Não publica nada.
+// (A fotografia dos thumbs de cada book publicado mora em event_books.thumbs.)
 export const rascunhosDoBook = pgTable("rascunhos_do_book", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
@@ -604,6 +608,9 @@ export const rascunhosDoBook = pgTable("rascunhos_do_book", {
   geradoPor: text("gerado_por").notNull(),
   automatico: boolean("automatico").notNull().default(false),
   tamanho: integer("tamanho"),
+  // O book de onde saíram capa e rodapé; base_oficial: ele é do próprio evento e as páginas sem mudança vieram dele.
+  modeloUrl: text("modelo_url"),
+  baseOficial: boolean("base_oficial").notNull().default(false),
   criadoEm: timestamp("criado_em").notNull().default(sql`now()`),
 }, (table) => [
   uniqueIndex("UQ_rascunho_evento_versao").on(table.eventId, table.versao),

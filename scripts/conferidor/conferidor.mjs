@@ -31,7 +31,7 @@ if (!BASE || TOKEN.length < 32) {
 }
 const UMA_VEZ = process.argv.includes("--uma-vez");
 const SIMULTANEOS = Math.max(1, Number(process.env.CONFERIDOR_SIMULTANEOS) || 4);
-const TEMPO_MS = 300_000, DESCANSO_MS = 5 * 60_000, TROCAR_APOS = 40;
+const TEMPO_MS = 300_000, DESCANSO_MS = (Number(process.env.CONFERIDOR_INTERVALO_MIN) || 5) * 60_000, TROCAR_APOS = 40;
 const IMAGEM = path.join(path.dirname(fileURLToPath(import.meta.url)), "conferidor-imagem.mjs");
 
 const api = (rota, init = {}) => fetch(BASE + rota, { ...init, headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/json", ...(init.headers ?? {}) } });

@@ -25,7 +25,7 @@ import { circuitoDoEvento, motivoDeFicarFora, secaoDaPeca } from "../../shared/b
       for (const f of r.fora) motivos[f.motivo] = (motivos[f.motivo] ?? 0) + 1;
       Object.assign(saida, {
         seg: +((Date.now() - t0) / 1000).toFixed(1), mb: +(r.bytes.length / 1048576).toFixed(1), paginas: r.paginas, pecas: r.pecas.length, noBook: noBook.length,
-        fora: r.fora.length, motivos, repetidas: repetidas.length, sumiram: sumiram.map((p) => p.displayId), conferir: r.plano.filter((p) => p.conferir).length, modelo: r.modeloEvento,
+        fora: r.fora.length, motivos, repetidas: repetidas.length, sumiram: sumiram.map((p) => p.displayId), conferir: r.plano.filter((p) => p.conferir).length, modelo: r.modeloEvento, base: r.baseOficial, mantidas: r.plano.filter((p) => p.origem === "mantida").length, refeitas: r.plano.filter((p) => p.origem === "refeita").length, novas: r.plano.filter((p) => p.origem === "nova").length,
         maiorPagina: Math.max(0, ...r.plano.map((p) => p.pecas.length)), semTipo: r.fora.filter((f) => f.motivo.startsWith("Não reconheci")).map((f) => `${f.tipo}/${f.descricao ?? ""}`).slice(0, 12),
         rotulos: r.plano.map((p) => p.rotulo),
       });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  arranjarNaPagina, circuitoDoEvento, combinarComOficial, compararVersoes, montarPortico, motivoDeFicarFora, planejarBook, preferenciaDaSecao, rotuloDoRodape, secaoDaPeca, atribuirVagas, encaixarNaVaga, paginaDoModeloParaUsar, PAGINA_DO_BOOK, type PecaDoBook,
+  arranjarNaPagina, circuitoDoEvento, combinarComOficial, compararVersoes, montarPortico, motivoDeFicarFora, planejarBook, preferenciaDaSecao, rotuloDoRodape, secaoDaPeca, atribuirVagas, encaixarNaVaga, localizarTrocas, paginaDoModeloParaUsar, PAGINA_DO_BOOK, type PecaDoBook,
 } from "@shared/book-automatico";
 
 const peca = (id: string, tipo: string, descricao: string | null = null, thumb: string | null = "/objects/x"): PecaDoBook => ({ id, displayId: `#${id}`, tipo, descricao, thumb });
@@ -216,6 +216,20 @@ describe("modelo e versões", () => {
   it("mostra o que mudou entre as versões", () => {
     const m = compararVersoes({ a: { d: "#1", t: "x" }, b: { d: "#2", t: "y" } }, { a: { d: "#1", t: "z" }, c: { d: "#3", t: "k" } });
     expect(m).toEqual({ novas: ["#3"], trocadas: ["#1"], saiu: ["#2"] });
+  });
+  it("acha a vaga só quando ela é claramente da arte que mudou", () => {
+    // vaga 0 é da arte 0 (mudou); vaga 1 é da arte 1 (não mudou)
+    expect(localizarTrocas([[5, 40], [40, 5]], [true, false], 30, 6)).toEqual([{ vaga: 0, arte: 0 }]);
+    // parecida demais com as duas: na dúvida, não troca
+    expect(localizarTrocas([[20, 22]], [true, false], 30, 6)).toEqual([]);
+    // longe de tudo: é outra arte, provavelmente uma montagem
+    expect(localizarTrocas([[50, 70]], [true, false], 30, 6)).toEqual([]);
+    // a mesma arte em duas vagas: troca as duas
+    expect(localizarTrocas([[5, 40], [6, 40]], [true, false], 30, 6)).toEqual([{ vaga: 0, arte: 0 }, { vaga: 1, arte: 0 }]);
+    // só uma peça na seção: não há com quem comparar, vale o limite
+    expect(localizarTrocas([[5]], [true], 30, 6)).toEqual([{ vaga: 0, arte: 0 }]);
+    // sem peças, nada
+    expect(localizarTrocas([[]], [], 30, 6)).toEqual([]);
   });
   it("sem mudança, tudo vazio", () => { expect(compararVersoes({ a: { d: "#1", t: "x" } }, { a: { d: "#1", t: "x" } })).toEqual({ novas: [], trocadas: [], saiu: [] }); });
 });

@@ -317,6 +317,22 @@ export function atribuirVagas(custo: ReadonlyArray<readonly number[]>): number[]
   return vagaDaArte;
 }
 
+/**
+ * Em quais vagas do book está cada arte que mudou. custo[vaga][arte] compara o desenho da vaga
+ * com a arte como ela era quando o book saiu. A vaga é da arte mais parecida, e só conta se a
+ * semelhança é clara: na dúvida, não troca, e a seção é refeita como antes.
+ */
+export function localizarTrocas(custo: ReadonlyArray<readonly number[]>, mudou: readonly boolean[], limite: number, folga: number): Array<{ vaga: number; arte: number }> {
+  const out: Array<{ vaga: number; arte: number }> = [];
+  custo.forEach((linha, vaga) => {
+    let melhor = -1, segunda = Infinity;
+    linha.forEach((c, a) => { if (melhor < 0 || c < linha[melhor]) { if (melhor >= 0) segunda = Math.min(segunda, linha[melhor]); melhor = a; } else segunda = Math.min(segunda, c); });
+    if (melhor < 0 || !mudou[melhor] || linha[melhor] > limite || segunda - linha[melhor] < folga) return;
+    out.push({ vaga, arte: melhor });
+  });
+  return out;
+}
+
 /** A arte dentro da vaga, inteira e centrada. Tudo em pontos da página. */
 export function encaixarNaVaga(arte: ArteMedida, v: Vaga): Vaga {
   const LV = v.w * PAGINA_DO_BOOK.LP, AV = v.h * PAGINA_DO_BOOK.AP;

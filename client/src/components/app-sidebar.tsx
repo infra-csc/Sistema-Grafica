@@ -87,7 +87,7 @@ const fluxoItems: MenuItem[] = [
   // menu uma tela com esse nome. A rota continua /solicitacao; o testId fica.
   { title: "Revisão Final",           url: "/solicitacao",             icon: ClipboardCheck, roles: ["solicitacao", "admin"], testId: "nav-revisão" },
   { title: "Gráfica",                 url: "/grafica",                 icon: Printer,        roles: ["grafica", "solicitacao", "admin"] },
-  { title: "Conferência de arte",     url: "/conferencia-arquivos",    icon: FileSearch,     roles: ["arte", "grafica", "solicitacao", "admin"], semKit: true },
+  { title: "Conferência de arte",     url: "/conferencia-arquivos",    icon: FileSearch,     roles: ["arte", "admin"], semKit: true },
   // Quem reaproveita não é quem imprime (dono, 03/11): diz quantas têm no estoque.
   { title: "Reaproveitar",            url: "/reaproveitar",            icon: Recycle,        roles: ["grafica", "solicitacao", "admin"] },
   // A aba de impressoras (dono, 14/09): o que cada uma imprime agora e o
@@ -523,7 +523,7 @@ export function AppSidebar() {
     enabled: respondeReaproveitar,
   });
   // Avisos da conferência de arquivos (dono, 04/11): só somem quando alguém resolve.
-  const veConferencia = !user?.kit && ["arte", "grafica", "solicitacao", "admin"].includes(role);
+  const veConferencia = !user?.kit && ["arte", "admin"].includes(role);
   const { data: conferencia } = useQuery<{ total: number }>({
     queryKey: ["/api/conferencia-do-arquivo", "contagem"],
     enabled: veConferencia,

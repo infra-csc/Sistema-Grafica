@@ -87,7 +87,8 @@ async function gravar(itemId: string, arquivo: string, thumb: string, v: { vered
   return rows[0]?.id as string | undefined;
 }
 
-const PAPEIS_DA_CONFERENCIA = ["admin", "solicitacao", "arte", "grafica"];
+// Só a Arte e o admin veem a conferência (dono, 05/11). A Gráfica lê apenas o aviso escrito na peça.
+const PAPEIS_DA_CONFERENCIA = ["admin", "arte"];
 
 export function registerConferenciaDoArquivoRoutes(app: Express): void {
   // ── O programa da rede ───────────────────────────────────────────────────
@@ -162,7 +163,7 @@ export function registerConferenciaDoArquivoRoutes(app: Express): void {
           message: `${peca.displayId ?? peca.type}${evento ? ` — ${evento.name}` : ""}: o arquivo final parece diferente do thumb`,
           eventId: peca.eventId,
           itemId: peca.id,
-          targetRoles: ["arte", "solicitacao", "admin"],
+          targetRoles: ["arte", "admin"],
         });
         broadcast({ type: "notification_created", notification });
       }
@@ -175,7 +176,7 @@ export function registerConferenciaDoArquivoRoutes(app: Express): void {
   });
 
   // ── As telas ─────────────────────────────────────────────────────────────
-  app.get("/api/conferencia-do-arquivo", requireRole("admin", "solicitacao", "arte", "grafica"), async (req, res) => {
+  app.get("/api/conferencia-do-arquivo", requireRole("admin", "arte"), async (req, res) => {
     try {
       if (req.userKit) return res.status(403).json({ error: "A conferência não faz parte do Kit." });
       const [{ rows: linhas }, { rows: fila }, { rows: ultima }] = await Promise.all([
@@ -206,7 +207,7 @@ export function registerConferenciaDoArquivoRoutes(app: Express): void {
   // A ficha da Revisão Final: a conferência do arquivo e do thumb de agora.
   app.get("/api/items/:id/conferencia-do-arquivo", requireAuth, async (req, res) => {
     try {
-      if (req.userKit) return res.json(null);
+      if (req.userKit || !PAPEIS_DA_CONFERENCIA.includes(req.userRole ?? "")) return res.json(null);
       const { rows } = await pool.query(`${COLUNAS_DA_LISTA} and c.item_id = $1 limit 1`, [req.params.id]);
       res.json(rows[0] ?? null);
     } catch (erro) {
@@ -217,7 +218,7 @@ export function registerConferenciaDoArquivoRoutes(app: Express): void {
 
   // O aviso na peça não pode ficar preso: "só imprima depois de falar com a Arte"
   // deixa de valer quando a conversa acontece.
-  app.post("/api/conferencia-do-arquivo/:id/tirar-aviso", requireRole("admin", "solicitacao", "arte", "grafica"), async (req, res) => {
+  app.post("/api/conferencia-do-arquivo/:id/tirar-aviso", requireRole("admin", "arte"), async (req, res) => {
     try {
       if (req.userKit) return res.status(403).json({ error: "A conferência não faz parte do Kit." });
       const { rows } = await pool.query(`select item_id as "itemId" from conferencias_do_arquivo where id = $1`, [req.params.id]);
@@ -235,7 +236,7 @@ export function registerConferenciaDoArquivoRoutes(app: Express): void {
     }
   });
 
-  app.post("/api/conferencia-do-arquivo/:id/resolver", requireRole("admin", "solicitacao", "arte", "grafica"), async (req, res) => {
+  app.post("/api/conferencia-do-arquivo/:id/resolver", requireRole("admin", "arte"), async (req, res) => {
     try {
       if (req.userKit) return res.status(403).json({ error: "A conferência não faz parte do Kit." });
       const lida = lerResolucao(req.body);

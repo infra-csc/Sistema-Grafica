@@ -283,7 +283,7 @@ const ROLES_VINCULAR = ["arte", "solicitacao", "atendimento", "admin"];
 const ROLES_ATENDIMENTO = ["atendimento", "arte", "solicitacao", "admin"];
 const ROLES_SOLICITACAO = ["solicitacao", "admin"];
 const ROLES_GRAFICA = ["grafica", "solicitacao", "admin"];
-const ROLES_CONFERENCIA = ["arte", "grafica", "solicitacao", "admin"];
+const ROLES_CONFERENCIA = ["arte", "admin"];
 // Triagem e local no galpão são da Gráfica (dono, 14/09). O Estoque usa
 // ROLES_GRAFICA: a Solicitação consulta o que tem para reservar.
 // 15/09: Triagem de Retorno é só do admin (como o Estoque).

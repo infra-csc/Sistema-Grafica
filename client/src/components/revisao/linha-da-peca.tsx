@@ -4,7 +4,7 @@
 // isso as ações chegam como funções estáveis (useCallback na página) e tudo o
 // que muda por peça chega já resolvido (selo, estoque, falha, desfazendo).
 import { Fragment, memo } from "react";
-import { Check, Clock, Paperclip, Recycle, Trash2, Undo2 } from "lucide-react";
+import { Check, Clock, FileSearch, Paperclip, Recycle, Trash2, Undo2 } from "lucide-react";
 import { SeloKit } from "@/components/kit/selo-kit";
 import { SelosSemAprovacao } from "@/components/selo-sem-aprovacao";
 import { SeloPrazoMolde } from "@/components/prazo-do-molde";
@@ -204,6 +204,8 @@ export const LinhaDaPeca = memo(function LinhaDaPeca({
             {/* Prazo do molde: só o fluxo do molde o lê. */}
             <SeloPrazoMolde item={item} hoje={new Date(agora)} />
           </div>
+        ) : item.finalFileUrl && item.conferindoArquivo ? (
+          <Selo tom="info" icone={FileSearch} data-testid={`selo-conferindo-${item.id}`} title="O arquivo final está sendo conferido com o thumb. Liberar fica disponível quando a conferência terminar.">Conferindo</Selo>
         ) : item.finalFileUrl ? (
           <Selo tom="sucesso" icone={Check}>Recebido</Selo>
         ) : (

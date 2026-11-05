@@ -120,6 +120,13 @@
       "when": 1793889010278,
       "tag": "0016_fotografia-dos-thumbs-do-book",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793905236167,
+      "tag": "0017_conferencia-antes-da-revisao",
+      "breakpoints": true
     }
   ]
 }

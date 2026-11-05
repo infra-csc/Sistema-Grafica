@@ -25,6 +25,8 @@ export type PatrocinadorDaPeca = ComoJson<Sponsor> & { approvalStatus?: string |
 export type PecaDaRevisao = ComoJson<Item> & {
   event?: EventoDaPeca;
   sponsors?: PatrocinadorDaPeca[];
+  /** O arquivo final está sendo conferido com o thumb: ainda não dá para liberar. */
+  conferindoArquivo?: boolean;
 };
 
 /** Uma linha da trilha (GET /api/audit-logs?entityId=). */

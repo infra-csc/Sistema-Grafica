@@ -240,8 +240,10 @@ export function FichaDecisao(p: FichaDecisaoProps & { botoesNoRodape?: boolean; 
             </>
           ) : (
             <>
-              <strong style={{ color: TOM.alerta.text }}>Liberar fica disponível quando a Arte enviar o arquivo final.</strong>{" "}
-              Dá para devolver agora, se algo já precisa mudar.
+              <strong style={{ color: TOM.alerta.text }}>{selectedItem.conferindoArquivo
+                ? "Liberar fica disponível quando a conferência do arquivo final com o thumb terminar."
+                : "Liberar fica disponível quando a Arte enviar o arquivo final."}</strong>{" "}
+              {selectedItem.conferindoArquivo ? "Se o arquivo divergir, a peça volta sozinha para a Arte. " : ""}Dá para devolver agora, se algo já precisa mudar.
             </>
           )}
         </p>

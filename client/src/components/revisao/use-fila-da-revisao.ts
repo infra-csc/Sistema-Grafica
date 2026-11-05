@@ -44,7 +44,12 @@ export function useFilaDaRevisao({
 }: EntradaDaFila) {
   const { data: itensDoServidor = [], isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<PecaDaRevisao[]>({ queryKey: CHAVE_DA_REVISAO });
   // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça (ver shared/fluxo-peca).
-  const items = useMemo(() => itensDoServidor.filter((i) => !ehBookCompleto(i)), [itensDoServidor]);
+  // O arquivo final é conferido com o thumb antes da liberação (dono, 05/11).
+  const { data: emConferencia } = useQuery<{ conferindo: string[] }>({ queryKey: ["/api/conferencia-do-arquivo", "em-andamento"], refetchInterval: 60_000 });
+  const items = useMemo(() => {
+    const conferindo = new Set(emConferencia?.conferindo ?? []);
+    return itensDoServidor.filter((i) => !ehBookCompleto(i)).map((i) => (conferindo.has(i.id) ? { ...i, conferindoArquivo: true } : i));
+  }, [itensDoServidor, emConferencia]);
   const { data: events = [], isLoading: eventsLoading, isError: eventsError, refetch: refetchEvents } = useQuery<EventoDaApi[]>({ queryKey: ["/api/events"] });
   // Histórico da peça: só busca com o modal aberto, já filtrado e limitado no
   // servidor. A chave em duas partes ("/api/audit-logs" + querystring) mantém
@@ -166,7 +171,17 @@ export function useFilaDaRevisao({
     const total = pendingItems.length;
     if (total === 0) return "Nenhuma peça aguardando revisão.";
     const semArquivo = pendingItems.filter(i => !arquivoFinalOk(i)).length;
-    const prontas = total - semArquivo;
+    // Arquivo enviado, mas ainda sendo conferido com o thumb: não dá para decidir ainda.
+    const conferindo = pendingItems.filter(i => arquivoFinalOk(i) && i.conferindoArquivo).length;
+    const prontas = total - semArquivo - conferindo;
+    if (conferindo > 0) {
+      const partes = [
+        prontas > 0 ? `${prontas} ${prontas === 1 ? "peça está pronta" : "peças estão prontas"} para decidir` : null,
+        `${conferindo} ${conferindo === 1 ? "está" : "estão"} com o arquivo sendo conferido com o thumb`,
+        semArquivo > 0 ? `${semArquivo} ainda ${semArquivo === 1 ? "espera" : "esperam"} o arquivo final da Arte` : null,
+      ].filter(Boolean);
+      return `${partes.join("; ")}.`.replace(/^./, (c) => c.toUpperCase());
+    }
     if (semArquivo === 0) {
       return `${total === 1 ? "A única peça tem" : `Todas as ${total} peças têm`} arquivo final — é só decidir.`;
     }
@@ -309,7 +324,7 @@ export function useFilaDaRevisao({
       const it = pendingItems.find((i) => i.id === id);
       if (!it) continue;
       if (pecaTravada(it)) { nTravadas++; deFora[id] = "Travada — libere pela ficha, escolhendo destravar ou manter a trava."; }
-      else if (!prontaParaLiberar(it)) { nSemArquivo++; deFora[id] = "Sem arquivo final da Arte — fica para depois."; }
+      else if (!prontaParaLiberar(it)) { nSemArquivo++; deFora[id] = it.conferindoArquivo ? "O arquivo final está sendo conferido com o thumb — fica para depois." : "Sem arquivo final da Arte — fica para depois."; }
       else prontas.push(id);
     }
     return { prontas, deFora, nFora: nTravadas + nSemArquivo, nTravadas, nSemArquivo };

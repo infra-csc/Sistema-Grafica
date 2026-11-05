@@ -1,0 +1,1 @@
+ALTER TABLE "items" ADD COLUMN "conferencia_pedida_em" timestamp;

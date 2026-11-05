@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  arranjarNaPagina, circuitoDoEvento, compararVersoes, montarPortico, motivoDeFicarFora, planejarBook, preferenciaDaSecao, secaoDaPeca, type PecaDoBook,
+  arranjarNaPagina, circuitoDoEvento, combinarComOficial, compararVersoes, montarPortico, motivoDeFicarFora, planejarBook, preferenciaDaSecao, rotuloDoRodape, secaoDaPeca, type PecaDoBook,
 } from "@shared/book-automatico";
 
 const peca = (id: string, tipo: string, descricao: string | null = null, thumb: string | null = "/objects/x"): PecaDoBook => ({ id, displayId: `#${id}`, tipo, descricao, thumb });
@@ -36,6 +36,19 @@ describe("o plano", () => {
     expect(p.paginas.map((g) => g.secao)).toEqual(["Gradil"]);
     expect(p.fora[0].motivo).toMatch(/não costuma mostrar/);
   });
+  it("área de serviço só entra se o circuito costuma mostrar", () => {
+    const entrada = [peca("1", "TENDA 3X3", "Testeira Posto Médico"), peca("2", "STAND", "Testeira DHL")];
+    expect(planejarBook(entrada, { rotulos: ["Estande - DHL"] }).paginas.map((g) => g.rotulo)).toEqual(["Estande - DHL"]);
+    expect(planejarBook(entrada, { rotulos: ["Estande - DHL", "Estande - Posto Médico"] }).paginas).toHaveLength(2);
+  });
+  it("não passa do número de páginas de pórtico que o circuito usa: fica o mais completo", () => {
+    const entrada = [peca("1", "PORTICO LARG", "Testeira"), peca("2", "PORTICO LARG", "Lateral esquerda"), peca("3", "PORTICO LARG", "Lateral direita"), peca("4", "PORTICO ACESSO", "Testeira")];
+    const p = planejarBook(entrada, { rotulos: ["Pórtico"] });
+    expect(p.paginas.filter((g) => g.secao === "Pórtico")).toHaveLength(1);
+    expect(p.paginas[0].pecas).toHaveLength(3);
+    expect(p.fora.map((f) => f.id)).toEqual(["4"]);
+  });
+  it("quebra-cabeça e moldura são ativação", () => { expect(secaoDaPeca("Quebra cabeça", "fundo")).toBe("Ativação"); expect(secaoDaPeca("INSTAGRAMÁVEL MOLDURA", "x")).toBe("Ativação"); });
   it("cada estande tem sua página, com a testeira em cima", () => {
     const p = planejarBook([peca("1", "STAND", "Backdrop DHL"), peca("2", "STAND", "Testeira DHL"), peca("3", "STAND", "Testeira O2")], { rotulos: ["Estandes - X"] });
     expect(p.paginas.map((g) => g.rotulo)).toEqual(["Estandes - DHL", "Estandes - O2"]);
@@ -48,6 +61,13 @@ describe("o plano", () => {
   it("peça sem thumb e sem seção aparecem com o motivo, não somem", () => {
     const p = planejarBook([peca("1", "Rolo", "a", null), peca("2", "Cooler", "b")]);
     expect(p.fora.map((f) => f.motivo)).toEqual(["Peça ainda sem thumb", "Não reconheci a seção desta peça"]);
+  });
+  it("toda peça aparece no book ou na lista de fora, nenhuma some", () => {
+    const entrada = [peca("1", "MANDALA", "Frente - medalha verão"), peca("2", "MANDALA", "Fundo mandala verão"), peca("3", "MANDALA", "Fita verão"), peca("4", "PORTICO", "Testeira frente"), peca("5", "PORTICO", "Testeira verso"), peca("6", "Cooler", "x"), peca("7", "Imantadas", "y"), peca("8", "Rolo", "z", null)];
+    const p = planejarBook(entrada);
+    const contadas = [...p.paginas.flatMap((g) => g.pecas.map((x) => x.id)), ...p.fora.map((f) => f.id)];
+    expect(contadas.sort()).toEqual(entrada.map((x) => x.id).sort());
+    expect(new Set(contadas).size).toBe(contadas.length);
   });
   it("montagem feita à mão pede conferência", () => {
     const p = planejarBook([peca("1", "PALCO", "backdrop"), peca("2", "PALCO", "aplique superior")]);
@@ -112,6 +132,57 @@ describe("as artes na página", () => {
     expect(pos[1].x).toBeLessThan(pos[2].x);
   });
   it("pórtico sem lateral cai no arranjo comum", () => { expect(montarPortico([{ w: 1400, h: 260, descricao: "Testeira" }], W, H)).toBeNull(); });
+});
+
+describe("o nome da seção no rodapé", () => {
+  it("texto único", () => { expect(rotuloDoRodape([{ texto: "Gradil", x: 0.25 }])).toBe("Gradil"); });
+  it("nome em vários pedaços continua inteiro", () => { expect(rotuloDoRodape([{ texto: "Estande -", x: 0.25 }, { texto: "DHL", x: 0.33 }])).toBe("Estande - DHL"); });
+  it("nome coberto por outro: vale o de cima", () => { expect(rotuloDoRodape([{ texto: "Pórtico", x: 0.25 }, { texto: "Gradil", x: 0.25 }])).toBe("Gradil"); });
+  it("só espaço não conta", () => { expect(rotuloDoRodape([{ texto: "  ", x: 0.25 }])).toBe(""); });
+});
+
+describe("partir do book oficial", () => {
+  const base = (...r: Array<string | null>) => r.map((rotulo, i) => ({ indice: i + 1, rotulo }));
+  const pecas = [peca("1", "Palco", "backdrop"), peca("2", "2x1", "Santander"), peca("3", "2x1", "Esfera"), peca("4", "STAND", "Testeira DHL"), peca("5", "STAND", "Backdrop DHL"), peca("6", "STAND", "Testeira O2")];
+  const oficial = base("Palco", "Gradil", "Estande - DHL", "Estande - O2", "Retirada de Kit - Octanormes", null);
+  const plano = planejarBook(pecas, { rotulos: oficial.map((b) => b.rotulo ?? "").filter(Boolean) });
+  const tipos = (f: Array<{ origem: string; rotulo: string }>) => f.map((x) => `${x.origem}:${x.rotulo}`);
+
+  it("nada mudou: o book sai idêntico, página por página", () => {
+    const r = combinarComOficial(oficial, plano, () => false);
+    expect(r.paginas.every((p) => p.origem === "mantida")).toBe(true);
+    expect(r.paginas.map((p) => (p.origem === "mantida" ? p.indiceBase : 0))).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+  it("mudou uma peça do gradil: só o gradil é refeito", () => {
+    const r = combinarComOficial(oficial, plano, (p) => p.id === "2");
+    expect(tipos(r.paginas)).toEqual(["mantida:Palco", "refeita:Gradil", "mantida:Estande - DHL", "mantida:Estande - O2", "mantida:Retirada de Kit - Octanormes", "mantida:Página sem rótulo"]);
+  });
+  it("mudou um estande: só a página daquele patrocinador", () => {
+    const r = combinarComOficial(oficial, plano, (p) => p.id === "5");
+    expect(tipos(r.paginas)[2]).toBe("refeita:Estande - DHL");
+    expect(tipos(r.paginas)[3]).toBe("mantida:Estande - O2");
+  });
+  it("seção sem peça no sistema continua, mesmo com outras mudando", () => {
+    const r = combinarComOficial(oficial, plano, (p) => p.id === "1");
+    expect(tipos(r.paginas)).toContain("mantida:Retirada de Kit - Octanormes");
+  });
+  it("patrocinador novo entra na seção certa", () => {
+    const p2 = planejarBook([...pecas, peca("7", "STAND", "Testeira Lupo")], { rotulos: ["Palco", "Gradil", "Estande - DHL"] });
+    const r = combinarComOficial(base("Palco", "Gradil", "Estande - DHL", "Placas Balcão"), p2, (p) => p.id === "7");
+    expect(tipos(r.paginas).filter((t) => /Lupo/.test(t))).toEqual(["nova:Estande - Lupo"]);
+    expect(tipos(r.paginas).findIndex((t) => /Lupo/.test(t))).toBeLessThan(tipos(r.paginas).findIndex((t) => /Balcão/.test(t)));
+  });
+  it("o que a equipe deixou fora do book não volta sozinho", () => {
+    const p2 = planejarBook([...pecas, peca("8", "STAND", "Testeira Posto Médico")], { rotulos: ["Palco", "Gradil", "Estande - DHL"] });
+    const r = combinarComOficial(base("Palco", "Gradil", "Estande - DHL"), p2, () => false);
+    expect(tipos(r.paginas).some((t) => /Posto/.test(t))).toBe(false);
+  });
+  it("seção com duas páginas é refeita uma vez só", () => {
+    const quadros = Array.from({ length: 12 }, (_, i) => peca(`q${i}`, "Rolo", `r${i}`));
+    const pl = planejarBook(quadros, { rotulos: ["Rolo"] });
+    const r = combinarComOficial(base("Rolo", "Rolo"), pl, (p) => p.id === "q1");
+    expect(r.paginas.filter((p) => p.origem === "refeita").length).toBe(pl.paginas.length);
+  });
 });
 
 describe("modelo e versões", () => {

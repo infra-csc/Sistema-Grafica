@@ -22,14 +22,15 @@ const POR_TIPO: ReadonlyArray<readonly [SecaoDoBook, RegExp]> = [
   ["Testeira Bem-vindo & Até Logo", /bem vind|ate logo|boas vindas/],
   ["Pórtico", /portico|potico/],
   ["Palco", /palco|^backdrop$/],
-  ["Estande", /^stand|estande|^testeira stand|^backdrop stand|^tenda/],
+  ["Estande", /^stand|estande|^testeira stand|^backdrop stand|^tenda|^backdrop tenda|^guarda volumes/],
   ["Placas Balcão", /placas? (de )?balcao|^balcao/],
   ["Placa Km", /placas? (de )?km|percurso|^km /],
+  ["Ativação", /quebra cabeca|mandalinha|moldura|ativac/],
+  ["Carro de Som", /carro de som/],
   ["Quadros de Fotos", /quadro|instagramavel/],
   ["Mandalas", /mandala/],
   ["Windbanner", /wind ?banner/],
   ["Ícone", /^icone/],
-  ["Ativação", /ativac/],
   ["Retirada de Kit", /retirada|octanorm|roll ?up|^banner/],
   ["Totens", /toten|totem/],
   ["Prismas", /prisma/],
@@ -66,10 +67,10 @@ export const motivoDeFicarFora = (tipo: unknown, descricao: unknown): string | n
 /** Sequência mais comum nos books reais; o modelo do circuito tem prioridade. */
 export const ORDEM_PADRAO: readonly SecaoDoBook[] = [
   "Palco", "Pórtico", "Testeira Bem-vindo & Até Logo", "Gradil", "Rolo", "Faixa", "Estande", "Quadros de Fotos", "Mandalas",
-  "Placas Balcão", "Placa Km", "Windbanner", "Ícone", "Ativação", "Retirada de Kit", "Totens", "Prismas", "Display", "Testeiras", "Letra Caixa",
+  "Placas Balcão", "Placa Km", "Windbanner", "Ícone", "Ativação", "Retirada de Kit", "Totens", "Prismas", "Display", "Testeiras", "Letra Caixa", "Carro de Som",
 ];
 /** Quando há modelo, estas só entram se o circuito costuma mostrar. */
-const OPCIONAIS: ReadonlySet<SecaoDoBook> = new Set(["Testeiras", "Display", "Prismas", "Ícone", "Ativação", "Totens", "Letra Caixa", "Windbanner", "Retirada de Kit"]);
+const OPCIONAIS: ReadonlySet<SecaoDoBook> = new Set(["Testeiras", "Display", "Prismas", "Ícone", "Ativação", "Totens", "Letra Caixa", "Windbanner", "Retirada de Kit", "Carro de Som"]);
 const POR_PAGINA: Record<string, number> = { Gradil: 30, Rolo: 30, "Placa Km": 18 };
 const POR_PAGINA_PADRAO = 8;
 
@@ -116,6 +117,11 @@ export function planejarBook(pecas: readonly PecaDoBook[], modelo?: ModeloDoBook
     grupos.get(s)!.push(p);
   }
 
+  // Quantas páginas o circuito usa em cada seção: limita o que é por tipo.
+  const paginasNoModelo = new Map<SecaoDoBook, number>();
+  for (const r of rotulos) { const s = secaoDaPeca(r, ""); if (s) paginasNoModelo.set(s, (paginasNoModelo.get(s) ?? 0) + 1); }
+  const SERVICO = /posto medico|guarda volume|ortopedic|tenda|massagem|ambulatorio/;
+  const servicosNoModelo = rotulos.some((r) => SERVICO.test(normalizarDoBook(r)));
   const ordem = [...secoesDoModelo, ...ORDEM_PADRAO.filter((s) => !secoesDoModelo.includes(s))];
   const paginas: PaginaPlanejada[] = [];
   const rotuloDe = (s: SecaoDoBook) => rotuloDaSecao.get(s) ?? s;
@@ -127,6 +133,7 @@ export function planejarBook(pecas: readonly PecaDoBook[], modelo?: ModeloDoBook
       for (const p of g) { const k = quemEDoEstande(p); if (!por.has(k)) por.set(k, []); por.get(k)!.push(p); }
       const chaves = Array.from(por.keys()).sort((a, b) => Number(/relax/.test(b)) - Number(/relax/.test(a)) || comparar(a, b));
       for (const k of chaves) {
+        if (rotulos.length > 0 && !servicosNoModelo && SERVICO.test(k)) { for (const p of por.get(k)!) sair(p, "Este circuito não costuma mostrar esta área no book"); continue; }
         const itens = por.get(k)!.slice().sort((a, b) => Number(!/testeira/.test(normalizarDoBook(a.descricao))) - Number(!/testeira/.test(normalizarDoBook(b.descricao))));
         paginas.push({ rotulo: k === "geral" ? prefixoDoEstande : `${prefixoDoEstande} - ${nomeDoEstande(itens[0]) || titulo(k)}`, secao: s, pecas: itens, conferir: null });
       }
@@ -135,7 +142,10 @@ export function planejarBook(pecas: readonly PecaDoBook[], modelo?: ModeloDoBook
     if (s === "Pórtico") {
       const por = new Map<string, PecaDoBook[]>();
       for (const p of g) { const k = normalizarDoBook(p.tipo); if (!por.has(k)) por.set(k, []); por.get(k)!.push(p); }
-      for (const itens of Array.from(por.values())) {
+      const grupos2 = Array.from(por.values()).sort((a, b) => b.length - a.length);
+      const tetoPortico = paginasNoModelo.get(s) ?? grupos2.length;
+      grupos2.slice(tetoPortico).forEach((g2) => g2.forEach((p) => sair(p, "Este circuito costuma mostrar menos páginas de pórtico")));
+      for (const itens of grupos2.slice(0, tetoPortico)) {
         // Frente e verso da mesma parte: o book mostra uma face só. Parte que só existe
         // como "verso" fica: era a testeira do Night Run Rio.
         const porParte = new Map<string, PecaDoBook>();
@@ -145,19 +155,24 @@ export function planejarBook(pecas: readonly PecaDoBook[], modelo?: ModeloDoBook
           if (!atual || (/verso/.test(normalizarDoBook(atual.descricao)) && !/verso/.test(normalizarDoBook(p.descricao)))) porParte.set(parte, p);
         }
         const usados = Array.from(porParte.values());
+        for (const p of itens) if (!usados.includes(p)) sair(p, "Outra face da mesma parte: o book mostra uma só");
         paginas.push({ rotulo: rotuloDe(s), secao: s, pecas: usados, portico: true, conferir: usados.some((p) => /aplique/.test(normalizarDoBook(p.descricao))) ? "O aplique é colocado por regra: confira a posição" : null });
       }
       continue;
     }
     if (s === "Mandalas") {
       const frentes = g.filter((p) => /frente|medalha/.test(normalizarDoBook(p.descricao)));
+      if (frentes.length > 0) for (const p of g) if (!frentes.includes(p)) sair(p, "Parte da montagem da mandala: não aparece sozinha");
       paginas.push({ rotulo: rotuloDe(s), secao: s, pecas: frentes.length > 0 ? frentes : g, conferir: "A montagem da mandala é feita à mão: aqui só as medalhas" });
       continue;
     }
     if (s === "Quadros de Fotos" || s === "Ícone" || s === "Ativação") {
       const por = new Map<string, PecaDoBook[]>();
       for (const p of g) { const k = normalizarDoBook(p.tipo); if (!por.has(k)) por.set(k, []); por.get(k)!.push(p); }
-      for (const [k, itens] of Array.from(por.entries())) paginas.push({ rotulo: s === "Quadros de Fotos" ? rotuloDe(s) : rotuloDeUmTipo(rotuloDe(s), k, itens[0]), secao: s, pecas: itens, conferir: s === "Ícone" && itens.length > 1 ? "A montagem do ícone é feita à mão: aqui as partes separadas" : null });
+      const entradas = Array.from(por.entries()).sort((a, b) => b[1].length - a[1].length);
+      const tetoTipo = s !== "Quadros de Fotos" && paginasNoModelo.get(s) ? paginasNoModelo.get(s)! : entradas.length;
+      entradas.slice(tetoTipo).forEach(([, g2]) => g2.forEach((p) => sair(p, "Este circuito costuma mostrar menos páginas desta seção")));
+      for (const [k, itens] of entradas.slice(0, tetoTipo)) paginas.push({ rotulo: s === "Quadros de Fotos" ? rotuloDe(s) : rotuloDeUmTipo(rotuloDe(s), k, itens[0]), secao: s, pecas: itens, conferir: s === "Ícone" && itens.length > 1 ? "A montagem do ícone é feita à mão: aqui as partes separadas" : null });
       continue;
     }
     const ordenadas = s === "Placa Km" ? g.slice().sort((a, b) => numeroDoKm(a) - numeroDoKm(b) || comparar(a.descricao ?? "", b.descricao ?? "")) : g;
@@ -261,6 +276,90 @@ export function montarPortico<T extends ArteMedida & { descricao: string | null 
   ];
   if (aplique) { const d = hT * 1.25; pos.push({ arte: aplique, x: x0 + larg / 2 - d / 2, y: y0 - d * 0.1, w: d, h: (d * aplique.h) / aplique.w }); }
   return pos;
+}
+
+// As margens medidas nos books reais: artes de 5% a 79% da altura, com 6% de cada lado.
+export const PAGINA_DO_BOOK = { LP: 842, AP: 595, TOPO: 595 * 0.05, BASE: 595 * 0.79, MX: 842 * 0.06 } as const;
+
+/** Onde cada arte fica na página: a regra única do PDF e da medição. */
+export function posicionarPagina<T extends ArteMedida & { descricao: string | null }>(secao: SecaoDoBook, portico: boolean, artes: readonly T[]): Posicao<T>[] {
+  const W = PAGINA_DO_BOOK.LP - 2 * PAGINA_DO_BOOK.MX, H = PAGINA_DO_BOOK.BASE - PAGINA_DO_BOOK.TOPO;
+  return (portico && montarPortico(artes, W, H)) || arranjarNaPagina(artes, W, H, secao === "Estande" ? 0.5 : 0.62, preferenciaDaSecao(secao, artes.length));
+}
+
+/**
+ * O nome da seção no rodapé. Dois textos no mesmo lugar: vale o último, que é o que aparece
+ * (um rascunho cobre o nome antigo com uma tarja e escreve o novo por cima).
+ */
+export function rotuloDoRodape(itens: ReadonlyArray<{ texto: string; x: number }>): string {
+  const visiveis = itens.filter((t, i) => t.texto.trim() && !itens.slice(i + 1).some((d) => d.texto.trim() && Math.abs(d.x - t.x) < 0.02));
+  return visiveis.map((t) => t.texto.trim()).join(" ").trim();
+}
+
+// ── Partir do book oficial ─────────────────────────────────────────────────
+// Medido em 197 pares de versões: de uma versão para a outra, mudam 2 de 18 páginas
+// (mediana) e 89% ficam idênticas. Então o rascunho parte do último book oficial do
+// evento e refaz só o que mudou. Montagens feitas à mão e seções sem peça cadastrada
+// (Retirada de Kit, por exemplo) continuam exatamente como estavam.
+export type PaginaFinal =
+  | { origem: "mantida"; indiceBase: number; rotulo: string }
+  | { origem: "refeita" | "nova"; pagina: PaginaPlanejada; rotulo: string; mudaram: Array<string | null> };
+
+const ORDEM_NO_BOOK = (s: SecaoDoBook | null) => { const i = s ? ORDEM_PADRAO.indexOf(s) : -1; return i < 0 ? ORDEM_PADRAO.length : i; };
+const palavras = (s: string | null | undefined) => normalizarDoBook(s).split(" ").filter((w) => w.length > 1 && !["estande", "estandes", "de", "da", "do", "area", "espaco", "icone", "ativacao", "backlight"].includes(w));
+const POR_NOME: ReadonlySet<SecaoDoBook> = new Set(["Estande", "Ícone", "Ativação"]);
+
+/**
+ * `base`: cada página do book oficial depois da capa, com o rótulo do rodapé (null quando não tem).
+ * `mudou`: a peça teve o thumb trocado, ou nasceu, depois daquele book.
+ */
+export function combinarComOficial(base: ReadonlyArray<{ indice: number; rotulo: string | null }>, plano: PlanoDoBook, mudou: (p: PecaDoBook) => boolean): { paginas: PaginaFinal[]; semPagina: Array<string | null> } {
+  const usadas = new Set<number>();
+  const trocadas = (pg: PaginaPlanejada) => pg.pecas.filter(mudou).map((p) => p.displayId);
+  const planoPorSecao = new Map<SecaoDoBook, number[]>();
+  plano.paginas.forEach((p, i) => { if (!planoPorSecao.has(p.secao)) planoPorSecao.set(p.secao, []); planoPorSecao.get(p.secao)!.push(i); });
+  const secaoJaTrocada = new Set<SecaoDoBook>();
+  const final: PaginaFinal[] = [];
+  const secaoDaFinal = new Map<PaginaFinal, SecaoDoBook | null>();
+  const por = (f: PaginaFinal, s: SecaoDoBook | null) => { final.push(f); secaoDaFinal.set(f, s); };
+
+  for (const b of base) {
+    const manter = (s: SecaoDoBook | null) => por({ origem: "mantida", indiceBase: b.indice, rotulo: b.rotulo ?? "Página sem rótulo" }, s);
+    const secao = b.rotulo ? secaoDaPeca(b.rotulo, "") : null;
+    const candidatas = secao ? planoPorSecao.get(secao) ?? [] : [];
+    if (!secao || candidatas.length === 0) { manter(secao); continue; }
+    if (POR_NOME.has(secao)) {
+      // Cada patrocinador tem sua página: casa pelo nome.
+      const nomes = palavras(b.rotulo);
+      let melhor = -1, nota = 0;
+      for (const i of candidatas) { if (usadas.has(i)) continue; const n = palavras(plano.paginas[i].rotulo).filter((w) => nomes.includes(w)).length; if (n > nota) { nota = n; melhor = i; } }
+      if (melhor < 0) { manter(secao); continue; }
+      usadas.add(melhor);
+      const m = trocadas(plano.paginas[melhor]);
+      if (m.length === 0) manter(secao);
+      else por({ origem: "refeita", pagina: plano.paginas[melhor], rotulo: b.rotulo!, mudaram: m }, secao);
+      continue;
+    }
+    // Gradil, rolo, placas: mudou uma peça, a seção é refeita inteira, uma vez só.
+    const mudaram = candidatas.flatMap((i) => trocadas(plano.paginas[i]));
+    if (mudaram.length === 0) { for (const i of candidatas) usadas.add(i); manter(secao); continue; }
+    if (secaoJaTrocada.has(secao)) continue;
+    secaoJaTrocada.add(secao);
+    for (const i of candidatas) { usadas.add(i); por({ origem: "refeita", pagina: plano.paginas[i], rotulo: plano.paginas[i].rotulo, mudaram }, secao); }
+  }
+  // Página planejada que o oficial não tem: só entra se a peça é nova ou mudou.
+  // Sem isso, voltaria tudo o que a equipe decidiu deixar de fora do book.
+  plano.paginas.forEach((pg, i) => {
+    if (usadas.has(i)) return;
+    const m = trocadas(pg);
+    if (m.length === 0) return;
+    const nova: PaginaFinal = { origem: "nova", pagina: pg, rotulo: pg.rotulo, mudaram: m };
+    let pos = final.length;
+    for (let k = final.length - 1; k >= 0; k--) { const s = secaoDaFinal.get(final[k]) ?? null; if (s === pg.secao || ORDEM_NO_BOOK(s) <= ORDEM_NO_BOOK(pg.secao)) { pos = k + 1; break; } if (k === 0) pos = 0; }
+    final.splice(pos, 0, nova); secaoDaFinal.set(nova, pg.secao);
+  });
+  const incluidas = new Set(plano.paginas.flatMap((p) => p.pecas.map((x) => x.id)));
+  return { paginas: final, semPagina: plano.fora.filter((f) => !incluidas.has(f.id) && mudou({ id: f.id, displayId: f.displayId, tipo: f.tipo, descricao: f.descricao, thumb: null }) && f.motivo.startsWith("Não reconheci")).map((f) => f.displayId) };
 }
 
 // ── Qual book serve de modelo ──────────────────────────────────────────────

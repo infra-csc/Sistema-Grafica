@@ -143,6 +143,7 @@ export const CHAVES_POR_MENSAGEM: Readonly<Record<TipoMensagemWS, readonly AlvoD
   auditorias_do_book: [{ prefixo: "/api/auditorias-do-book" }],
   // A tela da conferência e o aviso na ficha da Revisão Final.
   conferencia_do_arquivo: [{ prefixo: "/api/conferencia-do-arquivo" }],
+  book_automatico: [{ prefixo: "/api/book-automatico" }],
 
   deadline_alert: ["/api/events"],
   // Chega junto com notification_created; a Gestão de Prazos é do hook.

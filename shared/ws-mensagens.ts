@@ -99,6 +99,8 @@ export type MensagemWS =
   | { type: "auditorias_do_book"; eventId?: IdOpcional }
   // Conferência do arquivo final × thumb (04/11): novo aviso, ou alguém marcou como visto.
   | { type: "conferencia_do_arquivo" }
+  // O rascunho do book foi refeito.
+  | { type: "book_automatico"; eventId?: IdOpcional }
 
   // Prazos e avisos
   | { type: "deadline_alert"; event: EventoDoSinal; hoursRemaining: number }

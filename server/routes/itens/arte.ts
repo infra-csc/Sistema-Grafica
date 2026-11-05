@@ -25,6 +25,7 @@ import { barraEventoFinalizado } from "../eventoFinalizado";
 import { registrarSaidaDaImpressora, revogarAprovacoesEstritas } from "./comum";
 import { vemDeOrigemValida } from "@shared/maquina-de-estados";
 import { mensagemDoErro } from "../../erros";
+import { pedirConferencia } from "../conferencia-do-arquivo";
 
 /** arquivo final e troca de thumb. */
 export function registrarArte(app: Express): void {
@@ -76,6 +77,8 @@ export function registrarArte(app: Express): void {
         return res.status(404).json({ error: "Peça não encontrada." });
       }
       
+      // Antes da Revisão, o arquivo é conferido com o thumb (dono, 05/11).
+      await pedirConferencia(item.id);
       const event = await storage.getEvent(item.eventId);
       
       await createAuditLog(
@@ -286,6 +289,8 @@ export function registrarArte(app: Express): void {
       if (!item) {
         return res.status(404).json({ error: "Peça não encontrada." });
       }
+      // Arquivo trocado com a peça na Revisão: confere de novo antes de liberar.
+      if (item.status === "awaiting_final_review") await pedirConferencia(item.id);
 
       const event = await storage.getEvent(item.eventId);
 

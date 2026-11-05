@@ -4,7 +4,7 @@
 // as ações chegam como funções estáveis (useCallback na página) e tudo o que
 // muda por peça chega já resolvido (selo, estoque, falha, desfazendo).
 import { memo } from "react";
-import { Check, ChevronRight, Clock, Recycle, Trash2, Undo2 } from "lucide-react";
+import { Check, ChevronRight, Clock, FileSearch, Recycle, Trash2, Undo2 } from "lucide-react";
 import { SeloKit } from "@/components/kit/selo-kit";
 import { SelosSemAprovacao } from "@/components/selo-sem-aprovacao";
 import { SeloPrazoMolde } from "@/components/prazo-do-molde";
@@ -127,6 +127,10 @@ export const CartaoDaPeca = memo(function CartaoDaPeca({
               {/* Prazo do molde: só o fluxo do molde o lê. */}
               <SeloPrazoMolde item={item} hoje={new Date(agora)} />
             </>
+          ) : item.finalFileUrl && item.conferindoArquivo ? (
+            <Selo data-testid={`chip-arquivo-mobile-${item.id}`} tom="info" icone={FileSearch} style={LETRA_DO_SELO}>
+              Conferindo arquivo
+            </Selo>
           ) : item.finalFileUrl ? (
             <Selo data-testid={`chip-arquivo-mobile-${item.id}`} tom="sucesso" icone={Check} style={LETRA_DO_SELO}>
               Arquivo recebido

@@ -448,6 +448,9 @@ export const items = pgTable("items", {
   obsReaproveitamento: text("obs_reaproveitamento"),
   // O que quem resolveu a conferência do arquivo escolheu mostrar à Gráfica (04/11).
   avisoDaConferencia: text("aviso_da_conferencia"),
+  // Quando o arquivo final pediu conferência antes da Revisão (dono, 05/11). Sem
+  // veredito depois desta data, a peça espera a conferência para ser liberada.
+  conferenciaPedidaEm: timestamp("conferencia_pedida_em"),
   // MÓDULO REAPROVEITAR (dono, 03/11): quantas unidades a Revisão Final pediu
   // para reaproveitar e ainda ESPERAM a pessoa do estoque dizer quantas tem. A
   // peça fica fora da fila da Gráfica até a resposta (POST mark-reuse com
@@ -1417,6 +1420,7 @@ export const publicInsertItemSchema = insertItemSchema.omit({
   obsReaproveitamento: true,
   // Só nasce quando alguém resolve a conferência do arquivo.
   avisoDaConferencia: true,
+  conferenciaPedidaEm: true,
   // A trava da Solicitação só nasce por POST /api/items/:id/travar.
   travadaEm: true,
   travadaPor: true,

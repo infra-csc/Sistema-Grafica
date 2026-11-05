@@ -16,7 +16,7 @@ import { Selo } from "@/components/ui/selo";
 import { EsqueletoDeFila } from "@/components/esqueleto-de-fila";
 import type { MudancasDoBook } from "@shared/book-automatico";
 
-type Pagina = { rotulo: string; pecas: Array<string | null>; conferir: string | null; origem?: "mantida" | "refeita" | "nova" | "regra"; mudaram?: Array<string | null> };
+type Pagina = { rotulo: string; pecas: Array<string | null>; conferir: string | null; origem?: "mantida" | "trocada" | "refeita" | "nova" | "regra"; mudaram?: Array<string | null> };
 type Fora = { id: string; displayId: string | null; tipo: string; descricao: string | null; motivo: string };
 type Versao = {
   id: string; versao: number; pdfUrl: string; paginas: number; pecasNoBook: number; plano: Pagina[]; fora: Fora[]; mudancas: MudancasDoBook | null;
@@ -69,6 +69,7 @@ export default function BookAutomatico() {
   const pendente = fraseDasMudancas(data?.pendente ?? null);
   const paraConferir = ultima?.plano.filter((p) => p.conferir) ?? [];
   const iguais = ultima?.plano.filter((p) => p.origem === "mantida").length ?? 0;
+  const trocadas = ultima?.plano.filter((p) => p.origem === "trocada").length ?? 0;
   const refeitas = ultima?.plano.filter((p) => p.origem === "refeita").length ?? 0;
   const novas = ultima?.plano.filter((p) => p.origem === "nova").length ?? 0;
 
@@ -103,7 +104,7 @@ export default function BookAutomatico() {
                     </div>
                     <p data-testid="resumo-rascunho" style={{ margin: 0, fontSize: FS.body, color: T.apoio }}>
                       {ultima.baseOficial
-                        ? <>{ultima.paginas} páginas: <strong>{iguais} iguais ao book oficial</strong>, {refeitas} {refeitas === 1 ? "refeita" : "refeitas"}{novas > 0 ? `, ${novas} ${novas === 1 ? "nova" : "novas"}` : ""}</>
+                        ? <>{ultima.paginas} páginas: <strong>{iguais} iguais ao book oficial</strong>, {trocadas > 0 ? `${trocadas} com arte trocada, ` : ""}{refeitas} {refeitas === 1 ? "refeita" : "refeitas"}{novas > 0 ? `, ${novas} ${novas === 1 ? "nova" : "novas"}` : ""}</>
                         : <>{ultima.paginas} páginas · {ultima.pecasNoBook} peças · {ultima.fora.length} fora do book</>}
                     </p>
                     <p style={{ margin: 0, fontSize: FS.meta, color: T.second, overflowWrap: "anywhere" }}>
@@ -149,7 +150,7 @@ export default function BookAutomatico() {
                               ? <span style={{ fontSize: FS.small, color: TOM.alerta.text, overflowWrap: "anywhere" }}>Mudou: {p.mudaram.slice(0, 8).join(", ")}{p.mudaram.length > 8 ? "…" : ""}</span>
                               : <span style={{ fontSize: FS.small, color: T.second, overflowWrap: "anywhere" }}>{p.pecas.length} {p.pecas.length === 1 ? "peça" : "peças"}: {p.pecas.slice(0, 12).join(", ")}{p.pecas.length > 12 ? "…" : ""}</span>}
                         </span>
-                        {p.origem === "refeita" ? <Selo tom="alerta" tamanho="sm">Refeita</Selo> : p.origem === "nova" ? <Selo tom="info" tamanho="sm">Nova</Selo> : p.conferir ? <Selo tom="alerta" tamanho="sm">Conferir</Selo> : <Check aria-label="Página sem observação" style={{ width: 14, height: 14, color: TOM.sucesso.text, flexShrink: 0 }} />}
+                        {p.origem === "trocada" ? <Selo tom="info" tamanho="sm">Arte trocada</Selo> : p.origem === "refeita" ? <Selo tom="alerta" tamanho="sm">Refeita</Selo> : p.origem === "nova" ? <Selo tom="info" tamanho="sm">Nova</Selo> : p.conferir ? <Selo tom="alerta" tamanho="sm">Conferir</Selo> : <Check aria-label="Página sem observação" style={{ width: 14, height: 14, color: TOM.sucesso.text, flexShrink: 0 }} />}
                       </li>
                     ))}
                   </ol>

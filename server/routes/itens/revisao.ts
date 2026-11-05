@@ -1,4 +1,5 @@
 // Revisão Final: liberar para produção e as devoluções (Arte, solicitante, Gráfica).
+import { esperandoConferencia } from "../conferencia-do-arquivo";
 import type { Express } from "express";
 import { pedeAoEstoque } from "@shared/reaproveitar";
 import { pulaAprovacao } from "@shared/prazo-sem-aprovacao";
@@ -86,7 +87,7 @@ function camposDoDestino(destino: DestinoDevolucao, rodadaAprovada: boolean, pec
  * É o que decide se a devolução para "finalizacao" pode pousar em
  * `sponsor_approved` ou se a peça tem de voltar à fila do Atendimento.
  */
-async function rodadaDeAprovacaoFechada(item: { id: string; skipApproval?: boolean | null; arteDoCliente?: boolean | null }): Promise<boolean> {
+export async function rodadaDeAprovacaoFechada(item: { id: string; skipApproval?: boolean | null; arteDoCliente?: boolean | null }): Promise<boolean> {
   if (pulaAprovacao(item)) return true;
   const linhas = await storage.getItemSponsorApprovals(item.id);
   if (linhas.length === 0) return true;
@@ -161,6 +162,11 @@ export function registrarRevisao(app: Express): void {
         return res.status(409).json({
           error: `A peça não está na Revisão Final (etapa atual: ${translateStatus(currentItem.status)}) — atualize a tela.`
         });
+      }
+
+      // O arquivo final é conferido com o thumb antes da Revisão (dono, 05/11).
+      if (await esperandoConferencia(currentItem.id)) {
+        return res.status(409).json({ error: "O arquivo final está sendo conferido com o thumb. Assim que a conferência terminar, a peça pode ser liberada aqui.", codigo: "CONFERINDO_ARQUIVO" });
       }
 
       // PEÇA TRAVADA PELA SOLICITAÇÃO: liberar é fazê-la andar, então quem

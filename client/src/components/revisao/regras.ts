@@ -78,7 +78,8 @@ export function destinoAoLiberar(item: { isReuse?: boolean | null; reusoPedido?:
  * A peça pode ser liberada agora? A MESMA régua do servidor: tem arquivo final
  * (ou não precisa — molde), ou é reaproveitamento total, que não imprime nada.
  */
-export function prontaParaLiberar(item: Pick<PecaDaRevisao, "type" | "finalFileUrl" | "isReuse">): boolean {
+export function prontaParaLiberar(item: Pick<PecaDaRevisao, "type" | "finalFileUrl" | "isReuse" | "conferindoArquivo">): boolean {
+  if (item.conferindoArquivo) return false;
   return arquivoFinalOk(item) || reaproveitamentoTotal(item);
 }
 

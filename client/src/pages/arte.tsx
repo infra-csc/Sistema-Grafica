@@ -38,6 +38,7 @@ import { useLoteDeThumbs } from "@/components/arte/use-lote-de-thumbs";
 import { useBookDaArte } from "@/components/arte/use-book-da-arte";
 import { ChipsAtivos, useChipsAtivos } from "@/components/arte/chips-ativos";
 import { CabecalhoDaArte } from "@/components/arte/cabecalho-da-arte";
+import { AvisoDaConferencia } from "@/components/arte/aviso-da-conferencia";
 import { BarraDeFiltros, OrdenarDaArte } from "@/components/arte/barra-de-filtros";
 import { FasesESelecao } from "@/components/arte/fases-e-selecao";
 import { FilaAgrupada } from "@/components/arte/fila-agrupada";
@@ -651,6 +652,8 @@ export default function Arte() {
             setShowBulkDialog={setShowBulkDialog}
             carga={isLoading || correcaoLoading ? 'carregando' : isError || finalizadosIsError || correcaoIsError ? 'erro' : 'ok'}
           />
+
+          {podeEditar && <AvisoDaConferencia dedo={dedo} compacto={isMobile} />}
 
           <BarraDeFiltros
             filtros={filtros}

@@ -186,7 +186,8 @@ describe("dá para saber o que falta sem abrir nada", () => {
 
   it("e concorda singular e plural", () => {
     const i = tela.indexOf("const fraseDeResolucao");
-    const bloco = tela.slice(i, i + 1100);
+    // 05/11: a frase ganhou o caso "conferindo o arquivo" antes do "é só decidir".
+    const bloco = tela.slice(i, i + 2000);
     expect(bloco).toContain('prontas === 1 ? "peça está pronta" : "peças estão prontas"');
     expect(bloco).toContain('semArquivo === 1 ? "espera" : "esperam"');
     expect(bloco).toContain("é só decidir.");

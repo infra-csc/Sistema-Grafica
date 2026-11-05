@@ -6,7 +6,7 @@ import { pool } from "../db";
 import { ObjectStorageService } from "../objectStorage";
 import { lerPdfDoBook } from "./auditoria-do-book/pdf";
 import {
-  atribuirVagas, circuitoDoEvento, combinarComOficial, compararVersoes, encaixarNaVaga, PAGINA_DO_BOOK, paginaDoModeloParaUsar, planejarBook, posicionarPagina, rotuloDoRodape, secaoDaPeca, type PaginaFinal, type PaginaPlanejada, type Vaga,
+  atribuirVagas, circuitoDoEvento, combinarComOficial, compararVersoes, encaixarNaVaga, localizarTrocas, PAGINA_DO_BOOK, paginaDoModeloParaUsar, planejarBook, posicionarPagina, rotuloDoRodape, secaoDaPeca, type PaginaFinal, type PaginaPlanejada, type Vaga,
   type ModeloDoBook, type PecaDoBook,
 } from "@shared/book-automatico";
 
@@ -129,10 +129,15 @@ const distancia = (a: Buffer, b: Buffer) => { let s = 0; for (let i = 0; i < a.l
 
 /** O desenho de cada vaga da página do modelo, para colocar cada peça na que mais se parece. */
 async function miniaturasDasVagas(bytes: Buffer, indice: number, vagas: readonly Vaga[]): Promise<Buffer[] | null> {
+  return (await miniaturasDePaginas(bytes, [{ indice, vagas }]))?.[0] ?? null;
+}
+async function miniaturasDePaginas(bytes: Buffer, paginas: ReadonlyArray<{ indice: number; vagas: readonly Vaga[] }>): Promise<Buffer[][] | null> {
   try {
     const { createCanvas } = require("@napi-rs/canvas");
     const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
     const doc = await pdfjs.getDocument({ data: new Uint8Array(bytes), disableFontFace: true, verbosity: 0 }).promise;
+    const todas: Buffer[][] = [];
+    for (const { indice, vagas } of paginas) {
     const p = await doc.getPage(indice + 1);
     const v = p.getViewport({ scale: 1 }); const W = 700, H = Math.round((W * v.height) / v.width);
     const cv = createCanvas(W, H); const ctx = cv.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, H);
@@ -143,15 +148,21 @@ async function miniaturasDasVagas(bytes: Buffer, indice: number, vagas: readonly
       const left = Math.max(0, Math.round(b.x * W)), top = Math.max(0, Math.round(b.y * H));
       out.push(await sharp(png).extract({ left, top, width: Math.min(W - left, Math.max(4, Math.round(b.w * W))), height: Math.min(H - top, Math.max(4, Math.round(b.h * H))) }).flatten({ background: "#ffffff" }).removeAlpha().resize(LADO_DA_MINIATURA, LADO_DA_MINIATURA, { fit: "fill" }).raw().toBuffer());
     }
-    p.cleanup(); await doc.loadingTask.destroy();
-    return out;
+    p.cleanup(); todas.push(out);
+    }
+    await doc.loadingTask.destroy();
+    return todas;
   } catch { return null; }
 }
 
-async function arteEmJpeg(url: string): Promise<{ bytes: Buffer; w: number; h: number }> {
+async function baixarArte(url: string): Promise<Buffer> {
   const servico = new ObjectStorageService();
   const arquivo = await servico.getObjectEntityFile(servico.normalizeObjectEntityPath(url.split(/[?#]/)[0]));
   const [bruto] = await arquivo.download();
+  return bruto;
+}
+async function arteEmJpeg(url: string): Promise<{ bytes: Buffer; w: number; h: number }> {
+  const bruto = await baixarArte(url);
   const sharp = carregarSharp();
   const bytes = await sharp(bruto, { failOn: "none" }).rotate()
     .resize({ width: LADO_DA_ARTE, height: LADO_DA_ARTE, fit: "inside", withoutEnlargement: true })
@@ -169,7 +180,7 @@ export function gerarRascunhoDoBook(eventId: string, quem: string, automatico = 
 export type RascunhoMontado = {
   bytes: Buffer;
   paginas: number;
-  plano: Array<{ rotulo: string; secao: string; pecas: Array<string | null>; conferir: string | null; origem: "mantida" | "refeita" | "nova" | "regra"; mudaram?: Array<string | null> }>;
+  plano: Array<{ rotulo: string; secao: string; pecas: Array<string | null>; conferir: string | null; origem: "mantida" | "trocada" | "refeita" | "nova" | "regra"; mudaram?: Array<string | null> }>;
   modeloUrl: string | null;
   baseOficial: boolean;
   fora: Array<{ id: string; displayId: string | null; tipo: string; descricao: string | null; motivo: string }>;
@@ -177,13 +188,74 @@ export type RascunhoMontado = {
   modeloEvento: string | null;
 };
 
+/** Para medir: monta como se fosse o momento de uma versão antiga do book. Não muda nada no uso normal. */
+export type EnsaioDoBook = { modelo: BookModelo; pecas: PecaDoBook[]; trocarNoLugar?: boolean; limite?: number; folga?: number };
+
+/**
+ * O thumb de cada peça quando o book saiu. Os books novos guardam isso; nos antigos, o histórico
+ * de versões de arte (desde 24/08) permite reconstruir. Peça sem versão até a data fica de fora
+ * se tem versão depois (conta como mudou) e, sem versão nenhuma, conta como não mudou.
+ */
+export async function thumbsNaDataDoBook(eventId: string, em: string): Promise<Record<string, string | null>> {
+  const { rows } = await pool.query(
+    `select i.id, i.approval_thumb_url as atual, i.created_at > $2::timestamp as nova,
+            (select v.thumb_url from item_art_versions v where v.item_id = i.id and v.created_at <= $2::timestamp order by v.created_at desc limit 1) as na_data,
+            exists (select 1 from item_art_versions v where v.item_id = i.id and v.created_at > $2::timestamp) as depois
+       from items i where i.event_id = $1 and i.deleted_at is null`, [eventId, em]);
+  const out: Record<string, string | null> = {};
+  for (const r of rows as Array<{ id: string; atual: string | null; nova: boolean; na_data: string | null; depois: boolean }>) {
+    if (r.nova) continue;
+    if (r.na_data) out[r.id] = r.na_data;
+    else if (!r.depois) out[r.id] = r.atual;
+  }
+  return out;
+}
+
+/** Abaixo disso, o desenho da vaga é a mesma arte. Medido nos ensaios com pares de versões. */
+const LIMITE_DA_TROCA = 45;
+const FOLGA_DA_TROCA = 3;
+
+/** Em que vaga do book oficial está cada arte que mudou, olhando o thumb de quando o book saiu. */
+async function acharArtesNoBook(bytes: Buffer, origem: PDFDocument, lidos: Rotulos, pecas: readonly PecaDoBook[], mudaram: ReadonlySet<string>, antes: Readonly<Record<string, string | null>>, limite: number, folga: number): Promise<{ trocas: Map<number, Array<{ vaga: Vaga; peca: PecaDoBook }>>; achadas: Set<string> }> {
+  const trocas = new Map<number, Array<{ vaga: Vaga; peca: PecaDoBook }>>(); const achadas = new Set<string>();
+  const secaoDe = (p: PecaDoBook) => secaoDaPeca(p.tipo, p.descricao);
+  const procuradas = pecas.filter((p) => mudaram.has(p.id) && antes[p.id]?.startsWith("/objects/") && p.thumb);
+  const secoes = new Set(procuradas.map(secaoDe));
+  if (secoes.size === 0) return { trocas, achadas };
+  const paginas = lidos.paginas.filter((p) => p.vagas.length > 0 && p.rotulo && secoes.has(secaoDaPeca(p.rotulo, "")) && origem.getPage(p.indice).getRotation().angle === 0);
+  const desenhos = await miniaturasDePaginas(bytes, paginas);
+  if (!desenhos) return { trocas, achadas };
+  // Todas as peças da seção entram na comparação: a vaga é de quem mais se parece com ela.
+  const miniaturas = new Map<string, Buffer>();
+  let i = 0; const daSecao = pecas.filter((p) => secoes.has(secaoDe(p)));
+  await Promise.all(Array.from({ length: 4 }, async () => {
+    while (i < daSecao.length) {
+      const p = daSecao[i++]; const url = mudaram.has(p.id) ? antes[p.id] : p.thumb;
+      if (!url?.startsWith("/objects/")) continue;
+      try { miniaturas.set(p.id, await miniaturaCrua((await arteEmJpeg(url)).bytes)); } catch { /* sem miniatura, não entra na comparação */ }
+    }
+  }));
+  paginas.forEach((pagina, k) => {
+    const secao = secaoDaPeca(pagina.rotulo, "");
+    const artes = daSecao.filter((p) => secaoDe(p) === secao && miniaturas.has(p.id));
+    if (artes.length === 0) return;
+    const custo = desenhos[k].map((d) => artes.map((a) => distancia(miniaturas.get(a.id)!, d)));
+    for (const { vaga, arte } of localizarTrocas(custo, artes.map((a) => mudaram.has(a.id)), limite, folga)) {
+      const peca = artes[arte];
+      if (!trocas.has(pagina.indice)) trocas.set(pagina.indice, []);
+      trocas.get(pagina.indice)!.push({ vaga: pagina.vagas[vaga], peca }); achadas.add(peca.id);
+    }
+  });
+  return { trocas, achadas };
+}
+
 /** Monta o PDF sem gravar nada. Quem grava é `gerar`; os testes em massa usam só esta. */
-export async function montarRascunho(eventId: string, opcoes: { comoEventoNovo?: boolean } = {}): Promise<RascunhoMontado> {
+export async function montarRascunho(eventId: string, opcoes: { comoEventoNovo?: boolean; ensaio?: EnsaioDoBook } = {}): Promise<RascunhoMontado> {
   const ev = (await pool.query("select name from events where id = $1", [eventId])).rows[0];
   if (!ev) throw new Error("Evento não encontrado");
-  const pecas = await pecasDoEvento(eventId);
+  const pecas = opcoes.ensaio?.pecas ?? await pecasDoEvento(eventId);
 
-  const modeloInfo = await acharBookModelo(eventId, opcoes.comoEventoNovo);
+  const modeloInfo = opcoes.ensaio?.modelo ?? await acharBookModelo(eventId, opcoes.comoEventoNovo);
   let origem: PDFDocument | null = null, lidos: Rotulos | null = null, bytesDoModelo: Buffer | null = null;
   if (modeloInfo) {
     try {
@@ -226,29 +298,56 @@ export async function montarRascunho(eventId: string, opcoes: { comoEventoNovo?:
   // Com book oficial do próprio evento: mantém as páginas e refaz só o que mudou.
   const usarBase = !!(origem && lidos && modeloInfo?.proprio && temCapa);
   let roteiro: Array<PaginaFinal> = plano.paginas.map((pagina) => ({ origem: "nova" as const, pagina, rotulo: pagina.rotulo, mudaram: [] }));
+  let trocasNoLugar = new Map<number, Array<{ vaga: Vaga; peca: PecaDoBook }>>();
   if (usarBase) {
-    // Com a fotografia do book, a comparação é exata. Sem ela (books antes de 05/11), o melhor
-    // que há é a trilha de auditoria, que não registra toda troca.
-    const fotografia = modeloInfo!.thumbs;
+    // Com a fotografia do book, a comparação é exata. Books antes de 05/11 reconstroem a
+    // fotografia pelo histórico de versões de arte.
+    const fotografia = modeloInfo!.thumbs ?? await thumbsNaDataDoBook(eventId, modeloInfo!.em);
     const mudaram = new Set<string>();
-    if (fotografia) {
-      for (const p of pecas) { const antes = fotografia[p.id]; if (!(p.id in fotografia) || (antes?.startsWith("/objects/") ? antes : null) !== p.thumb) mudaram.add(p.id); }
-    } else {
-      const { rows } = await pool.query(
-        `select i.id from items i where i.event_id = $1 and i.deleted_at is null and (i.approval_thumb_updated_at > $2::timestamp or i.created_at > $2::timestamp
-           or exists (select 1 from audit_logs a where a.entity_type = 'item' and a.entity_id = i.id and a.created_at > $2::timestamp and a.details ilike '%thumb%'))`, [eventId, modeloInfo!.em]);
-      for (const r of rows as Array<{ id: string }>) mudaram.add(r.id);
+    for (const p of pecas) { const antes = fotografia[p.id]; if (!(p.id in fotografia) || (antes?.startsWith("/objects/") ? antes : null) !== p.thumb) mudaram.add(p.id); }
+    // Um em cada seis reenvios é o mesmo arquivo: endereço novo, nada mudou na arte.
+    const conferir = pecas.filter((p) => mudaram.has(p.id) && p.thumb && fotografia[p.id]?.startsWith("/objects/"));
+    let k = 0;
+    await Promise.all(Array.from({ length: 4 }, async () => {
+      while (k < conferir.length) {
+        const p = conferir[k++];
+        try { if ((await baixarArte(fotografia[p.id]!)).equals(await baixarArte(p.thumb!))) mudaram.delete(p.id); } catch { /* na dúvida, continua como mudou */ }
+      }
+    }));
+    // A arte que dá para achar no book é trocada ali mesmo; o resto da página fica como o oficial.
+    let achadas = new Set<string>();
+    if (opcoes.ensaio?.trocarNoLugar !== false) {
+      const r = await acharArtesNoBook(bytesDoModelo!, origem!, lidos!, pecas, mudaram, fotografia, opcoes.ensaio?.limite ?? LIMITE_DA_TROCA, opcoes.ensaio?.folga ?? FOLGA_DA_TROCA);
+      trocasNoLugar = r.trocas; achadas = r.achadas;
     }
     const base = lidos!.porPagina.map((rotulo, indice) => ({ indice, rotulo })).filter((b) => b.indice > 0);
-    roteiro = combinarComOficial(base, plano, (p) => mudaram.has(p.id)).paginas;
+    roteiro = combinarComOficial(base, plano, (p) => mudaram.has(p.id) && !achadas.has(p.id)).paginas;
   }
   const copiadas = usarBase ? await out.copyPages(origem!, roteiro.flatMap((r) => (r.origem === "mantida" ? [r.indiceBase] : []))) : [];
   let proximaCopiada = 0;
 
   for (const passo of roteiro) {
     if (passo.origem === "mantida") {
-      out.addPage(copiadas[proximaCopiada++]);
-      paginasFeitas.push({ rotulo: passo.rotulo, secao: secaoDaPeca(passo.rotulo, "") ?? "", pecas: [], conferir: null, origem: "mantida" });
+      const pagina = out.addPage(copiadas[proximaCopiada++]);
+      const trocas = trocasNoLugar.get(passo.indiceBase) ?? [];
+      const feitas: Array<string | null> = [];
+      if (trocas.length > 0) {
+        // As coordenadas das vagas são da área visível, a mesma que o pdf.js usa para ler.
+        const area = pagina.getCropBox();
+        const ex = area.width / LP, ey = area.height / AP;
+        for (const { vaga, peca } of trocas) {
+          try {
+            const arte = await arteEmJpeg(peca.thumb!);
+            const c = encaixarNaVaga(arte, vaga);
+            pagina.drawRectangle({ x: area.x + vaga.x * area.width, y: area.y + area.height - (vaga.y + vaga.h) * area.height, width: vaga.w * area.width, height: vaga.h * area.height, color: rgb(1, 1, 1) });
+            pagina.drawImage(await out.embedJpg(arte.bytes), { x: area.x + c.x * ex, y: area.y + area.height - (c.y + c.h) * ey, width: c.w * ex, height: c.h * ey });
+            if (!feitas.includes(peca.displayId)) feitas.push(peca.displayId);
+          } catch {
+            naoAbriram.push({ id: peca.id, displayId: peca.displayId, tipo: peca.tipo, descricao: peca.descricao, motivo: "O thumb não abriu" });
+          }
+        }
+      }
+      paginasFeitas.push({ rotulo: passo.rotulo, secao: secaoDaPeca(passo.rotulo, "") ?? "", pecas: feitas, conferir: null, origem: feitas.length > 0 ? "trocada" : "mantida", mudaram: feitas.length > 0 ? feitas : undefined });
       continue;
     }
     const pg: PaginaPlanejada = passo.pagina;

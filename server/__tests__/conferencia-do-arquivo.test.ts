@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("../db", () => ({ db: {}, pool: {} }));
 import { lerResposta, compararCandidatas, compararComIA, PERGUNTA_DA_CONFERENCIA } from "../services/conferencia-do-arquivo";
 import { conferirTokenDaIntegracao } from "../routes/integracao-checklist";
-import { SQL_PENDENTES } from "../routes/conferencia-do-arquivo";
-import { ATALHOS_DO_AVISO, avisoNaPeca, lerResolucao } from "@shared/conferencia-do-arquivo";
+import { SQL_EM_CONFERENCIA, SQL_PENDENTES } from "../routes/conferencia-do-arquivo";
+import { ATALHOS_DO_AVISO, avisoNaPeca, avisoObrigatorio, ESPERA_MAXIMA_MIN, estadoDaConferencia, lerResolucao } from "@shared/conferencia-do-arquivo";
 
 describe("leitura da resposta da IA", () => {
   it("confere não traz motivo", () => {
@@ -126,5 +126,45 @@ describe("quais peças entram na fila", () => {
     ["não deu volta para a fila depois de um dia", "c.veredito = 'nao_deu' and c.resolvida_em is null and c.criada_em < now() - interval '1 day'"],
   ])("%s", (_n, trecho) => {
     expect(SQL_PENDENTES).toContain(trecho);
+  });
+});
+
+describe("conferência antes da Revisão (dono, 05/11)", () => {
+  const pedida = new Date("2026-11-05T12:00:00Z");
+  const depois = (min: number) => new Date(pedida.getTime() + min * 60_000);
+  it("peça sem pedido de conferência é liberada como sempre", () => {
+    expect(estadoDaConferencia(null, null)).toBe("liberada");
+  });
+  it("sem veredito ainda, espera a conferência", () => {
+    expect(estadoDaConferencia(pedida, null, depois(10))).toBe("conferindo");
+  });
+  it("veredito de antes do pedido é de outro envio: continua esperando", () => {
+    expect(estadoDaConferencia(pedida, { veredito: "confere", criadaEm: depois(-60), resolvida: false }, depois(10))).toBe("conferindo");
+  });
+  it("confere ou não deu liberam; divergência sem resolver não", () => {
+    expect(estadoDaConferencia(pedida, { veredito: "confere", criadaEm: depois(5), resolvida: false }, depois(10))).toBe("liberada");
+    expect(estadoDaConferencia(pedida, { veredito: "nao_deu", criadaEm: depois(5), resolvida: false }, depois(10))).toBe("liberada");
+    expect(estadoDaConferencia(pedida, { veredito: "vale_olhar", criadaEm: depois(5), resolvida: false }, depois(10))).toBe("divergente");
+    expect(estadoDaConferencia(pedida, { veredito: "vale_olhar", criadaEm: depois(5), resolvida: true }, depois(10))).toBe("liberada");
+  });
+  it("conferidor parado não prende a peça para sempre", () => {
+    expect(estadoDaConferencia(pedida, null, depois(ESPERA_MAXIMA_MIN + 1))).toBe("liberada");
+  });
+  it("antes da Gráfica, o aviso do arquivo corrigido é opcional", () => {
+    expect(avisoObrigatorio("sponsor_approved", "corrigido")).toBe(false);
+    expect(avisoObrigatorio("awaiting_final_review", "corrigido")).toBe(false);
+    expect(avisoObrigatorio("ready_for_production", "corrigido")).toBe(true);
+    expect(avisoObrigatorio("ready_for_production", "certo")).toBe(false);
+    expect(lerResolucao({ acao: "corrigido" }, "sponsor_approved")).toEqual({ ok: true, acao: "corrigido", aviso: null });
+    expect(lerResolucao({ acao: "corrigido" }, "ready_for_production").ok).toBe(false);
+  });
+  it("a peça que espera na Revisão vem primeiro na fila e volta a ela quando o arquivo é trocado", () => {
+    expect(SQL_PENDENTES).toContain("c.criada_em < i.conferencia_pedida_em");
+    expect(SQL_PENDENTES).toContain("order by (");
+  });
+  it("só trava a liberação dentro da espera máxima e sem veredito novo", () => {
+    expect(SQL_EM_CONFERENCIA).toContain("i.status = 'awaiting_final_review'");
+    expect(SQL_EM_CONFERENCIA).toContain(`interval '${ESPERA_MAXIMA_MIN} minutes'`);
+    expect(SQL_EM_CONFERENCIA).toContain("c.criada_em < i.conferencia_pedida_em");
   });
 });

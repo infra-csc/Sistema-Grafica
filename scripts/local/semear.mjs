@@ -126,7 +126,16 @@ export async function semear(base) {
   };
   const thumb = async (p) => arte.patch(`/api/items/${p.id}/submit-for-approval`, { approvalThumbUrl: await arte.subir(PNG, "image/png") });
   const final = async (p) => arte.patch(`/api/items/${p.id}/submit-final-file`, { finalFileUrl: await arte.subir(PDF, "application/pdf") });
-  const liberar = (p) => solic.patch(`/api/items/${p.id}/creator-review`, { approved: true });
+  // Com a conferência ligada (token no ambiente), a Revisão espera o conferidor: a
+  // semente responde por ele, como "não deu", e libera.
+  const liberar = async (p) => {
+    try { return await solic.patch(`/api/items/${p.id}/creator-review`, { approved: true }); }
+    catch (erro) {
+      if (!process.env.CONFERENCIA_TOKEN || !String(erro?.message).includes("CONFERINDO_ARQUIVO")) throw erro;
+      await fetch(`${base}/api/conferidor/${p.id}`, { method: "POST", headers: { authorization: `Bearer ${process.env.CONFERENCIA_TOKEN}`, "content-type": "application/json" }, body: JSON.stringify({ naoDeu: "Semente local: sem conferidor" }) });
+      return solic.patch(`/api/items/${p.id}/creator-review`, { approved: true });
+    }
+  };
   const foto = () => grafica.subir(PNG, "image/png");
 
   // Evento Rio: a produção em andamento.

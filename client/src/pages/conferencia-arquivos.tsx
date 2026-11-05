@@ -1,12 +1,16 @@
 // CONFERÊNCIA DE ARQUIVOS (Pedro/dono, 04/11): o arquivo final parece a mesma arte
-// do thumb? É um aviso para alguém olhar, nunca trava a peça.
+// do thumb? Desde 05/11 ela vem ANTES da Revisão: com divergência, a peça volta para a
+// Finalização e a Arte resolve aqui (arquivo certo, corrigido ou thumb trocado). Depois
+// de liberada, continua sendo só um aviso para olhar.
 //
 // A tela responde, nesta ordem: o conferidor está rodando? quanto já foi conferido?
 // o que precisa de alguém, começando pelo caminhão mais próximo? E mostra também o
 // que conferiu e o que ainda espera, para não restar dúvida do que foi visto.
 import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Calendar, Check, ExternalLink, FileSearch, FolderOpen, Maximize2, Package, TriangleAlert, Truck, Wrench } from "lucide-react";
+import { Calendar, Check, ExternalLink, FileSearch, FolderOpen, ImageUp, Maximize2, Package, TriangleAlert, Truck, Undo2, Wrench } from "lucide-react";
+import { FileUploader } from "@/components/FileUploader";
+import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
@@ -25,7 +29,7 @@ import { EsqueletoDeFila } from "@/components/esqueleto-de-fila";
 import { FilterSelect } from "@/components/filter-select";
 import { BotaoCopiar } from "@/components/botao-copiar";
 import { StatusPill } from "@/components/status-pill";
-import { ATALHOS_DO_AVISO, AVISO_MAXIMO, lerResolucao, type ResolucaoDaConferencia } from "@shared/conferencia-do-arquivo";
+import { ATALHOS_DO_AVISO, AVISO_MAXIMO, avisoObrigatorio, lerResolucao, type AcaoDoAviso, type ResolucaoDaConferencia } from "@shared/conferencia-do-arquivo";
 
 type DadosDaPeca = {
   itemId: string; displayId: string | null; tipo: string; descricao: string | null; status: string; quantidade: number;
@@ -35,6 +39,8 @@ type DadosDaPeca = {
 type Conferencia = DadosDaPeca & {
   id: string; veredito: "confere" | "vale_olhar" | "nao_deu"; motivo: string | null; pagina: string | null; previewUrl: string | null;
   criadaEm: string; resolvidaEm: string | null; resolvidaPor: string | null; nota: string | null; resolucao: ResolucaoDaConferencia | null; reconferir: boolean;
+  /** A conferência mandou a peça de volta para a Finalização (antes da Revisão). */
+  voltou?: boolean;
 };
 type Resposta = { linhas: Conferencia[]; fila: DadosDaPeca[]; ultimaConferencia: string | null };
 type Aba = "olhar" | "nao_deu" | "conferem" | "fila" | "resolvidas";
@@ -207,7 +213,9 @@ function ImagemDaComparacao({ rotulo, url, vazio, aoAmpliar }: { rotulo: string;
   );
 }
 
-function RodapeDaLinha({ l, dedo, aoResolver, aoTirarAviso, tirando }: { l: Conferencia; dedo: boolean; aoResolver: (acao: ResolucaoDaConferencia) => void; aoTirarAviso: () => void; tirando: boolean }) {
+const FRASE_DA_RESOLUCAO: Record<ResolucaoDaConferencia, string> = { certo: "Estava certo", corrigido: "Corrigido", thumb: "Thumb trocado" };
+
+function RodapeDaLinha({ l, dedo, aoResolver, aoTrocarThumb, aoTirarAviso, tirando }: { l: Conferencia; dedo: boolean; aoResolver: (acao: AcaoDoAviso) => void; aoTrocarThumb?: () => void; aoTirarAviso: () => void; tirando: boolean }) {
   const tamanho = dedo ? "toque" : "md";
   const c = caminhoLimpo(l.arquivo);
   return (
@@ -219,7 +227,7 @@ function RodapeDaLinha({ l, dedo, aoResolver, aoTirarAviso, tirando }: { l: Conf
       </div>
       {l.resolvidaEm ? (
         <div data-testid={`resolvida-${l.displayId ?? l.id}`} style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4, maxWidth: "100%" }}>
-          <Selo tom="sucesso" ponto>{l.resolucao === "corrigido" ? "Corrigido" : l.resolucao === "certo" ? "Estava certo" : "Vista"} por {l.resolvidaPor ?? "alguém"} {quando(l.resolvidaEm)}</Selo>
+          <Selo tom="sucesso" ponto>{l.resolucao ? FRASE_DA_RESOLUCAO[l.resolucao] : "Vista"} por {l.resolvidaPor ?? "alguém"} {quando(l.resolvidaEm)}</Selo>
           {l.nota && <span style={{ fontSize: FS.meta, color: T.apoio, overflowWrap: "anywhere" }}><strong>Na Gráfica:</strong> {l.nota}</span>}
           {l.reconferir && <span style={{ fontSize: FS.small, color: T.second }}>Esperando a nova conferência do arquivo.</span>}
           {l.avisoNaGrafica && <Botao variante="secundario" tamanho={dedo ? "toque" : "sm"} onClick={aoTirarAviso} carregando={tirando} data-testid={`tirar-aviso-${l.displayId ?? l.id}`}>Tirar o aviso da Gráfica</Botao>}
@@ -228,6 +236,7 @@ function RodapeDaLinha({ l, dedo, aoResolver, aoTirarAviso, tirando }: { l: Conf
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           <BotaoLink href={linkDaPeca(l)} variante="secundario" tamanho={tamanho} icone={ExternalLink} data-testid={`abrir-${l.displayId ?? l.id}`}>Abrir peça</BotaoLink>
           <Botao variante="secundario" tamanho={tamanho} icone={Check} onClick={() => aoResolver("certo")} data-testid={`certo-${l.displayId ?? l.id}`}>{l.veredito === "nao_deu" ? "Conferi à mão" : "Arquivo está certo"}</Botao>
+          {aoTrocarThumb && <Botao variante="secundario" tamanho={tamanho} icone={ImageUp} onClick={aoTrocarThumb} data-testid={`trocar-thumb-${l.displayId ?? l.id}`}>O thumb está errado</Botao>}
           <Botao variante="primario" tamanho={tamanho} icone={Wrench} onClick={() => aoResolver("corrigido")} data-testid={`corrigi-${l.displayId ?? l.id}`}>Corrigi o arquivo</Botao>
         </div>
       )}
@@ -244,7 +253,8 @@ export default function ConferenciaArquivos() {
   const [evento, setEvento] = useState("all");
   const [vistos, setVistos] = useState(LOTE);
   const [ampliada, setAmpliada] = useState<Conferencia | null>(null);
-  const [resolvendo, setResolvendo] = useState<{ linha: Conferencia; acao: ResolucaoDaConferencia } | null>(null);
+  const [resolvendo, setResolvendo] = useState<{ linha: Conferencia; acao: AcaoDoAviso } | null>(null);
+  const [trocandoThumb, setTrocandoThumb] = useState<Conferencia | null>(null);
   const [aviso, setAviso] = useState("");
   const { data, isLoading, isError, refetch, isFetching } = useQuery<Resposta>({ queryKey: CHAVE, staleTime: 30_000 });
 
@@ -277,7 +287,7 @@ export default function ConferenciaArquivos() {
   const porEvento = useMemo(() => { const m = new Map<string, number>(); for (const l of visiveis) m.set(l.eventId, (m.get(l.eventId) ?? 0) + 1); return m; }, [visiveis]);
 
   const resolver = useMutation({
-    mutationFn: async ({ id, acao, texto }: { id: string; acao: ResolucaoDaConferencia; texto: string }) => (await apiRequest("POST", `/api/conferencia-do-arquivo/${id}/resolver`, { acao, aviso: texto })).json(),
+    mutationFn: async ({ id, acao, texto }: { id: string; acao: AcaoDoAviso; texto: string }) => (await apiRequest("POST", `/api/conferencia-do-arquivo/${id}/resolver`, { acao, aviso: texto })).json(),
     onSuccess: (_r, { texto }) => {
       toast({ title: texto.trim() ? "Resolvido e Gráfica avisada" : "Resolvido", variant: "success" });
       setResolvendo(null); setAviso("");
@@ -285,21 +295,36 @@ export default function ConferenciaArquivos() {
     },
     onError: (e: Error) => toast({ title: "Não foi possível resolver", description: e.message, variant: "destructive" }),
   });
+  const trocarThumb = useMutation({
+    mutationFn: async ({ id, corpo }: { id: string; corpo: { usar: "arquivo_final" } | { thumbUrl: string } }) => (await apiRequest("POST", `/api/conferencia-do-arquivo/${id}/trocar-thumb`, corpo)).json(),
+    onSuccess: () => {
+      toast({ title: "Thumb trocado", description: trocandoThumb?.voltou ? "A peça seguiu para a Revisão Final." : undefined, variant: "success" });
+      setTrocandoThumb(null);
+      void queryClient.invalidateQueries({ queryKey: CHAVE });
+    },
+    onError: (e: Error) => toast({ title: "Não foi possível trocar o thumb", description: e.message, variant: "destructive" }),
+  });
+  const pedirUpload = async () => {
+    const r = await apiRequest("POST", "/api/objects/upload", {});
+    const d = await r.json() as { uploadURL: string };
+    return { method: "PUT" as const, url: d.uploadURL };
+  };
   const tirarAviso = useMutation({
     mutationFn: async (id: string) => (await apiRequest("POST", `/api/conferencia-do-arquivo/${id}/tirar-aviso`, {})).json(),
     onSuccess: () => { toast({ title: "Aviso tirado da Gráfica", variant: "success" }); void queryClient.invalidateQueries({ queryKey: CHAVE }); },
     onError: (e: Error) => toast({ title: "Não foi possível tirar o aviso", description: e.message, variant: "destructive" }),
   });
   const tamanhoDoBotao = dedo ? "toque" : "md";
-  const pedirResolver = (linha: Conferencia, acao: ResolucaoDaConferencia) => { setAviso(""); setResolvendo({ linha, acao }); };
-  const leituraDoAviso = resolvendo ? lerResolucao({ acao: resolvendo.acao, aviso }) : null;
+  const pedirResolver = (linha: Conferencia, acao: AcaoDoAviso) => { setAviso(""); setResolvendo({ linha, acao }); };
+  const leituraDoAviso = resolvendo ? lerResolucao({ acao: resolvendo.acao, aviso }, resolvendo.linha.status) : null;
+  const avisoOpcional = !!resolvendo && !avisoObrigatorio(resolvendo.linha.status, resolvendo.acao);
   let eventoAnterior: string | null = null;
 
   return (
     <div data-testid="pagina-conferencia-arquivos" className="container mx-auto p-4 max-w-6xl 2xl:max-w-[1440px]" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <CabecalhoDaPagina
         titulo="Conferência de arte"
-        subtitulo={isMobile ? "O arquivo final é a mesma arte do thumb? Nenhuma peça fica travada." : "Compara o arquivo final com o thumb das peças que ainda não foram impressas. É um aviso para olhar: nenhuma peça fica travada."}
+        subtitulo={isMobile ? "O arquivo final é a mesma arte do thumb? Com diferença, a peça volta para a Finalização." : "Compara o arquivo final com o thumb antes da Revisão Final. Com diferença, a peça volta para a Finalização até alguém resolver aqui. Depois de liberada, é só um aviso para olhar."}
       />
       {data && (
         <PainelDaCobertura conferem={grupos.conferem.length} olhar={grupos.olhar.length} naoDeu={grupos.nao_deu.length} resolvidas={grupos.resolvidas.length} fila={fila.length} ultima={data.ultimaConferencia} />
@@ -363,6 +388,12 @@ export default function ConferenciaArquivos() {
                   {l.veredito === "vale_olhar" ? (
                     <article data-testid={testId} style={{ ...cartao, padding: isMobile ? 12 : 14, flexDirection: "column", gap: 12 }}>
                       <DadosDaLinha l={l} />
+                      {conf.voltou && !conf.resolvidaEm && (
+                        <div data-testid={`voltou-${l.displayId ?? chave}`} style={{ display: "flex", flexWrap: "wrap", gap: "4px 10px", alignItems: "center", fontSize: FS.body, color: T.apoio }}>
+                          <Selo tom="perigo" icone={Undo2} tamanho="sm">Voltou para a Finalização</Selo>
+                          <span>A Revisão só recebe a peça depois que alguém resolver aqui.</span>
+                        </div>
+                      )}
                       {l.motivo && (
                         <div style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "9px 12px", borderRadius: R.md, backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, color: TOM.alerta.text, fontSize: FS.body }}>
                           <TriangleAlert aria-hidden="true" style={{ width: 15, height: 15, flexShrink: 0, marginTop: 2 }} />
@@ -373,7 +404,7 @@ export default function ConferenciaArquivos() {
                         <ImagemDaComparacao rotulo="Thumb" url={l.thumb} vazio="Sem thumb" aoAmpliar={() => setAmpliada(conf)} />
                         <ImagemDaComparacao rotulo={l.pagina && !l.pagina.endsWith("/1") ? `Arquivo final · prancheta ${l.pagina}` : "Arquivo final"} url={l.previewUrl ?? null} vazio="Sem imagem do arquivo" aoAmpliar={() => setAmpliada(conf)} />
                       </div>
-                      <RodapeDaLinha l={conf} dedo={dedo} aoResolver={(acao) => pedirResolver(conf, acao)} aoTirarAviso={() => tirarAviso.mutate(conf.id)} tirando={tirarAviso.isPending && tirarAviso.variables === conf.id} />
+                      <RodapeDaLinha l={conf} dedo={dedo} aoResolver={(acao) => pedirResolver(conf, acao)} aoTrocarThumb={() => setTrocandoThumb(conf)} aoTirarAviso={() => tirarAviso.mutate(conf.id)} tirando={tirarAviso.isPending && tirarAviso.variables === conf.id} />
                     </article>
                   ) : l.veredito === "nao_deu" ? (
                     <article data-testid={testId} style={{ ...cartao, padding: isMobile ? 12 : 14, flexDirection: "column", gap: 10 }}>
@@ -434,15 +465,17 @@ export default function ConferenciaArquivos() {
           <DialogHeader>
             <DialogTitle>{resolvendo?.acao === "corrigido" ? "Corrigi o arquivo" : resolvendo?.linha.veredito === "nao_deu" ? "Conferi à mão" : "Arquivo está certo"} · {resolvendo?.linha.displayId ?? "peça"}</DialogTitle>
             <DialogDescription>
-              {resolvendo?.acao === "corrigido" ? "O aviso sai da lista e o arquivo é conferido de novo. Se ainda parecer diferente, o aviso volta." : "O aviso sai da lista e fica registrado no histórico da peça."}
+              {resolvendo?.acao === "corrigido"
+                ? (resolvendo.linha.voltou ? "A peça vai para a Revisão Final e o arquivo é conferido de novo. Se ainda parecer diferente, ela volta para a Finalização." : "O aviso sai da lista e o arquivo é conferido de novo. Se ainda parecer diferente, o aviso volta.")
+                : resolvendo?.linha.voltou ? "A peça segue para a Revisão Final e a decisão fica no histórico dela." : "O aviso sai da lista e fica registrado no histórico da peça."}
             </DialogDescription>
           </DialogHeader>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <label htmlFor="aviso-da-conferencia" style={{ fontSize: FS.body, fontWeight: FW.forte, color: T.text }}>
-              O que vai aparecer na Gráfica {resolvendo?.acao === "certo" && <span style={{ fontWeight: FW.medio, color: T.second }}>(opcional)</span>}
+              O que vai aparecer na Gráfica {avisoOpcional && <span style={{ fontWeight: FW.medio, color: T.second }}>(opcional)</span>}
             </label>
             <div role="group" aria-label="Atalhos do aviso" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {resolvendo && ATALHOS_DO_AVISO[resolvendo.acao].map((a) => (
+              {resolvendo && ATALHOS_DO_AVISO[resolvendo.acao].map((a: string) => (
                 <button key={a} type="button" className="ds-botao" aria-pressed={aviso === a} onClick={() => setAviso(a)} data-testid={`atalho-${a}`} style={{ padding: dedo ? "10px 12px" : "6px 10px", borderRadius: R.md, cursor: "pointer", textAlign: "left", fontSize: FS.meta, fontWeight: FW.medio, border: `1px solid ${aviso === a ? T.accent : T.border}`, backgroundColor: aviso === a ? TOM.laranja.bg : T.surface, color: aviso === a ? TOM.laranja.text : T.apoio }}>{a}</button>
               ))}
             </div>
@@ -452,7 +485,45 @@ export default function ConferenciaArquivos() {
           </div>
           <DialogFooter>
             <Botao variante="secundario" tamanho={tamanhoDoBotao} onClick={() => setResolvendo(null)} disabled={resolver.isPending}>Agora não</Botao>
-            <Botao variante="primario" tamanho={tamanhoDoBotao} icone={Check} carregando={resolver.isPending} disabled={!leituraDoAviso?.ok} onClick={() => { if (resolvendo) resolver.mutate({ id: resolvendo.linha.id, acao: resolvendo.acao, texto: aviso }); }} data-testid="confirmar-resolver">{aviso.trim() ? "Resolver e avisar a Gráfica" : "Resolver"}</Botao>
+            <Botao variante="primario" tamanho={tamanhoDoBotao} icone={Check} carregando={resolver.isPending} disabled={!leituraDoAviso?.ok || (!avisoOpcional && !aviso.trim())} onClick={() => { if (resolvendo) resolver.mutate({ id: resolvendo.linha.id, acao: resolvendo.acao, texto: aviso }); }} data-testid="confirmar-resolver">{aviso.trim() ? "Resolver e avisar a Gráfica" : "Resolver"}</Botao>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* O thumb é que estava errado: troca aqui, sem esperar a peça chegar na Gráfica. */}
+      <Dialog open={!!trocandoThumb} onOpenChange={(o) => { if (!o && !trocarThumb.isPending) setTrocandoThumb(null); }}>
+        <DialogContent className="sm:max-w-[640px]" data-testid="trocar-thumb-conferencia">
+          <DialogHeader>
+            <DialogTitle>Trocar o thumb · {trocandoThumb?.displayId ?? "peça"}</DialogTitle>
+            <DialogDescription>
+              O arquivo final fica como está e o thumb passa a ser a imagem escolhida. A troca fica no histórico e nas Versões da peça.{trocandoThumb?.voltou ? " A peça segue para a Revisão Final." : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+            {[{ r: "Thumb de agora", u: trocandoThumb?.thumb }, { r: "Arquivo final", u: trocandoThumb?.previewUrl }].map(({ r, u }) => (
+              <figure key={r} style={{ margin: 0, flex: "1 1 220px", minWidth: 0 }}>
+                <figcaption style={{ fontSize: FS.small, fontWeight: FW.forte, color: T.apoio, marginBottom: 6 }}>{r}</figcaption>
+                {u ? <img src={u} alt={r} style={{ width: "100%", height: 150, objectFit: "contain", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.low }} /> : <p style={{ margin: 0, fontSize: FS.meta, color: T.second }}>Sem imagem</p>}
+              </figure>
+            ))}
+          </div>
+          <DialogFooter style={{ flexWrap: "wrap", gap: 8 }}>
+            <Botao variante="secundario" tamanho={tamanhoDoBotao} onClick={() => setTrocandoThumb(null)} disabled={trocarThumb.isPending}>Agora não</Botao>
+            <FileUploader
+              onGetUploadParameters={pedirUpload}
+              onComplete={(r) => { if (trocandoThumb) trocarThumb.mutate({ id: trocandoThumb.id, corpo: { thumbUrl: convertGCSUrlToLocalPath(r.url) } }); }}
+              accept="image/*"
+              data-testid="enviar-outro-thumb"
+              disabled={trocarThumb.isPending}
+              buttonVariant="outline"
+              buttonClassName={dedo ? "h-11 min-h-[44px] px-4" : "h-10 px-4"}
+            >
+              Enviar outra imagem
+            </FileUploader>
+            <Botao variante="primario" tamanho={tamanhoDoBotao} icone={ImageUp} carregando={trocarThumb.isPending} disabled={!trocandoThumb?.previewUrl}
+              onClick={() => { if (trocandoThumb) trocarThumb.mutate({ id: trocandoThumb.id, corpo: { usar: "arquivo_final" } }); }} data-testid="usar-arquivo-final">
+              Usar a imagem do arquivo final
+            </Botao>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -117,6 +117,7 @@ const EventDetail = lazyPage(() => import("@/pages/event-detail"));
 const RelatorioEvento = lazyPage(() => import("@/pages/relatorio-evento"));
 const EtiquetasEvento = lazyPage(() => import("@/pages/etiquetas-evento"));
 const BookGerador = lazyPage(() => import("@/pages/book-gerador"));
+const BookAutomatico = lazyPage(() => import("@/pages/book-automatico"));
 const Arte = lazyPage(() => import("@/pages/arte"));
 const Atendimento = lazyPage(() => import("@/pages/atendimento"));
 const Solicitacao = lazyPage(() => import("@/pages/solicitacao"));
@@ -263,6 +264,7 @@ function getRouteLabel(location: string): string {
   // clique tinha levado a algum lugar.
   if (location.startsWith("/eventos/")) {
     if (location.endsWith("/gerar-book")) return "Gerar book";
+    if (location.endsWith("/book-automatico")) return "Rascunho do book";
     if (location.endsWith("/etiquetas")) return "Etiquetas do evento";
     if (location.endsWith("/relatorio")) return "Relatório do evento";
   }
@@ -284,6 +286,7 @@ const ROLES_ATENDIMENTO = ["atendimento", "arte", "solicitacao", "admin"];
 const ROLES_SOLICITACAO = ["solicitacao", "admin"];
 const ROLES_GRAFICA = ["grafica", "solicitacao", "admin"];
 const ROLES_CONFERENCIA = ["arte", "admin"];
+const ROLES_RASCUNHO_DO_BOOK = ["arte", "solicitacao", "admin"];
 // Triagem e local no galpão são da Gráfica (dono, 14/09). O Estoque usa
 // ROLES_GRAFICA: a Solicitação consulta o que tem para reservar.
 // 15/09: Triagem de Retorno é só do admin (como o Estoque).
@@ -501,6 +504,9 @@ function Router() {
         {() => <ProtectedRoute component={Eventos} />}
       </Route>
       {/* Duas segmentos — declarada antes da genérica por clareza. */}
+      <Route path="/eventos/:id/book-automatico">
+        {() => <RoleProtectedRoute component={BookAutomatico} allowedRoles={ROLES_RASCUNHO_DO_BOOK} semKit />}
+      </Route>
       <Route path="/eventos/:id/gerar-book">
         {() => <ProtectedRoute component={BookGerador} />}
       </Route>

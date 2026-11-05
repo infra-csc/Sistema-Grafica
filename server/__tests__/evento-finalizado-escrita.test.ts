@@ -610,6 +610,8 @@ const NA_REDE = (rel: string) => rel.startsWith("server/routes/itens/") || ["ser
 const FORA_DO_RECORTE: Record<string, string> = {
   // 04/11: grava o aviso da conferência do arquivo; não mexe na peça.
   "server/routes/conferencia-do-arquivo.ts": "aviso à parte, não muda a peça",
+  // 04/11: o rascunho do book não publica nem muda peça.
+  "server/routes/book-automatico.ts": "rascunho à parte, não muda a peça",
   "server/routes/analises.ts": "leitura", "server/routes/artes-busca.ts": "leitura", "server/routes/audit-logs.ts": "leitura",
   "server/routes/auth.ts": "sessão e usuários", "server/routes/busca.ts": "leitura",
   // 21/10: quem está na máquina no login compartilhado — sessão, não peça.

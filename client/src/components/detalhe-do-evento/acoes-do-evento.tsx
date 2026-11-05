@@ -3,6 +3,7 @@
 // "Mais" (book, etiquetas, relatório, Excel, clonar, encerrar/reabrir), com o
 // porquê de cada bloqueio escrito ao lado.
 // ─────────────────────────────────────────────────────────────────────────────
+import { useAuth } from "@/contexts/auth-context";
 import { useRef, type ReactNode } from "react";
 import { Plus, Lock, Unlock, Upload, Copy, ChevronDown, FileSpreadsheet, FileText, Tags, BookOpen, MoreHorizontal, RotateCcw, Eye } from "lucide-react";
 import {
@@ -45,6 +46,7 @@ export function AcoesDoEvento({
   /** O modal de entrada de peças mora aqui, junto do botão que o abre. */
   children: ReactNode;
 }) {
+  const { user } = useAuth();
   // Ação escolhida no menu "Mais" que abre um diálogo — executada só quando o
   // menu termina de fechar (ver onCloseAutoFocus abaixo).
   const acaoAposMenuRef = useRef<(() => void) | null>(null);
@@ -140,6 +142,12 @@ export function AcoesDoEvento({
                 <BookOpen aria-hidden="true" style={{ color: TOM.roxo.text }} />
                 Gerar book
               </DropdownMenuItem>
+              {["arte", "solicitacao", "admin"].includes(user?.role ?? "") && !user?.kit && (
+                <DropdownMenuItem data-testid="button-rascunho-book" onSelect={() => setLocation(`/eventos/${eventId}/book-automatico`)} className={itemDoMenu}>
+                  <BookOpen aria-hidden="true" style={{ color: TOM.roxo.text }} />
+                  Rascunho do book (teste)
+                </DropdownMenuItem>
+              )}
               {/* Etiquetas — para colar no material depois da conferência. */}
               <DropdownMenuItem data-testid="button-etiquetas-evento" onSelect={() => setLocation(`/eventos/${eventId}/etiquetas`)} className={itemDoMenu}>
                 <Tags aria-hidden="true" style={{ color: T.accentText }} />

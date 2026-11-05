@@ -585,6 +585,30 @@ export const auditoriasDoBook = pgTable("auditorias_do_book", {
   index("IDX_auditorias_do_book_event_id").on(table.eventId),
 ]);
 
+// O rascunho do book automático (04/11): uma linha por versão. Não publica nada.
+export const rascunhosDoBook = pgTable("rascunhos_do_book", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  versao: integer("versao").notNull(),
+  pdfUrl: text("pdf_url").notNull(),
+  paginas: integer("paginas").notNull(),
+  pecasNoBook: integer("pecas_no_book").notNull(),
+  // As páginas e as peças de cada uma; o que ficou fora, com o motivo.
+  plano: jsonb("plano").notNull(),
+  fora: jsonb("fora").notNull(),
+  // Peça → thumb nesta versão: é o que diz se ela ficou desatualizada.
+  pecasDaVersao: jsonb("pecas_da_versao").notNull(),
+  mudancas: jsonb("mudancas"),
+  // De qual evento vieram a capa e o rodapé.
+  modeloEvento: text("modelo_evento"),
+  geradoPor: text("gerado_por").notNull(),
+  automatico: boolean("automatico").notNull().default(false),
+  tamanho: integer("tamanho"),
+  criadoEm: timestamp("criado_em").notNull().default(sql`now()`),
+}, (table) => [
+  uniqueIndex("UQ_rascunho_evento_versao").on(table.eventId, table.versao),
+]);
+
 // Conferência do arquivo final × thumb aprovado (Pedro/dono, 04/11). Uma linha por
 // combinação de peça, arquivo e thumb: trocou um dos dois, confere de novo.
 export const conferenciasDoArquivo = pgTable("conferencias_do_arquivo", {

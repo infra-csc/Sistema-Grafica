@@ -299,6 +299,15 @@ export default function Arte() {
 
   const lote = useLoteDeThumbs({ allItems, correcaoItems, podeEditar, toast, confirmar, uploadFileRaw: uploads.uploadFileRaw });
   const book = useBookDaArte({ arteItemsPool, eventFilter, toast, uploadFileRaw: uploads.uploadFileRaw });
+  // Vindo da tela Books ("Publicar book"): abre o "Subir book" já no evento, uma vez.
+  const subirBookDoLink = useRef(new URLSearchParams(window.location.search).get("subirBook"));
+  useEffect(() => {
+    const ev = subirBookDoLink.current;
+    if (!ev || isLoading) return;
+    subirBookDoLink.current = null;
+    book.openBookModal();
+    book.setBookEventId(ev);
+  }, [isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Exportação ───────────────────────────────────────────────────────────
   const [showExportModal, setShowExportModal] = useState(false);

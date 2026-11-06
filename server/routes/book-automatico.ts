@@ -35,6 +35,53 @@ export function registerBookAutomaticoRoutes(app: Express): void {
     }
   });
 
+  // A TELA DOS BOOKS (dono, 06/11: "está muito escondido"): cada evento por vir com o
+  // book oficial, quantas peças mudaram depois dele, o rascunho automático e o que a
+  // Conferência de arte ainda pede. Por enquanto só Arte e admin.
+  app.get("/api/books", requireRole("admin", "arte"), async (req, res) => {
+    try {
+      if (req.userKit) return res.status(403).json({ error: "Os books não fazem parte do Kit." });
+      const VIVA = `i.deleted_at is null and i.kit_remessa_id is null and i.status not in ('canceled','cancelled','archived','deleted')`;
+      const { rows } = await pool.query(`
+        with ev as (
+          select e.id, e.name as nome, to_char(e.start_date, 'YYYY-MM-DD') as inicio, to_char(e.truck_departure_date, 'YYYY-MM-DD') as saida, e.truck_departure_date as ordem
+            from events e
+           where e.arquivado_em is null and e.status <> 'closed' and e.start_date >= (now() at time zone 'America/Sao_Paulo')::date - 1
+        ), b as (
+          select distinct on (event_id) event_id, id, book_url, item_count, created_by, created_at, comment, thumbs
+            from event_books order by event_id, created_at desc
+        ), r as (
+          select distinct on (event_id) event_id, versao, pdf_url, paginas, plano, criado_em, automatico
+            from rascunhos_do_book order by event_id, versao desc
+        )
+        select ev.id, ev.nome, ev.inicio, ev.saida,
+               (select count(*)::int from items i where i.event_id = ev.id and ${VIVA}) as pecas,
+               (select count(*)::int from items i where i.event_id = ev.id and ${VIVA} and i.approval_thumb_url like '/objects/%') as "comArte",
+               b.book_url as "bookUrl", b.item_count as "bookPecas", b.created_by as "bookPor", ${ISO("b.created_at")} as "bookEm", b.comment as "bookComentario",
+               (select count(*)::int from event_books x where x.event_id = ev.id) as publicacoes,
+               case when b.id is null then null
+                    when b.thumbs is not null then (select count(*)::int from items i where i.event_id = ev.id and ${VIVA} and i.approval_thumb_url like '/objects/%'
+                         and (not (b.thumbs ? i.id) or (b.thumbs ->> i.id) is distinct from i.approval_thumb_url))
+                    else (select count(*)::int from items i where i.event_id = ev.id and ${VIVA} and i.approval_thumb_url like '/objects/%'
+                         and (i.created_at > b.created_at or exists (select 1 from item_art_versions v where v.item_id = i.id and v.created_at > b.created_at)))
+               end as "mudaram",
+               r.versao as "rascunhoVersao", ${ISO("r.criado_em")} as "rascunhoEm", r.pdf_url as "rascunhoUrl", r.paginas as "rascunhoPaginas", r.plano as "rascunhoPlano",
+               (select count(*)::int from conferencias_do_arquivo c join items i on i.id = c.item_id
+                 where i.event_id = ev.id and i.deleted_at is null and c.arquivo = i.final_file_url and c.thumb = i.approval_thumb_url
+                   and c.veredito <> 'confere' and c.resolvida_em is null) as "conferenciaPendente"
+          from ev left join b on b.event_id = ev.id left join r on r.event_id = ev.id
+         order by ev.ordem nulls last, ev.nome`);
+      res.json(rows.map(({ rascunhoPlano, ...e }: { rascunhoPlano: Array<{ origem?: string }> | null; [k: string]: unknown }) => {
+        const origens: Record<string, number> = {};
+        for (const p of rascunhoPlano ?? []) { const o = p.origem ?? "regra"; origens[o] = (origens[o] ?? 0) + 1; }
+        return { ...e, rascunhoOrigens: rascunhoPlano ? origens : null };
+      }));
+    } catch (erro) {
+      console.error("[books] lista", erro);
+      res.status(500).json({ error: "Não foi possível carregar os books." });
+    }
+  });
+
   app.post("/api/book-automatico/:eventId/gerar", requireRole("admin", "arte", "solicitacao"), async (req, res) => {
     try {
       if (req.userKit) return res.status(403).json({ error: "O rascunho do book não faz parte do Kit." });

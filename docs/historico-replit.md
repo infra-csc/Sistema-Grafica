@@ -1,18 +1,20 @@
 # NORTE — Sistema Gráfica (notas do Replit)
 
+> **Documento histórico.** Registra o estado da época em que foi escrito (migração para a VPS, concluída em 26/10/2026). Para a operação atual, veja [operação da produção](operacao-producao.md).
+
 > Histórico da hospedagem anterior. As instruções de publicação abaixo foram
 > substituídas pela [execução independente](desvinculacao-replit.md).
 
-**A documentação do projeto mora no [README.md](README.md).** Este arquivo
+**A documentação do projeto mora no [README.md](../README.md).** Este arquivo
 guarda só o que é do Replit e as preferências de trabalho do dono.
 
 | Quero saber | Onde está |
 | --- | --- |
-| O que o app é, os perfis, o caminho da peça, como rodar local | [README.md](README.md) |
-| Camadas, `shared/`, tempo real, caches, agendadores, uploads | [docs/arquitetura.md](docs/arquitetura.md) |
-| Status da peça: quem move, de onde, para onde | [docs/estados-da-peca.md](docs/estados-da-peca.md) |
-| Variáveis de ambiente, uma por uma | [.env.example](.env.example) |
-| Testes de ponta a ponta | [e2e/README.md](e2e/README.md) |
+| O que o app é, os perfis, o caminho da peça, como rodar local | [README.md](../README.md) |
+| Camadas, `shared/`, tempo real, caches, agendadores, uploads | [docs/arquitetura.md](arquitetura.md) |
+| Status da peça: quem move, de onde, para onde | [docs/estados-da-peca.md](estados-da-peca.md) |
+| Variáveis de ambiente, uma por uma | [.env.example](../.env.example) |
+| Testes de ponta a ponta | [e2e/README.md](../e2e/README.md) |
 
 > Este arquivo já foi um espelho da arquitetura, mantido à mão — e envelheceu,
 > como todo espelho: descrevia status em português (`aguardando_envio`) que o

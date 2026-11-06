@@ -11,6 +11,22 @@ em `https://grafica.appsnorte.com`.
 | App | `127.0.0.1:5000` (1,5 GB) | `127.0.0.1:5001` (768 MB) |
 | Postgres | `127.0.0.1:5432` (1 GB) | `127.0.0.1:5433` (384 MB, `grafica_dev`) |
 | Rede / volume | `grafica-homolog_backend` / `grafica-homolog_postgres_data` | `grafica-dev_backend` / `grafica-dev_postgres_data` |
+| Login | Microsoft, portal NORTE e senha | só e-mail e senha local (`MICROSOFT_*` vazias) |
+| Branch | `main` | `dev` |
+
+## Estado (novembro de 2026)
+
+- No ar desde 26/10/2026, com o banco `grafica_dev` copiado da produção.
+- **Deploy automático preparado, mas ainda não ligado**: falta colocar a chave
+  pública do CI no `~/.ssh/authorized_keys` da VPS (linha com `command=`
+  forçado, abaixo) e criar o secret `DEV_SSH_PRIVATE_KEY` no GitHub
+  (Settings → Environments → `dev`). Até lá o job "Deploy DEV" falha no SSH e o
+  DEV é atualizado à mão (seção "Atualizar o DEV").
+- **Arquivos**: o R2 do dev aponta para valores fictícios. Upload e miniatura
+  não funcionam no DEV até existir o bucket `grafica-dev-arquivos` com um token
+  só dele.
+- O fluxo de trabalho é: commit na `dev` → testar aqui → PR `dev` → `main` →
+  publicar na produção ([docs/operacao-producao.md](../../docs/operacao-producao.md)).
 
 ## Isolamento
 

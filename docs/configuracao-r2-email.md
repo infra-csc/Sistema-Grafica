@@ -1,5 +1,7 @@
 # Etapa 3 — Cloudflare R2 da Gráfica
 
+> **Documento histórico.** Registra o estado da época em que foi escrito (migração para a VPS, concluída em 26/10/2026). Para a operação atual, veja [operação da produção](operacao-producao.md).
+
 Escopo atual: configurar somente a Cloudflare. Resend adiado por solicitação
 do usuário; sua conta e seus registros DNS serão tratados em outra etapa.
 

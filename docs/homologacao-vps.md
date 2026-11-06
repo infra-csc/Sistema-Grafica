@@ -1,5 +1,7 @@
 # Homologação da Gráfica na VPS
 
+> **Documento histórico.** Registra o estado da época em que foi escrito (migração para a VPS, concluída em 26/10/2026). Para a operação atual, veja [operação da produção](operacao-producao.md).
+
 Atualização em 09/10/2026: app usa a cópia `grafica_import_20261008`, imagem `20261009-microsoft`, login Microsoft direto validado e chave SSO alinhada. Destino ativo no portal permanece no Replit. Fluxos de pedido, arte, aprovação, produção e entrega aprovados pelas APIs da homologação, assim como arquivos e miniaturas no R2. Ver [homologação com os dados copiados](homologacao-dados-copiados-20261009.md) e [login Microsoft direto](login-microsoft-direto.md). As seções seguintes registram a implantação inicial de 07/10 e descrevem o estado daquela data.
 
 Implantação concluída em 07/10/2026 em https://grafica.appsnorte.com.

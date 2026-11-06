@@ -1,5 +1,7 @@
 # Login Microsoft e migração da Gráfica
 
+> **Documento histórico.** Registra o estado da época em que foi escrito (migração para a VPS, concluída em 26/10/2026). Para a operação atual, veja [operação da produção](operacao-producao.md).
+
 Mapeamento iniciado em 08/10/2026 e complementado em 09/10/2026 com leitura do projeto do hub no Replit. Fluxo confirmado no código: Microsoft → Portal NORTE → Gráfica. O código do portal foi consultado pelo editor remoto; não foi copiado para este projeto.
 
 ## Contrato atual

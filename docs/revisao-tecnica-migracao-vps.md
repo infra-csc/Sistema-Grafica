@@ -1,5 +1,7 @@
 # Revisão técnica do Sistema Gráfica e preparação para VPS
 
+> **Documento histórico.** Registra o estado da época em que foi escrito (migração para a VPS, concluída em 26/10/2026). Para a operação atual, veja [operação da produção](operacao-producao.md).
+
 Data: 07/10/2026. Escopo: código desta cópia local, configuração de deploy,
 dependências, autenticação, arquivos, principais módulos e testes disponíveis.
 Na revisão inicial não houve acesso ao Replit publicado, ao banco ou ao bucket real.

@@ -4,6 +4,13 @@ Um mapa para quem vai mexer. Não repete o que o código já diz: aponta onde ca
 coisa mora e, principalmente, **por que ela é assim** — as decisões que já
 custaram caro.
 
+> **Hospedagem.** Desde 26/10/2026 o app roda numa VPS (um processo Node em
+> container, PostgreSQL 16 local, arquivos no R2) — ver
+> [operacao-producao.md](operacao-producao.md). Partes deste documento nasceram
+> no Replit (várias cópias em autoscale, Neon com pooler). Os mecanismos
+> continuam no código e continuam valendo se houver mais de uma cópia; onde o
+> texto cita Neon ou autoscale, leia como o motivo histórico da decisão.
+
 ---
 
 ## As três camadas e o que é de cada uma
@@ -80,7 +87,7 @@ Rota de escrita sem linha na tabela = qualquer usuário autenticado.
 
 ## Autenticação e sessão
 
-Dois caminhos de entrada, uma sessão só (cookie, `express-session` sobre
+Três caminhos de entrada, uma sessão só (cookie, `express-session` sobre
 `connect-pg-simple` — a sessão vive no Postgres, e é por isso que dá para
 derrubá-la de outra cópia):
 
@@ -91,6 +98,12 @@ derrubá-la de outra cópia):
 2. **SSO do portal NORTE** — `?portal_sso=<JWT>` → token de troca de **uso
    único** em tabela → `POST /api/auth/sso-exchange` cria a sessão na mesma
    origem.
+3. **Microsoft direto** (09/10) — `GET /api/auth/microsoft` → Entra ID
+   (código + PKCE, state e nonce, MSAL Node) → `/api/auth/microsoft/callback`
+   confere a identidade no Microsoft Graph e reaproveita a mesma troca de uso
+   único. Só entra quem já tem cadastro na Gráfica; não cria conta nem muda
+   perfil (`server/microsoft-auth.ts`, detalhes em
+   [login-microsoft-direto.md](login-microsoft-direto.md)).
 
 A sessão é *rolling* (cada requisição renova 7 dias), com duas travas em
 `server/sessao-valida.ts`, que roda **antes de qualquer rota**:

@@ -1,5 +1,7 @@
 # Validação visual — Replit versus VPS — 09/10/2026
 
+> **Documento histórico.** Registra o estado da época em que foi escrito (migração para a VPS, concluída em 26/10/2026). Para a operação atual, veja [operação da produção](operacao-producao.md).
+
 **Resultado revisado: colunas do Painel e da Revisão equivalentes na mesma largura; ajuste da fila da Gráfica aplicado e validado na homologação.** A comparação inicial confundiu mudanças responsivas com diferenças de versão. Não se afirma igualdade pixel a pixel nem cobertura integral do app.
 
 Origem: https://print-flow-manager-infraestrutura2.replit.app/.

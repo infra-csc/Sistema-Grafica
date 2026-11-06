@@ -131,7 +131,7 @@ describe("o menu pré-carrega a tela antes do clique", () => {
     const menu = lerFonte("client/src/components/app-sidebar.tsx");
     const prefetch = lerFonte("client/src/lib/prefetch-de-rota.ts");
     const urls = Array.from(menu.matchAll(/\{ title: "[^"]+",\s*url: "([^"]+)"/g), (m) => m[1]);
-    expect(urls.length).toBe(29); // + Impressoras, Inferir executivos, Reparo de vínculos, Configurações (26/10), Reaproveitar (03/11) e Conferência de arquivos (04/11)
+    expect(urls.length).toBe(30); // + Impressoras, Inferir executivos, Reparo de vínculos, Configurações (26/10), Reaproveitar (03/11) e Conferência de arquivos (04/11) e Books (06/11)
     for (const url of urls) expect(prefetch, url).toContain(`"${url}": () => import(`);
     expect(menu).toContain("prefetchRota(item.url)");
   });

@@ -78,9 +78,9 @@ export const CHAVES_POR_MENSAGEM: Readonly<Record<TipoMensagemWS, readonly AlvoD
   event_sponsors_repaired: ["/api/events", ...PATROCINIO, "/api/admin/reparo-vinculos-evento"],
 
   item_created: ["/api/items"],
-  item_updated: ["/api/items", "/api/events", ...GM],
+  item_updated: ["/api/items", "/api/events", ...GM, "/api/books"],
   item_deleted: ["/api/items", "/api/items/deleted", "/api/events", ...GM],
-  items_book_updated: ["/api/items"],
+  items_book_updated: ["/api/items", "/api/books"],
   items_bulk_created: ["/api/items", "/api/items/pending"],
   items_bulk_updated: ["/api/items", "/api/events", ...GM],
   // A peça LIBERADA entra na fila geral de Máquinas na mesma hora em que
@@ -142,8 +142,8 @@ export const CHAVES_POR_MENSAGEM: Readonly<Record<TipoMensagemWS, readonly AlvoD
   // Auditoria do book (19/10): a faixa e o selo de Eventos e o número do menu.
   auditorias_do_book: [{ prefixo: "/api/auditorias-do-book" }],
   // A tela da conferência e o aviso na ficha da Revisão Final.
-  conferencia_do_arquivo: [{ prefixo: "/api/conferencia-do-arquivo" }],
-  book_automatico: [{ prefixo: "/api/book-automatico" }],
+  conferencia_do_arquivo: [{ prefixo: "/api/conferencia-do-arquivo" }, "/api/books"],
+  book_automatico: [{ prefixo: "/api/book-automatico" }, { prefixo: "/api/books" }],
 
   deadline_alert: ["/api/events"],
   // Chega junto com notification_created; a Gestão de Prazos é do hook.

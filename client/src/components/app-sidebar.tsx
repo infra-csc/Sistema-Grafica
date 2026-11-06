@@ -2,7 +2,7 @@ import {
   Calendar, CalendarRange, Palette, Printer, Layers, LayoutDashboard,
   Activity, BarChart3, Users, Building2, UserCheck, ClipboardCheck,
   Link2, LogOut, ScrollText, Archive, ScanSearch, Settings2, SlidersHorizontal, Camera, Wand2,
-  Timer, GitBranch, Bell, Inbox, Cog, PackageSearch, Recycle, X, FileSearch } from "lucide-react";
+  Timer, GitBranch, Bell, Inbox, Cog, PackageSearch, Recycle, X, FileSearch, BookOpen } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
@@ -81,6 +81,8 @@ const ITEM_SOLICITACOES_AO_ESTOQUE: MenuItem = {
 const fluxoItems: MenuItem[] = [
   { title: "Vincular Patrocinadores", url: "/vincular-patrocinadores", icon: Link2,          roles: ["arte", "solicitacao", "atendimento", "admin"] },
   { title: "Arte",                    url: "/arte",                    icon: Palette,        roles: ["arte", "atendimento", "admin"] },
+  // O book de cada evento num lugar só (dono, 06/11: "está muito escondido"). Só Arte e admin por enquanto.
+  { title: "Books",                   url: "/books",                   icon: BookOpen,       roles: ["arte", "admin"], semKit: true },
   { title: "Atendimento",             url: "/atendimento",             icon: UserCheck,      roles: ["atendimento", "arte", "solicitacao", "admin"], semKit: true },
   // "Revisão Final" e não só "Revisão" (16/09): o status que traz a peça para
   // cá chama-se "Aguardando Revisão Final", e quem lia o selo não achava no
@@ -164,7 +166,8 @@ const DESCRICAO_DA_TELA: Record<string, string> = {
   "/solicitacao": "4º passo: conferir o arquivo final e liberar para produção (ou devolver à Arte)",
   "/grafica": "5º passo: produzir, conferir e entregar as peças liberadas",
   "/reaproveitar": "Dizer quantas peças temos no estoque; o que faltar vai para a Gráfica produzir",
-  "/conferencia-arquivos": "Comparar o arquivo final com o thumb das peças que ainda não foram impressas",
+  "/conferencia-arquivos": "Comparar o arquivo final com o thumb antes da Revisão Final",
+  "/books": "O book de cada evento: a versão oficial, o que mudou depois dela e o rascunho automático",
   "/grafica/maquinas": "O que cada impressora está imprimindo agora e o que saiu de cada uma no dia",
   "/grafica/solicitacoes-ao-estoque": "A Revisão Final pede peças ao estoque para reaproveitar; a Gráfica atende, atende em parte ou diz que não consegue",
   "/pedidos-de-peca": "Peças que faltam na lista de um evento: o Atendimento pede, a Solicitação cria",
